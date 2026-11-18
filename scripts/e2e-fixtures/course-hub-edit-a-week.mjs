@@ -22,7 +22,8 @@
  * The spec (`tests/e2e/course-hub-edit-a-week.spec.mjs`) is the harness's
  * admin, Gus, Ada and Fern, each in a browser of their own. Last, Gus
  * rewords the prompt Ada and Cleo answered, telling nobody, and Ada's week
- * page and Fern's reflections with names show the words it had.
+ * page and Fern's reflections with names (the page of one question across
+ * the group) show the words it had.
  *
  * ## What it leaves, and how it goes
  *
@@ -184,6 +185,7 @@ export const SPEC = {
       "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]",
       "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]/restore",
       "/api/courses/runs/[runId]/my-exercises",
+      "/api/courses/runs/[runId]/first-read",
     ],
     pages: [
       "/(auth)/login",
@@ -194,7 +196,7 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/history",
       "/(app)/learn/[runId]/weeks/[n]",
-      "/(app)/learn/[runId]/group/[groupId]/reflections/names",
+      "/(app)/learn/[runId]/group/[groupId]/question",
     ],
   },
   /**
@@ -204,7 +206,11 @@ export const SPEC = {
    * wording read by the member and the facilitator, among them), 56 rows of
    * the term (Gus's account, week 3's five saves in its history and six sends
    * among them) and the notice's three send counters existed before
-   * teardown, and the fixture manifest read zero after it.
+   * teardown, and the fixture manifest read zero after it. The last step's
+   * reading by the facilitator moved from the group's reflections with names
+   * to the page of one question on 13 November 2026, when that page was
+   * retired; it has not yet run in a browser: the pull request's end-to-end
+   * job runs it first.
    */
   status: "verified",
   seed,

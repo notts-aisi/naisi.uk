@@ -9,6 +9,7 @@ import {
   normalizeCourseEnrolment,
   placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import {
   EXERCISE_LIMITS,
   exerciseResponseId,
@@ -292,7 +293,11 @@ export async function POST(
   // resolves exactly what their week page opened. The facilitator review queue
   // (`groups/[groupId]/exercises`) resolves the same document through the same
   // helper, so both ends of one exercise now agree by construction.
-  const { week } = await resolveWeekDoc(db, runId, enrolment.groupId, weekId);
+  // For somebody moved mid-term, the group they belonged to in this week,
+  // whether or not it still meets (`copyGroupIdFor`, the one helper the week
+  // page and every save ask): the copy they saw. With no record, their
+  // placement's group, as before.
+  const { week } = await resolveWeekDoc(db, runId, copyGroupIdFor(enrolment, weekIdNumber, enrolment.groupId), weekId);
   if (!week) {
     return NextResponse.json({ error: "Week not found" }, { status: 404 });
   }

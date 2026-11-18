@@ -70,7 +70,7 @@ const READERS = {
   // ---- others: each asks workIsReadable ------------------------------------
   "lib/courses/writtenAnswers/reviewPage.ts": {
     treats: "others",
-    why: "the review page: an answer is listed to give feedback on, opened and shown with its count only as its readers may read it, as last sent before the session",
+    why: "the written answer's review page's loader, kept as the reader behind This week's work's Written answer column (its own page is retired): an answer is listed to give feedback on, and counted, only as its readers may read it, as last sent before the session",
   },
   "lib/courses/writtenAnswers/queue.ts": {
     treats: "others",
@@ -111,6 +111,10 @@ const READERS = {
   "app/api/courses/runs/[runId]/reflections/route.ts": { treats: "no-words", why: "the one reader of somebody's reflections, read as typed as v15 says: never a written answer" },
   "lib/courses/facilitatorGroup.ts": { treats: "no-words", why: "a facilitator's To review card counts the summer's answers sent" },
   "lib/courses/finishing/whoFinished.ts": { treats: "no-words", why: "who finished counts written answers sent, by their first-sent time, never their words" },
+  "lib/courses/staffMove/plan.ts": {
+    treats: "no-words",
+    why: "the move page reads the moved person's own rows only for whether a week from the move on holds something written (a written answer by its count of words), and shows a week's number, never a word",
+  },
   "lib/courses/weekPaste.ts": { treats: "no-words", why: "a paste counts the rows on the items it would take out, never their words" },
   "lib/courses/weekEdit/counts.ts": {
     treats: "no-words",
@@ -121,6 +125,10 @@ const READERS = {
     why: "the words a question had when it was answered: a person's rows read only for which question each answers and when it was first written",
   },
   "lib/courses/weekWork/readers.ts": { treats: "no-words", why: "how far each person has got: which answers are sent and how many words they hold, projected so no word is read" },
+  "lib/courses/weekWork/firstRead.ts": {
+    treats: "no-words",
+    why: "when an answer was first read: a reflection's or a fill-in box's row is read only for whether it holds words, and a written answer only through feedbackStandingIn, which asks readableAnswer; nothing is read out or sent back",
+  },
   "lib/applications/nextTerm/load.ts": {
     treats: "no-words",
     why: "a term's Next term page: each written answer a rating for the team rates, read by its id only for when it was first written, and nothing else of it kept",
@@ -211,11 +219,12 @@ test("the one answer: as last sent before the session, the latest once it has st
   const review = codeOf(join(SRC, "lib", "courses", "writtenAnswers", "reviewPage.ts"));
   assert.match(review, /const read = record \? readableAnswer\(answerPiece\(record\), due\.at, now\) : null;/);
   assert.match(review, /words: readable \? \(read\?\.words \?\? 0\) : 0,/);
-  assert.match(review, /if \(chosen && answer && chosen\.readable\) \{/);
-  // The answer shown is the words handed back, never the row's own latest words.
-  assert.match(review, /text: shown\?\.text \?\? "",/);
-  assert.match(review, /boxes: shown\?\.boxes \?\? null,/);
-  assert.doesNotMatch(review, /text: record\?\.text/, "the review page shows the row's latest words, sent or not");
+  // Kept only behind This week's work's Written answer column, which draws its lists of people: it hands on no
+  // words of anybody's answer at all, as read or not (the reading view of one person's week shows them, through the
+  // same reader: `readRunCoursework` above).
+  const QUESTION_BOXES = "boxes: fullBlock.boxes.map((box) => ({ id: box.id, label: box.label, hint: box.hint })),";
+  assert.ok(review.includes(QUESTION_BOXES), "the question's own boxes (their labels, never anybody's words) are no longer read as they were");
+  assert.doesNotMatch(review.replace(QUESTION_BOXES, ""), /\btext\b|\.boxes\b/, "the review page's loader hands on somebody's words");
   // Claude and Pangram are handed the words as read, never the row's own.
   const gather = codeOf(join(SRC, "lib", "courses", "coursework", "gather.ts"));
   assert.match(gather, /rows\.push\(\{ id: doc\.id, uid, question, data: read \? \{ \.\.\.data, text: read\.text, boxes: read\.boxes \?\? undefined \} : data \}\);/);
@@ -244,8 +253,13 @@ test("the one answer: as last sent before the session, the latest once it has st
 const HOLDS_PIECE = /\bPersonAnswerWrite\b|\bPersonWrites\b|\bwrites\.answers\b|\breadRunCoursework\(/;
 const PIECE_HOLDERS = {
   "lib/courses/facilitatorWeek/readers.ts": "builds it: `readRunCoursework`, server-only, asked by each caller after its own gate",
-  "lib/courses/coursework/load.ts": "server-only: reads `.piece` for the version each feedback card was about and whether the week takes feedback; hands the page `personWeeks`' answers, never the stored one",
+  "lib/courses/coursework/tabLoad.ts":
+    "server-only: the Coursework tab's states, flags and list of what waits through `readRunCoursework` with words for nobody (each answer's facts, never its words, are worked out inside the reader); it reads no `.piece`",
+  "lib/courses/coursework/readingLoad.ts":
+    "server-only: the reading view's one loader; reads `.piece` for the version each feedback card was about, whether the week and the answer take feedback, and the ratings' changes; hands the page `personWeeks`' answers, never the stored one",
   "lib/courses/coursework/model.ts": "pure: `personWeeks` copies an answer's named fields into what the page is handed, and never `piece` (run below)",
+  "lib/courses/coursework/questionLoad.ts":
+    "server-only: the loader of one question across a group; words for the people the one gate lets the reader read, through `readRunCoursework`, `.piece` read for the version each feedback card was about and the ratings' changes; hands the page each answer's named fields, never the stored one (tests/course-question-view.test.mjs runs it with a change not sent)",
 };
 
 test("the stored answer behind a person's Coursework page (PersonAnswerWrite.piece) is held only by the files listed, both ways", () => {

@@ -165,6 +165,11 @@ export function takeOffConfirm(name: string, where: string, programmeName: strin
  * sentence: "Pat Doe wasn’t moved: Group A is full."
  */
 export function notMovedWords(name: string, where: string, reason: string): string {
+  // A place with weeks in two groups is not moved here at all: the staff move keeps them.
+  if (reason === "moved-mid-term") {
+    const first = name.trim().split(/\s+/)[0] || "They";
+    return `${first} was moved mid-term and has weeks with two groups. Use Move on ${first}’s row, which keeps them.`;
+  }
   const why =
     reason === "group-full"
       ? `${where} is full.`

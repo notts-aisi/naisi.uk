@@ -178,7 +178,7 @@ export async function askForCorrection(
   if (!session) return fail(400, `Week ${press.weekNumber} isn't a taught session of this group's schedule.`);
   if (session.cancelled) return fail(409, REQUEST_REFUSAL.notHeld);
   const [{ members }, naming] = await Promise.all([
-    loadRegisterMembers(db, run.id, gated.group.id, { isAdmin: gated.isAdmin, role: actor.role }),
+    loadRegisterMembers(db, run.id, gated.group.id, { isAdmin: gated.isAdmin, role: actor.role }, session.weekNumber),
     readNamingProgramme(db, run.id),
   ]);
   const row = members.find((member) => member.uid === press.uid);
@@ -426,7 +426,7 @@ export async function approveRequest(
   const group = gated.group;
   const session = sessionOfRequest(run, group, request);
   if (!session || session.cancelled) return fail(409, REQUEST_REFUSAL.gone);
-  const { members } = await loadRegisterMembers(db, run.id, group.id, { isAdmin: gated.isAdmin, role: actor.role });
+  const { members } = await loadRegisterMembers(db, run.id, group.id, { isAdmin: gated.isAdmin, role: actor.role }, session.weekNumber);
   const row = members.find((member) => member.uid === request.subjectUid);
   if (!row || row.joinedWeekNumber > session.weekNumber) return fail(409, REQUEST_REFUSAL.gone);
 

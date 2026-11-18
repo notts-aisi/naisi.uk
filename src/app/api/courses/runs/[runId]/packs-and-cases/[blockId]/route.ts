@@ -5,7 +5,9 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
+import { hasGroupsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
 import { findCase, findPack } from "@/lib/courses/packsAndCases/model";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { dueMoment } from "@/lib/courses/weekBlocks/due";
@@ -47,7 +49,9 @@ import { closedWords } from "@/lib/courses/weekWork/words";
  * draw gives packs out to whoever has not picked. This is the pick's own
  * rule, kept as it was when weeks stopped locking at the session. With no
  * group, and so no session, it stays open. A Choose one a facilitator gives
- * out is refused here: "To switch, ask Rahul or Sofia".
+ * out is refused here: "To switch, ask Rahul or Sofia". The session for the
+ * week is the group's they were in that week (`groupForWeek`), so somebody
+ * moved from a later week picks until their old group's session that week.
  *
  * READY is the person's own mark and nobody else's: coursework gets no mark.
  * On a talk with cases it waits for a case to be given; a talk with none (a
@@ -167,7 +171,12 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
   const ownGroup =
     (takesPart && enrolment?.groupId ? (liveGroups.find((g) => g.id === enrolment.groupId) ?? null) : null) ??
     (facilitates.length === 1 ? facilitates[0] : null);
-  const { week } = await resolveWeekDoc(db, runId, ownGroup?.id ?? null, weekId);
+  // The copy of the week: the group their place belonged to in THIS week
+  // (`copyGroupIdFor`), so somebody moved mid-term works in the copy they
+  // saw, whether or not that group still meets.
+  const copyGroupId =
+    takesPart && enrolment?.groupId ? copyGroupIdFor(enrolment, weekNumber, ownGroup?.id ?? null) : (ownGroup?.id ?? null);
+  const { week } = await resolveWeekDoc(db, runId, copyGroupId, weekId);
   const block = week && isBlockWeek(week) ? (allBlocks(week.blocks).find((candidate) => candidate.id === blockId) ?? null) : null;
 
   const ref = db.collection(COURSE_PACKS_AND_CASES_COLLECTION).doc(packCaseRecordId(runId, actor.uid, blockId));
@@ -192,8 +201,19 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
     if (!findPack(chooseOne, packId)) {
       return NextResponse.json({ error: "That one isn’t on this week any more. Reload the page." }, { status: 404 });
     }
-    // Open until the session starts: the week's own, or the next one when it is cancelled.
-    const startsAt = ownGroup ? dueMoment(resolveSessions(run, ownGroup), weekNumber, "before") : null;
+    // Open until the session starts: the week's own, or the next one when it
+    // is cancelled. Each week's session is the group's they were in that week
+    // (`sessionsByWeekGroup`) when their place records a move; otherwise the
+    // group's whose copy they read, as always.
+    const ownSessions = !ownGroup
+      ? null
+      : takesPart && enrolment && ownGroup.id === enrolment.groupId && hasGroupsByWeek(enrolment)
+        ? sessionsByWeekGroup(enrolment, (groupId) => {
+            const group = liveGroups.find((each) => each.id === groupId);
+            return group ? resolveSessions(run, group) : null;
+          })
+        : resolveSessions(run, ownGroup);
+    const startsAt = ownSessions ? dueMoment(ownSessions, weekNumber, "before") : null;
     if (startsAt && Date.now() >= startsAt.at.getTime()) {
       return NextResponse.json({ error: "Your session has started, so your choice stays as it is." }, { status: 409 });
     }

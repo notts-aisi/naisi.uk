@@ -1,9 +1,9 @@
 /**
  * The report beside the work (privacy policy v15, "Session reports": "The
  * programme's lead and admins read these. You don't see them on the site"):
- * on a written answer's review page, what that week's session reports say
- * about the person whose answer it is, their own lines and nothing else of a
- * report.
+ * beside a written answer, on the reading view of the person's week (both
+ * doors), what that week's session reports say about the
+ * person whose answer it is, their own lines and nothing else of a report.
  *
  * Run with `npm test` (Node's built-in runner, no emulator). Real handlers and
  * pages from the written answers world (`tests/lib/writtenAnswersWorld.mjs`:
@@ -15,10 +15,11 @@
  *
  *  1. The rule, pure: whose reports' lines each reader sees, and that only
  *     the person's own lines leave a report.
- *  2. The page as every caller: the programme's lead and admins see every
- *     report's lines about the person, on both review pages; a facilitator
- *     sees only the lines of the report they wrote, never the other
- *     facilitator's; everybody else is sent away and handed none.
+ *  2. The pages as every caller: the programme's lead and admins see every
+ *     report's lines about the person on the reading view behind both doors
+ *     (where the written answer's review page's addresses now forward); a
+ *     facilitator sees only the lines of the report they wrote, never the
+ *     other facilitator's; everybody else is sent away and handed none.
  *  3. Only the person's own lines, never the rest of a report: the page's
  *     payload, another person's answer, another week, another run, a writer
  *     whose account was deleted, a week that met twice.
@@ -35,7 +36,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { B, NOW, RUN, makeWrittenAnswersWorld, textOf } from "./lib/writtenAnswersWorld.mjs";
+import { AGI, B, NOW, ROUND, RUN, makeWrittenAnswersWorld, textOf } from "./lib/writtenAnswersWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -126,20 +127,33 @@ async function bothReport() {
   w.at(NOW);
 }
 
-/** What the page was handed beside the open answer, or undefined when it drew no review page. */
-const linesOf = (page) => page.element?.props?.model?.selected?.reportLines;
+/** What the reading view of the week was handed beside the answer (the review page's addresses forward there), or undefined when none was drawn. */
+const linesOf = (page) => {
+  const view = w.readingViewOf(page);
+  return view ? view.reportLines : undefined;
+};
 
-/** The whole payload a page hands the browser: the review page's props. */
-const payloadOf = (page) => JSON.stringify(page.element?.props ?? null);
+/** Whose week the reading view is open on, or undefined with none drawn. */
+const openOf = (page) => w.readingViewOf(page)?.person.uid;
+
+/** The whole payload a page hands the browser: the reading view's view, or the review page's props. */
+const payloadOf = (page) => JSON.stringify(w.readingViewOf(page) ?? page.element?.props ?? null);
+
+/**
+ * `uid`'s week 2 answer in front of `who` from the group's side: the reading
+ * view of the week, where the written answer's review page's address now
+ * forwards (held below).
+ */
+const groupSides = async (who, uid = "chloe") => [await w.readingPage(who, uid, { week: "2" })];
+
+/** The same from the programme's side. */
+const programmeSides = async (who, uid = "chloe") => [await w.leadReadingPage(who, uid, { week: "2" })];
 
 const reportPath = (writer, sessionKey = "w02") => `courseSessionReports/${record.sessionReportId(RUN.agi, B, sessionKey, writer)}`;
 
-/** Every lead's and admin's view of Chloe's week 2 answer, on both review pages. */
+/** Every lead's and admin's view of Chloe's week 2 answer, behind both doors. */
 async function staffPages(who) {
-  return [
-    await w.writtenPage(who, { week: "2", person: "chloe" }),
-    await w.leadPage(who, { group: B, week: "2", person: "chloe" }),
-  ];
+  return [...(await groupSides(who)), ...(await programmeSides(who))];
 }
 
 /** Both reports, as the lead and admins see them beside Chloe's answer. */
@@ -265,13 +279,13 @@ describe("1. the rule: whose reports' lines a reader sees, and only the person's
 // 2. The page as every caller
 // ---------------------------------------------------------------------------
 
-describe("2. the review page as every caller", () => {
-  test("an admin and the programme's lead see every report's lines about the person, on both review pages, each under its writer", async () => {
+describe("2. the pages beside the answer as every caller", () => {
+  test("an admin and the programme's lead see every report's lines about the person, behind both doors, each under its writer", async () => {
     await weekTwoWritten();
     await bothReport();
     for (const who of ["zach", "claudia"]) {
       for (const page of await staffPages(who)) {
-        assert.equal(page.element.props.model.selected.person.uid, "chloe", who);
+        assert.equal(openOf(page), "chloe", who);
         assert.deepEqual(linesOf(page), EVERY_ON_CHLOE, who);
         assert.match(
           page.text,
@@ -290,16 +304,17 @@ describe("2. the review page as every caller", () => {
     await bothReport();
     const group = w.world.db.read(`courseGroups/${B}`);
     w.world.db.poke(`courseGroups/${B}`, { facilitatorUids: [...group.facilitatorUids, "claudia"] });
-    assert.deepEqual(linesOf(await w.writtenPage("claudia", { week: "2", person: "chloe" })), EVERY_ON_CHLOE);
+    for (const page of await groupSides("claudia")) assert.deepEqual(linesOf(page), EVERY_ON_CHLOE);
   });
 
   test("a facilitator sees only the lines of the report they wrote, never the other facilitator's", async () => {
     await weekTwoWritten();
     // Before either has sent a report, neither is handed a line, and no card is drawn.
     for (const who of ["rahul", "sofia"]) {
-      const page = await w.writtenPage(who, { week: "2", person: "chloe" });
-      assert.deepEqual(linesOf(page), { whose: "own", reports: [] }, who);
-      assert.doesNotMatch(page.text, /From your session report|From the session reports|Not shown to Chloe/, who);
+      for (const page of await groupSides(who)) {
+        assert.deepEqual(linesOf(page), { whose: "own", reports: [] }, who);
+        assert.doesNotMatch(page.text, /From your session report|From the session reports|Not shown to Chloe/, who);
+      }
     }
     await bothReport();
     for (const [who, lines, never] of [
@@ -313,28 +328,46 @@ describe("2. the review page as every caller", () => {
         RAHUL_ON_CHLOE,
       ],
     ]) {
-      const page = await w.writtenPage(who, { week: "2", person: "chloe" });
-      assert.equal(page.element.props.model.selected.person.uid, "chloe", who);
-      assert.deepEqual(linesOf(page), { whose: "own", reports: [{ by: "", mine: true, occurrence: 1, lines }] }, who);
-      assert.ok(!payloadOf(page).includes(never), `${who} is handed the other facilitator's line`);
-      assert.ok(!page.html.includes(never), `${who} is shown the other facilitator's line`);
-      assert.match(page.text, new RegExp(`${escape(words.BESIDE_WORDS.own)} Not shown to Chloe ${lines.map((line) => LABEL[line.kind]).join(" ")}`), who);
-      assert.doesNotMatch(page.text, /From the session reports|\bRahul Engaged well|\bSofia Seemed/, `${who}'s card names a writer`);
+      for (const page of await groupSides(who)) {
+        assert.equal(openOf(page), "chloe", who);
+        assert.deepEqual(linesOf(page), { whose: "own", reports: [{ by: "", mine: true, occurrence: 1, lines }] }, who);
+        assert.ok(!payloadOf(page).includes(never), `${who} is handed the other facilitator's line`);
+        assert.ok(!page.html.includes(never), `${who} is shown the other facilitator's line`);
+        assert.match(page.text, new RegExp(`${escape(words.BESIDE_WORDS.own)} Not shown to Chloe ${lines.map((line) => LABEL[line.kind]).join(" ")}`), who);
+        assert.doesNotMatch(page.text, /From the session reports|\bRahul Engaged well|\bSofia Seemed/, `${who}'s card names a writer`);
+      }
     }
   });
 
-  test("everybody else is sent away from both review pages, and handed no line", async () => {
+  test("everybody else is sent away from every page beside the answer, behind both doors, and handed no line", async () => {
     await weekTwoWritten();
     await bothReport();
     for (const who of ["tess", "lloyd", "yusuf", "tom", "chloe", "farah", "kofi", "amara", null]) {
-      for (const page of [await w.writtenPage(who, { week: "2", person: "chloe" }), await w.leadPage(who, { group: B, week: "2", person: "chloe" })]) {
-        assert.equal(linesOf(page), undefined, `${who} is drawn a review page`);
+      for (const page of [...(await groupSides(who)), ...(await programmeSides(who))]) {
+        assert.equal(linesOf(page), undefined, `${who} is drawn a page beside Chloe's answer`);
         assert.ok(!payloadOf(page).includes(RAHUL_ON_CHLOE) && !payloadOf(page).includes(SOFIA_ON_CHLOE), `${who} is handed a line`);
         assert.ok(!page.html.includes(RAHUL_ON_CHLOE) && !page.html.includes(SOFIA_ON_CHLOE), `${who} is shown a line`);
       }
-      // The group's own page is where the review page sends them: the run's home, or signing in.
-      const own = await w.writtenPage(who, { week: "2", person: "chloe" });
-      assert.ok(own.to === `/learn/${RUN.agi}` || own.to === "/learn" || own.to === "/login", `${who} was sent to ${own.to}`);
+      // The group's side sends them away: the run's home, or signing in.
+      for (const own of await groupSides(who)) {
+        assert.ok(own.to === `/learn/${RUN.agi}` || own.to === "/learn" || own.to === "/login", `${who} was sent to ${own.to}`);
+      }
+    }
+  });
+
+  test("the written answer's review page's addresses forward to the reading view at the answer, for everybody, reading nothing and handing no line", async () => {
+    await weekTwoWritten();
+    await bothReport();
+    for (const who of ["zach", "claudia", "rahul", "sofia", "tess", "lloyd", "chloe", "amara", null]) {
+      const group = await w.writtenPage(who, { week: "2", person: "chloe" });
+      assert.equal(group.to, `/learn/${RUN.agi}/group/${B}/coursework/chloe?week=2#reading-answer`, `${who}`);
+      const lead = await w.leadPage(who, { group: B, week: "2", person: "chloe" });
+      assert.equal(lead.to, `/admin/admissions/forms/${ROUND}/programmes/${AGI}/coursework/chloe?week=2#reading-answer`, `${who}`);
+      for (const page of [group, lead]) {
+        assert.equal(page.element, null, `${who} is drawn something by a forward`);
+        assert.equal(page.wrote, false);
+        assert.equal(linesOf(page), undefined);
+      }
     }
   });
 
@@ -344,8 +377,7 @@ describe("2. the review page as every caller", () => {
     const before = w.everything();
     const mail = w.world.mail.length;
     for (const who of ["zach", "claudia", "rahul", "sofia"]) {
-      const page = await w.writtenPage(who, { week: "2", person: "chloe" });
-      assert.equal(page.wrote, false, who);
+      for (const page of await groupSides(who)) assert.equal(page.wrote, false, who);
     }
     assert.equal(w.everything(), before);
     assert.equal(w.world.mail.length, mail);
@@ -360,7 +392,7 @@ describe("3. only the person's own lines, never the rest of a report", () => {
   test("the page's whole payload holds nothing else a report says, for every reader handed lines", async () => {
     await weekTwoWritten();
     await bothReport();
-    const pages = [...(await staffPages("zach")), ...(await staffPages("claudia")), await w.writtenPage("rahul", { week: "2", person: "chloe" }), await w.writtenPage("sofia", { week: "2", person: "chloe" })];
+    const pages = [...(await staffPages("zach")), ...(await staffPages("claudia")), ...(await groupSides("rahul")), ...(await groupSides("sofia"))];
     for (const page of pages) {
       assert.doesNotMatch(payloadOf(page), NOT_ABOUT_CHLOE);
       assert.doesNotMatch(page.html, NOT_ABOUT_CHLOE);
@@ -377,23 +409,24 @@ describe("3. only the person's own lines, never the rest of a report", () => {
     await weekTwoWritten();
     await bothReport();
     for (const who of ["zach", "rahul"]) {
-      const page = await w.writtenPage(who, { week: "2", person: "farah" });
-      assert.equal(page.element.props.model.selected.person.uid, "farah");
-      assert.deepEqual(linesOf(page).reports, [
-        {
-          by: who === "zach" ? "Rahul" : "",
-          mine: who === "rahul",
-          occurrence: 1,
-          lines: [
-            { kind: "notRead", note: "" },
-            { kind: "needsHand", note: RAHUL_ON_FARAH },
-          ],
-        },
-      ]);
-      assert.ok(!payloadOf(page).includes(RAHUL_ON_CHLOE) && !payloadOf(page).includes(SOFIA_ON_CHLOE), `${who} is handed Chloe's lines beside Farah's answer`);
+      for (const page of await groupSides(who, "farah")) {
+        assert.equal(openOf(page), "farah");
+        assert.deepEqual(linesOf(page).reports, [
+          {
+            by: who === "zach" ? "Rahul" : "",
+            mine: who === "rahul",
+            occurrence: 1,
+            lines: [
+              { kind: "notRead", note: "" },
+              { kind: "needsHand", note: RAHUL_ON_FARAH },
+            ],
+          },
+        ]);
+        assert.ok(!payloadOf(page).includes(RAHUL_ON_CHLOE) && !payloadOf(page).includes(SOFIA_ON_CHLOE), `${who} is handed Chloe's lines beside Farah's answer`);
+      }
     }
     // Sofia's report says nothing about Farah: Sofia is handed nothing beside Farah's answer.
-    assert.deepEqual(linesOf(await w.writtenPage("sofia", { week: "2", person: "farah" })), { whose: "own", reports: [] });
+    for (const page of await groupSides("sofia", "farah")) assert.deepEqual(linesOf(page), { whose: "own", reports: [] });
   });
 
   test("another week's report and another run's are not this week's", async () => {
@@ -424,10 +457,9 @@ describe("3. only the person's own lines, never the rest of a report", () => {
       aboutUids: ["chloe"],
     });
     for (const who of ["zach", "claudia", "rahul"]) {
-      const page = await w.writtenPage(who, { week: "2", person: "chloe" });
-      assert.doesNotMatch(payloadOf(page), /WEEKONE|WEEKTHREE|ANOTHERRUN/, who);
+      for (const page of await groupSides(who)) assert.doesNotMatch(payloadOf(page), /WEEKONE|WEEKTHREE|ANOTHERRUN/, who);
     }
-    assert.deepEqual(linesOf(await w.writtenPage("zach", { week: "2", person: "chloe" })), EVERY_ON_CHLOE);
+    for (const page of await groupSides("zach")) assert.deepEqual(linesOf(page), EVERY_ON_CHLOE);
   });
 
   test("a report whose writer's account was deleted is still the lead's and admins', by a former facilitator, and nobody's own", async () => {
@@ -436,15 +468,18 @@ describe("3. only the person's own lines, never the rest of a report", () => {
     // Sofia's account is deleted: her reports stay, with no writer at all.
     assert.equal(await accountDeletion.clearSessionReports(w.world.courseDb, "sofia"), 1);
     for (const who of ["zach", "claudia"]) {
-      assert.deepEqual(linesOf(await w.writtenPage(who, { week: "2", person: "chloe" })).reports.map((report) => [report.by, report.mine, report.lines.length]), [
-        ["Rahul", false, 1],
-        ["A former facilitator", false, 2],
-      ]);
+      for (const page of await groupSides(who)) {
+        assert.deepEqual(linesOf(page).reports.map((report) => [report.by, report.mine, report.lines.length]), [
+          ["Rahul", false, 1],
+          ["A former facilitator", false, 2],
+        ]);
+      }
     }
     // Rahul still reads only his own.
-    assert.deepEqual(linesOf(await w.writtenPage("rahul", { week: "2", person: "chloe" })).reports.map((report) => report.lines), [[{ kind: "engaged", note: RAHUL_ON_CHLOE }]]);
-    const text = (await w.writtenPage("zach", { week: "2", person: "chloe" })).text;
-    assert.match(text, /A former facilitator Seemed not to have done the readings Might need a hand/);
+    for (const page of await groupSides("rahul")) {
+      assert.deepEqual(linesOf(page).reports.map((report) => report.lines), [[{ kind: "engaged", note: RAHUL_ON_CHLOE }]]);
+    }
+    for (const page of await groupSides("zach")) assert.match(page.text, /A former facilitator Seemed not to have done the readings Might need a hand/);
   });
 
   test("a week that met twice: each report says which session it is on, and a facilitator's two read as theirs", async () => {
@@ -463,12 +498,14 @@ describe("3. only the person's own lines, never the rest of a report", () => {
       sentAt: new Date("2026-11-13T20:00:00Z"),
       updatedAt: new Date("2026-11-13T20:00:00Z"),
     });
-    const zach = await w.writtenPage("zach", { week: "2", person: "chloe" });
-    assert.deepEqual(linesOf(zach).reports.map((report) => [report.by, report.occurrence]), [["Rahul", 1], ["Sofia", 1], ["Rahul", 2]]);
-    assert.match(zach.text, /Rahul · Session 1 Engaged well .* Sofia · Session 1 Seemed not .* Rahul · Session 2 Might need a hand “Better on Thursday\.”/);
-    const rahul = await w.writtenPage("rahul", { week: "2", person: "chloe" });
-    assert.deepEqual(linesOf(rahul).reports.map((report) => [report.mine, report.occurrence]), [[true, 1], [true, 2]]);
-    assert.match(rahul.text, new RegExp(`${escape(words.BESIDE_WORDS.ownMany)} Not shown to Chloe Session 1 Engaged well .* Session 2 Might need a hand`));
+    for (const zach of await groupSides("zach")) {
+      assert.deepEqual(linesOf(zach).reports.map((report) => [report.by, report.occurrence]), [["Rahul", 1], ["Sofia", 1], ["Rahul", 2]]);
+      assert.match(zach.text, /Rahul · Session 1 Engaged well .* Sofia · Session 1 Seemed not .* Rahul · Session 2 Might need a hand “Better on Thursday\.”/);
+    }
+    for (const rahul of await groupSides("rahul")) {
+      assert.deepEqual(linesOf(rahul).reports.map((report) => [report.mine, report.occurrence]), [[true, 1], [true, 2]]);
+      assert.match(rahul.text, new RegExp(`${escape(words.BESIDE_WORDS.ownMany)} Not shown to Chloe Session 1 Engaged well .* Session 2 Might need a hand`));
+    }
   });
 });
 
@@ -512,12 +549,16 @@ describe("4. gate before data: what the page asks of the reports, as every calle
     await weekTwoWritten();
     await bothReport();
     for (const who of ["zach", "claudia"]) {
-      const { asks } = await reportAsks(() => w.writtenPage(who, { week: "2", person: "chloe" }));
-      assert.deepEqual(asks, [["open"], ["aboutUids", "array-contains", "chloe"]], who);
+      for (const drawPage of [() => w.readingPage(who, "chloe", { week: "2" }), () => w.leadReadingPage(who, "chloe", { week: "2" })]) {
+        const { asks } = await reportAsks(drawPage);
+        assert.deepEqual(asks, [["open"], ["aboutUids", "array-contains", "chloe"]], who);
+      }
     }
     for (const who of ["rahul", "sofia"]) {
-      const { asks } = await reportAsks(() => w.writtenPage(who, { week: "2", person: "chloe" }));
-      assert.deepEqual(asks, [["open"], ["writerUid", "==", who]], `${who} asks for somebody else's reports`);
+      for (const drawPage of [() => w.readingPage(who, "chloe", { week: "2" })]) {
+        const { asks } = await reportAsks(drawPage);
+        assert.deepEqual(asks, [["open"], ["writerUid", "==", who]], `${who} asks for somebody else's reports`);
+      }
     }
   });
 
@@ -525,16 +566,23 @@ describe("4. gate before data: what the page asks of the reports, as every calle
     await weekTwoWritten();
     await bothReport();
     for (const who of ["tess", "lloyd", "yusuf", "tom", "chloe", "farah", "amara", null]) {
-      for (const drawPage of [() => w.writtenPage(who, { week: "2", person: "chloe" }), () => w.leadPage(who, { group: B, week: "2", person: "chloe" })]) {
+      for (const drawPage of [
+        // The older pages' addresses forward, reading nothing: no report is asked for there by anybody.
+        () => w.writtenPage(who, { week: "2", person: "chloe" }),
+        () => w.leadPage(who, { group: B, week: "2", person: "chloe" }),
+        () => w.readingPage(who, "chloe", { week: "2" }),
+        () => w.leadReadingPage(who, "chloe", { week: "2" }),
+      ]) {
         const { asks } = await reportAsks(drawPage);
         assert.deepEqual(asks, [], `${who} reached the reports`);
       }
     }
-    // Week 3: nobody has sent an answer, so nobody's is open, and no report is asked for.
+    // Week 3: nobody has sent an answer, so no report is asked for.
     for (const who of ["zach", "claudia", "rahul"]) {
-      const { page, asks } = await reportAsks(() => w.writtenPage(who, { week: "3" }));
-      assert.equal(page.element.props.model.selected, null, who);
-      assert.deepEqual(asks, [], who);
+      // The reading view of Chloe's week 3: no answer its readers may read, so no line is asked for.
+      const reading = await reportAsks(() => w.readingPage(who, "chloe", { week: "3" }));
+      assert.equal(w.readingViewOf(reading.page).reportLines, null, who);
+      assert.deepEqual(reading.asks, [], who);
     }
   });
 });
@@ -571,16 +619,39 @@ describe("5. never the person", () => {
       aboutUids: ["rahul"],
       sentAt: new Date("2026-11-11T09:00:00Z"),
     });
-    for (const page of [await w.writtenPage("claudia", { week: "2", person: "rahul" }), await w.leadPage("zach", { group: B, week: "2", person: "rahul" })]) {
-      assert.equal(page.element.props.model.selected.person.uid, "rahul");
+    for (const page of [...(await groupSides("claudia", "rahul")), ...(await programmeSides("zach", "rahul"))]) {
+      assert.equal(openOf(page), "rahul");
       assert.deepEqual(linesOf(page).reports, [{ by: "Sofia", mine: false, occurrence: 1, lines: [{ kind: "needsHand", note: "ABOUTRAHUL a word." }] }]);
     }
     // Rahul's own answer is never open on his page, and Sofia, his co-facilitator, never reviews it: neither is handed the line.
     for (const who of ["rahul", "sofia"]) {
-      const page = await w.writtenPage(who, { week: "2", person: "rahul" });
-      assert.notEqual(page.element.props.model.selected?.person.uid, "rahul", who);
-      assert.doesNotMatch(payloadOf(page), /ABOUTRAHUL/, who);
+      for (const page of await groupSides(who, "rahul")) {
+        assert.notEqual(openOf(page), "rahul", who);
+        assert.doesNotMatch(payloadOf(page), /ABOUTRAHUL/, who);
+      }
     }
+    // Nor anybody on their own page: Claudia, the lead, holds a place in Group B, and a report picks her.
+    w.world.db.seed(`courseEnrolments/${RUN.agi}__claudia`, { ...w.world.db.read(`courseEnrolments/${RUN.agi}__chloe`), uid: "claudia" });
+    w.at(BEFORE_DUE_2);
+    assert.equal((await w.write("claudia", 2, { text: sentence(25) }, { send: true })).status, 200);
+    w.at(NOW);
+    w.world.db.seed("courseSessionReports/about-claudia", {
+      runId: RUN.agi,
+      groupId: B,
+      sessionKey: "w02",
+      weekNumber: 2,
+      occurrence: 1,
+      writerUid: "rahul",
+      answers: { how: 4, engaged: [{ uid: "claudia", note: "ABOUTCLAUDIA a word." }] },
+      aboutUids: ["claudia"],
+      sentAt: new Date("2026-11-11T09:00:00Z"),
+    });
+    const own = await w.leadReadingPage("claudia", "claudia", { week: "2" });
+    assert.equal(openOf(own), "claudia", "the lead's own page on the programme's side is not drawn");
+    assert.equal(linesOf(own), null, "the lead is handed what a report says about herself");
+    assert.doesNotMatch(`${payloadOf(own)} ${own.html}`, /ABOUTCLAUDIA/);
+    // Zach, an admin, reads the line beside her answer.
+    for (const page of await programmeSides("zach", "claudia")) assert.match(JSON.stringify(linesOf(page)), /ABOUTCLAUDIA/);
   });
 });
 

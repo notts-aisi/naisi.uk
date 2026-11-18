@@ -1,5 +1,6 @@
 import "server-only";
 import { FieldValue, type Firestore, type Transaction } from "firebase-admin/firestore";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { weekOneDoorFor } from "@/lib/courses/weekOne/door";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -65,8 +66,11 @@ const MAX_GROUPS = 50;
  * seat on the run, told its group by Publish, on an account that stands; a
  * facilitator of a live group of the run, as themselves; or, in week 1 alone,
  * somebody holding a place whom Publish has not told yet, once week 1's door
- * is open to them. Null for anybody else. `ownGroup` is the group whose copy
- * of the week they read: their placement's, or the one group they facilitate.
+ * is open to them. Null for anybody else. `copyGroupId` is the group whose
+ * copy of the week they read: the group their placement belonged to in THIS
+ * week (`copyGroupIdFor`, so somebody moved mid-term writes in the copy they
+ * saw, whether or not that group still meets), or the one group they
+ * facilitate; null for the run's own week.
  */
 export type OwnSeat = {
   run: CourseRunDoc | null;
@@ -74,7 +78,7 @@ export type OwnSeat = {
   /** Their learner seat, when they take part through one. */
   learner: CourseEnrolmentDoc | null;
   beforeGroups: boolean;
-  ownGroup: CourseGroupDoc | null;
+  copyGroupId: string | null;
   source: SessionSource;
   /** When the programme closes for work, or null when it never closes by the clock. */
   closesAt: Date | null;
@@ -101,15 +105,16 @@ export async function ownSeatOn(db: Firestore, actor: SessionUser, runId: string
   const beforeGroups = !takesPart && facilitates.length === 0 && weekNumber === 1 && (await weekOneDoorFor(db, actor, runId)).open;
   if (!takesPart && facilitates.length === 0 && !beforeGroups) return null;
   const learner = takesPart ? enrolment : null;
-  const ownGroup =
-    (learner?.groupId ? (liveGroups.find((g) => g.id === learner.groupId) ?? null) : null) ??
-    (facilitates.length === 1 ? facilitates[0] : null);
+  // Their placement's group while it meets, else the one group they facilitate: the group now, as before.
+  const placedId = learner?.groupId && liveGroups.some((group) => group.id === learner.groupId) ? learner.groupId : null;
+  const nowId = placedId ?? (facilitates.length === 1 ? facilitates[0].id : null);
+  const copyGroupId = learner?.groupId ? copyGroupIdFor(learner, weekNumber, nowId) : nowId;
   return {
     run,
     liveGroups,
     learner,
     beforeGroups,
-    ownGroup: beforeGroups ? null : ownGroup,
+    copyGroupId: beforeGroups ? null : copyGroupId,
     source: ownSessionSource(run, liveGroups, actor.uid, learner),
     closesAt: run ? workClosesAt(run, liveGroups) : null,
   };

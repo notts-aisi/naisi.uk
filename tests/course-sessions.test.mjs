@@ -824,11 +824,19 @@ test("the mirror recomputes for every enrolment on the group, not just the activ
       `${route} feeds the mirror the group's full enrolment list`,
     );
   }
+  // Every status: the run's places are read whole (a place in another group
+  // now can hold weeks in this one) and only a stored status outside the
+  // four is left out, as the query on the four left it out.
+  const access = source("lib/courses/registerAccess.ts");
+  const mirror = access.slice(access.indexOf("export async function loadMirrorMembers("));
+  const mirrorBody = mirror.slice(0, mirror.indexOf("\n}\n"));
+  assert.match(mirrorBody, /db\.collection\("courseEnrolments"\)\.where\("runId", "==", runId\)\.get\(\)/, "and that list is the run's places");
   assert.match(
-    source("lib/courses/registerAccess.ts"),
-    /\.where\("status", "in", ENROLMENT_STATUSES\)/,
-    "and that list is every status, on the existing composite index",
+    mirrorBody,
+    /if \(!ENROLMENT_STATUSES\.includes\(data\.status as CourseEnrolmentStatus\)\) continue;/,
+    "of every status",
   );
+  assert.doesNotMatch(mirrorBody, /\.where\("status"/, "with no status narrowing the read");
 });
 
 test("a participant note is capped in KEYS as well as in characters", () => {

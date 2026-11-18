@@ -13,7 +13,8 @@ import styles from "./sessionReportLines.module.css";
 
 /**
  * WHAT THE WEEK'S SESSION REPORTS SAY ABOUT THE PERSON (privacy v15, "Session
- * reports"), on a written answer's review page beside the feedback: the lines
+ * reports"), beside a written answer on the reading view of the person's
+ * week, between the feedback and the ratings: the lines
  * that picked them, and nothing else of a report. The programme's lead and
  * admins see every report's lines, each report under its writer's name; a
  * facilitator sees the lines of the report they wrote ("From your session
@@ -21,8 +22,8 @@ import styles from "./sessionReportLines.module.css";
  * from, with the words written about the person.
  *
  * Read only: nothing here changes a report or emails anybody, and the person
- * never sees it. The page hands it only what `loadWrittenReview` read for
- * this reader (`besideScopeOf`); with no report saying anything about the
+ * never sees it. The page hands it only what `readPersonWeek` read for this
+ * reader (`besideScopeOf`); with no report saying anything about the
  * person, it draws nothing.
  */
 

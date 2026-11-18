@@ -226,9 +226,9 @@ const FINISHING = Object.freeze({
   card: "Who finished",
   label: "Came to at least",
   hint:
-    "Of the sessions their group held: a cancelled session doesn’t count against anyone. After the last session, we tick everyone who came to this many, and you can change any. Only you and admins see this.",
+    "Of the sessions their group held: a cancelled session doesn’t count against anyone. After the last session, we tick everyone who came to this many, and you can change any. The people taking part are told the number; only you and admins see who’s ticked.",
   sentence: (atLeast, of) =>
-    `We’ve ticked everyone who came to at least ${atLeast} of ${of} sessions. Change any you disagree with. Only you and admins see this rule.`,
+    `We’ve ticked everyone who came to at least ${atLeast} of ${of} sessions. Change any you disagree with. Only you and admins see who’s ticked.`,
   counts: (finished, not) => `${finished} finished · ${not} not`,
   caption: "Fewest sessions first",
   columns: ["Name", "Group", "Came to", "Written answers", "Finished"],

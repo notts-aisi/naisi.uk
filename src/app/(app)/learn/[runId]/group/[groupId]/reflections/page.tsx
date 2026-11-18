@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { firstQuestionHref } from "@/lib/courses/coursework/forwards";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import ReadOutView from "@/features/courses/facilitatorWeek/ReadOutView";
 import named from "@/features/courses/facilitatorWeek/namedReflections.module.css";
@@ -36,9 +37,10 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
  * notes are never read out, so this page never reads them.
  *
  * The group's facilitators, the programme's lead and admins read the same
- * reflections WITH names on pages of their own (Zach, Fri 30 Oct): this page
- * links to the facilitators' one (`./names`), "Read them with names", and
- * draws no name itself.
+ * reflections WITH names (Zach, Fri 30 Oct) on the page of one question across
+ * the group: this page links to it at the week's first reflection
+ * (`../question?week=N&first=reflection`), "Read them with names", and draws
+ * no name itself.
  *
  * `?week=N` opens a week of the group's own: a week it does not teach is
  * ignored, and the week it is getting ready for stands.
@@ -154,9 +156,9 @@ export default async function GroupReflectionsPage({
       ) : (
         <>
           <ReadOutView prompts={week.prompts} tonight={tonight} readOut />
-          {/* The way to the same reflections with names: a page of its own, which this one never draws. */}
+          {/* The way to the same reflections with names: the page of one question across the group, which this one never draws. */}
           <p className={named.switchFoot}>
-            <Link href={`${groupPath}/reflections/names?week=${week.weekNumber}`} className={named.switchLink}>
+            <Link href={firstQuestionHref(`${groupPath}/question`, week.weekNumber, "reflection")} className={named.switchLink}>
               {READ_WITH_NAMES}
             </Link>
           </p>

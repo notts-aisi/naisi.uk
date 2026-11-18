@@ -72,7 +72,10 @@ export const SAID_MOST_WEEKS = "You’ve told us you can make it most weeks.";
  * fellowship's facilitators and of an incubator's lead, and names no group
  * (an incubator's people are told of none) and no facilitator a group may
  * not have yet. Days as `londonDayLabel` writes them. Words a member reads
- * say what happens, never "mark", and never how many they may miss.
+ * say what happens, never "mark". How many sessions a certificate needs is
+ * said once, where the run has a rule for who finished, by the sentence the
+ * card draws beside the ticks (`certificateNeedsWords` in
+ * `src/lib/courses/finishing/words.ts`), never as a count of their own.
  */
 export function missingLine(days: readonly string[]): string {
   if (days.length === 0) return "";

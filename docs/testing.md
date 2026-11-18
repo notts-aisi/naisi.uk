@@ -163,7 +163,12 @@ The same shape, older:
 - `tests/route-framing-headers.test.mjs`: no source file sets a response's
   `Content-Length`, `Content-Encoding` or `Transfer-Encoding`. The server
   frames a response and Next.js drops those three from what a route returns,
-  so a route that sets one states something no browser is told.
+  so a route that sets one states something no browser is told. Every mention
+  of one of the three in code is held to a read off a request: a key of a
+  headers object, `set` or `append` with its arguments on any line, a pair in
+  an array, a pattern and a name kept in a constant all fail. A file that
+  names one is parsed with the TypeScript compiler, so a comment may name
+  them and nothing inside a string can hide the code after it.
 - `tests/pwa-offline-assets.test.mjs`: the service worker's write-nothing
   contract.
 - `tests/event-location-disclosure.test.mjs`: an event's exact location
@@ -681,15 +686,16 @@ Locally before a pull request, and in CI on every pull request
 
 ```sh
 npx next typegen && npx tsc --noEmit
-npm run lint            # 0 errors; the warning baseline on dev is 11
+npm run lint            # 0 errors and 0 warnings
 npm test                # the Node suites under tests/
 cd scripts/rules-tests && npm test   # the emulator suite; Java required
 npm run build           # a real production build
 ```
 
-The warning count is 11 on a clean checkout of `dev`. A working copy with
-files a developer keeps modified locally reports more. Count the warnings on
-a fresh clone before treating a number as a regression.
+A lint warning fails the run: the script is `eslint --max-warnings 0`, and
+the tree has none. A working copy with files a developer keeps modified
+locally can report warnings of its own, which are that copy's and not the
+tree's: check on a fresh clone before treating one as a regression.
 
 The build is not optional and is not a formality. Next enforces the client
 and server boundary only when it bundles, so a tree that is green on

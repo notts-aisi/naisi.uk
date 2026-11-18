@@ -23,8 +23,9 @@ import { THE_VERSION_THIS_FEEDBACK_WAS_ABOUT, answerChangedSinceWords } from "@/
 import EarlierVersion, { versionBoxes } from "./EarlierVersion";
 /**
  * THE FEEDBACK ON ONE PERSON'S WEEK, AS THE PEOPLE RUNNING THE GROUP READ IT
- * (the review page, the Coursework tab's person page): each piece signed as
- * the person reads it, what it is on, and whether its email has gone.
+ * (the reading view of their week, the page of one question): each piece
+ * signed as the person reads it, what it is on, and whether its email has
+ * gone.
  * Feedback given before pieces existed is one of them, already emailed. A
  * piece on a written answer that has changed since carries the version it
  * was about, stacked under it ("The version this feedback was about"), so it

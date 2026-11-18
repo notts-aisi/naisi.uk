@@ -64,6 +64,12 @@ export type ExcusedThisTerm = {
 export type ExcusedPageWeek = {
   sessionKey: string;
   weekNumber: number;
+  /**
+   * The person held an active place in the request's group FOR THIS WEEK
+   * (`stillBelongs` with the week, as the approve route decides), and the
+   * group is not archived: approving this week is offered only then.
+   */
+  belongs: boolean;
   occurrence: number;
   /** The session's date as the group's calendar dates it now; the date when asked if it no longer resolves. */
   dateKey: string;
@@ -120,7 +126,12 @@ export type ExcusedRequestPageView = {
   history: { what: ExcusedEvent; by: Named; at: string; sessionKey: string | null }[];
   /** A week of it waits, and the reader did not ask it. */
   canDecide: boolean;
-  /** The person still holds an active place in the group, and the group is not archived: approving is refused otherwise. */
+  /**
+   * The person still holds an active place in the group for a week still
+   * waiting (that week's group: somebody moved mid-term can have a request
+   * waiting about a week they spent there), or, with nothing waiting, in the
+   * group now; and the group is not archived. Approving is refused otherwise.
+   */
   belongs: boolean;
   yours: boolean;
 };
@@ -335,6 +346,7 @@ export async function loadExcusedRequestPage(
         setBy: setter ? { name: named(setter.byUid).name, at: setter.at.toISOString(), how: setter.how } : null,
       },
       approving,
+      belongs: stillBelongs(seat, group, week.weekNumber),
     };
   });
 
@@ -370,7 +382,12 @@ export async function loadExcusedRequestPage(
       }),
       history: request.history.map((entry) => ({ what: entry.what, by: named(entry.byUid), at: entry.at.toISOString(), sessionKey: entry.sessionKey })),
       canDecide: request.status === "waiting" && request.askedByUid !== actor.uid,
-      belongs: stillBelongs(seat, group),
+      // While a week waits, whether they belonged to the group for one of the
+      // weeks still waiting (the week's group, as the approve route decides);
+      // else, as before, whether they are in it now.
+      belongs: weeks.some((week) => request.weeks.some((each) => each.sessionKey === week.sessionKey && each.status === "waiting"))
+        ? weeks.some((week) => week.belongs && request.weeks.some((each) => each.sessionKey === week.sessionKey && each.status === "waiting"))
+        : stillBelongs(seat, group),
       yours: request.askedByUid === actor.uid,
     },
   };

@@ -12,7 +12,9 @@
  *    fewer (a session cancelled, say) holds nobody to more than it held:
  *    coming to every session it held meets the rule (`meetsRule`). There is
  *    no default. The programme's lead or an admin sets it on the programme's
- *    Settings tab, and nobody else is ever shown the number.
+ *    Settings tab. The people taking part are told the number, and what a
+ *    certificate needs (`certificateNeedsWords`); only the lead and admins
+ *    see who is ticked.
  *  - THE SUGGESTION, worked out each time it is asked from the rule and the
  *    run's registers ("came" is the Attendance tab's own count: present,
  *    late and left early). Never stored, so a register corrected after the

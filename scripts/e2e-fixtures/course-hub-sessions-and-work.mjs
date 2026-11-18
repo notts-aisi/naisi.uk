@@ -24,22 +24,24 @@
  * unticks it, which is all her answer takes now that she has given it; week
  * 6 is asked about on Can't make it instead (the request offers it; nothing
  * is sent). Then she says she is joining week 4 online, one thing at a time
- * on her ticket; the
+ * on her ticket, and the email log holds the one email that tells Fern so; the
  * box at the top of Fern's group page asks for a meeting link for week 4
  * (Group A has none at this point), Fern adds one, and the box and the
  * register say Ada is joining online; Ada's ticket, on Ada's programme page
  * and on Home, carries the link for anybody joining online. Ada
  * writes week 4's written answer and sends it with its own Send (the week
  * stays open: nothing locks at a send or at the session), then changes it
- * before the session, and Fern's review page still shows it as sent, never
- * the change. Then the programme's lead opens the Surveys tab from the
+ * before the session, and Fern's reading view of Ada's week still shows it
+ * as sent, never the change. Then the programme's lead opens the Surveys tab from the
  * programme's head and follows the Overview's link to the programme's
  * session reports, where Fern's report is, with names, and the lead's
  * Attendance tab says Ada came to one of three sessions online. Last, Group
  * A's week 4 session starts (`startGroupSession`, below): Ada's page says the
  * group met, and what she adds and changes now says how late; Fern's pages
- * say "Late" with how late and show the answer as it stood at the session;
- * and Ben, another fellow of the group, reads none of it.
+ * (the reading view, the page of one question, This week's work) say "Late"
+ * with how late and show the answer as it stood at the session; and Ben,
+ * another fellow of the group, reads none of it, nor through the older
+ * pages' addresses, which forward to those pages.
  *
  * ## Every grant is made on a real page, by the admin the harness is given
  *
@@ -63,7 +65,9 @@
  *
  * ## It reads no mail
  *
- * Nothing it checks is in an email. The approvals and the week 4 email the
+ * Nothing it checks is in an email: of the mail, it reads only the email
+ * log's row for the email that tells Fern Ada is joining online, by its kind
+ * and its subject. That email, the approvals and the week 4 email the
  * finished register may send go to fixture addresses, suppressed first
  * wherever the mail is not caught, so it runs wherever the harness runs.
  */
@@ -82,12 +86,12 @@ export const SESSIONS_AND_WORK_STEPS = [
   "the member answers Can you make this time most weeks? with Most weeks, not all, ticking the next session and a later one, and their registers record them as excused",
   "the facilitator's register says who can't make next week's session, leads to this week's session report before it is finished, and the facilitator marks this week's, puts the member down as having joined it online, and finishes it",
   "the facilitator follows the finished register's link to the session report and sends one",
-  "the member can make next week's session after all and unticks it, all an answer takes once given, asks about another week on Can't make it instead, and says they are joining online, one thing at a time",
+  "the member can make next week's session after all and unticks it, all an answer takes once given, asks about another week on Can't make it instead, and says they are joining online, one thing at a time, and the group's facilitator is emailed that they are",
   "the box at the top of the facilitator's group page asks for a link for the week the member is joining online, the facilitator adds one, and the box and the register say who is joining online",
   "the member's ticket carries the week's link for anybody joining online, beside Add to calendar, on the programme page and on Home",
   "the member writes the week's written answer and sends it with its own Send, and the week stays open, saying when it was sent",
   "the member changes the answer before the session, and the page says the people who read it still see the version sent",
-  "the facilitator's review page shows the answer as it was sent, never the change",
+  "the facilitator's reading view shows the answer as it was sent, never the change",
   "the programme's lead follows the Surveys tab's link to the session reports and reads the facilitator's report, with names",
   "the programme's lead reads on the Attendance tab how many sessions the member came to in the room and online",
   "once the group's session has started, the member's page says the group met, and what the member adds, changes and sends now says how late",
@@ -136,6 +140,7 @@ export const SPEC = {
       "/api/courses/runs/[runId]/written-answers/[answerId]",
       "/api/courses/runs/[runId]/written-answers/[answerId]/send",
       "/api/courses/runs/[runId]/reflections/[promptId]",
+      "/api/courses/runs/[runId]/first-read",
     ],
     pages: [
       "/(auth)/login",
@@ -146,6 +151,8 @@ export const SPEC = {
       "/(app)/learn/[runId]/group/[groupId]",
       "/(app)/learn/[runId]/group/[groupId]/register",
       "/(app)/learn/[runId]/group/[groupId]/report",
+      "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]",
+      "/(app)/learn/[runId]/group/[groupId]/question",
       "/(app)/learn/[runId]/group/[groupId]/written",
       "/(app)/learn/[runId]/group/[groupId]/reflections/names",
       "/(app)/learn/[runId]/weeks/[n]",
@@ -187,6 +194,17 @@ export const SPEC = {
    * on the member's and the facilitator's pages, with another fellow reading
    * none of it. All eighteen steps against the loopback server on a laptop,
    * the fixture manifest at zero after teardown.
+   * Verified again on 2026-11-13, on dev's 6311e935, once saying Joining
+   * online emails the group's facilitator: the email log holds the one email
+   * to Fern, by its kind and its subject, and the box still asks for the
+   * link. All eighteen steps against the loopback server on a laptop, 58
+   * rows before teardown (6 sends), and zero after.
+   * The facilitator's three readings moved on 2026-11-13, when the written
+   * answer's review page and the group's reflections with names were
+   * retired, to the reading view of the member's week and the page of one
+   * question, and the other fellow now also tries the older addresses, which
+   * forward to them; not yet run in a browser: the pull request's
+   * end-to-end job runs them first.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three-work" }),

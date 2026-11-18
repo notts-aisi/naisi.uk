@@ -50,6 +50,7 @@ export default function TicketExcuse({
   joiningOnline,
   hasLink,
   locked = false,
+  certificateNeeds = null,
 }: {
   view: ExcusedOwnView;
   session: OwnExcusedSession;
@@ -58,6 +59,8 @@ export default function TicketExcuse({
   joiningOnline: JoiningOnlineView | null;
   hasLink: boolean;
   locked?: boolean;
+  /** What a certificate needs, said in the form (`certificateNeedsWords`), or null. */
+  certificateNeeds?: string | null;
 }) {
   const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
@@ -197,6 +200,7 @@ export default function TicketExcuse({
           hasLink={hasLink}
           locked={locked}
           onSaidOnline={setSaid}
+          certificateNeeds={certificateNeeds}
         />
       )}
     </>

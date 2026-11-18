@@ -1263,10 +1263,13 @@ It is still a draft nobody has marked: nothing has been finished, and the
 reminder and the task chase it after the session exactly as they chase a
 register with no document. The register's page says who told us, in a line
 over the grid for each session still to come, and on that person's cell for a
-screen reader. A facilitator marks the person as usual, and their mark takes
-the line over: the marking route deletes the person's `excusedInAdvance`
-entry, and the person is asked to tell their facilitators rather than press
-again.
+screen reader. A facilitator may record that the person came after all, or
+put the line back to excused, and nothing else (see "Excused is an admin's or
+the programme's lead's" under Covering a register): the person's
+`excusedInAdvance` entry stays with the line, so putting it back restores
+their word. An admin's or the lead's mark takes the line over: the marking
+route deletes the entry. While the line says somebody else's mark, the person
+is asked to tell their facilitators rather than press again.
 
 The press is refused once the session has started, on a session called off
 through Change a session, and on a register that is finished or says the
@@ -1279,6 +1282,38 @@ is refused, as it is for any mark on that register: ask the person to take it
 back first. "Most weeks, not all" can record weeks well ahead, so this refusal
 is likelier after people answer it: the register's line over the grid names
 who told us, for each session still to come.
+
+### "Joining online", before a session
+
+Somebody taking part in a group can press **Joining online** on the ticket
+of their group's next session, on their programme page, until the session
+starts (`POST /api/courses/groups/[groupId]/joining-online`,
+`src/lib/courses/joiningOnline/`). It keeps their word on that session's
+register (`onlineSaid.<uid>`, when they said it), never as a mark; **I'll be
+in the room after all** takes it back. The box at the top of the
+facilitators' group page and register asks for a meeting link for that week
+while the session has none.
+
+The first time somebody says it for a session, each of the group's
+facilitators named on the group, with standing and an address, is emailed
+("Daniel Kim is joining week 2 online"): who, the group, the week, its day
+and time, and, with no link yet, that the box at the top of their group page
+has a field "Meeting link for week 2" and a button "Add the link"; with a
+link already, that there is nothing to add. It says it is automated and why
+it was sent, and its one button opens the group's page. NEVER THE MEETING
+LINK. Never the person who said it: a facilitator who holds a place in the
+group they run tells only their co-facilitators. Taking the word back emails
+nobody.
+
+Once per person per session, ever: the press decides it in the transaction
+that writes the word, from `onlineEmailed.<uid>` on the register, and stamps
+it when it tells them. Taking the word back leaves the stamp, so saying it
+again emails nobody a second time. The stamp is server only (no route or
+page sends it to a browser) and goes with the account. The email is sent
+after the write, outside its transaction (`tell.ts`); a failed send never
+fails the press, and the press is answered the same either way. Its rows in
+the log carry `kind: "course-joining-online"`, the run as the reference
+(docs/notifications.md).
 
 ### Excused weeks: asking, and an admin deciding
 
@@ -1739,6 +1774,255 @@ Each press that puts anybody on a run appends one line to the course log
 programme, and how many people. It names none of them. Destroying the run
 clears it with the run's other lines.
 
+## Which group somebody was in, week by week
+
+A place on a run (`courseEnrolments/{runId}__{uid}`) has one group,
+`groupId`: the group the person is in NOW. A place can also carry a record of
+which group it was in from which week, `groupsByWeek`, a list of
+`{ groupId, fromWeek }` in week order whose last entry is the group they are in
+now. Somebody moved from Group C to Group F from week 3 has
+`[{ C, 1 }, { F, 3 }]`: weeks 1 and 2 are Group C's, and every week from 3 is
+Group F's.
+
+**Written by one thing.** The record is written only by `moveFromWeek`
+(`src/lib/courses/moveFromWeek.ts`), which sets the group and the record in one
+transaction, and the one thing that calls it is the staff move made mid-term
+(below; a test fails if anything else does). A place with no record reads
+exactly as it always has: the group it is in now, for every week. That
+includes everybody moved before the record existed, whose earlier weeks read
+the group they are in now, as they did.
+
+**The one question.** `groupForWeek(place, weekNumber)`
+(`src/lib/firestore/courseEnrolments.ts`) answers which group a person was in
+for a week: the record's last entry from that week or earlier, the first
+entry's group for a week before it, and the place's group when there is no
+record. The helpers in `src/lib/courses/groupsByWeek.ts` are made of it. It
+answers the group the record names whether or not that group still meets; a
+week in a group that no longer meets has no session, no register and no mark
+for anybody reading it.
+
+**Kept true.** The normaliser reads a record whole or not at all: every entry a
+group id and a whole week, weeks rising, and the last group the place's group.
+A record that contradicts the place reads as none. The writer keeps it that
+way, and every other writer of a place's group deletes the record whenever it
+changes the group: a move on the allocation board (to another group, or to
+none), Remove, somebody changing the session of a seat they took on an open
+run, and placing a facilitator who holds a place in the group they facilitate.
+Each of those is a move for every week, so the place then reads the group it
+is in now for every week, as every such move always has. A write that leaves
+the group where it is (a press on the board that changes nothing, reinstate,
+Publish) keeps the record. Deleting an account and destroying a run delete the
+place whole; an account's marks are cleared from every register of the run,
+whichever group.
+
+**Who reads a week's group, and who reads now.** Every reader about one
+session or one week of a person asks `groupForWeek`, whether the session is
+past or still to come, and `tests/course-groups-by-week-readers.test.mjs`
+lists every file that reads a place's group (or a group's people, through
+the notice audience) beside a week's mark, a due session, a group's sessions
+or register rows, and runs each reader for a mover with a record and without.
+`tests/course-groups-by-week-sessions.test.mjs` runs the readers about one
+session three ways: moved from the next week to meet, moved from two weeks
+ahead, and moved with no record. The readers:
+
+- *The session they were due at*: `sessionSourceFor`, so Late, Feedback to
+  write's seven days and the reminders before a session, which reach the
+  people whose group for the session's week is the session's group (the
+  notice audience's `weekNumber`).
+- *Their mark for a week*: their own attendance on the run home, their row of
+  the Attendance tab and of the group page's grid, who finished, what a
+  certificate needs, and the rollup on their place. A mover is ONE row, under
+  the group they are in now, each week read off the register of the group they
+  were in that week; a group's figure for a week counts the marks on its own
+  register. A session of their new group finished before they were in it is
+  never an absence of theirs. "Of your group's 6 sessions" is not said to
+  somebody whose sessions were more than one group's.
+- *Which register a week's line is on*: a group's register lists everybody in
+  it for a week of its registers, and a mover's row carries the weeks they
+  were in it (`inGroupWeeks`): their cells in other weeks are inert, and a
+  mark there is refused. The check-ins, the session report, Ask for a
+  correction and the participant notes take the rows of their session's week.
+  The rollup's people for a group are everybody with a week in it, so a
+  correction of an old group's register reaches a mover's figures.
+- *Everything else about one session*: their calendar link (each week's
+  session from that week's group, past and future); their own excused weeks
+  (each session and its outcome off that week's group's register, with
+  nothing offered to ask of the group they are in now about another group's
+  week); deciding a request to be excused (it belongs to the group they were
+  in for its week, so one asked before a move about a week that stays with
+  the old group is still decided, and written on that group's register);
+  "Can't make it" and "Joining online" (on the register of the group the
+  session's week was spent in, and the ticket's session is the next one they
+  are due at; "Joining online" tells that group's facilitators); when a pick
+  closes and This week's due dates on the run home; when a sealed prediction
+  opens; a new regular time, which takes back ticks only for the weeks the
+  person is in that group; and the group's "Week N is open" email, with what
+  a register's button says of it, which reach the people in the group for the
+  session's week.
+
+Which copy of a week they work in, and are read on, is the group their place
+BELONGED to in that week (`ownGroupForWeek`, through `copyGroupIdFor` in
+`src/lib/courses/weekCopy.ts`): see "Moving somebody to another group
+mid-term" below. `tests/course-staff-move-readers.test.mjs` lists every file
+that reads a group's copy of a week (through the resolver, `weeksRead`, a
+seat's `copyGroupId` or the week states' `copyGroupOf`) where it handles
+places, works by people's ids or answers for a group's page, and says whose
+copy each reads.
+
+Everything that means the group they are in NOW keeps reading `groupId`: their
+facilitators, the roster, who reads their work and gives feedback on it, who
+Publish tells what, "Can you make this time?", and the group a leaver no
+register marked is named under. A group's This week's work and Remind are the
+people in it now whose place belonged to it in that week (see "Moving
+somebody to another group mid-term" below).
+Asking to be excused is asked of the group they are in now, and so is the
+request page's Approve button, which is offered while the person is in the
+request's group now. A move does not change who reads whose work here. With
+no record of groups by week, every reader answers as it always has, because
+every week reads the group they are in now. The readers of one session above
+read a move dated further ahead than the next week to meet as it is, the
+weeks in between staying with the old group.
+
+## Moving somebody to another group mid-term
+
+An admin or the programme's lead moves one person to another group for good
+from the person's page under the programme
+(`.../programmes/[programmeId]/people/[uid]/move`), reached from their row's
+More menu on the People tab and from their name on the programme's page of a
+group. It is offered for somebody whose place is active, in a group whom
+Publish has told, and who facilitates no group of the run, on a run with
+more than one group that is not an incubator's and is not over, archived or
+being destroyed; the route refuses each of those in one sentence, and asks
+the run's state again inside the save's transaction. Somebody whose group no
+longer meets (it is archived) is refused in its own sentence ("Group C no
+longer meets, so there is nothing to move Leo from."). Moves made before groups go out are still made in
+Arrange and told at Publish.
+
+**The week is the server's** (`src/lib/courses/staffMove/week.ts`): a move
+takes effect from the week of the old group's next session still to come
+(week N; a session that has started counts as met, and a week counts as met
+once any of its sessions has started). Every week before N stays with the old
+group, where they met; week N and every later week go to the new group. It is
+offered only when the new group has a session for week N that has not
+started. So no week still to come is left with the old group, and no week the
+new group has already met is given to them. Each group is read in its own
+sessions and week numbers, never calendar weeks, and the old group's sessions
+are the person's own (each week's from the group they were in that week), so a
+move back is never from a week they spent elsewhere. When no week can be
+offered the page says why in place of the button: the new group has already
+met that week (and when to come back), the old group has no session left, the
+old group has no session set at all, the old group still has a session to
+come in a week before N (its weeks met out of order, or a second session of a
+week whose first has started: move them after that session), or the new
+group has no session that week. When the old group's week N is called off
+and it keeps pace, the move is from the week after, though the new group may
+meet in week N: they have no session that week either way. Likewise a week of
+the old group with no time set, between its last week met and the next dated
+one, stays with the old group: it has no session for anybody to go to, and
+the rule is left as it is. The press sends back the week and the
+count of emails the page showed; both are worked out again inside the save's
+transaction, and a change answers 409 with the facts as they now are.
+
+**What follows at once, in one transaction**: the group and the record of
+groups by week, both groups' counts, the group they join written as the group
+they were told about (so the next Publish says nothing about this move),
+Publish's markers for this move forgotten (so a later move back is announced
+afresh), and one row on EACH group's History (`member-moved`, under People),
+with the reason given, if any, which the programme's lead and admins read and
+a group's facilitators never see. The reason is kept, and put in the row's
+sentence, in one form (every run of white space one space), so taking it out
+of the sentence for a facilitator never misses it; and when the person's
+account is deleted it comes off both rows, which stay. `allocatedEmailAt` is never written: it is
+the instant Late is measured from, so a week done on time before the move
+stays on time. `timeAnswer` is left as it is, as the allocation board leaves a
+told seat's: it is about the group it was given about, and shows only while
+they are in that group. A move from the first week they would have met leaves
+no record: it is a plain move, and the emails still go.
+
+**The three emails**, after the commit (`src/lib/email/moveEmail.ts`, kind
+`course-move`; a failed send never fails the move, and the answer says what
+went): "You’re moving to Group F" to the person, "Leo Park joins Group F from
+week 3" to each of the new group's facilitators, and "Leo Park leaves Group C
+from week 3" to each of the old group's, each with standing and an address,
+never the person moved and never whoever pressed; somebody who facilitates
+both groups is told once, as the new group's. One function decides who, for
+the page's count and the send alike. Never the reason, never a meeting link.
+
+**Who reads whose work is the group now, at once**: the new group's
+facilitators read every week with its feedback, the old group's read nothing
+more. **Which copy of a week** is per week: weeks before N on the old group's
+copy, week N on on the new group's, so an answer keeps the question as they
+saw it and feedback given on an old week is given on that old copy. One
+helper answers it (`copyGroupIdFor`) for every save, the reading views, the
+feedback gate, the prediction card, exercise submit, who finished, the
+week's card in their tasks, the page of one question, the Coursework tab,
+the run's questions for Claude and Pangram and "Week N is open"; the person's own week page reads the copy the
+server names for each week (`forkedWeekGroups` on the overview), never one it
+works out in the browser. A week spent in a group that has since been
+archived is still that group's copy; a group with no copy of a week reads the
+run's own week, as any group does. The move page names, before the press,
+each week from N on that the person has already written in on the old
+group's version where the new group's version differs: that week is then
+read on the new group's version, and nothing is deleted. A group's page of
+one week (This week's work, the summer exercises' queue, the page of one
+question) reads that group's copy. On the page of one question, somebody
+moved in who did that week with another group, on another week document than
+the page reads (compared as documents, never as words), keeps their row and
+the link to their week, and the row says only "Leo did week 2 with Group C,
+on Group C’s version of the week." ("Leo did week 2 with Group C." where
+Group C read the run's own week) to the programme's lead and admins, who see
+the move on History and the People tab, and "Leo did week 2 with another
+group, on that group’s version of the week." ("Leo did week 2 with another
+group.") to a group's facilitator, whose view carries neither the old
+group's name nor its id: none of their words, no state, no control,
+nothing named as first read and no count of any filter, and their work that
+week does not choose the week the page opens on. A week both groups read from
+one document is an ordinary row. "After its deadline" is dated on the
+calendar of the group whose copy of the week the person read, the group the
+session they were due at comes from, on the reading view, the page of one
+question and the lists behind This week's work's Written answer column
+(which still list everybody in the group now for every week, though the
+column draws no row for a week spent elsewhere). "Week N is open"'s line
+about an earlier week not done judges each person's week on the copy they
+read it on, so a week finished on the old group's version is never called
+not done because the new group's asks something more. The reminders before
+a session remind somebody about a week the session covers only when that
+week was this group's for them (`belongsTo`): a week spent in another group
+was due at that group's session, finished or not. The Coursework tab reads
+the copies of a group archived since that somebody's record names, so a week
+spent there keeps its answers; such a week has no session for anybody
+reading it, so it reads as undated there, as everywhere. The run's questions
+for Claude and Pangram are the run's and the live groups' copies' for
+everybody, as before; a question only the own copy of a group archived since
+asks is gathered only for the people whose own record names that group for
+its week, never for anybody else who once answered it. The new group's pages, for a week before
+N, list them with that week's people as joining later ("Joins Group F from
+week 3, with weeks 1 and 2 to read", chip "New from week 3"), not in its work
+or its counts, never reached by its Remind for that week, not expected at its
+session, with no word said and no register line; and the old group's pages
+no longer list them at all. So for a week before the move they are on neither
+group's This week's work: the new group's facilitators read that week through
+their name, and the programme's lead and admins on the Coursework tab. The
+person's own programme page and Home show, as theirs, only sessions they are
+due at, and offer Can't make it and Joining online only for those; their own
+group's card takes its room, time and link from the week of the next session
+they are due at in it, so the new group's earlier week, still to come, never
+lends it its link. Their own week page says "Customised by your facilitator"
+only of a week read from the own copy of the group they are in now, and of a
+week read from another group's copy says nothing.
+
+**What stays behind on the old group**: a line excusing them from one of its
+sessions from week N on, a "Most weeks, not all" tick about one, and a request
+to be excused still waiting about one. The page names each before the press;
+none of them applies once they move, and a waiting request is declined with a
+line on the Requests page.
+
+**The allocation board refuses a place with weeks in two groups**: moving it
+there to another group is refused in one sentence ("Leo was moved mid-term and
+has weeks with two groups. Use Move on Leo’s row, which keeps them."), as a
+full group is reported. Taking it out of every group, Remove, a place with no
+record, and somebody changing their own session on an open run, are as before.
+
 ## A programme's lead on the run their programme names
 
 Each programme's lead does, for their own programme, what an admin does from
@@ -2133,7 +2417,7 @@ and of late ("The week stays open").
 - **A facilitator's own week is never the group's business.** The rows are the
   group's fellows only, whoever is looking: never anybody who facilitates a
   live group of the run, this one or another, wherever they hold a place (the
-  rule the written answers' review page keeps, `facilitatesOnRun`; This week's
+  rule the reading pages keep, `facilitatesOnRun`; This week's
   work's week column keeps it too). The facilitators' own weeks, and whether
   they were late, are read for admins and the programme's lead alone, and
   counted in no number.
@@ -2287,6 +2571,49 @@ register records who did and in whose place. The rules are in one place,
 
 An admin's correction of a finished register (PATCH) stays an admin's. The note
 drawer (`participant-notes`) stays the facilitators' and admins'.
+
+**Excused is an admin's or the programme's lead's.** Only an admin or the
+programme's lead (whether or not they also facilitate the group; never a run's
+track lead by that alone: `marksExcused` in `registerAccess.ts`) sets a line to
+excused by hand, on any session, on a draft register or in a correction of a
+finished one, and only they change a line where an excusal stands to absent or
+not marked. An excusal stands for a person on a session when an approved
+request to be excused covers it, their line is excused now, or the register
+keeps (`excusalKept`, one optional map, keyed by person, cleared by account
+deletion) that it was excused when somebody else recorded that they came.
+There, a facilitator, a co-facilitator and somebody given the session record
+only that the person came (present, late, left early) or put the line back to
+excused; the person's own word in advance (`excusedInAdvance`) stays with the
+line through that, so putting it back restores it. Anywhere else they mark
+everything but excused, as before. A line already excused goes through their
+save untouched. Anything else is refused in one sentence ("Only an admin or
+the programme’s lead can mark somebody excused." or "Only an admin or the
+programme’s lead can change an excused line to absent or not marked."), and
+nothing of the save is written. On a finished register a run's track lead is
+held to the same rule: a line correction to Absent or not marked, a move or
+a clear that would leave such a line absent or not marked (or would move a
+line that does not say the person came onto one, on the week it goes to), or
+an Absent line in "It did happen", is refused in the second sentence before
+anything is written, while present, late and left early stay theirs. A
+session called off keeps every excusal that stands.
+`excusalKept` holds the stamp of the excused line it displaced, so putting the
+line back gives an approval's line back its approval's stamp. Any write of a
+line by an admin or the lead, and every correction they make, clears it; a
+track lead's correction keeps it, and a track lead's move of a line that says
+the person came onto a line excused on the week it goes to writes it there,
+with that line's stamp. A save that only
+sets or clears excused never takes the register in a facilitator's place and
+leaves who took it as it was. On the page, their cycle skips Excused; a cell
+where an excusal stands cycles Excused, Present, Late, Left early and back;
+the caption says both; and a line under the legend says "Only an admin or the
+programme’s lead can excuse somebody, or take an excusal away. People ask on
+their programme page." The sheets that correct a finished register offer a
+track lead only what the route takes from them on each line. The register's
+GET says which reader is which
+(`caller.marksExcused`) and where an excusal stands (`excusalStands`). A
+person's own word ("Can't make it", the weeks ticked under "Most weeks, not
+all"), an approved request and a correction an admin or the lead approves
+still write excused, as before.
 
 ### Taking it, and giving it
 
@@ -2490,8 +2817,8 @@ how many).
 
 ### Deleting an account
 
-A register's `records`, `participantNotes`, `excusedInAdvance`, `onlineSaid`
-and `online` are keyed by the person they are about and go with the account,
+A register's `records`, `participantNotes`, `excusedInAdvance`, `onlineSaid`,
+`onlineEmailed` and `online` are keyed by the person they are about and go with the account,
 key by key; `markedByUid` and `pushedByUid` name who acted and stay. The new
 fields follow that: `setBy.<uid>` and `facilitatorRecord.<uid>` go, and the
 uids naming who acted (a stamp's `byUid`, a cover's `byUid`, `covering` and
@@ -2518,7 +2845,11 @@ asked with a reason, previewed, and with an optional notice:
   so the register is no longer taken, and one `session-did-not-happen` history
   row (registers) keeps what each line said in its `before`, beside the
   change's own row. What people said in advance stays, as for any cancelled or
-  pushed week. Pushed back, the register becomes the next session's, so its
+  pushed week, and so does every excusal that stands: an excused line stays
+  excused, and a line that says somebody came over one goes back to excused
+  with the stamp it displaced (`linesCalledOff`), named with what it said in
+  the row's sentence ("Put back to excused: ...") and `before`, and in both
+  previews ("Dev (in the room) goes back to excused."). Pushed back, the register becomes the next session's, so its
   cover and its facilitator record go too (the row's `before` keeps them
   beside the lines, as plain values: `cover`, `coverByUid`, `coverUntil`,
   `facilitator:<uid>`, and its sentence says who was covering) and its
@@ -2675,7 +3006,8 @@ none, being no line.
   is refused: the later weeks have moved, which is a change of time. The
   preview sends each person's line as it is now, and the sheet starts each
   from it: somebody who said in advance they couldn't make it starts as
-  Excused, one of the four it offers.
+  Excused, one of the four it offers. A run's track lead is offered Excused
+  only where an excusal stands, and Absent only where none does.
 
 Whether a session happened is changed for a week's first session only, as a
 week's change of time is: `did-not-happen` and `did-happen` on a week's second
@@ -2868,8 +3200,11 @@ stay exactly as they are beside it.
   leads to the week on this page.
 - **The writer**, their own report, on their page: in the form while it is
   open, read only once it has closed.
-- **Beside a written answer** (the review page, both the group's and the
-  lead's): what that week's reports say about the person whose answer it is,
+- **Beside a written answer** (the reading view of the person's week behind
+  both its doors, beside an answer its readers may read; the written answer's
+  review page, which showed them before, is retired and its addresses forward
+  there): what that week's reports say about
+  the person whose answer it is,
   and nothing else of a report: who engaged well and why, who seemed not to
   have done the readings, who might need a hand and the word about them
   (`src/lib/courses/sessionReports/beside.ts`, `readReportLinesAbout`). The
@@ -2940,22 +3275,98 @@ admins, and promises no names only on the read-out page.
 
 ### Who reads which reflections, and where
 
-- The group's live facilitators (and admins):
-  `/learn/[runId]/group/[groupId]/reflections/names?week=N`, linked as "Read
-  them with names" from the group page's review queue and from the read-out
-  page. The group's FELLOWS only, each answer under the writer's whole name
-  with when it was last written, and the fellows who have not written one
-  yet. Never a facilitator's own reflections (an admin's view of this page
-  included) and never a private note.
-- The programme's lead and admins:
-  `.../programmes/[programmeId]/reflections?group=&week=` (from "Read them" on
-  the lead's view of a group's week). The same layout, plus each
-  facilitator's own reflections under their name, marked as theirs.
+Reflections are read with names on the two reading pages (Fri 13 Nov 2026):
+the page of one question across a group, a reflection at a time, and the
+reading view of one person's week. Who reads whose is the one gate on whose
+work (`readableInGroup`, see "One question, the whole group" below).
+
+- The group's live facilitators: the page of one question on the group's
+  side, `/learn/[runId]/group/[groupId]/question?week=N&first=reflection`,
+  linked as "Read them with names" from the group page's review queue and
+  from the read-out page. The group's FELLOWS only, each answer under the
+  writer's name by the names rule (`nameForViewer`: a facilitator on the
+  committee is shown the whole name, one who is not, the name people go by)
+  with when it was last written, how late and, where they differ, the
+  question when it was written and the answer as it stood at the session; a
+  fellow with nothing written says so. Never a facilitator's own
+  reflections and never a private note. Under a reflection, who reads
+  reflections with names and "Pick lines to read out", for the readers the
+  read-out page admits (its facilitators and admins).
+- The programme's lead and admins: the same page on the programme's side,
+  `.../programmes/[programmeId]/question?group=&week=&first=reflection`
+  (from "Read them" on the lead's view of a group's week), and on the group's
+  side where the run's layout admits them. The group's facilitators' own
+  reflections are listed too, each marked "Facilitator", with the line saying
+  who reads them ("Only you and admins read these. They’re never read out.").
+- An ARCHIVED group, behind its door: admins bypass archiving, and the
+  group's reflections with names, which the page of one question replaced,
+  showed an admin its fellows' reflections under their names in the weeks the
+  group taught, and nothing else of theirs. So, for an admin alone
+  (`archivedGroupFellows`), the page of one question lists the archived
+  group's fellows on a reflection in a week the group teaches: each
+  reflection under its writer's name, with when it was saved, how late, the
+  words as they stood at the session and the question as it was when
+  written, and "Nothing written yet" for a fellow with none. Nothing else of
+  theirs: they are not listed on a fill-in box, on the written answer or in a
+  week the group does not teach; their names lead nowhere, since the reading
+  view of one person's week refuses them as it always did; no "Not told
+  yet", no read state, nothing named to the first-read route; and the week
+  the page opens on by default counts only those reflections. Its
+  facilitators' own work is listed to the lead and admins as it always was
+  there. The programme's lead reads only that there, never a fellow's, and
+  everybody else is sent to the run's home, as before. The group's page,
+  which an admin alone opens on an archived group, still shows its one week's
+  boxes, ticks and notes as it always did, and names nobody to the first-read
+  route.
 - The read-out page, `/learn/[runId]/group/[groupId]/reflections`, is
   unchanged: words only, in the order of the words, no name, no time. Its
   loader (`loadReadOutWeek`) and component (`ReadOutView`) carry no name
-  beside an answer for anybody, and `tests/course-hub-facilitator-week.test.mjs`
-  fails if either page ever draws the other's layout.
+  beside an answer for anybody, no uid and no row id, and it names nothing to
+  the first-read route; `tests/course-hub-facilitator-week.test.mjs` fails if
+  it ever draws a reading page's layout, and `tests/course-question-view.test.mjs`
+  if anything it imports can draw the beacon.
+
+### The older pages' addresses
+
+Three older pages are retired (Fri 13 Nov 2026), and each address forwards,
+worked out from the address alone (`src/lib/courses/coursework/forwards.ts`,
+a `redirect` from the page, nothing in `next.config.ts`). The forwarding page
+reads nothing and asks nobody anything, so it tells nobody whether a run, a
+group or a person exists; the page it forwards to answers with its own gate,
+as it does for anybody who typed its address. Only an id or a week number is
+carried over: anything else is left out and the new page opens its own
+default. An address already sent, in an email or on Home, keeps working.
+
+- The written answer's review page, `.../programmes/[programmeId]/written`
+  and `/learn/[runId]/group/[groupId]/written`: with a person
+  (`?week=N&person=<uid>`), the reading view of their week on the same side,
+  at the written answer (`.../coursework/<uid>?week=N#reading-answer`);
+  without one (`?group=&week=`), the page of one question across the group
+  at the week's written answer (`question?...&first=answer`).
+- The programme's reflections with names, `.../programmes/[programmeId]/reflections?group=&week=`,
+  and the group's, `/learn/[runId]/group/[groupId]/reflections/names?week=`:
+  the page of one question across the group at the week's first reflection
+  (`question?...&first=reflection`).
+
+`first=answer` and `first=reflection` ask the page of one question for the
+week's written answer or its first reflection without its id; a question
+named wins, and a week that asks no such question opens on its first.
+The review page's loader (`loadWrittenReview` in
+`src/lib/courses/writtenAnswers/reviewPage.ts`) stays only as the reader
+behind This week's work's Written answer column, and works out that column's
+lists of people alone: it opens nobody's answer, and reads no rating, no
+Pangram reading, no session report's lines and no earlier wording of a
+question. On the programme's side the lead and admins still choose the group
+on the page of one question (see "One question, the whole group").
+What changed for anybody, persona by persona: the lead now opens the group's
+reflections with names from the group's side too (the page of one question
+admits the lead there; the older page sent the lead to the run's home); an
+admin reading them from the group's side now sees the facilitators' own,
+marked, as on the programme's side; a person named in an address whose week
+the reader may not read is no longer swapped for another answer (the
+reading view sends the reader to the run's home); and a reviewer on the form
+is told the Coursework tab, not the Attendance tab, is the lead's and an
+admin's.
 - Reflections get no "read" mark and no reply. Written answers keep their
   own feedback flow.
 - Reflections and fill-in boxes are read as they are typed (privacy v17). A
@@ -2972,45 +3383,295 @@ admins, and promises no names only on the read-out page.
 For the programme's lead and admins (the Groups and Attendance tabs' gate,
 `loadProgrammeRun`); a reviewer is told it is theirs. A row per person holding
 a place (the People tab's set, in a group or not yet), anybody else placed in
-one of the run's live groups, and each facilitator, marked as facilitating. A
-column per week of the run's plan written as blocks. Each cell leads with
-"Done" or "Not done", by the one meaning of done every page uses
+one of the run's live groups, and each facilitator, marked as facilitating;
+grouped by group, each group's head naming its facilitators. A column per
+week of the run's plan written as blocks, read in the week the person reads
+(their group's copy once Publish has told them their group, the run's own
+week before that). The loader is `loadCourseworkTab` in
+`src/lib/courses/coursework/tabLoad.ts`; its rules are pure, in `model.ts`
+and `overview.ts` beside it.
+
+**A cell says one thing, in words** (`cellStateOf`): "Done", "Done on time"
+or "Done late" (with how late), by the one meaning of done every page uses
 (`weekDone`: every tick its tasks count is ticked, the person's own pathway
 reading among them, and either the old Submit was pressed or every box its
-tasks count is written and every answer it counts sent), with when it became
-done and how long after the session (`doneAt`, `doneLateMs`). Then it counts
-what the person did in the week they read
-(their group's copy once Publish has told them their group, the run's own
-week before that, so week 1 work written before groups go out is counted):
-reflection parts written, sources ticked, where the written answer stands
-("No feedback yet" stands out and opens the answer's review page, where
-feedback is written), boxes filled in. Never anybody's words in a cell.
-Filters are plain links: a group, "Not in a group yet", "No feedback yet",
-and "Not done": the
-people with a week that has begun for them (on the calendar of the group
-whose weeks they read) and is not done. A week still to come reads "Not
-done" quietly and puts nobody under the filter. A week with nothing its
-tasks count reads as done for everybody.
+tasks count is written and every answer it counts sent), against the session
+they were due at; "Joined late" for a week before they were told their group;
+"Opens Thu 12 Nov" for a week not begun for them, the first day of its slot on
+the calendar of the group whose weeks they read (`weekOpensOn`, the day
+`currentWeekFor` first anchors to it, which also decides whether a week has
+begun); otherwise "Started" where they have done anything in it (a tick, a
+reflection, a box, an answer begun) and "Not started" where nothing. No counts
+are drawn: the reading view one click away has them. The whole cell opens the
+reading view of that person's week; the name opens the person's page. Never
+anybody's words in a cell.
+
+**Beside the state, up to three flags**, each only where it is true, and only
+for a reader who may read that person's work (`writtenReviewRole` over the
+person's seat, the gate the first-read route asks): never on the reader's own
+row, an admin and the lead included, and to the lead never on a placement
+Publish has not told. "Not read yet": something of the week its readers may
+read in full is unread, by `readStateOf` (see "When an answer was first
+read"; a box counts only for a reader the boxes' gate admits). "No feedback
+yet": the week's written answer may be read, holds words and has no feedback
+from anyone. "Changed since feedback": the person changed it after the newest
+piece of feedback on it, decided by that newest piece alone
+(`changedSinceFeedback` in `src/lib/courses/feedback/model.ts`), so feedback
+written on the new words takes the flag off. The page is handed whether each
+flag is true, never a time anything was read and never who read it.
+
+**Filters, one at a time, as plain links, each with its count** of the people
+of the chosen group: Everyone; Week not done (a week that has begun for them
+and is not done); Late (a week done late); Not read yet; No feedback yet;
+Changed since feedback. Their addresses are `?notdone=1`, `?late=1`,
+`?unread=1`, `?waiting=1` and `?changed=1`, so the two kept from before still
+open what they opened; of two asked for, the first in that order. The group
+filter is its own row of links: All groups, each group, Not in a group yet.
+"Read one question" opens the page of one question across the chosen group
+(the first group when none is), on the week the tab is on. A key to the words
+sits above the table.
+
+**At phone width** the table gives way to one week at a time: the week the
+address names, else the newest week that has begun for anybody of the chosen
+group, as a list of its people with each one's state and flags, and the way to
+the week before and after. The table scrolls inside its own card on a wide
+screen; the page never scrolls sideways.
 
 A placement Publish has not told is shown to admins alone (marked "Not told
 yet"); the lead sees that person under "Not in a group yet".
 
-### A person's page, `.../programmes/[programmeId]/coursework/[uid]`
+### Waiting for feedback, oldest first
 
-For the same two, and only for somebody who is a row of the tab (otherwise a
-calm not-here page). Newest week first: each reflection under its prompt with
-when it was written, the written answer with its state and the way to its
-review page, the fill-in boxes (after their own gate, `boxesReaderFor`),
-which sources they ticked, and the week's Feedback: every piece, signed as
-the person reads it, with whether its email went, and, once the week may be
-read, "Feedback on the week" for the lead or an admin to write a piece on the
-week as a whole (see "Feedback").
-PRIVATE NOTES are shown to admins only, never to the lead, through the one
-reader of private notes. Survey answers never appear on the tab or the page.
-The page keeps a column beside the weeks for the notes the team keeps about a
+Under the table, one list for the reader: every written answer of the people
+of the chosen group that this reader may review (never their own), that its
+readers may read and that holds words, with no feedback from anyone or changed
+since the newest feedback (the same rules as the flags). Not bounded by any
+date: it is the complete list. Oldest first, by when it was first sent (one
+never sent and read since its session: when that session started), or, for a
+changed answer, by when the words its readers read were saved. Each row: the
+person's name (opening their page), "week N written answer", when it was sent
+("· late" where it was late), never sent and read since the session, or
+"Changed since feedback" with the day, "Not read yet" where the answer is,
+and "Read", which opens the reading view at the answer (`#reading-answer`).
+Ten are drawn, with "Show all N" (`?list=all`) when there are more; with none,
+one sentence says so. A reflection or a fill-in box is never on it: nobody
+gives feedback on one alone.
+
+### One person's week: the reading view
+
+One person's coursework is read one week at a time, from two places, both
+drawn by one loader (`readPersonWeek` in
+`src/lib/courses/coursework/readingLoad.ts`) and one page
+(`src/features/courses/coursework/ReadingView.tsx`):
+
+- **The programme's side**, `.../programmes/[programmeId]/coursework/[uid]?week=N`:
+  for the same two, and only for somebody who is a row of the tab (otherwise
+  a calm not-here page). Previous and next are the people of the same section
+  of the tab.
+- **The group's side**, `/learn/[runId]/group/[groupId]/coursework/[uid]?week=N`:
+  the group's reading pages' gate (its live facilitator, the
+  programme's lead, an admin), then, for the person named, `reviewableIn`
+  (`writtenReviewRole`): a facilitator never reads a co-facilitator's own
+  work, and nobody reads their own. Anybody else goes to the run's home.
+  Previous and next are the group's people this reader may read, by name.
+
+With no week named, it opens the newest week the person has anything in,
+else the newest that has begun on their group's calendar, else the first.
+It shows the week's title, the week's state in the group page's words, when
+the group met, the readings with when each was ticked, each reflection and
+box under its question with when it was last saved and how late, the written
+answer as its readers may read it, under its question with its range of
+words, with where it stands ("No feedback yet", "Feedback given"), how many
+words, when it was sent and how late, or, staff only, "After its deadline"
+(first sent after its own deadline but before the session), for an admin
+Pangram's last reading of it beside that (read as it is kept, never sent to
+Pangram; never for the lead or a facilitator, and nothing when it was never
+checked), when the words shown last changed and how late, that the person has
+changed it since sending it while its readers still read it as sent, the
+question as it was when the answer was written and the answer as it stood at
+the session, and beside it the feedback on it,
+what the week's session reports say about the person (their own lines and
+nothing else of a report: every report's for an admin or the lead, the lines
+of the reports a facilitator wrote for that facilitator, never a
+co-facilitator's, and nothing on the reader's own page) and, for an admin or
+the lead, the ratings for the team (for an admin, Claude's draft grade while
+the words graded are the words read, once that admin has saved their own
+rating of those words), the feedback on the week as a whole,
+the sealed prediction's row for an admin (opened through its own route,
+which records the opening first), and the private notes on the material
+where `privateNotesOf` allows: the group's facilitators and admins, never
+the lead. An answer changed since the version a piece of feedback was about
+shows both versions, what changed struck through and underlined and said in
+words; the change is told against the words its readers read, so before the
+session a change not sent yet is no change to them. A week with nothing in it says so, when the person was last reminded,
+and offers the group's own Remind for that one person and week. A run with no
+week written as blocks keeps the person's page, with the column below.
+
+The programme's side keeps the column for the notes the team keeps about a
 person: for an admin, with Claude's draft and Pangram; for the lead, only the
 notes kept for leads (see "Claude and Pangram on coursework, and the notes the
-team keeps").
+team keeps"). Survey answers never appear on the tab or the page.
+
+It is reached from each cell of the Coursework tab, each name in the week's
+people on the programme's page for a group, each name and each "Write
+feedback" in Feedback to write and This week's work's Written answer column
+(at the answer) on the facilitator's group page and the programme's page for
+a group's week (only where its own gate would admit the reader), Home's
+"Write feedback" for a facilitator, the strongest and weakest answers of a
+week's review, the page of one question across a group, and every address of
+the retired written answer's review page that names a person.
+
+### One question, the whole group
+
+The same week read the other way: one question, asked once at the top, with
+every person of one group this reader may read and their answer to it in
+full, in the group's order. One loader (`loadGroupQuestion` in
+`src/lib/courses/coursework/questionLoad.ts`) and one page
+(`src/features/courses/coursework/QuestionView.tsx`), from two places:
+
+- **The programme's side**, `.../programmes/[programmeId]/question?group=G&week=N&question=ID`:
+  an admin or the programme's lead (`openLeadDoor`), any live group of the
+  programme's run, as the programme's other pages about one group are
+  addressed. The lead chooses the group on the page, as the retired review
+  page let them: under the title, with the Coursework tab's Group filter's
+  look and words, a plain link per live group of the run in the one order
+  the tabs list them, each keeping the week, the question and the filters the
+  address named, the one shown marked (`aria-current`). With one live group
+  there is nothing to choose and none is drawn.
+- **The group's side**, `/learn/[runId]/group/[groupId]/question?week=N&question=ID`:
+  the reading view's own gate on that side (the group's live facilitator, the
+  programme's lead, an admin); anybody else goes to the run's home. No choice
+  of group is drawn here: a facilitator's page is the one group's own.
+
+Whose answers it lists is `readableInGroup` (`reviewableIn`, so
+`writtenReviewRole` person by person): a facilitator their group's fellows,
+never a co-facilitator's own answer; the lead and admins the facilitators'
+own too; nobody their own. A fill-in box only for the people `boxesReaderFor`
+admits. With no week named it opens the newest week anybody listed has
+written in, else the newest that has begun for the group; with no question
+named, the week's first of the kind `first=answer` or `first=reflection` asks
+for (what the retired pages' addresses forward to), else the week's first.
+Previous and next step through the week's questions
+in its own order: its reflections, its fill-in boxes and its written answer.
+
+Each person shows their answer in full (a written answer as `readableAnswer`
+hands it: before their session the words as last sent, once it has started
+the latest), when it was written or sent, Late, "Not sent yet" for an answer
+never sent, "Nothing written yet" where there is none ("Joined late" beside
+it for somebody told their group after that week's session), and the way to
+their week at that question. What the retired written answer's review page
+and the reflections with names showed of each answer is here too, with the
+same words: on the written answer the question's range of words and, staff
+only, "After its deadline" (first sent after its own deadline but before the
+session); under any answer the question as it was when the answer was
+written, where reworded since, and the answer as it stood at the session,
+where it has changed since; under the rows, for the lead and admins when a
+facilitator's own answer is listed, who reads a facilitator's own work; and
+on a reflection on the group's side, for its facilitators and admins, who
+reads reflections with names and "Pick lines to read out". Two states, at a glance and apart: "Not read yet"
+until somebody on the team has opened the answer (see below), and, on the
+written answer, which alone takes feedback, "No feedback yet", "Feedback
+given" or "Changed since feedback" (the newest piece of feedback on the
+answer is about earlier words than the words shown, `changedSinceFeedback`,
+with "See what changed" leading to both versions on the person's week). Beside a written answer: the feedback on it with who wrote it
+and when, the existing writer behind "Add feedback", and for an admin or the
+lead the rating for the team. No draft grade is shown on this page. Filters,
+each with its count of the people this reader may read: everybody, not read
+yet, no feedback yet (on the written answer) and late, any of them together.
+
+The switch "One person, one week" and "One question, whole group" is drawn on
+both pages, landing on the same week and the same person or question. It is
+not drawn for somebody in no group this reader may see.
+
+### When an answer was first read
+
+**What is kept**: for each answer of a person's week (a reflection, a fill-in
+box, the written answer), the day it was first put in front of somebody on the
+team who may read it, in full and under its owner's name, on the reading view
+of one person's week, on the page of one question, or (a fill-in box) under
+This week's work on the facilitator's
+group page and on the programme's page for a group's week, once that person's
+"Read it" is opened. Once set it never changes. The page where a facilitator
+picks lines to read out marks nothing: it carries no names, no uids and no row
+ids by design, so an answer read only there still says "Not read yet". Never who read it, and no count of readings. The day, as the
+start of the London day, not the moment: nothing shows or compares it finer
+than whether there is one, and a moment could be laid beside a host's request
+log to say who made the request.
+
+**Where**: on the person's week record, `courseWeekWork`, as the map
+`firstReadAt` from the answer's id to the day, beside `reviewedVersions`.
+Browsers are refused that record by the rules, and nothing the person's own
+pages and routes read hands it on: `normalizeCourseWeekWork`, which every
+reader of a person's own record goes through, leaves the field out. An answer
+missing from the map has no time kept (see "What counts as read" for what that
+says). The account deletion sweep (by `uid`) and a run's destroy (by `runId`)
+take the record whole, the days with it; a record the route makes carries both
+fields for that reason.
+
+**When the site began keeping them**: one server-only document,
+`config/firstReadTimes`, field `keptSince`, in the `config` collection every
+browser is refused. The route makes it, with the server's time, the first time
+a call gets past its refusals and before any day is kept on anybody's record,
+and never moves it; the loaders read it through
+`readFirstReadsKeptFrom` in `src/lib/courses/weekWork/firstRead.ts`, which a
+server keeps in memory once found, since it never changes. It is the exact
+instant, not a day: a day's start would call answers saved earlier that same
+day "not read yet", when somebody may have read them on the pages before. It
+names nobody and is about no run, so no deletion sweep touches it. Each
+environment makes its own.
+
+**How it is written**: the two reading pages, once drawn in the browser and
+looked at, name the answers they showed in full (`MarkFirstRead`) to
+`POST /api/courses/runs/[runId]/first-read`; never the page's GET and never
+while it renders, so a link preview or a prefetch marks nothing. (The written
+answer's review page named the one answer it opened, until it was retired.)
+Under This week's work (`ThisWeeksWork`, on the facilitator's group page and
+the programme's page for a group's week) a person's boxes sit behind "Read
+it": the server works out which boxes of each person it draws hold words
+(`groupBoxesFirstRead`: exactly the people the boxes' own gate lets the reader
+read, never the reader's own), and the browser names that person's boxes only
+once their "Read it" is first opened (the disclosure's `whenOpened`), so a box
+nobody opened is never marked. An archived group's page, which an admin
+alone opens, names nobody. The
+route refuses a view-as session first, then anybody signed out, a body that
+does not say (an id over 128 characters among it), a call naming the caller's
+own work, and anybody who reads nobody's work on the run. For each answer
+named it asks what reading it asks (`src/lib/courses/weekWork/firstRead.ts`):
+the one gate on whose work (`feedbackGate`); for a box, `boxesReaderFor`; for
+the written answer, that its readers may read it and it holds words
+(`feedbackStandingIn`, `feedbackRefusalFor`), so an answer still hidden before
+the session is never marked. It writes only the days that are missing, and
+answers `{ ok: true }` and nothing else.
+
+**What counts as read** (`readStateOf` in
+`src/lib/courses/coursework/question.ts`, held against `keptSince`): an answer
+with a day kept is read; a written answer with feedback on it, on any version,
+is read whatever is kept, because somebody on the team opened it to write that
+(a rating never counts); an answer with nothing written, or not shown to its
+readers in full yet, is neither read nor unread; and so is an answer with
+neither a day nor feedback that became readable in the words shown before the
+site began keeping read times, or while it has not begun (no document yet),
+because the team read and gave feedback on answers before then and nobody can
+say which. When an answer became readable in the words shown
+(`readableSinceOf`): a reflection or a box, its last change; a written answer,
+the later of the save of the words shown and either their send (when they were
+sent as they are) or the start of the session they are read from (when they
+never were). Any other answer is "Not read yet". Neither of the two kinds
+with no state is counted by a filter.
+
+**Who sees it**: the people who may read the answer, as "Not read yet" on
+the page of one question and as its filter, as things stood when they
+arrived (their own opening marks it read for the next reader), and as a flag
+and a filter on the Coursework tab and beside an answer on its list of what
+waits for feedback (an admin or the lead, never on their own row). The tab
+reads the run's week records once, through the store's own run-wide reader
+(`readRunWeekRecords`), and is handed only whether something is unread. The person
+whose answer it is never sees it, on any page or in anything they can fetch.
+`tests/course-question-view.test.mjs` runs the route as every kind of caller,
+reads what the person's own routes and week page send them, walks the tree
+for every page and route that can reach the store of the times, and for every
+page that can draw the beacon naming answers to the route, the read-out page
+never among them.
 
 ### Reads
 
@@ -3020,8 +3681,11 @@ the answers store whole, the progress store through a projection with no
 rating, comment or private note, and where each week stands
 (`loadRunWeekStates`, one equality on the run). For the tab, each person's
 pack in the pathways their weeks count, by id (`readPackCaseRecords`), for
-whether a week is done; never the ready box for a talk. No query needs a
-composite index. Nothing on either page writes.
+whether a week is done; never the ready box for a talk. One person's week
+also reads where it stands as counts and times (`loadPeopleWeekFacts`), and,
+for an empty week, when they were last reminded. No query needs a composite
+index. Nothing on any of these pages writes while it is drawn; the three
+reading pages name what they showed to the first-read route afterwards.
 
 ## Editing a week in place
 
@@ -3085,8 +3749,8 @@ takes out answered items asks for the count first, as a paste does.
 **The words a question had when it was answered.** Each record also keeps the
 words of every prompt and written answer after that save (`asked`). The
 loaders that hand an answer to a page beside its question (a person's own
-week page through `my-exercises`, the written answer's review page, the
-reflections with names, a person's coursework page) also hand the words the
+week page through `my-exercises`, the page of one question across a group,
+a person's coursework page) also hand the words the
 question had when the answer was first written, only where they differ
 (`src/lib/courses/weekEdit/askedThen.ts`). Nothing is stored on any answer.
 The page to read reflections out, which carries nothing beside an answer, is
@@ -3332,10 +3996,10 @@ nothing in it is a mark.
   week record (`reviewedVersions`, never on the answer's own row) so the
   answer's next change keeps those words; a card on the words since changed
   carries the version it was about, to staff and to the person.
-- **Where**: on the written answer's review page ("Your feedback", the
+- **Where**: beside the written answer on the reading view of the person's
+  week and on the page of one question across the group ("Your feedback", the
   reader's own piece, changed in place until its email goes), and on the
-  Coursework tab's person page ("Feedback on the week", for the lead and
-  admins). `POST|PATCH|DELETE /api/courses/runs/[runId]/feedback`.
+  reading view ("Feedback on the week"). `POST|PATCH|DELETE /api/courses/runs/[runId]/feedback`.
 - **Saving emails nobody.** A piece shows on the person's week page, in its
   Feedback section under the week's status, as soon as it is saved. Its writer
   can change or delete it until its email has gone; an admin can delete any
@@ -3354,9 +4018,14 @@ nothing in it is a mark.
   the newest of those weeks' pages at `#feedback`, never the feedback itself.
 - **Feedback to write** (the group page, Home, the lead's Attendance tab):
   written answers its reader may give feedback on, readable, with words and no
-  feedback from anyone, whose week's session started in the last seven days.
-  Feedback is optional, so a count of every answer without any would never
-  reach zero.
+  feedback from anyone, whose week's session started in the last seven days;
+  and each such answer that has feedback and was changed after the newest of
+  it (`changedSinceFeedback`, the Coursework tab's rule), for seven days from
+  that change, marked "Changed since feedback" with when, and opening the
+  reading view at that answer, where both versions are drawn. Feedback is
+  optional, so a count of every answer without any would never reach zero;
+  Home's line and the lead's line per group count what the card counts. The
+  Coursework tab's own list is the complete one, with no window.
 - **Feedback given before pieces existed** (the answer row's `feedback`, with
   rubric levels, emailed when it was given) is never migrated. It reads as one
   more signed card, its comment or, with none, its levels as plain lines, and
@@ -3374,7 +4043,8 @@ nothing in it is a mark.
 ## Ratings for the team
 
 Admins and the programme's lead may rate a person's written answer from 1 to
-10, with a comment for the team, on that answer's review page
+10, with a comment for the team, beside that answer on the reading view of
+the person's week and on the page of one question
 (`src/lib/courses/workRatings/`, privacy v15's "Ratings for the team"). The
 person rated never sees a rating or its comment, and nor does a facilitator as
 such. Not the ratings at a programme's end (`src/lib/ratings/`, the Ratings
@@ -4395,8 +5065,24 @@ meets the rule by coming to every session it held; a group that held none
 while they were in it meets nobody's. There is no default: with no number
 the site ticks nobody, and the lead ticks people by hand. A number above the most
 sessions any of the run's groups is due to hold is refused. It can be set or
-changed at any time, before the end or after it. Only the lead and admins are
-ever shown it: no member's page and no member's payload carries it.
+changed at any time, before the end or after it. The people taking part are
+told what a certificate needs, in one sentence (`certificateNeedsWords` in
+`finishing/words.ts`, the overview route's `certificateNeeds`): "To get your
+certificate you need to come to at least 5 of your group’s 6 sessions. A
+session you’re excused from doesn’t count as coming." It is drawn under their
+marks on the programme page, beside the certificate line on Home's last week,
+where "Most weeks, not all" asks which sessions they can't make, and where
+they ask to be excused. 6 is the sessions their group is due to hold from the
+week they joined, each week's first, none called off and none whose register
+says it was not held; a group due fewer than the rule asks says its own number
+for both; with no group yet, for somebody who joined after their group began,
+or where their group meets more than once in a week, it says "at least 5
+sessions";
+an incubator's people are told of no group ("of your 6 sessions"). Never
+their own count against the rule, never to a facilitator's place or to a
+learner who facilitates a group of the run, nothing once their programme is
+over (they are told whether they finished), and nothing with no rule. Only
+the lead and admins see who is ticked.
 
 ### What counts
 
@@ -4671,8 +5357,9 @@ shows as out of date.
   time. Kept per answer with a hash of its words, so a changed answer shows
   as out of date. A flag reads "worth a look". Deleted with the run and with
   the account. A written answer's last reading also shows as a chip beside it
-  on its review page, read for an admin alone (`pangramReadings.ts`, which
-  only reads what is kept and never reaches the code that sends).
+  on the reading view of the person's week, read for
+  an admin alone, on an answer that admin may review (`pangramReadings.ts`,
+  which only reads what is kept and never reaches the code that sends).
 - **Who is scrubbed** (`runPeopleToScrub` in
   `src/lib/courses/coursework/door.ts`, for the best answers, the week
   review and the end-of-week notes; the profile's note draft reads the same
@@ -4760,7 +5447,8 @@ and who might need a hand. `src/lib/courses/weekReview/` holds it.
   every review (`clearWeekReviewEntries`). The rules refuse every browser.
 - **The page**: the draft grades as a chart in the theme's accent with each
   count beside its bar, and "Read the strongest 6" and "Read the weakest 6",
-  each answer a link to its review page; what people found hard, each theme
+  each answer a link to the reading view of the person's week at the answer;
+  what people found hard, each theme
   with its counts by source and the groups they came from, and never a
   check-in's words; might need a hand, the site's own facts (absent at the
   last two sessions without saying, from the Attendance tab's count; the week
@@ -4780,10 +5468,24 @@ and who might need a hand. `src/lib/courses/weekReview/` holds it.
   deletion deletes it, because it names them.
 - **Schedule an explainer**, from each theme and with a typed topic: see
   "Explainers" below.
-- **Not built here**: Claude's grade beside the team's own rating of an
-  answer, which is to show only once the admin has saved theirs. It joins the
-  review's own code and `tests/claude-output-readers.test.mjs`'s list when it
-  lands.
+- **Beside the team's rating of an answer**: on the reading view of one
+  person's week, an admin who may review the answer is shown Claude's draft
+  grade for it under the rating for the team, with the review's own line that
+  grades are for choosing what to read first, ONLY ONCE THAT ADMIN HAS SAVED
+  THEIR OWN RATING of the words read now (Zach, Fri 13 Nov 2026; a rating of
+  earlier words, the answer changed since, does not count), so the grade never
+  leads the rating. Before then the grade's place says "Claude's draft grade
+  shows here once you've saved your own rating." and the page is handed
+  nothing of the grade; somebody else's rating does not count. Saving a
+  rating, or taking it back, draws the page again, so the grade appears and
+  goes by itself. It is read through the review's store (`readDraftGrade` in
+  `src/lib/courses/weekReview/store.ts`), by the reading view's loader alone
+  and after its admin check, and there is no row, and no line, while the
+  words read are not the words graded. The week's review page still shows its
+  draft grades as it always has, and the page of one question across a group
+  shows none. `tests/claude-output-readers.test.mjs` lists the reader and holds
+  the rating rule; `tests/course-reading-view.test.mjs` runs it (not rated,
+  rated, taken back, the lead's rating).
 
 `tests/week-review.test.mjs` reads every message that would go, the checkers,
 the facts, the page as every reader, every press and the follow-up as every

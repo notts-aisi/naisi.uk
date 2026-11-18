@@ -41,15 +41,16 @@ export function readingsOf(data: Raw | undefined): Record<string, StoredReading>
   return out;
 }
 
-/** Pangram's last reading of one answer, as the chip beside it on the review page says it. */
+/** Pangram's last reading of one answer, as the chip beside it in the reading view says it. */
 export type AnswerReading = { worthALook: boolean; outOfDate: boolean };
 
 /**
- * Pangram's last reading of one written answer, for the chip beside it on its
- * review page: whether it is worth a look, and whether the answer has changed
- * since (`words` are its words as Pangram is sent them, `writtenAnswerWords`,
- * hashed as the check hashes them). Null when it was never checked. ADMINS
- * ONLY: the review page asks for it for an admin alone. One read by id;
+ * Pangram's last reading of one written answer, for the chip beside it in the
+ * reading view of the person's week: whether it is worth a look, and whether
+ * the answer has changed since (`words` are its words as Pangram is sent
+ * them, `writtenAnswerWords`, hashed as the check hashes them). Null when it
+ * was never checked. ADMINS ONLY: the reading view asks for it for an admin
+ * alone. One read by id;
  * writes nothing and sends nothing.
  */
 export async function readAnswerReading(

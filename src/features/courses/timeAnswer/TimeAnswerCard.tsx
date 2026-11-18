@@ -77,11 +77,14 @@ export default function TimeAnswerCard({
   question,
   locked = false,
   className,
+  certificateNeeds = null,
 }: {
   runId: string;
   question: TimeQuestionView;
   locked?: boolean;
   className?: string;
+  /** What a certificate needs, where the run has a rule (`certificateNeedsWords`): said where they tick the weeks they will miss. */
+  certificateNeeds?: string | null;
 }) {
   const hydrated = useHydrated();
   const titleId = useId();
@@ -228,6 +231,11 @@ export default function TimeAnswerCard({
                 </OptionRow>
               ))}
             </div>
+          )}
+          {certificateNeeds && (
+            <p className={styles.note}>
+              {certificateNeeds}
+            </p>
           )}
           <p className={styles.note}>{MOST_WEEKS_WHO_READS}</p>
           {orEmail}

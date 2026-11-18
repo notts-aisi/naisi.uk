@@ -5,6 +5,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
@@ -203,7 +204,12 @@ export async function PUT(
   const ownGroup =
     (takesPart && enrolment?.groupId ? (liveGroups.find((g) => g.id === enrolment.groupId) ?? null) : null) ??
     (facilitates.length === 1 ? facilitates[0] : null);
-  const { week } = await resolveWeekDoc(db, runId, ownGroup?.id ?? null, weekId);
+  // The copy of the week: the group their place belonged to in THIS week
+  // (`copyGroupIdFor`), so somebody moved mid-term works in the copy they
+  // saw, whether or not that group still meets.
+  const copyGroupId =
+    takesPart && enrolment?.groupId ? copyGroupIdFor(enrolment, weekNumber, ownGroup?.id ?? null) : (ownGroup?.id ?? null);
+  const { week } = await resolveWeekDoc(db, runId, copyGroupId, weekId);
   const answer = week && isBlockWeek(week) ? (weekWrittenAnswers(week).find((candidate) => candidate.id === answerId) ?? null) : null;
   if (!answer) return NextResponse.json({ error: ANSWER_NOT_HERE }, { status: 404 });
   // The answer's shape is the block's: boxes for an answer in boxes, one box otherwise.

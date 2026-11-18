@@ -7,6 +7,7 @@ import NotYours from "@/features/applications/groups/NotYours";
 import ProgrammeAttendance from "@/features/applications/groups/ProgrammeAttendance";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import { LeadWrittenAnswersCard } from "@/features/courses/written/ReviewQueueCard";
+import { firstQuestionHref } from "@/lib/courses/coursework/forwards";
 import { loadWrittenQueues } from "@/lib/courses/writtenAnswers/queue";
 import { compareGroupsByMeeting } from "@/lib/firestore/courseGroups";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
@@ -94,7 +95,8 @@ export default async function ProgrammeAttendancePage({
   // them: null on a run of the summer's weeks, which has none.
   const liveGroups = records.groups.filter((group) => !group.archived);
   const writtenQueues = await loadWrittenQueues(db, user, records.run, liveGroups);
-  const writtenPath = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/written`;
+  // Each group's written answers waiting: the page of one question across the group, at the written answer of the week the oldest is on.
+  const questionPath = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/question`;
   // Each group's week, on a run whose weeks are written as blocks.
   const now = new Date();
   const groupWeeks =
@@ -125,7 +127,11 @@ export default async function ProgrammeAttendancePage({
                 id: group.id,
                 name: group.name.trim() || "Untitled group",
                 weeks: (writtenQueues.get(group.id) ?? []).map((row) => row.weekNumber),
-                href: `${writtenPath}?group=${encodeURIComponent(group.id)}`,
+                href: firstQuestionHref(
+                  `${questionPath}?group=${encodeURIComponent(group.id)}`,
+                  (writtenQueues.get(group.id) ?? [])[0]?.weekNumber ?? null,
+                  "answer",
+                ),
               }))}
           />
         </div>

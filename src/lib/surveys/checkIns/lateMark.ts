@@ -58,7 +58,7 @@ export async function reachLateMarks(
 
   const [register, roster] = await Promise.all([
     readRegisterMarks(db, runId, group.id, session),
-    loadToldRegisterMembers(db, runId, group.id),
+    loadToldRegisterMembers(db, runId, group.id, session.weekNumber),
   ]);
   if (!register.held) return 0;
   const here = hereOf(register.marks, roster.members, group.facilitatorUids).slice(0, MAX_CHECK_IN_PEOPLE);

@@ -774,6 +774,11 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in as a programme's lead and adds a group from the Times view.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
+    reason:
+      "Course hub: moving one person to another group for good, mid-term, with its three emails on save. tests/course-staff-move.test.mjs executes it as every kind of caller, every refusal, the week rule both ways, the 409s and every email. The browser spec scripts/e2e-fixtures/course-hub-staff-move.mjs drives it end to end and is written but has not run yet.",
+    coverWhen: "When the course-hub-staff-move spec has passed once with a teardown of zero rows and is marked verified.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room": {
     reason:
       "Course hub: a group's weekly room, beside its campus on Circles and the Sessions view. tests/course-group-room-field.test.mjs executes it as every kind of caller, with what it writes and what it leaves alone.",
@@ -1501,6 +1506,11 @@ const NOT_COVERED = {
     coverWhen:
       "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
+    reason:
+      "Course hub: the page for moving one person to another group for good, mid-term. tests/course-staff-move.test.mjs executes what it draws through its route's preview; the browser spec scripts/e2e-fixtures/course-hub-staff-move.mjs drives it end to end and is written but has not run yet.",
+    coverWhen: "When the course-hub-staff-move spec has passed once with a teardown of zero rows and is marked verified.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {
     reason:
       "The anonymous form's answers for the programme's lead and admins; tests/anonymous-feedback.test.mjs renders it as the lead, an admin, the lead of another programme, a reviewer, a facilitator, a member and signed out, and finds only answers from a day that is over, each question's in alphabetical order.",
@@ -1788,12 +1798,6 @@ const NOT_COVERED = {
       "Application forms: the freed-places page is reached from a programme's Applications tab, is rendered to HTML as each caller by tests/applications-freed-places-page.test.mjs, and was checked by hand at 1440 and 390 against a seeded emulator.",
     coverWhen:
       "When the end-to-end fixtures can seed a form after decision day with a place given back and a pooled applicant told no offer.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": {
-    reason:
-      "Course hub: the programme's lead's way to the review page, where a facilitator's own answer gets feedback, and where the lead rates an answer for the team and reads what the week's session reports say about the person; drawn as the lead, another programme's lead and somebody signed out in tests/course-hub-written-answers.test.mjs, with the ratings in tests/course-work-ratings.test.mjs, and with the report's lines as every caller in tests/course-report-beside-work.test.mjs.",
-    coverWhen:
-      "When a browser spec signs in as the programme's lead and gives feedback on a facilitator's own answer.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/ratings": {
     reason:

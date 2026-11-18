@@ -10,9 +10,11 @@ import {
   startOf,
   toldFacts,
 } from "@/lib/courses/groupChange/facts";
+import { excuseFactsForGroup } from "@/lib/courses/excused/facts";
+import { EXCUSAL_STANDS, EXCUSED_BY_ADMIN_OR_LEAD, excusalStandsFor } from "@/lib/courses/excused/marking";
 import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { loadMirrorMembers, type RegisterMember } from "@/lib/courses/registerAccess";
-import { linesSetForSession } from "@/lib/courses/registerCover/didNotHappen";
+import { linesCalledOff, linesSetForSession } from "@/lib/courses/registerCover/didNotHappen";
 import { sessionInTransaction } from "@/lib/courses/registerCover/sessionInTransaction";
 import { finishCounts } from "@/lib/courses/registerCover/model";
 import { CHANGE_FIELDS, ChangeRefusal, checkPress, overrideAfterPutBack, putBackSetsChangeFields } from "@/lib/courses/sessionChange/check";
@@ -46,6 +48,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import {
   CORRECTED,
   COVER,
+  EXCUSAL_KEPT,
   FACILITATOR_RECORD,
   ONLINE,
   SET_BY,
@@ -55,6 +58,7 @@ import {
   registerIsTaken,
   type AttendanceStatus,
   type CourseAttendanceDoc,
+  type ExcusalKept,
 } from "@/lib/firestore/courseAttendance";
 import { COURSE_AUDIT_COLLECTION, type CourseAuditValue } from "@/lib/firestore/courseAudit";
 import { normalizeCourseGroup, sessionChangeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -249,6 +253,14 @@ export type ColumnContext = {
   /** The register's rows, named for the reader. */
   members: RegisterMember[];
   now: Date;
+  /**
+   * The presser is an admin or the programme's lead (`marksExcused`).
+   * False for a run's track lead by that alone: where an excusal stands, a
+   * press that leaves a line absent or not marked on this session is refused
+   * (`excusalRefusal`), and what the register keeps of an excusal stays.
+   * Absent reads as true.
+   */
+  decidesExcusals?: boolean;
 };
 
 /** An answer the route turns into a response. */
@@ -432,6 +444,7 @@ async function heldOnline(ctx: ColumnContext, press: ColumnPress): Promise<Colum
     if (lines.length === 0) throw new Refused(409, CORRECTION_REFUSAL.nothingInTheRoom);
     const plan = await readMirrorPlan(tx, db, {
       runId: ctx.run.id,
+      run: ctx.run,
       groupId: ctx.group.id,
       sessions: ctx.sessions,
       members: mirrorMembers,
@@ -448,6 +461,7 @@ async function heldOnline(ctx: ColumnContext, press: ColumnPress): Promise<Colum
       {
         [ONLINE]: Object.fromEntries(lines.map((uid) => [uid, true])),
         [CORRECTED]: Object.fromEntries(lines.map((uid) => [uid, { at: now, byUid: ctx.actor.uid }])),
+        ...keptOff(ctx, fresh),
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
@@ -487,6 +501,72 @@ function targetRefusal(ctx: ColumnContext, target: ResolvedSession, snap: Docume
   const register = registerOf(snap);
   if (register && (register.cover || Object.keys(register.facilitatorRecord).length > 0)) return targetCoveredWords(target.weekNumber);
   return null;
+}
+
+/**
+ * An admin's or the lead's correction of the column decides every line on
+ * it: whatever the register keeps of an excusal that stood (`excusalKept`)
+ * goes, and a moved line takes none of it along. A run's track lead's keeps
+ * it.
+ */
+function keptOff(ctx: ColumnContext, register: CourseAttendanceDoc | null | undefined): Record<string, FieldValue> {
+  if (ctx.decidesExcusals === false) return {};
+  return register && Object.keys(register.excusalKept).length > 0 ? { [EXCUSAL_KEPT]: FieldValue.delete() } : {};
+}
+
+/**
+ * The people whose line on this session a press leaves absent or not
+ * marked: "It did happen"'s absent lines, and every line a move or a clear
+ * takes off the session. "It was held online" changes no mark, and "It
+ * didn't happen" keeps every excused line, and puts back to excused every
+ * line an excusal stood under (`writeDidNotHappen`).
+ */
+export function linesLeftOff(register: CourseAttendanceDoc | null, press: ColumnPress): string[] {
+  if (press.kind === "online" || press.kind === "did-not-happen") return [];
+  if (press.kind === "did-happen") {
+    return [...(press.lines ?? new Map<string, RegisterLine>())].filter(([, line]) => line.mark === "absent").map(([uid]) => uid);
+  }
+  return linesSetForSession(register).uids;
+}
+
+/**
+ * WHERE AN EXCUSAL STANDS, A RUN'S TRACK LEAD'S PRESS LEAVES NO LINE ABSENT
+ * OR NOT MARKED, AND SETS EXCUSED NOWHERE ELSE: the sentence it is refused
+ * in, or null. Asked before anything is written (a preview too), of the
+ * register as stored and of the approved requests about the people it
+ * would leave so (`excusalStandsFor`). "It did happen" may keep or put back
+ * excused only where an excusal stands. A move is asked about both
+ * sessions: no line it moves that does not say the person came may land on
+ * a line of the session they belong to where an excusal stands. One read of
+ * each register, outside the transaction that writes, as the preview's own
+ * reads are.
+ */
+async function excusalRefusal(ctx: ColumnContext, press: ColumnPress): Promise<string | null> {
+  if (ctx.decidesExcusals !== false) return null;
+  const register = registerOf(await registerRef(ctx, ctx.session).get());
+  const uids = linesLeftOff(register, press);
+  // "It did happen" restates every line: excused only where an excusal stands.
+  const excusedAt = press.kind === "did-happen" ? [...(press.lines ?? new Map<string, RegisterLine>())].filter(([, line]) => line.mark === "excused").map(([uid]) => uid) : [];
+  const target = press.kind === "move" && press.to ? sessionOfPress(ctx.sessions, press.to) : null;
+  const landing = target ? linesSetForSession(register).uids.filter((uid) => !cameBy(register?.records[uid])) : [];
+  if (uids.length === 0 && excusedAt.length === 0 && landing.length === 0) return null;
+  const targetRegister = target && landing.length > 0 ? registerOf(await registerRef(ctx, target).get()) : null;
+  const approved = await excuseFactsForGroup(ctx.db, {
+    runId: ctx.run.id,
+    groupId: ctx.group.id,
+    uids: new Set([...uids, ...excusedAt, ...landing]),
+    sessionKeys: target ? [ctx.session.sessionKey, target.sessionKey] : [ctx.session.sessionKey],
+  });
+  const standsOn = (sessionKey: string, on: CourseAttendanceDoc | null, uid: string): boolean =>
+    excusalStandsFor({
+      approved: approved[sessionKey]?.[uid] === "excused",
+      mark: on?.records[uid],
+      kept: on ? Object.hasOwn(on.excusalKept, uid) : false,
+    });
+  if (excusedAt.some((uid) => !standsOn(ctx.session.sessionKey, register, uid))) return EXCUSED_BY_ADMIN_OR_LEAD;
+  const leaves = uids.some((uid) => standsOn(ctx.session.sessionKey, register, uid));
+  const lands = target !== null && landing.some((uid) => standsOn(target.sessionKey, targetRegister, uid));
+  return leaves || lands ? EXCUSAL_STANDS : null;
 }
 
 /**
@@ -603,6 +683,7 @@ async function moveColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colum
 
     const plan = await readMirrorPlan(tx, db, {
       runId: run.id,
+      run,
       groupId: group.id,
       sessions: ctx.sessions,
       members: mirrorMembers,
@@ -629,6 +710,7 @@ async function moveColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colum
         ...(lines.some((uid) => Object.hasOwn(fresh.online, uid)) ? { [ONLINE]: cleared(lines.filter((uid) => Object.hasOwn(fresh.online, uid))) } : {}),
         ...(lines.some((uid) => fresh.setBy[uid]) ? { [SET_BY]: cleared(lines.filter((uid) => fresh.setBy[uid])) } : {}),
         ...(lines.some((uid) => fresh.corrected[uid]) ? { [CORRECTED]: cleared(lines.filter((uid) => fresh.corrected[uid])) } : {}),
+        ...keptOff(ctx, fresh),
         pushedAt: FieldValue.delete(),
         pushedByUid: FieldValue.delete(),
         markedByUid: FieldValue.delete(),
@@ -642,6 +724,19 @@ async function moveColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colum
     // the finished stamps, and every line stamped as corrected.
     const raw = freshSourceSnap.data() ?? {};
     const startsAt = where.startsAt;
+    // A line that says the person came, moved by a run's track lead onto a
+    // line excused there, keeps that the excusal stood (`excusalKept`, with
+    // the stamp it displaces), as the marking route keeps it, so it still
+    // stands afterwards; an admin's or the lead's move decides the line.
+    const landedOn = registerOf(freshTargetSnap);
+    const keptOnTarget: Record<string, ExcusalKept | FieldValue> = {};
+    for (const uid of lines) {
+      if (ctx.decidesExcusals === false) {
+        if (cameBy(fresh.records[uid]) && landedOn?.records[uid] === "excused") keptOnTarget[uid] = landedOn.setBy[uid] ?? true;
+      } else if (landedOn && Object.hasOwn(landedOn.excusalKept, uid)) {
+        keptOnTarget[uid] = FieldValue.delete();
+      }
+    }
     tx.set(
       targetRef,
       {
@@ -655,6 +750,7 @@ async function moveColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colum
           : {}),
         ...(lines.some((uid) => fresh.setBy[uid]) ? { [SET_BY]: Object.fromEntries(lines.filter((uid) => fresh.setBy[uid]).map((uid) => [uid, fresh.setBy[uid]])) } : {}),
         [CORRECTED]: Object.fromEntries(lines.map((uid) => [uid, { at: now, byUid: ctx.actor.uid }])),
+        ...(Object.keys(keptOnTarget).length > 0 ? { [EXCUSAL_KEPT]: keptOnTarget } : {}),
         pushedAt: raw.pushedAt ?? fresh.pushedAt,
         pushedByUid: fresh.pushedByUid,
         ...(fresh.markedByUid ? { markedByUid: fresh.markedByUid } : {}),
@@ -752,6 +848,7 @@ async function clearColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colu
     const lines = linesSetForSession(fresh).uids;
     const plan = await readMirrorPlan(tx, db, {
       runId: run.id,
+      run,
       groupId: group.id,
       sessions: ctx.sessions,
       members: mirrorMembers,
@@ -768,6 +865,7 @@ async function clearColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colu
         ...(lines.some((uid) => Object.hasOwn(fresh.online, uid)) ? { [ONLINE]: gone(lines.filter((uid) => Object.hasOwn(fresh.online, uid))) } : {}),
         ...(lines.some((uid) => fresh.setBy[uid]) ? { [SET_BY]: gone(lines.filter((uid) => fresh.setBy[uid])) } : {}),
         ...(lines.some((uid) => fresh.corrected[uid]) ? { [CORRECTED]: gone(lines.filter((uid) => fresh.corrected[uid])) } : {}),
+        ...keptOff(ctx, fresh),
         // Back to not taken. Who took it, the facilitators' record and the
         // session's notes stay on the register: nothing a correction clears
         // is a note, and the history row keeps every cleared line.
@@ -938,12 +1036,13 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
         sessions.filter((s) => !s.cancelled && s.dateKey).reduce((last, s) => (s.dateKey > last ? s.dateKey : last), "");
       const [facts, told, names, coversEnd] = await Promise.all([
         didNotHappenFacts(db, { run, group, session: first.session, register: snap.data() ?? {} }),
-        toldFacts(db, run, group, actor.uid),
+        // The people of the session's week (`updateEmailAudience`'s week).
+        toldFacts(db, run, group, actor.uid, session.weekNumber),
         namesForReader(ctx, Object.keys(register.records)),
         // Whose cover of a later session the press would take off, by the press's own rule.
         coversEndLines(db, laterMovedRegisters(before, after, refs, refSnaps, session.sessionKey)),
       ]);
-      const { uids } = linesSetForSession(register);
+      const { uids, back } = linesCalledOff(register);
       return {
         status: 200,
         body: {
@@ -957,6 +1056,8 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
             lastSession: { before: lastOf(before), after: lastOf(after) },
             lateFrom: { before: lateFromOf(before, press.weekNumber), after: lateFromOf(after, press.weekNumber) },
             clearing: namedLines(register, uids, names),
+            // A line that says somebody came over an excusal goes back to excused, named as a cleared one is.
+            puttingBack: namedLines(register, back, names),
             didNotHappen: facts,
             // Whether the sheet offers Push the rest back, and why not when it does not.
             push: pushRefused ? { offered: false, why: pushRefused.why } : { offered: true, why: null },
@@ -971,7 +1072,11 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
     }
 
     if (press.tell && press.emailCount > 0) {
-      const audience = await updateEmailAudience(db, run, [group], "group", group.id, actor.uid, { withFacilitators: true });
+      // The people of the corrected session's week: somebody moved mid-term is told about their own week's session.
+      const audience = await updateEmailAudience(db, run, [group], "group", group.id, actor.uid, {
+        withFacilitators: true,
+        weekNumber: session.weekNumber,
+      });
       if (audience.refused) return refuse(400, REFUSAL.overCap);
       if (audience.recipients.length === 0) return refuse(400, REFUSAL.nobodyToEmail);
       if (audience.recipients.length !== press.emailCount) {
@@ -1020,9 +1125,10 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
     });
     const movedRefs = moved.map((each) => registerRef(ctx, each));
     const movedSnaps = movedRefs.length ? await tx.getAll(...movedRefs) : [];
-    const lines = linesSetForSession(stored).uids;
+    const lines = linesCalledOff(stored).uids;
     const plan = await readMirrorPlan(tx, db, {
       runId: run.id,
+      run,
       groupId: group.id,
       sessions: after,
       members: mirrorMembers,
@@ -1252,6 +1358,7 @@ async function didHappen(ctx: ColumnContext, press: ColumnPress): Promise<Column
     if (!back || back.cancelled) throw new Refused(409, CORRECTION_REFUSAL.changed);
     const plan = await readMirrorPlan(tx, db, {
       runId: run.id,
+      run,
       groupId: group.id,
       sessions: afterSessions,
       members: mirrorMembers,
@@ -1272,6 +1379,10 @@ async function didHappen(ctx: ColumnContext, press: ColumnPress): Promise<Column
     if (update) tx.update(groupRef, update);
     const startsAt = startsAtOf(back);
     const entries = [...lines];
+    // A run's track lead recording that somebody came over their excused
+    // line keeps that an excusal stood, as the marking route does.
+    const keptNow =
+      ctx.decidesExcusals === false ? entries.filter(([uid, line]) => cameBy(line.mark) && stored?.records[uid] === "excused").map(([uid]) => uid) : [];
     const onlineWrites: Record<string, boolean | FieldValue> = {};
     for (const [uid, line] of entries) {
       if (cameBy(line.mark)) onlineWrites[uid] = line.online;
@@ -1288,6 +1399,7 @@ async function didHappen(ctx: ColumnContext, press: ColumnPress): Promise<Column
         ...(Object.keys(onlineWrites).length > 0 ? { [ONLINE]: onlineWrites } : {}),
         [SET_BY]: Object.fromEntries(entries.map(([uid]) => [uid, { byUid: actor.uid, at: now, how: "correction" }])),
         [CORRECTED]: Object.fromEntries(entries.map(([uid]) => [uid, { at: now, byUid: actor.uid }])),
+        ...(keptNow.length > 0 ? { [EXCUSAL_KEPT]: Object.fromEntries(keptNow.map((uid) => [uid, stored?.setBy[uid] ?? true])) } : keptOff(ctx, stored)),
         held: true,
         // Finished by the person correcting.
         pushedAt: now,
@@ -1326,6 +1438,8 @@ async function didHappen(ctx: ColumnContext, press: ColumnPress): Promise<Column
 // ---------------------------------------------------------------------------
 
 export async function correctColumn(ctx: ColumnContext, press: ColumnPress): Promise<ColumnAnswer> {
+  const excusal = await excusalRefusal(ctx, press);
+  if (excusal) return refuse(403, excusal);
   switch (press.kind) {
     case "online":
       return heldOnline(ctx, press);

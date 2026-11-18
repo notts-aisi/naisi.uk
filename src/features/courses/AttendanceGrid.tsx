@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { isRowForWeek } from "@/lib/courses/groupsByWeek";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ActionToast, { useActionToast } from "@/components/ui/ActionToast";
 import Button from "@/components/ui/Button";
@@ -10,6 +11,7 @@ import MemberName from "@/components/ui/MemberName";
 import Modal from "@/components/ui/Modal";
 import Skeleton from "@/components/ui/Skeleton";
 import { TOLD_IN_ADVANCE, registerCantMakeItLine } from "@/lib/courses/cantMakeIt/words";
+import { EXCUSED_WHO_CAN, MARK_CYCLE, cellMarks, cycleWords, nextMark } from "@/lib/courses/excused/marking";
 import * as S from "@/lib/courses/excused/staffWords";
 import { JOINED_ONLINE, ONLINE_WORD, SAID_ONLINE_IN_ADVANCE, whereChoiceLabel } from "@/lib/courses/joiningOnline/words";
 import { londonClockLabel } from "@/lib/courses/londonLabels";
@@ -67,6 +69,15 @@ import useAttendance, {
  * cycle reads as a slider rather than as a list. `null` is IN the cycle, not
  * an escape hatch beside it: a mis-tap must be undoable with more taps, never
  * with a modifier key or a second control.
+ *
+ * EXCUSED IS IN IT ONLY FOR AN ADMIN AND THE PROGRAMME'S LEAD
+ * (`caller.marksExcused`). Anybody else's cycle skips it, the caption lists
+ * the marks without it and a line under the legend says who marks it. On a
+ * cell where an excusal stands (`excusalStands`: an approved request, an
+ * excused line, or one they recorded the person came over) their cycle is
+ * excused, present, late, left early and back to excused: they record that
+ * the person came, or put it back, and never absent or not marked
+ * (`src/lib/courses/excused/marking.ts`).
  *
  * ── THE DRAFT / FINISHED BOUNDARY IS THE SHAPE OF THIS SCREEN ───────────────
  * A column is a draft until it is finished: "Finish the register" while next
@@ -184,24 +195,6 @@ function weekOfKey(key: string | null | undefined): number | null {
   return match ? Number(match[1]) : null;
 }
 
-// ---------------------------------------------------------------------------
-// The cycle
-// ---------------------------------------------------------------------------
-
-const CYCLE: Array<AttendanceStatus | null> = [
-  "present",
-  "late",
-  "left-early",
-  "absent",
-  "excused",
-  null,
-];
-
-function nextStatus(current: AttendanceStatus | null): AttendanceStatus | null {
-  const i = CYCLE.indexOf(current);
-  return CYCLE[(i + 1) % CYCLE.length];
-}
-
 /**
  * Tick and cross are read without a legend; the rest are lettered or arrowed
  * and decoded by the legend above the table. Colour is never the only signal:
@@ -248,6 +241,9 @@ const NO_COVERS: ReturnType<typeof useAttendance>["covers"] = {};
 const NO_FACILITATORS: ReturnType<typeof useAttendance>["facilitators"] = [];
 const NO_CORRECTIONS: ReturnType<typeof useAttendance>["corrections"] = {};
 const NO_EXCUSE_FACTS: ReturnType<typeof useAttendance>["excuseRequests"] = {};
+const NO_EXCUSAL_STANDS: ReturnType<typeof useAttendance>["excusalStands"] = {};
+/** Nobody: an empty list of people. Read only by contract. */
+const NO_UIDS: readonly string[] = [];
 const NO_REQUESTS: ReturnType<typeof useAttendance>["requests"] = {};
 
 const STATUS_CLASS: Record<AttendanceStatus, string> = {
@@ -438,6 +434,7 @@ export default function AttendanceGrid({
     corrections: givenCorrections,
     requests: givenRequests,
     excuseRequests: givenExcuseRequests,
+    excusalStands: givenExcusalStands,
     loading,
     error,
     reload,
@@ -468,6 +465,16 @@ export default function AttendanceGrid({
   // changes a finished register without saying why.
   const corrects = caller?.corrects === true;
   const asks = !corrects && caller?.standing === "facilitator";
+  // WHO MARKS SOMEBODY EXCUSED: an admin and the programme's lead. A payload
+  // from before the reader was said reads as today's; the route decides again.
+  const marksExcused = caller?.marksExcused ?? true;
+  // Where an excusal stands, as the route says it: none from a payload that did not send it.
+  const excusalStands = givenExcusalStands ?? NO_EXCUSAL_STANDS;
+  /** The marks a tap on this cell offers its reader (`cellMarks`). */
+  const marksOn = useCallback(
+    (sessionKey: string, uid: string) => cellMarks(marksExcused, excusalStands[sessionKey]?.includes(uid) ?? false),
+    [excusalStands, marksExcused],
+  );
 
   /** A save in flight, so the status can say "Saving…" while it is. */
   const [saving, setSaving] = useState(false);
@@ -591,7 +598,7 @@ export default function AttendanceGrid({
   const onCycle = useCallback(
     async (session: AttendanceSession, member: AttendanceMember) => {
       const current = statusOf(session.sessionKey, member.uid);
-      const next = nextStatus(current);
+      const next = nextMark(current, marksOn(session.sessionKey, member.uid));
       setCellError(null);
       setSaving(true);
       pop([cellKey(session.sessionKey, member.uid)]);
@@ -615,7 +622,7 @@ export default function AttendanceGrid({
         setSaving(false);
       }
     },
-    [mark, pop, statusOf, whereFor],
+    [mark, marksOn, pop, statusOf, whereFor],
   );
 
   // ---- In the room or online ----------------------------------------------
@@ -662,6 +669,7 @@ export default function AttendanceGrid({
         .filter(
           (m) =>
             session.weekNumber >= m.joinedWeekNumber &&
+            isRowForWeek(m, session.weekNumber) &&
             statusOf(session.sessionKey, m.uid) === null,
         )
         .map((m) => ({ uid: m.uid, status: "present" as const, online: saidOnline(session.sessionKey, m.uid) })),
@@ -812,7 +820,7 @@ export default function AttendanceGrid({
       let marked = 0;
       let eligible = 0;
       for (const member of members) {
-        if (session.weekNumber < member.joinedWeekNumber) continue;
+        if (session.weekNumber < member.joinedWeekNumber || !isRowForWeek(member, session.weekNumber)) continue;
         eligible += 1;
         if (statusOf(session.sessionKey, member.uid) !== null) marked += 1;
       }
@@ -979,7 +987,9 @@ export default function AttendanceGrid({
     <div className={styles.root}>
       <div className={styles.toolbar}>
         <ul className={styles.legend}>
-          {CYCLE.filter((s): s is AttendanceStatus => s !== null).map((status) => (
+          {/* Every mark a cell can show, Excused included: a line already
+              excused still shows as excused to a reader who cannot set it. */}
+          {MARK_CYCLE.filter((s): s is AttendanceStatus => s !== null).map((status) => (
             <li key={status} className={styles.legendItem}>
               <span
                 className={`${styles.legendGlyph} ${STATUS_CLASS[status]}`}
@@ -1024,6 +1034,13 @@ export default function AttendanceGrid({
           </Button>
         </div>
       </div>
+
+      {/* Who marks somebody excused, under the legend, for a reader who cannot. */}
+      {!marksExcused && (
+        <p className={styles.marksNote} data-testid="attendance-excused-who">
+          {EXCUSED_WHO_CAN}
+        </p>
+      )}
 
       {/* One line for both kinds of trouble: a refused mark (the route's own
           sentence) and a refresh that failed on top of a grid that already
@@ -1090,7 +1107,7 @@ export default function AttendanceGrid({
             Attendance for {group?.name || "this group"}: {members.length}{" "}
             {members.length === 1 ? "member" : "members"}, {sessions.length}{" "}
             {sessions.length === 1 ? "session" : "sessions"} so far. Each cell cycles
-            through present, late, left early, absent, excused and back to not marked.
+            through {cycleWords(marksExcused)}.
             A finished register is locked.
             {leavers.length > 0 &&
               ` ${leavers.length === 1 ? "1 person" : `${leavers.length} people`} who left the group ${
@@ -1258,6 +1275,9 @@ export default function AttendanceGrid({
                 </th>
                 {sessions.map((session) => {
                   const notYet = session.weekNumber < member.joinedWeekNumber;
+                  // A week their place records them in another group: inert
+                  // the same way. Only a row whose place records a move.
+                  const elsewhere = !notYet && !isRowForWeek(member, session.weekNumber);
                   const status = statusOf(session.sessionKey, member.uid);
                   const key = cellKey(session.sessionKey, member.uid);
                   const hasNote = Boolean(
@@ -1268,15 +1288,17 @@ export default function AttendanceGrid({
                   // stored status here can only come from a `joinedWeekNumber`
                   // edited after the fact; it is shown rather than hidden, and
                   // stays uneditable.
-                  if (notYet) {
+                  if (notYet || elsewhere) {
                     return (
                       <td key={key} className={styles.cell}>
                         <span
                           className={styles.notYet}
                           role="img"
-                          aria-label={`Not in the group yet: joined in week ${member.joinedWeekNumber}${
-                            status ? `, recorded ${ATTENDANCE_STATUS_LABEL[status]}` : ""
-                          }`}
+                          aria-label={`${
+                            elsewhere
+                              ? `In another group in week ${session.weekNumber}`
+                              : `Not in the group yet: joined in week ${member.joinedWeekNumber}`
+                          }${status ? `, recorded ${ATTENDANCE_STATUS_LABEL[status]}` : ""}`}
                         >
                           {status ? GLYPH[status] : "—"}
                         </span>
@@ -1297,7 +1319,7 @@ export default function AttendanceGrid({
                   const opens = finished && session.held && (corrects || asks || story !== null || asked !== null);
                   const locked = finished && !opens;
                   const chip = finished ? P.cellChip({ corrected: story !== null, request: asked }) : "";
-                  const next = nextStatus(status);
+                  const next = nextMark(status, marksOn(session.sessionKey, member.uid));
                   // Where they were, beside a mark that says they came; and
                   // their own word in advance, beside a cell not marked yet.
                   const came = cameBy(status);
@@ -1670,6 +1692,8 @@ export default function AttendanceGrid({
           requestHref={requestsBase ? (id: string) => `${requestsBase}/${encodeURIComponent(id)}` : null}
           sessionLabelOf={sessionLabelOf}
           onDone={onSheetDone}
+          marksExcused={marksExcused}
+          excusalStands={excusalStands[lineSheet.sessionKey]?.includes(lineSheet.target.person.uid) ?? false}
         />
       )}
 
@@ -1693,6 +1717,8 @@ export default function AttendanceGrid({
             finished: null,
           }}
           onDone={onSheetDone}
+          marksExcused={marksExcused}
+          excusalStands={excusalStands[columnSession.sessionKey] ?? NO_UIDS}
         />
       )}
 

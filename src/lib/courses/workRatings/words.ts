@@ -3,9 +3,9 @@ import { londonClockLabel, londonDayLabel } from "../londonLabels";
 
 /**
  * EVERY WORD RATINGS FOR THE TEAM SAY: "Rating for the team" and "What the
- * team said" on a written answer's review page, the admin's Pangram chip
- * beside the answer, and the ratings route's refusals. One file, so the page
- * and the route say one thing.
+ * team said" beside a written answer on the reading pages, the admin's
+ * Pangram chip beside the answer, and the ratings route's refusals. One file,
+ * so the pages and the route say one thing.
  *
  * Staff words: nobody rated ever reads them. Even so, never "mark", "grade"
  * or "score", and no pronoun for a person: their name. Never "team ratings"

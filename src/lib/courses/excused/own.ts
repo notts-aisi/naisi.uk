@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { facilitatesGroup, takesPartIn } from "@/lib/courses/cantMakeIt/seat";
+import { hasGroupsByWeek, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { heldOnline } from "@/lib/courses/joiningOnline/model";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
@@ -25,6 +26,12 @@ import { askState, excusedKindOf, onlineOfferedFor, requestStandingOf, standingW
  * ONE PERSON'S OWN EXCUSED WEEKS, for their programme page: for each session
  * of their group they are due at, what its card needs, and a short list of
  * their own requests. Their own records only, read by their own uid.
+ *
+ * EACH WEEK FROM THE GROUP THEY WERE IN THAT WEEK: somebody whose place
+ * records a move has the old group's sessions, read off its registers, for
+ * the weeks before it, and nothing is offered to ask about those (a request
+ * is asked of the group they are in now). With no record, every session is
+ * their group's, as always.
  *
  * WHAT EACH SESSION SAYS:
  *  - `excuse`: asked and waiting (with when they asked, and their own reason
@@ -59,7 +66,14 @@ export type OwnExcuse =
   | { kind: "in-advance"; at: string }
   | { kind: "before-requests"; at: string };
 
-export type OwnAsk = { open: true; when: "before" | "after" } | { open: false; why: AskClosed | "closed" | "facilitates" };
+/**
+ * `another-group`: a session of a week they spent in another group than the
+ * one they are in now (their place records a move). A request is asked of
+ * the group they are in now, so none is offered about it here.
+ */
+export type OwnAsk =
+  | { open: true; when: "before" | "after" }
+  | { open: false; why: AskClosed | "closed" | "facilitates" | "another-group" };
 
 export type OwnExcusedSession = {
   sessionKey: string;
@@ -132,9 +146,23 @@ export async function excusedFor(
   const closesAtDate = workClosesAt(run, input.groups.filter((each) => !each.archived));
   const closed = closesAtDate !== null && now.getTime() >= closesAtDate.getTime();
 
-  const sessions = resolveSessions(run, group).filter((session) => session.weekNumber >= seat.joinedWeekNumber);
-  const refs = sessions.map((session) =>
-    db.collection("courseAttendance").doc(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence)),
+  // Each week's session from the group they were in that week, and its line
+  // from that group's register (`sessionsWithGroup`). A week in a group that
+  // no longer meets has no session here. With no record of groups by week,
+  // their group's sessions, as always.
+  const live = (groupId: string) =>
+    input.groups.find((each) => each.id === groupId && each.runId === run.id && !each.archived) ?? null;
+  const paired = (
+    hasGroupsByWeek(seat)
+      ? sessionsWithGroup(seat, (groupId) => {
+          const each = live(groupId);
+          return each ? resolveSessions(run, each) : null;
+        })
+      : resolveSessions(run, group).map((session) => ({ groupId: group.id, session }))
+  ).filter((each) => each.session.weekNumber >= seat.joinedWeekNumber);
+  const sessions = paired.map((each) => each.session);
+  const refs = paired.map(({ groupId, session }) =>
+    db.collection("courseAttendance").doc(attendanceDocId(run.id, groupId, session.weekNumber, session.occurrence)),
   );
   const [snaps, requests] = await Promise.all([refs.length ? db.getAll(...refs) : Promise.resolve([]), ownRequestsIn(null, db, user.uid, run.id)]);
 
@@ -159,6 +187,12 @@ export async function excusedFor(
     const { startsAt, endsAt } = sessionInstants(session);
     const weeks = weeksAbout(requests, user.uid, session.sessionKey);
     const standing = standingWeek(weeks);
+    // The group whose session this is: theirs now, or, for a week their
+    // place records them in another group, that group. The answer to "Can
+    // you make this time?" is about the group they are in now, so its ticks
+    // are read on that group's sessions alone.
+    const ownGroupsSession = paired[at].groupId === group.id;
+    const sessionGroup = ownGroupsSession ? group : (live(paired[at].groupId) ?? group);
     let excuse: OwnExcuse | null = null;
     if (standing?.week.status === "waiting") {
       excuse = { kind: "waiting", requestId: standing.request.id, askedAt: iso(standing.request.askedAt), reason: standing.request.reason };
@@ -169,8 +203,8 @@ export async function excusedFor(
         approved: false,
         mark: line.mark,
         toldAt: line.toldAt,
-        ticked: ticked.has(session.sessionKey),
-        tickedBefore: tickedBefore.has(session.sessionKey),
+        ticked: ownGroupsSession && ticked.has(session.sessionKey),
+        tickedBefore: ownGroupsSession && tickedBefore.has(session.sessionKey),
       });
       excuse = kind === "time-set" ? { kind: "time-set" } : { kind: kind === "before-requests" ? "before-requests" : "in-advance", at: line.toldAt.toISOString() };
     } else if (standing?.week.status === "declined") {
@@ -185,7 +219,13 @@ export async function excusedFor(
       standing: requestStandingOf(weeks),
       now,
     });
-    const ask: OwnAsk = !asks ? { open: false, why: "facilitates" } : closed && state.open ? { open: false, why: "closed" } : state;
+    const ask: OwnAsk = !asks
+      ? { open: false, why: "facilitates" }
+      : !ownGroupsSession
+        ? { open: false, why: "another-group" }
+        : closed && state.open
+          ? { open: false, why: "closed" }
+          : state;
     return {
       sessionKey: session.sessionKey,
       weekNumber: session.weekNumber,
@@ -200,7 +240,7 @@ export async function excusedFor(
       excuse,
       ask,
       first: {
-        online: ask.open && onlineOfferedFor({ when: ask.when, heldOnline: sessionHeldOnline(group, session) }),
+        online: ask.open && onlineOfferedFor({ when: ask.when, heldOnline: sessionHeldOnline(sessionGroup, session) }),
       },
     };
   });

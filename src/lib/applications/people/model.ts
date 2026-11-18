@@ -66,6 +66,12 @@ export type PeopleGroup = { id: string; name: string; tag: string; session: Sess
 export type PeopleSeat = {
   groupId: string | null;
   left: { at: Date | null; by: "themselves" | "staff" } | null;
+  /** Publish has told them their group (`placementIsTold`). */
+  told: boolean;
+  /** They facilitate a group of the run that still meets: they sit only in the group they run. */
+  facilitates?: boolean;
+  /** The place is active: not completed, and not left. Only an active place is offered a move. */
+  active?: boolean;
 };
 
 export type PeopleInput = {
@@ -84,6 +90,12 @@ export type PeopleInput = {
   programmePath: string;
   /** Whether the programme names a run, so somebody holding a place can be put in a group there. */
   runNamed: boolean;
+  /**
+   * Whether somebody can be moved to another group for good on the run: it
+   * has more than one group that still meets, and is not an incubator's.
+   * Absent: nobody is offered the move.
+   */
+  movable?: boolean;
   /** Today in London, against the form's day to confirm by. Absent: nobody is shown as not having confirmed. */
   today?: string;
 };
@@ -193,6 +205,16 @@ export function programmePeople(input: PeopleInput): PeopleModel {
       status,
       applicationHref: isOwn ? null : `${programmePath}/applications/${encodeURIComponent(application.uid)}`,
       groupsHref: category === "holding" && input.runNamed ? `${programmePath}/groups` : null,
+      moveHref:
+        category === "holding" &&
+        input.movable === true &&
+        placed &&
+        seat?.told === true &&
+        seat.active === true &&
+        seat.left === null &&
+        seat.facilitates !== true
+          ? `${programmePath}/people/${encodeURIComponent(application.uid)}/move`
+          : null,
       // Holding a place first, in a group before not, groups in the board's
       // order; then who gave a place back; then who is invited.
       order: CATEGORY_ORDER[category] * 1000 + (category === "holding" ? (placed ? placed.at : 999) : 0),

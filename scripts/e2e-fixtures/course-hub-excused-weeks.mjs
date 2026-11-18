@@ -37,7 +37,7 @@
  * server it started with its mail forced into Mailpit.
  */
 import { isHarnessAccount } from "../e2e/lib/admin.mjs";
-import { createFixtureUser } from "./core.mjs";
+import { createFixtureUser, fixtureDoc } from "./core.mjs";
 import { accountsOf, countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs";
 
 /**
@@ -81,6 +81,10 @@ async function seed({ runId, suppress, onState }) {
     },
   });
   if (!state) throw new Error("The term published no state.");
+
+  // A rule for who finished, so a member's request says what a certificate
+  // needs. The term's own teardown takes the run's `courseFinishing` rows.
+  await fixtureDoc("courseFinishing", state.runId).set({ kind: "rule", runId: state.runId, atLeast: 4, setAt: new Date() });
 
   // Gus and Hal, waiting like every fixture account, numbered after the term's own.
   for (const [slot, plan] of [

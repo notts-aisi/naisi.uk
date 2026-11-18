@@ -52,6 +52,8 @@ import {
   assertFixtureWeekSubcollection,
   HARNESS_LOCAL_ORIGIN,
   RECAPTCHA_SKIP_REASON,
+  READ_TIMES_CONFIG_COLLECTION,
+  READ_TIMES_CONFIG_DOC_ID,
   REGISTER_REMINDER_MARKERS,
   STATE_DIR,
   applicationId,
@@ -64,6 +66,7 @@ import {
   fixtureQuery,
   mailIsCaught,
   markerPath,
+  readTimesKeptSince,
   registerReminderMarkerDoc,
   stateDir,
   statePath,
@@ -389,7 +392,10 @@ test("the browser harness routes every collection access through the chokepoint"
   // scheduler's collection, reached by `registerReminderMarkerDoc` for one
   // reminder marker of a fixture's own group at a time. The test after this
   // one pins its value, that it is called once, and what the door refuses.
-  const ALLOWED_IN_CORE = ['"users"', "collection", "REGISTER_REMINDER_MARKERS"];
+  // And `READ_TIMES_CONFIG_COLLECTION`, one document in `config` reached by
+  // `readTimesKeptSince` alone, which can make it where it is missing and
+  // read it, never change it: pinned by the test after that.
+  const ALLOWED_IN_CORE = ['"users"', "collection", "REGISTER_REMINDER_MARKERS", "READ_TIMES_CONFIG_COLLECTION"];
   for (const file of HARNESS_FILES) {
     const source = codeOf(file);
     for (const match of source.matchAll(/\.collection\(\s*([^)]*)\)/g)) {
@@ -483,6 +489,29 @@ test("the scheduler's collection is reached only for a fixture group's reminder 
     door.slice(0, end).includes(".collection(REGISTER_REMINDER_MARKERS).doc(`regremind__${groupId}__${sessionKey}__${uid}`)"),
     "the scheduler's collection is reached outside registerReminderMarkerDoc, or for another family of markers",
   );
+});
+
+test("one document in config beyond the membership pointer is reached, by one door that makes it where missing and never changes it", async () => {
+  // When the site began keeping read times: a spec reading "Not read yet"
+  // needs it to be before the answers it saves. `fixtureDoc` still refuses
+  // the document (the test above names config's other ids, and this one), so
+  // the door below is the only way to it.
+  assert.throws(() => fixtureDoc("config", READ_TIMES_CONFIG_DOC_ID), /REFUSING/, "fixtureDoc reaches the read times document");
+  // Refused before any credential is obtained: the door needs an instant.
+  await assert.rejects(() => readTimesKeptSince(null), /needs an instant/);
+  await assert.rejects(() => readTimesKeptSince(new Date("nonsense")), /needs an instant/);
+  // The source: the values, one call, inside the door, a create and a read and nothing else.
+  const core = codeOf(CORE);
+  assert.deepEqual([READ_TIMES_CONFIG_COLLECTION, READ_TIMES_CONFIG_DOC_ID], ["config", "firstReadTimes"]);
+  assert.match(core, /export const READ_TIMES_CONFIG_COLLECTION = "config";/);
+  assert.match(core, /export const READ_TIMES_CONFIG_DOC_ID = "firstReadTimes";/);
+  const calls = [...core.matchAll(/\.collection\(\s*READ_TIMES_CONFIG_COLLECTION\s*\)/g)];
+  assert.equal(calls.length, 1, "the read times document is reached from more than one place in core.mjs");
+  const door = core.slice(core.indexOf("export async function readTimesKeptSince("));
+  const body = door.slice(0, door.indexOf("\n}\n"));
+  assert.ok(body.includes(".collection(READ_TIMES_CONFIG_COLLECTION).doc(READ_TIMES_CONFIG_DOC_ID)"), "the read times document is reached outside its door");
+  assert.match(body, /await ref\.create\(\{ keptSince: before \}\);/);
+  assert.doesNotMatch(body, /\.(?:set|update|delete)\(/, "the door can change or delete the read times document");
 });
 
 test("the funnel fixture declares every collection its teardown must drain", () => {

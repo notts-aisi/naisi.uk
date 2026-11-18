@@ -5,7 +5,7 @@ import type { EmailAbout, OwnFeedbackCard } from "./model";
 
 /**
  * EVERY WORD FEEDBACK SAYS: its cards on the person's week page, "Your
- * feedback" on the review page, "Feedback to write" for the people running a
+ * feedback" on the reading pages, "Feedback to write" for the people running a
  * group, "Feedback to send" on the programme's Overview, the batch email, and
  * the routes' refusals. One file, so the pages, the routes and the email say
  * one thing.
@@ -67,7 +67,7 @@ export function feedbackLinkWords(card: Pick<OwnFeedbackCard, "byRole" | "byName
 }
 
 // ---------------------------------------------------------------------------
-// Writing feedback: the review page's "Your feedback", the person page's
+// Writing feedback: "Your feedback" beside a written answer, the person page's
 // ---------------------------------------------------------------------------
 
 export const YOUR_FEEDBACK = "Your feedback";

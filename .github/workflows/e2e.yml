@@ -46,7 +46,7 @@ permissions:
   contents: read
 
 # THE CONCURRENCY GROUP, declared on the two jobs that drive the dev project
-# (`local` and `dev`) and on nothing else. `local` runs on four machines at
+# (`local` and `dev`) and on nothing else. `local` runs on seven machines at
 # once, and only its part that borrows the shared setting below (`specs-1`)
 # joins the group; the other parts write only rows that carry their run id and
 # take a group of their own (see the `local` job).
@@ -82,11 +82,13 @@ permissions:
 jobs:
   local:
     name: Local mode (${{ matrix.part }})
-    # FOUR MACHINES AT ONCE. One runs the fetch batteries (the persona battery
-    # among them); three each run a third of the browser specs
-    # (`--shard N/3`, scripts/e2e/lib/shard.mjs). Each builds and boots its
-    # own loopback server, so nothing is shared between them but the dev
-    # project, and `needs.local.result` is a success only when all four are.
+    # SEVEN MACHINES AT ONCE. One runs the fetch batteries (the persona battery
+    # among them); six each run one part of the browser specs
+    # (`--shard N/6`, scripts/e2e/lib/shard.mjs), dealt by how long each spec
+    # takes so that no part holds all the long ones: a run waits for its
+    # slowest part. Each builds and boots its own loopback server, so nothing
+    # is shared between them but the dev project, and `needs.local.result` is
+    # a success only when all seven are.
     # Three conditions, for three different reasons. `result`, at the foot of
     # this file, decides what a skip MEANS for the pull request; this only
     # decides whether the suite can run.
@@ -109,8 +111,9 @@ jobs:
     # (`config/membership`, and the end of a programme's question set)
     # always run in part 1 of the browser specs (BORROWS_A_SHARED_SETTING in
     # scripts/e2e/lib/shard.mjs), so `specs-1` waits in the one group with the
-    # nightly, as the whole job used to. The other three write only rows that
+    # nightly, as the whole job used to. The other parts write only rows that
     # carry their run id, so each takes a group of its own and starts at once.
+    # Part 1 is dealt the least work for that reason (SHARED_QUEUE_SECONDS).
     concurrency:
       group: ${{ matrix.part == 'specs-1' && format('e2e-{0}', github.workflow) || format('e2e-{0}-{1}-{2}', github.workflow, github.run_id, matrix.part) }}
       cancel-in-progress: false
@@ -124,11 +127,17 @@ jobs:
         include:
           - part: batteries
           - part: specs-1
-            shard: 1/3
+            shard: 1/6
           - part: specs-2
-            shard: 2/3
+            shard: 2/6
           - part: specs-3
-            shard: 3/3
+            shard: 3/6
+          - part: specs-4
+            shard: 4/6
+          - part: specs-5
+            shard: 5/6
+          - part: specs-6
+            shard: 6/6
     runs-on: ubuntu-latest
     # The persona battery asks every course hub gate about a programme each
     # persona leads, staffs or takes part in, and about another one: about

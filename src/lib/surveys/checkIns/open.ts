@@ -139,7 +139,7 @@ export async function openCheckIn(
   // 2. Who it is for: the register's rows (people Publish has told, whoever opens it) its marks say were there.
   const [register, roster] = await Promise.all([
     readRegisterMarks(db, runId, group.id, session),
-    loadToldRegisterMembers(db, runId, group.id),
+    loadToldRegisterMembers(db, runId, group.id, session.weekNumber),
   ]);
   if (!register.held) return refuse(409, CHECK_IN_REFUSAL.notHeld);
   const here = hereOf(register.marks, roster.members, group.facilitatorUids);

@@ -450,10 +450,11 @@ const READERS = new Map([
     proof: ['name: nameForViewer(viewer, accountNamesOf(records.accounts.get(enrolment.uid) ?? {}), "NAISI member"),'],
     why: "the Overview's people who left with no register to list them, named for the lead or admin reading it, as the grid names the rest",
   }],
-  ["src/lib/courses/coursework/load.ts", {
+  ["src/lib/courses/coursework/reads.ts", {
     who: "rule",
     proof: ['.map((doc) => [doc.id, nameForViewer(viewer, accountNamesOf(doc.data() ?? {}), "NAISI member")] as const),'],
-    why: "the Coursework tab and one person's coursework page, for the programme's lead and admins: every row named off its account for the session reading it",
+    why:
+      "the coursework pages' one reader of names (moved here from the tab's loader): the Coursework tab and one person's week, on the programme's side for its lead and admins and on the group's for its facilitators, the lead and admins, every person named off their account for the session reading it",
   }],
   ["src/lib/courses/feedback/send.ts", {
     who: "rule",
@@ -488,7 +489,7 @@ const READERS = new Map([
   ["src/lib/courses/writtenAnswers/reviewPage.ts", {
     who: "rule",
     proof: ['shownName.set(snap.id, nameForViewer(actor, accountNamesOf(data), "NAISI member"));'],
-    why: "the review page's people, named for the facilitator, lead or admin reading it; feedback on it stays signed with the name its writer goes by",
+    why: "the written answer's review page's loader, kept as the reader behind This week's work's Written answer column (its own page is retired): its people, named for the facilitator, lead or admin reading it; who left feedback, by the first word of the name they go by",
   }],
   ["src/lib/ratings/view.ts", {
     who: "rule",

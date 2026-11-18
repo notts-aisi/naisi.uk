@@ -27,6 +27,7 @@ import {
   someoneLeftOf,
   statusWords,
 } from "@/lib/applications/people/words";
+import { MOVE_LINK } from "@/lib/courses/staffMove/words";
 import styles from "./ProgrammePeople.module.css";
 
 /**
@@ -95,6 +96,7 @@ function moreItems(row: PersonRow): { href: string; label: string }[] {
   const items: { href: string; label: string }[] = [];
   if (row.applicationHref) items.push({ href: row.applicationHref, label: seeApplicationWords(row.firstName) });
   if (row.groupsHref) items.push({ href: row.groupsHref, label: OPEN_PEOPLE_IN_GROUPS });
+  if (row.moveHref) items.push({ href: row.moveHref, label: MOVE_LINK });
   return items;
 }
 

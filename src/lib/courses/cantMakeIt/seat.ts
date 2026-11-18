@@ -35,6 +35,7 @@ import {
   type RegisterLine,
 } from "./model";
 import { excuseHoldsIn } from "@/lib/courses/excused/standing";
+import { everInGroup, hasGroupsByWeek, inGroupForWeek, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { CANT_MAKE_IT_REFUSAL } from "./words";
 
 /**
@@ -51,7 +52,10 @@ import { CANT_MAKE_IT_REFUSAL } from "./words";
  * themselves), on an account that stands. Exactly the people the register
  * shows its facilitators as rows, a facilitator who holds a place in the
  * group included. Nobody can say it for anybody else: the seat is read by
- * the caller's own uid.
+ * the caller's own uid. A session's group is the group they were in for its
+ * week (`takesPartInWeek`): somebody whose place records a move says it on
+ * their old group's register for the weeks before it, and on their new
+ * group's from it.
  *
  * ## What it writes
  *
@@ -59,9 +63,12 @@ import { CANT_MAKE_IT_REFUSAL } from "./words";
  * the caller's line and nothing else: `records.<uid>` as `excused`, and
  * `excusedInAdvance.<uid>` as when they said so, made in one write, in a
  * transaction, while `cantMakeItState` says it is open. Taking it back
- * deletes both, and only while the line is still the one they wrote: a
- * facilitator's mark deletes `excusedInAdvance.<uid>` (the marking route),
- * so from then on the line is theirs. The register's own fields (the held
+ * deletes both, and only while the line is still the one they wrote: an
+ * admin's or the programme's lead's mark deletes `excusedInAdvance.<uid>`
+ * (the marking route), so from then on the line is theirs; a facilitator's
+ * mark that they came keeps it beside a line that is no longer excused, so
+ * nothing reads it as their word until the line is put back. The register's
+ * own fields (the held
  * switch, the push, its notes, who marked it last) are never touched, so a
  * register made this way is still a draft nobody has marked: no job, task or
  * reminder reads it differently.
@@ -91,11 +98,68 @@ import { CANT_MAKE_IT_REFUSAL } from "./words";
  * (`src/lib/courses/excused/ask.ts`).
  */
 export function takesPartIn(user: SessionUser, seat: CourseEnrolmentDoc, group: CourseGroupDoc, runId: string): boolean {
+  // The group they are in now, and everything else `takesPartInWeek` asks.
+  return seat.groupId === group.id && takesPartInWeek(user, seat, group, runId, null);
+}
+
+/**
+ * The same, for ONE SESSION'S REGISTER: the group a session belongs to is the
+ * group they were in for its week (`groupForWeek`). `weekNumber` null asks
+ * whether any week of theirs was spent in the group (`everInGroup`), which a
+ * press asks before it knows which session it names. Somebody moved from a
+ * week takes part in their old group for the weeks before it and in their
+ * new group from it. With no record of groups by week, this is `takesPartIn`
+ * for every week.
+ */
+export function takesPartInWeek(
+  user: SessionUser,
+  seat: CourseEnrolmentDoc,
+  group: CourseGroupDoc,
+  runId: string,
+  weekNumber: number | null,
+): boolean {
   if (seat.uid !== user.uid || seat.runId !== runId) return false;
   if (seat.role !== "learner" || seat.status !== "active") return false;
-  if (!seat.groupId || seat.groupId !== group.id || group.runId !== runId || group.archived) return false;
+  if (!seat.groupId || group.runId !== runId || group.archived) return false;
+  if (weekNumber === null ? !everInGroup(seat, group.id) : !inGroupForWeek(seat, group.id, weekNumber)) return false;
   if (!placementIsTold(seat)) return false;
   return isNamedWithStanding(user, "courseEnrolments.uid", seat.uid);
+}
+
+/**
+ * THE NEXT SESSION ONE PERSON IS DUE AT, with the group whose session it is,
+ * for a ticket on their programme page: the soonest of their sessions still
+ * to finish (`sessionRange`), each week's from the group they were in that
+ * week (`sessionsWithGroup`). `group` is the group they are in now and
+ * `groups` the run's groups: a week in a group that no longer meets has no
+ * session. With no record of groups by week, their group's next session,
+ * exactly as `sessionRange(resolveSessions(run, group), now)` answers it.
+ * Null once none is left. "Joining online" asks the same
+ * (`src/lib/courses/joiningOnline/seat.ts`).
+ */
+export function nextSessionByWeek(
+  run: CourseRunDoc,
+  seat: CourseEnrolmentDoc,
+  group: CourseGroupDoc,
+  groups: readonly CourseGroupDoc[],
+  now: Date,
+): { group: CourseGroupDoc; session: ResolvedSession } | null {
+  if (!hasGroupsByWeek(seat)) {
+    const next = sessionRange(resolveSessions(run, group), now).next;
+    return next ? { group, session: next } : null;
+  }
+  const live = (groupId: string) => groups.find((each) => each.id === groupId && each.runId === run.id && !each.archived) ?? null;
+  const paired = sessionsWithGroup(seat, (groupId) => {
+    const each = live(groupId);
+    return each ? resolveSessions(run, each) : null;
+  });
+  const next = sessionRange(
+    paired.map((each) => each.session),
+    now,
+  ).next;
+  const found = next ? paired.find((each) => each.session === next) : undefined;
+  const ofGroup = found ? live(found.groupId) : null;
+  return found && ofGroup ? { group: ofGroup, session: found.session } : null;
 }
 
 /**
@@ -261,7 +325,9 @@ export function writeExcusedInAdvance(
  * is not the person's own word, so nothing that takes a word back touches it:
  * not an old page's "I can make it after all", not unticking "Most weeks, not
  * all", not a new regular time. Only somebody correcting the register changes
- * it, and a facilitator's own mark on the day wins over it, as over any line.
+ * it. A facilitator's mark on the day that they came wins over it, and
+ * putting the line back to excused gives it back its approval's stamp
+ * (`excusalKept`); only an admin or the programme's lead marks it otherwise.
  */
 export function setByApproval(line: Pick<SessionLine, "data">, uid: string): boolean {
   const stamps = (line.data?.[SET_BY] ?? {}) as Record<string, unknown>;
@@ -297,17 +363,19 @@ export function writeTakenBack(tx: Transaction, line: SessionLine, uid: string):
  * sessions its person can't make, and the ticket keeps the list in step: a
  * session is listed while its register records them excused on their word.
  * Nothing else of the answer changes, and an answer of another kind, or
- * about another group, is left as it is.
+ * about another group, is left as it is. A session of another group (a week
+ * their place records them in it) is never on the answer's list.
  */
 function keepListInStep(
   tx: Transaction,
   seatRef: DocumentReference,
   seat: CourseEnrolmentDoc,
+  groupId: string,
   sessionKey: string,
   told: boolean,
 ): void {
   const answer = seat.timeAnswer;
-  if (!answer || answer.kind !== "mostWeeks" || answer.forGroupId !== seat.groupId) return;
+  if (!answer || answer.kind !== "mostWeeks" || answer.forGroupId !== seat.groupId || groupId !== seat.groupId) return;
   if (answer.sessionKeys.includes(sessionKey) === told) return;
   const sessionKeys = told
     ? orderedSessionKeys([...answer.sessionKeys, sessionKey])
@@ -327,10 +395,12 @@ export async function cantMakeItFor(
 ): Promise<CantMakeItView | null> {
   const seat = input.enrolment;
   if (!seat?.groupId) return null;
-  const group = input.groups.find((each) => each.id === seat.groupId);
-  if (!group || !takesPartIn(input.user, seat, group, input.run.id)) return null;
-  const next = sessionRange(resolveSessions(input.run, group), input.now).next;
-  if (!next) return null;
+  const own = input.groups.find((each) => each.id === seat.groupId);
+  if (!own || !takesPartIn(input.user, seat, own, input.run.id)) return null;
+  // Their next session, from the group they are in for its week.
+  const found = nextSessionByWeek(input.run, seat, own, input.groups, input.now);
+  if (!found) return null;
+  const { group, session: next } = found;
   const id = attendanceDocId(input.run.id, group.id, next.weekNumber, next.occurrence);
   const snap = await db.collection("courseAttendance").doc(id).get();
   const state = stateOn(next, lineOf(snap.exists ? snap.data() : undefined, id, input.user.uid), input.now);
@@ -395,16 +465,20 @@ export async function recordCantMakeIt(
     if (!runSnap.exists || runSnap.data()?.destroying === true || !seatSnap.exists) return refuse(404, CANT_MAKE_IT_REFUSAL.notYours);
     const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
     const seat = normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {});
-    if (!takesPartIn(user, seat, group, run.id)) return refuse(404, CANT_MAKE_IT_REFUSAL.notYours);
+    // A week of theirs was spent in this group: asked before the session is
+    // known, so the refusals come in the order they always have.
+    if (!takesPartInWeek(user, seat, group, run.id, null)) return refuse(404, CANT_MAKE_IT_REFUSAL.notYours);
     // Saying it on the spot is a facilitator's only, on their own place in a
     // group they facilitate: anybody else taking part asks to be excused, and
     // an admin decides. Taking a line they wrote back stays open to everybody,
     // so nobody is left with a word they gave before requests.
     if (request.cantMakeIt && !facilitatesGroup(user, group)) return refuse(403, CANT_MAKE_IT_REFUSAL.askInstead);
 
-    // The session is one this group holds, by the group's own calendar.
+    // The session is one this group holds, by the group's own calendar, in a
+    // week they are in this group: its register is the one their line is on.
     const session = resolveSessions(run, group).find((each) => each.sessionKey === request.sessionKey);
     if (!session) return refuse(400, CANT_MAKE_IT_REFUSAL.noSession);
+    if (!takesPartInWeek(user, seat, group, run.id, session.weekNumber)) return refuse(404, CANT_MAKE_IT_REFUSAL.notYours);
     const [line] = await readSessionLines(tx, db, { run, group, uid: user.uid, sessions: [session], now });
     const state = line.state;
     if (state.kind === "closed") return refuse(409, CLOSED[state.why]);
@@ -421,7 +495,7 @@ export async function recordCantMakeIt(
         if (!registerHasRoom(line)) return refuse(409, CANT_MAKE_IT_REFUSAL.full);
         writeExcusedInAdvance(tx, line, { run, group, uid: user.uid, told: FieldValue.serverTimestamp() });
       }
-      keepListInStep(tx, seatSnap.ref, seat, session.sessionKey, true);
+      keepListInStep(tx, seatSnap.ref, seat, group.id, session.sessionKey, true);
       return { ok: true, told: true };
     }
 
@@ -431,7 +505,7 @@ export async function recordCantMakeIt(
     if (state.kind === "marked") return refuse(409, CANT_MAKE_IT_REFUSAL.marked);
     if (state.kind === "told" && setByApproval(line, user.uid)) return refuse(409, CANT_MAKE_IT_REFUSAL.approved);
     if (state.kind === "told") writeTakenBack(tx, line, user.uid);
-    keepListInStep(tx, seatSnap.ref, seat, session.sessionKey, false);
+    keepListInStep(tx, seatSnap.ref, seat, group.id, session.sessionKey, false);
     return { ok: true, told: false };
   });
 }

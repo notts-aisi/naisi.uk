@@ -548,6 +548,8 @@ describe("9b. weeks are ticked while the question is asked, and only taken off a
     assert.match(card, /const untickOnly = answer !== null;\s*const offered = ticksOffered\(sessions, untickOnly\);/);
     assert.match(card, /\{untickOnly \? UNTICK_ONLY : sessions\.length > 0 \? MOST_WEEKS_INTRO : NONE_TO_TICK\}/);
     assert.match(card, /\{offered\.map\(\(each\) => \(/);
+    // Where they tick the weeks they will miss: what a certificate needs, when the run home hands it over.
+    assert.match(card, /\{certificateNeeds && \(\s*<p className=\{styles\.note\}>\s*\{certificateNeeds\}\s*<\/p>\s*\)\}\s*<p className=\{styles\.note\}>\{MOST_WEEKS_WHO_READS\}<\/p>/);
   });
 });
 
@@ -1079,6 +1081,10 @@ describe("6. the person, the programme's lead and admins read it; nobody else do
     [
       "features/applications/groups/PeopleInGroups.tsx",
       "the board's card for the lead and admins: why, and what would work, under a can't (with They meant some weeks) and under a most weeks that kept them",
+    ],
+    [
+      "lib/courses/staffMove/plan.ts",
+      "moving somebody for good, for the lead and admins: a most weeks answer about the old group names the sessions from the week of the move on that no longer apply, on the page only; the answer itself is left as it is",
     ],
     ["lib/applications/arrange/load.ts", "Circles' read of each seat, an admin's alone, through the stale-answer rule"],
     ["lib/applications/arrange/plan.ts", "the arranged person's type, which carries the answer for the screen and is never sent to Claude"],

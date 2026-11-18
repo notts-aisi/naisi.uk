@@ -36,7 +36,8 @@
  *    history and the editing routes;
  *  - Gus rewords the reflection prompt Ada answered, telling nobody: Ada's
  *    week page says "You answered an earlier wording:" with the words she
- *    answered under her own, and Fern's reflections with names say "The
+ *    answered under her own, and Fern's reflections with names (the page of
+ *    one question across the group, at the week's first reflection) say "The
  *    question when this was written:" with the same words under Ada's.
  *
  * ## How to run it
@@ -749,14 +750,18 @@ test(
         assert.equal(await wordsIn(own.locator("xpath=..")), `${WORDS.ownEarlier} ${REFLECTION.label}`);
         assert.equal(await memberPage.getByText(WORDS.ownEarlier, { exact: true }).count(), 1, "an earlier wording beside an answer whose question did not change");
 
-        // Fern, Group A's facilitator, reading the reflections with names: under Ada's, the question when she wrote it.
+        // Fern, Group A's facilitator, reading the reflections with names on the page of one question, at the week's
+        // first reflection (this one): asked in its new words, and under Ada's, the question when she wrote it.
         activePage = facilitatorPage;
-        await facilitatorPage.goto(`${origin}/learn/${enc(state.runId)}/group/${enc(groupA.id)}/reflections/names?week=${WEEK}`, { waitUntil: "domcontentloaded" });
-        const answer = facilitatorPage.locator("li").filter({ hasText: adasWords });
-        await answer.first().waitFor({ timeout: WAIT_MS });
-        const said = await wordsIn(answer.first());
+        await facilitatorPage.goto(`${origin}/learn/${enc(state.runId)}/group/${enc(groupA.id)}/question?week=${WEEK}&first=reflection`, { waitUntil: "domcontentloaded" });
+        const asked = facilitatorPage.locator("section[aria-labelledby=question-asked]");
+        await asked.waitFor({ timeout: WAIT_MS });
+        assert.ok((await wordsIn(asked)).endsWith(REFLECTION.newPrompt), `the page does not ask the reflection in its new words: ${await wordsIn(asked)}`);
+        // Ada's row: a section carrying her id.
+        const answer = facilitatorPage.locator(`section[id="p-${ada.uid}"]`);
+        await answer.waitFor({ timeout: WAIT_MS });
+        const said = await wordsIn(answer);
         assert.ok(said.includes(`${adasWords} ${WORDS.staffEarlier} ${REFLECTION.label}`), `the reflection with names does not say the question when it was written: ${said}`);
-        await facilitatorPage.getByRole("heading", { name: REFLECTION.newPrompt, exact: true }).waitFor({ timeout: WAIT_MS });
       });
     } finally {
       await facilitatorContext.close().catch(() => {});

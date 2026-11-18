@@ -44,6 +44,10 @@ export async function startImpersonation(targetUid: string): Promise<void> {
     throw new Error("Failed to provision impersonation session");
   }
 
+  // A full page load on purpose: the signed-in account has just changed, so
+  // every provider, listener and cached read has to start again as that
+  // account. The client router would keep them.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.href = "/dashboard";
 }
 
@@ -64,5 +68,8 @@ export async function exitImpersonation(): Promise<void> {
     throw new Error(body?.error ?? `Exit failed (${res.status})`);
   }
   await fbSignOut(getClientAuth());
+  // A full page load on purpose, as when a view-as session starts: nothing of
+  // the borrowed session stays in the page's memory.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.href = "/login?from=impersonation-exit";
 }

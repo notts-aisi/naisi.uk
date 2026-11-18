@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import Link from "next/link";
+import { MOVE_LINK } from "@/lib/courses/staffMove/words";
 import { useHydrated } from "@/hooks/useHydrated";
+import { readingHref } from "@/lib/courses/coursework/reading";
 import { countBuckets, doneCount, filterRows, type Bucket, type WorkFilterKey } from "@/lib/courses/groupWeekWork/model";
 import type { GroupWeekWorkView } from "@/lib/courses/groupWeekWork/view";
 import * as R from "@/lib/courses/groupWeekWork/words";
@@ -18,6 +21,9 @@ const TONE: Record<Bucket, string> = {
   "not-started": styles.toneNone,
   "joined-late": styles.toneNone,
 };
+
+/** No row offered a move. */
+const NONE: readonly string[] = [];
 
 /**
  * THE CHOSEN WEEK'S WORK ON A GROUP'S PAGE, for admins and the programme's
@@ -40,6 +46,10 @@ export default function WeekWorkCard({
   said,
   facilitatorsApart,
   onRemind,
+  readBase = null,
+  moveBase = null,
+  movable = NONE,
+  joinsLater = null,
 }: {
   groupName: string;
   work: GroupWeekWorkView;
@@ -49,6 +59,22 @@ export default function WeekWorkCard({
   facilitatorsApart: readonly string[];
   /** Open Remind: for everybody whose week isn't done, or one person. */
   onRemind: (only: { uid: string; firstName: string } | null) => void;
+  /**
+   * The programme's reading view, before a person (".../coursework"): each
+   * name, a facilitator's own week among them, opens that person's week
+   * there. Null: names are plain text.
+   */
+  readBase?: string | null;
+  /**
+   * The programme's people, before a person (".../people"): each name gets
+   * the way to move them to another group for good (".../people/[uid]/move").
+   * Null: nothing is offered, as on a run with one group.
+   */
+  moveBase?: string | null;
+  /** Whose rows get that way: the places the move would not refuse for what is known of them (told, facilitating no group). */
+  movable?: readonly string[];
+  /** Somebody moved into the group mid-term, on a week before they joined it: listed under the table, never one of its rows. */
+  joinsLater?: ReactNode[] | null;
 }) {
   const hydrated = useHydrated();
   const [filter, setFilter] = useState<WorkFilterKey>("everyone");
@@ -142,7 +168,20 @@ export default function WeekWorkCard({
               ) : (
                 shown.map((row) => (
                   <tr key={row.uid}>
-                    <td>{row.name}</td>
+                    <td>
+                      {readBase ? (
+                        <Link href={readingHref(readBase, row.uid, work.weekNumber)} className={styles.personLink}>
+                          {row.name}
+                        </Link>
+                      ) : (
+                        row.name
+                      )}
+                      {moveBase && movable.includes(row.uid) && (
+                        <Link href={`${moveBase}/${encodeURIComponent(row.uid)}/move`} className={styles.moveLink}>
+                          {MOVE_LINK}
+                        </Link>
+                      )}
+                    </td>
                     {work.pieces.map((piece) => {
                       const cell = row.pieces.find((each) => each.key === piece.key);
                       return (
@@ -176,6 +215,7 @@ export default function WeekWorkCard({
             </tbody>
           </table>
         </div>
+        {joinsLater && joinsLater.length > 0 && <div className={styles.joinsLaterList}>{joinsLater}</div>}
         {facilitatorsApart.length > 0 && <p className={styles.cardLine}>{W.facilitatorsApartLine(facilitatorsApart)}</p>}
       </section>
 
@@ -208,7 +248,13 @@ export default function WeekWorkCard({
             {work.own.map((row) => (
               <li key={row.uid} className={styles.lateRow}>
                 <span className={styles.lateMain}>
-                  <span className={styles.lateName}>{row.name}</span>
+                  {readBase ? (
+                    <Link href={readingHref(readBase, row.uid, work.weekNumber)} className={`${styles.lateName} ${styles.personLink}`}>
+                      {row.name}
+                    </Link>
+                  ) : (
+                    <span className={styles.lateName}>{row.name}</span>
+                  )}
                   <span className={styles.cardLine}>{row.line}</span>
                 </span>
                 {row.late && <span className={styles.lateChip}>{row.late}</span>}

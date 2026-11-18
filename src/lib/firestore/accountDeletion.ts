@@ -26,7 +26,7 @@ import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { ASSESSMENTS_COLLECTION } from "./admissionAssessments";
-import { CORRECTED, EXCUSED_IN_ADVANCE, FACILITATOR_RECORD, ONLINE, ONLINE_SAID, SET_BY } from "./courseAttendance";
+import { CORRECTED, EXCUSAL_KEPT, EXCUSED_IN_ADVANCE, FACILITATOR_RECORD, ONLINE, ONLINE_EMAILED, ONLINE_SAID, SET_BY } from "./courseAttendance";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
@@ -52,6 +52,11 @@ import { COURSE_WEEK_REVIEWS_COLLECTION, reviewWithout } from "./courseWeekRevie
 import { COURSE_NOTE_DRAFTS_COLLECTION, noteDraftWithout } from "./courseNoteDrafts";
 import { REVIEW_FOLLOW_UP_TASK_SOURCE } from "./courseTasks";
 import { COURSE_EXPLAINERS_COLLECTION, EXPLAINER_ACCOUNT_FIELDS } from "./courseExplainers";
+import { COURSE_AUDIT_COLLECTION } from "./courseAudit";
+import { withoutMoveReason } from "@/lib/courses/staffMove/words";
+
+/** The History rows a move to another group mid-term writes, one on each group (`saveMove`). */
+const MOVED_KIND = "member-moved";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -380,6 +385,13 @@ export type AccountDeletionSummary = {
    * explainer" without a name. Counted once per document.
    */
   courseExplainersCleared: number;
+  /**
+   * History rows about this account's moves to another group mid-term
+   * (`courseAudit`, kind `member-moved`): each stays, and the reason staff
+   * gave, a note about this person, comes off it, from its own field and from
+   * its sentence. Counted once per row.
+   */
+  courseMoveReasonsCleared: number;
   /**
    * Claude's end-of-week drafts ABOUT this account (`courseNoteDrafts`,
    * privacy v15), on every run: each is about this account alone, and goes.
@@ -988,6 +1000,31 @@ export async function clearExplainerNames(db: Firestore, uid: string): Promise<n
 }
 
 /**
+ * Take the reason off every History row about this account's moves to
+ * another group mid-term (`courseAudit`, kind `member-moved`, `subjectUid`
+ * this account), found by the one equality on `subjectUid`: the optional
+ * "Why" staff gave is a note about this person, in the row's own field and at
+ * the end of its sentence (`withoutMoveReason`). The rows stay, as every
+ * History row does: a move still reads on both groups' History, without why.
+ * Counted once per row changed.
+ */
+export async function clearMoveReasons(db: Firestore, uid: string): Promise<number> {
+  const snap = await db.collection(COURSE_AUDIT_COLLECTION).where("subjectUid", "==", uid).get();
+  let cleared = 0;
+  for (const doc of snap.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    if (data.kind !== MOVED_KIND) continue;
+    const reason = typeof data.reason === "string" ? data.reason : null;
+    const detail = typeof data.detail === "string" ? data.detail : "";
+    const cut = withoutMoveReason(detail, reason);
+    if (reason === null && cut === detail) continue;
+    await doc.ref.update({ reason: FieldValue.delete(), detail: cut });
+    cleared += 1;
+  }
+  return cleared;
+}
+
+/**
  * Delete every end-of-week draft Claude made ABOUT this account
  * (`courseNoteDrafts`, privacy v15), on every run, a page at a time: found by
  * the one equality on `uid`, the person a draft is about.
@@ -1045,6 +1082,9 @@ export async function deleteCoursePacksAndCases(db: Firestore, uid: string): Pro
  * log of what it did to them (`courseWorkLog`), on every run, a page at a
  * time. Found by the one equality on `uid`; nobody else's record is touched:
  * a reopen's row names who reopened it, and is about the person whose week it is.
+ * The days each of their answers was first read go with the record. The one
+ * document saying when the site began keeping read times
+ * (`config/firstReadTimes`) is about nobody and is left alone.
  */
 export async function deleteCourseWeekWork(db: Firestore, uid: string): Promise<{ weeks: number; log: number }> {
   return {
@@ -1300,12 +1340,13 @@ export async function clearCourseAttendanceMarks(
       if (snap.empty) break;
       cursor = snap.docs[snap.docs.length - 1];
 
-      // FIVE map keys per register, not one. `participantNotes` (V3 W1 PR5)
+      // SIX map keys per register, not one. `participantNotes` (V3 W1 PR5)
       // is post-session prose ABOUT this member, written by their facilitator,
       // and it is personal data of exactly the kind an account deletion has to
       // take with it; `excusedInAdvance` is when they told us they could not
       // make the session ("Can't make it"); `onlineSaid` is when they said
-      // they were joining it online ("Joining online"); `online` is whether
+      // they were joining it online ("Joining online"), and `onlineEmailed`
+      // when the group's facilitators were emailed that they were; `online` is whether
       // the register records them as having joined online or in the room.
       // Every key is cleared by FieldPath
       // on the SAME document, in the same batch, for the same reason
@@ -1330,17 +1371,21 @@ export async function clearCourseAttendanceMarks(
       // as `markedByUid` and `pushedByUid` always have been: they record who
       // ran the session, not anything about the person deleted. And one
       // more: when their own line was corrected (`corrected`), keyed by them,
-      // whose `byUid` (who corrected it) is kept the same way.
+      // whose `byUid` (who corrected it) is kept the same way. And that an
+      // excusal stood on their line when somebody recorded that they came
+      // after all (`excusalKept`), keyed by them.
       const marked = snap.docs.filter(
         (d) =>
           holds(d, "records") ||
           holds(d, "participantNotes") ||
           holds(d, EXCUSED_IN_ADVANCE) ||
           holds(d, ONLINE_SAID) ||
+          holds(d, ONLINE_EMAILED) ||
           holds(d, ONLINE) ||
           holds(d, SET_BY) ||
           holds(d, FACILITATOR_RECORD) ||
-          holds(d, CORRECTED),
+          holds(d, CORRECTED) ||
+          holds(d, EXCUSAL_KEPT),
       );
       if (marked.length > 0) {
         const batch = db.batch();
@@ -1361,6 +1406,9 @@ export async function clearCourseAttendanceMarks(
           if (holds(d, ONLINE_SAID)) {
             batch.update(d.ref, new FieldPath(ONLINE_SAID, uid), FieldValue.delete());
           }
+          if (holds(d, ONLINE_EMAILED)) {
+            batch.update(d.ref, new FieldPath(ONLINE_EMAILED, uid), FieldValue.delete());
+          }
           if (holds(d, ONLINE)) {
             batch.update(d.ref, new FieldPath(ONLINE, uid), FieldValue.delete());
           }
@@ -1372,6 +1420,9 @@ export async function clearCourseAttendanceMarks(
           }
           if (holds(d, CORRECTED)) {
             batch.update(d.ref, new FieldPath(CORRECTED, uid), FieldValue.delete());
+          }
+          if (holds(d, EXCUSAL_KEPT)) {
+            batch.update(d.ref, new FieldPath(EXCUSAL_KEPT, uid), FieldValue.delete());
           }
         }
         await batch.commit();
@@ -1883,6 +1934,7 @@ export async function deleteAccountCascade(
     reviewFollowUpsDeleted: 0,
     courseRequestsDeleted: 0,
     courseExplainersCleared: 0,
+    courseMoveReasonsCleared: 0,
     authDeleted: false,
   };
   // Tracks whether any best-effort step (2-5) failed after attempting, so we can
@@ -2477,6 +2529,14 @@ export async function deleteAccountCascade(
     summary.courseExplainersCleared = await clearExplainerNames(db, uid);
   } catch (err) {
     console.error("[deleteAccount] explainers clear failed:", uid, err);
+    partialFailure = true;
+  }
+  //      The reason staff gave for moving this account to another group is a
+  //      note about it: it comes off both groups' History rows, which stay.
+  try {
+    summary.courseMoveReasonsCleared = await clearMoveReasons(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] move reasons clear failed:", uid, err);
     partialFailure = true;
   }
   //      Claude's end-of-week drafts about this account are about it alone,

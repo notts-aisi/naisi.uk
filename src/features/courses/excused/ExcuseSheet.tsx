@@ -36,6 +36,7 @@ export default function ExcuseSheet({
   hasLink,
   locked = false,
   onSaidOnline,
+  certificateNeeds = null,
 }: {
   open: boolean;
   onClose: () => void;
@@ -53,6 +54,8 @@ export default function ExcuseSheet({
   locked?: boolean;
   /** Joining online saved, either way: the ticket draws it as the register now stands. */
   onSaidOnline?: (said: boolean) => void;
+  /** What a certificate needs, said in the form (`certificateNeedsWords`), or null. */
+  certificateNeeds?: string | null;
 }) {
   return (
     <Modal open={open} onClose={onClose} ariaLabel={O.cantMakeDayWords(day)} sheet>
@@ -74,6 +77,7 @@ export default function ExcuseSheet({
             mode="before"
             locked={locked}
             onSent={dismiss}
+            certificateNeeds={certificateNeeds}
             onlineControl={
               joiningOnline ? (
                 <JoiningOnline

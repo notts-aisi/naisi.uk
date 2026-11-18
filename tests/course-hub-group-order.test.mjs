@@ -53,6 +53,16 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  * the groups are handed on to, which must ask the comparator.
  */
 const READS_WITHOUT_A_LIST = new Map([
+  // A group's page on the programme's side: whether there is another group to
+  // move anybody to, a count.
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/page.tsx",
+    {
+      why:
+        "One group's page reads the run's groups only to count those that still meet, so that the way to move somebody " +
+        "to another group for good is offered only where there is another group: a number, never a list on the page.",
+    },
+  ],
   // Giving one session to somebody: whether that person facilitates any of
   // the run's groups that still meet.
   [
@@ -249,6 +259,13 @@ const READS_WITHOUT_A_LIST = new Map([
 
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
+  // ADDED (November 2026), with moving somebody to another group mid-term.
+  [
+    "src/features/courses/staffMove/MovePage.tsx",
+    "Moving one person to another group for good: the move route of the one person the page is for (previewed, then " +
+      "pressed). The groups it offers come from the server page, already ordered by `compareGroupsByMeeting` " +
+      "(`moveChoices`); the route lists no run's groups.",
+  ],
   // ADDED (November 2026), with covering a register.
   [
     "src/features/courses/groupPage/GivePanel.tsx",

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
+import MarkFirstRead from "@/features/courses/coursework/MarkFirstRead";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import type { GroupWeek, GroupWeekFillIn, GroupWeekSource, PersonBoxes } from "@/lib/courses/facilitatorWeek/readers";
 import { filledWords } from "@/lib/courses/fillInWords";
@@ -120,11 +121,17 @@ export function workColumnsOf(columns: readonly WorkColumnData[]): WorkColumn[] 
   }));
 }
 
-function Person({ name, uid, own, size = "md" }: { name: string; uid: string; own: boolean; size?: "sm" | "md" }) {
+function Person({ name, uid, own, size = "md", href = null }: { name: string; uid: string; own: boolean; size?: "sm" | "md"; href?: string | null }) {
   return (
     <>
       <InitialsChip name={name} uid={uid} size={size} />
-      <span className={styles.wkPersonName}>{name}</span>
+      {href ? (
+        <Link href={href} className={`${styles.wkPersonName} ${styles.wkPersonLink}`}>
+          {name}
+        </Link>
+      ) : (
+        <span className={styles.wkPersonName}>{name}</span>
+      )}
       {own && <span className={styles.wkOwnChip}>{FACILITATOR}</span>}
     </>
   );
@@ -178,14 +185,33 @@ function SourceRow({ source, of }: { source: GroupWeekSource; of: number }) {
   );
 }
 
+/** What a page names as first read once a person's boxes are opened (`groupBoxesFirstRead`), with its run. */
+export type BoxesFirstRead = { runId: string; weekId: string; people: ReadonlyArray<{ uid: string; ids: readonly string[] }> };
+
 /**
  * EACH PERSON'S BOXES (week 6's action plan): one line a person, how many of
  * the boxes they have filled, and "Read it", which shows what they wrote under
  * each numbered heading, as their card lays it out. Handed only the people the
  * one gate lets this reader read (`loadGroupWeekBoxes`), so it draws nobody
  * else. Plain text, never markup.
+ *
+ * Once a person's "Read it" is first opened, their boxes have been in front
+ * of the reader in full under their name, so the page names the boxes with
+ * words in them (`firstRead`, worked out on the server, never the reader's
+ * own) to the first-read route (`MarkFirstRead`), and the day each was first
+ * read is kept, never who. Never before it is opened, and never while drawn.
  */
-function GroupBoxes({ fillIn, people, headingId }: { fillIn: GroupWeekFillIn; people: readonly PersonBoxes[]; headingId: string }) {
+function GroupBoxes({
+  fillIn,
+  people,
+  headingId,
+  firstRead,
+}: {
+  fillIn: GroupWeekFillIn;
+  people: readonly PersonBoxes[];
+  headingId: string;
+  firstRead: BoxesFirstRead | null;
+}) {
   const headings: Array<{ number: number; heading: string; boxes: GroupWeekFillIn["boxes"] }> = [];
   for (const box of fillIn.boxes) {
     const last = headings[headings.length - 1];
@@ -198,42 +224,46 @@ function GroupBoxes({ fillIn, people, headingId }: { fillIn: GroupWeekFillIn; pe
         {eachPersonsBoxesWords(fillIn.title)}
       </h3>
       <ul className={styles.wkSources}>
-        {people.map(({ person, filled, answers }) => (
-          <li key={person.uid} className={styles.wkSource}>
-            <span className={styles.wkSourceText}>
-              <span className={styles.wkPerson}>
-                <Person name={person.name} uid={person.uid} own={person.own} size="sm" />
+        {people.map(({ person, filled, answers }) => {
+          const named = firstRead?.people.find((each) => each.uid === person.uid) ?? null;
+          return (
+            <li key={person.uid} className={styles.wkSource}>
+              <span className={styles.wkSourceText}>
+                <span className={styles.wkPerson}>
+                  <Person name={person.name} uid={person.uid} own={person.own} size="sm" />
+                </span>
               </span>
-            </span>
-            <span className={styles.wkSourceSide}>
-              <span className={styles.wkSourceCount}>{filledWords(filled, fillIn.boxes.length)}</span>
-            </span>
-            <Disclosure
-              label={READ_IT}
-              hideLabel={HIDE_IT}
-              name={readPersonsBoxesWords(person.name, fillIn.title)}
-              hideName={hidePersonsBoxesWords(person.name, fillIn.title)}
-            >
-              <ol className={styles.wkBoxes}>
-                {headings.map((heading) => (
-                  <li key={heading.number} className={styles.wkBoxGroup}>
-                    <p className={styles.wkBoxHeading}>
-                      <span className={styles.wkBoxNumber}>{heading.number}</span> {heading.heading}
-                    </p>
-                    {heading.boxes.map((box) => (
-                      <div key={box.id} className={styles.wkBox}>
-                        {box.label && <p className={styles.wkBoxLabel}>{box.label}</p>}
-                        <p className={own(answers, box.id) ? styles.wkBoxText : `${styles.wkBoxText} ${styles.wkMuted}`}>
-                          {own(answers, box.id) ?? NOT_FILLED_IN}
-                        </p>
-                      </div>
-                    ))}
-                  </li>
-                ))}
-              </ol>
-            </Disclosure>
-          </li>
-        ))}
+              <span className={styles.wkSourceSide}>
+                <span className={styles.wkSourceCount}>{filledWords(filled, fillIn.boxes.length)}</span>
+              </span>
+              <Disclosure
+                label={READ_IT}
+                hideLabel={HIDE_IT}
+                name={readPersonsBoxesWords(person.name, fillIn.title)}
+                hideName={hidePersonsBoxesWords(person.name, fillIn.title)}
+                whenOpened={firstRead && named ? <MarkFirstRead runId={firstRead.runId} weekId={firstRead.weekId} people={[named]} /> : null}
+              >
+                <ol className={styles.wkBoxes}>
+                  {headings.map((heading) => (
+                    <li key={heading.number} className={styles.wkBoxGroup}>
+                      <p className={styles.wkBoxHeading}>
+                        <span className={styles.wkBoxNumber}>{heading.number}</span> {heading.heading}
+                      </p>
+                      {heading.boxes.map((box) => (
+                        <div key={box.id} className={styles.wkBox}>
+                          {box.label && <p className={styles.wkBoxLabel}>{box.label}</p>}
+                          <p className={own(answers, box.id) ? styles.wkBoxText : `${styles.wkBoxText} ${styles.wkMuted}`}>
+                            {own(answers, box.id) ?? NOT_FILLED_IN}
+                          </p>
+                        </div>
+                      ))}
+                    </li>
+                  ))}
+                </ol>
+              </Disclosure>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -248,6 +278,8 @@ export default function ThisWeeksWork({
   emptyLine = NOBODY_LISTED,
   headingId = "this-weeks-work",
   children = null,
+  personHref = null,
+  boxesFirstRead = null,
 }: {
   week: GroupWeek;
   groupName: string;
@@ -261,6 +293,18 @@ export default function ThisWeeksWork({
   headingId?: string;
   /** The spread across pathways, under the table (the packs' piece). */
   children?: ReactNode;
+  /**
+   * The reading view of one person's week, for each row this reader may open
+   * it for (the page asks the reading view's own gate), or null: the name is
+   * then plain text. Left out, no name is a link.
+   */
+  personHref?: ((uid: string) => string | null) | null;
+  /**
+   * The boxes named as first read, person by person, once each person's
+   * "Read it" is opened (`groupBoxesFirstRead`, never the reader's own); left
+   * out, nothing is named.
+   */
+  boxesFirstRead?: BoxesFirstRead | null;
 }) {
   return (
     <section className={weekly.card} aria-labelledby={headingId}>
@@ -303,7 +347,7 @@ export default function ThisWeeksWork({
                     <tr key={row.uid}>
                       <th scope="row" className={styles.wkRowHead}>
                         <span className={styles.wkPerson}>
-                          <Person name={row.name} uid={row.uid} own={row.own} />
+                          <Person name={row.name} uid={row.uid} own={row.own} href={personHref ? personHref(row.uid) : null} />
                         </span>
                       </th>
                       {row.written.map((written, index) => (
@@ -326,7 +370,7 @@ export default function ThisWeeksWork({
             {week.rows.map((row) => (
               <li key={row.uid} className={styles.wkPersonCard}>
                 <div className={styles.wkPersonCardHead}>
-                  <Person name={row.name} uid={row.uid} own={row.own} />
+                  <Person name={row.name} uid={row.uid} own={row.own} href={personHref ? personHref(row.uid) : null} />
                 </div>
                 {week.parts.length > 0 && (
                   <p className={styles.wkFact}>
@@ -351,7 +395,7 @@ export default function ThisWeeksWork({
 
       {children}
 
-      {week.fillIn && boxes.length > 0 && <GroupBoxes fillIn={week.fillIn} people={boxes} headingId={`${headingId}-boxes`} />}
+      {week.fillIn && boxes.length > 0 && <GroupBoxes fillIn={week.fillIn} people={boxes} headingId={`${headingId}-boxes`} firstRead={boxesFirstRead} />}
 
       <section className={styles.wkTicks} aria-labelledby={`${headingId}-ticks`}>
         <h3 id={`${headingId}-ticks`} className={styles.wkTicksTitle}>
@@ -387,7 +431,7 @@ export function ReflectionsHalf({
 }: {
   counts: GroupWeek["counts"];
   href: string;
-  /** The group's facilitators' page that reads the same reflections with names, beside "Read them"; null for none. */
+  /** The page of one question across the group at the week's first reflection, which reads the same reflections with names, beside "Read them"; null for none. */
   namesHref?: string | null;
   separated?: boolean;
   /** False where the card's own heading already says "Reflections". */
@@ -461,7 +505,7 @@ export function ReflectionsQueueCard({
 }: {
   counts: GroupWeek["counts"];
   href: string;
-  /** The group's facilitators' page with names (the lead's own page already has them); null for none. */
+  /** The page of one question across the group at the week's first reflection, with names (the lead's own page already has them); null for none. */
   namesHref?: string | null;
   lead?: boolean;
 }) {

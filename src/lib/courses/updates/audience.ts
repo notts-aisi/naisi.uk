@@ -121,7 +121,17 @@ export async function updateEmailAudience(
   to: CourseUpdateTo,
   groupId: string | null,
   writerUid: string | null,
-  options: { withFacilitators?: boolean } = {},
+  options: {
+    withFacilitators?: boolean;
+    /**
+     * A notice about ONE session: its week. The group's people are then those
+     * whose group for that week is the group (`resolveNoticeAudience`'s
+     * `weekNumber`), so somebody moved mid-term is told about a session of a
+     * week they spent in the group and not about one they did not. With no
+     * record of groups by week, the same people as without it.
+     */
+    weekNumber?: number | null;
+  } = {},
 ): Promise<UpdateEmailAudience> {
   if (to === "facilitators") {
     const { recipients } = await facilitatorsOf(db, groups, writerUid);
@@ -129,6 +139,7 @@ export async function updateEmailAudience(
   }
   const audience = await resolveNoticeAudience(db, run.id, LANE, {
     groupId: to === "group" ? groupId : null,
+    ...(to === "group" && typeof options.weekNumber === "number" ? { weekNumber: options.weekNumber } : {}),
   });
   if (audience.refusal) return { recipients: [], refused: true };
   const recipients: UpdateRecipient[] = audience.members

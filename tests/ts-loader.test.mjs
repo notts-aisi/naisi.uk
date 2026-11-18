@@ -1202,7 +1202,9 @@ const USERS = new Map([
     "course-session-joining-online.test.mjs",
     "renders the register's grid, the ticket's Joining online beside Can't make it, the facilitators' box, the " +
       "session ticket and the Attendance tab (.tsx) to HTML with the press's, the link's and the register's " +
-      "handlers behind them, because what each one offers and says is decided by the components as they run",
+      "handlers behind them, because what each one offers and says is decided by the components as they run; " +
+      "and the facilitators' email (.tsx) the press sends, because its words and its one link are only right if " +
+      "rendering it says so",
   ],
   [
     "course-time-question-email.test.mjs",
@@ -1258,6 +1260,13 @@ const USERS = new Map([
     "it renders Remind's email through the real week email template and its notice line, and reads a week's pieces " +
       "through the blocks' own task needs and the one meaning of done, so the template's JSX and the pure modules " +
       "under src/lib/courses are loaded together",
+  ],
+  [
+    "course-groups-by-week.test.mjs",
+    "executes the record of which group a place was in from which week: the enrolment normaliser and " +
+      "groupForWeek (src/lib/firestore/courseEnrolments.ts) and the helpers made of them " +
+      "(src/lib/courses/groupsByWeek.ts) on stored records whole and malformed, because which group a week " +
+      "reads, and which record is read at all, is decided by the code that runs. Nothing is stubbed",
   ],
   [
     "course-guide-format.test.mjs",
@@ -1441,6 +1450,13 @@ const USERS = new Map([
       "(courseworkUseStamp.ts) at their boundaries, because whether a row of coursework may leave its programme is " +
       "decided by comparing two stored instants, and only running the comparison shows which side of the moment a " +
       "row falls. Only `server-only` is stubbed; `firebase-admin/firestore` is the real one",
+  ],
+  [
+    "account-deletion-move-reasons.test.mjs",
+    "it runs the account deletion cascade over the History rows a move to another group writes, because which rows lose " +
+      "their reason, and which stay as they were, is decided by the cascade's step and the move's own sentences together. " +
+      "`firebase-admin/firestore` is stubbed with the cascade store's sentinels, and `server-only`, `next/server` and the " +
+      "Firebase handles the cascade's graph imports are stubbed so that nothing reaches a project",
   ],
   [
     "course-explainers.test.mjs",

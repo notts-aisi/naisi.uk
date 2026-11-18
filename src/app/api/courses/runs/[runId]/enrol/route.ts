@@ -743,6 +743,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
         patch.allocatedEmailAt = FieldValue.delete();
         patch.toldGroupId = FieldValue.delete();
         patch.timeAnswer = FieldValue.delete();
+        // A change of session they make themselves is for every week: any
+        // record of which group they were in from which week goes with it.
+        patch.groupsByWeek = FieldValue.delete();
       }
       tx.update(enrolmentRef, patch);
 

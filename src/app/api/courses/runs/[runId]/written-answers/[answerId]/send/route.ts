@@ -102,7 +102,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string;
   }
 
   // ---- Which answer: a written answer of the week as they read it ------------
-  const { week } = await resolveWeekDoc(db, runId, seat.ownGroup?.id ?? null, weekId);
+  const { week } = await resolveWeekDoc(db, runId, seat.copyGroupId, weekId);
   const answer = week && isBlockWeek(week) ? (weekWrittenAnswers(week).find((candidate) => candidate.id === answerId) ?? null) : null;
   if (!answer) return NextResponse.json({ error: ANSWER_NOT_HERE }, { status: 404 });
   const ref = db.collection("courseExerciseResponses").doc(exerciseResponseId(runId, actor.uid, weekId, answerId));

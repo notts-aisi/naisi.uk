@@ -1,4 +1,5 @@
 import "server-only";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import type { Firestore } from "firebase-admin/firestore";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -11,7 +12,8 @@ import {
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { resolveWeekDoc } from "../groupResolve";
-import { resolveSessions } from "../sessions";
+import { hasGroupsByWeek, sessionsByWeekGroup } from "../groupsByWeek";
+import { resolveSessions, type ResolvedSession } from "../sessions";
 import { isOpenAt, weekOpening, type OpensAfter } from "../weekOpening";
 
 /**
@@ -43,7 +45,10 @@ import { isOpenAt, weekOpening, type OpensAfter } from "../weekOpening";
  * their group. Their group is their placement's; a facilitator with no place
  * goes by the group they facilitate, and by whichever of their groups gets
  * there first when they run several. Somebody with no group goes by the
- * run's own calendar, which waits on no session.
+ * run's own calendar, which waits on no session. Somebody whose place
+ * records a move goes, each week, by the group they were in that week
+ * (`groupForWeek`): the session before the card's week is the one they were
+ * due at.
  *
  * Reads: the run, the caller's own enrolment (addressed, nobody else's), the
  * run's groups (one equality on the run), and for a week, its document as
@@ -62,6 +67,19 @@ export type PredictionsTaker = {
   ownGroup: CourseGroupDoc | null;
   /** The groups whose calendars decide when a week opens to them. Empty for somebody with no group. */
   calendarGroups: CourseGroupDoc[];
+  /**
+   * For somebody whose place records a move, the sessions the card's clock
+   * reads in place of `calendarGroups`: each week's session from the group
+   * they were in that week (`sessionsByWeekGroup`). Null for everybody else,
+   * whose clock reads each calendar group's own sessions, as always.
+   */
+  sessionsByWeek: ResolvedSession[] | null;
+  /**
+   * The group whose copy of ONE week they read: for somebody whose place
+   * records a move, the group it belonged to that week, whether or not it
+   * still meets (`copyGroupIdFor`); otherwise `ownGroup`, as always.
+   */
+  copyGroupIdOf: (weekNumber: number) => string | null;
 };
 
 export type TakerAnswer =
@@ -103,12 +121,24 @@ export async function predictionsTakerOf(db: Firestore, actor: SessionUser, runI
   const placed = enrolment?.groupId ? (liveGroups.find((group) => group.id === enrolment.groupId) ?? null) : null;
   const ownGroup = placed ?? (facilitates.length === 1 ? facilitates[0] : null);
   const calendarGroups = placed ? [placed] : facilitates;
-  return { ok: true, taker: { actor, run, enrolment, ownGroup, calendarGroups } };
+  // The session before a card's week is the one they were due at that week:
+  // each week's from the group they were in that week, for somebody whose
+  // place records a move. A week in a group that no longer meets has none.
+  const sessionsByWeek =
+    placed && enrolment && hasGroupsByWeek(enrolment)
+      ? sessionsByWeekGroup(enrolment, (groupId) => {
+          const group = liveGroups.find((each) => each.id === groupId);
+          return group ? resolveSessions(run, group) : null;
+        })
+      : null;
+  const copyGroupIdOf = (weekNumber: number): string | null =>
+    placed && enrolment ? copyGroupIdFor(enrolment, weekNumber, ownGroup?.id ?? null) : (ownGroup?.id ?? null);
+  return { ok: true, taker: { actor, run, enrolment, ownGroup, calendarGroups, sessionsByWeek, copyGroupIdOf } };
 }
 
 /** Whether week `weekNumber` is published as `taker` reads it (their group's copy, else the run's): theirs to work in. */
 export async function weekPublishedTo(db: Firestore, taker: PredictionsTaker, weekNumber: number): Promise<boolean> {
-  const resolved = await resolveWeekDoc(db, taker.run.id, taker.ownGroup?.id ?? null, weekDocId(weekNumber));
+  const resolved = await resolveWeekDoc(db, taker.run.id, taker.copyGroupIdOf(weekNumber), weekDocId(weekNumber));
   return resolved.week?.published === true;
 }
 
@@ -122,9 +152,11 @@ export type CardOpenTo = {
 /** Whether the card that opens in week `weekNumber` has opened to `taker` at `now`: the card's own clock. */
 export async function cardOpenTo(db: Firestore, taker: PredictionsTaker, weekNumber: number, now: Date): Promise<CardOpenTo> {
   if (!(await weekPublishedTo(db, taker, weekNumber))) return { open: false, after: null };
-  const openings = (taker.calendarGroups.length > 0 ? taker.calendarGroups : [null]).map((group) =>
-    weekOpening(resolveSessions(taker.run, group), weekNumber),
-  );
+  const openings = taker.sessionsByWeek
+    ? [weekOpening(taker.sessionsByWeek, weekNumber)]
+    : (taker.calendarGroups.length > 0 ? taker.calendarGroups : [null]).map((group) =>
+        weekOpening(resolveSessions(taker.run, group), weekNumber),
+      );
   if (openings.some((opening) => isOpenAt(opening, now))) return { open: true, after: null };
   // Shut for every group: it opens after the first of their sessions to end.
   const waits = openings.map((opening) => opening.after).filter((after): after is OpensAfter => after !== null);

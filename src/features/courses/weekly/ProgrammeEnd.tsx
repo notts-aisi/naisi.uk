@@ -21,8 +21,12 @@ import styles from "./weekly.module.css";
  * with no card around them.
  */
 
-/** "After tonight": what happens after the last session. Only the certificate line, for now. */
-export function AfterLastSession({ heading }: { heading: string }) {
+/**
+ * "After tonight": what happens after the last session. The certificate line,
+ * and under it what a certificate needs where the run has a rule
+ * (`certificateNeedsWords`, the overview route's `certificateNeeds`).
+ */
+export function AfterLastSession({ heading, certificateNeeds = null }: { heading: string; certificateNeeds?: string | null }) {
   return (
     <section className={`${styles.card} ${styles.endCard}`} aria-labelledby="after-last-session">
       <h2 id="after-last-session" className={styles.endCardTitle}>
@@ -37,6 +41,11 @@ export function AfterLastSession({ heading }: { heading: string }) {
         </span>
         <p className={styles.endLine}>{CERTIFICATE_LINE}</p>
       </div>
+      {certificateNeeds && (
+        <p className={styles.endLine}>
+          {certificateNeeds}
+        </p>
+      )}
     </section>
   );
 }

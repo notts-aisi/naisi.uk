@@ -1,5 +1,6 @@
 import { partWritten, reflectionPartsOf, tickedSourcesOf, type ReflectionPart, type TickedSource } from "@/lib/courses/facilitatorWeek/model";
-import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
+import type { GroupFromWeek } from "@/lib/firestore/courseEnrolments";
+import { isBlockWeek, type WeekBlock, type When, type WordRange } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { weekFillInBoxes, weekWrittenAnswers, type ReadableWeek } from "@/lib/courses/weekBlocks/reader";
 import { lateBy, weekAsksForWriting, weekDone, weekDoneAt, weekWritingNeeds, type WeekDue } from "@/lib/courses/weekWork/model";
@@ -35,22 +36,22 @@ import type { PieceFacts } from "@/lib/courses/weekWork/versions";
  * before groups go out (`weekOneDoorFor`). So somebody in no group yet is
  * counted against the run's week 1, where their week 1 work was written.
  *
- * WHAT A CELL SAYS, never a word anybody wrote: first, whether the week is
- * done, by the one meaning of done every page uses (`weekDone`: every tick it
- * counts ticked, the person's own pack among them, and either the old Submit
- * pressed or every box it counts written and every answer it counts sent),
- * when it became done and how long after the session they were due at (done
- * on time, or done late); then how many of the week's
- * reflection parts are written (`partWritten`, as This week's work counts
- * them), how many of its ticked sources are ticked (`tickedSourcesOf`),
- * where its written answer stands, and how many of its fill-in boxes have
- * something in them. Survey answers are never read for any of it, and a
- * private note is never a cell.
+ * WHAT A CELL SAYS, never a word anybody wrote (Fri 13 Nov 2026): one thing,
+ * in words (`cellStateOf`): whether the week is done, by the one meaning of
+ * done every page uses (`weekDone`: every tick it counts ticked, the person's
+ * own pack among them, and either the old Submit pressed or every box it
+ * counts written and every answer it counts sent), on time or late against
+ * the session they were due at; "Joined late"; the day a week not begun yet
+ * opens; or "Started" or "Not started". The counts it once held (reflection
+ * parts written, sources ticked, boxes filled) stay on the cell for the
+ * panels under the table and are not drawn: the reading view has them.
+ * Beside it, the reader's flags (`./overview.ts`). Survey answers are never
+ * read for any of it, and a private note is never a cell.
  *
- * NOT DONE, the filter: the people with a week that has begun for them (on
+ * WEEK NOT DONE, a filter: the people with a week that has begun for them (on
  * the calendar of the group whose weeks they read, `reachedOf`) and is not
- * done. A week still to come is not done either, and a cell says so, but it
- * puts nobody under the filter.
+ * done. A week still to come is not done either, but it puts nobody under the
+ * filter.
  */
 
 /** Who is looking: the programme's lead, or an admin. */
@@ -62,8 +63,11 @@ export type CourseworkWeek = {
   title: string;
   parts: ReflectionPart[];
   sources: TickedSource[];
-  /** The week's one written answer, or null for a week with none. */
-  answer: { id: string; prompt: string; boxes: Array<{ id: string; label: string }> } | null;
+  /**
+   * The week's one written answer, or null for a week with none: its range of
+   * words and its own deadline's rule where the week says them.
+   */
+  answer: { id: string; prompt: string; boxes: Array<{ id: string; label: string }>; words?: WordRange | null; due?: When | null } | null;
   /** The week's fill-in boxes, in page order. */
   boxes: Array<{ id: string; heading: string; label: string }>;
   /** This week's tasks, by what each needs (`weekTaskNeeds`), for whether the week is done. */
@@ -72,7 +76,46 @@ export type CourseworkWeek = {
   writes: boolean;
   /** Everything the week asks to be written (`weekWritingNeeds`): what done asks when its tasks count nothing. Absent: nothing. */
   asks?: TaskNeeds;
+  /**
+   * Every question the week asks to be written, in the week's own order: each
+   * reflection prompt, each fill-in box and the written answer, as the page of
+   * one question across a group steps through them. Absent: none.
+   */
+  order?: QuestionStep[];
 };
+
+/** One question a week asks to be written: a reflection's prompt, a fill-in box or the written answer, by its id. */
+export type QuestionStep = { kind: "reflection" | "box" | "answer"; id: string };
+
+/**
+ * The questions a week asks, in the week's own order, as the week page asks
+ * them: a reflection prompt only inside a part (as `reflectionPartsOf` reads
+ * them), each fill-in box, and the week's written answer (`answerId`, the one
+ * the coursework pages read). An id once only.
+ */
+export function questionOrderOf(blocks: readonly WeekBlock[], answerId: string | null): QuestionStep[] {
+  const out: QuestionStep[] = [];
+  const seen = new Set<string>();
+  const add = (kind: QuestionStep["kind"], id: string) => {
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    out.push({ kind, id });
+  };
+  const visit = (block: WeekBlock, inPart: boolean) => {
+    if (block.type === "reflection") {
+      if (inPart) for (const prompt of block.prompts) add("reflection", prompt.id);
+    } else if (block.type === "fillIn") {
+      for (const group of block.groups) for (const box of group.boxes) add("box", box.id);
+    } else if (block.type === "writtenAnswer") {
+      if (block.id === answerId) add("answer", block.id);
+    }
+  };
+  for (const block of blocks) {
+    if (block.type === "part") for (const child of block.blocks) visit(child, true);
+    else visit(block, false);
+  }
+  return out;
+}
 
 /** A stored week, read for the tab: null for a week not written as blocks, which has no coursework here. */
 export function courseworkWeekOf(week: (ReadableWeek & { weekNumber: number; title?: string; blocks?: WeekBlock[] }) | null): CourseworkWeek | null {
@@ -84,11 +127,12 @@ export function courseworkWeekOf(week: (ReadableWeek & { weekNumber: number; tit
     title: typeof week.title === "string" ? week.title.trim() : "",
     parts: reflectionPartsOf(blocks),
     sources: tickedSourcesOf(week),
-    answer: answer ? { id: answer.id, prompt: answer.prompt, boxes: answer.boxes } : null,
+    answer: answer ? { id: answer.id, prompt: answer.prompt, boxes: answer.boxes, words: answer.words, due: answer.due } : null,
     boxes: weekFillInBoxes(week).map((box) => ({ id: box.id, heading: box.heading, label: box.label })),
     tasks: weekTaskNeeds(blocks),
     writes: weekAsksForWriting(blocks),
     asks: weekWritingNeeds(blocks),
+    order: questionOrderOf(blocks, answer?.id ?? null),
   };
 }
 
@@ -137,6 +181,43 @@ export type PersonWork = {
    * absent, nobody has a pack.
    */
   packs?: ReadonlyMap<string, string>;
+  /**
+   * `workKey` of every reflection and fill-in box written, to when its words
+   * were last saved (the row's `updatedAt`): what whether it has been read is
+   * told against (`readStateOf`). Absent, no time is known.
+   */
+  savedAt?: ReadonlyMap<string, Date | null>;
+  /** `workKey` of every written answer of a week written as blocks, to what its readers may read of it: facts, never words. */
+  answerFacts?: ReadonlyMap<string, AnswerFacts>;
+};
+
+/**
+ * A written answer as its readers may read it (`readableAnswer`), in facts
+ * and never words: what the Coursework tab's flags and its list of answers
+ * waiting for feedback are worked out from, by the rules the page of one
+ * question asks.
+ */
+export type AnswerFacts = {
+  /** Its readers may read it and what they read holds words: it has a read state and takes feedback. */
+  readable: boolean;
+  /** When the words its readers read were saved; null while it may not be read, or with no time stored. */
+  savedAt: Date | null;
+  /**
+   * When it became readable in the words its readers read: the later of their
+   * save, the send of the version read, and, never sent, the start of the
+   * session it is read from. What whether it has been read is told against.
+   */
+  readableSince: Date | null;
+  /** When it was first sent; null, never sent. */
+  firstSentAt: Date | null;
+  /** How long after the session it was due at it was first sent (ms); null when not after it, or never sent. */
+  sentLateMs: number | null;
+  /** When the session it was due at starts, from which a never-sent answer may be read. */
+  sessionStart: Date | null;
+  /** Pieces of feedback on it, feedback given before pieces existed among them. */
+  pieces: number;
+  /** Changed since the newest feedback on it (`changedSinceFeedback`), while it may be read. */
+  changed: boolean;
 };
 
 export const NO_WORK: PersonWork = { reflections: new Set(), boxes: new Set(), answers: new Map(), ticked: new Set() };
@@ -146,7 +227,41 @@ export function workKey(weekNumber: number, id: string): string {
   return `${weekNumber} ${id}`;
 }
 
-/** One cell: a person's week, in counts. */
+/**
+ * The flags beside a cell's state (Fri 13 Nov 2026), each only where it is
+ * true, and only for a reader who may read the person's work: never on the
+ * reader's own row. Independent of each other.
+ *  - `unread`: something of the week its readers may read in full is not read
+ *    yet (`readStateOf`, as the page of one question says "Not read yet").
+ *  - `noFeedback`: the week's written answer may be read, holds words, and has
+ *    no feedback from anyone (`feedbackStateOf` "none").
+ *  - `changed`: the person changed it after the newest feedback on it
+ *    (`feedbackStateOf` "changed", by `changedSinceFeedback`).
+ */
+export type CellFlags = { unread: boolean; noFeedback: boolean; changed: boolean };
+
+export const NO_FLAGS: CellFlags = { unread: false, noFeedback: false, changed: false };
+
+/** A week's written answer waiting for feedback, as its cell carries it for the list under the table (`waitingList`). */
+export type CellWaiting = {
+  /** No feedback from anyone yet, or changed since the newest feedback. */
+  kind: "none" | "changed";
+  /**
+   * ISO 8601, what the list is ordered by: when it was first sent (never
+   * sent: when the session it was due at started, since its readers may read
+   * it from then), or, changed since feedback, when the words read were saved.
+   * Null with no time known.
+   */
+  at: string | null;
+  /** Never sent: read since the session started. */
+  notSent: boolean;
+  /** First sent after the session it was due at. */
+  late: boolean;
+  /** The answer itself is not read yet. */
+  unread: boolean;
+};
+
+/** One cell: a person's week. */
 export type CourseworkCell = {
   weekNumber: number;
   /** False for a week the person reads that is not written as blocks: nothing to count. */
@@ -165,15 +280,23 @@ export type CourseworkCell = {
   due: { at: string | null; by: WeekDue["by"] };
   /** The week has begun for them, on the calendar of the group whose weeks they read. */
   reached: boolean;
-  /** Reflection parts written, of the week's parts; null for a week with none. */
+  /** The civil date the week opens on, on that same calendar (`weekOpensOn`); null with none to tell. */
+  opensOn: string | null;
+  /** They have done anything in the week: a tick, a reflection, a box, a written answer begun. */
+  started: boolean;
+  /** Reflection parts written, of the week's parts; null for a week with none. Not drawn: the reading view has it. */
   reflections: { written: number; of: number } | null;
-  /** Sources ticked, of the week's ticked sources; null for a week with none. */
+  /** Sources ticked, of the week's ticked sources; null for a week with none. Not drawn. */
   ticks: { ticked: number; of: number } | null;
-  /** The written answer's state and its review page; null for a week with none. */
-  answer: { state: CellAnswerState; href: string | null } | null;
-  /** Boxes filled in, of the week's boxes; null for a week with none. */
+  /** The written answer's state; null for a week with none. */
+  answer: { state: CellAnswerState } | null;
+  /** Boxes filled in, of the week's boxes; null for a week with none. Not drawn. */
   boxes: { filled: number; of: number } | null;
-  /** The person's page, at this week. */
+  /** The flags beside the state, for a reader who may read the person's work. */
+  flags: CellFlags;
+  /** The written answer, when it waits for this reader's feedback; null otherwise. */
+  waiting: CellWaiting | null;
+  /** The reading view of this person and this week (`?week=`). */
   href: string;
 };
 
@@ -191,16 +314,29 @@ export type CourseworkPerson = {
   groupId: string | null;
   /** The group whose copy of each week they read: their told group, or the one they facilitate; null reads the run's own. */
   readsGroupId: string | null;
+  /**
+   * For somebody moved mid-term, which group's copy each week is read on
+   * (`copiesOf` in `src/lib/courses/weekCopy.ts`): the weeks before the move
+   * on their old group's. Absent or null for everybody else, who read
+   * `readsGroupId` for every week (`readsGroupIdFor`).
+   */
+  readsCopies?: GroupFromWeek[] | null;
   /** To an admin: placed in a group Publish has not told them about yet. Always false for the lead. */
   notToldYet: boolean;
 };
 
 export type CourseworkRow = CourseworkPerson & {
   cells: CourseworkCell[];
-  /** A written answer of theirs is sent and waiting for feedback. */
-  waiting: boolean;
   /** A week that has begun for them is not done. */
   notDone: boolean;
+  /** A week of theirs was done late. */
+  late: boolean;
+  /** A week of theirs carries "Not read yet" (to this reader). */
+  unread: boolean;
+  /** A week of theirs carries "No feedback yet" (to this reader). */
+  noFeedback: boolean;
+  /** A week of theirs carries "Changed since feedback" (to this reader). */
+  changed: boolean;
   /** Their page. */
   href: string;
 };
@@ -209,37 +345,98 @@ export type CourseworkSection = {
   /** A group's id, or "none" for the people in no group yet. */
   key: string;
   title: string;
+  /** The group's facilitators, by name, beside its title; none for the people in no group. */
+  facilitators: string[];
   rows: CourseworkRow[];
 };
 
 /**
- * The tab's filters, as plain links: a group, everybody in no group yet, or
- * everybody; the waiting ones alone; the ones not done alone.
+ * What the tab shows, one at a time (Fri 13 Nov 2026): everyone, or the
+ * people with a week that has begun and is not done, a week done late, a week
+ * with something not read yet, a written answer with no feedback yet, or one
+ * changed since feedback.
  */
-export type CourseworkFilter = { group: string; waiting: boolean; notDone: boolean };
+export const COURSEWORK_SHOWS = ["everyone", "notDone", "late", "unread", "noFeedback", "changed"] as const;
+export type CourseworkShow = (typeof COURSEWORK_SHOWS)[number];
+
+/** The tab's filters, as plain links: a group, everybody in no group yet, or everybody; and one of the shows. */
+export type CourseworkFilter = { group: string; show: CourseworkShow };
 
 export const NOT_IN_A_GROUP = "none";
 
-/** The filter asked for in the address, read as one the tab knows: an unknown group is everybody. */
-export function readFilter(query: { group?: unknown; waiting?: unknown; notdone?: unknown }, groupIds: readonly string[]): CourseworkFilter {
+/**
+ * Each show's word in the address: today's two kept as they were (`?notdone=1`
+ * is Week not done, `?waiting=1` is No feedback yet), so an address anybody
+ * kept still opens what it opened.
+ */
+const SHOW_PARAMS: ReadonlyArray<readonly [Exclude<CourseworkShow, "everyone">, string]> = [
+  ["notDone", "notdone"],
+  ["late", "late"],
+  ["unread", "unread"],
+  ["noFeedback", "waiting"],
+  ["changed", "changed"],
+];
+
+/**
+ * The filter asked for in the address, read as one the tab knows: an unknown
+ * group is everybody, and of the shows asked for, the first in the filters'
+ * own order (an address from when two could be on together opens one).
+ */
+export function readFilter(
+  query: { group?: unknown; waiting?: unknown; notdone?: unknown; late?: unknown; unread?: unknown; changed?: unknown },
+  groupIds: readonly string[],
+): CourseworkFilter {
   const group =
     typeof query.group === "string" && (query.group === NOT_IN_A_GROUP || groupIds.includes(query.group)) ? query.group : "all";
-  return { group, waiting: query.waiting === "1", notDone: query.notdone === "1" };
+  const asked = query as Record<string, unknown>;
+  const show = SHOW_PARAMS.find(([, param]) => asked[param] === "1")?.[0] ?? "everyone";
+  return { group, show };
 }
 
 /**
- * A tab address with this filter, and the week chosen for the panels under
- * the table when one was chosen in the address (`?week=3`), so a filter
- * keeps it and a week keeps the filter.
+ * A tab address with this filter, and the week chosen in the address
+ * (`?week=3`) when one was, so a filter keeps it and a week keeps the filter.
  */
 export function filterHref(base: string, filter: CourseworkFilter, week: number | null = null): string {
   const params = new URLSearchParams();
   if (filter.group !== "all") params.set("group", filter.group);
-  if (filter.waiting) params.set("waiting", "1");
-  if (filter.notDone) params.set("notdone", "1");
+  const param = SHOW_PARAMS.find(([show]) => show === filter.show)?.[1];
+  if (param) params.set(param, "1");
   if (week !== null) params.set("week", String(week));
   const query = params.toString();
   return query ? `${base}?${query}` : base;
+}
+
+/** Whether a row is one the show keeps. */
+export function showKeeps(show: CourseworkShow, row: Pick<CourseworkRow, "notDone" | "late" | "unread" | "noFeedback" | "changed">): boolean {
+  switch (show) {
+    case "everyone":
+      return true;
+    case "notDone":
+      return row.notDone;
+    case "late":
+      return row.late;
+    case "unread":
+      return row.unread;
+    case "noFeedback":
+      return row.noFeedback;
+    case "changed":
+      return row.changed;
+  }
+}
+
+/** Each show's count: the people it would keep of `rows` (the people of the chosen group). */
+export function showCounts(rows: ReadonlyArray<Pick<CourseworkRow, "notDone" | "late" | "unread" | "noFeedback" | "changed">>): Record<CourseworkShow, number> {
+  const out = {} as Record<CourseworkShow, number>;
+  for (const show of COURSEWORK_SHOWS) out[show] = rows.filter((row) => showKeeps(show, row)).length;
+  return out;
+}
+
+/** The rows of the chosen group: a group's own, everybody in no group yet (`"none"`, or a group the tab does not list), or everybody. */
+export function rowsInGroup<T extends Pick<CourseworkPerson, "groupId">>(rows: readonly T[], group: string, groupIds: readonly string[]): T[] {
+  if (group === "all") return [...rows];
+  if (group === NOT_IN_A_GROUP) return rows.filter((row) => row.groupId === null || !groupIds.includes(row.groupId));
+  return rows.filter((row) => row.groupId === group);
 }
 
 /**
@@ -265,10 +462,14 @@ export function chosenWeek(
   return { weekNumber: latest ?? columns[0].weekNumber, asked: false };
 }
 
-/** Where a person's week stands, for its cell: when the old Submit was pressed, the session they were due at, and whether it has begun. */
-export type CellStanding = { submittedAt: Date | null; due: WeekDue; reached: boolean };
+/**
+ * Where a person's week stands, for its cell: when the old Submit was pressed,
+ * the session they were due at, whether it has begun, and the day it opens
+ * on the calendar of the group whose weeks they read.
+ */
+export type CellStanding = { submittedAt: Date | null; due: WeekDue; reached: boolean; opensOn?: string | null };
 
-const NO_STANDING: CellStanding = { submittedAt: null, due: { at: null, by: "no-group" }, reached: false };
+const NO_STANDING: CellStanding = { submittedAt: null, due: { at: null, by: "no-group" }, reached: false, opensOn: null };
 
 /** The session they were due at, as a cell carries it. */
 function dueWire(due: WeekDue): CourseworkCell["due"] {
@@ -276,22 +477,57 @@ function dueWire(due: WeekDue): CourseworkCell["due"] {
 }
 
 /**
+ * Whether they have done anything in the week: ticked one of its sources or
+ * a reading a task counts, written a reflection or a box, or begun its
+ * written answer.
+ */
+function startedIn(week: CourseworkWeek, weekNumber: number, work: PersonWork): boolean {
+  const key = (id: string) => workKey(weekNumber, id);
+  if (week.sources.some((source) => work.ticked.has(source.id))) return true;
+  if (week.tasks.some((needs) => needs.tickIds.some((id) => work.ticked.has(id)))) return true;
+  if (week.parts.some((part) => part.prompts.some((prompt) => work.reflections.has(key(prompt.id))))) return true;
+  if (week.boxes.some((box) => work.boxes.has(key(box.id)))) return true;
+  const answer = week.answer ? (work.answers.get(key(week.answer.id)) ?? "not-started") : "not-started";
+  return answer !== "not-started";
+}
+
+/**
  * One cell, worked out from the week the person reads, what they wrote and
  * ticked, and where their week stands (`loadRunWeekStates`): when the old
- * Submit was pressed, the session they were due at, and `reached`, whether
- * it has begun for them.
+ * Submit was pressed, the session they were due at, `reached` (whether it has
+ * begun for them) and the day it opens. No flags: those are the reader's,
+ * and `courseworkRows` (`./overview.ts`) lays them over it.
  */
 export function cellOf(
   week: CourseworkWeek | null,
   weekNumber: number,
   work: PersonWork,
-  links: { person: string; written: string | null },
+  links: { person: string },
   standing: CellStanding = NO_STANDING,
 ): CourseworkCell {
-  const href = `${links.person}#week-${weekNumber}`;
+  // The reading view of this person and this week.
+  const href = `${links.person}?week=${weekNumber}`;
   const reached = standing.reached;
+  const opensOn = standing.opensOn ?? null;
   if (!week) {
-    return { weekNumber, counted: false, done: null, doneAt: null, doneLateMs: null, due: dueWire(standing.due), reached, reflections: null, ticks: null, answer: null, boxes: null, href };
+    return {
+      weekNumber,
+      counted: false,
+      done: null,
+      doneAt: null,
+      doneLateMs: null,
+      due: dueWire(standing.due),
+      reached,
+      opensOn,
+      started: false,
+      reflections: null,
+      ticks: null,
+      answer: null,
+      boxes: null,
+      flags: NO_FLAGS,
+      waiting: null,
+      href,
+    };
   }
   const key = (id: string) => workKey(weekNumber, id);
   const packOf = (id: string) => work.packs?.get(id) ?? null;
@@ -328,9 +564,7 @@ export function cellOf(
       : null;
   const ticks =
     week.sources.length > 0 ? { ticked: week.sources.filter((source) => work.ticked.has(source.id)).length, of: week.sources.length } : null;
-  const answer = week.answer
-    ? { state: cellAnswerState(work.answers.get(workKey(weekNumber, week.answer.id)) ?? "not-started"), href: links.written }
-    : null;
+  const answer = week.answer ? { state: cellAnswerState(work.answers.get(workKey(weekNumber, week.answer.id)) ?? "not-started") } : null;
   const boxes =
     week.boxes.length > 0 ? { filled: week.boxes.filter((box) => work.boxes.has(workKey(weekNumber, box.id))).length, of: week.boxes.length } : null;
   return {
@@ -341,76 +575,43 @@ export function cellOf(
     doneLateMs: lateBy(doneAt, standing.due),
     due: dueWire(standing.due),
     reached,
+    opensOn,
+    started: startedIn(week, weekNumber, work),
     reflections,
     ticks,
     answer,
     boxes,
+    // The flags are this reader's, laid over the cell by `courseworkRows` (`./overview.ts`).
+    flags: NO_FLAGS,
+    waiting: null,
     href,
   };
 }
 
+/** What a cell says first, in words the tab's words file holds (`CELL_STATE_WORDS`). */
+export type CellState = "no-coursework" | "done" | "done-on-time" | "done-late" | "joined-late" | "opens" | "started" | "not-started";
+
 /**
- * The tab: its sections in the run's group order, people in no group yet
- * last, each section's people by name; then the filter. `weekOf` hands the
- * week a group reads (null: the run's own).
+ * WHAT A CELL SAYS FIRST, one thing, in words (Fri 13 Nov 2026):
+ *  - a week not written as blocks: "No coursework";
+ *  - done (`weekDone`): "Done late" when it became done after the session they
+ *    were due at, "Done on time" once that session has passed, else "Done";
+ *  - a week before they were told their group, not done: "Joined late";
+ *  - a week that has not begun for them: "Opens Thu 12 Nov", the day it opens
+ *    on the calendar of the group whose weeks they read;
+ *  - otherwise "Started" where they have done anything in it, "Not started"
+ *    where nothing.
  */
-export function courseworkSections(input: {
-  columns: ReadonlyArray<{ weekNumber: number }>;
-  groups: ReadonlyArray<{ id: string; name: string }>;
-  people: readonly CourseworkPerson[];
-  workOf: (uid: string) => PersonWork;
-  weekOf: (groupId: string | null, weekNumber: number) => CourseworkWeek | null;
-  /** The person's page, without a week. */
-  personHref: (uid: string) => string;
-  /** The review page for a person's answer in a week, or null where there is none to open. */
-  writtenHref: (person: CourseworkPerson, weekNumber: number) => string | null;
-  /** When a person pressed a week's old Submit, and the session they were due at (`loadRunWeekStates`). */
-  standingOf: (uid: string, weekNumber: number) => { submittedAt: Date | null; due: WeekDue };
-  /** The last week that has begun for a person, on the calendar of the group whose weeks they read; 0 before any. */
-  reachedOf: (person: CourseworkPerson) => number;
-  filter: CourseworkFilter;
-  notInAGroupTitle: string;
-}): CourseworkSection[] {
-  const rows: CourseworkRow[] = input.people.map((person) => {
-    const work = input.workOf(person.uid);
-    const href = input.personHref(person.uid);
-    const reached = input.reachedOf(person);
-    const cells = input.columns.map((column) =>
-      cellOf(
-        input.weekOf(person.readsGroupId, column.weekNumber),
-        column.weekNumber,
-        work,
-        { person: href, written: input.writtenHref(person, column.weekNumber) },
-        { ...input.standingOf(person.uid, column.weekNumber), reached: column.weekNumber <= reached },
-      ),
-    );
-    return {
-      ...person,
-      cells,
-      waiting: cells.some((cell) => cell.answer?.state === "waiting"),
-      notDone: cells.some((cell) => cell.reached && cell.done === false),
-      href,
-    };
-  });
-  const byName = (a: CourseworkRow, b: CourseworkRow) => a.name.localeCompare(b.name, "en-GB", { sensitivity: "base" }) || a.uid.localeCompare(b.uid);
-  const sections: CourseworkSection[] = input.groups.map((group) => ({
-    key: group.id,
-    title: group.name,
-    rows: rows.filter((row) => row.groupId === group.id).sort(byName),
-  }));
-  const known = new Set(input.groups.map((group) => group.id));
-  sections.push({
-    key: NOT_IN_A_GROUP,
-    title: input.notInAGroupTitle,
-    rows: rows.filter((row) => row.groupId === null || !known.has(row.groupId)).sort(byName),
-  });
-  return sections
-    .filter((section) => input.filter.group === "all" || section.key === input.filter.group)
-    .map((section) => ({
-      ...section,
-      rows: section.rows.filter((row) => (!input.filter.waiting || row.waiting) && (!input.filter.notDone || row.notDone)),
-    }))
-    .filter((section) => section.rows.length > 0);
+export function cellStateOf(cell: Pick<CourseworkCell, "counted" | "done" | "doneAt" | "doneLateMs" | "due" | "reached" | "started">, now: Date): CellState {
+  if (!cell.counted) return "no-coursework";
+  if (cell.done === true) {
+    if (cell.doneLateMs !== null) return "done-late";
+    if (cell.doneAt && cell.due.at && now.getTime() >= new Date(cell.due.at).getTime()) return "done-on-time";
+    return "done";
+  }
+  if (cell.due.by === "joined-late") return "joined-late";
+  if (!cell.reached) return "opens";
+  return cell.started ? "started" : "not-started";
 }
 
 // ---------------------------------------------------------------------------
@@ -449,9 +650,11 @@ export type PersonAnswer = {
   changedLateMs: number | null;
   /** How long after that session it was last sent (ms); null when not after it, or never sent. */
   sentLateMs: number | null;
+  /** Changed since it was last sent, while its readers still read it as sent (before the session): said in words, never what changed. */
+  changedSinceSent: boolean;
   /** The answer as it stood when the session started, when it differs from the words shown; null otherwise. */
   atSession: { text: string; boxes: Array<{ label: string; text: string }> } | null;
-  /** The review page for it, where feedback on it is written, or null where the person is in no group to give feedback in. */
+  /** A page of its own for it, or null: the reading view's loader hands none, since feedback on it is written beside it. */
   href: string | null;
 };
 
@@ -472,8 +675,8 @@ export type PersonWeek = {
   counted: boolean;
   parts: Array<{ number: number; title: string; prompts: PersonPrompt[] }>;
   answer: PersonAnswer | null;
-  /** Each fill-in box, its words or null, with how late; null for a week with none, or a reader the boxes' gate refused. */
-  boxes: Array<{ heading: string; label: string; text: string | null; lateMs: number | null; atSession: string | null }> | null;
+  /** Each fill-in box, its words or null, when they last changed, with how late; null for a week with none, or a reader the boxes' gate refused. */
+  boxes: Array<{ id: string; heading: string; label: string; text: string | null; at: Date | null; lateMs: number | null; atSession: string | null }> | null;
   sources: Array<{ id: string; title: string; kindLabel: string; partNumber: number | null; ticked: boolean; note: string | null }>;
   ticked: number;
   /** The feedback on the week; null for a week not written as blocks. */
@@ -491,6 +694,10 @@ export type PersonAnswerWrite = {
   changedAt: Date | null;
   changedLateMs: number | null;
   sentLateMs: number | null;
+  /** Changed since it was last sent, while its readers still read it as sent (before the session). */
+  changedSinceSent?: boolean;
+  /** When it first held something, for the words its question had then. */
+  writtenAt?: Date | null;
   atSession: { text: string; boxes: Record<string, string> | null } | null;
   /** The stored answer, for the version each piece of feedback was about; null while it may not be read. Never on a page. */
   piece: PieceFacts | null;
@@ -561,6 +768,7 @@ export function personWeeks(input: {
             changedAt: stored?.changedAt ?? null,
             changedLateMs: stored?.changedLateMs ?? null,
             sentLateMs: stored?.sentLateMs ?? null,
+            changedSinceSent: stored?.changedSinceSent === true,
             atSession: stored?.atSession
               ? {
                   text: stored.atSession.boxes ? "" : stored.atSession.text,
@@ -592,7 +800,15 @@ export function personWeeks(input: {
           week.boxes.length > 0 && input.boxesRead
             ? week.boxes.map((box) => {
                 const written = writes.boxes.get(workKey(n, box.id)) ?? null;
-                return { heading: box.heading, label: box.label, text: written?.text ?? null, lateMs: written?.lateMs ?? null, atSession: written?.atSession ?? null };
+                return {
+                  id: box.id,
+                  heading: box.heading,
+                  label: box.label,
+                  text: written?.text ?? null,
+                  at: written?.at ?? null,
+                  lateMs: written?.lateMs ?? null,
+                  atSession: written?.atSession ?? null,
+                };
               })
             : null,
         sources,

@@ -26,7 +26,7 @@
  * alone go to Kairos. Nothing here is read by the Ratings tab or the Kairos
  * file.
  *
- * WHO READS IT: the ratings route and the review page, on the Admin SDK,
+ * WHO READS IT: the ratings route and the reading pages, on the Admin SDK,
  * after their own gates (`src/lib/courses/workRatings/`): admins and the lead
  * of the programme that names the run, never a facilitator as such and never
  * the person rated. A term's Next term page reads the ratings about the

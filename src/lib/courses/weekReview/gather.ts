@@ -178,6 +178,8 @@ export async function gatherWeekReview(db: Firestore, opened: WeekReviewDoor, no
     weekTitle: opened.weekTitle,
     questions: (week?.questions ?? [])
       .filter((question) => question.kind === "written" || question.kind === "reflection")
+      // A question only an archived group's own copy asks goes only with an answer gathered to it (`askedOnlyIn`).
+      .filter((question) => !question.askedOnlyIn || answers.some((answer) => answer.questionKey === question.key))
       .map((question) => ({ key: question.key, kind: question.kind as ReviewWork["kind"], text: question.text })),
     parts,
     groupIds,

@@ -23,7 +23,11 @@ import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
 import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import ReviewQueueCard from "@/features/courses/written/ReviewQueueCard";
-import { loadWrittenQueue } from "@/lib/courses/writtenAnswers/queue";
+import { loadWrittenQueueAndReadable, type WrittenQueueRow } from "@/lib/courses/writtenAnswers/queue";
+import { READING_ANSWER_ANCHOR } from "@/lib/courses/coursework/overview";
+import { firstQuestionHref, readingAnswerHref } from "@/lib/courses/coursework/forwards";
+import { groupBoxesFirstRead } from "@/lib/courses/coursework/question";
+import { readingHref } from "@/lib/courses/coursework/reading";
 import { StaffUpdatesSection } from "@/features/courses/updates/UpdatesList";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
@@ -98,7 +102,9 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * (`src/lib/courses/facilitatorWeek/`). A facilitator is never shown a
  * facilitator's own work there, their own included; an admin is, marked as
  * theirs. The rows of cards follow the board: the ticket and the review
- * queue, then This week's work, then the group and the rest.
+ * queue, then This week's work, then the group and the rest. Once a person's
+ * fill-in boxes are opened there ("Read it"), the page names them to the
+ * first-read route, so the day each was first read is kept, never who.
  *
  * THE SPREAD ("Pathways in Group B"): the draw of the week of the
  * group's next session, each pathway with who has it, and the way to the draw
@@ -148,8 +154,8 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * URL; the check costs nothing and closes the shape.
  *
  * ── ARCHIVING A GROUP UNSTAFFS IT ───────────────────────────────────────────
- * ONE RULE, stated identically here, in the review page beside it, in the
- * routes behind both, and in `runAccess.ts`: a non-admin reads a group they
+ * ONE RULE, stated identically here, in the reading pages beside it, in the
+ * routes behind them, and in `runAccess.ts`: a non-admin reads a group they
  * facilitate only while it is LIVE. Admins bypass it: an archived cohort is
  * exactly the thing an admin is asked to go back and look at.
  *
@@ -371,15 +377,17 @@ export default async function GroupHomePage({
   // counts, and the updates this group's page shows, through the one reader.
   // An archived group has no count, so no way to write to it.
   const runGroups = await loadRunGroups(db, runId);
-  const [[groupCount], reading, model, programme, notes, writtenQueue] = await Promise.all([
+  const [[groupCount], reading, model, programme, notes, queueRead] = await Promise.all([
     updateAudienceCounts(db, access.run, runGroups, { groupIds: [groupId] }, access.user.uid),
     updateReadingOf(db, access.user, access.run, runGroups),
     loadFacilitatorGroup(db, access.run, group, { isAdmin: access.isAdmin, actor: access.user }, now),
     runProgrammeOf(db, runId),
     readGroupNotes(db, group, access.user),
-    // The review queue's written answers half: null on a run of the summer's weeks.
-    loadWrittenQueue(db, access.user, access.run, group),
+    // The review queue's written answers half: null on a run of the summer's weeks. With it, whose weeks this
+    // reader may open in the reading view.
+    loadWrittenQueueAndReadable(db, access.user, access.run, group),
   ]);
+  const writtenQueue = queueRead?.rows ?? null;
   // The box at the top: who is joining a session online, named as this
   // reader is shown the group's people, and where a link is still wanted.
   // Nothing is offered to press in a view-as session, where nothing is written.
@@ -404,8 +412,8 @@ export default async function GroupHomePage({
           },
         ),
   ]);
-  const writtenHref = (row: { uid: string; weekNumber: number }) =>
-    `${groupPath}/written?week=${row.weekNumber}&person=${encodeURIComponent(row.uid)}`;
+  // One person's written answer, where feedback on it is written: the reading view of their week, at the answer.
+  const answerHref = (row: { uid: string; weekNumber: number }) => readingAnswerHref(`${groupPath}/coursework`, row.uid, row.weekNumber);
   const { updates } = await loadUpdatesFor(db, access.run, narrowToGroup(reading, groupId), runGroups);
   // The week the group is getting ready for, as this viewer is shown it: an
   // admin sees the facilitators' own work marked as theirs, a facilitator
@@ -431,7 +439,7 @@ export default async function GroupHomePage({
 
   // This week's work's Pathway, Written answer and Case columns,
   // for the week it shows, through the packs' and the written answers' own
-  // readers: each reader is shown what the review page and the draw page show
+  // readers: each reader is shown what the reading view and the draw page show
   // them of the same people.
   const workColumns = groupWeek
     ? await loadWorkColumns(db, {
@@ -441,7 +449,7 @@ export default async function GroupHomePage({
         viewer: { isAdmin: access.isAdmin, leadOf: null },
         weekNumber: groupWeek.weekNumber,
         people: drawList,
-        reviewHref: (uid, week) => `${groupPath}/written?week=${week}&person=${encodeURIComponent(uid)}`,
+        reviewHref: (uid, week) => answerHref({ uid, weekNumber: week }),
         now,
       })
     : [];
@@ -449,6 +457,18 @@ export default async function GroupHomePage({
   // gate lets this reader read: a fellow's, to the group's facilitators and admins; a facilitator's own, to
   // admins alone.
   const boxes = groupWeek ? await loadGroupWeekBoxes(db, { run: access.run, actor: access.user, week: groupWeek }) : [];
+  // Those boxes are drawn in full under each person's name once their Read it is opened: the ones with words, named
+  // then as first read, never the reader's own; the route asks its own gates again. Never on an archived group, whose
+  // page an admin alone opens: nobody is named from it.
+  const boxesRead =
+    !group.archived && groupWeek && groupWeek.fillIn
+      ? groupBoxesFirstRead({ weekId: weekDocId(groupWeek.weekNumber), readerUid: access.user.uid, boxIds: groupWeek.fillIn.boxes.map((box) => box.id), people: boxes })
+      : null;
+  // Whose week this reader may open in the reading view, by the one gate the reading view's own door asks
+  // (read with the queue, from its own reads): each name in This week's work and in Feedback to write leads
+  // there only for them.
+  const readable = queueRead?.readable ?? new Set<string>();
+  const readHref = (uid: string, week: number) => (readable.has(uid) ? readingHref(`${groupPath}/coursework`, uid, week) : null);
 
   // The head: the group, its week, its programme, its usual day, time and
   // room, and the group's other facilitators by the names rule for this
@@ -507,7 +527,11 @@ export default async function GroupHomePage({
           })}
           heading={ticketHeading(facts.dateKey, facts.startTimeLocal)}
           roomChanged={Boolean(facts.room) && facts.room !== group.session.location.trim()}
-          expected={model.expected > 0 ? model.expected : null}
+          expected={(() => {
+            // Who is expected at THIS session: somebody moved in from a later week is not.
+            const expected = model.expectedIn[facts.weekNumber] ?? model.expected;
+            return expected > 0 ? expected : null;
+          })()}
           registerHref={registerHref}
           guide={guide}
           guideContents={guideContents}
@@ -542,6 +566,7 @@ export default async function GroupHomePage({
         leavers={model.leavers}
         finishedWeeks={model.finishedWeeks}
         notYetTold={model.notYetTold}
+        groupName={groupName}
       />
       <GroupRegistersCard
         registers={model.registers}
@@ -574,7 +599,18 @@ export default async function GroupHomePage({
   // half, on a run whose weeks are written as blocks (null on a run of the
   // summer's weeks), and its reflections half, on a week written as blocks
   // with something to reflect on.
-  const writtenCard = writtenQueue ? <ReviewQueueCard rows={writtenQueue} hrefFor={writtenHref} /> : null;
+  // An answer changed since its feedback opens the reading view at that answer, where both versions are drawn.
+  const changedHref = (row: WrittenQueueRow) => {
+    const read = row.changed ? readHref(row.uid, row.weekNumber) : null;
+    return read ? `${read}#${READING_ANSWER_ANCHOR}` : null;
+  };
+  const writtenCard = writtenQueue ? (
+    <ReviewQueueCard
+      rows={writtenQueue}
+      hrefFor={(row) => changedHref(row) ?? answerHref(row)}
+      readHrefFor={(row) => changedHref(row) ?? readHref(row.uid, row.weekNumber) ?? answerHref(row)}
+    />
+  ) : null;
   // Once the run's last session is over, the way to rate the group: its
   // facilitators and admins, about two minutes a person. First in the side
   // column, whichever shape the page takes.
@@ -591,7 +627,7 @@ export default async function GroupHomePage({
       <ReflectionsQueueCard
         counts={groupWeek.counts}
         href={`${groupPath}/reflections?week=${groupWeek.weekNumber}`}
-        namesHref={`${groupPath}/reflections/names?week=${groupWeek.weekNumber}`}
+        namesHref={firstQuestionHref(`${groupPath}/question`, groupWeek.weekNumber, "reflection")}
       />
     ) : null;
   const summerWaiting = model.toReview.length > 0;
@@ -698,8 +734,10 @@ export default async function GroupHomePage({
           <ThisWeeksWork
             week={groupWeek}
             groupName={groupName}
+            personHref={(uid) => readHref(uid, groupWeek.weekNumber)}
             columns={workColumnsOf(workColumns)}
             boxes={boxes}
+            boxesFirstRead={boxesRead ? { runId, ...boxesRead } : null}
             ownLine={
               groupWeek.ownLeftOut
                 ? facilitatorsWorkLine(programme?.leadFirstName ?? null)

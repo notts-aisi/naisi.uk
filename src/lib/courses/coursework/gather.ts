@@ -5,6 +5,9 @@ import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekFillInBoxes, weekReflectionPrompts, weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
 import { answerPiece, instantOf, readWrittenAnswer } from "@/lib/courses/writtenAnswers/model";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
+import { hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
+import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseworkCountsFrom, rowCountsFrom } from "@/lib/legal/courseworkUse";
 import { readRunForWork } from "@/lib/courses/weekWork/own";
@@ -19,7 +22,8 @@ import { writtenAnswerWords, type CourseworkAnswer, type CourseworkQuestion, typ
  *
  * What it reads, and nothing else: a run's live groups (who facilitates
  * them), its enrolments (which group each person reads the week of), its
- * weeks and each group's own copies of them (the questions), the rows of
+ * weeks and each group's own copies of them (the questions; a group archived
+ * since, too, when a place's record of groups by week names it), the rows of
  * `courseExerciseResponses` (reflections, written answers and fill-in boxes,
  * never an older exercise answer), and each writer's account for the moment
  * their coursework counts from (`courseworkCountsFrom`). Never a private
@@ -53,6 +57,12 @@ export type RunPeople = {
   facilitators: Set<string>;
   /** A person's group on the run (their enrolment's), when it is live. */
   groupOf: Map<string, string>;
+  /**
+   * Every group of the run a place's record of groups by week names, live or
+   * archived since: the copies somebody moved mid-term worked in. Empty when
+   * nobody has been moved.
+   */
+  recordGroups: Set<string>;
 };
 
 export async function loadRunPeople(db: Firestore, runId: string): Promise<RunPeople> {
@@ -61,24 +71,43 @@ export async function loadRunPeople(db: Firestore, runId: string): Promise<RunPe
     db.collection("courseEnrolments").where("runId", "==", runId).get(),
   ]);
   const facilitatorsOf = new Map<string, string[]>();
+  const ofTheRun = new Set<string>();
   for (const doc of groupSnap.docs) {
     const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
-    if (group.archived || group.runId !== runId) continue;
+    if (group.runId !== runId) continue;
+    ofTheRun.add(group.id);
+    if (group.archived) continue;
     facilitatorsOf.set(group.id, group.facilitatorUids);
   }
   const facilitators = new Set([...facilitatorsOf.values()].flat());
   const groupOf = new Map<string, string>();
+  const recordGroups = new Set<string>();
   for (const doc of enrolmentSnap.docs) {
     const data = (doc.data() ?? {}) as Raw;
     const uid = typeof data.uid === "string" ? data.uid : "";
     const groupId = typeof data.groupId === "string" ? data.groupId : "";
     if (uid && groupId && facilitatorsOf.has(groupId)) groupOf.set(uid, groupId);
+    // The groups a record of groups by week names, read whole by the place's own normaliser: only the run's.
+    const record = normalizeCourseEnrolment(doc.id, data).groupsByWeek ?? [];
+    if (record.length >= 2) for (const entry of record) if (ofTheRun.has(entry.groupId)) recordGroups.add(entry.groupId);
   }
   // A facilitator who holds no place reads the week of the one group they facilitate.
   for (const [groupId, uids] of facilitatorsOf) {
     for (const uid of uids) if (!groupOf.has(uid)) groupOf.set(uid, groupId);
   }
-  return { facilitatorsOf, facilitators, groupOf };
+  return { facilitatorsOf, facilitators, groupOf, recordGroups };
+}
+
+/**
+ * The groups archived since that a place's record of groups by week names:
+ * the copies somebody moved mid-term worked in that no live group's copy
+ * stands for. Their own questions are read (`loadRunWeeks`) and gathered
+ * only for the people whose own record names them (`loadAnswers`). None with
+ * nobody moved, so the run's questions are the live groups' and the run's,
+ * as always.
+ */
+export function archivedRecordGroupsOf(people: RunPeople): string[] {
+  return [...people.recordGroups].filter((id) => !people.facilitatorsOf.has(id));
 }
 
 /** The questions of one week as one copy of it asks them. */
@@ -116,15 +145,31 @@ function questionsOf(entry: ResolvedWeekEntry): CourseworkQuestion[] {
 
 /**
  * The block weeks of a run, each with its questions from every copy of it:
- * the run's own and each live group's. A question is keyed by its kind and
- * id, so the same prompt in two copies is one question; its words are the
- * run's copy's where it has one.
+ * the run's own and each of `groupIds`' (the live groups). A question is
+ * keyed by its kind and id, so the same prompt in two copies is one
+ * question; its words are the run's copy's where it has one.
+ *
+ * `archivedCopies` (`archivedRecordGroupsOf`): groups archived since that
+ * somebody moved mid-term worked in. Only their OWN copies are read, after
+ * everything else, and a question none of the copies above asks is added
+ * marked with the groups that ask it (`askedOnlyIn`), so it is gathered only
+ * for the people whose own record names one of them for its week. With none,
+ * exactly the questions as always.
  */
-export async function loadRunWeeks(db: Firestore, runId: string, groupIds: readonly string[]): Promise<CourseworkWeek[]> {
-  const copies = await Promise.all([null, ...groupIds].map((groupId) => resolveWeekDocs(db, runId, groupId)));
+export async function loadRunWeeks(
+  db: Firestore,
+  runId: string,
+  groupIds: readonly string[],
+  archivedCopies: readonly string[] = [],
+): Promise<CourseworkWeek[]> {
+  const archived = archivedCopies.filter((id) => !groupIds.includes(id));
+  const copies = await Promise.all([null, ...groupIds, ...archived].map((groupId) => resolveWeekDocs(db, runId, groupId)));
   const weeks = new Map<string, CourseworkWeek>();
   copies.forEach((entries, index) => {
+    // An archived group's own copy, after the run's and the live groups'.
+    const archivedId = index > groupIds.length ? archived[index - groupIds.length - 1] : null;
     for (const entry of entries) {
+      if (archivedId && entry.source !== "group") continue;
       const questions = questionsOf(entry);
       if (questions.length === 0) continue;
       const week = weeks.get(entry.week.id) ?? {
@@ -135,6 +180,12 @@ export async function loadRunWeeks(db: Firestore, runId: string, groupIds: reado
       };
       for (const question of questions) {
         const existing = week.questions.findIndex((candidate) => candidate.key === question.key);
+        if (archivedId) {
+          // Asked by no copy above: this archived group's, and any other archived group's that asks it too.
+          if (existing === -1) week.questions.push({ ...question, askedOnlyIn: [archivedId] });
+          else week.questions[existing].askedOnlyIn?.push(archivedId);
+          continue;
+        }
         // The run's own copy (index 0) speaks for a question when it asks it.
         if (existing === -1) week.questions.push(question);
         else if (index === 0 && entry.source === "run") week.questions[existing] = question;
@@ -207,6 +258,24 @@ export async function loadAnswers(
   };
   const byRow = new Map<string, CourseworkQuestion>();
   for (const week of weeks) for (const question of week.questions) byRow.set(`${week.weekId} ${question.rowId}`, question);
+  // A question only an archived group's own copy asks (`askedOnlyIn`) is gathered only for somebody whose own record
+  // of groups by week names that group for its week (`copyGroupIdFor`): the run's places are read only then.
+  const archivedOnly = [...byRow.values()].some((question) => question.askedOnlyIn);
+  const places = archivedOnly
+    ? new Map(
+        (await db.collection("courseEnrolments").where("runId", "==", runId).get()).docs
+          .map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}))
+          .filter((place) => place.runId === runId && place.uid)
+          .map((place) => [place.uid, place] as const),
+      )
+    : null;
+  const askedOf = (question: CourseworkQuestion, uid: string): boolean => {
+    if (!question.askedOnlyIn) return true;
+    const place = places?.get(uid);
+    if (!place || !hasGroupsByWeek(place)) return false;
+    const copy = copyGroupIdFor(place, question.weekNumber, place.groupId);
+    return copy !== null && question.askedOnlyIn.includes(copy);
+  };
 
   const rows: Array<{ id: string; uid: string; question: CourseworkQuestion; data: Raw }> = [];
   for (const doc of snap.docs) {
@@ -215,7 +284,7 @@ export async function loadAnswers(
     const uid = typeof data.uid === "string" ? data.uid : "";
     if (!uid || (writers && !writers.has(uid))) continue;
     const question = byRow.get(`${String(data.weekId ?? "")} ${String(data.exerciseId ?? "")}`);
-    if (!question || !rowFits(question, data, readOf)) continue;
+    if (!question || !askedOf(question, uid) || !rowFits(question, data, readOf)) continue;
     // A written answer travels as its readers read it: as last sent before the session, never words not sent yet.
     const read = question.kind === "written" ? readOf(data) : null;
     rows.push({ id: doc.id, uid, question, data: read ? { ...data, text: read.text, boxes: read.boxes ?? undefined } : data });

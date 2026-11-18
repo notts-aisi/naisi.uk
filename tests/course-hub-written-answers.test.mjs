@@ -38,8 +38,11 @@
  *     emailing nobody when saved. Late from the session, and after its
  *     deadline, for staff alone.
  *  4. The pages: the week page (open, sent, past its session, closed), the
- *     review page (the group's and the lead's), the week's Feedback, the
- *     group page's Feedback to write, Home, the programme page's task row.
+ *     review page's addresses (the group's and the lead's) forwarding to the
+ *     reading view of one person's week and the page of one question across
+ *     the group, which show what it showed, the review page's loader (kept
+ *     for This week's work), the week's Feedback, the group page's Feedback
+ *     to write, Home, the programme page's task row.
  *  5. The summer's answers still read, and are never given a verdict here.
  *  6. Finishing's column, the rubric's setting, the email's words and class.
  *
@@ -478,11 +481,11 @@ describe("3. feedback: a signed comment, never a level or a mark, many pieces, a
     assert.equal(w.world.mail.length, 0);
   });
 
-  test("with a rubric or without, feedback is a comment alone: the review page asks for one, and the week page names no rows and no marks", async () => {
+  test("with a rubric or without, feedback is a comment alone: the reading view of the person's week asks for one, and the week page names no rows and no marks", async () => {
     await sendFour();
     for (const rubric of [RUBRIC, null]) {
       w.world.db.poke(`courses/${COURSE.agi}`, { rubric });
-      const page = await w.writtenPage("rahul", { week: "2", person: "farah" });
+      const page = await w.readingPage("rahul", "farah", { week: "2" });
       assert.match(page.text, /Your feedback Optional: write it when there’s time, when it’s needed, or when they’ve asked a question\. It’s signed with your name\. Comment/);
       assert.doesNotMatch(page.text, /The rubric|There are no marks|No marks|sees the four levels/);
       assert.doesNotMatch(page.html, /aria-pressed/);
@@ -522,8 +525,10 @@ describe("3. feedback: a signed comment, never a level or a mark, many pieces, a
 describe("Late, from the session, and only for its readers; after its deadline, for staff alone", () => {
   test("first sent after its own deadline but before the session is after its deadline; after the session, late; a cancelled session keeps its own moment", async () => {
     await sendFour();
-    const page = await w.writtenPage("rahul", { week: "2" });
-    const model = page.element.props.model;
+    // The written answer's own deadline and its session, as the review page's loader (kept for This week's work) works them out.
+    const model = await w.reviewModel("rahul", 2);
+    // And as the page of one question across the group says them, at the written answer.
+    const page = await w.questionPage("rahul", { week: "2", first: "answer" });
     const everybody = [...model.toGive, ...model.feedbackSent];
     const of = (key) => Object.fromEntries(everybody.map((person) => [person.uid, person[key]]));
     // Farah sent at noon on the day of the session, after the noon-the-day-before deadline: after its deadline, not late.
@@ -532,6 +537,9 @@ describe("Late, from the session, and only for its readers; after its deadline, 
     assert.deepEqual(of("sentLateMs"), { chloe: null, farah: null });
     assert.match(page.text, /Farah Hussain Sent Tue 10 Nov, 12pm After its deadline/);
     assert.doesNotMatch(page.text, /Farah Hussain Sent Tue 10 Nov, 12pm Late/, "before the session is never late");
+    assert.deepEqual(w.questionViewOf(page).rows.map((row) => [row.uid, row.afterDeadline, row.late]), [["chloe", false, false], ["farah", true, false], ["kofi", false, false]]);
+    // The reading view of Farah's week says the same beside when it was sent.
+    assert.match((await w.readingPage("rahul", "farah", { week: "2" })).text, /Sent Tue 10 Nov, 12pm After its deadline/);
 
     // Group B's week 2 session cancelled, the group keeping pace: late is told from when it would have started.
     w.reset();
@@ -545,7 +553,7 @@ describe("Late, from the session, and only for its readers; after its deadline, 
     w.at("2026-11-16T12:30:00Z");
     assert.equal((await w.write("farah", 2, { text: words(25) }, { send: true })).status, 200);
     w.at(NOW);
-    const moved = (await w.writtenPage("rahul", { week: "2" })).element.props.model;
+    const moved = await w.reviewModel("rahul", 2);
     assert.deepEqual(
       Object.fromEntries(moved.toGive.map((person) => [person.uid, [person.late, person.sentLateMs, person.afterDeadline]])),
       { kofi: [true, 15 * 60 * 60 * 1000, false], farah: [true, (5 * 24 + 18.5) * 60 * 60 * 1000, false] },
@@ -800,43 +808,42 @@ describe("4. the pages, as the boards draw them", () => {
     assert.match(home.html, /<a href="\/learn\/[^"]+\/weeks\/3#feedback" class="cardLink">Feedback from Sofia<span aria-hidden="true">→<\/span><\/a>/);
   });
 
-  test("the review page: a facilitator sees their group's fellows, never a facilitator's own; grouped as the board groups them; nothing unsent is read before the session", async () => {
+  test("a group's written answers for a week: a facilitator sees their group's fellows, never a facilitator's own; nothing unsent is read before the session", async () => {
     await sendFour();
     w.at(BEFORE_DUE_2);
     await w.write("kofi", 2, { text: words(4, "beacon") });
     // Tue 10 Nov at 1pm: Farah has submitted late, and Group B has not met yet.
     w.at("2026-11-10T13:00:00Z");
-    const page = await w.writtenPage("rahul", { week: "2" });
-    const model = page.element.props.model;
+    // The review page's loader, kept behind This week's work's Written answer column: who waits, in the order it lists them.
+    const model = await w.reviewModel("rahul", 2);
     assert.deepEqual(model.toGive.map((person) => person.uid), ["chloe", "farah"]);
     assert.deepEqual(model.notSent.map((person) => [person.uid, person.state, person.readable, person.words]), [["kofi", "draft", false, 0]]);
-    assert.equal(model.selected.person.uid, "chloe");
+    // The group's written answers for the week: the page of one question across the group, at the written answer.
+    const forwarded = await w.writtenPage("rahul", { week: "2" });
+    assert.equal(forwarded.to, `/learn/${RUN.agi}/group/${B}/question?week=2&first=answer`);
+    const page = await w.questionPage("rahul", { week: "2", first: "answer" });
     inOrder(page.text, [
-      "Group B · Week 2 · Written answers",
-      "Chloe Nguyen’s lamp plan",
-      "Previous",
-      "Next: Farah",
-      "Written answers",
-      "Week 2",
-      "To give feedback on",
-      "2",
+      "Group B · week 2",
+      "The question · 20 to 40 words · Written answer",
+      "Who should keep the lamps lit, and why?",
       "Chloe Nguyen",
       "Sent Sun 8 Nov, 10am",
+      "No feedback yet",
       "Farah Hussain",
       "Sent Tue 10 Nov, 12pm",
       "After its deadline",
-      "With feedback",
-      "0",
-      "Not sent yet",
-      "1",
+      "No feedback yet",
       "Kofi Asante",
-      "Started",
+      "Not sent yet",
+    ]);
+    // One person's answer: the reading view of their week, with the review page's words.
+    const chloe = await w.readingPage("rahul", "chloe", { week: "2" });
+    inOrder(chloe.text, [
+      "Written answer",
+      "25 words",
+      "Sent Sun 8 Nov, 10am",
       "The question · 20 to 40 words",
       "Who should keep the lamps lit, and why?",
-      "Show all of it",
-      "Chloe’s answer",
-      "25 words · 20 to 40",
-      "Sent Sun 8 Nov, 10am",
       "Chloe can change it until the programme closes. Before the session you read it as last sent; from the session, as it stands.",
       "Your feedback",
       "Optional: write it when there’s time, when it’s needed, or when they’ve asked a question. It’s signed with your name.",
@@ -847,139 +854,184 @@ describe("4. the pages, as the boards draw them", () => {
     ]);
     // Sent after its deadline (noon the day before), before the session: after its deadline, to staff; never late.
     assert.deepEqual(model.toGive.map((person) => [person.uid, person.afterDeadline, person.late]), [["chloe", false, false], ["farah", true, false]]);
-    // Nothing is reopened now: no Reopen on the page.
-    assert.doesNotMatch(page.text, /Reopen week/);
-    // No rubric, no level, and no email from this page: saving emails nobody, and an admin sends the emails in a batch.
-    assert.doesNotMatch(page.text, /The rubric|A short comment|Send feedback to|The email Chloe gets|There are no marks/);
+    // Nothing is reopened now: no Reopen on either page.
+    for (const drawn of [page, chloe]) {
+      assert.doesNotMatch(drawn.text, /Reopen week/);
+      // No rubric, no level, and no email from these pages: saving emails nobody, and an admin sends the emails in a batch.
+      assert.doesNotMatch(drawn.text, /The rubric|A short comment|Send feedback to|The email Chloe gets|There are no marks/);
+    }
+    assert.doesNotMatch(chloe.html, /aria-pressed/);
     // Never a word of a draft not sent before the session, nor how long it is (privacy v17).
-    assert.ok(!page.html.includes("beacon"), "the review page shows Kofi's unsubmitted draft");
-    assert.doesNotMatch(page.text, /Kofi Asante 4 words|Kofi’s answer/);
-    // His own answer would be drawn as "Rahul’s answer" under "Rahul’s lamp
-    // plan" (the name he goes by); his full name is on no page of his either.
-    assert.doesNotMatch(page.text, /Rahul Mehta|Rahul’s answer|Rahul’s lamp plan|Amara/, "a facilitator's own answer and another group's are not on the page");
-    assert.doesNotMatch(page.html, /aria-pressed/);
+    const kofiWeek = await w.readingPage("rahul", "kofi", { week: "2" });
+    for (const drawn of [page, kofiWeek]) {
+      assert.ok(!drawn.html.includes("beacon"), "Kofi's unsent draft is shown");
+      assert.doesNotMatch(drawn.text, /Kofi Asante 4 words|4 words/);
+    }
+    // His own answer, and another group's, are on no page of his.
+    assert.doesNotMatch(page.text, /Rahul Mehta|Amara/, "a facilitator's own answer and another group's are on the page");
+    assert.equal((await w.readingPage("rahul", "rahul", { week: "2" })).to, `/learn/${RUN.agi}`);
     // Sofia, the co-facilitator, does not get Rahul's either.
-    const sofia = (await w.writtenPage("sofia", { week: "2" })).element.props.model;
-    assert.ok(![...sofia.toGive, ...sofia.feedbackSent, ...sofia.notSent].some((person) => person.uid === "rahul"));
+    assert.ok(!w.questionViewOf(await w.questionPage("sofia", { week: "2", first: "answer" })).rows.some((row) => row.uid === "rahul"));
+    assert.ok(![...model.toGive, ...model.feedbackSent, ...model.notSent].some((person) => person.uid === "rahul"));
 
     // Once the session has started, Kofi's draft is its readers' to read, and waits from the session, oldest first.
     w.at(NOW);
-    const locked = await w.writtenPage("rahul", { week: "2", person: "kofi" });
-    assert.deepEqual(locked.element.props.model.toGive.map((person) => person.uid), ["chloe", "farah", "kofi"]);
-    assert.deepEqual(locked.element.props.model.notSent, []);
-    const kofi = locked.element.props.model.selected;
-    assert.deepEqual([kofi.person.firstSentAt, kofi.person.due.at, kofi.shown.latest], [null, "2026-11-10T18:00:00.000Z", true]);
-    inOrder(locked.text, [
-      "Kofi Asante",
-      "Not sent, read since the session, Tue 10 Nov, 6pm",
-      "Kofi’s answer",
-      "4 words · 20 to 40",
+    const locked = await w.reviewModel("rahul", 2);
+    assert.deepEqual(locked.toGive.map((person) => person.uid), ["chloe", "farah", "kofi"]);
+    assert.deepEqual(locked.notSent, []);
+    const kofiThen = locked.toGive.find((person) => person.uid === "kofi");
+    assert.deepEqual([kofiThen.firstSentAt, kofiThen.due.at, kofiThen.readable, kofiThen.words], [null, "2026-11-10T18:00:00.000Z", true, 4]);
+    // The reading view of his week reads it as it stands, never sent, against the session he was due at.
+    const kofiView = w.readingViewOf(await w.readingPage("rahul", "kofi", { week: "2" }));
+    assert.deepEqual(
+      [kofiView.week.answer.text, kofiView.week.answer.sentAt, kofiView.week.answer.changedSinceSent, kofiView.due.at?.toISOString()],
+      ["beacon beacon beacon beacon", null, false, "2026-11-10T18:00:00.000Z"],
+    );
+    inOrder((await w.questionPage("rahul", { week: "2", first: "answer" })).text, ["Kofi Asante", "Not sent yet", "No feedback yet", "Saved Sun 8 Nov, 10am", "beacon beacon beacon beacon"]);
+    const kofiNow = await w.readingPage("rahul", "kofi", { week: "2" });
+    inOrder(kofiNow.text, [
+      "Written answer",
+      "4 words",
+      "The question · 20 to 40 words",
       "Saved Sun 8 Nov, 10am",
       "beacon beacon beacon beacon",
       "Kofi can change it until the programme closes. Before the session you read it as last sent; from the session, as it stands.",
     ]);
     // Saved before the session: never late, and never "After its deadline", which is for a send.
-    assert.doesNotMatch(locked.text, /Saved Sun 8 Nov, 10am Late/);
+    assert.doesNotMatch(kofiNow.text, /Saved Sun 8 Nov, 10am Late|After its deadline/);
 
-    // Kofi changes it after the session: the page says when and how late, and shows it as it stood at the session.
+    // Kofi changes it after the session: the pages say when and how late, and show it as it stood at the session.
     w.at("2026-11-12T19:00:00Z");
     assert.equal((await w.write("kofi", 2, { text: words(5, "harbour") })).status, 200);
     w.at(NOW);
-    const changed = await w.writtenPage("rahul", { week: "2", person: "kofi" });
-    inOrder(changed.text, [
-      "Kofi’s answer",
-      "5 words · 20 to 40",
-      "Saved Thu 12 Nov, 7pm",
-      "Late: 2 days after the session",
-      "harbour harbour harbour harbour harbour",
-      "As it stood at the session",
-      "beacon beacon beacon beacon",
-    ]);
-    assert.doesNotMatch(locked.text, /Reopen week/);
-    // Opened with nobody asked for, the page opens on the oldest waiting.
-    assert.equal((await w.writtenPage("rahul", { week: "2" })).element.props.model.selected.person.uid, "chloe");
+    for (const drawn of [await w.readingPage("rahul", "kofi", { week: "2" }), await w.questionPage("rahul", { week: "2", first: "answer" })]) {
+      inOrder(drawn.text, ["Saved Thu 12 Nov, 7pm", "Late: 2 days after the session", "harbour harbour harbour harbour harbour", "As it stood at the session", "beacon beacon beacon beacon"]);
+      assert.doesNotMatch(drawn.text, /Reopen week/);
+    }
+    // With nobody asked for, the reader is led to the oldest waiting first: the group page's Feedback to write and
+    // Home's next answer, held by "the group page's Feedback to write lists what waits, oldest first" below.
+    assert.equal((await w.reviewModel("rahul", 2)).toGive[0].uid, "chloe");
   });
 
-  test("a stored reopen from when weeks locked changes nothing on the review page: a sent answer stays readable, its words shown", async () => {
+  test("a stored reopen from when weeks locked changes nothing: a sent answer stays readable, its words shown", async () => {
     await sendFour();
     // As a reopen pressed before weeks stayed open left it: the week's submit cleared, the reopen stored.
     w.world.db.poke(`courseWeekWork/${RUN.agi}__farah__w02`, { submittedAt: null, reopenedAt: new Date("2026-11-11T10:00:00Z"), reopenedByUid: "rahul", reopenCount: 1 });
-    const page = await w.writtenPage("rahul", { week: "2", person: "farah" });
-    const model = page.element.props.model;
+    const model = await w.reviewModel("rahul", 2);
     assert.deepEqual(model.toGive.map((person) => person.uid), ["chloe", "farah"]);
     // Kofi wrote nothing: not started, with nothing to read.
     assert.deepEqual(model.notSent.map((person) => [person.uid, person.state, person.words]), [["kofi", "not-started", 0]]);
-    assert.equal(model.selected.person.uid, "farah", "the page opens a sent answer whatever a stored reopen says");
+    // Her answer is read whatever a stored reopen says: readable, with its words, and waiting for feedback.
+    const farah = model.toGive.find((person) => person.uid === "farah");
+    assert.deepEqual([farah.readable, farah.words, farah.state], [true, 30, "sent"]);
+    const page = await w.readingPage("rahul", "farah", { week: "2" });
+    assert.deepEqual([w.readingViewOf(page).week.answer.text, w.readingViewOf(page).answerFeedback.open], [words(30), true]);
     assert.ok(page.html.includes(words(30)), "Farah's words, as sent, are her readers' to read");
     assert.doesNotMatch(page.text, /Reopened, not submitted again/);
+    assert.ok((await w.questionPage("rahul", { week: "2", first: "answer" })).html.includes(words(30)));
   });
 
-  test("the lead's review page gives the facilitator's own answer to the lead; the page writes nothing", async () => {
+  test("the programme's side gives the facilitator's own answer to the lead, on the reading view of his week; the page writes nothing", async () => {
     await sendFour();
-    const page = await w.leadPage("claudia", { group: B, week: "2", person: "rahul" });
-    const model = page.element.props.model;
-    assert.deepEqual(model.toGive.map((person) => person.uid).sort(), ["chloe", "farah", "rahul"]);
-    assert.equal(model.selected.person.uid, "rahul");
-    assert.equal(model.selected.role.mayReview, true);
-    // The title names him as the names rule names him to the lead, who is on the committee; the sentences by the name he goes by.
-    assert.match(page.text, /Rahul Mehta’s lamp plan/);
+    // The lead's review page's address for his answer forwards to the reading view of his week, at the answer.
+    assert.equal((await w.leadPage("claudia", { group: B, week: "2", person: "rahul" })).to, `/admin/admissions/forms/${ROUND}/programmes/${AGI}/coursework/rahul?week=2#reading-answer`);
+    const page = await w.leadReadingPage("claudia", "rahul", { week: "2" });
+    const view = w.readingViewOf(page);
+    assert.equal(view.person.uid, "rahul");
+    assert.equal(view.answerFeedback.open, true, "the lead may not give feedback on a facilitator's own answer");
+    // He is named as the names rule names him to the lead, who is on the committee; the sentences by the name he goes by.
+    assert.match(page.text, /Rahul Mehta/);
     assert.match(page.text, /Sent Sun 8 Nov, 10am .*Rahul can change it until the programme closes\. Before the session you read it as last sent; from the session, as it stands\./);
     assert.doesNotMatch(page.text, /Reopen week/);
     assert.equal(page.wrote, false, "a GET never writes, and opening an answer stamps nothing");
-    // The lead's page for another programme's lead, and for a fellow: nothing of it.
-    const tess = await w.leadPage("tess", { group: B, week: "2" });
-    assert.doesNotMatch(tess.text, /lamp plan/);
-    // Signed out: the admissions tree's own gate sends them away before the page (the app's layout reaches /login first).
-    const signedOut = await w.leadPage(null);
-    assert.ok(signedOut.to && !/lamp plan/.test(signedOut.text), JSON.stringify(signedOut.to));
-  });
-
-  test("A10: the lead chooses the group on the page, with the Attendance tab's own control; a facilitator's page has none", async () => {
-    await sendFour();
-    const LEAD_WRITTEN = `/admin/admissions/forms/${ROUND}/programmes/${AGI}/written`;
-    /** The page's choice of group: each pill's name, its tag, its address, and whether it is the one shown. */
-    const pillsOf = (html) => {
-      const nav = /<nav class="groupLinks" aria-labelledby="([^"]+)"><span id="\1" class="groupLinksLabel">Group<\/span>([\s\S]*?)<\/nav>/.exec(html);
-      assert.ok(nav, "no choice of group on the page");
-      return [...nav[2].matchAll(/<a href="([^"]+)" class="([^"]+)" aria-label="([^"]+)"( aria-current="page")?>([^<]+)<\/a>/g)].map((m) => [
-        m[3],
-        m[5],
-        m[1],
-        m[2].includes("groupLinkCurrent") && m[4] !== undefined,
-      ]);
-    };
-    // Every group of the run that still meets, in the order the Attendance tab lists them (by meeting), each that
-    // group's own page here, which opens on its own week; the group shown marked. The lead and an admin alike.
-    const expected = (shown) =>
-      [["Group D", "D", "agi-autumn-2026-mondays__grp00004"], ["Group B", "B", B], ["Group C", "C", C], ["Group A", "A", A]].map(([name, tag, id]) => [
-        name,
-        tag,
-        `${LEAD_WRITTEN}?group=${id}`,
-        id === shown,
-      ]);
-    for (const who of ["claudia", "zach"]) {
-      assert.deepEqual(pillsOf((await w.leadPage(who, { group: B, week: "2" })).html), expected(B), who);
+    // On the page of one question for the group, his answer is listed, marked as a facilitator's.
+    const question = w.questionViewOf(await w.leadQuestionPage("claudia", { group: B, week: "2", first: "answer" }));
+    assert.deepEqual(question.rows.filter((row) => row.answer).map((row) => [row.uid, row.facilitating]).sort(), [["chloe", false], ["farah", false], ["rahul", true]]);
+    // Another programme's lead: nothing of it.
+    for (const drawn of [await w.leadReadingPage("tess", "rahul", { week: "2" }), await w.leadQuestionPage("tess", { group: B, week: "2" })]) {
+      assert.ok(!drawn.html.includes(words(25)), "another programme's lead reads the answer");
+      assert.equal(w.readingViewOf(drawn) ?? w.questionViewOf(drawn), null);
     }
-    // Opened with no group, it shows the first, and the pills say which.
-    const first = await w.leadPage("claudia");
-    assert.deepEqual(pillsOf(first.html), expected("agi-autumn-2026-mondays__grp00004"));
-    assert.match(first.text, /Group D · Week 3 · Written answers/);
-    // A pill opens that group's page: Group A's answers, and only Group A's.
-    const a = await w.leadPage("claudia", { group: A });
-    assert.deepEqual(pillsOf(a.html), expected(A));
-    assert.equal(a.element.props.model.group.id, A);
-    // A facilitator's review page is the one group's own: nothing to choose.
-    assert.doesNotMatch((await w.writtenPage("rahul", { week: "2" })).html, /groupLinks/);
+    // Signed out: the admissions tree's own gate sends them away before the page.
+    const signedOut = await w.leadReadingPage(null, "rahul", { week: "2" });
+    assert.ok(signedOut.to && !signedOut.html.includes(words(25)), JSON.stringify(signedOut.to));
   });
 
-  test("who reaches the group's review page at all", async () => {
+  test("the lead opens any group's written answers from the programme's side: the first group by default, and a group named shows only that group", async () => {
     await sendFour();
+    // The lead's review page's address for a group forwards to one question across that group, at the written answer.
+    assert.equal((await w.leadPage("claudia", { group: A })).to, `/admin/admissions/forms/${ROUND}/programmes/${AGI}/question?group=${A}&first=answer`);
+    for (const who of ["claudia", "zach"]) {
+      // Opened with no group, the first in the order the Attendance tab lists them (by meeting): Group D.
+      const first = w.questionViewOf(await w.leadQuestionPage(who, { first: "answer" }));
+      assert.equal(first.groupName, "Group D", who);
+      // A group named: that group's people, and only theirs.
+      const a = w.questionViewOf(await w.leadQuestionPage(who, { group: A, week: "2", first: "answer" }));
+      assert.equal(a.groupName, "Group A", who);
+      assert.ok(!a.rows.some((row) => ["chloe", "farah", "kofi"].includes(row.uid)), `${who} is shown Group B's people on Group A's page`);
+    }
+  });
+
+  test("the lead chooses the group on the page of one question from the programme's side, with the Coursework tab's Group filter; a facilitator's page has none", async () => {
+    await sendFour();
+    const QUESTION = `/admin/admissions/forms/${ROUND}/programmes/${AGI}/question`;
+    /** The page's choice of group, as drawn: each link's words, its address, and whether it is marked as the one shown, by eye and for a screen reader. */
+    const chooserOf = (html) => {
+      const nav = /<nav aria-label="Group" class="groupsNav"><p class="groupLabel" aria-hidden="true">Group<\/p><ul class="filters" role="list">([\s\S]*?)<\/ul><\/nav>/.exec(html);
+      assert.ok(nav, "no choice of group on the page");
+      const links = [...nav[1].matchAll(/<li><a href="([^"]+)" class="([^"]+)"( aria-current="page")?>([^<]+)<\/a><\/li>/g)];
+      assert.equal(links.map((m) => m[0]).join(""), nav[1], "the choice of group holds something other than its links");
+      return links.map((m) => {
+        const byEye = m[2] === "filter filterOn";
+        assert.equal(byEye, m[3] !== undefined, `${m[4]} is marked for the eye and not for a screen reader, or the other way round`);
+        return [m[4], m[1].replace(/&amp;/g, "&"), m[3] !== undefined];
+      });
+    };
+    /** Every live group of the run, in the order the tabs list them (by meeting), each this page's address for it. */
+    const groups = [["Group D", "agi-autumn-2026-mondays__grp00004"], ["Group B", B], ["Group C", C], ["Group A", A]];
+    const expected = (shown, query) => groups.map(([name, id]) => [name, `${QUESTION}?group=${id}${query}`, id === shown]);
+    for (const who of ["claudia", "zach"]) {
+      // The week, the kind of question and the filters the address named are kept; the group shown is marked.
+      const page = await w.leadQuestionPage(who, { group: B, week: "2", first: "answer", unread: "1", late: "1" });
+      assert.deepEqual(chooserOf(page.html), expected(B, "&week=2&first=answer&unread=1&late=1"), who);
+      assert.deepEqual(
+        w.questionViewOf(page).groups.map((each) => [each.name, each.current]),
+        groups.map(([name, id]) => [name, id === B]),
+        who,
+      );
+      // A question named by its id is kept as that question.
+      assert.deepEqual(chooserOf((await w.leadQuestionPage(who, { group: B, week: "2", question: ONE_BOX.id })).html), expected(B, `&week=2&question=${ONE_BOX.id}`), who);
+      // Nothing the address did not name: no week, no question, no filter; and a week the run does not teach is not kept.
+      assert.deepEqual(chooserOf((await w.leadQuestionPage(who, { group: A })).html), expected(A, ""), who);
+      assert.deepEqual(chooserOf((await w.leadQuestionPage(who, { group: A, week: "99" })).html), expected(A, ""), who);
+    }
+    // Opened with no group, the first, and the links say which.
+    assert.deepEqual(chooserOf((await w.leadQuestionPage("claudia", { first: "answer" })).html), expected("agi-autumn-2026-mondays__grp00004", "&first=answer"));
+    // A link opens that group's page: Group A's people, and only Group A's.
+    const [, toA] = chooserOf((await w.leadQuestionPage("claudia", { group: B, week: "2", first: "answer" })).html).find(([name]) => name === "Group A");
+    const a = await w.leadQuestionPage("claudia", Object.fromEntries(new URL(toA, "https://naisi.uk").searchParams));
+    assert.equal(w.questionViewOf(a).groupName, "Group A");
+    assert.ok(!w.questionViewOf(a).rows.some((row) => ["chloe", "farah", "kofi"].includes(row.uid)), "Group B's people on Group A's page");
+    // Behind the group's door there is none, for the group's facilitator and for an admin alike: a facilitator's page is the one group's own.
+    for (const who of ["rahul", "zach"]) {
+      const page = await w.questionPage(who, { week: "2", first: "answer" });
+      assert.equal(page.to, null, who);
+      assert.equal(w.questionViewOf(page).groups, null, who);
+      assert.doesNotMatch(page.html, /groupsNav|aria-label="Group"/, who);
+    }
+  });
+
+  test("who reaches the group's written answers at all: the address forwards, and the page of one question answers with its own gate", async () => {
+    await sendFour();
+    for (const who of ["chloe", "farah", "amara", "tess", "una", "sam", "rahul", "sofia", "zach", null]) {
+      assert.equal((await w.writtenPage(who, { week: "2" })).to, `/learn/${RUN.agi}/group/${B}/question?week=2&first=answer`, `${who}`);
+    }
     for (const who of ["chloe", "farah", "amara", "tess", "una", "sam"]) {
-      const page = await w.writtenPage(who, { week: "2" });
+      const page = await w.questionPage(who, { week: "2", first: "answer" });
       assert.ok(page.to?.startsWith("/learn"), `${who} reached it: ${page.text.slice(0, 80)}`);
     }
-    assert.equal((await w.writtenPage(null)).to, "/login");
-    for (const who of ["rahul", "sofia", "zach"]) assert.equal((await w.writtenPage(who, { week: "2" })).to, null, who);
+    assert.equal((await w.questionPage(null, { week: "2" })).to, "/login");
+    for (const who of ["rahul", "sofia", "zach"]) assert.equal((await w.questionPage(who, { week: "2", first: "answer" })).to, null, who);
   });
 
   test("the week's Feedback: the writer's own feedback on their own page, signed, never a level and never after its deadline; the old feedback page sends its reader there", async () => {
@@ -1037,7 +1089,7 @@ describe("4. the pages, as the boards draw them", () => {
     ]);
     // Sent before the session: the card says nothing of late.
     assert.doesNotMatch(group.text.slice(group.text.indexOf("Feedback to write"), group.text.indexOf("Feedback to write") + 400), /Late/);
-    assert.match(group.html, /href="\/learn\/[^"]+\/group\/[^"]+\/written\?week=2&amp;person=chloe"/);
+    assert.match(group.html, /href="\/learn\/[^"]+\/group\/[^"]+\/coursework\/chloe\?week=2#reading-answer"/);
     // The card lists the group's fellows and never Rahul's own answer, which is the lead's and admins' to read.
     const toWrite = group.text.slice(group.text.indexOf("Feedback to write"), group.text.indexOf("Feedback to write") + 400);
     assert.match(toWrite, /Chloe Nguyen/, "the slice is the card");
@@ -1057,7 +1109,7 @@ describe("4. the pages, as the boards draw them", () => {
     assert.deepEqual(summary.body.writtenWeeks, [2, 2]);
     const home = await w.home("rahul");
     assert.match(home.text, /2 week 2 answers Write feedback/);
-    assert.match(home.html, /href="\/learn\/[^"]+\/group\/[^"]+\/written\?week=2&amp;person=chloe"/);
+    assert.match(home.html, /href="\/learn\/[^"]+\/group\/[^"]+\/coursework\/chloe\?week=2#reading-answer"/);
     // The lead's Attendance tab: a line per group, the facilitator's own answer counted for the lead.
     const tab = await w.attendanceTab("claudia");
     assert.match(tab.text, /Feedback to write .*Group B 3 week 2 answers Write feedback/);
@@ -1112,8 +1164,8 @@ describe("5. the summer's answers", () => {
     w.world.course = false;
     assert.equal(queue.status, 200);
     assert.deepEqual(queue.body.rows.flatMap((row) => row.responses.map((response) => response.exerciseId)), []);
-    // The summer's review page sends a week written as blocks to the written answers page.
-    assert.match((await w.oldReviewPage("rahul", { week: "2" })).to, /\/written\?week=2$/);
+    // The summer's review page sends a week written as blocks to one question across the group, at the written answer.
+    assert.match((await w.oldReviewPage("rahul", { week: "2" })).to, /\/question\?week=2&first=answer$/);
     assert.equal((await w.oldReviewPage("rahul", { week: "1" })).to, null);
   });
 });
@@ -1242,7 +1294,6 @@ describe("6. finishing's column, the rubric's setting, the email", () => {
     assert.equal(said.listReadSinceWords(at), "Not sent, read since the session, Mon 16 Nov, 10:42pm");
     assert.doesNotMatch(said.listReadSinceWords(at), /Locked|exercise|[\u2013\u2014]/i);
     // Nothing the written answer says is submitted, locked or reopened any more.
-    assert.equal(said.NOBODY_SENT_YET, "Nobody has sent this week’s written answer yet.");
     for (const value of Object.values(said)) {
       if (typeof value === "string") assert.doesNotMatch(value, /submit|\block|reopen/i, value);
     }

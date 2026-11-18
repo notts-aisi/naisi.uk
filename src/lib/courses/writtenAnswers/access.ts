@@ -6,13 +6,14 @@ import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
   placementIsShownTo,
+  type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { programmeLedBy } from "../programmeLead";
 
 /**
  * WHO READS A WRITTEN ANSWER AND GIVES FEEDBACK ON IT, IN ONE PLACE
- * (Zach, Mon 26 Oct, on facilitators taking part). The review page, the
+ * (Zach, Mon 26 Oct, on facilitators taking part). The reading pages, the
  * review route and the review queue card all ask `writtenReviewRole`; none
  * of them decides it again.
  *
@@ -92,6 +93,20 @@ export async function ownerFactsOf(
 ): Promise<OwnerFacts | null> {
   const snap = await db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid)).get();
   const enrolment = snap.exists ? normalizeCourseEnrolment(snap.id, snap.data() ?? {}) : null;
+  return ownerFactsFromSeat(uid, enrolment, liveGroups, viewer);
+}
+
+/**
+ * The same answer from a seat a caller has read already (one equality on the
+ * run, for a page that lists everybody): the one rule, asked of the seat
+ * `ownerFactsOf` would have read.
+ */
+export function ownerFactsFromSeat(
+  uid: string,
+  enrolment: CourseEnrolmentDoc | null,
+  liveGroups: readonly CourseGroupDoc[],
+  viewer: { isAdmin: boolean },
+): OwnerFacts | null {
   const placed =
     enrolment !== null &&
     enrolment.role === "learner" &&
@@ -177,7 +192,7 @@ export function writtenReviewRole(
  * Whose answers in one group `actor` may review: its fellows (for a
  * facilitator, every fellow but the group's facilitators), and, for the
  * lead and admins, the group's facilitators' own answers too. The list a
- * review page and a queue card draw from, by the same gate.
+ * reading page and a queue card draw from, by the same gate.
  */
 export function reviewableIn(
   actor: SessionUser,

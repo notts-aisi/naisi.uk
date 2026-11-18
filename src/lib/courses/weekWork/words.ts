@@ -345,11 +345,6 @@ export function answerChangedSinceWords(firstName: string): string {
 // Staff pages: what was added or changed, and when
 // ---------------------------------------------------------------------------
 
-/** "Sent Mon 16 Nov, 10:42pm": when an answer was last sent, on a staff page. */
-export function staffSentWords(at: Date): string {
-  return `Sent ${dayClockWords(at)}`;
-}
-
 /** "Changed Sat 7 Nov, 6:20pm": when the words shown last changed, on a staff page; "Saved …" for an answer never sent. */
 export function staffChangedWords(at: Date, sent = true): string {
   return `${sent ? "Changed" : "Saved"} ${dayClockWords(at)}`;

@@ -227,7 +227,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     let recipients: UpdateRecipient[] = [];
     let noticeRefused = false;
     if (person) {
-      const audience = await updateEmailAudience(db, run, [group], "group", group.id, actor.uid);
+      // The people of the covered session's week: somebody moved mid-term is told about their own week's session.
+      const audience = await updateEmailAudience(db, run, [group], "group", group.id, actor.uid, { weekNumber: session.weekNumber });
       noticeRefused = audience.refused;
       recipients = audience.recipients.filter((each) => each.uid !== person?.uid);
     }

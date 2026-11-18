@@ -247,7 +247,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       const [reminders, said, told, coversEnd] = await Promise.all([
         reminderFacts(db, { run, group: found, before: first.session, after: weekSessionAfter(run, first, press.weekNumber), switches }),
         saidFacts(db, register),
-        toldFacts(db, run, found, actor.uid),
+        // A change to one session tells that week's people (`updateEmailAudience`'s week).
+        toldFacts(db, run, found, actor.uid, press.weekNumber),
         // Whose cover the press would take off, by the press's own rule (`../registerCover/moves`).
         coversEndLines(db, startMovedRegisters(before, after, metRefs, metSnaps)),
       ]);
@@ -286,6 +287,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       const groups: CourseGroupDoc[] = [found];
       const audience = await updateEmailAudience(db, run, groups, "group", found.id, actor.uid, {
         withFacilitators: true,
+        // The people of the changed session's week: somebody moved mid-term is told about their own week's session.
+        weekNumber: press.weekNumber,
       });
       if (audience.refused) throw new ChangeRefusal(REFUSAL.overCap, 400);
       if (audience.recipients.length === 0) throw new ChangeRefusal(REFUSAL.nobodyToEmail, 400);

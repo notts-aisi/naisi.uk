@@ -28,6 +28,9 @@
  *     lead none; never on a page to read lines out.
  *  6. THE LEAD'S AND ADMINS' VIEW: a facilitator's own ticks and reflections,
  *     under their name, and the Attendance tab's way to each group's week.
+ *     Reflections read with names are the page of one question across the
+ *     group, on either side (`namedOn`), where the older pages with names now
+ *     forward.
  *  7. WHAT THE WEEK PAGE SAYS IS TRUE: the lines a fellow and a facilitator
  *     read under their boxes, their sources and their notes name exactly the
  *     people the pages show that work to, run against the pages. And (7b)
@@ -74,7 +77,7 @@ const inSrc = (path) => relative(SRC, path).split(sep).join("/");
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
 const w = await makeFacilitatorWeekWorld("__facilitatorWeekSuite");
-const { world, at, reset, groupPage, reflectionsPage, namedReflectionsPage, leadWeekPage, leadReflectionsPage, attendanceTab, lib, call, routes } = w;
+const { world, at, reset, groupPage, reflectionsPage, namedReflectionsPage, leadWeekPage, leadReflectionsPage, groupQuestionPage, leadQuestionPage, attendanceTab, lib, call, routes } = w;
 
 const RUN_HOME = `/learn/${RUN.agi}`;
 const PROGRAMME = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
@@ -83,8 +86,48 @@ const PROGRAMME = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
 const weekOf = (drawn) => find(drawn.element, "ThisWeeksWork")[0]?.props.week ?? null;
 /** What the page handed the page to read lines out, or null. */
 const readOutOf = (drawn) => find(drawn.element, "ReadOutView")[0]?.props ?? null;
-/** What the page handed the layout that reads reflections with names, or null. */
-const namedOf = (drawn) => find(drawn.element, "NamedReflections")[0]?.props ?? null;
+/** What the page of one question was handed, or null. */
+const questionOf = (drawn) => find(drawn.element, "QuestionView")[0]?.props.view ?? null;
+/** Week 3's reflection prompts, in its order. */
+const PROMPTS = ["k3-rp1", "k3-rp2", "k3-rp3", "k3-rp4", "k3-rp5", "k3-rp6"];
+/**
+ * A GROUP'S WEEK 3 REFLECTIONS READ WITH NAMES, as the page of one question
+ * across the group draws them, a prompt at a time (where the older pages with
+ * names now forward), on the group's side or the programme's: for each
+ * prompt, the fellows' answers under their names with when they were last
+ * written and how late, the fellows with nothing written, and the
+ * facilitators' own apart (null where none is listed to this reader); with
+ * everything the pages drew and were handed, and where the first sent them.
+ */
+async function namedOn(who, side = "group", groupId = B) {
+  const draw = (question) => (side === "group" ? groupQuestionPage(who, { groupId, week: 3, question }) : leadQuestionPage(who, { groupId, week: 3, question }));
+  const pages = [];
+  for (const id of PROMPTS) pages.push(await draw(id));
+  const views = pages.map(questionOf);
+  if (!views[0]) return { to: pages[0].to, prompts: null, html: pages.map((page) => page.html).join("\n"), text: pages[0].text, wrote: pages.some((page) => page.wrote) };
+  const prompts = views.map((view, index) => {
+    assert.equal(view.question?.id, PROMPTS[index], "the page of one question opened another question");
+    const fellows = view.rows.filter((row) => !row.facilitating);
+    const own = view.rows.filter((row) => row.facilitating);
+    const answers = fellows.filter((row) => row.answer).map((row) => ({ name: row.name, text: row.answer.text, at: row.answer.savedAt, lateMs: row.answer.savedLateMs }));
+    return {
+      id: view.question.id,
+      text: view.question.text,
+      answers,
+      notYet: fellows.filter((row) => !row.answer).map((row) => row.name),
+      wrote: answers.length,
+      of: fellows.length,
+      own: own.length > 0 ? own.map((row) => ({ name: row.name, text: row.answer?.text ?? null, lateMs: row.answer?.savedLateMs ?? null })) : null,
+    };
+  });
+  return {
+    to: null,
+    prompts,
+    html: pages.map((page) => `${page.html}\n${JSON.stringify(questionOf(page))}`).join("\n"),
+    text: pages.map((page) => page.text).join("\n"),
+    wrote: pages.some((page) => page.wrote),
+  };
+}
 /** The review queue's reflections card, or null. */
 const queueOf = (drawn) => find(drawn.element, "ReflectionsQueueCard")[0]?.props ?? null;
 /** A person as the suite reads them: their name, and "(facilitator)" for a facilitator's own. */
@@ -165,18 +208,23 @@ describe("1. who opens a group's week", () => {
     });
   });
 
-  test("the page that reads the group's reflections with names: exactly the page to read lines out's people, and it writes nothing", async () => {
+  test("the group's reflections with names: the older address forwards, and the page of one question admits the group's facilitators, the lead and an admin; nothing writes", async () => {
     const seen = {};
     for (const who of EVERYBODY) {
-      const drawn = await namedReflectionsPage(who);
-      seen[who ?? "signed out"] = drawn.to ?? (namedOf(drawn) && !readOutOf(drawn) ? "drawn" : "nothing");
+      // The older address forwards from the address alone, whoever asks.
+      const forwarded = await namedReflectionsPage(who, { week: 3 });
+      assert.equal(forwarded.to, `${RUN_HOME}/group/${B}/question?week=3&first=reflection`, `${who}`);
+      assert.equal(forwarded.wrote, false);
+      const drawn = await groupQuestionPage(who, { week: 3, first: "reflection" });
+      seen[who ?? "signed out"] = drawn.to ?? (questionOf(drawn) && !readOutOf(drawn) ? "drawn" : "nothing");
       assert.equal(drawn.wrote, false, `${who}'s page wrote something`);
     }
     assert.deepEqual(seen, {
       rahul: "drawn",
       sofia: "drawn",
       zach: "drawn",
-      claudia: RUN_HOME,
+      // The lead reads the group's reflections with names on the programme's side already; the group's side admits her too.
+      claudia: "drawn",
       tess: RUN_HOME,
       lloyd: RUN_HOME,
       yusuf: RUN_HOME,
@@ -190,16 +238,18 @@ describe("1. who opens a group's week", () => {
   });
 
   test("the lead's two pages: the programme's lead and an admin; a reviewer is told whose they are; another lead finds no programme", async () => {
-    for (const page of [leadWeekPage, leadReflectionsPage]) {
+    // The older address of the lead's reflections forwards, from the address alone, to one question across the group.
+    for (const who of EVERYBODY) assert.equal((await leadReflectionsPage(who)).to, `${PROGRAMME}/question?group=${B}&first=reflection`, `${who}`);
+    for (const page of [leadWeekPage, (who) => leadQuestionPage(who, { first: "reflection" })]) {
       const seen = {};
       for (const who of EVERYBODY) {
         const drawn = await page(who);
         // The lead's reflections are read with names: never the page to read lines out's layout.
-        const shown = weekOf(drawn) ? "week" : namedOf(drawn) && !readOutOf(drawn) ? "reflections" : null;
+        const shown = weekOf(drawn) ? "week" : questionOf(drawn) && !readOutOf(drawn) ? "reflections" : null;
         seen[who ?? "signed out"] =
           drawn.to ??
           shown ??
-          (/Only the programme’s lead and admins can open Attendance/.test(drawn.text)
+          (/Only the programme’s lead and admins can open (?:Attendance|Coursework)/.test(drawn.text)
             ? "not yours"
             : /There is no programme here/.test(drawn.text)
               ? "no programme"
@@ -531,7 +581,7 @@ describe("5. the private notes: the group's facilitators and admins, never the l
   test("the lead reads none, on either page", async () => {
     const week = await leadWeekPage("claudia");
     assert.deepEqual(notesOf(weekOf(week)).map(([, notes]) => notes), [null, null]);
-    const reflections = await leadReflectionsPage("claudia");
+    const reflections = await namedOn("claudia", "programme");
     for (const [, text] of ALL_NOTES) {
       assert.ok(!week.html.includes(text) && !reflections.html.includes(text), "the lead is shown a private note");
     }
@@ -544,8 +594,12 @@ describe("5. the private notes: the group's facilitators and admins, never the l
   });
 
   test("a page to read lines out never holds one, for anybody", async () => {
-    for (const drawn of [await reflectionsPage("rahul"), await reflectionsPage("zach"), await leadReflectionsPage("zach")]) {
+    for (const drawn of [await reflectionsPage("rahul"), await reflectionsPage("zach")]) {
       for (const [, text] of ALL_NOTES) assert.ok(!drawn.html.includes(text) && !JSON.stringify(readOutOf(drawn)).includes(text));
+    }
+    // Nor the page of one question that reads them with names, on either side.
+    for (const read of [await namedOn("zach", "programme"), await namedOn("zach", "group"), await namedOn("rahul", "group")]) {
+      for (const [, text] of ALL_NOTES) assert.ok(!read.html.includes(text), "a private note is on the page of one question");
     }
   });
 });
@@ -556,25 +610,26 @@ describe("5. the private notes: the group's facilitators and admins, never the l
 
 describe("6. the lead's and admins' view of a group's week", () => {
   test("the group's answers with their writers' names, and the facilitators' own under their names, never read out", async () => {
-    const asLead = await leadReflectionsPage("claudia");
-    assert.equal(readOutOf(asLead), null, "the lead's page draws the page to read lines out's layout");
-    const props = namedOf(asLead);
+    // The lead's page of one question across the group, a reflection at a time: where the lead's reflections with names now forward.
+    const asLead = await namedOn("claudia", "programme");
+    assert.ok(!asLead.html.includes("Read this out") && !asLead.html.includes("Copy for the session"), "the lead's page draws the page to read lines out's layout");
     // Every prompt, each fellow's answer under their whole name in the group's
     // order of people (Chloe, Farah, Kofi), with when it was last written, and
     // the fellows who have not written one yet.
+    const AT = "2026-11-15T16:12:00.000Z";
     assert.deepEqual(
-      props.prompts.map((prompt) => [prompt.label, prompt.answers.map((answer) => [answer.name, answer.text, answer.at?.toISOString() ?? null]), prompt.notYet, prompt.wrote, prompt.of]),
+      asLead.prompts.map((prompt) => [prompt.id, prompt.answers.map((answer) => [answer.name, answer.text, answer.at?.toISOString() ?? null]), prompt.notYet, prompt.wrote, prompt.of]),
       [
-        ["Part 1: Start with what you think (1 of 2)", [["Chloe Nguyen", SAID.chloe["k3-rp1"], "2026-11-15T16:12:00.000Z"], ["Farah Hussain", SAID.farah["k3-rp1"], "2026-11-15T16:12:00.000Z"]], ["Kofi Asante"], 2, 3],
-        ["Part 1: Start with what you think (2 of 2)", [["Chloe Nguyen", SAID.chloe["k3-rp2"], "2026-11-15T16:12:00.000Z"], ["Farah Hussain", SAID.farah["k3-rp2"], "2026-11-15T16:12:00.000Z"]], ["Kofi Asante"], 2, 3],
-        ["Part 2: Two keepers' views (1 of 2)", [["Chloe Nguyen", SAID.chloe["k3-rp3"], "2026-11-15T16:12:00.000Z"], ["Farah Hussain", SAID.farah["k3-rp3"], "2026-11-15T16:12:00.000Z"]], ["Kofi Asante"], 2, 3],
-        ["Part 2: Two keepers' views (2 of 2)", [["Farah Hussain", SAID.farah["k3-rp4"], "2026-11-15T16:12:00.000Z"]], ["Chloe Nguyen", "Kofi Asante"], 1, 3],
-        ["Part 3: What would change your mind? (1 of 2)", [], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], 0, 3],
-        ["Part 3: What would change your mind? (2 of 2)", [], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], 0, 3],
+        ["k3-rp1", [["Chloe Nguyen", SAID.chloe["k3-rp1"], AT], ["Farah Hussain", SAID.farah["k3-rp1"], AT]], ["Kofi Asante"], 2, 3],
+        ["k3-rp2", [["Chloe Nguyen", SAID.chloe["k3-rp2"], AT], ["Farah Hussain", SAID.farah["k3-rp2"], AT]], ["Kofi Asante"], 2, 3],
+        ["k3-rp3", [["Chloe Nguyen", SAID.chloe["k3-rp3"], AT], ["Farah Hussain", SAID.farah["k3-rp3"], AT]], ["Kofi Asante"], 2, 3],
+        ["k3-rp4", [["Farah Hussain", SAID.farah["k3-rp4"], AT]], ["Chloe Nguyen", "Kofi Asante"], 1, 3],
+        ["k3-rp5", [], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], 0, 3],
+        ["k3-rp6", [], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], 0, 3],
       ],
     );
     assert.deepEqual(
-      props.prompts.map((prompt) => prompt.own.map((person) => [person.name, person.text])),
+      asLead.prompts.map((prompt) => prompt.own.map((person) => [person.name, person.text])),
       [
         [["Rahul Mehta", SAID.rahul["k3-rp1"]], ["Sofia Rossi", SAID.sofia["k3-rp1"]]],
         [["Rahul Mehta", SAID.rahul["k3-rp2"]], ["Sofia Rossi", null]],
@@ -585,52 +640,51 @@ describe("6. the lead's and admins' view of a group's week", () => {
       ],
     );
     assert.match(asLead.text, /Only you and admins read these\. They’re never read out\./);
-    assert.match(asLead.text, new RegExp(`Chloe Nguyen Sun 15 Nov, 4:12pm ${SAID.chloe["k3-rp1"]} Farah Hussain Sun 15 Nov, 4:12pm ${SAID.farah["k3-rp1"]}`));
-    assert.match(asLead.text, /2 of 3 wrote one · Kofi Asante hasn’t/);
+    assert.match(asLead.text, new RegExp(`Chloe Nguyen .*?Saved Sun 15 Nov, 4:12pm ${SAID.chloe["k3-rp1"]} Farah Hussain .*?Saved Sun 15 Nov, 4:12pm ${SAID.farah["k3-rp1"]}`));
+    // Who has not written one yet: a row of theirs that says so.
+    assert.match(asLead.text, /Kofi Asante Open Kofi’s week Nothing written yet/);
     // A facilitator's own lateness is the lead's and admins' alone: Sofia's group (Group A) met on Thursday,
-    // so what she wrote on Sunday is late from it; Rahul's group meets on Tuesday, so his is not.
-    assert.match(
-      asLead.text,
-      new RegExp(`Facilitators’ own reflections Rahul Mehta Facilitator Sun 15 Nov, 4:12pm ${SAID.rahul["k3-rp1"]} Sofia Rossi Facilitator Sun 15 Nov, 4:12pm Late: 2 days after the session ${SAID.sofia["k3-rp1"]}`),
-    );
+    // so what she wrote on Sunday is late from it; Rahul's group meets on Tuesday, so his is not. Each marked as a facilitator's.
+    assert.match(asLead.text, new RegExp(`Rahul Mehta Facilitator Open Rahul’s week Saved Sun 15 Nov, 4:12pm ${SAID.rahul["k3-rp1"]}`));
+    assert.match(asLead.text, new RegExp(`Sofia Rossi Facilitator Open Sofia’s week Saved Sun 15 Nov, 4:12pm Late: 2 days after the session ${SAID.sofia["k3-rp1"]}`));
     assert.doesNotMatch(asLead.html, /Read this out|To read out|Copy for the session/);
     // Nobody who left and nobody of another group, and never a private note.
     for (const uid of ["isaac", "amara"]) for (const text of Object.values(SAID[uid])) assert.ok(!asLead.html.includes(text), `the lead is shown ${uid}'s reflection`);
     for (const [, text] of ALL_NOTES) assert.ok(!asLead.html.includes(text), "the lead is shown a private note");
-    const asAdmin = await leadReflectionsPage("zach");
+    const asAdmin = await namedOn("zach", "programme");
     assert.match(asAdmin.text, /Only Claudia and admins read these\. They’re never read out\./);
   });
 
   test("the group's facilitators read its fellows' reflections with names, never a facilitator's own, and lines are read out from the page without", async () => {
+    const FELLOWS = [
+      [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"]],
+      [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"]],
+      [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"]],
+      [["Farah Hussain"], ["Chloe Nguyen", "Kofi Asante"]],
+      [[], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"]],
+      [[], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"]],
+    ];
     for (const who of ["rahul", "sofia", "zach"]) {
-      const drawn = await namedReflectionsPage(who);
-      const props = namedOf(drawn);
-      assert.deepEqual(
-        props.prompts.map((prompt) => [prompt.answers.map((answer) => answer.name), prompt.notYet]),
-        [
-          [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"]],
-          [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"]],
-          [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"]],
-          [["Farah Hussain"], ["Chloe Nguyen", "Kofi Asante"]],
-          [[], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"]],
-          [[], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"]],
-        ],
-        who,
-      );
-      // Fellows only, an admin included: a facilitator's own is the lead's page's.
-      for (const prompt of props.prompts) assert.equal(prompt.own, null, `${who} is handed a facilitator's own reflections`);
-      for (const uid of ["rahul", "sofia", "isaac", "amara"]) {
-        for (const text of Object.values(SAID[uid])) assert.ok(!drawn.html.includes(text) && !JSON.stringify(drawn.element).includes(text), `${who} is shown ${uid}'s reflection`);
+      const read = await namedOn(who, "group");
+      assert.deepEqual(read.prompts.map((prompt) => [prompt.answers.map((answer) => answer.name), prompt.notYet]), FELLOWS, who);
+      for (const uid of ["isaac", "amara"]) {
+        for (const text of Object.values(SAID[uid])) assert.ok(!read.html.includes(text), `${who} is shown ${uid}'s reflection`);
       }
-      for (const [, text] of ALL_NOTES) assert.ok(!drawn.html.includes(text), `${who} is shown a private note`);
-      // Nor how late a facilitator's own was: nothing on a facilitator's page says a co-facilitator's work was late.
-      assert.doesNotMatch(drawn.text, /Late:/, `${who} is told how late somebody's reflection was, though the group's fellows wrote before the session`);
-      assert.match(drawn.text, /Group B’s facilitators, Claudia and admins read reflections with names\. Fellows can’t see each other’s\./);
-      assert.match(drawn.html, new RegExp(`href="${RUN_HOME}/group/${B}/reflections\\?week=3"[^>]*>Pick lines to read out<`));
+      for (const [, text] of ALL_NOTES) assert.ok(!read.html.includes(text), `${who} is shown a private note`);
+      assert.match(read.text, /Group B’s facilitators, Claudia and admins read reflections with names\. Fellows can’t see each other’s\./);
+      assert.match(read.html, new RegExp(`href="${RUN_HOME}/group/${B}/reflections\\?week=3"[^>]*>Pick lines to read out<`));
     }
+    // A facilitator is never handed a facilitator's own, nor how late one was. An admin reads them, marked, as on the programme's side.
+    for (const who of ["rahul", "sofia"]) {
+      const read = await namedOn(who, "group");
+      for (const prompt of read.prompts) assert.equal(prompt.own, null, `${who} is handed a facilitator's own reflections`);
+      for (const uid of ["rahul", "sofia"]) for (const text of Object.values(SAID[uid])) assert.ok(!read.html.includes(text), `${who} is shown ${uid}'s reflection`);
+      assert.doesNotMatch(read.text, /Late:/, `${who} is told how late somebody's reflection was, though the group's fellows wrote before the session`);
+    }
+    assert.deepEqual((await namedOn("zach", "group")).prompts[0].own.map((person) => [person.name, person.text]), [["Rahul Mehta", SAID.rahul["k3-rp1"]], ["Sofia Rossi", SAID.sofia["k3-rp1"]]]);
     // The way there, from the page to read lines out and from the group page.
-    assert.match((await reflectionsPage("rahul")).html, new RegExp(`href="${RUN_HOME}/group/${B}/reflections/names\\?week=3"[^>]*>Read them with names<`));
-    assert.equal(find((await groupPage("rahul")).element, "ReflectionsQueueCard")[0]?.props.namesHref, `${RUN_HOME}/group/${B}/reflections/names?week=3`);
+    assert.match((await reflectionsPage("rahul")).html, new RegExp(`href="${RUN_HOME}/group/${B}/question\\?week=3&amp;first=reflection"[^>]*>Read them with names<`));
+    assert.equal(find((await groupPage("rahul")).element, "ReflectionsQueueCard")[0]?.props.namesHref, `${RUN_HOME}/group/${B}/question?week=3&first=reflection`);
   });
 
   test("a co-facilitator never reads a facilitator's own work, on any page they can open", async () => {
@@ -671,10 +725,11 @@ describe("6. the lead's and admins' view of a group's week", () => {
 describe("7. the lines on a fellow's and a facilitator's week page name exactly who the pages show their work to", () => {
   const VIEWERS = ["rahul", "sofia", "zach", "claudia", "tess", "lloyd", "yusuf", "tom", "chloe", "amara", "isaac", "nobody", null];
 
-  /** Every page a viewer can open of the group's week, as one string of what they were handed. */
+  /** Every page a viewer can open of the group's week, as one string of what they were handed: its reflections read with names on both sides among them. */
   async function everythingSeenBy(who) {
-    const pages = [await groupPage(who), await reflectionsPage(who), await leadWeekPage(who), await leadReflectionsPage(who)];
-    return pages.map((drawn) => `${drawn.html}\n${JSON.stringify(readOutOf(drawn) ?? null)}`).join("\n");
+    const pages = [await groupPage(who), await reflectionsPage(who), await leadWeekPage(who)];
+    const named = [await namedOn(who, "group"), await namedOn(who, "programme")];
+    return [...pages.map((drawn) => `${drawn.html}\n${JSON.stringify(readOutOf(drawn) ?? null)}`), ...named.map((read) => read.html)].join("\n");
   }
 
   /** Who, of everybody, is shown a tick of `uid`'s by name, a reflection of theirs, and a note of theirs. */
@@ -788,21 +843,20 @@ describe("7b. somebody who facilitates another group of the run and holds a plac
       [[], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], 3],
       [[], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], 3],
     ];
-    const fellowsOf = (props) => props.prompts.map((prompt) => [prompt.answers.map((answer) => answer.name), prompt.notYet, prompt.of]);
-    // The group's page with names: its facilitators and an admin, fellows only.
-    for (const who of ["rahul", "sofia", "zach"]) {
-      const drawn = await namedReflectionsPage(who);
-      assert.deepEqual(fellowsOf(namedOf(drawn)), FELLOWS, who);
-      for (const prompt of namedOf(drawn).prompts) assert.equal(prompt.own, null, who);
-      assert.equal(holdsTom(drawn), false, `${who} is shown Tom's work on the group's page with names`);
+    const fellowsOf = (read) => read.prompts.map((prompt) => [prompt.answers.map((answer) => answer.name), prompt.notYet, prompt.of]);
+    // The group's page of one question: its facilitators, fellows only, and never his.
+    for (const who of ["rahul", "sofia"]) {
+      const read = await namedOn(who, "group");
+      assert.deepEqual(fellowsOf(read), FELLOWS, who);
+      for (const prompt of read.prompts) assert.equal(prompt.own, null, who);
+      assert.ok(!TOM_TEXTS.some((text) => read.html.includes(text)), `${who} is shown Tom's work on the group's page with names`);
     }
-    // The lead's page with names: the lead and an admin, his reflections apart, beside the group's own facilitators'.
-    for (const who of ["claudia", "zach"]) {
-      const drawn = await leadReflectionsPage(who);
-      const props = namedOf(drawn);
-      assert.deepEqual(fellowsOf(props), FELLOWS, who);
+    // The lead and an admin, on either side: his reflections apart, under his name, beside the group's own facilitators'.
+    for (const [who, side] of [["claudia", "programme"], ["zach", "programme"], ["zach", "group"]]) {
+      const read = await namedOn(who, side);
+      assert.deepEqual(fellowsOf(read), FELLOWS, who);
       assert.deepEqual(
-        props.prompts.map((prompt) => prompt.own.map((person) => [person.name, person.text])),
+        read.prompts.map((prompt) => prompt.own.map((person) => [person.name, person.text])),
         [
           [["Rahul Mehta", SAID.rahul["k3-rp1"]], ["Sofia Rossi", SAID.sofia["k3-rp1"]], ["Tom Fletcher", TOM_SAID["k3-rp1"]]],
           [["Rahul Mehta", SAID.rahul["k3-rp2"]], ["Sofia Rossi", null], ["Tom Fletcher", TOM_SAID["k3-rp2"]]],
@@ -811,9 +865,9 @@ describe("7b. somebody who facilitates another group of the run and holds a plac
           [["Rahul Mehta", null], ["Sofia Rossi", null], ["Tom Fletcher", null]],
           [["Rahul Mehta", null], ["Sofia Rossi", null], ["Tom Fletcher", null]],
         ],
-        who,
+        `${who} on the ${side}'s side`,
       );
-      assert.ok(!drawn.html.includes(TOM_NOTE), `${who} is shown Tom's private note on the page with names`);
+      assert.ok(!read.html.includes(TOM_NOTE), `${who} is shown Tom's private note on the page with names`);
     }
   });
 
@@ -845,8 +899,9 @@ describe("7b. somebody who facilitates another group of the run and holds a plac
     const VIEWERS = ["rahul", "sofia", "zach", "claudia", "tess", "lloyd", "yusuf", "tom", "chloe", "amara", "isaac", "nobody", null];
     const out = { ticks: [], reflections: [], notes: [] };
     for (const who of VIEWERS) {
-      const pages = [await groupPage(who), await reflectionsPage(who), await namedReflectionsPage(who), await leadWeekPage(who), await leadReflectionsPage(who)];
-      const seen = pages.map((drawn) => `${drawn.html}\n${JSON.stringify(drawn.element ?? null)}`).join("\n");
+      const pages = [await groupPage(who), await reflectionsPage(who), await leadWeekPage(who)];
+      const named = [await namedOn(who, "group"), await namedOn(who, "programme")];
+      const seen = [...pages.map((drawn) => `${drawn.html}\n${JSON.stringify(drawn.element ?? null)}`), ...named.map((read) => read.html)].join("\n");
       const weeks = pages.map(weekOf).filter(Boolean);
       if (weeks.some((week) => week.sources.some((source) => source.ticked.some((person) => person.uid === "tom")))) out.ticks.push(who ?? "signed out");
       if (Object.values(TOM_SAID).some((text) => seen.includes(text))) out.reflections.push(who ?? "signed out");
@@ -868,7 +923,7 @@ describe("7b. somebody who facilitates another group of the run and holds a plac
       assert.ok(week.sources[1].ticked.some((person) => person.uid === "tom" && !person.own), `${who} is not shown Tom's tick`);
       assert.ok(notesOf(week)[1][1].some(([, text]) => text === TOM_NOTE), `${who} is not shown Tom's note, a fellow's`);
     }
-    const named = namedOf(await namedReflectionsPage("rahul"));
+    const named = await namedOn("rahul", "group");
     assert.ok(named.prompts[0].answers.some((answer) => answer.text === TOM_SAID["k3-rp1"]), "Tom's reflection is not among the fellows'");
   });
 
@@ -1036,48 +1091,46 @@ describe("9. the tree", () => {
       "app/(app)/learn/[runId]/group/[groupId]/page.tsx",
     ]);
     // The page to read lines out is the one caller of its loader, and the
-    // pages that read reflections with names are the callers of theirs:
-    // neither ever calls the other's.
+    // pages that read reflections with names (the page of one question across
+    // the group, and the reading view of one person's week) have loaders of
+    // their own: neither ever calls the other's.
     assert.deepEqual(callersOf("loadReadOutWeek"), ["app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx"]);
-    // The layout that draws names is never drawn by the page to read lines
+    // The layouts that draw names are never drawn by the page to read lines
     // out, nor the read-out layout by a page with names.
     const readOutPage = codeOf(join(SRC, "app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx"));
-    assert.doesNotMatch(readOutPage, /NamedReflections|loadNamedReflections/);
+    assert.doesNotMatch(readOutPage, /QuestionView|ReadingView|loadGroupQuestion|loadGroupPersonWeek|readPersonWeek/);
     for (const page of [
-      "app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx",
-      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx",
+      "app/(app)/learn/[runId]/group/[groupId]/question/page.tsx",
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question/page.tsx",
+      "lib/courses/coursework/questionLoad.ts",
     ]) {
       assert.doesNotMatch(codeOf(join(SRC, page)), /ReadOutView|loadReadOutWeek/, `${page} draws the page to read lines out's layout`);
     }
-    assert.doesNotMatch(codeOf(join(SRC, "features/courses/facilitatorWeek/ReadOutView.tsx")), /NamedReflections|\.name\b|\bat:/);
-    // The read-out loader reads words alone; the timed reader is the named loader's.
+    assert.doesNotMatch(codeOf(join(SRC, "features/courses/facilitatorWeek/ReadOutView.tsx")), /QuestionView|\.name\b|\bat:/);
+    // The read-out loader reads words alone.
     const readersCode = codeOf(join(SRC, "lib/courses/facilitatorWeek/readers.ts"));
     const readOutLoader = readersCode.slice(readersCode.indexOf("export async function loadReadOutWeek("));
-    assert.doesNotMatch(readOutLoader, /readNamedReflections|loadNamedReflections|updatedAt/);
-    assert.deepEqual(callersOf("loadNamedReflections"), [
-      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx",
-      "app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx",
-    ]);
+    assert.doesNotMatch(readOutLoader, /readRunCoursework|updatedAt/);
+    // The older pages with names forward from the address alone: they read nothing and draw nothing.
     for (const page of [
-      "app/(app)/learn/[runId]/group/[groupId]/page.tsx",
-      "app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx",
       "app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx",
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx",
     ]) {
       const code = codeOf(join(SRC, page));
+      assert.match(code, /redirect\((?:groupNamedReflectionsForward|programmeReflectionsForward)\(/, `${page} no longer forwards`);
+      assert.doesNotMatch(code, /getAdminDb|getRunAccess|openLeadDoor|\.collection\(|ReadOutView/, `${page} reads something before it forwards`);
+    }
+    for (const page of ["app/(app)/learn/[runId]/group/[groupId]/page.tsx", "app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx"]) {
+      const code = codeOf(join(SRC, page));
       const gate = code.indexOf("if (group.runId !== runId || !(access.isAdmin || facilitatesThisGroup))");
-      const load = Math.max(code.indexOf("loadGroupWeek("), code.indexOf("loadReadOutWeek("), code.indexOf("loadNamedReflections("));
+      const load = Math.max(code.indexOf("loadGroupWeek("), code.indexOf("loadReadOutWeek("));
       assert.ok(gate !== -1 && load > gate, `${page} loads the week before its gate`);
       assert.match(code, /viewer: access\.isAdmin \? "admin" : "facilitator"/, `${page} decides the viewer some other way`);
     }
-    // The facilitators' page with names hands the loader no facilitator's own, an admin's view of it included.
-    assert.match(codeOf(join(SRC, "app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx")), /withOwn: false,/);
-    for (const page of ["week", "reflections"]) {
-      const code = codeOf(join(SRC, `app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/${page}/page.tsx`));
-      assert.match(code, /requireAdmissionsPage\(\)/);
-      const door = code.indexOf("openLeadDoor(");
-      const load = Math.max(code.indexOf("loadGroupWeek("), code.indexOf("loadNamedReflections("));
-      assert.ok(door !== -1 && load > door, `the lead's ${page} page loads before its door`);
-    }
+    const leadWeek = codeOf(join(SRC, "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx"));
+    assert.match(leadWeek, /requireAdmissionsPage\(\)/);
+    const door = leadWeek.indexOf("openLeadDoor(");
+    assert.ok(door !== -1 && leadWeek.indexOf("loadGroupWeek(") > door, "the lead's week page loads before its door");
     // The lead's door: an admin or the programme's lead, decided from the form.
     const doorCode = codeOf(join(SRC, "lib/courses/facilitatorWeek/leadDoor.ts"));
     assert.match(doorCode, /const outcome = await loadProgrammeRun\(db, user, roundId, programmeId\);/);
@@ -1129,7 +1182,6 @@ describe("10. the words", () => {
       "Group B’s facilitators, Claudia and admins read reflections with names. Fellows can’t see each other’s. To read a line out in the session, pick it on the page without names.",
     );
     assert.equal(words.namedReadersLine("Group B", null), "Group B’s facilitators and admins read reflections with names. Fellows can’t see each other’s. To read a line out in the session, pick it on the page without names.");
-    assert.equal(words.lastWrittenWords(new Date("2026-11-15T16:12:00Z")), "Sun 15 Nov, 4:12pm");
   });
 
   test("no dash of either kind, no gendered pronoun and no word the house does not use, in any file of this piece", () => {
@@ -1141,7 +1193,6 @@ describe("10. the words", () => {
       "features/courses/facilitatorWeek/ThisWeeksWork.tsx",
       "features/courses/facilitatorWeek/ReadOutView.tsx",
       "features/courses/facilitatorWeek/Disclosure.tsx",
-      "features/courses/facilitatorWeek/NamedReflections.tsx",
       "app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx",
       "app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx",
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx",

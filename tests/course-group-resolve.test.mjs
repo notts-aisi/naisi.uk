@@ -843,10 +843,16 @@ test("GUARD: every card is dated by ITS OWN group's week, not the caller's", () 
   // The whole bug in one line: the slot fields resolve through the card's own
   // calendar. A single shared `weekId` computed once from the caller's current
   // week is what put the wrong week's room on a second group's card.
+  // The card's own calendar, read once at the head of each card; the week of its
+  // slot is that calendar's current week, or on the caller's own card when their
+  // place records a move mid-term, the week of the next session they are due at
+  // in the group: never a week computed from the caller's calendar.
+  assert.match(OVERVIEW, /const toCard = \(source: CourseGroupDoc\): OverviewGroup => \{\s*const groupCalendar = calendarFor\(source\);/);
   assert.match(
     OVERVIEW,
-    /const groupCalendar = calendarFor\(source\);\s*const session = sessionForWeek\(source, currentWeekId\(groupCalendar\.currentWeek\)\);/,
+    /const slotWeekId = movedHere && range\.next \? range\.next\.weekId : currentWeekId\(groupCalendar\.currentWeek\);\s*const session = sessionForWeek\(source, slotWeekId\);/,
   );
+  assert.equal((OVERVIEW.match(/\bsessionForWeek\(source,/g) ?? []).length, 1, "one slot per card");
   assert.doesNotMatch(OVERVIEW, /const weekId = currentWeekId\(currentWeek\)/);
   // Its range comes from the sessions resolved off the SAME calendar object,
   // never a second resolution of the same thing.
@@ -862,8 +868,17 @@ test("GUARD: own attendance is a learner's own row, gated and never queried", ()
   // would otherwise have their attendance read out of the registers of a room
   // they teach: real marks, belonging to somebody, under the wrong dates.
   assert.match(OVERVIEW, /ownGroup\?\.id === liveEnrolment\.groupId/);
-  // Addressed by the construct-only id, never a query over the collection.
-  assert.match(OVERVIEW, /attendanceDocId\(\s*runId,\s*ownLearnerGroup\.id,/);
+  // Addressed by the construct-only id, never a query over the collection,
+  // and only ever a register of the caller's own weeks: each session's group
+  // is their own group's, or, for a place that records a move, the group
+  // their own place says they were in that week (`sessionsWithGroup` over
+  // their own enrolment, and nothing else).
+  assert.match(OVERVIEW, /\.\.\.ownSessionsWithGroup\.map\(\(\{ groupId, session: s \}\) =>\s*db\s*\.collection\("courseAttendance"\)\s*\.doc\(\s*attendanceDocId\(\s*runId,\s*groupId,/);
+  assert.match(OVERVIEW, /\.map\(\(session\) => \(\{ groupId: ownLearnerGroup\.id, session \}\)\)/);
+  assert.match(OVERVIEW, /hasGroupsByWeek\(liveEnrolment\)\s*\?\s*ownSessionsAcrossGroups\(liveEnrolment,/);
+  assert.match(OVERVIEW, /const paired = sessionsWithGroup\(place, sessionsOf\);/);
+  assert.equal((OVERVIEW.match(/ownSessionsAcrossGroups\(/g) ?? []).length, 2, "defined once, called once, on the caller's own place");
+  assert.equal((OVERVIEW.match(/attendanceDocId\(/g) ?? []).length, 2, "the read and the key map, nothing else");
   assert.doesNotMatch(OVERVIEW, /collection\("courseAttendance"\)\s*\.where/);
   // Projected through the shared helper rather than spread out of a register.
   assert.match(OVERVIEW, /ownAttendanceSessions\(actor\.uid, ownSessions, ownRegisters\)/);
@@ -880,7 +895,13 @@ test("GUARD: own attendance is a learner's own row, gated and never queried", ()
   // neither fetches nor is shown the weeks before their placement.
   assert.match(
     OVERVIEW,
-    /sessionsFromJoinWeek\(\s*resolveSessions\(run, ownLearnerGroup, own\.calendar\),\s*liveEnrolment\?\.joinedWeekNumber \?\? 1,\s*\)\.slice\(0, MAX_OWN_ATTENDANCE_SESSIONS\)/,
+    /sessionsFromJoinWeek\(\s*resolveSessions\(run, ownLearnerGroup, own\.calendar\),\s*liveEnrolment\?\.joinedWeekNumber \?\? 1,\s*\)\s*\.slice\(0, MAX_OWN_ATTENDANCE_SESSIONS\)/,
+  );
+  // A place that records a move is bounded the same way, from the week they
+  // joined and then capped, across its groups.
+  assert.match(
+    OVERVIEW,
+    /sessionsFromJoinWeek\(\s*paired\.map\(\(each\) => each\.session\),\s*place\.joinedWeekNumber,\s*\)\.slice\(0, MAX_OWN_ATTENDANCE_SESSIONS\)/,
   );
 });
 

@@ -115,7 +115,8 @@ describe("1. the preview says what calling it off after the fact does", () => {
       chaseStops: true,
       checkIn: false,
       reports: 0,
-      lines: { cleared: 0, said: {}, names: {} },
+      // `back`: the lines that go back to excused (none here), named as cleared ones are.
+      lines: { cleared: 0, said: {}, names: {}, back: {} },
     });
   });
 
@@ -128,6 +129,7 @@ describe("1. the preview says what calling it off after the fact does", () => {
       cleared: 2,
       said: { amara: "Present online", chloe: "Absent" },
       names: { amara: "Amara", chloe: "Chloe" },
+      back: {},
     });
     assert.equal(JSON.stringify(world.db.paths().sort().map((path) => [path, read(path)])), before, "a preview changed something");
   });

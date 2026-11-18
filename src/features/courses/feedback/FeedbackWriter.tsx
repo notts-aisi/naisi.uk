@@ -30,12 +30,12 @@ import styles from "./feedback.module.css";
 
 /**
  * "YOUR FEEDBACK": one reader's piece of feedback on one person's week, on
- * its written answer (the review page) or on the week as a whole (the
- * Coursework tab's person page). Saving puts it on the person's week page
- * straight away and emails nobody; the page says so, and that the email
- * waits for an admin's batch. While its email has not gone the writer can
- * change its words or delete it; once it has, the card beside this one shows
- * it and this one starts a new piece.
+ * its written answer (the reading view of their week, the page of one
+ * question) or on the week as a whole (the reading view). Saving puts it on
+ * the person's week page straight away and emails nobody; the page says so,
+ * and that the email waits for an admin's batch. While its email has not
+ * gone the writer can change its words or delete it; once it has, the card
+ * beside this one shows it and this one starts a new piece.
  *
  * Every write goes through `/api/courses/runs/[runId]/feedback`, which asks
  * the one gate again. Nothing here takes a press or a word until React has

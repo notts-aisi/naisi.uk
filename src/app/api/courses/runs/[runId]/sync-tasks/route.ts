@@ -12,6 +12,7 @@ import {
   resolveCalendar,
   resolveWeekDoc,
 } from "@/lib/courses/groupResolve";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
@@ -382,7 +383,11 @@ export async function POST(
     // they will tick. Ids are preserved at fork time, so a card mirrored from
     // the canonical last week and from the fork this week keeps stable subtask
     // ids either way.
-    const { week } = await resolveWeekDoc(db, runId, groupId, weekDocId(weekNumber));
+    //
+    // For somebody whose place records a move mid-term, the copy of THAT week
+    // is the group their place belonged to in it (`copyGroupIdFor`, the one
+    // helper their week page and every save ask); with no record, their group.
+    const { week } = await resolveWeekDoc(db, runId, copyGroupIdFor(enrolment, weekNumber, groupId), weekDocId(weekNumber));
     // An unpublished or unauthored week mirrors NOTHING — a titleless card with
     // no checklist is worse than no card, and the high-water mark is left
     // unstamped so the mirror appears on the first mount after publication.

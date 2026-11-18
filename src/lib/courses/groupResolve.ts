@@ -5,8 +5,10 @@ import {
   type CurrentWeek,
   type WeekPlanEntry,
 } from "./weekPlan";
+import type { CourseEnrolmentDoc } from "../firestore/courseEnrolments";
 import { normalizeCourseWeek, type CourseWeekDoc } from "../firestore/courses";
 import { normalizeGroupWeek, type GroupWeekDoc } from "../firestore/courseGroups";
+import { copyGroupIdFor } from "./weekCopy";
 
 /**
  * GROUP-FIRST RESOLUTION — the one shared helper for per-group autonomy
@@ -546,4 +548,60 @@ export async function resolveWeekDocs(
   return Array.from(byId.keys())
     .sort()
     .map((id) => byId.get(id) as ResolvedWeekEntry);
+}
+
+/**
+ * A week as one person reads it, with the group whose OWN copy it is
+ * (`copyGroupId`): null when it is the run's own week.
+ */
+export type OwnWeekEntry = ResolvedWeekEntry & { copyGroupId: string | null };
+
+/**
+ * EVERY WEEK AS ONE PERSON WORKS IN IT, AND IS READ ON: each week from the copy
+ * of the group their place belonged to in that week (`copyGroupIdFor` in
+ * `./weekCopy.ts`), so somebody moved from Group C to Group F from week 3
+ * reads Group C's copy of weeks 1 and 2 and Group F's from week 3. One
+ * `resolveWeekDocs` per group their weeks were in. With no record of groups
+ * by week this is `resolveWeekDocs` for the group they are in now, exactly as
+ * before. `fallback` is the group read when the place has none of its own
+ * (the one group a facilitator runs), as callers read it before.
+ *
+ * A week spent in a group that no longer meets is still that group's copy
+ * (`copyGroupIdFor` says why).
+ *
+ * Each entry says whose own copy it is (`copyGroupId`), so a page that reads
+ * the week again in the browser reads exactly the document the server
+ * resolved, and never works it out from the place.
+ */
+export async function resolveOwnWeekDocs(
+  db: Firestore,
+  runId: string,
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek"> | null,
+  fallback: string | null,
+): Promise<OwnWeekEntry[]> {
+  const tagged = (entry: ResolvedWeekEntry, groupId: string | null): OwnWeekEntry => ({
+    ...entry,
+    copyGroupId: entry.source === "group" ? groupId : null,
+  });
+  if (!place || (place.groupsByWeek?.length ?? 0) < 2) {
+    return (await resolveWeekDocs(db, runId, fallback)).map((entry) => tagged(entry, fallback));
+  }
+  const weekOf = (id: string): number => {
+    const match = /^w(\d{2})$/.exec(id);
+    return match ? Number(match[1]) : 0;
+  };
+  const copyOf = (id: string) => copyGroupIdFor(place, weekOf(id), fallback);
+  const wanted = [...new Set([fallback, ...place.groupsByWeek!.map((entry) => entry.groupId)])].filter(
+    (id): id is string => typeof id === "string" && id !== "" && !id.includes("/"),
+  );
+  const lists = await Promise.all(wanted.map((id) => resolveWeekDocs(db, runId, id)));
+  const byGroup = new Map(wanted.map((id, index) => [id, lists[index]] as const));
+  const base = byGroup.get(fallback ?? "") ?? (await resolveWeekDocs(db, runId, fallback));
+  return base.map((entry) => {
+    const id = entry.week.id;
+    const copy = copyOf(id);
+    if (!copy || copy === fallback) return tagged(entry, fallback);
+    const theirs = byGroup.get(copy)?.find((each) => each.week.id === id);
+    return theirs ? tagged(theirs, copy) : tagged(entry, fallback);
+  });
 }

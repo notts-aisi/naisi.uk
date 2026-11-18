@@ -3,6 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
 import {
   normalizeCourseEnrolment,
+  ownGroupForWeek,
   placementIsTold,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
@@ -14,6 +15,8 @@ import {
   normalizeCourseWeekWork,
   type CourseWeekWorkDoc,
 } from "@/lib/firestore/courseWeekWork";
+import { hasGroupsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { readPackCaseRecords, recordBlocksOf } from "@/lib/courses/packsAndCases/readers";
 import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
@@ -50,6 +53,14 @@ import {
  * admin's view of a placement never counts: the session is the person's
  * own), told at `allocatedEmailAt`, or when they took the seat themselves;
  * otherwise each live group they facilitate; otherwise none.
+ *
+ * EACH WEEK FROM THE GROUP THEY WERE IN THAT WEEK (`groupForWeek`): somebody
+ * moved from a week is due at their old group's sessions before it and their
+ * new group's from it (`sessionsByWeekGroup`), so Late and the reminders
+ * before a session are told against the session they were really due at. A
+ * week spent in a group that no longer meets has no session to be due at.
+ * With no record of groups by week, the group they are in now for every
+ * week, exactly as before.
  */
 export function sessionSourceFor(
   run: CourseRunDoc,
@@ -69,7 +80,13 @@ export function sessionSourceFor(
       : null;
   if (placed && enrolment) {
     const toldAt = enrolment.selfEnrolled ? (enrolment.createdAt ?? null) : (enrolment.allocatedEmailAt ?? null);
-    return { sessionLists: [sessionsOf(placed)], toldAt };
+    const sessions = hasGroupsByWeek(enrolment)
+      ? sessionsByWeekGroup(enrolment, (groupId) => {
+          const group = liveGroups.find((each) => each.id === groupId);
+          return group ? sessionsOf(group) : null;
+        })
+      : sessionsOf(placed);
+    return { sessionLists: [sessions], toldAt };
   }
   const facilitated = liveGroups.filter((group) => group.facilitatorUids.includes(uid));
   if (facilitated.length > 0) return { sessionLists: facilitated.map((group) => sessionsOf(group)), toldAt: null };
@@ -82,11 +99,23 @@ export async function readWeekWork(db: Firestore, runId: string, uid: string, we
   return snap.exists ? normalizeCourseWeekWork(snap.id, snap.data() ?? {}) : null;
 }
 
+/** Everybody's stored weeks on a run, by uid and then week id. */
+export type RunWeekWork = Map<string, Map<string, CourseWeekWorkDoc>>;
+
 /** Everybody's stored weeks on a run, by uid and then week id. One equality on the run. */
-export async function readRunWeekWork(db: Firestore, runId: string): Promise<Map<string, Map<string, CourseWeekWorkDoc>>> {
+export async function readRunWeekWork(db: Firestore, runId: string): Promise<RunWeekWork> {
   const snap = await db.collection(COURSE_WEEK_WORK_COLLECTION).where("runId", "==", runId).get();
-  const out = new Map<string, Map<string, CourseWeekWorkDoc>>();
-  for (const doc of snap.docs) {
+  return runWeekWorkOf(snap.docs, runId);
+}
+
+/**
+ * The stored weeks of a run from documents a caller has read already (one
+ * equality on the run), each as every reader of a person's own record reads it
+ * (`normalizeCourseWeekWork`); a document that is not the run's is left out.
+ */
+export function runWeekWorkOf(docs: ReadonlyArray<{ id: string; data: () => Record<string, unknown> | undefined }>, runId: string): RunWeekWork {
+  const out: RunWeekWork = new Map();
+  for (const doc of docs) {
     const record = normalizeCourseWeekWork(doc.id, doc.data() ?? {});
     if (record.runId !== runId || !record.uid || !record.weekId) continue;
     const own = out.get(record.uid) ?? new Map<string, CourseWeekWorkDoc>();
@@ -313,6 +342,21 @@ export type RunWeekStates = {
    * counts from.
    */
   sessionOf: (uid: string, weekNumber: number) => Date | null;
+  /**
+   * Whether the person's week is one of `groupId`'s: their place records a
+   * move mid-term and belonged to that group in that week
+   * (`ownGroupForWeek`), or it records no move at all (true, as before any
+   * move was recorded), or they hold no place on the run.
+   */
+  belongsTo: (uid: string, groupId: string, weekNumber: number) => boolean;
+  /**
+   * The group whose copy of the week the person works in and is read on, as
+   * their own week page reads it: for a place that records a move mid-term,
+   * the group it belonged to that week, whether or not that group still meets
+   * (`copyGroupIdFor`, with their group now's copy for a week in it); for
+   * everybody else, `fallback`, the group the caller has always read.
+   */
+  copyGroupOf: (uid: string, weekNumber: number, fallback: string) => string;
 };
 
 function weekIdOf(weekNumber: number): string {
@@ -321,16 +365,23 @@ function weekIdOf(weekNumber: number): string {
 
 /**
  * EVERYBODY'S WEEKS ON A RUN, for a page that lists people: the run's stored
- * weeks (one equality on the run), and its seats unless the caller has read
- * them already. Each person's sessions are resolved once per group.
+ * weeks (one equality on the run) and its seats, each unless the caller has
+ * read them already. Each person's sessions are resolved once per group.
  */
 export async function loadRunWeekStates(
   db: Firestore,
-  input: { run: CourseRunDoc; liveGroups: readonly CourseGroupDoc[]; enrolments?: readonly CourseEnrolmentDoc[] | null; now: Date },
+  input: {
+    run: CourseRunDoc;
+    liveGroups: readonly CourseGroupDoc[];
+    enrolments?: readonly CourseEnrolmentDoc[] | null;
+    /** The run's stored weeks, when the caller has read them already (`runWeekWorkOf`): not read again. */
+    records?: RunWeekWork | null;
+    now: Date;
+  },
 ): Promise<RunWeekStates> {
   const { run, liveGroups, now } = input;
   const [records, enrolments] = await Promise.all([
-    readRunWeekWork(db, run.id),
+    input.records ? Promise.resolve(input.records) : readRunWeekWork(db, run.id),
     input.enrolments
       ? Promise.resolve(input.enrolments)
       : db
@@ -370,5 +421,14 @@ export async function loadRunWeekStates(
     recordOf,
     submittedOf: (uid, weekNumber) => submittedOnce(recordOf(uid, weekNumber)),
     sessionOf: (uid, weekNumber) => groupSessionAt(sourceOf(uid), weekNumber),
+    belongsTo: (uid, groupId, weekNumber) => {
+      const seat = seatOf.get(uid);
+      return !seat || !hasGroupsByWeek(seat) || ownGroupForWeek(seat, weekNumber) === groupId;
+    },
+    copyGroupOf: (uid, weekNumber, fallback) => {
+      const seat = seatOf.get(uid);
+      if (!seat || !hasGroupsByWeek(seat)) return fallback;
+      return copyGroupIdFor(seat, weekNumber, seat.groupId) ?? fallback;
+    },
   };
 }

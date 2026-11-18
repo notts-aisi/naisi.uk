@@ -199,7 +199,7 @@ export async function loadReportSession(
     // The register's rows as this writer sees them: the people Publish has
     // told, or everybody placed for a facilitator who is also an admin, each
     // named as the register names them for this writer.
-    loadRegisterMembers(db, run.id, group.id, { isAdmin: gated.isAdmin, role: gated.role }),
+    loadRegisterMembers(db, run.id, group.id, { isAdmin: gated.isAdmin, role: gated.role }, session.weekNumber),
     resolveWeekDoc(db, run.id, group.id, session.weekId),
   ]);
   const register = registerSnap.exists ? (registerSnap.data() ?? {}) : {};

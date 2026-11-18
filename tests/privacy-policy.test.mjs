@@ -4245,7 +4245,10 @@ describe("the course hub passage", () => {
     const registerAccess = withoutComments(read("src/lib/courses/registerAccess.ts"));
     const members = registerAccess.slice(registerAccess.indexOf("export async function loadRegisterMembers("));
     const membersBody = members.slice(0, members.indexOf("\n}\n"));
-    assert.match(membersBody, /\.where\("groupId", "==", groupId\)\s*\.where\("status", "==", "active"\)/);
+    // Every active row on the run that is in the group (now, or for a week
+    // its place records in it), and nothing else asked of it.
+    assert.match(membersBody, /\.where\("runId", "==", runId\)\s*\.where\("status", "==", "active"\)/);
+    assert.match(membersBody, /if \(e\.groupId !== groupId && !everInGroup\(e, groupId\)\) continue;/);
     assert.ok(!/\brole\b/.test(membersBody), "the register now asks people's roles, so a facilitator who holds a place may be left off it");
 
     // "Counted for who finished": who finished is the run's learner rows, and
@@ -4433,15 +4436,22 @@ describe("the course hub passage", () => {
     // the passage above says: "You, your group's facilitators, the
     // programme's lead and admins, and nobody else taking part".
     assertExactlyTheseFiles(
+      // The older pages with names forward to the page of one question (questionLoad.ts, below), reading nothing.
       sourceFilesNaming(/\b(?:loadGroupWeek|loadReadOutWeek|loadNamedReflections|readRunCoursework)\(/),
       new Map([
         ["src/lib/courses/facilitatorWeek/readers.ts", "the loaders and the run-wide read, which ask nobody who is reading, so each caller decides that first"],
-        ["src/lib/courses/coursework/load.ts", "the Coursework tab and one person's page: everybody's reflections and ticks on a programme's run, for its lead and admins, after the programme's own gate"],
+        ["src/lib/courses/coursework/tabLoad.ts", "the Coursework tab: everybody's reflections and ticks on a programme's run, as states and flags, never words, for its lead and admins, after the programme's own gate"],
+        [
+          "src/lib/courses/coursework/readingLoad.ts",
+          "one person's week in the reading view, after its door's gate (the programme's: its lead and admins; the group's: its live facilitators, the lead and admins) and, on the group's side, the one gate on whose work a reader may act on, so a facilitator never reads a facilitator's own",
+        ],
+        [
+          "src/lib/courses/coursework/questionLoad.ts",
+          "one question across a group, after its door's gate (the programme's: its lead and admins; the group's: its live facilitators, the lead and admins), the words read only for the people the one gate on whose work lets the reader read, so a facilitator never reads a facilitator's own",
+        ],
         ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "the group's page, for its live facilitators and admins"],
         ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx", "the page to read lines out, for the group's live facilitators and admins"],
-        ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx", "the group's fellows' reflections with names, for the group's live facilitators and admins, never a facilitator's own"],
         ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx", "the lead's view of a group's week, for the programme's lead and admins"],
-        ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx", "the lead's reading of a group's reflections with names, for the programme's lead and admins"],
       ]),
       "reading a group's reflections and ticks",
       "The policy says a person's reflections and ticks are read by their group's facilitators, the programme's lead and admins. A new reader is a new sentence.",
@@ -4490,7 +4500,7 @@ describe("the course hub passage", () => {
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-facilitator-week.test.mjs")), "tests/course-hub-facilitator-week.test.mjs is gone");
   });
 
-  test("who finished: the number is shown to the programme's lead and admins, and a member is told only whether they finished", () => {
+  test("who finished: the list is shown to the programme's lead and admins; a learner is told the rule's number before the end, and after it only whether they finished", () => {
     // "Only the lead and admins see the list", and somebody who did not
     // finish is "not told". v14 also said only they see the number the lead
     // set, and that arriving late or leaving early counts as coming; v15
@@ -4499,13 +4509,16 @@ describe("the course hub passage", () => {
     for (const sentence of [" Only the lead and admins see the list.", " If you did not finish, you are not sent one and not told."]) {
       assert.ok(finished.includes(sentence), `the policy's Who finished no longer says: ${sentence}`);
     }
-    // The words, run: the lead's sentences say who sees the rule, and a
-    // member's carry a programme's name and nothing else.
+    // The words, run: the lead's sentences say who sees who is ticked
+    // ("Only the lead and admins see the list"), and a member's once it is
+    // over carry a programme's name and nothing else. (Before the end a
+    // learner is told the rule's number, never the list:
+    // tests/course-hub-finishing-member.test.mjs.)
     assert.equal(
       finishingWords.ruleSentence(4, 6),
-      "We’ve ticked everyone who came to at least 4 of 6 sessions. Change any you disagree with. Only you and admins see this rule.",
+      "We’ve ticked everyone who came to at least 4 of 6 sessions. Change any you disagree with. Only you and admins see who’s ticked.",
     );
-    assert.match(finishingWords.RULE_HINT, /Only you and admins see this\.$/);
+    assert.match(finishingWords.RULE_HINT, /The people taking part are told the number; only you and admins see who’s ticked\.$/);
     assert.equal(finishingWords.youFinished("AGI Strategy Fellowship"), "You finished AGI Strategy Fellowship.");
     assert.equal(finishingWords.hasEnded("AGI Strategy Fellowship"), "AGI Strategy Fellowship has ended.");
     // Arriving late or leaving early counts as coming (v14's words; v15 says
@@ -4524,6 +4537,10 @@ describe("the course hub passage", () => {
         ["src/lib/applications/handover/finishingAct.ts", "the one writer, which answers anybody but the lead and admins first (loadProgrammeRun)"],
         ["src/lib/courses/finishing/record.ts", "where the rule is read"],
         ["src/lib/courses/finishing/whoFinished.ts", "where the lead's list is built"],
+        [
+          "src/app/api/courses/runs/[runId]/overview/route.ts",
+          "the run home's route, which reads the rule alone, never the list, to tell a learner what a certificate needs before the end (November 2026: v19 says only the lead and admins see the list; since v15 it says nothing of who sees the number)",
+        ],
       ]),
       "reading the rule or the list of who finished",
       "The policy says only the programme's lead and admins see the list (and " +
@@ -4541,13 +4558,19 @@ describe("the course hub passage", () => {
     }
     assert.match(read("src/lib/applications/handover/finishingAct.ts"), /if \(outcome\.status === "not-yours"\) return refuse\(403, LEADS_AND_ADMINS\);/);
     // A member's own pages are sent whether they finished, as true or false,
-    // and nothing else of who finished.
+    // and, on the run home before the end, what a certificate needs as one
+    // sentence (the rule's number and their group's count); nothing else of
+    // who finished.
     assert.match(read("src/lib/courses/finishing/record.ts"), /export async function finishedForMember\([\s\S]*?\): Promise<boolean> \{/);
-    for (const route of ["src/app/api/courses/me/route.ts", "src/app/api/courses/runs/[runId]/overview/route.ts"]) {
+    for (const [route, reads] of [
+      ["src/app/api/courses/me/route.ts", ["finishedForMember"]],
+      ["src/app/api/courses/runs/[runId]/overview/route.ts", ["certificateNeedsFor", "finishedForMember, readFinishRule"]],
+    ]) {
       const imported = [...read(route).matchAll(/import \{([^}]*)\} from "@\/lib\/courses\/finishing\/[A-Za-z]+";/g)].map((match) => match[1].trim());
-      assert.deepEqual(imported, ["finishedForMember"], `${route} reads more of who finished than whether the caller finished`);
+      assert.deepEqual(imported, reads, `${route} reads more of who finished than whether the caller finished and what a certificate needs`);
       assert.match(read(route), /\bfinished: boolean;/);
     }
+    assert.match(read("src/app/api/courses/runs/[runId]/overview/route.ts"), /\bcertificateNeeds: string \| null;/, "the run home is sent more than one sentence about the rule");
   });
 
   test("a deletion takes somebody off pitching week, out of their team and out of who finished, and a partner keeps a shared pitch", () => {
@@ -5134,10 +5157,11 @@ describe("the course hub passage", () => {
         [leadPage, "the programme's session reports, for its lead and admins (loadProgrammeRun)"],
         // CHANGED ON PURPOSE: was the Surveys tab's page, which counted the run's reports for its row.
         ["src/lib/surveys/leadOverview.ts", "the Surveys tab's Overview, made only by its page after the tab's gate (loadProgrammeRun): each week's count, how it went on average and the parts named, never what a report says"],
-        // The report beside the work: held by the test after this one.
+        // The report beside the work: held by the test after this one. (The written answer's review page's loader,
+        // kept behind This week's work's Written answer column after its page was retired, reads none now.)
         [
-          "src/lib/courses/writtenAnswers/reviewPage.ts",
-          "the review page beside a written answer, after its gate: the person's own lines, every report's for the lead and admins (besideScopeOf), a facilitator's own report's for that facilitator",
+          "src/lib/courses/coursework/readingLoad.ts",
+          "the reading view of one person's week beside a written answer its readers may read, after its door's gate and the one gate on whose work: the person's own lines, every report's for the lead and admins (besideScopeOf), a facilitator's own report's for that facilitator, never on the reader's own page",
         ],
       ]),
       "reading session reports",
@@ -5226,17 +5250,17 @@ describe("the course hub passage", () => {
     assert.match(rule, /if \(!mayReview \|\| !reader\.uid \|\| reader\.uid === ownerUid\) return null;/);
     assert.match(rule, /return \{ whose: reader\.isAdmin \|\| reader\.isLead \? "every" : "own", readerUid: reader\.uid \};/);
 
-    // The page asks it with its own gate's answer, for the person open on it
-    // and nobody else, after everybody on the page passed the one gate.
+    // The written answer's review page's loader, kept behind This week's work's Written answer column after its page
+    // was retired, opens nobody's answer and reads no report's lines: the reading view below is where they are read.
     const page = withoutComments(read(REVIEW_PAGE));
-    const gated = page.indexOf("const people = reviewableIn(actor, facts, group, owners, liveGroups);");
-    const opened = page.indexOf("if (chosen && answer && chosen.readable) {");
-    const scoped = page.indexOf(
-      "const beside = besideScopeOf({ uid: actor.uid, isAdmin: facts.isAdmin, isLead: facts.isLead }, chosen.uid, role.mayReview);",
-    );
-    const asked = page.indexOf("beside ? readReportLinesAbout(db, { runId: run.id, uid: chosen.uid, weekNumber, scope: beside }) : Promise.resolve(null),");
-    assert.ok(gated !== -1 && opened > gated && scoped > opened && asked > scoped, "the review page reads report lines before its gate and the rule");
-    assert.ok(page.indexOf("const role = writtenReviewRole(actor, facts, owner, liveGroups);") < scoped, "the rule is asked before the page knows what the reader may do");
+    assert.doesNotMatch(page, /besideScopeOf\(|readReportLinesAbout\(|sessionReports\//, "the review page's loader reads a report's lines again");
+    // The reading view of one person's week asks the same rule with the same gate's answer, for the person whose
+    // week it is, and reads the lines only beside an answer its readers may read.
+    const reading = withoutComments(read("src/lib/courses/coursework/readingLoad.ts"));
+    const role = reading.indexOf("const role = owner ? writtenReviewRole(actor, facts, owner, liveGroups) : null;");
+    const scope = reading.indexOf("const beside = role ? besideScopeOf({ uid: actor.uid, isAdmin: facts.isAdmin, isLead: facts.isLead }, uid, role.mayReview) : null;");
+    const lines = reading.indexOf("beside && answerId && answerReadable ? readReportLinesAbout(db, { runId: run.id, uid, weekNumber: n, scope: beside }) : Promise.resolve(null),");
+    assert.ok(role !== -1 && scope > role && lines > scope, "the reading view reads report lines before its gate and the rule");
 
     // A facilitator's read names the reports they wrote, so a co-facilitator's
     // is never read for them; the lead's and admins' read the reports that
@@ -5601,7 +5625,18 @@ describe("the course hub passage", () => {
         [gateFile, "the gate itself: admins and the programme's lead for anybody's, a live facilitator of a fellow's own group for theirs, and nobody else for a facilitator's own"],
         [readerFile, "the one reader of somebody else's boxes, which asks the gate before a box is read"],
         ["src/lib/courses/facilitatorWeek/readers.ts", "a group's week for its facilitators, the programme's lead and admins: each person's boxes on the week the page shows, the gate asked person by person before a box is read, for exactly the people it admits"],
-        ["src/lib/courses/coursework/load.ts", "one person's coursework page, for the programme's lead and admins: the gate asked for that person, and their boxes drawn only when it answers"],
+        [
+          "src/lib/courses/coursework/readingLoad.ts",
+          "one person's week in the reading view, on the programme's side or the group's: the gate asked for that person, and their boxes drawn only when it answers",
+        ],
+        [
+          "src/lib/courses/coursework/questionLoad.ts",
+          "one box across a group: the gate asked person by person, and a person's box drawn only when it answers",
+        ],
+        [
+          "src/lib/courses/weekWork/firstRead.ts",
+          "when a box was first read: kept only where the gate answers for the caller, and nothing of the box read out",
+        ],
       ]),
       "deciding who reads somebody's fill-in boxes",
       "The policy says a person's boxes are read by them, their group's " +
@@ -6069,7 +6104,9 @@ describe("the course hub passage", () => {
     const wire = withoutComments(read("src/lib/courses/writtenAnswers/wire.ts"));
     assert.doesNotMatch(wire, /\blate\b|deadline/i, "the wire a writer reads carries whether their answer was after its deadline");
     const reviewCode = withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts"));
-    assert.match(reviewCode, /afterDeadline: afterItsDeadline\(record\?\.firstSentAt \?\? null, deadline\?\.at \?\? null, due\),/);
+    // The block's own deadline: this group's, or for somebody moved here, the one of the group whose copy they read.
+    assert.match(reviewCode, /const ownDeadline = away\.has\(owner\.uid\) \? \(away\.get\(owner\.uid\) \?\? null\) : \(deadline\?\.at \?\? null\);/);
+    assert.match(reviewCode, /afterDeadline: afterItsDeadline\(record\?\.firstSentAt \?\? null, ownDeadline, due\),/);
     // "...may see anything added or changed after the session as late, with how late": worked out when read.
     assert.match(reviewCode, /changedLateMs: read \? lateBy\(read\.savedAt, due\) : null,/);
     // ...and only of the words they may read: never when a change not sent yet was saved.
@@ -9131,10 +9168,16 @@ describe("the last pass before version 7 goes live, held to v15", () => {
     assert.equal(writtenModel.answerState(record({ text: "Half a thought", words: 3 })), "draft");
     assert.equal(writtenModel.answerState(null), "not-started");
     assert.equal(writtenModel.answerState(record({ text: "Sent", words: 1, firstSentAt: new Date("2026-11-03T10:00:00Z") })), "sent");
-    // The review page opens only an answer its readers may read, and feedback is refused on any other work.
+    // No page opens an answer its readers may not read, and feedback is refused on any other work. The reading view
+    // of one person's week reads the words as `readableAnswer` hands them (through `readRunCoursework`, held by
+    // tests/course-written-answer-readers.test.mjs) and offers feedback only beside an answer its readers may read;
+    // the written answer's review page's loader, kept behind This week's work's Written answer column, opens none.
+    const reading = withoutComments(read("src/lib/courses/coursework/readingLoad.ts"));
+    assert.match(reading, /const answerReadable = stored\?\.piece != null && stored\.words > 0;/);
+    assert.match(reading, /open: mayWrite && answerReadable,/);
+    assert.match(withoutComments(read("src/lib/courses/facilitatorWeek/readers.ts")), /const read = readableAnswer\(piece, due\.at, on\.now\);/);
     const page = withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts"));
-    assert.match(page, /const readable = \[\.\.\.toGive, \.\.\.feedbackSent\];/);
-    assert.match(page, /\(askedPerson \? readable\.find\(\(person\) => person\.uid === askedPerson\) : undefined\) \?\? toGive\[0\] \?\? feedbackSent\[0\] \?\? null;/);
+    assert.doesNotMatch(page, /\btext\b|askedPerson|selected/, "the review page's loader opens somebody's answer again");
     assert.match(
       withoutComments(read("src/lib/courses/feedback/access.ts")),
       /if \(on === "writtenAnswer"\) \{\s*if \(at\.read\) return at\.read\.words === 0 \? words\.answerEmpty : null;\s*if \(weekReadable && \(!at\.answer \|\| at\.answer\.words === 0\)\) return words\.answerEmpty;\s*return words\.notReadable;\s*\}/,
@@ -10720,11 +10763,18 @@ describe("v15 lets the people running a programme rate written work for each oth
           READERS_FILE,
           "the reader itself, which reads one person's answer and the names of whoever rated it, the ratings about the people a note suggests, or one person's ratings on a run and a week's for a note's draft",
         ],
-        [REVIEW_PAGE, "the review page, for an admin or the programme's lead alone (`mayRateWorkOf`)"],
         ["src/lib/applications/nextTerm/load.ts", "a term's Next term page, for an admin alone (`canRunTerm`, asked before anything is read), never about the admin looking"],
         [
           "src/lib/courses/weekNotes/gather.ts",
           "what a note's draft is built from, for an admin alone (the week's notes door, or `gateNotes` on the profile), never about the admin drafting; tests/course-work-ratings.test.mjs holds its callers",
+        ],
+        [
+          "src/lib/courses/coursework/readingLoad.ts",
+          "the reading view of one person's week, for an admin or the programme's lead alone (`mayRateWorkOf`, which never admits a facilitator or the person themselves); tests/course-work-ratings.test.mjs holds the call",
+        ],
+        [
+          "src/lib/courses/coursework/questionLoad.ts",
+          "one question across a group, for an admin or the programme's lead alone, person by person (`mayRateWorkOf`, which never admits a facilitator or the person themselves); tests/course-work-ratings.test.mjs holds the call",
         ],
       ]),
       "reading ratings for the team",
@@ -10733,9 +10783,10 @@ describe("v15 lets the people running a programme rate written work for each oth
     // The Next term page never shows the person their own: the admin looking is never a row.
     assert.match(strip(read("src/lib/applications/nextTerm/load.ts")), /if \(!canRunTerm\(viewer\)\) return \{ status: "admins-only" \};/);
     assert.match(strip(read("src/lib/applications/nextTerm/rows.ts")), /if \(note\.uid === input\.viewerUid \|\| note\.suggest\.length === 0\) continue;/);
+    // The written answer's review page's loader, kept behind This week's work's Written answer column after its page
+    // was retired, reads no rating; its lists are of people who pass the one gate, which refuses yourself.
     const page = strip(read(REVIEW_PAGE));
-    assert.match(page, /mayRateWorkOf\(actor, facts, owner, liveGroups\)\s*\?\s*loadTeamRatings\(db, \{/, "the review page reads ratings for somebody who may not read them");
-    // The page never opens its reader's own answer: everybody on it passes the one gate, which refuses yourself.
+    assert.doesNotMatch(page, /loadTeamRatings\(|workRatings\//, "the review page's loader reads ratings again");
     assert.match(page, /const people = reviewableIn\(actor, facts, group, owners, liveGroups\);/);
     // What the route hands back is that it went, and nothing of a rating.
     const route = strip(read(ROUTE));
@@ -10748,18 +10799,28 @@ describe("v15 lets the people running a programme rate written work for each oth
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-work-ratings.test.mjs")));
   });
 
-  test("\"What comes back is seen by admins only\": Pangram's reading beside an answer on its review page is read for an admin alone, never the lead", () => {
+  test("\"What comes back is seen by admins only\": Pangram's reading beside an answer in the reading view is read for an admin alone, never the lead", () => {
     v15Says(["What comes back is seen by admins only,"]);
     assertExactlyTheseFiles(
       sourceFilesNaming(/\breadAnswerReading\(/),
       new Map([
         ["src/lib/courses/coursework/pangramReadings.ts", "the reader of one kept reading, which asks nobody who is reading, so its one caller decides that first"],
-        [REVIEW_PAGE, "the review page, which asks for it for an admin alone (`facts.isAdmin`)"],
+        [
+          "src/lib/courses/coursework/readingLoad.ts",
+          "the reading view of one person's week, which asks for it for an admin alone (`facts.isAdmin`), on an answer they may review (`writtenReviewRole`, never their own) and its readers may read",
+        ],
       ]),
       "reading Pangram's reading of one answer",
       "The policy says what Pangram returns is seen by admins only. A new caller shows it somewhere new: decide it is an admin's alone first.",
     );
-    assert.match(strip(read(REVIEW_PAGE)), /facts\.isAdmin && record\s*\?\s*readAnswerReading\(db, \{/, "the review page reads Pangram's reading for somebody who is not an admin");
+    // The written answer's review page's loader, kept behind This week's work's Written answer column after its page was retired, reads none.
+    assert.doesNotMatch(strip(read(REVIEW_PAGE)), /readAnswerReading\(|pangramReadings/, "the review page's loader reads Pangram's reading again");
+    assert.match(
+      strip(read("src/lib/courses/coursework/readingLoad.ts")),
+      /facts\.isAdmin && mayWrite && answerId && answerReadable && stored\s*\?\s*readAnswerReading\(db, \{/,
+      "the reading view reads Pangram's reading for somebody who is not an admin, or of an answer they may not review or read",
+    );
+    // tests/course-work-ratings.test.mjs draws the reading view as an admin, the lead, a facilitator and on an admin's own page.
   });
 
   test("Kairos receives the ratings at a programme's end, and nothing of these", () => {
@@ -11223,7 +11284,9 @@ describe("v15 says reminders before a session are about what is left, are part o
 
   test("part of running the programme, so the settings don't switch them off: a notice, to everybody holding a place", () => {
     assert.match(job, /surface: "course-week-reminder",/);
-    assert.match(job, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id \}\)/);
+    // Everybody holding a place in the group for the session's week (with no
+    // record of groups by week anywhere, the people in it now).
+    assert.match(job, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id, weekNumber \}\)/);
     assert.doesNotMatch(job, /resolveCohortAudience|wantsEmailForProfile|hasOptedOut|listUnsubscribe/, "a reminder reads somebody's settings, or offers to switch itself off");
   });
 
@@ -11409,6 +11472,7 @@ describe("v16 says a register records the room or online, and you may tell us in
   const route = withoutComments(read("src/app/api/courses/groups/[groupId]/joining-online/route.ts"));
   const marking = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/route.ts"));
   const box = withoutComments(read("src/lib/courses/meetingLink/box.ts"));
+  const tell = withoutComments(read("src/lib/courses/joiningOnline/tell.ts"));
   const NEW_REGISTERS = "absent or excused, and whether you were in the room or joined online.";
   const NEW_IN_ADVANCE =
     "You can also tell us in advance that you&apos;re joining a session online: your facilitators see it, and are asked to add a link to join it to your programme page.";
@@ -11454,7 +11518,7 @@ describe("v16 says a register records the room or online, and you may tell us in
     assert.match(marking, /return \{ ok: false, error: "online is only for somebody marked present, late or left early\." \};/);
   });
 
-  test("telling us in advance: your own line, by your own uid, and nothing is sent", () => {
+  test("telling us in advance: your own line, by your own uid, and only your group's facilitators are emailed", () => {
     assertExactlyTheseFiles(
       sourceFilesNaming(/\[ONLINE_SAID\]:|FieldPath\(ONLINE_SAID,/),
       new Map([
@@ -11469,7 +11533,26 @@ describe("v16 says a register records the room or online, and you may tell us in
     assert.match(seat, /\[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.serverTimestamp\(\) \},/);
     assert.match(seat, /tx\.set\(ref, \{ \[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\);/);
     assert.match(route, /const outcome = await recordJoiningOnline\(db, user, groupId, parsed\.value, new Date\(\)\);/);
-    assert.doesNotMatch(seat + route, /sendEmail|sendNotice|dispatchSends|mirrorCourse/, "saying you are joining online now emails or notifies somebody");
+    assert.doesNotMatch(seat + route, /sendEmail|sendNotice|dispatchSends|mirrorCourse/, "saying you are joining online emails or notifies somebody outside the facilitators' email");
+    // CHANGED ON PURPOSE (November 2026): the policy says "your facilitators
+    // see it, and are asked to add a link to join it to your programme page",
+    // and since then they are also told by email, once per person per
+    // session, which is them seeing it and being asked. The email goes to
+    // the group's facilitators and nobody else: never the person who said
+    // it, never anybody in the group, and never with the link.
+    assert.match(seat, /if \(outcome\.ok && tell\) await tellFacilitatorsJoiningOnline\(db, tell\);/);
+    assert.match(tell, /facilitatorsToTell\(db, said\.group, \[said\.uid\]\)/);
+    assert.equal((tell.match(/\bsendJoiningOnlineEmail\(/g) ?? []).length, 1, "Joining online sends more than the facilitators' email");
+    assert.doesNotMatch(tell, /sendEmail\(|sendNotice|dispatchSends|mirror|Push|meetingUrl/, "Joining online reaches somebody another way, or names the link");
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\[ONLINE_EMAILED\]:|FieldPath\(ONLINE_EMAILED,/),
+      new Map([
+        ["src/lib/courses/joiningOnline/seat.ts", "Joining online: when the group's facilitators were emailed about the caller's own word, stamped once and never taken away"],
+        ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own stamp, key by key, and nobody else's"],
+      ]),
+      "writing that a group's facilitators were emailed about somebody joining online",
+      "The stamp is about the person's own word. Nobody may write it for anybody else.",
+    );
   });
 
   test("your facilitators see it, and are asked for a link to join it: the box on their group page and register", () => {

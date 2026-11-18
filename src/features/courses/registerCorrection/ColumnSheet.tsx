@@ -42,6 +42,8 @@ export default function ColumnSheet({
   groupName,
   target,
   onDone,
+  marksExcused = true,
+  excusalStands = [],
 }: {
   open: boolean;
   onClose: () => void;
@@ -51,6 +53,10 @@ export default function ColumnSheet({
   groupName: string;
   target: ColumnTarget | null;
   onDone: (said: string) => void;
+  /** The reader marks somebody excused, and changes an excusal that stands (`caller.marksExcused`). */
+  marksExcused?: boolean;
+  /** The people an excusal stands for on this session (`excusalStands`). */
+  excusalStands?: readonly string[];
 }) {
   const happened = target?.session.held ?? true;
   const [way, setWay] = useState<P.ColumnWay | null>(null);
@@ -177,7 +183,7 @@ export default function ColumnSheet({
                 ...base,
                 lines: people.map((each) => {
                   const chosen = P.choiceOf(chosenFor(each));
-                  return { uid: each.uid, ...(chosen ? P.lineBody(chosen) : { status: "absent" }) };
+                  return { uid: each.uid, ...(chosen ? P.lineBody(chosen) : { status: P.didHappenFill(excusalStands.includes(each.uid)) }) };
                 }),
               }
             : base;
@@ -316,7 +322,11 @@ export default function ColumnSheet({
                       aria-labelledby={`did-happen-${each.uid}`}
                       aria-describedby={`did-happen-now-${each.uid}`}
                     >
-                      {P.didHappenChoicesFor(each.line).map((choice) => (
+                      {P.choicesFor(P.didHappenChoicesFor(each.line), {
+                        marksExcused,
+                        excusalStands: excusalStands.includes(each.uid),
+                        restores: true,
+                      }).map((choice) => (
                         <label key={choice.key} className={`${styles.choice} ${chosenFor(each) === choice.key ? styles.choiceOn : ""}`}>
                           <input
                             type="radio"

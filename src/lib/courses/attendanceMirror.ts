@@ -1,7 +1,8 @@
 import "server-only";
 import type { DocumentReference, Firestore, Transaction } from "firebase-admin/firestore";
 import { recomputeRollup, type RegisterFact } from "./attendanceRollup";
-import type { ResolvedSession } from "./sessions";
+import { groupsOfWeeks, hasGroupsByWeek, sessionsWithGroup } from "./groupsByWeek";
+import { resolveSessions, type ResolvedSession } from "./sessions";
 import type { MirrorMember } from "./registerAccess";
 import {
   attendanceDocId,
@@ -11,8 +12,12 @@ import {
 } from "@/lib/firestore/courseAttendance";
 import {
   courseEnrolmentId,
+  normalizeCourseEnrolment,
+  type CourseEnrolmentDoc,
   type EnrolmentAttendanceRollup,
 } from "@/lib/firestore/courseEnrolments";
+import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import type { CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
  * THE ENROLMENT MIRROR: rebuilding `courseEnrolments.attendance` from the
@@ -46,6 +51,17 @@ import {
  * figures at their pre-correction values the moment an admin fixes a register.
  * The REGISTER's rows are a different list, the active members, because they
  * are who a facilitator can mark.
+ *
+ * ── EACH WEEK FROM THE GROUP THEY WERE IN THAT WEEK ─────────────────────────
+ * A member whose place records a move (`groupsByWeek`) has weeks on more than
+ * one group's registers: their rollup is rebuilt from each week's register of
+ * the group they were in that week (`sessionsWithGroup`), read in the same
+ * transaction, so a push of their new group never counts that group's
+ * earlier sessions (before they were in it) as absences, and a correction of
+ * their old group's register still reaches their figures. A week in a group
+ * that no longer meets counts nothing. The override applies only to this
+ * group's registers, which are the ones the caller is changing. A member
+ * with no such record is rebuilt from this group's registers, as always.
  */
 
 /** What one caller is changing about one register, laid over what was read. */
@@ -90,6 +106,8 @@ export async function readMirrorPlan(
   db: Firestore,
   args: {
     runId: string;
+    /** The run, to resolve the sessions of another group a member's weeks were spent in. */
+    run: CourseRunDoc;
     groupId: string;
     sessions: ResolvedSession[];
     /**
@@ -141,9 +159,52 @@ export async function readMirrorPlan(
     members.map((m) => [courseEnrolmentId(runId, m.uid), m.uid]),
   );
   const enrolmentByUid = new Map<string, DocumentReference>();
+  const placeByUid = new Map<string, CourseEnrolmentDoc>();
   for (const snap of enrolmentSnaps) {
     const uid = uidByEnrolmentId.get(snap.id);
-    if (snap.exists && uid) enrolmentByUid.set(uid, snap.ref);
+    if (snap.exists && uid) {
+      enrolmentByUid.set(uid, snap.ref);
+      placeByUid.set(uid, normalizeCourseEnrolment(snap.id, snap.data() ?? {}));
+    }
+  }
+
+  // The other groups the members' weeks were spent in, their sessions, and
+  // the registers of those weeks: read here, still before any write, and only
+  // for a member whose place records a move.
+  const movers = members.filter((m) => {
+    const place = placeByUid.get(m.uid);
+    return place !== undefined && hasGroupsByWeek(place);
+  });
+  const otherGroupIds = [
+    ...new Set(movers.flatMap((m) => groupsOfWeeks(placeByUid.get(m.uid) as CourseEnrolmentDoc))),
+  ].filter((id) => id !== groupId && !id.includes("/"));
+  const otherGroupSnaps = otherGroupIds.length
+    ? await tx.getAll(...otherGroupIds.map((id) => db.collection("courseGroups").doc(id)))
+    : [];
+  const otherSessions = new Map<string, ResolvedSession[]>();
+  for (const snap of otherGroupSnaps) {
+    if (!snap.exists) continue;
+    const group = normalizeCourseGroup(snap.id, snap.data() ?? {});
+    // A group that no longer meets holds no week of anybody's figures.
+    if (group.archived || group.runId !== runId) continue;
+    otherSessions.set(group.id, resolveSessions(args.run, group));
+  }
+  const sessionsOf = (id: string): readonly ResolvedSession[] | null =>
+    id === groupId ? sessions : (otherSessions.get(id) ?? null);
+  const weeksOf = new Map<string, Array<{ groupId: string; session: ResolvedSession }>>();
+  for (const m of movers) weeksOf.set(m.uid, sessionsWithGroup(placeByUid.get(m.uid) as CourseEnrolmentDoc, sessionsOf));
+  const otherRefs = new Map<string, DocumentReference>();
+  for (const pairs of weeksOf.values()) {
+    for (const pair of pairs) {
+      if (pair.groupId === groupId) continue;
+      const id = attendanceDocId(runId, pair.groupId, pair.session.weekNumber, pair.session.occurrence);
+      otherRefs.set(id, db.collection("courseAttendance").doc(id));
+    }
+  }
+  const otherSnaps = otherRefs.size ? await tx.getAll(...otherRefs.values()) : [];
+  const otherRegisters = new Map<string, CourseAttendanceDoc>();
+  for (const snap of otherSnaps) {
+    if (snap.exists) otherRegisters.set(snap.id, normalizeCourseAttendance(snap.id, snap.data() ?? {}));
   }
 
   const writes: MirrorPlan["writes"] = [];
@@ -151,9 +212,13 @@ export async function readMirrorPlan(
     const ref = enrolmentByUid.get(member.uid);
     if (!ref) continue;
     const facts: RegisterFact[] = [];
-    for (const session of sessions) {
-      const stored = registers.get(session.sessionKey);
-      const override = overrides.get(session.sessionKey);
+    const weeks = weeksOf.get(member.uid) ?? sessions.map((session) => ({ groupId, session }));
+    for (const { groupId: weekGroup, session } of weeks) {
+      const own = weekGroup === groupId;
+      const stored = own
+        ? registers.get(session.sessionKey)
+        : otherRegisters.get(attendanceDocId(runId, weekGroup, session.weekNumber, session.occurrence));
+      const override = own ? overrides.get(session.sessionKey) : undefined;
       // A session with no register and no override in play is a session
       // nobody has opened. It contributes nothing rather than an absence.
       if (!stored && !override) continue;

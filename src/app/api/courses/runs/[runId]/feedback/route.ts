@@ -71,7 +71,7 @@ import {
  * never writes feedback in the member's name.
  *
  * What travels back is built field by field (`staffCardOf`): the piece as
- * the review page draws it, never the stored document.
+ * the reading pages draw it, never the stored document.
  */
 
 /** Week doc ids are "w01".."w60" (`weekDocId`). */
@@ -111,7 +111,7 @@ async function bodyOf(req: Request): Promise<Record<string, unknown> | null> {
   }
 }
 
-/** The piece as the review page draws it for its writer, with the names it shows. */
+/** The piece as the reading pages draw it for its writer, with the names they show. */
 async function cardFor(
   db: NonNullable<ReturnType<typeof getAdminDb>>,
   actor: SessionUser,

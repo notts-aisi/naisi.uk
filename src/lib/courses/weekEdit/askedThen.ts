@@ -10,8 +10,8 @@ import { askedOf, earlierWords, type AskedWords } from "./wordsThen";
 /**
  * THE WORDS A QUESTION HAD WHEN IT WAS ANSWERED, FOR THE LOADERS THAT HAND
  * AN ANSWER TO A PAGE BESIDE ITS QUESTION: a person's own week page
- * (`my-exercises`), the written answer's review page, the reflections with
- * names, and a person's coursework page.
+ * (`my-exercises`), the reading view of a person's week, the page of one
+ * question across a group, and the written answers' review loader.
  *
  * Each asks with the answers it is about to hand over (which prompt or
  * written answer, and when the piece was first written) and is handed back,

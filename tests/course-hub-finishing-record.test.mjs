@@ -69,10 +69,10 @@ const ticks = (model) => Object.fromEntries(model.rows.map((row) => [row.name.sp
 // ---------------------------------------------------------------------------
 
 describe("1. the board's words", () => {
-  test("the sentence over the list fills the rule's slot, and says only the lead and admins see it", () => {
+  test("the sentence over the list fills the rule's slot, and says only the lead and admins see who is ticked", () => {
     assert.equal(
       words.ruleSentence(4, 6),
-      "We’ve ticked everyone who came to at least 4 of 6 sessions. Change any you disagree with. Only you and admins see this rule.",
+      "We’ve ticked everyone who came to at least 4 of 6 sessions. Change any you disagree with. Only you and admins see who’s ticked.",
     );
     assert.equal(words.ruleSlot(4, 6), "at least 4 of 6");
     assert.equal(words.countsLine(28, 3), "28 finished · 3 not");

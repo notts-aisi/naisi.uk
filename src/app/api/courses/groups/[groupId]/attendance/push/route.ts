@@ -582,6 +582,7 @@ export async function POST(
       ]);
       const plan = await readMirrorPlan(tx, db, {
         runId,
+        run,
         groupId,
         sessions,
         members,

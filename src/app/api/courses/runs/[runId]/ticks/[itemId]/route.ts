@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { weekOneDoorFor } from "@/lib/courses/weekOne/door";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekChecklistItems, weekSources } from "@/lib/courses/weekBlocks/reader";
@@ -155,7 +156,10 @@ export async function PUT(req: Request, ctx: Params) {
   const ownGroup =
     (learner?.groupId ? (liveGroups.find((g) => g.id === learner.groupId) ?? null) : null) ??
     (facilitates.length === 1 ? facilitates[0] : null);
-  const { week } = await resolveWeekDoc(db, runId, beforeGroups ? null : (ownGroup?.id ?? null), weekId);
+  // The copy of the week: the group their place belonged to in THIS week
+  // (`copyGroupIdFor`), whether or not that group still meets.
+  const copyGroupId = learner?.groupId ? copyGroupIdFor(learner, weekNumber, ownGroup?.id ?? null) : (ownGroup?.id ?? null);
+  const { week } = await resolveWeekDoc(db, runId, beforeGroups ? null : copyGroupId, weekId);
   let itemKind: ProgressItemKind | null = null;
   if (week && weekSources(week).some((source) => source.id === itemId)) itemKind = "material";
   else if (week && weekChecklistItems(week).some((item) => item.id === itemId)) itemKind = "checklist";

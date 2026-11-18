@@ -830,8 +830,8 @@ const BUILT = new Map([
   [
     "src/features/applications/people/ProgrammePeople.tsx",
     {
-      built: ["item.href", "row.applicationHref", "row.groupsHref"],
-      from: "the People tab's More menu: the person's application on the programme's review screen and People in groups, each built on the server from the programme's own path and, for the application, the person's uid, encoded",
+      built: ["item.href", "row.applicationHref", "row.groupsHref", "row.moveHref"],
+      from: "the People tab's More menu: the person's application on the programme's review screen, People in groups, and the page for moving them to another group for good, each built on the server from the programme's own path and, for the application and the move, the person's uid, encoded",
     },
   ],
   [
@@ -1269,15 +1269,26 @@ const BUILT = new Map([
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance/page.tsx",
     {
-      built: ["`${writtenPath}?group=${encodeURIComponent(group.id)}`"],
-      from: "the programme's own review page for written answers (its path from the form's and the programme's ids, encoded) and a live group's id. Nothing anybody typed",
+      built: [
+        'firstQuestionHref( `${questionPath}?group=${encodeURIComponent(group.id)}`, (writtenQueues.get(group.id) ?? [])[0]?.weekNumber ?? null, "answer", )',
+      ],
+      from: "the programme's own page of one question across a group, at the written answer (its path from the form's and the programme's ids, encoded), a live group's id and the week number of the oldest answer waiting. Nothing anybody typed",
     },
   ],
   [
-    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written/page.tsx",
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx",
     {
-      built: ["`${programmePath}/attendance`", "`${programmePath}/written?group=${encodeURIComponent(candidate.id)}`"],
-      from: "the way back to the programme's own Attendance tab, and this page for each of the run's live groups (the lead's choice of group): its path from the form's and the programme's ids in the address, encoded, and a live group's id. Nothing anybody typed",
+      built: [
+        'firstQuestionHref(`/admin/admissions/forms/${round}/programmes/${programmeKey}/question?group=${encodeURIComponent(group.id)}`, week.weekNumber, "reflection")',
+      ],
+      from: "the programme's own page of one question across the group, at the week's first reflection: its path from the form's and the programme's ids in the address, encoded, a live group's id and the week's number. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move/page.tsx",
+    {
+      built: ["backHref"],
+      from: "the way back to the programme's own People tab: its path from the form's and the programme's ids in the address, encoded. Nothing anybody typed",
     },
   ],
   [
@@ -1285,6 +1296,13 @@ const BUILT = new Map([
     {
       built: ["tabPath"],
       from: "the way back to the programme's own Coursework tab: its path from the form's and the programme's ids in the address, encoded. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question/page.tsx",
+    {
+      built: ["`${programmePath}/coursework`", "`${programmePath}/groups/${encodeURIComponent(group.id)}`", "tab.href"],
+      from: "the way back to the programme's own Coursework tab and to its page for the group, and this page's own address before a week (`?group=`), each from the form's and the programme's ids in the address and a live group's id, encoded. Nothing anybody typed",
     },
   ],
   [

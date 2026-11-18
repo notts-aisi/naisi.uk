@@ -110,7 +110,6 @@ type Wave = {
 };
 
 const ACTIVATION_DECAY = 0.952;
-const EASE_DURATION_MS = 1200;
 const BURST_INTERVAL_ACTIVE = 1500;
 const BURST_INTERVAL_IDLE = 2600;
 const RING_SPEED_RATIOS = [0.78, 1.0, 1.25];
@@ -179,7 +178,6 @@ export default function LivingPlasma({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const PAD_X = 22;
-    const PAD_Y = 12;
     const layers = layerSizes.length;
     const layerStep = layers > 1 ? (width - PAD_X * 2) / (layers - 1) : 0;
     const originX = PAD_X + bloomOriginX * (width - PAD_X * 2) - 12;
@@ -284,7 +282,10 @@ export default function LivingPlasma({
     let frame = 0;
     let lastT = performance.now();
     let lastBurstAt = -Infinity;
-    let energy = active ? 1 : 0;
+    // The ref, not the prop: the effect above has set it for this commit, and
+    // the prop read here would be a dependency that rebuilds the animation
+    // each time it flips.
+    let energy = activeRef.current ? 1 : 0;
     let cursorX = -10000;
     let cursorY = -10000;
     let prevCursorX = -10000;
@@ -370,7 +371,7 @@ export default function LivingPlasma({
       ctx.stroke();
     };
 
-    const applyAttractor = (now: number, dt: number) => {
+    const applyAttractor = (now: number) => {
       // Once success begins the network settles into its final state;
       // the magnetic pull stops grabbing new nodes and existing offsets
       // decay home so the final all-green frame is unwarped.
@@ -587,7 +588,7 @@ export default function LivingPlasma({
         }
       }
 
-      applyAttractor(now, dt);
+      applyAttractor(now);
 
       // Compute the success wavefront x-position up front so the wave +
       // pulse loops can use it to cull anything it's overtaken.

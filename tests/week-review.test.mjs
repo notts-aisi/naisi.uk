@@ -712,7 +712,8 @@ describe("4. the page: an admin's alone, saying what would be sent before any pr
     assert.match(drawn.text, /Read the strongest 2/);
     const strongest = await page("zach", { read: "strongest" });
     assert.match(strongest.text, /The strongest answers/);
-    assert.match(strongest.html, /written\?week=3&amp;person=\w+&amp;group=/);
+    // Each opens the reading view of the person's week, at the written answer.
+    assert.match(strongest.html, /\/coursework\/\w+\?week=3#reading-answer"/);
 
     // Dev changes his answer: his grade is out of date and leaves the chart.
     w.world.db.poke(PATH("dev", "w03", "k3-wa"), { text: "A new answer altogether, rewritten." });

@@ -13,6 +13,7 @@
  */
 
 import type { GroupCampus } from "../campus";
+import type { JoinsLater } from "@/lib/courses/staffMove/joins";
 import type { ExcuseFact } from "../excused/words";
 import { londonClockLabel, londonDayLabel } from "../londonLabels";
 import { CAMPUS_LABEL } from "../campusWords";
@@ -77,7 +78,13 @@ export type GroupPageWeek = {
    * excused by an approved request; `src/lib/courses/excused/facts.ts`), and
    * absent with none.
    */
-  people: { uid: string; name: string; said: WeekSaid; excuse?: ExcuseFact }[];
+  /**
+   * The week's people, for staff. Somebody moved into the group mid-term is
+   * listed for a week before they joined it with `joins` (`joinsLaterOf` in
+   * `src/lib/courses/staffMove/joins.ts`): not one of the week's people, with
+   * no word said.
+   */
+  people: { uid: string; name: string; said: WeekSaid; excuse?: ExcuseFact; joins?: JoinsLater }[];
   /** Its register is finished. */
   finished: boolean;
   /** Its register says the session did not happen (the old switch). */

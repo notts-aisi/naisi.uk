@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { redirect } from "next/navigation";
+import { firstQuestionHref } from "@/lib/courses/coursework/forwards";
 import ReviewQueue from "@/features/courses/ReviewQueue";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import { memberCurrentWeek, resolveCalendar, resolveWeekDoc } from "@/lib/courses/groupResolve";
@@ -136,10 +137,10 @@ export default async function GroupReviewPage({
   if (asked !== null && weeks.includes(asked)) initialWeek = asked;
 
   // A week written as blocks has a written answer, not exercises: it gets
-  // feedback on the group's written answers page, by the rubric.
+  // feedback on the page of one question across the group, at the written answer.
   const { week: initial } = await resolveWeekDoc(db, runId, groupId, weekDocId(initialWeek));
   if (initial && isBlockWeek(initial)) {
-    redirect(`${runHome}/group/${encodeURIComponent(groupId)}/written?week=${initialWeek}`);
+    redirect(firstQuestionHref(`${runHome}/group/${encodeURIComponent(groupId)}/question`, initialWeek, "answer"));
   }
 
   const eyebrow = [access.run.courseTitle, access.run.label].filter(Boolean).join(" · ");

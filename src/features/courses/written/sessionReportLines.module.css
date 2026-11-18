@@ -1,6 +1,6 @@
 /*
- * What the week's session reports say about the person, on a written
- * answer's review page: a read-only card in the column beside the answer,
+ * What the week's session reports say about the person, in the reading view
+ * of their week: a read-only card in the column beside the written answer,
  * drawn as the ratings cards beside it are. Every colour, radius and gap is
  * a token from src/theme/tokens.css. Nothing in it is pressed, so it holds no
  * target.

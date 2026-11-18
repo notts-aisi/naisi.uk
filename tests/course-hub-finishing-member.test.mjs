@@ -32,7 +32,9 @@ import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
+  A,
   BEFORE,
+  C,
   END,
   RULE,
   RUN,
@@ -249,20 +251,125 @@ describe("5. one record, asked by every page, and the rule never sent", () => {
     }
   });
 
-  test("while the run is going, the run home reads nothing of who finished", async () => {
+  test("while the run is going, the run home reads nothing of who finished but the rule, by its address, for somebody taking part", async () => {
+    // CHANGED ON PURPOSE (November 2026): a learner is told what a
+    // certificate needs, so the run home reads the run's rule, and nothing
+    // else of who finished (no decision, no list); a facilitator reads none of it.
     mock.timers.setTime(new Date("2026-11-17T12:00:00Z").getTime());
-    world.db.stats.reads = 0;
-    const reads = [];
-    const collection = world.db.collection;
-    world.db.collection = (path) => {
-      reads.push(path);
-      return collection(path);
+    const finishingReads = async (who) => {
+      const reads = [];
+      const collection = world.db.collection;
+      world.db.collection = (path) => {
+        reads.push(path);
+        return collection(path);
+      };
+      try {
+        await ask.overview(who);
+      } finally {
+        world.db.collection = collection;
+      }
+      return reads.filter((path) => path === "courseFinishing").length;
     };
-    try {
-      await ask.overview("amara");
-    } finally {
-      world.db.collection = collection;
+    assert.equal(await finishingReads("amara"), 1, "a run still going read more of who finished than its rule");
+    assert.equal(await finishingReads("rahul"), 0, "a facilitator's run home read who finished");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. What a certificate needs
+// ---------------------------------------------------------------------------
+
+describe("6. what a certificate needs, told to somebody taking part on a run with a rule", () => {
+  /** Tue 17 Nov 2026: the run is going, every group mid-term. */
+  const MID = new Date("2026-11-17T12:00:00Z");
+  const EXCUSED = " A session you’re excused from doesn’t count as coming.";
+  const needs = (who) => ask.overview(who).then((answer) => answer.body.certificateNeeds);
+
+  test("the sentence: a rule and six sessions, a group due fewer, no count, somebody who joined late, an incubator, and no rule", () => {
+    const words = lib.words.certificateNeedsWords;
+    assert.equal(
+      words({ atLeast: 5, due: 6, noOf: false, incubator: false }),
+      "To get your certificate you need to come to at least 5 of your group’s 6 sessions. A session you’re excused from doesn’t count as coming.",
+    );
+    // A group due fewer than the rule asks holds them to every one it holds: its number, for both.
+    assert.equal(words({ atLeast: 5, due: 4, noOf: false, incubator: false }), `To get your certificate you need to come to at least 4 of your group’s 4 sessions.${EXCUSED}`);
+    // No count to say simply and truly: no "of".
+    assert.equal(words({ atLeast: 5, due: null, noOf: false, incubator: false }), `To get your certificate you need to come to at least 5 sessions.${EXCUSED}`);
+    assert.equal(words({ atLeast: 5, due: 4, noOf: true, incubator: false }), `To get your certificate you need to come to at least 4 sessions.${EXCUSED}`);
+    assert.equal(words({ atLeast: 1, due: null, noOf: false, incubator: false }), `To get your certificate you need to come to at least 1 session.${EXCUSED}`);
+    // An incubator's people are told of no group.
+    assert.equal(words({ atLeast: 5, due: 6, noOf: false, incubator: true }), `To get your certificate you need to come to at least 5 of your 6 sessions.${EXCUSED}`);
+    // No rule: nothing.
+    assert.equal(words({ atLeast: null, due: 6, noOf: false, incubator: false }), null);
+    for (const said of [words({ atLeast: 5, due: 6, noOf: false, incubator: false }), words({ atLeast: 5, due: null, noOf: false, incubator: true })]) {
+      assert.doesNotMatch(said ?? "", /[\u2013\u2014]|collate/i);
     }
-    assert.ok(!reads.includes("courseFinishing"), "a run still going read who finished");
+  });
+
+  test("the run home's answer: each learner's group counted as who finished counts it; nothing for a facilitator, a learner who facilitates, with no rule, or once it is over", async () => {
+    mock.timers.setTime(MID.getTime());
+    // Rule 4 (the suite's): Group A holds six sessions, Group B five (its week 4 was called off).
+    assert.equal(await needs("amara"), `To get your certificate you need to come to at least 4 of your group’s 6 sessions.${EXCUSED}`);
+    assert.equal(await needs("kofi"), `To get your certificate you need to come to at least 4 of your group’s 5 sessions.${EXCUSED}`);
+    // A rule above what Group B is due: its own number, for both.
+    world.db.seed(rulePath, RULE(6));
+    assert.equal(await needs("kofi"), `To get your certificate you need to come to at least 5 of your group’s 5 sessions.${EXCUSED}`);
+    assert.equal(await needs("amara"), `To get your certificate you need to come to at least 6 of your group’s 6 sessions.${EXCUSED}`);
+    // A facilitator's place, and a learner who facilitates a group of the run: nothing.
+    assert.equal(await needs("rahul"), null);
+    world.db.poke(`courseGroups/${C}`, { facilitatorUids: ["tom", "hamza"] });
+    assert.equal(await needs("hamza"), null);
+    // Nothing of their own count, nor anybody else's.
+    assert.doesNotMatch(JSON.stringify((await ask.overview("amara")).body), /"atLeast"|suggest|decidedBy|"rule"/);
+    // No rule: nothing, as before.
+    reset();
+    assert.equal(await needs("amara"), null);
+    // Once the programme is over they are told whether they finished instead.
+    world.db.seed(rulePath, RULE(4));
+    mock.timers.setTime(END.getTime());
+    assert.equal(await needs("amara"), null);
+  });
+
+  test("a group meeting twice in a week is told the number with no \"of\", and a session whose old register says it was not held is not counted, as the record counts neither", async () => {
+    mock.timers.setTime(MID.getTime());
+    assert.equal(await needs("amara"), `To get your certificate you need to come to at least 4 of your group’s 6 sessions.${EXCUSED}`);
+    // An old register that says Group A's week 2 was not held: the record leaves it out, and so does the count.
+    world.db.poke(`courseAttendance/${RUN.agi}__${A}__w02`, { held: false });
+    assert.equal(await needs("amara"), `To get your certificate you need to come to at least 4 of your group’s 5 sessions.${EXCUSED}`);
+    // The same, as the pure function counts it, by session key.
+    const [needsLib, groups, runs] = await Promise.all([
+      made.loadTs(join("lib", "courses", "finishing", "needs.ts")),
+      made.loadTs(join("lib", "firestore", "courseGroups.ts")),
+      made.loadTs(join("lib", "firestore", "courses.ts")),
+    ]);
+    const runDoc = runs.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const groupDoc = groups.normalizeCourseGroup(A, world.db.read(`courseGroups/${A}`));
+    const base = { rule: { atLeast: 4 }, run: runDoc, enrolment: { role: "learner", status: "active", joinedWeekNumber: 1 }, facilitates: false, incubator: false };
+    assert.equal(needsLib.sessionsDueFor(runDoc, groupDoc, 1), 6);
+    assert.equal(needsLib.sessionsDueFor(runDoc, groupDoc, 1, new Set(["w02", "w05"])), 4);
+    assert.equal(
+      needsLib.certificateNeedsFor({ ...base, group: groupDoc, registers: new Map([["w02", { held: false }], ["w03", { held: true }], ["w04", {}]]) }),
+      `To get your certificate you need to come to at least 4 of your group’s 5 sessions.${EXCUSED}`,
+    );
+    // A group with a second session a week: the record counts one a week, so
+    // no "of". No stored group has one yet (the group's reader keeps no
+    // second slot), so it is given to the function as the sessions read it.
+    const twice = { ...groupDoc, extraSession: { weekday: 1, startTimeLocal: "18:00", durationMinutes: 120, location: "Hallward B12", meetingUrl: null, notes: "" } };
+    assert.equal(needsLib.certificateNeedsFor({ ...base, group: twice }), `To get your certificate you need to come to at least 4 sessions.${EXCUSED}`);
+    assert.equal(needsLib.certificateNeedsFor({ ...base, group: twice, incubator: true }), `To get your certificate you need to come to at least 4 sessions.${EXCUSED}`);
+  });
+
+  test("the programme page says it under the marks, and Home beside its certificate line in the last week; neither says anything with no rule", async () => {
+    mock.timers.setTime(MID.getTime());
+    const sentence = `To get your certificate you need to come to at least 4 of your group’s 6 sessions.${EXCUSED}`;
+    world.overview = (await ask.overview("amara")).body;
+    const home = textOf(renderToStaticMarkup(createElement(member.RunHome, { runId: RUN.agi, isAdmin: false, canEmailCohort: false, pitching: null })));
+    assert.ok(home.includes(sentence), home);
+    world.overview = (await ask.overview("rahul")).body;
+    assert.doesNotMatch(textOf(renderToStaticMarkup(createElement(member.RunHome, { runId: RUN.agi, isAdmin: false, canEmailCohort: false, pitching: null }))), /To get your certificate/);
+    // Group A's last week: Home's "After tonight" says it under "Everyone who finishes gets a certificate."
+    mock.timers.setTime(new Date("2026-12-03T12:00:00Z").getTime());
+    const pages = await pagesOf("amara");
+    assert.ok(pages.homeLine.includes(`Everyone who finishes gets a certificate. ${sentence}`), pages.homeLine);
   });
 });

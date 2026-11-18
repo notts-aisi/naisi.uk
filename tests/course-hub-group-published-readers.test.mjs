@@ -137,9 +137,18 @@ const READERS = {
     kind: "shown",
     asks: 2,
     why:
-      "the Coursework tab and a person's page, for the programme's lead and admins: a person sits in their group only where " +
+      "the Coursework tab and a person's week on the programme's side, for the programme's lead and admins: a person sits in their group only where " +
       "their placement may be shown to the caller, so the lead sees an untold one as not in a group yet; asked a second time " +
       "about a caller who is no admin, to know whether the person was told and so reads the group's copy of a week",
+  },
+  "lib/courses/coursework/readingLoad.ts": {
+    kind: "shown",
+    asks: 3,
+    why:
+      "the reading view of one person's week from the group's side: whose weeks a reader may open in a group are the run's " +
+      "placements this reader may be shown (an admin sees an untold one, a facilitator or the lead never), then the one gate; " +
+      "asked a second time about a caller who is no admin, to know whether the person was told and so reads the group's copy of a week; " +
+      "and once more of an archived group's fellows, listed to an admin alone on the page of one question, as its reflections with names listed them",
   },
   "lib/courses/updates/readers.ts": {
     kind: "shown",
@@ -355,7 +364,7 @@ const READERS = {
   "lib/courses/writtenAnswers/reviewPage.ts": {
     kind: "shown",
     asks: 1,
-    why: "the review page's people: an untold seat is not a row for anybody but an admin",
+    why: "the written answer's review page's loader, kept as the reader behind This week's work's Written answer column (its own page is retired): its people, where an untold seat is not a row for anybody but an admin",
   },
   "app/api/courses/runs/[runId]/sync-tasks/route.ts": {
     kind: "shown",
@@ -458,10 +467,12 @@ const READERS = {
   "lib/applications/people/load.ts": {
     kind: "staff",
     proof: ['if (!opensProgrammeGroups(role)) return { status: "not-yours" };'],
+    told: 1,
     why:
       "a programme's People tab, for its lead and admins, who place people: each person's group and whether they " +
       "left come from every seat on the run the programme names, as the allocation board shows them, and it shows " +
-      "no member a placement and names nobody to a facilitator",
+      "no member a placement and names nobody to a facilitator. It asks whether Publish has told a seat only to offer " +
+      "the way to move somebody for good, which a seat nobody has told is not offered",
   },
   "app/api/courses/runs/[runId]/allocation/route.ts": {
     kind: "board",
@@ -574,6 +585,33 @@ const READERS = {
       "admit a group's live facilitators, the programme's lead, the run's track leads and admins first): the group's " +
       "told places are read only to count whose reminders before a session have gone, and the preview answers with " +
       "counts. A placement nobody has told is no reminder and is not counted; nobody's group is shown",
+  },
+  "lib/courses/moveFromWeek.ts": {
+    kind: "writer",
+    proof: ["if (!placementIsTold(place)) return { ok: false, refusal: \"not-told\" };", "patch.toldGroupId = fromGroupId;"],
+    told: 1,
+    why:
+      "moving somebody to another group from a week, called by the staff move alone: it moves only a seat Publish has told " +
+      "(a seat nobody has told is the board's to move), keeps it told, and writes the group it was told about the first " +
+      "time a seat told before that was kept moves, or, for the staff move, the group they join, whose own email tells them. " +
+      "It shows nobody anything and emails nobody",
+  },
+  "lib/courses/staffMove/plan.ts": {
+    kind: "told",
+    asks: 2,
+    why:
+      "what moving somebody to another group for good would do, for an admin or the programme's lead (the page and the route " +
+      "ask the gate first): a seat Publish has not told is refused in a sentence, since a group that has not gone out is " +
+      "changed in Arrange and told at Publish; nobody is emailed about a group they were never told. The ways in ask the " +
+      "same of a seat (placeTakesMove) before they offer a move",
+  },
+  "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/page.tsx": {
+    kind: "staff",
+    proof: ['if (outcome.status === "not-yours") return <NotYours roundId={roundId} programmeId={programmeId} tab="Groups" />;'],
+    why:
+      "a group's page under the programme, for its lead and admins: it reads the group's active places only to say whose " +
+      "names get the way to move them to another group for good, asking placeTakesMove (a seat Publish has told, of somebody " +
+      "who facilitates no group), and shows no member a placement",
   },
   "lib/courses/regularTime/apply.ts": {
     kind: "writer",
@@ -833,9 +871,11 @@ describe("every reader of placements says what it does about a placement Publish
       for (const [, args] of calls) {
         // Whether the caller is an admin, from the gate; and, where the rows
         // are named for the caller, the session's own role (the names rule).
+        // A caller about one session may hand its week after it, for the rows
+        // of that week (`forWeek`).
         assert.match(
           args,
-          /,\s*\{\s*isAdmin\s*:\s*gated\.isAdmin\s*(?:,\s*role\s*:\s*(?:actor|gated)\.role\s*)?\}\s*$/,
+          /,\s*\{\s*isAdmin\s*:\s*gated\.isAdmin\s*(?:,\s*role\s*:\s*(?:actor|gated)\.role\s*)?\}\s*(?:,\s*(?:session\.)?weekNumber\s*)?$/,
           `${file} calls it without the caller's role`,
         );
       }

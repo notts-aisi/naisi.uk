@@ -503,7 +503,9 @@ describe("3. the wiring", () => {
     const sheet = read("src/features/courses/registerCorrection/ColumnSheet.tsx");
     assert.match(sheet, /const chosenFor = \(person: \{ uid: string; line: string \}\): string \| null => lines\[person\.uid\] \?\? P\.choiceOfLine\(person\.line\)\?\.key \?\? null;/);
     assert.match(sheet, /\{P\.didHappenNowWords\(each\.line\)\}/, "the sheet does not show each person's line");
-    assert.match(sheet, /\{P\.didHappenChoicesFor\(each\.line\)\.map\(\(choice\) =>/);
+    // CHANGED ON PURPOSE (November 2026): the choices are those the route takes
+    // from the reader on each line (`choicesFor`, tests/course-register-cover.test.mjs).
+    assert.match(sheet, /\{P\.choicesFor\(P\.didHappenChoicesFor\(each\.line\), \{[\s\S]*?\}\)\.map\(\(choice\) =>/);
     assert.match(sheet, /checked=\{chosenFor\(each\) === choice\.key\}/, "a person does not start from their line");
     assert.doesNotMatch(sheet, /DID_HAPPEN_CHOICES\.map/);
     // Push back: worked out from the route's own preview of every refusal a

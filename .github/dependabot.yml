@@ -69,6 +69,27 @@ updates:
       # LIFT WHEN: that migration is done as its own piece of work.
       - dependency-name: firebase-admin
         update-types: ["version-update:semver-major"]
+      # WHY: firebase 13 is a major version of the browser SDK that every
+      # signed-in page loads for sign-in, the Firestore listeners, uploads and
+      # push, with breaking changes in its release notes. It is a migration to
+      # be tried in real browsers, Safari among them, and not a weekly bump.
+      # LIFT WHEN: that migration is done as its own piece of work.
+      - dependency-name: firebase
+        update-types: ["version-update:semver-major"]
+      # WHY: TypeScript 7 is the compiler rewritten, and the lint toolchain
+      # does not run on it: typescript-eslint, which eslint-config-next builds
+      # on, declares support for TypeScript below 6.1.
+      # LIFT WHEN: typescript-eslint supports TypeScript 7. TypeScript 6 can be
+      # taken by hand before then.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # WHY: motion animates the sign-in and register screens, whose timing is
+      # tuned by hand and differs in Safari. A major version means looking at
+      # them again on real devices, which a green suite in Chromium cannot do.
+      # LIFT WHEN: those screens have been checked on it as its own piece of
+      # work.
+      - dependency-name: motion
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
       prefix-development: "chore(deps-dev)"

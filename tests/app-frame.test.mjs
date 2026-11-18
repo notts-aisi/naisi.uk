@@ -694,6 +694,20 @@ const SECOND_HEADING_STILL_DRAWN = {
     "A run's retrospective writes its own <h1>, under the same entry as the list of courses and the run pages that draw none.",
 };
 
+/**
+ * Admin pages that put nothing on the screen: each answers every request with
+ * a forward (`redirect()`) worked out from its address alone, so there is no
+ * screen to head. Checked both ways: each is a page here that calls
+ * `redirect(` and draws no element at all, and one that starts drawing
+ * anything, or is gone, fails.
+ */
+const FORWARDS_ONLY = {
+  "/admin/admissions/forms/[roundId]/programmes/[programmeId]/written":
+    "The written answer's review page on the programme's side, retired on 13 November 2026: it forwards to the reading view of a person's week or the page of one question (src/lib/courses/coursework/forwards.ts).",
+  "/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections":
+    "The programme's reflections with names, retired on 13 November 2026: it forwards to the page of one question at the week's first reflection (src/lib/courses/coursework/forwards.ts).",
+};
+
 describe("every admin page has one heading: its own, or the shared one", () => {
   const adminPageFiles = PAGE_FILES.filter((file) => {
     const route = routeOf(file);
@@ -728,7 +742,7 @@ describe("every admin page has one heading: its own, or the shared one", () => {
 
   test("a page marked ownHead draws a head, or it would have no heading at all", () => {
     const headless = [...pages]
-      .filter(([, page]) => page.marked && page.heads.length === 0)
+      .filter(([route, page]) => page.marked && page.heads.length === 0 && !(route in FORWARDS_ONLY))
       .map(([route, page]) => `${route} (under "${page.entry.label}")`);
     assert.deepEqual(
       headless,
@@ -739,6 +753,19 @@ describe("every admin page has one heading: its own, or the shared one", () => {
         "head with PageHead (its own name as the title, the section as the crumb), or take the " +
         "mark off its entry:\n  " + headless.join("\n  "),
     );
+  });
+
+  test("every page listed as forwarding only draws nothing and forwards, and says why", () => {
+    for (const [route, why] of Object.entries(FORWARDS_ONLY)) {
+      const file = adminPageFiles.find((candidate) => routeOf(candidate) === route);
+      assert.ok(file, `${route}: listed in FORWARDS_ONLY, but there is no such page. Delete the line.`);
+      const code = codeOf(file);
+      assert.match(code, /\bredirect\(/, `${route}: listed in FORWARDS_ONLY, but it does not forward`);
+      // An element, never a type's angle brackets (`Promise<Query>`), which follow a name.
+      assert.doesNotMatch(code, /(?<![\w$.\]])<[A-Za-z]/, `${route}: listed in FORWARDS_ONLY, but it draws something, so it owes a heading. Delete the line.`);
+      assert.equal(pages.get(route)?.heads.length, 0, `${route}: listed in FORWARDS_ONLY, but something it imports draws a head`);
+      assert.ok(typeof why === "string" && why.length > 40, `${route}: needs a written reason`);
+    }
   });
 
   test("a page not marked draws no head, or it would have two", () => {

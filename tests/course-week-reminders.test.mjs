@@ -476,3 +476,108 @@ describe("7. it ships switched off, and the tick runs it only when it is on", ()
     for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1, uid);
   });
 });
+
+// ===========================================================================
+// 8. Somebody moved from a week
+// ===========================================================================
+
+describe("8. somebody moved from a week is reminded by the session they are due at that week", () => {
+  /**
+   * Group A's week 2 meets on Monday 26 October: its 3-day reminder is Friday
+   * 23 October at 9am BST. Its week 3 meets on Monday 2 November: its 1-day
+   * reminder is Sunday 1 November at 9am GMT.
+   */
+  const A_DUE = {
+    a2three: new Date("2026-10-23T08:00:00Z"),
+    a3one: new Date("2026-11-01T09:00:00Z"),
+  };
+  const chloe = `courseEnrolments/${RUN}__chloe`;
+
+  /** Chloe in Group A now. With `record`, from week 3, her weeks 1 and 2 still Group B's. */
+  function moveChloe(record) {
+    world.db.poke(chloe, {
+      groupId: GROUP.a,
+      ...(record ? { groupsByWeek: [{ groupId: GROUP.b, fromWeek: 1 }, { groupId: GROUP.a, fromWeek: 3 }] } : {}),
+    });
+  }
+
+  test("with a record: week 2 by Group B's session, week 3 by Group A's", async () => {
+    moveChloe(true);
+    await runJob(A_DUE.a2three);
+    assert.equal(marker("chloe", 3, "w02", GROUP.a), undefined, "Group A's week 2 is not hers");
+    assert.equal(mailTo("chloe").length, 0);
+    assert.equal(mailTo("ana").length, 1, "Group A's own people are reminded as ever");
+
+    await runJob(DUE.b2three);
+    assert.equal(mailTo("chloe").length, 1, "Group B's week 2 is hers");
+    assert.equal(mailTo("chloe")[0].subject, "Week 2: your session is on Tue 27 Oct");
+    assert.ok(marker("chloe", 3, "w02", GROUP.b).sentAt instanceof Date);
+
+    await runJob(A_DUE.a3one);
+    assert.equal(mailTo("chloe").length, 2, "Group A's week 3 is hers");
+    assert.equal(mailTo("chloe")[1].subject, "Week 3: your session is tomorrow");
+    await runJob(DUE.b3one);
+    assert.equal(marker("chloe", 1, "w03", GROUP.b), undefined, "Group B's week 3 is not hers");
+    assert.equal(mailTo("chloe").length, 2);
+  });
+
+  /** Group A's week 2 called off, so its week 3 session covers weeks 2 and 3; its own copy of week 2 asks one reading more. */
+  async function groupACoversWeekTwo() {
+    const own = blockWeek(2);
+    own.blocks.find((block) => block.id === "n2-p1").blocks.push(source("n2-sA", "Only Group A reads this"));
+    world.db.seed(`courseGroups/${GROUP.a}/weeks/w02`, { ...own, groupId: GROUP.a, runId: RUN });
+    at("2026-10-21T12:00:00Z");
+    const cancelled = await call("amelia", change.POST, { groupId: GROUP.a }, {
+      body: { week: 2, dateKey: "2026-10-26", kind: "cancel", reason: "Amelia is away.", tell: false },
+    });
+    assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
+  }
+
+  test("a session covering a cancelled week: a week she finished with Group B is not named", async () => {
+    await groupACoversWeekTwo();
+    moveChloe(true);
+    // Chloe finishes week 2 from her own week page, on the copy it shows her: the run's, through Group B.
+    await finishWeek("chloe", 2);
+    await runJob(A_DUE.a3one);
+    assert.equal(mailTo("chloe").length, 1);
+    assert.equal(mailTo("chloe")[0].subject, "Week 3: your session is tomorrow", "week 2 was not Group A's for her");
+    assert.doesNotMatch(await textOf(mailTo("chloe")[0]), /Week 2 isn’t finished/);
+    // Group A's own people are reminded about both weeks, as ever.
+    assert.equal(mailTo("ana").length, 1);
+    assert.equal(mailTo("ana")[0].subject, "Weeks 2 and 3: your session is tomorrow");
+  });
+
+  test("a session covering a cancelled week: a week she spent with Group B and has not finished is left out too", async () => {
+    await groupACoversWeekTwo();
+    moveChloe(true);
+    // Nothing of week 2 done. Its work was due at Group B's week 2 session, not this one.
+    await runJob(A_DUE.a3one);
+    assert.equal(mailTo("chloe").length, 1);
+    assert.equal(mailTo("chloe")[0].subject, "Week 3: your session is tomorrow");
+    const text = await textOf(mailTo("chloe")[0]);
+    assert.doesNotMatch(text, /Week 2 isn’t finished/);
+    assert.match(text, /Week 3 isn’t finished yet/);
+    // Somebody in Group A with no record, nothing done either: both weeks, as ever.
+    assert.equal(mailTo("ana")[0].subject, "Weeks 2 and 3: your session is tomorrow");
+    assert.match(await textOf(mailTo("ana")[0]), /Week 2 isn’t finished yet: .* Week 3 isn’t finished yet/);
+  });
+
+  test("a session covering a cancelled week, moved with no record: both weeks, as before", async () => {
+    await groupACoversWeekTwo();
+    moveChloe(false);
+    await runJob(A_DUE.a3one);
+    assert.equal(mailTo("chloe").length, 1);
+    assert.equal(mailTo("chloe")[0].subject, "Weeks 2 and 3: your session is tomorrow");
+  });
+
+  test("with no record (moved before the record existed): every week by the group she is in now, as before", async () => {
+    moveChloe(false);
+    await runJob(A_DUE.a2three);
+    assert.equal(mailTo("chloe").length, 1, "Group A's week 2 reminds her");
+    assert.equal(mailTo("chloe")[0].subject, "Week 2: your session is on Mon 26 Oct");
+    await runJob(DUE.b2three);
+    assert.equal(marker("chloe", 3, "w02", GROUP.b), undefined, "Group B's does not");
+    assert.equal(mailTo("chloe").length, 1);
+    for (const uid of ["amara", "farah"]) assert.equal(mailTo(uid).length, 1, uid);
+  });
+});

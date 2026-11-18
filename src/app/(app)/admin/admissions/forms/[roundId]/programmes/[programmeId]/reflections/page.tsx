@@ -1,116 +1,32 @@
-import Link from "next/link";
-import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
-import NotYours from "@/features/applications/groups/NotYours";
-import RunBlank from "@/features/applications/groups/RunBlank";
-import facilitator from "@/features/courses/facilitator/facilitator.module.css";
-import NamedReflections from "@/features/courses/facilitatorWeek/NamedReflections";
-import weekly from "@/features/courses/weekly/weekly.module.css";
-import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
-import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
-import { openLeadDoor } from "@/lib/courses/facilitatorWeek/leadDoor";
-import { loadNamedReflections, weekOfGroup } from "@/lib/courses/facilitatorWeek/readers";
-import {
-  ATTENDANCE,
-  NO_REFLECTIONS,
-  REFLECTIONS,
-  facilitatorsOwnLine,
-  groupWeekTitleWords,
-  noGroupsWords,
-  readOutEyebrowWords,
-  readOutTitleWords,
-} from "@/lib/courses/facilitatorWeek/words";
-import { resolveCalendar } from "@/lib/courses/groupResolve";
-import { resolveSessions } from "@/lib/courses/sessions";
-import { getAdminDb } from "@/lib/firebase/admin";
-import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
+import { redirect } from "next/navigation";
+import { programmeReflectionsForward } from "@/lib/courses/coursework/forwards";
 
 /**
- * THE LEAD'S AND ADMINS' READING OF ONE GROUP'S REFLECTIONS, at
- * `.../programmes/[programmeId]/reflections?group=&week=`, reached from
- * "Read them" on the lead's view of the group's week.
+ * A GROUP'S REFLECTIONS WITH NAMES ON THE PROGRAMME'S SIDE, RETIRED (Fri 13
+ * Nov 2026): `.../programmes/[programmeId]/reflections?group=&week=` now
+ * forwards, worked out from the address alone, to the page of one question
+ * across the group at the week's first reflection
+ * (`./question?group=G&week=N&first=reflection`), which lists each person of
+ * the group with their answer under their name, a facilitator's own marked as
+ * theirs, and "Nothing written yet" for anybody who has not written one. See
+ * `src/lib/courses/coursework/forwards.ts`.
  *
- * WITH NAMES (Zach, Fri 30 Oct): every prompt of the week, each fellow's
- * answer under their whole name, in the group's order of people, with when
- * they last wrote it, and under each prompt the names of the fellows who
- * have not written one yet (`loadNamedReflections`, drawn by
- * `NamedReflections`, the layout the group's facilitators' own page with
- * names draws too). Beside them, the group's FACILITATORS' OWN reflections,
- * under each facilitator's name and marked as theirs (Zach, Mon 26 Oct),
- * which no facilitator is ever shown and nobody reads out. Nothing is picked
- * or copied here: the lead runs no session, and the page where lines are
- * picked to read out stays without names.
- *
- * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`openLeadDoor`), decided from the
- * form before the run is read; a reviewer is told it is the lead's and an
- * admin's. The private notes are never read here. Nothing here writes.
+ * It reads nothing and asks nobody anything: the page it forwards to answers
+ * with its own gate (`openLeadDoor`), as it does for anybody who typed its
+ * address.
  */
 
 export const dynamic = "force-dynamic";
 
-export default async function LeadGroupReflectionsPage({
+type Query = { group?: string | string[]; week?: string | string[] };
+
+export default async function ProgrammeReflectionsForward({
   params,
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
-  searchParams?: Promise<{ group?: string | string[]; week?: string | string[] }>;
+  searchParams?: Promise<Query>;
 }) {
-  const [{ roundId, programmeId }, query, user] = await Promise.all([
-    params,
-    searchParams ?? Promise.resolve({} as { group?: string | string[]; week?: string | string[] }),
-    requireAdmissionsPage(),
-  ]);
-  const db = getAdminDb();
-  const door = db ? await openLeadDoor(db, user, roundId, programmeId, query.group) : null;
-  if (!db || !door || door.kind === "none") return <NoProgrammeHere roundId={roundId} />;
-  if (door.kind === "not-yours") return <NotYours roundId={roundId} programmeId={programmeId} tab="Attendance" />;
-  if (door.kind === "blank") return <RunBlank view={door.view} />;
-
-  // Every address here is a page of this site written out from ids, never from stored text.
-  const round = encodeURIComponent(roundId);
-  const programmeKey = encodeURIComponent(programmeId);
-  if (door.kind === "no-groups") {
-    return (
-      <div className={facilitator.page}>
-        <header className={facilitator.wkReadHead}>
-          <Link href={`/admin/admissions/forms/${round}/programmes/${programmeKey}/attendance`} className={facilitator.crumb}>
-            {ATTENDANCE}
-          </Link>
-        </header>
-        <p className={weekly.cardLine}>{noGroupsWords(door.view.programmeName)}</p>
-      </div>
-    );
-  }
-
-  const { run, group, viewer } = door;
-  const now = new Date();
-  const taught = new Set(resolveSessions(run, group, resolveCalendar(run, group)).map((session) => session.weekNumber));
-  const asked = typeof query.week === "string" && /^\d{1,2}$/.test(query.week) ? Number(query.week) : null;
-  const weekNumber = asked !== null && taught.has(asked) ? asked : (weekOfGroup(run, group, now)?.weekNumber ?? null);
-  const [model, programme] = await Promise.all([
-    loadFacilitatorGroup(db, run, group, { isAdmin: viewer === "admin", actor: user }, now),
-    runProgrammeOf(db, run.id),
-  ]);
-  const week =
-    weekNumber === null
-      ? null
-      : await loadNamedReflections(db, { run, group, model, viewer, weekNumber, withOwn: true });
-
-  const lead = viewer === "lead" ? { firstName: "", isReader: true } : programme?.leadFirstName ? { firstName: programme.leadFirstName, isReader: false } : null;
-
-  return (
-    <div className={facilitator.page}>
-      <header className={facilitator.wkReadHead}>
-        <Link href={`/admin/admissions/forms/${round}/programmes/${programmeKey}/week?group=${encodeURIComponent(group.id)}`} className={facilitator.crumb}>
-          {groupWeekTitleWords(group.name)}
-        </Link>
-        {week && <p className={facilitator.wkReadEyebrow}>{readOutEyebrowWords(group.name, week.weekNumber)}</p>}
-        <h1 className={facilitator.wkReadTitle}>{week ? readOutTitleWords({ kind: "week", weekNumber: week.weekNumber }) : REFLECTIONS}</h1>
-      </header>
-      {week === null ? (
-        <p className={weekly.cardLine}>{NO_REFLECTIONS}</p>
-      ) : (
-        <NamedReflections prompts={week.prompts} ownLine={facilitatorsOwnLine(lead)} />
-      )}
-    </div>
-  );
+  const [{ roundId, programmeId }, query] = await Promise.all([params, searchParams ?? Promise.resolve({} as Query)]);
+  redirect(programmeReflectionsForward(`/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}`, query));
 }

@@ -31,8 +31,9 @@ import { canApproveCourse, canDraftCourse } from "@/lib/firestore/users";
  * THE RULE FOR WHO FINISHED is the run's, set here by the programme's lead
  * or an admin while the programme names a run. Only its own document is
  * read, by the run id the form names, and only once `loadSetup` has said
- * the caller is the lead or an admin: nobody else is ever shown it, and a
- * lead's page still reads nothing of the run itself. Its route asks the
+ * the caller is the lead or an admin: nobody else is shown it here (the
+ * people taking part are told its number on their own pages), and a lead's
+ * page still reads nothing of the run itself. Its route asks the
  * gate again, and refuses a run that is no longer on the site.
  *
  * THE FACILITATORS' TRAINING is the run's too, set here by the same people

@@ -9,10 +9,12 @@
  * board does not draw are in its voice, and are listed in the job's notes for
  * the boards' designers to confirm.
  *
- * NEVER A TARGET NUMBER TO A MEMBER. The rule's number appears only in the
- * sentences built for the programme's lead and admins (`ruleSentence`,
- * `ruleSlot`, the Settings card). A member is told they finished, or that the
- * programme has ended, and nothing else.
+ * THE RULE'S NUMBER, AND NOTHING ELSE, TO SOMEBODY TAKING PART. Where the run
+ * has a rule, a learner is told what a certificate needs, in one sentence
+ * (`certificateNeedsWords`): never their own count against it, never who
+ * finished. The rest of the number's sentences are for the programme's lead
+ * and admins (`ruleSentence`, `ruleSlot`, the Settings card). Once the
+ * programme is over, a member is told they finished, or that it has ended.
  *
  * Pure: no reads, nothing server-only.
  */
@@ -30,7 +32,45 @@ export function ruleSlot(atLeast: number, of: number): string {
 
 /** The board's sentence over the list, for the lead and admins only. */
 export function ruleSentence(atLeast: number, of: number): string {
-  return `We’ve ticked everyone who came to ${ruleSlot(atLeast, of)} sessions. Change any you disagree with. Only you and admins see this rule.`;
+  return `We’ve ticked everyone who came to ${ruleSlot(atLeast, of)} sessions. Change any you disagree with. Only you and admins see who’s ticked.`;
+}
+
+/** "1 session", "5 sessions". */
+function sessionsWord(n: number): string {
+  return `${n} ${n === 1 ? "session" : "sessions"}`;
+}
+
+/**
+ * WHAT A CERTIFICATE NEEDS, said to somebody taking part on a run with a rule
+ * for who finished: "To get your certificate you need to come to at least 5
+ * of your group’s 6 sessions. A session you’re excused from doesn’t count as
+ * coming." Null with no rule: nothing is said. The one sentence the
+ * programme page, its "Most weeks, not all" and asking to be excused draw.
+ *
+ * `due` is how many sessions the person's group is due to hold for them,
+ * from the week they joined, counted as who finished counts a group's
+ * sessions (`sessionsDueFor`), or null with no group yet. Never a number the
+ * finished record would not hold them to: a group due fewer than the rule
+ * asks holds them to every one (`meetsRule`), so its number is said for
+ * both. Where the count cannot be said simply and truly (no group yet, they
+ * joined after their group began, or their group meets more than once in a
+ * week, which the record counts as one session a week: `noOf`), there is no
+ * "of": "at least 5 sessions". An incubator's people are told of no group:
+ * "of your 6 sessions".
+ */
+export function certificateNeedsWords(input: {
+  atLeast: number | null;
+  due: number | null;
+  noOf: boolean;
+  incubator: boolean;
+}): string | null {
+  if (input.atLeast === null || input.atLeast < 1) return null;
+  const excused = " A session you’re excused from doesn’t count as coming.";
+  const due = input.due !== null && input.due > 0 ? input.due : null;
+  const need = due === null ? input.atLeast : Math.min(input.atLeast, due);
+  if (due === null || input.noOf) return `To get your certificate you need to come to at least ${sessionsWord(need)}.${excused}`;
+  const of = input.incubator ? `your ${sessionsWord(due)}` : `your group’s ${sessionsWord(due)}`;
+  return `To get your certificate you need to come to at least ${need} of ${of}.${excused}`;
 }
 
 /**
@@ -160,7 +200,7 @@ export const RULE_UNIT = "sessions";
 
 /** Under the box: what the number does, and who sees it. */
 export const RULE_HINT =
-  "Of the sessions their group held: a cancelled session doesn’t count against anyone. After the last session, we tick everyone who came to this many, and you can change any. Only you and admins see this.";
+  "Of the sessions their group held: a cancelled session doesn’t count against anyone. After the last session, we tick everyone who came to this many, and you can change any. The people taking part are told the number; only you and admins see who’s ticked.";
 
 // ---------------------------------------------------------------------------
 // A member's own pages, once the programme is over

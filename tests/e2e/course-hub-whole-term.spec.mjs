@@ -277,6 +277,8 @@ async function waitFor(what, predicate, { timeout = WAIT_MS } = {}) {
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const flat = (text) => text.replace(/\s+/g, " ").trim();
 const textOf = async (locator) => flat((await locator.textContent()) ?? "");
+/** A person's cell on the Coursework tab, by the start of its label: "Ada Fixture ..., week 3: ", after which come its state and its flags. */
+const tabCell = (page, person, week) => page.getByRole("link", { name: new RegExp(`^${escapeRegExp(person.displayName)}, week ${week}: `) });
 /** What an element says, as written: every text node in it, a space between each. */
 const wordsIn = async (locator) =>
   flat(
@@ -1210,13 +1212,13 @@ test(
         // The lead: the Coursework tab.
         const pg = await as(gus);
         await pg.goto(`${formBase}/coursework`, { waitUntil: "domcontentloaded" });
-        const benCell = pg.getByRole("link", { name: `Week ${LATE_WEEK}, done: ${ben.displayName}’s coursework`, exact: true });
+        const benCell = tabCell(pg, ben, LATE_WEEK);
         await benCell.waitFor({ timeout: WAIT_MS });
         const benSays = await textOf(benCell);
         assert.ok(benSays.startsWith(WORDS.doneLate) && benSays.includes(`Late: ${lateWords(benLate)} after the session`), `the lead does not read Ben's week 2 as late: ${benSays}`);
-        const danCell = pg.getByRole("link", { name: `Week ${LATE_WEEK}, done: ${dan.displayName}’s coursework`, exact: true });
+        const danCell = tabCell(pg, dan, LATE_WEEK);
         assert.ok((await textOf(danCell)).startsWith(WORDS.doneOnTime), `the lead does not read Dan's week 2 as on time: ${await textOf(danCell)}`);
-        const adaCell = pg.getByRole("link", { name: `Week ${ON_TIME_WEEK}, done: ${ada.displayName}’s coursework`, exact: true });
+        const adaCell = tabCell(pg, ada, ON_TIME_WEEK);
         assert.ok((await textOf(adaCell)).startsWith(WORDS.done), `the lead does not read Ada's week 3 as done: ${await textOf(adaCell)}`);
         assert.ok(!(await textOf(adaCell)).startsWith(WORDS.doneLate), "Ada's week 3 reads as late");
       });
@@ -1233,7 +1235,7 @@ test(
         for (const reader of [gus, "admin"]) {
           const pg = await as(reader);
           await pg.goto(`${formBase}/coursework`, { waitUntil: "domcontentloaded" });
-          const cell = pg.getByRole("link", { name: `Week ${LATE_WEEK}, done: ${ivo.displayName}’s coursework`, exact: true });
+          const cell = tabCell(pg, ivo, LATE_WEEK);
           await cell.waitFor({ timeout: WAIT_MS });
           const said = await textOf(cell);
           assert.ok(said.startsWith(WORDS.doneLate) && said.includes(`Late: ${lateWords(ivoLate)} after the session`), `${reader === "admin" ? "the admin" : "the lead"} does not read Ivo's week 2 as late: ${said}`);
@@ -1249,12 +1251,16 @@ test(
         for (const words of Object.values(WRITES.ivo)) assert.ok(!main.includes(words), `the facilitator's group page carries Ivo's words: ${words}`);
         const table = fernPage.getByRole("region", { name: "This week’s work" }).first();
         assert.equal(await table.getByRole("row").filter({ hasText: ivo.first }).count(), 0, "the facilitator's table has a row for Ivo's own week");
-        await fernPage.goto(`${origin}${learnGroupPath(groupA)}/reflections/names?week=${LATE_WEEK}`, { waitUntil: "domcontentloaded" });
-        const names = await waitFor("the facilitator's reflections with names to show Ben's", async () => {
-          const said = await textOf(fernPage.locator("main"));
-          return said.includes(WRITES.ben.rp1) ? said : null;
-        });
-        for (const words of [WRITES.ivo.rp1, WRITES.ivo.rp2, WRITES.ivo.rp3]) assert.ok(!names.includes(words), "the facilitator reads Ivo's own reflections");
+        // The group's reflections with names: the page of one question across the group, at each of the week's three reflections.
+        for (const key of ["rp1", "rp2", "rp3"]) {
+          await fernPage.goto(`${origin}${learnGroupPath(groupA)}/question?week=${LATE_WEEK}&question=${enc(courseworkItemId(LATE_WEEK, key))}`, { waitUntil: "domcontentloaded" });
+          const names = await waitFor(`the facilitator's reflections with names to show Ben's ${key}`, async () => {
+            const said = await textOf(fernPage.locator("main"));
+            return said.includes(WRITES.ben[key]) ? said : null;
+          });
+          for (const words of [WRITES.ivo.rp1, WRITES.ivo.rp2, WRITES.ivo.rp3]) assert.ok(!names.includes(words), "the facilitator reads Ivo's own reflections");
+          assert.equal(await fernPage.locator(`section[id="p-${ivo.uid}"]`).count(), 0, "the facilitator is shown a row for Ivo's own reflections");
+        }
         // In no count on the lead's page of the group either.
         const pg = await as(gus);
         await pg.goto(`${origin}${groupPagePath(groupA)}?week=${LATE_WEEK}`, { waitUntil: "domcontentloaded" });
@@ -1531,8 +1537,9 @@ test(
         assert.equal(await wordsIn(own.locator("xpath=..")), `${WORDS.ownEarlier} ${REFLECTION.label}`);
 
         const fernPage = await as(fern);
-        await fernPage.goto(`${origin}${learnGroupPath(groupA)}/reflections/names?week=${EDITED_WEEK}`, { waitUntil: "domcontentloaded" });
-        const answer = fernPage.locator("li").filter({ hasText: WRITES.ada.rp1 });
+        // On the page of one question across the group, at the week's first reflection (this one): Ada's row, a section carrying her id.
+        await fernPage.goto(`${origin}${learnGroupPath(groupA)}/question?week=${EDITED_WEEK}&first=reflection`, { waitUntil: "domcontentloaded" });
+        const answer = fernPage.locator(`section[id="p-${ada.uid}"]`).filter({ hasText: WRITES.ada.rp1 });
         await answer.first().waitFor({ timeout: WAIT_MS });
         const said = await wordsIn(answer.first());
         assert.ok(said.includes(`${WORDS.staffEarlier} ${REFLECTION.label}`), `the facilitator does not read the question when it was written: ${said}`);
@@ -1844,26 +1851,34 @@ test(
 
         // 3. The Coursework tab, every fellow and every week; 4. one person's page.
         await pg.goto(`${formBase}/coursework`, { waitUntil: "domcontentloaded" });
-        await pg.getByRole("link", { name: `Week 1, done: ${ada.displayName}’s coursework`, exact: true }).waitFor({ timeout: WAIT_MS });
+        await tabCell(pg, ada, 1).waitFor({ timeout: WAIT_MS });
         for (const person of [...fellows, ivo]) {
           for (const week of [1, 2, 3]) {
             const said = stateOf(person, week);
             const doneOrNot = said === "on time" || said === "late" ? "done" : "not done";
-            const cell = pg.getByRole("link", { name: `Week ${week}, ${doneOrNot}: ${person.displayName}’s coursework`, exact: true });
+            const cell = tabCell(pg, person, week);
             if ((await cell.count()) === 0) {
-              problems.push(`the Coursework tab, ${person.first} week ${week}: no cell reads ${doneOrNot}`);
+              problems.push(`the Coursework tab, ${person.first} week ${week}: no cell`);
               continue;
             }
             const words = await textOf(cell);
-            const word = staffWord(person, week) ?? (doneOrNot === "done" ? WORDS.done : said === "joined late" ? WORDS.joinedLate : "Not done");
-            expectEqual(words.startsWith(word), true, `the Coursework tab, ${person.first} week ${week} (${words})`);
+            // A week not done says whether it was started, or, before it has begun for their group, the day it opens: each
+            // says it is not done, and none is a word for done. (The cell's words run together in its text, so no word after.)
+            const word = staffWord(person, week) ?? (doneOrNot === "done" ? WORDS.done : said === "joined late" ? WORDS.joinedLate : null);
+            const notDone = /^(Not started|Started|Not open yet|Opens [A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2})/;
+            expectEqual(word === null ? notDone.test(words) : words.startsWith(word), true, `the Coursework tab, ${person.first} week ${week} reads ${doneOrNot} (${words})`);
           }
         }
         for (const person of [ben, ada]) {
-          await pg.goto(`${formBase}/coursework/${enc(person.uid)}`, { waitUntil: "domcontentloaded" });
           const week = person === ben ? LATE_WEEK : ON_TIME_WEEK;
-          // The person's page draws each week in a section of its own: wait for the one being read.
-          await pg.locator(`#week-${week}`).waitFor({ timeout: WAIT_MS });
+          // The person's page is the reading view of one week, named in the address: wait for its reflections.
+          await pg.goto(`${formBase}/coursework/${enc(person.uid)}?week=${week}`, { waitUntil: "domcontentloaded" });
+          await pg.locator('section[aria-labelledby="reading-reflections"]').waitFor({ timeout: WAIT_MS });
+          expectEqual(
+            (await textOf(pg.locator("header").filter({ hasText: person.displayName }))).includes(`week ${week} of `),
+            true,
+            `${person.first}'s page opens on week ${week}`,
+          );
           const page = await textOf(pg.locator("main"));
           const did = work.get(workKey(person, week));
           expectEqual(page.includes(WRITES[person.key].rp2), true, `${person.first}'s page has their week ${week} reflection`);

@@ -135,6 +135,10 @@ const READERS = {
     treats: "tells",
     why: "the written answer's own Send stamps when it was sent: a reflection's or a fill-in box's row is refused, never stamped",
   },
+  "lib/courses/weekWork/firstRead.ts": {
+    treats: "tells",
+    why: "when an answer was first read: a reflection's row is read by its id only for whether it is a reflection with words in it, a fill-in box's likewise behind the boxes' own gate, never a word kept or sent back; a written answer goes through feedback's own reader",
+  },
   "lib/courses/weekWork/readers.ts": {
     treats: "tells",
     why: "how far each person has got with a week: which boxes hold something and which written answers are sent, by who and which item, never a word",
@@ -165,13 +169,17 @@ const READERS = {
     answers: true,
     why: "who finished counts written answers sent; reflections and fill-in boxes are left out",
   },
+  "lib/courses/staffMove/plan.ts": {
+    treats: "tells",
+    why: "the move page asks only whether a week from the move on holds something the person wrote: a box by whether it is written, any other row by what it holds; nothing is reviewed, counted as sent or shown",
+  },
   "lib/courses/writtenAnswers/queue.ts": {
     treats: "tells",
     why: "the review queue's written answers half: reflections, and the summer's answers, are left out before anything is counted",
   },
   "lib/courses/writtenAnswers/reviewPage.ts": {
     treats: "tells",
-    why: "the review page's answers, each read by its id: a reflection's row reads as no answer",
+    why: "the written answer's review page's loader, kept as the reader behind This week's work's Written answer column (its own page is retired): its answers, each read by its id: a reflection's row reads as no answer",
   },
   "lib/applications/nextTerm/load.ts": {
     treats: "tells",

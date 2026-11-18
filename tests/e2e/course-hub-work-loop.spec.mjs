@@ -9,13 +9,14 @@
  * run on the programme's Settings tab and appoints Fern to Group A. Then:
  *
  *  - Fern, signed in, opens Ada's answer from Feedback to write on Group A's
- *    page, reads it on its review page (which draws no rating for a
- *    facilitator), and saves feedback on it: the page says Ada reads it now
- *    and is emailed when an admin sends the batch, and nobody is emailed;
- *  - Fern saves feedback on Ben's answer, from the same page's list;
- *  - the admin, as the programme's lead, opens Ada's answer on its review
- *    page, rates it 8 of 10 with a comment for the team, and reads it under
- *    What the team said;
+ *    page, reads it in the reading view of Ada's week (which draws no rating
+ *    for a facilitator), and saves feedback beside it: the page says Ada
+ *    reads it now and is emailed when an admin sends the batch, and nobody is
+ *    emailed;
+ *  - Fern saves feedback on Ben's answer, opened the same way;
+ *  - the admin, as the programme's lead, opens Ada's week in the reading
+ *    view, rates her answer 8 of 10 with a comment for the team beside it,
+ *    and reads it under What the team said;
  *  - the programme's Overview lists both pieces under Feedback to send, with
  *    the press locked until a test; Send a test to me reaches the admin, in
  *    Mailpit, marked as a test, and unlocks the press;
@@ -96,7 +97,7 @@ const RATING_COMMENT = "Argues from the reading and answers the question asked. 
 
 /** The words the pages and the emails say, restated from the two words files. */
 const WORDS = {
-  // The review page: feedback.
+  // The reading view of a person's week, at the written answer: feedback.
   feedbackToWrite: "Feedback to write",
   yourFeedback: "Your feedback",
   comment: "Comment",
@@ -104,8 +105,7 @@ const WORDS = {
   saved: (first) =>
     `Saved. ${first} can read it on the week ${LOOP_WEEK} page now. ${first} will be emailed when an admin sends the feedback emails.`,
   notEmailedYet: "Not emailed yet",
-  answerHead: (first) => `${first}’s answer`,
-  // The review page: ratings, an admin's and the lead's alone.
+  // Beside the answer there: ratings, an admin's and the lead's alone.
   ratingForTheTeam: "Rating for the team",
   whatTheTeamSaid: "What the team said",
   whoReadsRatings: "Admins and the programme’s lead only",
@@ -314,9 +314,16 @@ test(
       return found;
     }
 
-    /** Fern's review page's side column: the feedback writer, the cards, and nothing of a rating. */
+    /** The written answer in the reading view of a person's week: the answer, and beside it the feedback writer, the cards and, for an admin or the lead, the rating. */
+    const answerSection = (pg) => pg.locator('section[aria-labelledby="reading-answer"]');
+
+    /** Whether `url` is the reading view of `person`'s loop week on Group A's side, at the written answer. */
+    const atAnswerOf = (url, person) =>
+      url.pathname.endsWith(`/group/${groupA.id}/coursework/${person.uid}`) && url.searchParams.get("week") === String(LOOP_WEEK) && url.hash === "#reading-answer";
+
+    /** Fern's writer beside the answer: saving, read back, and the one piece it made. The week's own writer, further down, is another region. */
     async function saveFeedbackAs(pg, person, words) {
-      const writer = pg.getByRole("region", { name: WORDS.yourFeedback });
+      const writer = answerSection(pg).getByRole("region", { name: WORDS.yourFeedback });
       await writer.waitFor({ timeout: WAIT_MS });
       const box = writer.getByRole("textbox", { name: WORDS.comment });
       // Nothing takes a word until React has the page.
@@ -344,7 +351,7 @@ test(
       assert.equal((await mailWithSubject(person.email, subject)).length, 0, `saving emailed ${person.first}`);
     }
 
-    /** A facilitator's review page draws no rating at all. */
+    /** A facilitator's reading view draws no rating at all. */
     async function assertNoRatingOn(pg, who) {
       const said = await wordsIn(pg.locator("main"));
       for (const words of [WORDS.ratingForTheTeam, WORDS.whatTheTeamSaid, WORDS.whoReadsRatings]) {
@@ -416,12 +423,13 @@ test(
             `Feedback to write does not list ${person.first}'s week ${LOOP_WEEK} answer: ${JSON.stringify(labels)}`,
           );
         }
-        await queue.getByRole("link", { name: new RegExp(`^Write feedback: ${escapeRegExp(ada.first)}\\b`) }).click();
-        await facilitatorPage.waitForURL((url) => url.pathname.endsWith(`/group/${groupA.id}/written`) && url.searchParams.get("person") === ada.uid, {
-          timeout: WAIT_MS,
-        });
-        await facilitatorPage.getByRole("heading", { level: 2, name: WORDS.answerHead(ada.first) }).waitFor({ timeout: WAIT_MS });
-        assert.ok((await wordsIn(facilitatorPage.locator("main"))).includes(adaAnswer), "the review page does not show Ada's answer");
+        // Its button opens the reading view of Ada's week, at her answer.
+        await Promise.all([
+          facilitatorPage.waitForURL((url) => atAnswerOf(url, ada), { timeout: WAIT_MS }),
+          queue.getByRole("link", { name: new RegExp(`^Write feedback: ${escapeRegExp(ada.first)}\\b`) }).click(),
+        ]);
+        await answerSection(facilitatorPage).waitFor({ timeout: WAIT_MS });
+        assert.ok((await wordsIn(answerSection(facilitatorPage))).includes(adaAnswer), "the reading view does not show Ada's answer");
         await assertNoRatingOn(facilitatorPage, "the facilitator");
         await saveFeedbackAs(facilitatorPage, ada, FEEDBACK.ada);
         await assertNoRatingOn(facilitatorPage, "the facilitator, after saving");
@@ -429,22 +437,25 @@ test(
 
       await step("the facilitator saves feedback on the second person's answer", async () => {
         activePage = facilitatorPage;
-        const list = facilitatorPage.getByRole("region", { name: "Written answers" }).first();
-        await list.locator(`a[href*="person=${enc(ben.uid)}"]`).first().click();
-        await facilitatorPage.waitForURL((url) => url.searchParams.get("person") === ben.uid, { timeout: WAIT_MS });
-        await facilitatorPage.getByRole("heading", { level: 2, name: WORDS.answerHead(ben.first) }).waitFor({ timeout: WAIT_MS });
-        assert.ok((await wordsIn(facilitatorPage.locator("main"))).includes(BEN_ANSWER), "the review page does not show Ben's answer");
+        // Back on the group's page, Ben's answer still waits; its button opens his week at the answer.
+        await facilitatorPage.goto(groupPage, { waitUntil: "domcontentloaded" });
+        const queue = facilitatorPage.locator('section[aria-labelledby="group-review-queue"]');
+        const toBen = queue.getByRole("link", { name: new RegExp(`^Write feedback: ${escapeRegExp(ben.first)}\\b`) });
+        await toBen.waitFor({ timeout: WAIT_MS });
+        await Promise.all([facilitatorPage.waitForURL((url) => atAnswerOf(url, ben), { timeout: WAIT_MS }), toBen.click()]);
+        await answerSection(facilitatorPage).waitFor({ timeout: WAIT_MS });
+        assert.ok((await wordsIn(answerSection(facilitatorPage))).includes(BEN_ANSWER), "the reading view does not show Ben's answer");
         await saveFeedbackAs(facilitatorPage, ben, FEEDBACK.ben);
         // Ada's piece is still the one, and on her week alone.
         assert.equal((await piecesFor(ada.uid)).length, 1, "Ben's feedback changed Ada's");
       });
 
-      await step("the lead rates the first answer for the team on its review page, and an admin reads it under What the team said", async () => {
+      await step("the lead rates the first answer for the team beside it in the reading view, and an admin reads it under What the team said", async () => {
         activePage = adminPage;
-        await adminPage.goto(`${groupPage}/written?week=${LOOP_WEEK}&person=${enc(ada.uid)}`, { waitUntil: "domcontentloaded" });
-        await adminPage.getByRole("heading", { level: 2, name: WORDS.answerHead(ada.first) }).waitFor({ timeout: WAIT_MS });
-        // The facilitator's piece is there for the people running the group.
-        assert.ok((await wordsIn(adminPage.locator("main"))).includes(FEEDBACK.ada), "the review page does not show Fern's feedback");
+        await adminPage.goto(`${groupPage}/coursework/${enc(ada.uid)}?week=${LOOP_WEEK}#reading-answer`, { waitUntil: "domcontentloaded" });
+        await answerSection(adminPage).waitFor({ timeout: WAIT_MS });
+        // The facilitator's piece is beside the answer for the people running the group.
+        assert.ok((await wordsIn(answerSection(adminPage))).includes(FEEDBACK.ada), "the reading view does not show Fern's feedback beside the answer");
 
         const said = adminPage.getByRole("region", { name: WORDS.whatTheTeamSaid });
         await said.waitFor({ timeout: WAIT_MS });

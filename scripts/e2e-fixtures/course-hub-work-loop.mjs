@@ -19,9 +19,10 @@
  * The spec (`tests/e2e/course-hub-work-loop.spec.mjs`) is the harness's admin,
  * who approves Fern, Ada and Ben, names the running run on the programme's
  * Settings tab and appoints Fern to Group A; Fern, signed in, who opens both
- * answers from the group page's Feedback to write and saves feedback on each;
- * the admin again, as the programme's lead, who rates Ada's answer for the
- * team on its review page and reads the rating under What the team said, then
+ * answers from the group page's Feedback to write (each in the reading view
+ * of the person's week, at the answer) and saves feedback on each; the admin
+ * again, as the programme's lead, who rates Ada's answer for the team beside
+ * it in the reading view and reads the rating under What the team said, then
  * sends the test of the feedback batch and the batch from the programme's
  * Overview; and Ada, signed in, who follows her email to her week 3 page and
  * reads Fern's feedback there, none of the rating, and opens the old feedback
@@ -57,7 +58,7 @@ export const WORK_LOOP_STEPS = [
   "the admin appoints the facilitator to Group A on the Facilitators view",
   "the facilitator opens a submitted answer from Feedback to write and saves feedback on it, with no rating on the page",
   "the facilitator saves feedback on the second person's answer",
-  "the lead rates the first answer for the team on its review page, and an admin reads it under What the team said",
+  "the lead rates the first answer for the team beside it in the reading view, and an admin reads it under What the team said",
   "Feedback to send lists both pieces, and the test of the batch reaches the admin",
   "the batch sends one email per person, and nobody else is emailed",
   "the person follows the email to their week page and reads the feedback, and none of the rating",
@@ -153,8 +154,9 @@ async function seed({ runId, suppress, onState }) {
  *    are in the send log, about the run, which the term counts;
  *  - a rating for the team (`/api/courses/runs/[runId]/work-ratings`): one
  *    `courseWorkRatings` row a rater and answer.
- * Opening an answer on the review page as its facilitator may lock the week
- * (`courseWeekWork`, `courseWorkLog`), which the term counts by the run.
+ * Opening an answer in the reading view keeps when it was first read on the
+ * person's week record (`courseWeekWork`, never who), which the term counts
+ * by the run.
  */
 async function countLoop(state) {
   const courseFeedback = (await fixtureQuery("courseFeedback").where("runId", "==", state.runId).get()).size;
@@ -200,6 +202,7 @@ export const SPEC = {
       "/api/courses/runs/[runId]/feedback",
       "/api/courses/runs/[runId]/feedback/send",
       "/api/courses/runs/[runId]/feedback/send/test",
+      "/api/courses/runs/[runId]/first-read",
       "/api/courses/runs/[runId]/work-ratings",
     ],
     pages: [
@@ -209,7 +212,7 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview",
       "/(app)/learn/[runId]/group/[groupId]",
-      "/(app)/learn/[runId]/group/[groupId]/written",
+      "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]",
       "/(app)/learn/[runId]/weeks/[n]",
       "/(app)/learn/[runId]/weeks/[n]/feedback",
     ],
@@ -222,7 +225,11 @@ export const SPEC = {
    * row; before teardown the term held 51 rows (six of them the send log's:
    * three approvals, the test and the batch's two) and the loop five more (two
    * pieces of feedback, the test's and the batch's records and one rating),
-   * and the fixture manifest read zero after each run.
+   * and the fixture manifest read zero after each run. The three steps that
+   * open an answer moved from the written answer's review page to the reading
+   * view of the person's week on 13 November 2026, when that page was
+   * retired; they have not yet run in a browser: the pull request's
+   * end-to-end job runs them first.
    */
   status: "verified",
   seed,

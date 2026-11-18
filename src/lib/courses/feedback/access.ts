@@ -1,4 +1,5 @@
 import "server-only";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -114,8 +115,8 @@ export type FeedbackWeek = {
 };
 
 /**
- * The person's week as they read it (their group's copy, or the one group
- * they facilitate), or null when it is not a week written as blocks. Reads
+ * The person's week as they read it (the copy of the group they belonged to
+ * in that week, or the one group they facilitate), or null when it is not a week written as blocks. Reads
  * the week and their place, nothing of their work. The ratings for the team
  * ask it too (`src/lib/courses/workRatings/`), after their own gate.
  */
@@ -127,13 +128,17 @@ export async function feedbackWeekOf(
   const { run, liveGroups, owner } = gate;
   const facilitated = liveGroups.filter((group) => group.facilitatorUids.includes(owner.uid));
   const ownGroupId = owner.placedGroupId ?? (facilitated.length === 1 ? facilitated[0].id : null);
-  const [{ week }, seatSnap] = await Promise.all([
-    resolveWeekDoc(db, run.id, ownGroupId, weekId),
-    db.collection("courseEnrolments").doc(courseEnrolmentId(run.id, owner.uid)).get(),
-  ]);
-  if (!week || !isBlockWeek(week)) return null;
+  const seatSnap = await db.collection("courseEnrolments").doc(courseEnrolmentId(run.id, owner.uid)).get();
   const seat: CourseEnrolmentDoc | null =
     owner.placedGroupId && seatSnap.exists ? normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {}) : null;
+  // The copy of THIS week they worked in: for somebody moved mid-term, the
+  // group their place belonged to that week (`copyGroupIdFor`), whether or not
+  // it still meets, so feedback by a new facilitator on an old week is given
+  // on that old copy.
+  const match = /^w(\d{2})$/.exec(weekId);
+  const copyGroupId = seat && match ? copyGroupIdFor(seat, Number(match[1]), ownGroupId) : ownGroupId;
+  const { week } = await resolveWeekDoc(db, run.id, copyGroupId, weekId);
+  if (!week || !isBlockWeek(week)) return null;
   return {
     week,
     answerIds: weekWrittenAnswers(week).map((answer) => answer.id),

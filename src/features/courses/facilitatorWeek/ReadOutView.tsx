@@ -39,8 +39,9 @@ import styles from "@/features/courses/facilitator/facilitator.module.css";
  * starts again.
  *
  * NEVER A NAME BESIDE AN ANSWER, for anybody: the group's facilitators, the
- * programme's lead and admins read reflections with names on pages of their
- * own (`NamedReflections`), and this component is handed no name to draw.
+ * programme's lead and admins read reflections with names on the reading
+ * pages (one question across the group, one person's week), and this
+ * component is handed no name to draw.
  * `readOut: false` draws the answers with no picking.
  */
 

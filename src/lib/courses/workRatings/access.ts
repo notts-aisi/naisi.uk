@@ -25,16 +25,17 @@ import {
  * facilitates the group rates as the lead and reads as the lead; an admin
  * always as an admin.
  *
- * WHOSE WORK: anybody whose answer they may read on the review page, by the
- * one gate (`writtenReviewRole`): somebody holding a place in a live group of
- * the run, or a facilitator's own. Never their own, an admin included, which
- * is also why nobody is ever shown the ratings about themselves: the review
- * page is the only place they are read, and it never opens its reader's own
- * answer.
+ * WHOSE WORK: anybody whose answer they may read on the reading pages, by
+ * the one gate (`writtenReviewRole`): somebody holding a place in a live
+ * group of the run, or a facilitator's own. Never their own, an admin
+ * included, which is also why nobody is ever shown the ratings about
+ * themselves: the reading pages (the reading view of a person's week and the
+ * page of one question) are the only places they are read, and neither opens
+ * its reader's own answer.
  *
  * READ BY THE SAME PEOPLE: `readsWorkRatings` is asked before a rating is
- * read anywhere, so a facilitator's review page, and every page of the
- * person's own, carries none.
+ * read anywhere, so a facilitator's reading pages, and every page of the
+ * person's own, carry none.
  *
  * ON WHAT: the week's written answer, once its readers may read it
  * (`readableAnswer`, asked inside the save's transaction with where the week

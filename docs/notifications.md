@@ -284,6 +284,26 @@ requests that already carry `adminsToldOn` for that day, and marks its own,
 so asking and withdrawing in a loop cannot spend the site's sending
 allowance.
 
+**Joining online, to a group's facilitators, is transactional.** When
+somebody presses "Joining online" for a session on their programme page
+(`src/lib/courses/joiningOnline/seat.ts`), each of the group's facilitators
+named on the group, with standing and an address, is emailed that they are
+joining it online (`src/lib/courses/joiningOnline/tell.ts`): who, the group,
+the week, its day and time, and where the link goes. With no link yet, it
+names the field and the button of the box at the top of their group page;
+with one, it says there is nothing to add. It says it is automated and why it
+was sent. Never the meeting link (the one link is the group's page), never
+the person who said it (a facilitator holding a place in the group they run
+tells only their co-facilitators), and nobody else. It is about a session its
+reader runs, so no row of the grid gates it; the do-not-email list still
+holds it back. Its rows in the log carry `kind: "course-joining-online"`,
+with the run as the reference. Once per person per session: the press
+decides it in the transaction that writes their word, from the register's
+`onlineEmailed` map, and stamps it there; taking the word back leaves the
+stamp, so saying it again emails nobody, and taking it back emails nobody
+either. It goes after the word is written, outside its transaction, and a
+failed send never fails the press or changes its answer.
+
 **Invitation reminders (`application-invitation-reminders`).** Once a day, from
 10:00 London and never after 18:00, to everybody invited on decision day who
 has not replied, from the day after they were told up to their own reply-by

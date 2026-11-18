@@ -692,8 +692,9 @@ describe("3. the words", () => {
     }
   });
 
-  test("staff words: sent, changed and saved, the version at the session, and the version feedback was about", () => {
-    assert.equal(words.staffSentWords(at("2026-11-16T22:42:00Z")), "Sent Mon 16 Nov, 10:42pm");
+  test("staff words: sent, changed and saved, the version at the session, and the version feedback was about", async () => {
+    // When it was sent, as the reading view of a person's week says it (the review page's own words went with it).
+    assert.equal((await loadTs("lib/courses/coursework/words.ts")).sentWhenWords(at("2026-11-16T22:42:00Z")), "Sent Mon 16 Nov, 10:42pm");
     assert.equal(words.staffChangedWords(at("2026-11-07T18:20:00Z")), "Changed Sat 7 Nov, 6:20pm");
     assert.equal(words.staffChangedWords(at("2026-11-07T18:20:00Z"), false), "Saved Sat 7 Nov, 6:20pm");
     assert.equal(words.staffChangedSinceSentWords("Amara"), "Amara has changed it since sending it. You read it as sent until it’s sent again or the session starts.");
@@ -797,11 +798,11 @@ const WEEK_TWO_SESSION = "2026-11-10T18:00:00Z";
 const CLOSES = "2026-12-24T00:00:00Z";
 
 const reviewPage = await w.loadTs("lib/courses/writtenAnswers/reviewPage.ts");
-/** What the review page hands `who` for `uid`'s week `n` answer, at the clock's now. */
-async function reviewOf(who, n, uid) {
+/** What the review page's loader, kept behind This week's work's Written answer column, hands `who` of Group B's week `n`, at the clock's now: its lists of people. */
+async function reviewOf(who, n) {
   const run = w.lib.courses.normalizeCourseRun(RUN.agi, w.world.db.read(`courseRuns/${RUN.agi}`));
   const group = groupsStore.normalizeCourseGroup(B, w.world.db.read(`courseGroups/${B}`));
-  return reviewPage.loadWrittenReview(w.world.db, w.sessionFor(who), run, group, n, uid, new Date());
+  return reviewPage.loadWrittenReview(w.world.db, w.sessionFor(who), run, group, n, new Date());
 }
 
 beforeEach(() => w.reset());
@@ -908,23 +909,38 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     w.at("2026-11-09T10:00:00Z");
     await w.write("chloe", 2, { text: `${ENOUGH} changed` });
     w.at("2026-11-09T11:00:00Z");
-    let review = await reviewOf("rahul", 2, "chloe");
-    assert.equal(review.selected.person.uid, "chloe");
-    assert.equal(review.selected.text, ENOUGH, "the words as last sent");
-    assert.deepEqual([review.selected.shown.latest, review.selected.person.changedSinceSent], [false, true]);
-    // When the words shown were saved: never when the change not sent yet was.
-    assert.equal(review.selected.person.changedAt, new Date(BEFORE_WEEK_TWO).toISOString());
-    assert.equal(review.selected.person.words, 21);
+    // This week's work's Written answer column's reader: Kofi's never sent, so nothing of it.
+    const review = await reviewOf("rahul", 2);
     const kofi = [...review.toGive, ...review.feedbackSent, ...review.notSent].find((person) => person.uid === "kofi");
     assert.deepEqual([kofi.readable, kofi.words, kofi.changedAt], [false, 0, null], "never sent: nothing of it");
     assert.ok(!JSON.stringify(review).includes("unsentword"), "no unsent word reaches the reader");
     assert.ok(!JSON.stringify(review).includes(`${ENOUGH} changed`), "nor a change not sent yet");
+    // The reading view of her week, behind both doors: the words as last sent, that it has changed since, when the
+    // words shown were saved (never when the change not sent yet was) and their count, and nothing of the change.
+    const changedLine = words.staffChangedSinceSentWords("Chloe");
+    for (const page of [await w.readingPage("rahul", "chloe", { week: "2" }), await w.leadReadingPage("claudia", "chloe", { week: "2" })]) {
+      const view = w.readingViewOf(page);
+      assert.equal(view.person.uid, "chloe");
+      assert.deepEqual([view.week.answer.text, view.week.answer.changedSinceSent], [ENOUGH, true], "the words as last sent");
+      assert.deepEqual([view.week.answer.changedAt?.toISOString(), view.week.answer.words], [new Date(BEFORE_WEEK_TWO).toISOString(), 21]);
+      assert.ok(page.text.includes(changedLine), "the reading view does not say the answer has changed since it was sent");
+      assert.ok(!page.html.includes(`${ENOUGH} changed`) && !JSON.stringify(view).includes(`${ENOUGH} changed`), "the reading view carries a change not sent yet");
+    }
+    // Kofi's week, and one question across the group: nothing of a draft never sent, before the session.
+    for (const page of [await w.readingPage("rahul", "kofi", { week: "2" }), await w.questionPage("rahul", { week: "2", first: "answer" })]) {
+      const handed = w.readingViewOf(page) ?? w.questionViewOf(page);
+      assert.ok(handed, "the page is not drawn");
+      assert.ok(!page.html.includes("unsentword") && !JSON.stringify(handed).includes("unsentword"), "an unsent word reaches the reader");
+      assert.ok(!page.html.includes(`${ENOUGH} changed`) && !JSON.stringify(handed).includes(`${ENOUGH} changed`), "a change not sent yet reaches the reader");
+    }
+    assert.deepEqual([w.readingViewOf(await w.readingPage("rahul", "kofi", { week: "2" })).week.answer.words], [0]);
     // The session starts: the latest words, sent or not.
     w.at(WEEK_TWO_SESSION);
-    review = await reviewOf("rahul", 2, "chloe");
-    assert.deepEqual([review.selected.text, review.selected.shown.latest], [`${ENOUGH} changed`, true]);
-    const kofiAfter = (await reviewOf("rahul", 2, "kofi")).selected;
-    assert.deepEqual([kofiAfter.person.uid, kofiAfter.text, kofiAfter.person.readable], ["kofi", `${ENOUGH} unsentword`, true]);
+    const after = await w.readingPage("rahul", "chloe", { week: "2" });
+    assert.deepEqual([w.readingViewOf(after).week.answer.text, w.readingViewOf(after).week.answer.changedSinceSent], [`${ENOUGH} changed`, false]);
+    assert.ok(!after.text.includes(changedLine), "the reading view says a change is unread once the session has started");
+    const kofiAfter = w.readingViewOf(await w.readingPage("rahul", "kofi", { week: "2" }));
+    assert.deepEqual([kofiAfter.person.uid, kofiAfter.week.answer.text, kofiAfter.week.answer.words], ["kofi", `${ENOUGH} unsentword`, 22]);
   });
 
   test("a save that takes its clock before a Send commits and writes after it keeps the words sent, and its readers read those, never the change", async () => {
@@ -954,11 +970,16 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
       ["2026-11-09T09:10:00.000Z", "2026-11-09T09:10:30.000Z", "2026-11-09T09:11:00.000Z"],
       "replacedAt before sentAt before the row's own save",
     );
-    // Before the session: the review page reads the words sent, says it has changed since, and carries nothing typed after Send.
+    // Before the session: the reading view, behind both doors, reads the words sent, says it has changed since, and
+    // carries nothing typed after Send; nor does one question across the group.
     w.at("2026-11-09T12:00:00Z");
-    const review = await reviewOf("rahul", 2, "chloe");
-    assert.deepEqual([review.selected.text, review.selected.shown.latest, review.selected.person.changedSinceSent], [ENOUGH, false, true]);
-    assert.ok(!JSON.stringify(review).includes("typedaftersend"), "the review page carries words never sent");
+    for (const page of [await w.readingPage("rahul", "chloe", { week: "2" }), await w.leadReadingPage("claudia", "chloe", { week: "2" })]) {
+      const view = w.readingViewOf(page);
+      assert.deepEqual([view.week.answer.text, view.week.answer.changedSinceSent], [ENOUGH, true]);
+      assert.ok(!page.html.includes("typedaftersend") && !JSON.stringify(view).includes("typedaftersend"), "the reading view carries words never sent");
+    }
+    const across = await w.questionPage("rahul", { week: "2", first: "answer" });
+    assert.ok(!across.html.includes("typedaftersend") && !JSON.stringify(w.questionViewOf(across)).includes("typedaftersend"), "one question carries words never sent");
     // So does what is gathered for Claude and Pangram, read through the same answer.
     const gather = await w.loadTs("lib/courses/coursework/gather.ts");
     const weeks = await gather.loadRunWeeks(w.world.db, RUN.agi, [B]);
@@ -967,7 +988,7 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     assert.ok(!JSON.stringify(gathered).includes("typedaftersend"), "words never sent are gathered");
     // Once the session has started its readers read everything saved.
     w.at(WEEK_TWO_SESSION);
-    assert.equal((await reviewOf("rahul", 2, "chloe")).selected.text, `${ENOUGH} typedaftersend`);
+    assert.equal(w.readingViewOf(await w.readingPage("rahul", "chloe", { week: "2" })).week.answer.text, `${ENOUGH} typedaftersend`);
   });
 
   test("a save of the same boxes in another order writes nothing: no new save time, no version kept, nothing to send again", async () => {
@@ -982,9 +1003,15 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     assert.deepEqual(after.updatedAt, sent.updatedAt, "an unchanged answer was saved again");
     assert.equal(after.earlierVersions, undefined, "a version was kept of the same words");
     assert.equal(after.editedAt, undefined);
-    // Its readers read it as sent and unchanged.
-    const review = await reviewOf("rahul", 3, "chloe");
-    assert.deepEqual([review.selected.shown.latest, review.selected.person.changedSinceSent], [true, false]);
+    // Its readers read it as sent and unchanged, behind both doors.
+    for (const page of [await w.readingPage("rahul", "chloe", { week: "3" }), await w.leadReadingPage("claudia", "chloe", { week: "3" })]) {
+      const answer = w.readingViewOf(page).week.answer;
+      assert.deepEqual(
+        [answer.changedSinceSent, answer.boxes.map((box) => box.text), answer.changedAt?.toISOString()],
+        [false, ["Lamps for the harbour.", "The keepers.", ""], new Date("2026-11-16T09:00:00Z").toISOString()],
+      );
+      assert.doesNotMatch(page.text, new RegExp(words.staffChangedSinceSentWords("Chloe").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
   });
 
   test("the first change after the session keeps the words as they stood at it, once; late is told from the session", async () => {
@@ -1010,13 +1037,15 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     w.at("2026-11-11T12:00:00Z");
     assert.equal((await w.write("chloe", 2, { text: `${ENOUGH} later` })).status, 200);
     assert.deepEqual(w.world.db.read(w.rowPath("chloe", 2)).updatedAt, saved);
-    // The review page: the latest, how late, and the words at the session one step away.
-    const review = await reviewOf("rahul", 2, "chloe");
-    assert.equal(review.selected.text, `${ENOUGH} later`);
-    assert.equal(review.selected.person.changedLateMs, 17 * HOUR);
-    assert.equal(words.lateWords(review.selected.person.changedLateMs), "17 hours");
-    assert.equal(review.selected.atSession.text, ENOUGH);
-    assert.equal(review.selected.person.late, false, "never sent: no send to be late");
+    // The reading view, behind both doors: the latest, how late, and the words at the session one step away.
+    for (const page of [await w.readingPage("rahul", "chloe", { week: "2" }), await w.leadReadingPage("claudia", "chloe", { week: "2" })]) {
+      const answer = w.readingViewOf(page).week.answer;
+      assert.equal(answer.text, `${ENOUGH} later`);
+      assert.equal(answer.changedLateMs, 17 * HOUR);
+      assert.equal(words.lateWords(answer.changedLateMs), "17 hours");
+      assert.equal(answer.atSession.text, ENOUGH);
+      assert.deepEqual([answer.sentAt, answer.sentLateMs], [null, null], "never sent: no send to be late");
+    }
   });
 
   test("an answer sent after the session is late; one sent after its own deadline but before the session is after its deadline, to staff alone", async () => {
@@ -1026,12 +1055,22 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     w.at("2026-11-12T18:00:00Z");
     await w.write("farah", 2, { text: ENOUGH });
     await w.sendAnswer("farah", 2);
-    const people = (await reviewOf("rahul", 2, null));
+    const people = (await reviewOf("rahul", 2));
     const all = [...people.toGive, ...people.feedbackSent, ...people.notSent];
     const chloe = all.find((person) => person.uid === "chloe");
     const farah = all.find((person) => person.uid === "farah");
     assert.deepEqual([chloe.afterDeadline, chloe.late, chloe.sentLateMs], [true, false, null], "after noon the day before, before the session");
     assert.deepEqual([farah.afterDeadline, farah.late, farah.sentLateMs], [false, true, 2 * DAY]);
+    // The reading view of each week says the same, in the same words, behind both doors, with the question's range.
+    for (const page of [await w.readingPage("rahul", "chloe", { week: "2" }), await w.leadReadingPage("claudia", "chloe", { week: "2" })]) {
+      assert.equal(w.readingViewOf(page).afterDeadline, true);
+      assert.match(page.text, new RegExp(`Written answer No feedback yet 21 words Sent Mon 9 Nov, 1pm ${words.AFTER_ITS_DEADLINE} The question · 20 to 40 words`));
+    }
+    for (const page of [await w.readingPage("rahul", "farah", { week: "2" }), await w.leadReadingPage("zach", "farah", { week: "2" })]) {
+      assert.equal(w.readingViewOf(page).afterDeadline, false, "late, so never after its deadline as well");
+      assert.match(page.text, new RegExp(`Sent Thu 12 Nov, 6pm ${words.lateAfterSessionWords(2 * DAY)} The question`));
+      assert.ok(!page.text.includes(words.AFTER_ITS_DEADLINE));
+    }
     // The writer's own read never says either.
     const own = await w.ownRowsOf("chloe", 2);
     assert.doesNotMatch(JSON.stringify(own.body), /deadline|afterDeadline|\blate\b/i);
@@ -1066,10 +1105,13 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     assert.doesNotMatch(JSON.stringify(row), /rating|rated/i);
     // Once the session has started, the reviewers read the latest, and the card carries the version it was about.
     w.at(WEEK_TWO_SESSION);
-    const review = await reviewOf("rahul", 2, "chloe");
-    const card = [...review.selected.cards, ...(review.selected.own ? [review.selected.own] : [])].find((each) => each.text === "Clear.");
-    assert.equal(card.about.text, ENOUGH);
-    assert.equal(card.aboutGone, false);
+    // The reading view of her week, behind both doors: the piece beside the answer, with the version it was about.
+    for (const page of [await w.readingPage("rahul", "chloe", { week: "2" }), await w.leadReadingPage("claudia", "chloe", { week: "2" })]) {
+      const feedback = w.readingViewOf(page).answerFeedback;
+      const card = [...feedback.cards, ...(feedback.own ? [feedback.own] : [])].find((each) => each.text === "Clear.");
+      assert.equal(card.about.text, ENOUGH);
+      assert.equal(card.aboutGone, false);
+    }
     // The person's own week page reads the same.
     const overview = await w.call("chloe", w.routes.overview.GET, { runId: RUN.agi }, { course: true });
     const own = overview.body.weeks.find((week) => week.weekNumber === 2).feedback.find((each) => each.text === "Clear.");
@@ -1085,9 +1127,10 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     assert.equal(rated.status, 200, JSON.stringify(rated.body));
     assert.deepEqual(new Date(w.workRatings()[0].aboutSavedAt), new Date("2026-11-11T10:00:00Z"), "the rating points at the words it was about");
     assert.equal(w.weekWorkOf("chloe", 2), undefined, "a rating stamped the person's week");
-    // Unchanged since: nothing said.
-    let team = (await reviewOf("zach", 2, "chloe")).selected.team;
-    assert.deepEqual(team.said.map((row) => [row.raterUid, row.changedSince]), [["zach", false]]);
+    // Unchanged since: nothing said, behind both doors.
+    for (const page of [await w.readingPage("zach", "chloe", { week: "2" }), await w.leadReadingPage("zach", "chloe", { week: "2" })]) {
+      assert.deepEqual(w.readingViewOf(page).team.said.map((row) => [row.raterUid, row.changedSince]), [["zach", false]]);
+    }
     w.at("2026-11-11T12:00:00Z");
     assert.equal((await w.write("chloe", 2, { text: `${ENOUGH} changed` })).status, 200);
     const row = w.world.db.read(w.rowPath("chloe", 2));
@@ -1096,12 +1139,13 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     const own = await w.ownRowsOf("chloe", 2);
     assert.doesNotMatch(JSON.stringify(own.body), /"reviewed"|earlierVersions|rating|rated/i);
     // Staff: the version it was about is no longer kept, so the row says the answer has changed since.
-    team = (await reviewOf("zach", 2, "chloe")).selected.team;
-    assert.deepEqual(team.said.map((row) => [row.raterUid, row.changedSince]), [["zach", true]]);
-    const page = await w.writtenPage("zach", { week: "2", person: "chloe" });
+    for (const drawn of [await w.readingPage("zach", "chloe", { week: "2" }), await w.leadReadingPage("zach", "chloe", { week: "2" })]) {
+      assert.deepEqual(w.readingViewOf(drawn).team.said.map((row) => [row.raterUid, row.changedSince]), [["zach", true]]);
+    }
+    const page = await w.readingPage("zach", "chloe", { week: "2" });
     assert.match(page.text, /“Names a keeper, late\.” Chloe’s answer has changed since this rating\./);
     // A facilitator's page draws none of it.
-    assert.doesNotMatch((await w.writtenPage("rahul", { week: "2", person: "chloe" })).text, /since this rating/);
+    assert.doesNotMatch((await w.readingPage("rahul", "chloe", { week: "2" })).text, /since this rating/);
   });
 
   test("feedback on words that have not changed carries no version; feedback before versions were kept reads as the version that stood then", async () => {
@@ -1111,12 +1155,16 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     w.at("2026-11-09T09:30:00Z");
     await w.give("rahul", "chloe", 2, "Clear.");
     w.at(WEEK_TWO_SESSION);
-    const card = (await reviewOf("rahul", 2, "chloe")).selected.own;
+    // His own piece, his to change, in the reading view of her week, as it is told (never with the earlier words stacked by the view).
+    const ownPiece = async () => w.readingViewOf(await w.readingPage("rahul", "chloe", { week: "2" })).answerFeedback.own;
+    const card = await ownPiece();
+    assert.equal(card.text, "Clear.");
     assert.deepEqual([card.about, card.aboutGone], [null, false]);
     // A piece with no pointer (saved before pointers were kept), and the answer unchanged since: no version.
     const id = w.pieces()[0].id;
     w.world.db.poke(`courseFeedback/${id}`, { aboutSavedAt: undefined });
-    const legacy = (await reviewOf("rahul", 2, "chloe")).selected.own;
+    const legacy = await ownPiece();
+    assert.equal(legacy.text, "Clear.");
     assert.deepEqual([legacy.about, legacy.aboutGone], [null, false]);
   });
 

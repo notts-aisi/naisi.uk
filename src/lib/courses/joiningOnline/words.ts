@@ -2,10 +2,11 @@
  * THE WORDS OF JOINING A SESSION ONLINE: the button on the ticket of a
  * person's next session on their programme page and what it says once
  * pressed, the route's refusals, the box at the top of a facilitator's group
- * page and register that asks for a meeting link, the register's room or
- * online choice, the line a session's link is given with on a ticket, and
- * the figures that say how many sessions somebody came to in the room and
- * online.
+ * page and register that asks for a meeting link, the email that tells the
+ * group's facilitators somebody is joining a session online, the register's
+ * room or online choice, the line a session's link is given with on a
+ * ticket, and the figures that say how many sessions somebody came to in the
+ * room and online.
  *
  * Words a member reads never say "mark", "grade" or "score", and never how
  * many sessions anybody can miss. The meeting link is never in an email: the
@@ -133,6 +134,64 @@ export const MEETING_LINK_REFUSAL = {
   full: "This group has too many weeks set apart from its usual slot to add one more. Keep the link for every week instead.",
   failed: "That link didn’t save. Try again.",
 } as const;
+
+// ---------------------------------------------------------------------------
+// The email to the group's facilitators
+// ---------------------------------------------------------------------------
+
+/** One email's words: its subject, its lines, its button and the line at its foot. */
+export type JoiningOnlineEmailWords = {
+  subject: string;
+  lines: string[];
+  button: string;
+  footnote: string;
+};
+
+/** "week 2", or "week 2’s session 2" for a week's second session. */
+function sessionOfWeekWords(weekNumber: number, occurrence: number): string {
+  return occurrence > 1 ? `week ${weekNumber}’s session ${occurrence}` : `week ${weekNumber}`;
+}
+
+/**
+ * "Daniel Kim is joining week 2 online": to each of the group's facilitators,
+ * once per person per session. Says that somebody is joining online, when,
+ * and where the link goes: with no link yet, the box at the top of their
+ * group page, by its own field and button (`linkFieldLabel`, `ADD_LINK`), so
+ * the email can never name a control the page does not have; with one, that
+ * there is nothing to add. NEVER THE LINK, and no reason for anything. The
+ * day and the time come as words ("Wed 11 Nov", "3pm"); with no time, the day
+ * alone.
+ */
+export function joiningOnlineEmailWords(input: {
+  /** The person, as the group page names them to its readers. */
+  personName: string;
+  groupName: string;
+  weekNumber: number;
+  occurrence: number;
+  /** "Wed 11 Nov". */
+  day: string;
+  /** "3pm", or "" with no time set. */
+  time: string;
+  /** The session has a meeting link at the moment of the send. */
+  hasLink: boolean;
+}): JoiningOnlineEmailWords {
+  const person = input.personName.trim() || "Somebody in your group";
+  const group = input.groupName.trim() || "your group";
+  const week = sessionOfWeekWords(input.weekNumber, input.occurrence);
+  // "Group C’s week 2 session", or "Group C’s week 2’s session 2".
+  const session = input.occurrence > 1 ? `${group}’s ${week}` : `${group}’s ${week} session`;
+  const when = input.day ? (input.time ? `, on ${input.day} at ${input.time}` : `, on ${input.day}`) : "";
+  const about = input.hasLink
+    ? `The session already has a meeting link, so there’s nothing to add. Everybody in ${group} sees it on their programme page.`
+    : `The session has no meeting link yet. To add one, open your group page: the box at the top has a field “${linkFieldLabel(input.weekNumber)}”. ` +
+      `Paste the link there and press “${ADD_LINK}”. Everybody in ${group} then sees it on their programme page. It is never sent by email.`;
+  return {
+    subject: `${person} is joining ${week} online`,
+    lines: [`${person} will join ${session} online${when}.`, about],
+    button: "Open your group",
+    footnote: "This is an automated email, sent because somebody in your group said they’re joining online.",
+  };
+}
 
 // ---------------------------------------------------------------------------
 // The register's room or online choice

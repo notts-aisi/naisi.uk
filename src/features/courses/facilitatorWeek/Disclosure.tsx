@@ -20,6 +20,7 @@ export default function Disclosure({
   name,
   hideName,
   children,
+  whenOpened = null,
 }: {
   /** The button's words while closed: "See who", "2 private notes". */
   label: string;
@@ -30,8 +31,16 @@ export default function Disclosure({
   /** Its name while open, starting with `hideLabel`: "Hide who ticked A keeper’s diary". */
   hideName: string;
   children: ReactNode;
+  /**
+   * Drawn once what it opens has first been opened, and kept after it is
+   * hidden again: for what must wait until its reader has had it in front of
+   * them (a person's boxes named as first read, `MarkFirstRead`). Left out,
+   * nothing.
+   */
+  whenOpened?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [opened, setOpened] = useState(false);
   const id = useId();
   return (
     <>
@@ -41,13 +50,17 @@ export default function Disclosure({
         aria-expanded={open}
         aria-controls={id}
         aria-label={open ? hideName : name}
-        onClick={() => setOpen((was) => !was)}
+        onClick={() => {
+          setOpen((was) => !was);
+          setOpened(true);
+        }}
       >
         {open ? hideLabel : label}
       </button>
       <div id={id} className={styles.wkOpened} hidden={!open}>
         {children}
       </div>
+      {opened && whenOpened}
     </>
   );
 }

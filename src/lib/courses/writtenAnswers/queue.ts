@@ -11,6 +11,7 @@ import { answerPiece, instantOf, isWordCountedAnswer, readWrittenAnswer } from "
 import { lateBy } from "../weekWork/model";
 import { loadRunWeekStates } from "../weekWork/readers";
 import { readableAnswer } from "../weekWork/versions";
+import { changedSinceFeedback, feedbackVersionsOf } from "../feedback/model";
 import { readRunFeedback } from "../feedback/readers";
 
 /**
@@ -23,12 +24,19 @@ import { readRunFeedback } from "../feedback/readers";
  * person is due at has started), whose words as read hold some, that have no
  * feedback from anyone yet (a piece on the answer, or feedback given before
  * pieces existed), and whose week's session started in the last seven days.
+ * And (Fri 13 Nov 2026) each such answer that HAS feedback and was changed
+ * after the newest of it (`changedSinceFeedback`, the rule the Coursework
+ * tab's flag and its list ask too), for seven days from that change, marked
+ * "Changed since feedback".
  *
  * FEEDBACK IS OPTIONAL, so a count of every answer with none would never
  * reach zero: the week's session (the group's, `sessionOf`) bounds it. An
  * answer submitted before its session waits until the session has started;
  * one whose session started more than a week ago, or that has none to date,
- * waits for nobody here, and the review page still lists it.
+ * waits for nobody here, and the page of one question still lists it. An answer
+ * changed since feedback is bounded the same way, by the change: it waits for
+ * seven days from when the words its readers read were saved, and the
+ * Coursework tab's list still holds it after.
  *
  * NULL FOR A RUN WITH NO WEEK WRITTEN AS BLOCKS: a run of the summer's
  * weeks keeps its own "To review" card for its exercises, and no written
@@ -61,6 +69,10 @@ export type WrittenQueueRow = {
   locked: boolean;
   /** How long after the session it was due at it was first sent (ms); null when not after it, or never sent. */
   lateMs: number | null;
+  /** It has feedback, and was changed after the newest of it: "Changed since feedback". */
+  changed: boolean;
+  /** ISO 8601: changed since feedback, when the words its readers read were saved; null otherwise. */
+  changedAt: string | null;
 };
 
 /** The weeks of a run, checked for one written as blocks. */
@@ -88,6 +100,23 @@ export async function loadWrittenQueues(
   groups: readonly CourseGroupDoc[],
   now: Date = new Date(),
 ): Promise<Map<string, WrittenQueueRow[]> | null> {
+  return (await readWrittenQueues(db, actor, run, groups, now))?.queues ?? null;
+}
+
+/**
+ * The queues, and with them whose answers each group's list may hold: the
+ * people the one gate lets `actor` review in each group (`reviewableIn`), each
+ * under the first group that holds them. The group page asks it so that the
+ * names it leads to the reading view of somebody's week are exactly the
+ * people that view's own door admits, with no second read of the run.
+ */
+async function readWrittenQueues(
+  db: Firestore,
+  actor: SessionUser,
+  run: CourseRunDoc,
+  groups: readonly CourseGroupDoc[],
+  now: Date,
+): Promise<{ queues: Map<string, WrittenQueueRow[]>; reviewable: Map<string, string> } | null> {
   if (!(await runHasBlockWeek(db, run.id))) return null;
   const [liveGroups, facts, enrolSnap, answerSnap, feedback] = await Promise.all([
     liveGroupsOf(db, run.id),
@@ -96,10 +125,13 @@ export async function loadWrittenQueues(
     db.collection("courseExerciseResponses").where("runId", "==", run.id).get(),
     readRunFeedback(db, run.id),
   ]);
-  // Every written answer somebody has left a piece of feedback on.
-  const given = new Set(
-    feedback.flatMap((piece) => (piece.on.kind === "writtenAnswer" ? [`${piece.uid} ${piece.weekId} ${piece.on.itemId}`] : [])),
-  );
+  // Every written answer somebody has left a piece of feedback on, with the pieces on it.
+  const onAnswer = new Map<string, typeof feedback>();
+  for (const piece of feedback) {
+    if (piece.on.kind !== "writtenAnswer") continue;
+    const key = `${piece.uid} ${piece.weekId} ${piece.on.itemId}`;
+    onAnswer.set(key, [...(onAnswer.get(key) ?? []), piece]);
+  }
   const live = new Set(liveGroups.map((candidate) => candidate.id));
   const enrolments = enrolSnap.docs.map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}));
   // Where each person's week stands, for whether their answer may be read.
@@ -123,7 +155,7 @@ export async function loadWrittenQueues(
     }
   }
 
-  const waiting: Array<{ uid: string; weekNumber: number; sentAt: Date; locked: boolean; lateMs: number | null }> = [];
+  const waiting: Array<{ uid: string; weekNumber: number; sentAt: Date; locked: boolean; lateMs: number | null; changedAt: Date | null }> = [];
   for (const doc of answerSnap.docs) {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     const uid = typeof data.uid === "string" ? data.uid : "";
@@ -132,20 +164,35 @@ export async function loadWrittenQueues(
     if (isReflectionResponse(data) || !isWordCountedAnswer(data)) continue;
     const record = readWrittenAnswer(data);
     const weekNumber = weekNumberOf(data);
-    if (weekNumber < 1 || record.feedback) continue;
-    if (given.has(`${uid} ${String(data.weekId ?? "")} ${String(data.exerciseId ?? "")}`)) continue;
-    // Waiting only once its readers may read it, with words in what they read, and from its week's session for a week.
+    if (weekNumber < 1) continue;
+    const answerId = String(data.exerciseId ?? "");
+    const pieces = onAnswer.get(`${uid} ${String(data.weekId ?? "")} ${answerId}`) ?? [];
+    // Waiting only once its readers may read it, with words in what they read.
     const due = states.dueOf(uid, weekNumber);
-    const read = readableAnswer(answerPiece(record), due.at, now);
+    const piece = answerPiece(record);
+    const read = readableAnswer(piece, due.at, now);
     if (!read || read.words === 0) continue;
-    const session = states.sessionOf(uid, weekNumber);
-    if (!session || session.getTime() > now.getTime() || now.getTime() - session.getTime() > TO_WRITE_WINDOW_MS) continue;
     const firstSentAt = instantOf(data.firstSentAt);
     const sentAt = firstSentAt ?? due.at;
     if (!sentAt) continue;
-    waiting.push({ uid, weekNumber, sentAt, locked: firstSentAt === null, lateMs: lateBy(firstSentAt, due) });
+    const lateMs = lateBy(firstSentAt, due);
+    if (record.feedback || pieces.length > 0) {
+      // Feedback given: waiting again only once changed after the newest of it, for seven days from that change.
+      const readSavedAt = read.savedAt ? read.savedAt.toISOString() : null;
+      if (!changedSinceFeedback(feedbackVersionsOf(answerId, pieces, record.feedback, piece), readSavedAt)) continue;
+      const changedAt = read.savedAt;
+      if (!changedAt || changedAt.getTime() > now.getTime() || now.getTime() - changedAt.getTime() > TO_WRITE_WINDOW_MS) continue;
+      waiting.push({ uid, weekNumber, sentAt, locked: firstSentAt === null, lateMs, changedAt });
+      continue;
+    }
+    // No feedback yet: from its week's session, for a week.
+    const session = states.sessionOf(uid, weekNumber);
+    if (!session || session.getTime() > now.getTime() || now.getTime() - session.getTime() > TO_WRITE_WINDOW_MS) continue;
+    waiting.push({ uid, weekNumber, sentAt, locked: firstSentAt === null, lateMs, changedAt: null });
   }
-  waiting.sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime() || a.uid.localeCompare(b.uid));
+  // Oldest first: by when it was first sent, or, changed since feedback, by when it was changed.
+  const orderOf = (row: (typeof waiting)[number]) => (row.changedAt ?? row.sentAt).getTime();
+  waiting.sort((a, b) => orderOf(a) - orderOf(b) || a.uid.localeCompare(b.uid));
 
   const uids = [...new Set(waiting.map((row) => row.uid))];
   const names = new Map<string, string>();
@@ -161,9 +208,11 @@ export async function loadWrittenQueues(
       firstSentAt: row.sentAt.toISOString(),
       locked: row.locked,
       lateMs: row.lateMs,
+      changed: row.changedAt !== null,
+      changedAt: row.changedAt ? row.changedAt.toISOString() : null,
     });
   }
-  return out;
+  return { queues: out, reviewable: groupOf };
 }
 
 /** One group's written answers waiting for `actor`'s feedback, or null for a run with no week written as blocks. */
@@ -176,4 +225,24 @@ export async function loadWrittenQueue(
 ): Promise<WrittenQueueRow[] | null> {
   const queues = await loadWrittenQueues(db, actor, run, [group], now);
   return queues ? (queues.get(group.id) ?? []) : null;
+}
+
+/**
+ * One group's queue, and whose weeks `actor` may open in the reading view of
+ * that group (`reviewableIn`, the gate the view's own door asks), from the one
+ * set of reads; null for a run with no week written as blocks.
+ */
+export async function loadWrittenQueueAndReadable(
+  db: Firestore,
+  actor: SessionUser,
+  run: CourseRunDoc,
+  group: CourseGroupDoc,
+  now: Date = new Date(),
+): Promise<{ rows: WrittenQueueRow[]; readable: Set<string> } | null> {
+  const read = await readWrittenQueues(db, actor, run, [group], now);
+  if (!read) return null;
+  return {
+    rows: read.queues.get(group.id) ?? [],
+    readable: new Set([...read.reviewable].filter(([, groupId]) => groupId === group.id).map(([uid]) => uid)),
+  };
 }

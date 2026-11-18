@@ -153,7 +153,7 @@ export async function POST(
 
   const [runSnap, { members }] = await Promise.all([
     db.collection("courseRuns").doc(runId).get(),
-    loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin }),
+    loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin }, weekNumber),
   ]);
   if (!runSnap.exists) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });

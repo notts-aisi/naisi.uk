@@ -211,9 +211,16 @@ describe("3. the week's emails are notices: they reach her", () => {
   });
 
   test("its source, and the reminders', ask the notice audience for the group, never the list", () => {
-    for (const parts of [["lib", "courses", "nextWeekEmail.ts"], ["lib", "scheduler", "jobs", "weekReminders.ts"]]) {
+    // Both ask for the group by the session's week: the people whose group
+    // that week is this one (`groupForWeek`), which with no record of groups
+    // by week is the people in it now.
+    for (const [parts, scope] of [
+      [["lib", "courses", "nextWeekEmail.ts"], /\{ groupId: group\.id, weekNumber: session\.weekNumber \}/],
+      [["lib", "scheduler", "jobs", "weekReminders.ts"], /\{ groupId: group\.id, weekNumber \}/],
+    ]) {
       const text = source(...parts);
-      assert.match(text, /resolveNoticeAudience\(db, (run\.id|runState\.run\.id), LANE, \{ groupId: group\.id \}\)/, parts.join("/"));
+      const asks = new RegExp(String.raw`resolveNoticeAudience\(db, (run\.id|runState\.run\.id), LANE, ${scope.source}\)`);
+      assert.match(text, asks, parts.join("/"));
       assert.doesNotMatch(text, /resolveCohortAudience/, `${parts.join("/")} reads the cohort list`);
     }
   });

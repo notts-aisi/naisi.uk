@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint --max-warnings 0",
     "test": "node --test --import ./tests/lib/outputGuard.mjs tests/",
     "test:shard": "node --test --test-shard=$TEST_SHARD --import ./tests/lib/outputGuard.mjs tests/",
     "e2e": "node --test scripts/e2e/tests/",

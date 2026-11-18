@@ -474,7 +474,9 @@ describe("2. opening it from the register", () => {
   });
 
   test("the number on the button is the register's: a moved count is refused with the new one", async () => {
-    await mark({ amara: "present", chloe: "absent", farah: "excused" });
+    await mark({ amara: "present", chloe: "absent" });
+    // Excused is an admin's or the programme's lead's to set.
+    await mark({ farah: "excused" }, "zach");
     const moved = await open("rahul", { session: "w02", people: 3 });
     assert.equal(moved.status, 409);
     assert.deepEqual(moved.body, { error: "Nothing was sent: the register now marks 1 here. Check it and press again.", people: 1 });
@@ -763,13 +765,16 @@ describe("5. the register's card, as every kind of caller, and its floors", () =
   test("what it reaches is the register's told rows, whoever presses: it never reads the register as a viewer is shown it", () => {
     for (const file of ["open.ts", "lateMark.ts", "facilitatorView.ts"]) {
       const code = readFileSync(join(SRC, "lib", "surveys", "checkIns", file), "utf8");
-      assert.match(code, /\bloadToldRegisterMembers\(db, runId, group\.id\)/, file);
+      // The told rows of the session's own week: a row of the register that
+      // week (somebody whose place records a move is a row only in the weeks
+      // they were in the group).
+      assert.match(code, /\bloadToldRegisterMembers\(db, runId, group\.id, session\.weekNumber\)/, file);
       assert.doesNotMatch(code, /\bloadRegisterMembers\b/, file);
     }
     const access = readFileSync(join(SRC, "lib", "courses", "registerAccess.ts"), "utf8");
     assert.match(
       access,
-      /export function loadToldRegisterMembers\(db: Firestore, runId: string, groupId: string\): Promise<RegisterRoster> \{\n {2}return loadRegisterMembers\(db, runId, groupId, \{ isAdmin: false \}\);\n\}/,
+      /export function loadToldRegisterMembers\(\n {2}db: Firestore,\n {2}runId: string,\n {2}groupId: string,\n {2}forWeek: number \| null = null,\n\): Promise<RegisterRoster> \{\n {2}return loadRegisterMembers\(db, runId, groupId, \{ isAdmin: false \}, forWeek\);\n\}/,
     );
   });
 

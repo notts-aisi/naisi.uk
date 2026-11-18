@@ -1,4 +1,5 @@
 import "server-only";
+import { copiesOf } from "@/lib/courses/weekCopy";
 import type { Firestore } from "firebase-admin/firestore";
 import type { PlaceHolder } from "@/lib/applications/handover/holders";
 import { loadProgrammeRun, type ProgrammeRunView } from "@/lib/applications/handover/programmeRun";
@@ -6,49 +7,23 @@ import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import type { ApplicationForm } from "@/lib/applications/normalise";
 import { listPlaceHolders } from "@/lib/applications/people/load";
 import { loadForm } from "@/lib/applications/repo";
-import { readPersonPrivateNotes, readRunCoursework } from "@/lib/courses/facilitatorWeek/readers";
-import { boxesReaderFor } from "@/lib/courses/fillInBoxes/access";
-import { resolveGroupCalendar, resolveWeekDocs } from "@/lib/courses/groupResolve";
-import { readPackCaseRecords } from "@/lib/courses/packsAndCases/readers";
-import { liveGroupsOf, ownerFactsOf, reviewerFactsOf, writtenReviewRole } from "@/lib/courses/writtenAnswers/access";
-import { byOldest, staffCardOf, staffLegacyCardOf } from "@/lib/courses/feedback/model";
-import { cardNamesOf, legacyRoleOf } from "@/lib/courses/feedback/readers";
-import { sessionHasStarted } from "@/lib/courses/weekWork/model";
+import { liveGroupsOf, reviewerFactsOf } from "@/lib/courses/writtenAnswers/access";
 import type { SessionUser } from "@/lib/firebase/session";
-import {
-  courseEnrolmentId,
-  normalizeCourseEnrolment,
-  placementIsShownTo,
-  type CourseEnrolmentDoc,
-} from "@/lib/firestore/courseEnrolments";
+import { normalizeCourseEnrolment, placementIsShownTo, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
-import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
-import {
-  NO_WORK,
-  chooseOneIdsOf,
-  courseworkSections,
-  courseworkWeekOf,
-  personWeeks,
-  readFilter,
-  shownWorkKeys,
-  workKey,
-  type CourseworkFilter,
-  type CourseworkPerson,
-  type CourseworkSection,
-  type CourseworkViewer,
-  type CourseworkWeek,
-  type PersonWeek,
-} from "./model";
-import { NOT_IN_A_GROUP_YET } from "./words";
-import { personAskedThen } from "../weekEdit/askedThen";
-import type { AskedWords } from "../weekEdit/wordsThen";
+import type { CourseworkPerson, CourseworkViewer } from "./model";
+import { personAnchorId, questionHref } from "./question";
+import { readPersonWeek, type PersonWeekView } from "./readingLoad";
+import { namesOf } from "./reads";
+import { BACK_TO_COURSEWORK } from "./words";
 
 /**
- * A PROGRAMME'S COURSEWORK, READ (Zach, Fri 30 Oct): the Coursework tab and
- * one person's page, on the server, for the programme's lead and admins.
- * `./model.ts` says who is a row, which week each reads and what a cell says;
- * this file reads and hands the pages what they draw.
+ * A PROGRAMME'S COURSEWORK, READ (Zach, Fri 30 Oct): the gate and the rows
+ * the Coursework tab and one person's page share, and one person's page, on
+ * the server, for the programme's lead and admins. `./model.ts` says who is a
+ * row, which week each reads and what a cell says; the tab itself is read by
+ * `./tabLoad.ts`, with this file's gate and rows.
  *
  * THE GATE comes first, from the form, before the run is read
  * (`loadProgrammeRun`, the Groups and Attendance tabs' own): an admin or the
@@ -63,11 +38,13 @@ import type { AskedWords } from "../weekEdit/wordsThen";
  * week stands (`readRunCoursework`, one equality on the run per store, words
  * only for the one person whose page is drawn); for the tab, each person's
  * pack in the Choose ones their weeks count, by id, for whether a week is
- * done; and the names of the facilitators and of whoever gave feedback. A
- * private note is read only on a person's page and
- * only for an admin (`readPersonPrivateNotes`); a person's boxes only once
- * their gate has answered (`boxesReaderFor`). Survey answers never. Nothing
- * is written.
+ * done; and the names of the facilitators and of whoever gave feedback. One
+ * person's week is read by the reading view's own loader
+ * (`./readingLoad.ts`, `readPersonWeek`), which this file's door hands the
+ * person after the gate: a private note only there and only where
+ * `privateNotesOf` says (on this side, an admin; never the lead), a person's
+ * boxes only once their gate has answered (`boxesReaderFor`). Survey answers
+ * never. Nothing is written.
  *
  * A PLACEMENT is shown to this viewer only where `placementIsShownTo` says
  * so: an admin sees every one, the lead only those Publish has told. The
@@ -81,13 +58,13 @@ import type { AskedWords } from "../weekEdit/wordsThen";
  * name on a place's record stands in only where the account has gone.
  */
 
-type Gate =
+export type Gate =
   | { status: "none" }
   | { status: "not-yours" }
   | { status: "blank"; view: ProgrammeRunView }
   | { status: "ok"; view: ProgrammeRunView; run: CourseRunDoc; form: ApplicationForm; viewer: CourseworkViewer };
 
-async function openCoursework(db: Firestore, actor: SessionUser, roundId: string, programmeId: string): Promise<Gate> {
+export async function openCoursework(db: Firestore, actor: SessionUser, roundId: string, programmeId: string): Promise<Gate> {
   const outcome = await loadProgrammeRun(db, actor, roundId, programmeId);
   if (outcome.status !== "ok") return outcome;
   const { view } = outcome;
@@ -97,38 +74,22 @@ async function openCoursework(db: Firestore, actor: SessionUser, roundId: string
   return { status: "ok", view, run: normalizeCourseRun(runSnap.id, runSnap.data() ?? {}), form, viewer: view.viewer };
 }
 
-/** Names on accounts, by uid, as `viewer` is shown them (the names rule), as the lead's tabs name people. */
-async function namesOf(db: Firestore, uids: readonly string[], viewer: NameViewer): Promise<Map<string, string>> {
-  const unique = [...new Set(uids.filter(Boolean))];
-  if (unique.length === 0) return new Map();
-  const docs = await db.getAll(...unique.map((uid) => db.collection("users").doc(uid)));
-  return new Map(
-    docs
-      .filter((doc) => doc.exists)
-      .map((doc) => [doc.id, nameForViewer(viewer, accountNamesOf(doc.data() ?? {}), "NAISI member")] as const),
-  );
-}
-
-/** The weeks of the run's plan written as blocks, week 1 first: the tab's columns. */
-function columnsOf(run: CourseRunDoc, runWeeks: ReadonlyMap<number, CourseworkWeek | null>): Array<{ weekNumber: number; title: string }> {
-  return run.weekPlan
-    .flatMap((entry) => (entry.kind === "week" ? [entry.weekNumber] : []))
-    .filter((weekNumber, index, all) => all.indexOf(weekNumber) === index)
-    .sort((a, b) => a - b)
-    .flatMap((weekNumber) => {
-      const week = runWeeks.get(weekNumber);
-      return week ? [{ weekNumber, title: week.title }] : [];
-    });
-}
-
-/** Every week a group reads (its own copy over the run's), or the run's own for `null`, by week number. */
-async function weeksRead(db: Firestore, runId: string, groupId: string | null): Promise<Map<number, CourseworkWeek | null>> {
-  const entries = await resolveWeekDocs(db, runId, groupId);
-  return new Map(entries.map((entry) => [entry.week.weekNumber, courseworkWeekOf(entry.week)] as const));
+/**
+ * The run's seats (one equality on the run), every one as read, and by uid
+ * the seats on this run: the rows of the tab and a person's page are made
+ * from them by `peopleOf`, which asks of each placement whether it may be
+ * shown to the caller.
+ */
+export async function readRunSeats(db: Firestore, runId: string): Promise<{ enrolments: CourseEnrolmentDoc[]; seats: Map<string, CourseEnrolmentDoc> }> {
+  const snap = await db.collection("courseEnrolments").where("runId", "==", runId).get();
+  const enrolments = snap.docs.map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}));
+  const seats = new Map<string, CourseEnrolmentDoc>();
+  for (const seat of enrolments) if (seat.runId === runId && seat.uid) seats.set(seat.uid, seat);
+  return { enrolments, seats };
 }
 
 /** A seat that places somebody in one of the run's live groups, active or finished. */
-function placedIn(seat: CourseEnrolmentDoc | undefined | null, groups: readonly CourseGroupDoc[]): seat is CourseEnrolmentDoc & { groupId: string } {
+export function placedIn(seat: CourseEnrolmentDoc | undefined | null, groups: readonly CourseGroupDoc[]): seat is CourseEnrolmentDoc & { groupId: string } {
   return (
     !!seat &&
     seat.role === "learner" &&
@@ -146,7 +107,7 @@ function placedIn(seat: CourseEnrolmentDoc | undefined | null, groups: readonly 
  * run itself, with no place on the form behind it), who is taking part all
  * the same and whose coursework the group's pages already show.
  */
-function peopleOf(input: {
+export function peopleOf(input: {
   viewer: CourseworkViewer;
   groups: readonly CourseGroupDoc[];
   holders: readonly PlaceHolder[];
@@ -176,6 +137,8 @@ function peopleOf(input: {
       facilitating: false,
       groupId: shown && placed ? placed.groupId : null,
       readsGroupId: told && placed ? placed.groupId : null,
+      // Somebody moved mid-term is read, week by week, on the copy they saw.
+      readsCopies: told && placed ? copiesOf(placed, input.groups) : null,
       notToldYet: shown && !told,
     });
   };
@@ -194,7 +157,7 @@ function peopleOf(input: {
 }
 
 /** The people `peopleOf` names from their accounts: facilitators, everybody holding a place, and anybody placed with no place on the form. */
-function accountsToName(groups: readonly CourseGroupDoc[], holders: readonly PlaceHolder[], seats: ReadonlyMap<string, CourseEnrolmentDoc>): string[] {
+export function accountsToName(groups: readonly CourseGroupDoc[], holders: readonly PlaceHolder[], seats: ReadonlyMap<string, CourseEnrolmentDoc>): string[] {
   const holding = new Set(holders.map((holder) => holder.uid));
   return [
     ...groups.flatMap((group) => group.facilitatorUids),
@@ -203,180 +166,30 @@ function accountsToName(groups: readonly CourseGroupDoc[], holders: readonly Pla
   ];
 }
 
-// ---------------------------------------------------------------------------
-// The tab
-// ---------------------------------------------------------------------------
-
-export type CourseworkTabView = {
-  roundId: string;
-  programmeId: string;
-  programmeName: string;
-  viewer: CourseworkViewer;
-  columns: Array<{ weekNumber: number; title: string }>;
-  /** The run's live groups, for the filter, in the one order every tab lists them. */
-  groups: Array<{ id: string; name: string }>;
-  filter: CourseworkFilter;
-  sections: CourseworkSection[];
-  counts: { holding: number; facilitating: number; waiting: number };
-  /** The lead's first name, for the line about who opens the tab; null with no lead. */
-  leadFirstName: string | null;
-  /** Every row's name by account, whatever the filter: the panels under the table name people by it. */
-  names: Record<string, string>;
-};
-
-export type CourseworkTabOutcome =
-  | { status: "none" }
-  | { status: "not-yours" }
-  | { status: "blank"; view: ProgrammeRunView }
-  | { status: "ok"; view: CourseworkTabView };
-
 /** The programme's pages, written out from ids, never from stored text. */
-function programmePathOf(view: ProgrammeRunView): string {
+export function programmePathOf(view: Pick<ProgrammeRunView, "roundId" | "programmeId">): string {
   return `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
 }
 
-/** The review page for one person's answer in one week, where feedback on it is written: a person in a group this viewer sees, or a facilitator's own. */
-function writtenHrefOf(programmePath: string, person: Pick<CourseworkPerson, "uid" | "groupId">, weekNumber: number): string | null {
-  if (!person.groupId) return null;
-  return `${programmePath}/written?group=${encodeURIComponent(person.groupId)}&week=${weekNumber}&person=${encodeURIComponent(person.uid)}`;
-}
-
-export async function loadCourseworkTab(
-  db: Firestore,
-  actor: SessionUser,
-  roundId: string,
-  programmeId: string,
-  query: { group?: unknown; waiting?: unknown; notdone?: unknown },
-): Promise<CourseworkTabOutcome> {
-  const gate = await openCoursework(db, actor, roundId, programmeId);
-  if (gate.status !== "ok") return gate;
-  const { view, run, form, viewer } = gate;
-
-  const [holders, groups, seatSnap, runWeeks, programme] = await Promise.all([
-    listPlaceHolders(db, form, view.programmeId),
-    liveGroupsOf(db, run.id),
-    // One equality on one field: the run's seats.
-    db.collection("courseEnrolments").where("runId", "==", run.id).get(),
-    weeksRead(db, run.id, null),
-    runProgrammeOf(db, run.id),
-  ]);
-  const seats = new Map<string, CourseEnrolmentDoc>();
-  for (const doc of seatSnap.docs) {
-    const seat = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
-    if (seat.runId === run.id && seat.uid) seats.set(seat.uid, seat);
-  }
-  const [groupWeeks, names, coursework] = await Promise.all([
-    Promise.all(groups.map(async (group) => [group.id, await weeksRead(db, run.id, group.id)] as const)),
-    namesOf(db, accountsToName(groups, holders, seats), actor),
-    readRunCoursework(db, { run, liveGroups: groups, now: new Date() }, null),
-  ]);
-  const weeksOf = new Map(groupWeeks);
-  const columns = columnsOf(run, runWeeks);
-  const people = peopleOf({ viewer, groups, holders, seats, names });
-  const weekOf = (groupId: string | null, weekNumber: number) =>
-    groupId ? (weeksOf.get(groupId)?.get(weekNumber) ?? null) : (runWeeks.get(weekNumber) ?? null);
-  // Each person's pack in the Choose ones the weeks they read count, by id: a
-  // week with a pathway is done only once its pack's reading is ticked.
-  const packRecords = await readPackCaseRecords(
-    db,
-    run.id,
-    people.flatMap((person) =>
-      columns.flatMap((column) => chooseOneIdsOf(weekOf(person.readsGroupId, column.weekNumber)).map((blockId) => ({ uid: person.uid, blockId }))),
-    ),
-  );
-  const packs = new Map<string, Map<string, string>>();
-  for (const record of packRecords.values()) {
-    if (!record.packId) continue;
-    const own = packs.get(record.uid) ?? new Map<string, string>();
-    own.set(record.blockId, record.packId);
-    packs.set(record.uid, own);
-  }
-  // The last week that has begun on each group's calendar (the run's own for
-  // somebody in no group), for which weeks a row is not done in.
-  const now = new Date();
-  const reached = new Map<string | null, number>();
-  const reachedOf = (groupId: string | null) => {
-    if (!reached.has(groupId)) {
-      const group = groupId ? (groups.find((candidate) => candidate.id === groupId) ?? null) : null;
-      reached.set(groupId, resolveGroupCalendar(run, group, now).currentWeek?.anchorWeekNumber ?? 0);
-    }
-    return reached.get(groupId) ?? 0;
-  };
-  const programmePath = programmePathOf(view);
-  const groupList = groups.map((group) => ({ id: group.id, name: group.name.trim() || "Untitled group" }));
-  const filter = readFilter(query, groupList.map((group) => group.id));
-  const build = (wanted: CourseworkFilter) =>
-    courseworkSections({
-      columns,
-      groups: groupList,
-      people,
-      workOf: (uid) => ({ ...(coursework.work.get(uid) ?? NO_WORK), packs: packs.get(uid) ?? new Map() }),
-      weekOf,
-      personHref: (uid) => `${programmePath}/coursework/${encodeURIComponent(uid)}`,
-      writtenHref: (person, weekNumber) => writtenHrefOf(programmePath, person, weekNumber),
-      standingOf: (uid, weekNumber) => ({ submittedAt: coursework.states.submittedOf(uid, weekNumber), due: coursework.states.dueOf(uid, weekNumber) }),
-      reachedOf: (person) => reachedOf(person.readsGroupId),
-      filter: wanted,
-      notInAGroupTitle: NOT_IN_A_GROUP_YET,
-    });
-  const everybody = build({ group: "all", waiting: false, notDone: false }).flatMap((section) => section.rows);
-  return {
-    status: "ok",
-    view: {
-      roundId: view.roundId,
-      programmeId: view.programmeId,
-      programmeName: view.programmeName,
-      viewer,
-      columns,
-      groups: groupList,
-      filter,
-      sections: build(filter),
-      counts: {
-        holding: people.filter((person) => !person.facilitating).length,
-        facilitating: people.filter((person) => person.facilitating).length,
-        waiting: everybody.filter((row) => row.waiting).length,
-      },
-      leadFirstName: programme?.leadFirstName ?? null,
-      names: Object.fromEntries(everybody.map((row) => [row.uid, row.name])),
-    },
-  };
-}
-
 // ---------------------------------------------------------------------------
-// One person's page
+// One person's week: the reading view's programme door
 // ---------------------------------------------------------------------------
 
-export type PersonCourseworkView = {
+export type PersonCourseworkView = PersonWeekView & {
   roundId: string;
   programmeId: string;
-  programmeName: string;
-  /** The programme's course run: an admin's notes about the person are written from it. */
+};
+
+/** A person's page on a run with no week to read: who they are, and what the column beside them needs. */
+export type NoWeeksView = {
+  roundId: string;
+  programmeId: string;
   runId: string;
   viewer: CourseworkViewer;
-  person: {
-    uid: string;
-    name: string;
-    /** The first name they go by, for the lines about their week page. */
-    firstName: string;
-    facilitating: boolean;
-    /** Their group, where this viewer may see it; null: not in a group yet. */
-    groupName: string | null;
-    notToldYet: boolean;
-  };
-  /** Newest week first. */
-  weeks: PersonWeek[];
-  /** Whether private notes were read for this viewer: admins only. */
-  notesShown: boolean;
-  /** The first name the person looking goes by, for "Written by Claudia". */
-  viewerFirstName: string;
-  /**
-   * The words each of the person's answered questions had when they first
-   * wrote to it, keyed as their work is ("3 rp-1"), ONLY where the question
-   * has been reworded in place since (`src/lib/courses/weekEdit/askedThen.ts`):
-   * a reflection's prompt, or a written answer's question, word range and due
-   * rule. Empty when nothing they answered was changed.
-   */
-  askedThen: Record<string, AskedWords>;
+  self: boolean;
+  programmeName: string;
+  person: { uid: string; name: string; groupName: string | null; facilitating: boolean; notToldYet: boolean };
+  crumb: { label: string; href: string };
 };
 
 export type PersonCourseworkOutcome =
@@ -385,115 +198,98 @@ export type PersonCourseworkOutcome =
   | { status: "blank"; view: ProgrammeRunView }
   /** The person holds no place on the programme and facilitates none of its run's groups. */
   | { status: "not-here"; programmeName: string }
+  /**
+   * None of the run's weeks is written as blocks: no week to read. The page
+   * still names the person and carries the column of what the team keeps
+   * about them, as it always did.
+   */
+  | { status: "no-weeks"; view: NoWeeksView }
   | { status: "ok"; view: PersonCourseworkView };
 
+/**
+ * ONE PERSON'S WEEK ON THE PROGRAMME'S SIDE (the reading view, at
+ * `.../coursework/[uid]?week=N`): the same gate as ever (`openCoursework`:
+ * an admin or the programme's lead), then the person must be a row of the
+ * Coursework tab (a place on the form, a group of the run facilitated, or a
+ * seat in one of its live groups), or the page says calmly that they are
+ * not. Previous and next are the people of the same section of the tab, in
+ * its order. Everything about the week is read by the one loader both doors
+ * share (`readPersonWeek`), behind the readers every page asks.
+ */
 export async function loadPersonCoursework(
   db: Firestore,
   actor: SessionUser,
   roundId: string,
   programmeId: string,
   uid: string,
+  askedWeek: unknown = null,
 ): Promise<PersonCourseworkOutcome> {
   const gate = await openCoursework(db, actor, roundId, programmeId);
   if (gate.status !== "ok") return gate;
   const { view, run, form, viewer } = gate;
 
-  const [holders, groups, seatSnap, runWeeks] = await Promise.all([
+  const [holders, groups, { enrolments, seats }, facts] = await Promise.all([
     listPlaceHolders(db, form, view.programmeId),
     liveGroupsOf(db, run.id),
-    // Their own seat on the run, by its address.
-    db.collection("courseEnrolments").doc(courseEnrolmentId(run.id, uid)).get(),
-    weeksRead(db, run.id, null),
+    // One equality on one field: the run's seats, for the people of the person's section.
+    readRunSeats(db, run.id),
+    reviewerFactsOf(db, actor, run.id),
   ]);
   const facilitates = groups.some((group) => group.facilitatorUids.includes(uid));
   const holder = holders.find((candidate) => candidate.uid === uid) ?? null;
-  const seat = seatSnap.exists ? normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {}) : null;
-  const seats = new Map<string, CourseEnrolmentDoc>(seat && seat.uid === uid && seat.runId === run.id ? [[uid, seat]] : []);
   // A row of the tab, or nobody's page: a place on the form, a group facilitated, or a seat in a live group.
   if (!facilitates && !holder && !placedIn(seats.get(uid), groups)) return { status: "not-here", programmeName: view.programmeName };
 
-  const mine = groups.filter((group) => !facilitates || group.facilitatorUids.includes(uid));
-  const holding = holder ? [holder] : [];
-  const names = await namesOf(db, accountsToName(mine, holding, seats).filter((candidate) => candidate === uid), actor);
-  const [person] = peopleOf({ viewer, groups: mine, holders: holding, seats, names }).filter((candidate) => candidate.uid === uid);
+  const names = await namesOf(db, accountsToName(groups, holders, seats), actor);
+  const people = peopleOf({ viewer, groups, holders, seats, names });
+  const person = people.find((candidate) => candidate.uid === uid);
   if (!person) return { status: "not-here", programmeName: view.programmeName };
 
-  const weeks = person.readsGroupId ? await weeksRead(db, run.id, person.readsGroupId) : runWeeks;
-  const columns = columnsOf(run, runWeeks);
-  const weekOf = (weekNumber: number) => weeks.get(weekNumber) ?? null;
-  const [coursework, boxesReader, notes] = await Promise.all([
-    readRunCoursework(db, { run, liveGroups: groups, now: new Date() }, uid),
-    boxesReaderFor(db, actor, run.id, uid),
-    readPersonPrivateNotes(
-      db,
-      run.id,
-      viewer,
-      { uid, name: person.name, firstName: person.name, own: person.facilitating },
-      columns.map((column) => ({ weekNumber: column.weekNumber, sourceIds: new Set((weekOf(column.weekNumber)?.sources ?? []).map((source) => source.id)) })),
-    ),
-  ]);
-  // The feedback on their weeks, and whether this viewer may write it: the one gate on whose work a reader may act on.
-  const [cardNames, facts, owner] = await Promise.all([
-    cardNamesOf(db, [
-      uid,
-      actor.uid,
-      ...[...coursework.writes.answers.values()].map((answer) => answer.feedback?.byUid ?? ""),
-      ...coursework.feedback.map((piece) => piece.byUid),
-    ]),
-    reviewerFactsOf(db, actor, run.id),
-    ownerFactsOf(db, run.id, uid, groups, { isAdmin: viewer === "admin" }),
-  ]);
-  const mayWrite = owner !== null && writtenReviewRole(actor, facts, owner, groups).mayReview;
   const programmePath = programmePathOf(view);
+  const tab = { label: BACK_TO_COURSEWORK, href: `${programmePath}/coursework` };
   const group = person.groupId ? (groups.find((candidate) => candidate.id === person.groupId) ?? null) : null;
-  const reader = { uid: actor.uid, isAdmin: facts.isAdmin, now: new Date() };
-  const feedbackOf = (weekNumber: number, answerId: string | null) => {
-    const stored = answerId ? (coursework.writes.answers.get(workKey(weekNumber, answerId)) ?? null) : null;
-    const cards = byOldest([
-      ...(answerId && stored?.feedback
-        ? [staffLegacyCardOf(answerId, stored.feedback, legacyRoleOf(stored.feedback.byUid, group?.facilitatorUids ?? []), cardNames, reader)]
-        : []),
-      // Each piece on the answer with the version it was about, when the answer has changed since.
-      ...coursework.feedback.filter((piece) => piece.weekNumber === weekNumber).map((piece) => staffCardOf(piece, cardNames, reader, stored?.piece ?? null)),
-    ]);
-    const own = [...cards].reverse().find((card) => card.mine && card.mayChange && card.on === "week") ?? null;
-    // Feedback on the week once it may be read: the session has started, the answer may be read, or the old Submit was pressed.
-    const readable =
-      sessionHasStarted(coursework.states.dueOf(uid, weekNumber), reader.now) ||
-      stored?.piece != null ||
-      coursework.states.submittedOf(uid, weekNumber) !== null;
-    return { cards: cards.filter((card) => card !== own), own, open: mayWrite && readable };
-  };
-  const personWeekList = personWeeks({
-    columns,
-    weekOf,
-    writes: coursework.writes,
-    boxesRead: boxesReader !== null,
-    notes,
-    writtenHref: (weekNumber) => writtenHrefOf(programmePath, person, weekNumber),
-    feedbackOf,
+  const programme = await runProgrammeOf(db, run.id);
+  const read = await readPersonWeek(db, actor, {
+    door: "programme",
+    run,
+    liveGroups: groups,
+    facts,
+    viewer,
+    person,
+    // The people of the same section of the tab: one group, or everybody in no group yet.
+    people: people.filter((candidate) => candidate.groupId === person.groupId),
+    askedWeek,
+    programmeName: programme?.shortName || view.programmeName,
+    base: `${programmePath}/coursework`,
+    enrolments,
+    // One question across the person's group, on the same week, landing on them. None for somebody in no group.
+    questionHref: (weekNumber) =>
+      person.groupId
+        ? `${questionHref(`${programmePath}/question?group=${encodeURIComponent(person.groupId)}`, { weekNumber, questionId: null })}#${personAnchorId(uid)}`
+        : null,
+    back: group ? { label: group.name.trim() || "Untitled group", href: `${programmePath}/groups/${encodeURIComponent(group.id)}` } : tab,
+    crumb: tab,
   });
-  return {
-    status: "ok",
-    view: {
-      roundId: view.roundId,
-      programmeId: view.programmeId,
-      programmeName: view.programmeName,
-      runId: run.id,
-      viewer,
-      person: {
-        uid,
-        name: person.name,
-        firstName: cardNames.firstName(uid) || person.name,
-        facilitating: person.facilitating,
-        groupName: group ? group.name.trim() || "Untitled group" : null,
-        notToldYet: person.notToldYet,
+  if (!read) {
+    return {
+      status: "no-weeks",
+      view: {
+        roundId: view.roundId,
+        programmeId: view.programmeId,
+        runId: run.id,
+        viewer,
+        self: actor.uid === uid,
+        programmeName: programme?.shortName || view.programmeName,
+        person: {
+          uid,
+          name: person.name,
+          groupName: group ? group.name.trim() || "Untitled group" : null,
+          facilitating: person.facilitating,
+          notToldYet: person.notToldYet,
+        },
+        crumb: tab,
       },
-      weeks: personWeekList,
-      notesShown: notes !== null,
-      viewerFirstName: cardNames.firstName(actor.uid),
-      // Only beside words this page shows: never a written answer its readers may not read yet.
-      askedThen: await personAskedThen(db, run.id, uid, person.readsGroupId, shownWorkKeys(personWeekList)),
-    },
-  };
+    };
+  }
+  return { status: "ok", view: { ...read, roundId: view.roundId, programmeId: view.programmeId } };
 }

@@ -54,7 +54,9 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  *
  * ── A NOTICE ────────────────────────────────────────────────────────────────
  * It reaches everybody holding a place in the group whose group has gone
- * out, whatever they unsubscribed from (`resolveNoticeAudience`), says why
+ * out (in the group for the session's week, `groupForWeek`, which with no
+ * record of groups by week is the group they are in now), whatever they
+ * unsubscribed from (`resolveNoticeAudience`), says why
  * above its words, carries no unsubscribe link, and goes by email alone,
  * through the notice lane's door (`sendNotice`, surface `course-week`). It is
  * the people running the programme telling the people on it what this week
@@ -97,8 +99,10 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  * ── AN EARLIER WEEK NOT DONE ────────────────────────────────────────────────
  * Each person's email adds one line for any earlier week of theirs that is
  * not done, whose session has passed and which they had joined by then
- * (`earlierWeeksNotDone`), read before the claim with everything else. A read
- * of it that fails leaves the line out rather than hold the group's email.
+ * (`earlierWeeksNotDone`), read before the claim with everything else, each
+ * week judged on the copy that person reads it on (for somebody moved here
+ * mid-term, the old group's copy of a week spent there). A read of it that
+ * fails leaves the line out rather than hold the group's email.
  *
  * ── WHAT A PRESS WOULD DO, SAID BEFORE IT ───────────────────────────────────
  * The register's page says what pressing its button emails before anybody
@@ -283,8 +287,8 @@ async function prepareNextWeekEmail(
     whole: boolean;
     config: CoursesConfig;
     appUrl: string;
-    /** The group's audience, for a caller asking about several of its sessions; read here otherwise. */
-    audience?: () => Promise<CohortAudience>;
+    /** The group's audience for a week, for a caller asking about several of its sessions; read here otherwise. */
+    audience?: (weekNumber: number) => Promise<CohortAudience>;
   },
 ): Promise<{ ready: false; outcome: NextWeekEmailOutcome } | PreparedEmail> {
   const { run, group, session } = args;
@@ -333,10 +337,14 @@ async function prepareNextWeekEmail(
   }
 
   // SCOPED TO THIS GROUP INSIDE the derivation: the recipient ceiling has to
-  // be counted on the group being mailed, not on the whole run.
+  // be counted on the group being mailed, not on the whole run. FOR THE
+  // SESSION'S WEEK: the people whose group that week is this one
+  // (`groupForWeek`), so somebody moved from a later week hears about their
+  // old group's session, and their new group's from the week they move.
+  // With no record of groups by week, the people in the group now.
   const audience = args.audience
-    ? await args.audience()
-    : await resolveNoticeAudience(db, run.id, LANE, { groupId: group.id });
+    ? await args.audience(session.weekNumber)
+    : await resolveNoticeAudience(db, run.id, LANE, { groupId: group.id, weekNumber: session.weekNumber });
   if (audience.refusal) {
     return { ready: false, outcome: heldOutcome("refused", audience.refusal, { skipped: audience.skipped }) };
   }
@@ -385,9 +393,17 @@ export async function previewNextWeekEmails(
   const { run, group } = args;
   const out = new Map<string, NextWeekEmailPreview>();
   if (args.sessions.length === 0) return out;
-  let audience: Promise<CohortAudience> | null = null;
-  const audienceOnce = () =>
-    (audience ??= resolveNoticeAudience(db, run.id, LANE, { groupId: group.id }));
+  // Read once a week asked about: each session's email is for the people in
+  // the group that week.
+  const audiences = new Map<number, Promise<CohortAudience>>();
+  const audienceOnce = (weekNumber: number) => {
+    let audience = audiences.get(weekNumber);
+    if (!audience) {
+      audience = resolveNoticeAudience(db, run.id, LANE, { groupId: group.id, weekNumber });
+      audiences.set(weekNumber, audience);
+    }
+    return audience;
+  };
   for (const session of args.sessions) {
     if (out.has(session.sessionKey)) continue;
     const prepared = await prepareNextWeekEmail(db, {

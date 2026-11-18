@@ -107,7 +107,6 @@ export default function TaskCalendar({
 
   const cellPx = size === "sm" ? 30 : 36;
   const headerFont = size === "sm" ? "var(--text-xs)" : "var(--text-sm)";
-  const dayFont = size === "sm" ? "var(--text-xs)" : "var(--text-sm)";
 
   const cells: Date[] = useMemo(() => {
     const first = startOfMonth(viewMonth);

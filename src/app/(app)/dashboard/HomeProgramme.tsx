@@ -151,7 +151,12 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
   const doc = data?.weeks.find((week) => week.weekNumber === weekNumber) ?? null;
   const readable = schedule?.open === true;
   const weekSource = data
-    ? { groupId: data.enrolment?.groupId ?? data.group?.id ?? null, forkedWeekIds: data.forkedWeekIds }
+    ? {
+        groupId: data.enrolment?.groupId ?? data.group?.id ?? null,
+        forkedWeekIds: data.forkedWeekIds,
+        // Somebody moved mid-term: the group whose copy each listed week is, as the server says.
+        forkedWeekGroups: data.forkedWeekGroups,
+      }
     : null;
   // An unopened or unpublished week is not asked for: a learner may not read one.
   const week = useWeek(entry.runId, readable ? weekDocId(weekNumber) : "", false, weekSource);
@@ -281,7 +286,7 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
           {data && lastWeek && endSurvey && (
             <EndSurveyCard survey={{ state: "open", card: endSurvey }} look="card" lastSession={lastSession} />
           )}
-          {data && lastWeek && <AfterLastSession heading={afterLastSessionHeading(onTheDay ?? "around")} />}
+          {data && lastWeek && <AfterLastSession heading={afterLastSessionHeading(onTheDay ?? "around")} certificateNeeds={data.certificateNeeds ?? null} />}
           {data && lastWeek && <WhatsNextCard whatsNext={data.whatsNext} look="card" />}
           {data && facts && weekNumber >= 1 && (
             <section className={`${weekly.card} ${weekly.cardTight}`} aria-labelledby="home-before">

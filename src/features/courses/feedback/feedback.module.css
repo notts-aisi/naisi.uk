@@ -1,8 +1,8 @@
 /*
  * Feedback as a signed comment: the cards on a person's week page, "Your
- * feedback" and the cards beside it on the review page and the Coursework
- * tab's person page, and "Feedback to send" on a programme's Overview. Every
- * colour, radius and gap is a token from src/theme/tokens.css.
+ * feedback" and the cards beside it in the reading view of a person's week
+ * and on the page of one question, and "Feedback to send" on a programme's
+ * Overview. Every colour, radius and gap is a token from src/theme/tokens.css.
  */
 
 /* === The person's week page: the Feedback section === */

@@ -2,6 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { claudeConfigured } from "@/lib/ai/claude";
 import { fellowsOf, type DoorRefusal } from "@/lib/courses/coursework/door";
+import { fingerprintOf } from "@/lib/courses/coursework/input";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
   COURSE_WEEK_REVIEWS_COLLECTION,
@@ -247,4 +248,24 @@ export async function askWeekReview(
   whole.updatedAt = now;
   await db.collection(COURSE_WEEK_REVIEWS_COLLECTION).doc(weekReviewId(opened.run.id, opened.weekId)).set(whole);
   return { ok: true, asked: out };
+}
+
+/**
+ * ONE DRAFT GRADE, for the reading view of one person's week, which asks it
+ * for an admin alone and only once the one gate lets that admin read the
+ * answer (`src/lib/courses/coursework/readingLoad.ts`): the grade Claude last
+ * gave the answer in row `rowId`, when the review stored one and the words
+ * its readers read now are the words it graded (the same hash the review
+ * page leaves a changed answer out by). Null otherwise. One read, by the
+ * record's address; nothing is written and nothing is sent.
+ */
+export async function readDraftGrade(
+  db: Firestore,
+  input: { runId: string; weekId: string; rowId: string; words: string },
+): Promise<{ grade: number } | null> {
+  const { stored } = await readStored(db, input.runId, input.weekId);
+  if (stored?.grades?.state !== "ready") return null;
+  const item = stored.grades.items.find((each) => each.rowId === input.rowId);
+  if (!item || item.hash !== fingerprintOf(input.words)) return null;
+  return { grade: item.grade };
 }

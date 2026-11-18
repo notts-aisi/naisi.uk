@@ -381,6 +381,28 @@ test("a register holding only their word that they were joining online still qua
   assert.deepEqual(db.raw.get("run1__grp1__w10").online, {});
 });
 
+test("when the group's facilitators were emailed that they were joining online goes too, with their word; somebody else's stays", async () => {
+  // The record of having told them is about the person it is keyed by, and
+  // outlives their word (taking it back leaves it), so a register can hold
+  // it alone.
+  const db = makeDb({
+    run1__grp1__w13: register({
+      records: { stays: "present" },
+      participantNotes: {},
+      onlineSaid: { gone: "2026-12-14T09:00:00.000Z" },
+      onlineEmailed: { gone: "2026-12-14T09:00:00.000Z", stays: "2026-12-14T10:00:00.000Z" },
+    }),
+    run1__grp1__w14: register({ records: { stays: "present" }, participantNotes: {}, onlineEmailed: { gone: "2026-12-21T09:00:00.000Z" } }),
+  });
+
+  assert.equal(await clearCourseAttendanceMarks(db, ["run1"], "gone"), 2);
+  assert.deepEqual(db.raw.get("run1__grp1__w13").onlineSaid, {});
+  assert.deepEqual(db.raw.get("run1__grp1__w13").onlineEmailed, { stays: "2026-12-14T10:00:00.000Z" }, "somebody else's record is untouched");
+  assert.deepEqual(db.raw.get("run1__grp1__w14").onlineEmailed, {}, "a register holding only the record still qualifies");
+  assert.deepEqual(db.raw.get("run1__grp1__w14").records, { stays: "present" });
+  assert.deepEqual(db.deletedDocs, [], "the shared register was deleted");
+});
+
 test("who set the person's own line, and whether they were there when they facilitated, go too; who acted stays", async () => {
   // A line's stamp and a facilitator's entry are about the person they are
   // keyed by, so they go with the account, as `records` does. The uids that
@@ -436,6 +458,26 @@ test("when the person's own line was corrected goes too; who corrected somebody 
   assert.deepEqual(Object.keys(first.corrected), ["stays"], "their own corrected stamp goes");
   assert.equal(first.corrected.stays.byUid, "gone", "who corrected somebody else's line stays");
   assert.deepEqual(db.raw.get("run1__grp1__w14").corrected, {}, "a register holding only their stamp is found and cleared");
+  assert.deepEqual(db.deletedDocs, [], "the shared register was deleted");
+});
+
+test("that an excusal stood on the person's own line goes too, with the line; somebody else's stays, and who acted stays", async () => {
+  // `excusalKept` is keyed by the person whose line it is, as `records` is:
+  // `true`, or the stamp of the excused line it displaced, whose `byUid`
+  // names who acted and stays, as a stamp's in `setBy` does.
+  const stamp = { byUid: "gone", at: "2026-11-30T18:10:00.000Z", how: "approval" };
+  const db = makeDb({
+    run1__grp1__w15: register({
+      records: { gone: "present", stays: "late" },
+      participantNotes: {},
+      excusalKept: { gone: { byUid: "admin", at: "2026-11-30T18:09:00.000Z", how: "cover" }, stays: stamp },
+    }),
+    run1__grp1__w16: register({ records: { stays: "present" }, participantNotes: {}, excusalKept: { gone: true } }),
+  });
+
+  assert.equal(await clearCourseAttendanceMarks(db, ["run1"], "gone"), 2);
+  assert.deepEqual(db.raw.get("run1__grp1__w15").excusalKept, { stays: stamp }, "somebody else's is untouched, who acted with it");
+  assert.deepEqual(db.raw.get("run1__grp1__w16").excusalKept, {}, "a register holding only theirs is found and cleared");
   assert.deepEqual(db.deletedDocs, [], "the shared register was deleted");
 });
 

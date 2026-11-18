@@ -223,6 +223,33 @@ const RECIPIENT_SOURCES = new Map([
       why: "One facilitator's resolved account, looked up from the task's completers, which the server chose.",
     },
   ],
+  // A move to another group for good, made mid-term: the address names the
+  // PERSON moved, and the people the move emails are that person and the two
+  // groups' facilitators, read on the server inside the move's transaction.
+  [
+    "src/lib/courses/staffMove/save.ts#input.uid",
+    {
+      reads: 5,
+      origin: "caller",
+      filteredBy: "if (!read.ok) return read;",
+      why:
+        "The person to move, named by uid in the address. Refused unless they hold an active learner's place " +
+        "in a group of the run that Publish has told (`readMoveFacts`), and emailed only at the address on " +
+        "their own account; every other recipient is a facilitator of one of the two groups, read on the server.",
+    },
+  ],
+  [
+    "src/lib/courses/staffMove/save.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by `moveRecipients` (`src/lib/courses/staffMove/plan.ts`) inside the move's transaction from " +
+        "the person's own account and the facilitators named on the two groups' documents, each held to the " +
+        "standing the role is appointed behind, with an address, never the person twice and never the presser.",
+      why: "The people one move emails: the person, the new group's facilitators and the old group's.",
+    },
+  ],
   // An explainer, scheduled from a week's review: the one email goes to
   // whoever explains, the account the admin chose, which the server reads and
   // holds to the committee or an admin before anything is written or sent.
@@ -457,7 +484,10 @@ const RECIPIENT_SOURCES = new Map([
       why:
         "The group's facilitators an approved request to be excused tells (never the reason): each named on the " +
         "group, held to the standing the role is appointed behind, with an address, never the person the request " +
-        "is about and never the admin pressing. The press names nobody: the request names its group.",
+        "is about and never the admin pressing. The press names nobody: the request names its group. The same " +
+        "function (`facilitatorsToTell`) gives the facilitators Joining online tells " +
+        "(`src/lib/courses/joiningOnline/tell.ts`), never the person who said it: the press names nobody there " +
+        "either, only a session of the caller's own group.",
     },
   ],
   [

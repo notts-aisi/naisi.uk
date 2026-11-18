@@ -1,4 +1,4 @@
-import { FEEDBACK, dayAndClockWords, namesAnd } from "@/lib/courses/writtenAnswerWords";
+import { FEEDBACK, namesAnd } from "@/lib/courses/writtenAnswerWords";
 
 /**
  * THE WORDS OF A GROUP'S WEEK, in one place: This week's work,
@@ -286,18 +286,16 @@ export function copyForSessionText(picks: ReadonlyArray<{ partNumber: number; te
   return picks.map((pick) => `${pickedFromWords(pick.partNumber)}\n“${pick.text}”`).join("\n\n");
 }
 
-/** The lead's and admins' own section: a facilitator's reflections, under their name, never read out. */
-export const FACILITATORS_OWN = "Facilitators’ own reflections";
-
-/** Who reads a facilitator's own reflections, to the lead ("you") and to an admin (the lead by name). */
+/**
+ * Who reads a facilitator's own work, to the lead ("you") and to an admin
+ * (the lead by name), under the rows of the page of one question where one
+ * is listed.
+ */
 export function facilitatorsOwnLine(lead: { firstName: string; isReader: boolean } | null): string {
   if (lead?.isReader) return "Only you and admins read these. They’re never read out.";
   const name = lead?.firstName.trim();
   return name ? `Only ${name} and admins read these. They’re never read out.` : "Only admins read these. They’re never read out.";
 }
-
-/** A facilitator who has not written in a box. */
-export const NOT_WRITTEN = "Not written yet.";
 
 // ---------------------------------------------------------------------------
 // Reading reflections with names (Zach, Fri 30 Oct)
@@ -307,25 +305,20 @@ export const NOT_WRITTEN = "Not written yet.";
 // none. No board draws these: listed in the build notes for the boards'
 // designers to confirm.
 
-/** The way to the page that reads a group's reflections with names, from the group page and the page to read lines out. */
+/** The way to a group's reflections read with names (the page of one question across the group), from the group page and the page to read lines out. */
 export const READ_WITH_NAMES = "Read them with names";
 
-/** The way back from it to the page where lines are picked to read out. */
+/** The way back from a reflection on the page of one question to the page where lines are picked to read out. */
 export const PICK_LINES_TO_READ_OUT = "Pick lines to read out";
 
 /**
- * Under the heading of the facilitators' page that reads reflections with
- * names: who else reads them that way, and where lines are read out from.
+ * Under a reflection on the page of one question, on the group's side: who
+ * reads reflections with names, and where lines are read out from.
  */
 export function namedReadersLine(groupName: string, leadFirstName: string | null): string {
   const lead = leadFirstName?.trim();
   const who = lead ? `${groupName}’s facilitators, ${lead} and admins` : `${groupName}’s facilitators and admins`;
   return `${who} read reflections with names. Fellows can’t see each other’s. To read a line out in the session, pick it on the page without names.`;
-}
-
-/** When a reflection was last written: "Sun 15 Nov, 4:12pm". */
-export function lastWrittenWords(at: Date): string {
-  return dayAndClockWords(at);
 }
 
 // ---------------------------------------------------------------------------

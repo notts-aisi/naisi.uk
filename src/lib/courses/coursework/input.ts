@@ -47,6 +47,13 @@ export type CourseworkQuestion = {
   text: string;
   /** A written answer's labelled boxes, or none. */
   boxes: Array<{ id: string; label: string }>;
+  /**
+   * A question no copy of a live group or of the run asks, only the own
+   * copies of these groups, archived since, that somebody moved mid-term
+   * worked in: gathered only for the people whose own record names one of
+   * them for its week (`loadAnswers`). Absent on every other question.
+   */
+  askedOnlyIn?: string[];
 };
 
 export type CourseworkWeek = {
@@ -94,8 +101,8 @@ const KIND_WORDS: Record<CourseworkKind, string> = {
 /**
  * A written answer's words as Claude and Pangram are sent them: an answer of
  * one box, its words; an answer in boxes, each box with words under its
- * label. `boxes` are the question's, in order. The review page's Pangram chip
- * hashes the same words to say whether a reading is out of date.
+ * label. `boxes` are the question's, in order. The reading view's Pangram
+ * chip hashes the same words to say whether a reading is out of date.
  */
 export function writtenAnswerWords(
   boxes: ReadonlyArray<{ id: string; label: string }>,

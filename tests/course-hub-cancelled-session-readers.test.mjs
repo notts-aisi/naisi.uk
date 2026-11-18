@@ -114,6 +114,14 @@ const READERS = {
       "a cancelled session not held",
   },
 
+  "lib/courses/finishing/needs.ts": {
+    kind: "asks",
+    proof: ["session.cancelled || notHeld.has(session.sessionKey)", "if (!register.held) notHeld.add(key);"],
+    why:
+      "what a certificate needs: the sessions a learner's group is due to hold are counted as the record counts them, " +
+      "so neither a session cancelled through Change a session nor one whose register says it was not held is one",
+  },
+
   // ── Correcting a finished register (November 2026) ──────────────────────
   "lib/courses/registerCorrection/line.ts": {
     kind: "asks",

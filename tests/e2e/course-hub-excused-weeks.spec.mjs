@@ -395,7 +395,7 @@ test(
     }
 
     /** From a person's next session's card: Can't make it, then the request, for the week the card is about. */
-    async function askFromCard(pg, person, why, { offOnly = false } = {}) {
+    async function askFromCard(pg, person, why, { offOnly = false, readsNeeds = false } = {}) {
       await pg.goto(learnUrl, { waitUntil: "domcontentloaded" });
       const ticket = pg.getByRole("region", { name: WORDS.ticket, exact: true });
       // The way in to a request, by its own id: the instant button carries none.
@@ -416,6 +416,16 @@ test(
       const said = flat(await form.innerText());
       assert.ok(said.indexOf(WORDS.medical) >= 0 && said.indexOf(WORDS.medical) < said.indexOf(WORDS.why), "the line about medical details is not above the box");
       assert.ok(said.includes(WORDS.whoReads), "the request does not say who reads the reason");
+      // The run has a rule for who finished (the fixture's, at least 4): the
+      // request says what a certificate needs, the rule's number and the
+      // group's own count (src/lib/courses/finishing/words.ts).
+      if (readsNeeds) {
+        assert.match(
+          said,
+          /To get your certificate you need to come to at least 4 of your group’s \d+ sessions\. A session you’re excused from doesn’t count as coming\./,
+          "the request does not say what a certificate needs",
+        );
+      }
       // Its labels are set in capitals by the stylesheet, which a page's own text keeps.
       assert.ok(said.toLowerCase().includes(`${fern.first} sees that you’ve asked, then excused if it’s approved. never your reason.`.toLowerCase()), said);
       const box = form.getByRole("checkbox", { name: `Week ${nextWeek} · ${nextDay}`, exact: true });
@@ -536,7 +546,7 @@ test(
         await ticket.getByRole("button", { name: WORDS.cantMakeIt(nextDay), exact: true }).waitFor({ timeout: WAIT_MS });
         // No instant button: nothing records him as excused on the spot, and nothing to take back.
         assert.equal(await ticket.getByRole("button", { name: WORDS.canMakeItAfterAll, exact: true }).count(), 0, "the instant button's take-back is drawn");
-        benRequest = await askFromCard(benPage, ben, WHY.ben, { offOnly: true });
+        benRequest = await askFromCard(benPage, ben, WHY.ben, { offOnly: true, readsNeeds: true });
         const ticketText = await textOf(ticket);
         assert.ok(ticketText.includes(WORDS.asked), `the card does not say he asked: ${ticketText}`);
         await ticket.getByRole("button", { name: WORDS.withdraw, exact: true }).waitFor({ timeout: WAIT_MS });
@@ -832,8 +842,14 @@ test(
         assert.match((await benCell.getAttribute("aria-label")) ?? "", /: Excused\./, "Ben's line does not say excused");
         await rowOf(fernPage, ben).getByTestId("attendance-excuse-chip").filter({ hasText: WORDS.excused }).first().waitFor({ timeout: WAIT_MS });
         const rollupBefore = await rollupOf(ben);
-        // Ben came after all: Excused, Not marked, In the room.
-        await tap(fernPage, benCell, 2);
+        // Ben came after all: one tap, Excused to In the room. CHANGED ON
+        // PURPOSE (November 2026): where an excusal stands, a facilitator's
+        // cell offers Excused and the marks that say the person came, never
+        // Not marked or Absent, so the tap after Excused is Present.
+        assert.match((await benCell.getAttribute("aria-label")) ?? "", /Sets Present\.$/, "Ben's cell offers the facilitator something other than Present");
+        await tap(fernPage, benCell, 1);
+        // And on from there it never offers Absent or Not marked: Late, Left early, then back to Excused.
+        assert.match((await benCell.getAttribute("aria-label")) ?? "", /: Present\. .*Sets Late\.$/, "Ben's cell after Present");
         await tap(fernPage, cellOf(fernPage, ada, column), 1);
         const before = await mailCounts();
         await finish(fernPage, nextKey);
