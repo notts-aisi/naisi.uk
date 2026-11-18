@@ -742,6 +742,9 @@ const REGISTRY = {
   "src/app/api/courses/runs/[runId]/email/route.ts#sendNoticePush": N(
     "The notification beside that notice. The ordinary announcement lane has no push leg at all, deliberately: a scheduled cohort mail that also buzzed every phone is how people turn notifications off for good.",
   ),
+  "src/lib/courses/sessionChange/roomWrite.ts#sendNotice": N(
+    "One week's room set, changed or taken off from the week's rooms page with Tell the group on, told by the room-only change route itself once the room is written: one message to each of the people in the group for that week and its facilitators with standing, never the presser, whatever their settings, with the marker (surface course-group), the count on the button checked and the update lane's windows for the group claimed before anything changes, the update also kept on the programme page. Never a meeting link. Email only: no push leg.",
+  ),
   "src/lib/courses/groupChange/notice.ts#sendNotice": N(
     "A change to a group's regular time or room, told by the person who made it (an admin, the programme's lead, or a run's track lead for the time): one message to each of the group's told people and its facilitators with standing, never the presser, whatever their settings, with the marker (surface course-group), the count on the button checked and a group's ten-a-day counter claimed before anything changes. Never a meeting link. Email only: no push leg.",
   ),

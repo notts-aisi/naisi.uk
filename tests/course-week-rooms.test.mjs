@@ -1012,6 +1012,19 @@ describe("4. a room saved here is the room-only change of that week, and nothing
     assert.equal(world.mail.length, 0);
   });
 
+  test("as each persona: the change route's own gate, the room kind behind it", async () => {
+    const body = { kind: "room", weeks: [{ week: 5, dateKey: "2026-11-26", room: "George Green B06" }], tell: false };
+    const as = async (who) => (await call(who, w.change.POST, { groupId: A }, { body, course: true })).status;
+    // A member of the group, a facilitator of another group, a reviewer and the lead of another programme: refused.
+    for (const who of ["bea", "rahul", "lloyd", "tess"]) assert.equal(await as(who), 403, who);
+    assert.equal(await as(null), 401);
+    assert.equal(world.mail.length, 0);
+    assert.equal(auditRows("session-room").length, 0);
+    // Group A's own facilitator may, as for every one-week change.
+    assert.equal(await as("sofia"), 200);
+    assert.deepEqual(read(`courseGroups/${A}`).sessionOverrides.w05, { location: "George Green B06" });
+  });
+
   test("the body: one week to tell or preview, each week once, a room of one line and no link", async () => {
     const parse = (body) => room.parseRoomPress({ kind: "room", ...body });
     const week = (n, roomText = "Room 1") => ({ week: n, dateKey: "2026-11-26", room: roomText });

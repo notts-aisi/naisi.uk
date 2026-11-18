@@ -7,7 +7,7 @@ import { isId } from "@/lib/applications/normalise";
 import { loadForm } from "@/lib/applications/repo";
 import { requestShownTo } from "@/lib/courses/requests/load";
 import type { SessionUser } from "@/lib/firebase/session";
-import type { PlaceByWeek } from "@/lib/courses/groupsByWeek";
+import { inGroupForWeek, type PlaceByWeek } from "@/lib/courses/groupsByWeek";
 import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeExcusedRequest } from "@/lib/firestore/courseExcusedRequests";
@@ -220,7 +220,11 @@ export async function loadWeekRooms(
         groups: programme.groups,
         registers,
         requests,
-        places,
+        // Somebody's line on a register counts for the row only when their group that week is the row's.
+        inGroup: (uid: string, groupId: string, weekNumber: number) => {
+          const place = places.get(uid);
+          return place ? inGroupForWeek(place, groupId, weekNumber) : false;
+        },
       };
     }),
   );

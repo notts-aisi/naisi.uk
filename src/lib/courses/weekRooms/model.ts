@@ -1,5 +1,4 @@
 import { campusLabel } from "../campus";
-import { inGroupForWeek, type PlaceByWeek } from "../groupsByWeek";
 import { onlineForRooms, roomSourceOf, type RoomSource } from "../sessionChange/room";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "../sessions";
 import { clockWords, dayWords } from "../sessionChange/words";
@@ -49,8 +48,8 @@ import {
  *    it), how many said they are joining online, and how many requests about
  *    the session wait for this reader (counted by `./load.ts` the way the
  *    programme's Requests line counts them). Away and online count only the
- *    people in the group FOR THAT WEEK (`inGroupForWeek`, over the run's
- *    places): a line left on the register by somebody since moved to another
+ *    people in the group FOR THAT WEEK (`inGroup`, which `./load.ts` asks of
+ *    the run's places): a line left on the register by somebody since moved to another
  *    group is not counted here, as the group's own page does not count it.
  *
  * A ROW'S ROOM IS CHANGED HERE ONLY WHEN THE ROOM-ONLY CHANGE WOULD TAKE IT
@@ -82,10 +81,11 @@ export type ProgrammeRecords = {
   /** Requests waiting for this reader, by `${groupId}__${sessionKey}`. */
   requests: ReadonlyMap<string, number>;
   /**
-   * The run's places by uid, for who was in which group which week. Absent:
-   * every line on a register is counted (the term's grid reads no counts).
+   * Whether somebody's group for a week was this group, asked of the run's
+   * places by `./load.ts` (`inGroupForWeek`). Absent: every line on a register
+   * is counted (the term's grid reads no counts).
    */
-  places?: ReadonlyMap<string, PlaceByWeek>;
+  inGroup?: (uid: string, groupId: string, weekNumber: number) => boolean;
 };
 
 export type RowState = "cancelled" | "online" | "met" | "started" | null;
@@ -180,13 +180,9 @@ export function onlineOn(register: Readonly<Record<string, unknown>> | undefined
 }
 
 /** Who a group's row counts for one week: with the run's places, those in the group that week; without, everybody. */
-function countedFor(records: Pick<ProgrammeRecords, "places">, groupId: string, weekNumber: number): Counted {
-  const places = records.places;
-  if (!places) return everybody;
-  return (uid) => {
-    const place = places.get(uid);
-    return place ? inGroupForWeek(place, groupId, weekNumber) : false;
-  };
+function countedFor(records: Pick<ProgrammeRecords, "inGroup">, groupId: string, weekNumber: number): Counted {
+  const inGroup = records.inGroup;
+  return inGroup ? (uid) => inGroup(uid, groupId, weekNumber) : everybody;
 }
 
 const nameOf = (group: CourseGroupDoc) => group.name.trim() || "Untitled group";
