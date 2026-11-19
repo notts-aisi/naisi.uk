@@ -91,6 +91,21 @@ export function linkWeekOnlyWords(weekNumber: number): string {
   return `Set: week ${weekNumber} only`;
 }
 
+/** A week given the link it had when a press from a later week changed the every-week link: nobody set it for that week. */
+export const LINK_KEPT = "Kept the link it had before";
+
+/**
+ * Which link a week reads, in words: the ONE wording of `weekLinkKind`'s
+ * answer (`src/lib/courses/meetingLink/plan.ts`), for this page, its file and
+ * the facilitator's list of each week's link alike. Never the link.
+ */
+export function weekLinkWords(kind: "week" | "every" | "kept" | "none", weekNumber: number): string {
+  if (kind === "week") return linkWeekOnlyWords(weekNumber);
+  if (kind === "every") return LINK_EVERY_WEEK;
+  if (kind === "kept") return LINK_KEPT;
+  return NO_LINK;
+}
+
 /** The requests cell: "1 waiting", or "0". */
 export function requestsCellWords(n: number): string {
   return n > 0 ? `${n} waiting` : "0";

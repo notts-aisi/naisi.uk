@@ -3257,8 +3257,9 @@ works it out with `planLinkSave` (`src/lib/courses/meetingLink/plan.ts`):
   more weeks than a group keeps (20) is refused with nothing written, and the
   refusal says whether the other choice can still be saved.
 - In a view-as session the list has nothing to press, as the box has none.
-- The rooms page still reads a kept link as that week's own ("Set: week 2
-  only"): it does not know the mark.
+- The week's rooms page reads a week's link by the same decision
+  (`weekLinkKind`) and the same words (`weekLinkWords`), so it says "Kept the
+  link it had before" of a kept week too.
 
 Nobody is emailed, and the history row says which weeks and whether there
 was a link before, never the link.

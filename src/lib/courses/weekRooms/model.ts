@@ -12,15 +12,14 @@ import {
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { rowAnchor, weekRoomsPath } from "./paths";
 import {
-  LINK_EVERY_WEEK,
   NEXT_WEEK,
-  NO_LINK,
   NO_SESSIONS_MARK,
   THIS_WEEK,
-  linkWeekOnlyWords,
   weekColumnWords,
+  weekLinkWords,
   weekOfWords,
 } from "./words";
+import { weekLinkKind } from "../meetingLink/plan";
 
 /**
  * THE WEEK'S ROOMS AND THE TERM'S ROOMS, worked out from records. PURE: no
@@ -43,7 +42,8 @@ import {
  *    none (To be confirmed on the page), and where it comes from: the week's
  *    own room, the group's usual room, or none (`roomSourceOf`);
  *  - the meeting link, set or missing, and whether it is the group's for every
- *    week or the week's own. Never the link itself;
+ *    week, the week's own, or the link it had before a later week's press
+ *    (`weekLinkKind`, the facilitator's list's decision too). Never the link itself;
  *  - how many are away (their line says excused, or they said they can't make
  *    it), how many said they are joining online, and how many requests about
  *    the session wait for this reader (counted by `./load.ts` the way the
@@ -117,7 +117,8 @@ export type RoomRow = {
   moved: boolean;
   /** Why the room is not changed here; null when it is. */
   state: RowState;
-  link: { kind: "every" | "week" | "none"; words: string };
+  /** `weekLinkKind`'s answer: a link set for the week, every week's, one kept from before, or none. */
+  link: { kind: "every" | "week" | "kept" | "none"; words: string };
   away: number;
   online: number;
   requests: number;
@@ -210,12 +211,9 @@ export function stateOf(
 /** One row, from a group's session and what was read for it. */
 export function rowOf(records: ProgrammeRecords, group: CourseGroupDoc, session: ResolvedSession, now: Date): RoomRow {
   const register = registerOf(records, group.id, session);
-  const weekLink = group.sessionOverrides[session.weekId]?.meetingUrl;
-  const link: RoomRow["link"] = weekLink
-    ? { kind: "week", words: linkWeekOnlyWords(session.weekNumber) }
-    : session.session.meetingUrl
-      ? { kind: "every", words: LINK_EVERY_WEEK }
-      : { kind: "none", words: NO_LINK };
+  // Which link the week reads, by the one decision the facilitator's list of links asks too.
+  const kind = weekLinkKind(group, session.weekId);
+  const link: RoomRow["link"] = { kind, words: weekLinkWords(kind, session.weekNumber) };
   return {
     key: `${group.id}__${session.sessionKey}`,
     programmeId: records.programmeId,

@@ -79,7 +79,7 @@ const READERS = {
   },
   "lib/courses/meetingLink/plan.ts": {
     does: "saves",
-    why: "the arithmetic of a link saved for one week or from a week on: the field paths the writer sets, every earlier week keeping the link it had; and which kind of link a week reads (its own, every week, none) as a word, never the link",
+    why: "the arithmetic of a link saved for one week or from a week on: the field paths the writer sets, every earlier week keeping the link it had, marked; and which kind of link a week reads (its own, every week, kept, none) as a word, never the link, the one decision the facilitator's list and the week's rooms page (which no longer names the link itself) both ask",
   },
   "features/courses/facilitator/JoiningOnlineBox.tsx": {
     does: "saves",
@@ -156,10 +156,6 @@ const READERS = {
   "lib/courses/sessionChange/view.ts": {
     does: "asks",
     why: "whether a session can be held online: the change dialog offers it only to a group that has a link",
-  },
-  "lib/courses/weekRooms/model.ts": {
-    does: "asks",
-    why: "the week's rooms says whether a group's link is set for every week, for that week only or not at all; the row carries those words and never the link",
   },
   "app/api/courses/runs/[runId]/weeks/[weekId]/mode/route.ts": {
     does: "asks",

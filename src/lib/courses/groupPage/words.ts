@@ -496,17 +496,8 @@ export function onwardsHintWords(weekNumber: number, earlier: readonly number[],
 export const MEETING_LINKS = "Meeting links";
 /** Under the list, while the group has an every-week link. */
 export const ANY_WEEK_OWN_LINK = "Any week can still have a link of its own.";
-/**
- * Which link a week reads, as the rooms page says it, and for a week given
- * the link it had when a later week's press changed the every-week link, that
- * it kept it. Never the link.
- */
-export function weekLinkWords(kind: "week" | "every" | "kept" | "none", weekNumber: number): string {
-  if (kind === "week") return `Set: week ${weekNumber} only`;
-  if (kind === "every") return "Set: every week";
-  if (kind === "kept") return "Kept the link it had before";
-  return "No link";
-}
+/** Which link a week reads, in the rooms page's words: one wording for both pages. Never the link. */
+export { weekLinkWords } from "../weekRooms/words";
 
 // ---------------------------------------------------------------------------
 // Before the session, on the facilitator's page
