@@ -1,5 +1,5 @@
 import "server-only";
-import { Timestamp, type Firestore } from "firebase-admin/firestore";
+import { Timestamp, type Firestore, type Transaction } from "firebase-admin/firestore";
 
 /**
  * THE NOTICE LANE'S CAPS.
@@ -129,6 +129,102 @@ export function noticeRecipientRefusal(count: number, max: number, advice: strin
   );
 }
 
+/** The refusal the first full window earns, or null when every window has room. */
+function refusalAmong(
+  states: ReadonlyArray<{ slot: "hour" | "day" | "also"; state: WindowState }>,
+  noun: string,
+  now: number,
+): NoticeSlotClaim | null {
+  for (const { slot, state } of states) {
+    if (!state.inWindow || state.count < state.window.limit) continue;
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil((state.startedAt + state.window.windowMs - now) / 1000),
+    );
+    const hourly = slot === "hour" || (slot === "also" && state.window.windowMs <= HOUR_MS);
+    const period = hourly ? "in the last hour" : "in the last day";
+    const advice = hourly ? "Try again shortly." : "Try again tomorrow, or ask an admin.";
+    return {
+      ok: false,
+      refusal:
+        state.window.refusal ??
+        `This audience has already had ${state.window.limit} ${noun} ${period}. ` +
+          `Nothing was sent. ${advice}`,
+      retryAfterSeconds,
+      remaining: { hour: null, day: null },
+    };
+  }
+  return null;
+}
+
+/** One window's counter as read at `now`. */
+function stateOf(window: NoticeWindow, ref: FirebaseFirestore.DocumentReference, data: Record<string, unknown> | undefined, now: number): WindowState {
+  const startedAt = windowStartMs(data?.windowStartAt);
+  const count = typeof data?.count === "number" ? data.count : 0;
+  return { window, ref, startedAt, count, inWindow: startedAt > 0 && now - startedAt < window.windowMs };
+}
+
+/** Write one window's claim; answers the count it now holds. */
+function claimIn(tx: Transaction, state: WindowState, now: number): number {
+  const claimed = state.inWindow ? state.count + 1 : 1;
+  tx.set(state.ref, {
+    kind: "staff-email-throttle",
+    key: state.window.key,
+    windowStartAt: Timestamp.fromMillis(state.inWindow ? state.startedAt : now),
+    count: claimed,
+    updatedAt: Timestamp.fromMillis(now),
+  });
+  return claimed;
+}
+
+/**
+ * WHETHER A CLAIM WOULD BE REFUSED NOW, claiming nothing: the same windows,
+ * read the same way and judged by the same rule as `reserveNoticeSlots`, for
+ * a preview that says before the press what the press would answer. Null
+ * when every window has room. Only a hint: the press claims for itself.
+ */
+export async function noticeSlotsRefusal(
+  db: Firestore,
+  args: { windows: readonly NoticeWindow[]; noun: string },
+): Promise<NoticeSlotClaim | null> {
+  if (args.windows.length === 0) throw new Error("noticeSlotsRefusal was given no window to read.");
+  const now = Date.now();
+  const states: Array<{ slot: "also"; state: WindowState }> = [];
+  for (const window of args.windows) {
+    const ref = db.collection(THROTTLE_COLLECTION).doc(`emailrate__${window.key}`);
+    states.push({ slot: "also", state: stateOf(window, ref, (await ref.get()).data(), now) });
+  }
+  return refusalAmong(states, args.noun, now);
+}
+
+/**
+ * THE SAME CLAIM, INSIDE A TRANSACTION THE CALLER RUNS, for a press whose
+ * own write must stand or fall with it (a move to another group: refused,
+ * or changed under the press, it claims nothing). It reads every window in
+ * the caller's transaction and answers the refusal, or null, with `write`,
+ * which the caller calls only when it goes on, after all of its own reads,
+ * to claim every window. Judged by the same rule as `reserveNoticeSlots`.
+ */
+export async function noticeSlotsIn(
+  tx: Transaction,
+  db: Firestore,
+  args: { windows: readonly NoticeWindow[]; noun: string },
+): Promise<{ refusal: NoticeSlotClaim | null; write: () => void }> {
+  if (args.windows.length === 0) throw new Error("noticeSlotsIn was given no window to claim.");
+  const now = Date.now();
+  const states: Array<{ slot: "also"; state: WindowState }> = [];
+  for (const window of args.windows) {
+    const ref = db.collection(THROTTLE_COLLECTION).doc(`emailrate__${window.key}`);
+    states.push({ slot: "also", state: stateOf(window, ref, (await tx.get(ref)).data(), now) });
+  }
+  return {
+    refusal: refusalAmong(states, args.noun, now),
+    write: () => {
+      for (const { state } of states) claimIn(tx, state, now);
+    },
+  };
+}
+
 /**
  * Claim one notice against every window given, atomically, or refuse and claim
  * none of them.
@@ -173,52 +269,15 @@ export async function reserveNoticeSlots(
     const states: Array<{ slot: "hour" | "day" | "also"; state: WindowState }> = [];
     for (const { slot, window } of windows) {
       const ref = db.collection(THROTTLE_COLLECTION).doc(`emailrate__${window.key}`);
-      const snap = await tx.get(ref);
-      const data = snap.data() ?? {};
-      const startedAt = windowStartMs(data.windowStartAt);
-      const count = typeof data.count === "number" ? data.count : 0;
-      states.push({
-        slot,
-        state: {
-          window,
-          ref,
-          startedAt,
-          count,
-          inWindow: startedAt > 0 && now - startedAt < window.windowMs,
-        },
-      });
+      states.push({ slot, state: stateOf(window, ref, (await tx.get(ref)).data(), now) });
     }
 
-    for (const { slot, state } of states) {
-      if (!state.inWindow || state.count < state.window.limit) continue;
-      const retryAfterSeconds = Math.max(
-        1,
-        Math.ceil((state.startedAt + state.window.windowMs - now) / 1000),
-      );
-      const hourly = slot === "hour" || (slot === "also" && state.window.windowMs <= HOUR_MS);
-      const period = hourly ? "in the last hour" : "in the last day";
-      const advice = hourly ? "Try again shortly." : "Try again tomorrow, or ask an admin.";
-      return {
-        ok: false,
-        refusal:
-          state.window.refusal ??
-          `This audience has already had ${state.window.limit} ${args.noun} ${period}. ` +
-            `Nothing was sent. ${advice}`,
-        retryAfterSeconds,
-        remaining: { hour: null, day: null },
-      };
-    }
+    const refused = refusalAmong(states, args.noun, now);
+    if (refused) return refused;
 
     const remaining: { hour: number | null; day: number | null } = { hour: null, day: null };
     for (const { slot, state } of states) {
-      const claimed = state.inWindow ? state.count + 1 : 1;
-      tx.set(state.ref, {
-        kind: "staff-email-throttle",
-        key: state.window.key,
-        windowStartAt: Timestamp.fromMillis(state.inWindow ? state.startedAt : now),
-        count: claimed,
-        updatedAt: Timestamp.fromMillis(now),
-      });
+      const claimed = claimIn(tx, state, now);
       // Floored at 0: a limit lowered between two sends can leave `claimed`
       // above it, and a negative "remaining" reads as a bug wherever it lands.
       if (slot !== "also") remaining[slot] = Math.max(0, state.window.limit - claimed);

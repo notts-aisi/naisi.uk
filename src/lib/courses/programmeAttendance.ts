@@ -23,7 +23,8 @@ import {
   placementIsShownTo,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
-import { hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
+import { countsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
+import { groupsOfWeeks, hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
@@ -65,7 +66,11 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
  *    they were in it is never an absence of theirs. A group's own figures
  *    for a week count the marks on that group's register, whichever row they
  *    are drawn on. With no record of groups by week, every week is the
- *    group's they are listed in, exactly as before.
+ *    group's they are listed in, exactly as before. A week the record gives
+ *    a group archived since reads that group's register only where it was
+ *    finished and says the session was held (`countsFromArchivedGroup`); an
+ *    archived group is still no block of the grid and has no figures of
+ *    its own, though the programme's figure for the week counts those marks.
  *
  * ── WHAT COUNTS ─────────────────────────────────────────────────────────────
  * "Came" counts present, late and left early, as the board says; "of" counts
@@ -247,6 +252,12 @@ export type RunRecords = {
   run: CourseRunDoc;
   /** The run's groups that still meet (not archived), Monday first (`compareGroupsByMeeting`). */
   groups: CourseGroupDoc[];
+  /**
+   * The run's archived groups that a place's record of groups by week names:
+   * read only for the weeks that record gives them, where a finished register
+   * still counts (`countsFromArchivedGroup`). None with no such record.
+   */
+  archivedGroups?: CourseGroupDoc[];
   /** Every learner enrolment on the run, whatever its state. */
   enrolments: CourseEnrolmentDoc[];
   /** Every register of the run, by its document id. */
@@ -292,14 +303,16 @@ export async function readRunRecords(db: Firestore, runId: string): Promise<RunR
   ]);
   if (!runSnap.exists || runSnap.data()?.destroying === true) return null;
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
-  const groups = groupSnap.docs
-    .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
+  const allGroups = groupSnap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}));
+  const groups = allGroups
     .filter((group) => !group.archived && group.runId === runId)
     .map((group) => ({ ...group, name: group.name.trim() || "Untitled group" }))
     .sort(compareGroupsByMeeting);
   const enrolments = enrolmentSnap.docs
     .map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}))
     .filter((row) => row.role === "learner" && row.uid !== "" && row.runId === runId);
+  const named = new Set(enrolments.filter(hasGroupsByWeek).flatMap((row) => groupsOfWeeks(row)));
+  const archivedGroups = allGroups.filter((group) => group.archived && group.runId === runId && named.has(group.id));
   const registers = new Map<string, CourseAttendanceDoc>();
   for (const doc of registerSnap.docs) {
     const register = normalizeCourseAttendance(doc.id, doc.data() ?? {});
@@ -317,7 +330,7 @@ export async function readRunRecords(db: Firestore, runId: string): Promise<RunR
       if (snap.exists) accounts.set(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
     }
   }
-  return { run, groups, enrolments, registers, accounts, switches: registerSwitchesIn(scheduler) };
+  return { run, groups, archivedGroups, enrolments, registers, accounts, switches: registerSwitchesIn(scheduler) };
 }
 
 // ---------------------------------------------------------------------------
@@ -657,6 +670,25 @@ export type ListedGroup = {
   notYetTold: boolean;
 };
 
+/** A group archived since that a place's record names, and the sessions of it that still count. */
+type ArchivedSessions = Map<string, { name: string; sessions: Map<number, GroupSessionFacts> }>;
+
+/**
+ * The run's archived groups a place's record names, each with only its
+ * sessions whose register was finished and says they were held
+ * (`countsFromArchivedGroup`). A group also among the live groups (a page
+ * that draws an archived group of its own) is left to them.
+ */
+function archivedSessionsOf(records: RunRecords, now: Date): ArchivedSessions {
+  const out: ArchivedSessions = new Map();
+  for (const group of records.archivedGroups ?? []) {
+    if (records.groups.some((live) => live.id === group.id)) continue;
+    const kept = [...groupSessions(records, group, now)].filter(([, facts]) => countsFromArchivedGroup(facts.session, facts.register));
+    out.set(group.id, { name: group.name.trim() || "Untitled group", sessions: new Map(kept) });
+  }
+  return out;
+}
+
 /**
  * Each group's sessions and listed people, for one viewer at one instant.
  * The grid, the CSV and the Overview are all drawn from this.
@@ -668,6 +700,8 @@ export function listGroups(
   weeks: readonly number[],
 ): ListedGroup[] {
   const sessionsByGroup = new Map(records.groups.map((group) => [group.id, groupSessions(records, group, now)]));
+  const archived = archivedSessionsOf(records, now);
+  const archivedSessions = new Map([...archived].map(([id, entry]) => [id, entry.sessions]));
   // Once the run's last session is over (the moment who finished opens, the
   // one answer it asks), nobody's absences are chased any more.
   const over = runEndOf(records.run, records.groups, now).over;
@@ -698,7 +732,9 @@ export function listGroups(
       // Each week from the group they were in that week (see "Who is a row").
       const sessionOf: WeekSessions = (weekNumber) => {
         const weekGroup = weekGroupOf(enrolment, group.id, weekNumber);
-        return weekGroup ? sessionsByGroup.get(weekGroup)?.get(weekNumber) : undefined;
+        if (!weekGroup) return undefined;
+        const live = sessionsByGroup.get(weekGroup);
+        return live ? live.get(weekNumber) : archivedSessions.get(weekGroup)?.get(weekNumber);
       };
       const marked = lastMarkedWeekOf(sessionOf, weeks, enrolment.uid) > 0;
       if (!isListed(enrolment, viewer, marked)) {
@@ -772,9 +808,16 @@ function needsLooking(listed: ListedGroup): boolean {
  * is the group they are listed in unless their place records a move.
  * `everyone` is every group's listed people, so a mark drawn on a mover's
  * row under their group now still counts for the group whose register holds
- * it, and once.
+ * it, and once. `archived`, for the programme's figure alone: the weeks
+ * people's records give a group archived since, counted once, off its
+ * finished registers of sessions held; no group's own figures carry them.
  */
-function weekTotal(entries: readonly ListedGroup[], weekNumber: number, everyone: readonly ListedGroup[]): GridWeekTotal {
+function weekTotal(
+  entries: readonly ListedGroup[],
+  weekNumber: number,
+  everyone: readonly ListedGroup[],
+  archived: ArchivedSessions = new Map(),
+): GridWeekTotal {
   let came = 0;
   let of = 0;
   let online = 0;
@@ -803,6 +846,31 @@ function weekTotal(entries: readonly ListedGroup[], weekNumber: number, everyone
     if (counted > 0) {
       of += counted;
       from.push(entry.group.name);
+    }
+  }
+  // The programme's figure only: a week a person's record gives a group
+  // archived since, off its finished register of a session held. Only a row
+  // whose record names that group for the week reads it (`weekGroupOf`), so
+  // a line there of somebody with no record counts nowhere, as before.
+  for (const [groupId, { name, sessions }] of archived) {
+    const facts = sessions.get(weekNumber);
+    if (!facts || !happened(facts)) continue;
+    let counted = 0;
+    for (const listed of everyone) {
+      for (const { enrolment, row } of listed.people) {
+        if (weekGroupOf(enrolment, listed.group.id, weekNumber) !== groupId) continue;
+        const cell = row.cells.find((c) => c.weekNumber === weekNumber);
+        if (!cell || cell.state !== "mark" || !cell.mark) continue;
+        counted += 1;
+        if (CAME.has(cell.mark)) {
+          came += 1;
+          if (cell.online) online += 1;
+        }
+      }
+    }
+    if (counted > 0) {
+      of += counted;
+      from.push(name);
     }
   }
   const percent = of > 0 ? Math.round((came * 100) / of) : null;
@@ -843,7 +911,9 @@ export function buildRunAttendance(records: RunRecords, viewer: GridViewer, now:
     };
   });
 
-  const totals: GridWeekTotal[] = weeks.map((weekNumber) => weekTotal(listed, weekNumber, listed));
+  // Across the groups, and the weeks people spent in a group archived since: the programme's figure.
+  const archived = archivedSessionsOf(records, now);
+  const totals: GridWeekTotal[] = weeks.map((weekNumber) => weekTotal(listed, weekNumber, listed, archived));
 
   return {
     weeks: weeks.map((weekNumber) => ({ weekNumber, thisWeek: weekNumber === thisWeek })),

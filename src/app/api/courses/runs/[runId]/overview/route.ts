@@ -21,7 +21,8 @@ import { certificateNeedsFor } from "@/lib/courses/finishing/needs";
 import { finishedForMember, readFinishRule } from "@/lib/courses/finishing/record";
 import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
-import { hasGroupsByWeek, inGroupForWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { groupsOfWeeks, hasGroupsByWeek, inGroupForWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { rawCountsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import { memberExplainerOn, type MemberExplainer } from "@/lib/courses/explainers/model";
@@ -1375,16 +1376,26 @@ export async function GET(
   // EACH WEEK FROM THE GROUP THEY WERE IN THAT WEEK (`sessionsWithGroup`):
   // somebody whose place records a move reads their earlier weeks off their
   // old group's registers and the rest off their group's now, as one record,
-  // from the week they joined and capped the same way. A week in a group that
-  // no longer meets has no session here. With no such record, their own
+  // from the week they joined and capped the same way. A week in a group
+  // archived since is read off its register, which counts only once finished
+  // and held (`rawCountsFromArchivedGroup`, below). With no such record, their own
   // group's sessions, as always.
+  const archivedOfRecord = (groupId: string): CourseGroupDoc | null => {
+    const doc = groupSnap.docs.find((each) => each.id === groupId);
+    const group = doc ? normalizeCourseGroup(doc.id, doc.data() ?? {}) : null;
+    return group && group.archived && group.runId === run.id ? group : null;
+  };
   const ownSessionsWithGroup: Array<{ groupId: string; session: ResolvedSession }> =
     !ownLearnerGroup || !liveEnrolment
       ? []
       : hasGroupsByWeek(liveEnrolment)
         ? ownSessionsAcrossGroups(liveEnrolment, (groupId) => {
             const group = groups.find((each) => each.id === groupId);
-            return group ? resolveSessions(run, group, group.id === ownLearnerGroup.id ? own.calendar : undefined) : null;
+            if (!group) {
+              const archived = archivedOfRecord(groupId);
+              return archived ? resolveSessions(run, archived) : null;
+            }
+            return resolveSessions(run, group, group.id === ownLearnerGroup.id ? own.calendar : undefined);
           })
         : sessionsFromJoinWeek(
             resolveSessions(run, ownLearnerGroup, own.calendar),
@@ -1738,13 +1749,15 @@ export async function GET(
     const sessionByDocId = new Map(
       ownSessionsWithGroup.map(({ groupId, session: s }) => [
         attendanceDocId(runId, groupId, s.weekNumber, s.occurrence),
-        s.sessionKey,
+        { key: s.sessionKey, session: s, archived: !groups.some((each) => each.id === groupId) },
       ]),
     );
     for (const snap of ownRegisterDocs) {
-      const key = sessionByDocId.get(snap.id);
-      if (!snap.exists || !key) continue;
-      ownRegisters.set(key, snap.data() ?? {});
+      const entry = sessionByDocId.get(snap.id);
+      if (!snap.exists || !entry) continue;
+      // A week in a group archived since: its register only once finished, of a session held.
+      if (entry.archived && !rawCountsFromArchivedGroup(entry.session, snap.data())) continue;
+      ownRegisters.set(entry.key, snap.data() ?? {});
     }
   }
 
@@ -1799,6 +1812,7 @@ export async function GET(
     registers: ownRegisters,
     // Each week's group, for a place that records a move.
     liveGroups: groups,
+    archivedGroups: liveEnrolment && hasGroupsByWeek(liveEnrolment) ? groupsOfWeeks(liveEnrolment).map(archivedOfRecord).filter((group) => group !== null) : [],
   });
 
   const payload: OverviewPayload = {

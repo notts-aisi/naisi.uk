@@ -6,6 +6,7 @@ import { moveGroupUrl, movePersonUrl, sendMoveEmail, type MoveEmailOutcome } fro
 import type { SessionUser } from "@/lib/firebase/session";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { weekDocId } from "@/lib/firestore/courses";
+import { moveLimitsIn } from "./limits";
 import { accountsIn, emailFor, moveRecipients, moveWeekFor, planMove, readMoveFacts, runMoveRefusal, type MovePlan, type MoveRecipient, type MoveRefusal } from "./plan";
 import { MOVE_REFUSAL, changedWords, moveReasonForm, movedInDetail, movedOutDetail, movedWords } from "./words";
 
@@ -30,6 +31,10 @@ import { MOVE_REFUSAL, changedWords, moveReasonForm, movedInDetail, movedOutDeta
  * measured from. `timeAnswer` is left as it is too, as a move on the
  * allocation board leaves a told seat's: it is about the group it was given
  * about (`forGroupId`), and is shown only while they are in that group.
+ *
+ * IN THE SAME TRANSACTION, the limits on how often a move emails are read
+ * and claimed (`moveLimitsIn`): past either, the move is refused (429) and
+ * nothing is written, claimed or sent.
  *
  * THE THREE EMAILS GO AFTER THE COMMIT, to exactly the people the
  * transaction counted: a failed send never fails the move, and the answer
@@ -65,7 +70,9 @@ export type MoveSaveAnswer = {
 /** 409 with the facts as they now are: the week the move would be from, and its count. */
 export type MoveChanged = { ok: false; status: 409; error: string; weekNumber: number | null; emails: number | null };
 
-type Stop = { kind: "changed"; weekNumber: number | null; emails: number | null; error: string };
+type Stop =
+  | { kind: "changed"; weekNumber: number | null; emails: number | null; error: string }
+  | { kind: "limit"; error: string };
 
 export async function saveMove(db: Firestore, input: MoveSaveInput): Promise<MoveSaveAnswer | MoveRefusal | MoveChanged> {
   const read = await readMoveFacts(db, input.runId, input.uid);
@@ -77,6 +84,8 @@ export async function saveMove(db: Firestore, input: MoveSaveInput): Promise<Mov
 
   // Filled inside the transaction: who it counted, so the send goes to them and nobody else.
   let counted: MoveRecipient[] = [];
+  // Claims the limits on how often a move emails, once the move is going to be written.
+  let claimLimits: () => void = () => {};
   const result = await moveFromWeek<Stop>(
     db,
     { runId: input.runId, uid: input.uid, toGroupId: input.toGroupId, fromWeek: plan.weekNumber },
@@ -86,6 +95,10 @@ export async function saveMove(db: Firestore, input: MoveSaveInput): Promise<Mov
         // been archived or begun to be destroyed since the facts were read.
         const runRefusal = runMoveRefusal(seen.run, seen.destroying);
         if (runRefusal) return { kind: "changed", weekNumber: null, emails: null, error: runRefusal };
+        // The limits on how often a move emails, read here and claimed with the move's own writes.
+        const limits = await moveLimitsIn(tx, db, input.runId, facts.person, input.actor.uid);
+        if (limits.refusal) return { kind: "limit", error: limits.refusal };
+        claimLimits = limits.write;
         // The week, by the rule, from the documents this transaction read.
         const week = moveWeekFor(seen.run, seen.place, seen.groups, seen.to, input.now);
         const weekNumber = week.ok ? week.weekNumber : null;
@@ -106,6 +119,7 @@ export async function saveMove(db: Firestore, input: MoveSaveInput): Promise<Mov
         return null;
       },
       alsoWrite(tx, seen) {
+        claimLimits();
         const actor = { uid: input.actor.uid, displayName: input.actor.displayName ?? "" };
         const shared = { run: seen.run, actor, weekId: weekDocId(plan.weekNumber), reason: moveReasonForm(input.reason) || null, emailed: counted.length, subjectUid: input.uid };
         tx.create(
@@ -134,6 +148,7 @@ export async function saveMove(db: Firestore, input: MoveSaveInput): Promise<Mov
 
   if (!result.ok) {
     if (result.refusal === "stopped") {
+      if (result.stop.kind === "limit") return { ok: false, status: 429, error: result.stop.error };
       return { ok: false, status: 409, error: result.stop.error, weekNumber: result.stop.weekNumber, emails: result.stop.emails };
     }
     if (result.refusal === "group-full") return { ok: false, status: 409, error: MOVE_REFUSAL.changed };

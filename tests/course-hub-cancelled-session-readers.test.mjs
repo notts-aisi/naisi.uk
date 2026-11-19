@@ -122,6 +122,17 @@ const READERS = {
       "so neither a session cancelled through Change a session nor one whose register says it was not held is one",
   },
 
+  "lib/courses/archivedWeeks.ts": {
+    kind: "asks",
+    proof: [
+      "return !session.cancelled && register != null && register.held && register.pushedAt instanceof Date;",
+      "if (session.cancelled || !raw || raw.held === false) return false;",
+    ],
+    why:
+      "what still counts of a week spent in a group archived since: a finished register of a session held, so neither a " +
+      "session cancelled through Change a session nor one whose register says it was not held counts for anybody",
+  },
+
   // ── Correcting a finished register (November 2026) ──────────────────────
   "lib/courses/registerCorrection/line.ts": {
     kind: "asks",

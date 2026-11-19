@@ -19,6 +19,7 @@ import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } fro
 import { normalizeCourseRun, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { sessionKeyParts } from "../excused/model";
 import { sessionsByWeekGroup } from "../groupsByWeek";
+import { moveLimitRefusal } from "./limits";
 import type { MoveLineView, MovePreviewView } from "./view";
 import { moveWeekOf, weeksThatCome, type MoveWeek } from "./week";
 import {
@@ -501,6 +502,9 @@ export async function planMove(
   const { to } = target;
   const week = moveWeekFor(facts.run, facts.place, facts.groups, to, now);
   if (!week.ok) return { ok: false, status: 409, error: weekRefusal(week, facts, to) };
+  // The limits on how often a move emails, read as the press will claim them.
+  const capped = await moveLimitRefusal(db, facts.run.id, facts.person, actorUid);
+  if (capped) return capped;
 
   const { person, from, place, accounts } = facts;
   const weekNumber = week.weekNumber;

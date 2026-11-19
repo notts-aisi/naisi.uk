@@ -1797,9 +1797,27 @@ the group they are in now, as they did.
 for a week: the record's last entry from that week or earlier, the first
 entry's group for a week before it, and the place's group when there is no
 record. The helpers in `src/lib/courses/groupsByWeek.ts` are made of it. It
-answers the group the record names whether or not that group still meets; a
-week in a group that no longer meets has no session, no register and no mark
-for anybody reading it.
+answers the group the record names whether or not that group still meets. A
+week in a group that no longer meets (it is archived) has no session to come,
+no reminder, no calendar entry and nothing to be excused from, and work in it
+reads as undated. But where that group's register for the week was finished
+and does not say the session didn't happen (and the session was not called
+off), the session happened: for the people whose record gives them that week
+it counts as held and their mark on it is their mark, dated as that group's
+session was, on the rollup on their place, their own attendance on the run
+home, their row of the Attendance tab and its download, a group page's grid
+where they are a row, who finished, what a certificate counts, and their
+own excused weeks (the week, what was asked and how it was decided, with
+nothing offered about it)
+(`countsFromArchivedGroup`, `src/lib/courses/archivedWeeks.ts`). An admin's
+correction of that register still reaches their figures. A register of an
+archived group never finished, or saying the session didn't happen, counts
+for nothing, and an archived group is still no block of the Attendance tab,
+with no figures of its own; the programme's figure for a week (the tab's
+footer, the Overview's chart, the lead's overview) counts those marks once,
+and a line on that register of somebody whose record does not name it counts
+nowhere. Nothing reads an archived group's registers for somebody whose
+record does not name it.
 
 **Kept true.** The normaliser reads a record whole or not at all: every entry a
 group id and a whole week, weeks rising, and the last group the place's group.
@@ -1947,6 +1965,15 @@ from week 3" to each of the old group's, each with standing and an address,
 never the person moved and never whoever pressed; somebody who facilitates
 both groups is told once, as the new group's. One function decides who, for
 the page's count and the send alike. Never the reason, never a meeting link.
+
+**How often it emails** is held to two stored counters
+(`src/lib/courses/staffMove/limits.ts`, the notice lane's `courseNudges`
+counters): four moves of one person on one run in a day, and forty moves by
+one presser in a day. Both are read and claimed in the move's own transaction, so past
+either the move is refused in one sentence (429), nothing is written or
+claimed and nobody is emailed, and a move changed under the press (409)
+claims nothing; the page and the preview read the same counters and say the
+same sentence before the press. Every move counts, whoever it emails.
 
 **Who reads whose work is the group now, at once**: the new group's
 facilitators read every week with its feedback, the old group's read nothing

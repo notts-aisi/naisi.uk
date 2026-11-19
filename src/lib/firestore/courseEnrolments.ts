@@ -497,8 +497,9 @@ export function movedSinceTold(
  *    always was.
  *
  * It answers the group the record names whether or not that group still
- * meets: a reader that finds no live group for the answer has no session,
- * no register and no mark for that week. A reader that means the group they
+ * meets: a reader that finds no live group for the answer has no session for
+ * that week, and a mark only off a finished register of a session held
+ * (`countsFromArchivedGroup`). A reader that means the group they
  * are in NOW (their facilitators, the roster, who reads their work) reads
  * `groupId` and never this.
  */

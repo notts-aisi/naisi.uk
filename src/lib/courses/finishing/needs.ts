@@ -1,3 +1,4 @@
+import { countsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
 import { hasGroupsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
 import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
 import { normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
@@ -56,9 +57,15 @@ export function certificateNeedsFor(input: {
    * The run's groups that still meet, for a place that records a move: each
    * week's sessions are then the group's they were in that week
    * (`sessionsByWeekGroup`), and a week in a group that no longer meets has
-   * none. Not read for a place with no such record.
+   * none unless `archivedGroups` keeps it. Not read for a place with no such record.
    */
   liveGroups?: readonly CourseGroupDoc[];
+  /**
+   * The groups archived since that their record names: of each, only the
+   * sessions whose register in `registers` was finished and says they were
+   * held (`countsFromArchivedGroup`). Not read for a place with no record.
+   */
+  archivedGroups?: readonly CourseGroupDoc[];
   /** They facilitate a group of the run. */
   facilitates: boolean;
   /** The run is an incubator's: its people are told of no group. */
@@ -83,7 +90,14 @@ export function certificateNeedsFor(input: {
     : moved
       ? sessionsByWeekGroup(enrolment, (groupId) => {
           const each = (input.liveGroups ?? []).find((candidate) => candidate.id === groupId);
-          return each ? resolveSessions(run, each) : null;
+          if (each) return resolveSessions(run, each);
+          const archived = (input.archivedGroups ?? []).find((candidate) => candidate.id === groupId);
+          return archived
+            ? resolveSessions(run, archived).filter((session) => {
+                const data = input.registers?.get(session.sessionKey);
+                return countsFromArchivedGroup(session, data ? normalizeCourseAttendance(session.sessionKey, data) : null);
+              })
+            : null;
         })
       : resolveSessions(run, group);
   const notHeld = new Set<string>();
