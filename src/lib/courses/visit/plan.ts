@@ -18,6 +18,7 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import { campusForWeek, compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { countsFromArchivedGroup } from "../archivedWeeks";
 import { belonging, sessionsWithGroup } from "../groupsByWeek";
 import { placeTakesMove, runMoveRefusal } from "../staffMove/plan";
 import { facilitatesWords, notToldWords } from "../staffMove/words";
@@ -28,7 +29,9 @@ import {
   VISIT_REFUSAL,
   alreadyMarkedWords,
   alreadyVisitingWords,
+  excusedApprovedWords,
   excusedWaitingWords,
+  ownStartedCallOffWords,
   arrangeButtonWords,
   callOffButtonWords,
   calledOffEmailWords,
@@ -115,11 +118,15 @@ export type VisitFacts = {
    */
   oneGroup: boolean;
   /**
-   * The weeks the person is WAITING to hear about being excused from, by
-   * their requests on the run (`courseRequests`, two equalities). A visit is
-   * not arranged for such a week: the request is decided first.
+   * Each week of the person's requests to be excused on the run that is
+   * WAITING or APPROVED, with the group whose session it is about
+   * (`courseRequests`, two equalities). A visit is not arranged for a week
+   * whose session of their own group has one: a waiting request is decided
+   * first, and somebody excused from it is not sent elsewhere (the host's
+   * register would not say they are excused). A request about another
+   * group's session (one they were visiting) is not about theirs.
    */
-  waitingExcusedWeeks: number[];
+  excusedWeeks: Array<{ weekNumber: number; groupId: string; status: "waiting" | "approved" }>;
 };
 
 /**
@@ -218,11 +225,14 @@ export function runVisitRefusal(run: Pick<CourseRunDoc, "status" | "archived">, 
  */
 export const placeTakesVisit = placeTakesMove;
 
-/** The registers the facts carry: their own group's and every live group's for the weeks still to come. */
+/**
+ * The registers the facts carry: every group's of the run for the weeks
+ * asked, an archived group's included (a visit to a group archived since
+ * holds that week as its finished register says: `countsFromArchivedGroup`).
+ */
 function registerIdsFor(run: CourseRunDoc, groups: readonly CourseGroupDoc[], weeks: readonly number[]): string[] {
   const ids = new Set<string>();
   for (const group of groups) {
-    if (group.archived) continue;
     for (const session of resolveSessions(run, group)) {
       if (!weeks.includes(session.weekNumber)) continue;
       ids.add(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence));
@@ -300,15 +310,15 @@ export async function readVisitFacts(
   const registerSnaps = await reader.getAll(registerIds.map((id) => db.collection("courseAttendance").doc(id)));
   const registers = new Map<string, Record<string, unknown>>();
   for (const snap of registerSnaps) if (snap.exists) registers.set(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
-  const waitingExcusedWeeks = [
-    ...new Set(
-      requestSnap.docs
-        .map((doc) => normalizeExcusedRequest(doc.id, doc.data() ?? {}))
-        .filter((request) => request !== null && request.runId === run.id && request.subjectUid === uid && request.status === "waiting")
-        .flatMap((request) => (request ? request.weeks.map((week) => week.weekNumber) : [])),
-    ),
-  ];
-  return { ok: true, facts: { run, destroying, groups, place, person, accounts, places, registers, oneGroup, waitingExcusedWeeks } };
+  const excusedWeeks: VisitFacts["excusedWeeks"] = [];
+  for (const doc of requestSnap.docs) {
+    const request = normalizeExcusedRequest(doc.id, doc.data() ?? {});
+    if (!request || request.runId !== run.id || request.subjectUid !== uid) continue;
+    for (const week of request.weeks) {
+      if (week.status === "waiting" || week.status === "approved") excusedWeeks.push({ weekNumber: week.weekNumber, groupId: request.groupId, status: week.status });
+    }
+  }
+  return { ok: true, facts: { run, destroying, groups, place, person, accounts, places, registers, oneGroup, excusedWeeks } };
 }
 
 /** A live group's sessions. */
@@ -460,9 +470,13 @@ export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: st
   const { run, place, person, accounts } = facts;
   if (facts.oneGroup) return { ok: false, status: 409, error: VISIT_REFUSAL.oneGroup };
   if (visitInWeek(place, weekNumber)) return { ok: false, status: 409, error: alreadyVisitingWords(person.firstName, weekNumber) };
-  if (facts.waitingExcusedWeeks.includes(weekNumber)) return { ok: false, status: 409, error: excusedWaitingWords(person.firstName, weekNumber) };
   const own = ownWeeksAhead(facts, now).find((week) => week.weekNumber === weekNumber) ?? null;
   const homeId = ownGroupForWeek(place, weekNumber);
+  // A request about their own group's session that week: waiting, decide it
+  // first; approved, they are excused from it, and stay so.
+  const asked = facts.excusedWeeks.filter((week) => week.weekNumber === weekNumber && week.groupId === homeId);
+  if (asked.some((week) => week.status === "waiting")) return { ok: false, status: 409, error: excusedWaitingWords(person.firstName, weekNumber) };
+  if (asked.some((week) => week.status === "approved")) return { ok: false, status: 409, error: excusedApprovedWords(person.firstName, weekNumber) };
   const homeGroup = facts.groups.find((group) => group.id === homeId) ?? null;
   if (!own || !homeGroup) return { ok: false, status: 409, error: ownWeekGoneWords(homeGroup?.name ?? "", weekNumber) };
   const host = facts.groups.find((group) => group.id === hostGroupId) ?? null;
@@ -590,10 +604,24 @@ export type CallOffPlan = {
   home: CourseGroupDoc;
   hostSession: ResolvedSession | null;
   ownSession: ResolvedSession | null;
-  /** Whether the host's session is still happening (dated, not called off, held). */
+  /**
+   * Whether the host's session is happening: dated, not called off, not
+   * marked as not held, and its group still meets, or was archived after it
+   * held the session and finished its register (`countsFromArchivedGroup`).
+   */
   happening: boolean;
-  /** When it can no longer be called off: the host's start for staff, the earlier of the two for the person (`cancelDeadline`). */
+  /**
+   * When it can no longer be called off: the host's start for staff, the
+   * earlier of the two for the person (`cancelDeadline`). Null for staff when
+   * the host's session is not happening: then `ownStarted` decides.
+   */
   until: Date | null;
+  /**
+   * Staff, with the host's session not happening: their own group's session
+   * that week has started, so calling the visit off would count them absent
+   * from a session they were told not to go to. Refused (`ownStartedCallOffWords`).
+   */
+  ownStarted: boolean;
   /** The name of the group whose session `until` is the start of: the one named once it has started. */
   firstName: string;
   recipients: VisitRecipient[];
@@ -617,12 +645,20 @@ export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: bool
   const homeId = ownGroupForWeek(facts.place, weekNumber);
   const home = facts.groups.find((group) => group.id === homeId) ?? null;
   if (!host || !home) return { ok: false, status: 409, error: VISIT_REFUSAL.changed };
-  const hostSession = host.archived ? null : (resolveSessions(facts.run, host).find((each) => each.weekNumber === weekNumber && each.occurrence === 1 && each.dateKey !== "") ?? null);
+  const hostSession = resolveSessions(facts.run, host).find((each) => each.weekNumber === weekNumber && each.occurrence === 1 && each.dateKey !== "") ?? null;
   const own = ownSessionIn(facts, weekNumber);
   const hostRegister = hostSession ? registerOf(facts, facts.run.id, host.id, hostSession) : null;
-  const happening = hostSession !== null && !hostSession.cancelled && !host.archived && (hostRegister?.held ?? true);
-  const deadline = cancelDeadline({ host, hostSession, home, ownSession: own?.session ?? null, byStaff });
-  const until = deadline.until;
+  const happening =
+    hostSession !== null &&
+    !hostSession.cancelled &&
+    (hostRegister?.held ?? true) &&
+    (!host.archived || countsFromArchivedGroup(hostSession, hostRegister));
+  const deadline = cancelDeadline({ host, hostSession: host.archived ? null : hostSession, home, ownSession: own?.session ?? null, byStaff });
+  // Staff can call off a visit to a session that is not happening whatever
+  // the clock says, unless their own group's session that week has started.
+  const ownStart = own ? sessionInstants(own.session).startsAt : null;
+  const ownStarted = byStaff && !happening && ownStart !== null && now.getTime() >= ownStart.getTime();
+  const until = byStaff && !happening ? null : deadline.until;
   const recipients = visitRecipients({
     person: byStaff ? facts.person : null,
     personUid: facts.place.uid,
@@ -648,7 +684,8 @@ export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: bool
     gone: happening ? null : noLongerHappeningWords(host.name),
     button: callOffButtonWords(recipients.length),
     emails: recipients.length,
-    open: until === null || now.getTime() < until.getTime(),
+    open: !ownStarted && (until === null || now.getTime() < until.getTime()),
+    stays: ownStarted ? ownStartedCallOffWords(facts.person.firstName, home.name, weekNumber) : null,
   };
   return {
     ok: true,
@@ -660,6 +697,7 @@ export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: bool
       ownSession: own?.session ?? null,
       happening,
       until,
+      ownStarted,
       firstName: (deadline.first?.group ?? host).name,
       recipients,
       emails: recipients.length,

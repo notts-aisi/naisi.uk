@@ -7,7 +7,7 @@ import VisitPage from "@/features/courses/visit/VisitPage";
 import { isAddressableId } from "@/lib/addressableId";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { dbReader, planVisit, previewOf, readVisitFacts, sessionChoices, standingVisits, weekChoices } from "@/lib/courses/visit/plan";
-import { visitPressLimit } from "@/lib/courses/visit/limits";
+import { visitLimitRefusal } from "@/lib/courses/visit/limits";
 import type { VisitPageView } from "@/lib/courses/visit/view";
 import { BACK_TO_PEOPLE, VISIT_PAGE_TITLE, VISIT_REFUSAL, visitTitle } from "@/lib/courses/visit/words";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -90,7 +90,7 @@ export default async function StaffVisitPage({
   const sessions = week !== null ? sessionChoices(facts, week, now) : [];
   const to = week !== null && typeof query.to === "string" && isAddressableId(query.to) ? query.to : null;
   const planned = week !== null && to ? planVisit(facts, week, to, user.uid, now) : null;
-  const limit = await visitPressLimit(db, uid, user.uid);
+  const limit = await visitLimitRefusal(db, facts.run.id, uid, user.uid);
   const page: VisitPageView = {
     roundId: view.roundId,
     programmeId: view.programmeId,

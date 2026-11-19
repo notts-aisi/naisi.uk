@@ -160,6 +160,7 @@ export default function VisitPage({ view }: { view: VisitPageView }) {
           <h2 className={styles.subTitle}>{VISIT_STANDS}</h2>
           <p className={styles.line}>{standing.words}</p>
           {standing.gone && <p className={styles.line}>{standing.gone}</p>}
+          {standing.stays && <p className={styles.line}>{standing.stays}</p>}
           {standing.open && (
             <div className={styles.actions}>
               <Button type="button" variant="secondary" onClick={() => void callOff(standing)} disabled={!hydrated || busy || view.limit !== null} data-testid="staff-visit-call-off">

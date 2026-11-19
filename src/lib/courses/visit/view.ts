@@ -44,8 +44,14 @@ export type VisitStandingView = {
   /** "Call off this visit and email 3 people". */
   button: string;
   emails: number;
-  /** Whether it can still be called off: until the host's session starts. */
+  /**
+   * Whether it can still be called off: until the host's session starts; or,
+   * when that session is not happening, until their own group's session
+   * that week starts.
+   */
   open: boolean;
+  /** Why it can no longer be called off once their own group's session has started, the host's not happening; null otherwise. */
+  stays: string | null;
 };
 
 /** The page, as the server draws it before any script. */
@@ -109,7 +115,15 @@ export type OverviewVisit = {
 };
 
 /** One week of a one-week visit: the host's facilitators who may read that week of the person's work, by first name. */
-export type OverviewVisitReaders = { weekNumber: number; firstNames: string[] };
+/**
+ * The host's facilitators who may read one visit week, by first name, and by
+ * the name a sentence uses: their first name, or their whole name where it
+ * is the first name of another reader that week (one of their own group's
+ * facilitators, or another of the host's), so nobody is dropped from the
+ * sentence and nobody reads as somebody else. The page then names their own
+ * group's facilitator of that first name in full too.
+ */
+export type OverviewVisitReaders = { weekNumber: number; firstNames: string[]; names: string[] };
 
 /**
  * WHERE THE PERSON'S VISIT CARDS GO ON THEIR PROGRAMME PAGE, around the

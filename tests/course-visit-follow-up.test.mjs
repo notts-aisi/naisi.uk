@@ -218,10 +218,10 @@ describe("6. the person's week page names the host's facilitators who may read t
   test("the overview names Tom for week 3 alone, by the reading rule; none without a visit", async () => {
     assert.equal("visitReaders" in (await overview()), false);
     await arrange("chloe", 3, C);
-    assert.deepEqual((await overview()).visitReaders, [{ weekNumber: 3, firstNames: ["Tom"] }]);
+    assert.deepEqual((await overview()).visitReaders, [{ weekNumber: 3, firstNames: ["Tom"], names: ["Tom"] }]);
     // Tom without standing: the reading rule says no, and so does the sentence.
     world.db.poke("users/tom", { role: "rejected" });
-    assert.deepEqual((await overview()).visitReaders, [{ weekNumber: 3, firstNames: [] }]);
+    assert.deepEqual((await overview()).visitReaders, [{ weekNumber: 3, firstNames: [], names: [] }]);
   });
 
   test("the written answer's existing sentence names them as readers, never as giving feedback", () => {
@@ -299,13 +299,18 @@ describe("8. arranging a visit for a week the person asked to be excused from", 
     assert.equal(seat("chloe").visits, undefined);
   });
 
-  test("once it is approved: the visit can be arranged, and stands; a request for another week does not stand in the way", async () => {
+  test("once it is approved: she is excused from week 4, and no visit is arranged for it; a request for another week does not stand in the way", async () => {
     const requestId = await askForWeekFour();
     assert.equal((await visit("zach", "chloe", { weekNumber: 5, hostGroupId: A, preview: true })).status, 200);
     const approved = await call("zach", approveRoute.POST, { requestId }, { body: { sessionKey: "w04" }, course: true });
     assert.equal(approved.status, 200, JSON.stringify(approved.body));
-    await arrange("chloe", 4, A);
-    assert.equal(enrolments.groupForWeek(seat("chloe"), 4), A);
+    const shown = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, preview: true });
+    assert.deepEqual([shown.status, shown.body.error], [409, "Chloe is excused from week 4, so no visit can be arranged for it."]);
+    const pressed = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, emailCount: 3, overLimit: false });
+    assert.deepEqual([pressed.status, pressed.body.error], [409, "Chloe is excused from week 4, so no visit can be arranged for it."]);
+    assert.equal(seat("chloe").visits, undefined);
+    await arrange("chloe", 5, A);
+    assert.equal(enrolments.groupForWeek(seat("chloe"), 5), A);
   });
 });
 
@@ -320,7 +325,7 @@ describe("9. a durable limit on the emails of arranging and calling off", () => 
   const PRESSER = "You have arranged or called off 40 visits in the last day. Nothing was changed or sent. Try again tomorrow.";
 
   test("ten presses about one person in a day: the preview says so, and the eleventh is refused before anything is written or sent", async () => {
-    full("visitperson__chloe", 10);
+    full(`visitperson__${RUN.agi}__chloe`, 10);
     const shown = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, preview: true });
     assert.equal(shown.status, 200);
     assert.equal(shown.body.preview.limit, PERSON);
@@ -343,16 +348,17 @@ describe("9. a durable limit on the emails of arranging and calling off", () => 
     assert.equal(lead.body.preview.limit, null);
   });
 
-  test("calling off, by staff or by the person, is held to the same counters; under them every press counts once", async () => {
+  test("staff's call-off is held to the same counters, and under them every staff press counts once; the person's own cancel is never counted and never refused for a limit", async () => {
     await arrange("chloe", 4, A);
-    assert.equal(read("courseNudges/emailrate__visitperson__chloe").count, 1);
-    full("visitperson__chloe", 10);
+    assert.equal(read(`courseNudges/emailrate__visitperson__${RUN.agi}__chloe`).count, 1);
+    full(`visitperson__${RUN.agi}__chloe`, 10);
     const staff = await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: 3 });
     assert.deepEqual([staff.status, staff.body.error], [429, PERSON]);
-    const own = await cancel("chloe", 4);
-    assert.equal(own.status, 429);
-    assert.equal(words.cancelOutcomeLine({ status: own.status, kind: own.body.kind }, "Group A"), "That didn’t go through, so your visit to Group A still stands. Try again.");
     assert.equal(seat("chloe").visits.length, 1);
+    const own = await cancel("chloe", 4);
+    assert.equal(own.status, 200, JSON.stringify(own.body));
+    assert.equal(seat("chloe").visits, undefined);
+    assert.equal(read(`courseNudges/emailrate__visitperson__${RUN.agi}__chloe`).count, 10);
   });
 
   test("with no counter: no limit said, as before", async () => {

@@ -11,7 +11,7 @@ import { courseEnrolmentId, groupForWeek, ownGroupForWeek, type CourseEnrolmentD
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { SessionUser } from "@/lib/firebase/session";
-import { claimVisitPress } from "./limits";
+import { visitLimitsIn } from "./limits";
 import { MEMBER_NO_VISIT, arrangedEmailFor, dbReader, planCallOff, planVisit, readVisitFacts, txReader, type CallOffPlan, type VisitFacts, type VisitRecipient, type VisitRefusal } from "./plan";
 import {
   arrangedWords,
@@ -19,6 +19,7 @@ import {
   calledOffWords,
   changedWords,
   nowFullWords,
+  ownStartedCallOffWords,
   tooLateToCancelWords,
   visitingDetail,
   visitsDetail,
@@ -47,6 +48,13 @@ import {
  * it); the rollup rebuilt the same way; a history row on each group
  * (`member-visit-off`).
  *
+ * STAFF'S PRESSES ARE HELD TO A LIMIT on how often they email, read and
+ * claimed inside the same transaction after every other check
+ * (`visitLimitsIn`): past it the press is refused (429) and nothing is
+ * written, claimed or sent, and a press refused for anything else, or
+ * changed under it (409), claims nothing either. The person's own cancel is
+ * never counted.
+ *
  * THE EMAILS GO AFTER THE COMMIT, to exactly the people the transaction
  * counted: a failed send never fails the visit, and the answer says what
  * went. The reason is in none of them.
@@ -66,8 +74,11 @@ export type VisitSaveAnswer = {
 /** 409 with the facts as they now are. */
 export type VisitChanged = { ok: false; status: 409; error: string; emails: number | null; overLimit: boolean | null };
 
+/** 429: a limit on how often a press emails (`./limits.ts`). */
+type VisitLimited = { ok: false; status: 429; error: string };
+
 class Stop extends Error {
-  constructor(readonly answer: VisitRefusal | VisitChanged) {
+  constructor(readonly answer: VisitRefusal | VisitChanged | VisitLimited) {
     super("stop");
   }
 }
@@ -163,16 +174,13 @@ function checkArrange(facts: VisitFacts, input: ArrangeInput): { ok: true; plan:
   return planned;
 }
 
-export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<VisitSaveAnswer | VisitRefusal | VisitChanged> {
-  // Every other refusal first, read outside the save, so a refused press
-  // writes nothing, not even a count; then the durable limit, claimed before
-  // anything is written (`./limits.ts`); then the save, which asks again.
+export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<VisitSaveAnswer | VisitRefusal | VisitChanged | VisitLimited> {
+  // Every refusal first, read outside the save, so a refused press reads no
+  // counter; then the save, which asks again and claims the limit with its writes.
   const first = await readVisitFacts(dbReader(db), db, input.runId, input.uid, [input.weekNumber], input.now);
   if (!first.ok) return first;
   const precheck = checkArrange(first.facts, input);
   if (!precheck.ok) return precheck;
-  const limited = await claimVisitPress(db, input.uid, input.actor.uid);
-  if (limited) return limited;
   let counted: VisitRecipient[] = [];
   let plan: Extract<ReturnType<typeof planVisit>, { ok: true }>["plan"] | null = null;
   let firstName = "";
@@ -183,6 +191,9 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
       const { facts } = read;
       const planned = checkArrange(facts, input);
       if (!planned.ok) throw new Stop(planned);
+      // The limit on how often staff's presses email, read here and claimed with the writes.
+      const limits = await visitLimitsIn(tx, db, input.runId, input.uid, input.actor.uid);
+      if (limits.refusal) throw new Stop({ ok: false, status: 429, error: limits.refusal });
       const visit: OneWeekVisit = { weekNumber: input.weekNumber, groupId: planned.plan.hostGroupId, arrangedByUid: input.actor.uid, arrangedAt: input.now };
       const visits = [...(facts.place.visits ?? []), visit];
       const after: CourseEnrolmentDoc = { ...facts.place, visits };
@@ -193,6 +204,7 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
       const rollup = weekIsFinished(facts, [host, home], input.weekNumber) ? await rollupAfter(tx, db, facts.run, home, after, input.now) : [];
 
       // Writes, after every read.
+      limits.write();
       tx.update(db.collection("courseEnrolments").doc(courseEnrolmentId(input.runId, input.uid)), {
         visits: storedVisits(visits),
         updatedAt: FieldValue.serverTimestamp(),
@@ -259,6 +271,7 @@ function checkCallOff(facts: VisitFacts, input: CallOffInput): { ok: true; plan:
   if (!outcome.ok) return input.byStaff ? outcome : MEMBER_NO_VISIT;
   const plan = outcome.plan;
   if (!input.byStaff && !plan.happening) return MEMBER_NO_VISIT;
+  if (plan.ownStarted) return { ok: false, status: 409, error: ownStartedCallOffWords(facts.person.firstName, plan.home.name, plan.weekNumber) };
   if (plan.until && input.now.getTime() >= plan.until.getTime()) {
     return { ok: false, status: 409, error: tooLateToCancelWords(plan.firstName), kind: "too-late" };
   }
@@ -268,16 +281,14 @@ function checkCallOff(facts: VisitFacts, input: CallOffInput): { ok: true; plan:
   return outcome;
 }
 
-export async function callOffVisit(db: Firestore, input: CallOffInput): Promise<VisitSaveAnswer | VisitRefusal | VisitChanged> {
-  // As arranging: every other refusal first, read outside the save, so a
-  // refused press writes nothing; then the durable limit; then the save.
+export async function callOffVisit(db: Firestore, input: CallOffInput): Promise<VisitSaveAnswer | VisitRefusal | VisitChanged | VisitLimited> {
+  // As arranging: every refusal first, read outside the save; then the save,
+  // which asks again and, for staff alone, claims the limit with its writes.
   const as = input.byStaff ? "staff" : "member";
   const first = await readVisitFacts(dbReader(db), db, input.runId, input.uid, [input.weekNumber], input.now, as);
   if (!first.ok) return first;
   const precheck = checkCallOff(first.facts, input);
   if (!precheck.ok) return precheck;
-  const limited = await claimVisitPress(db, input.uid, input.actor.uid);
-  if (limited) return limited;
   let counted: VisitRecipient[] = [];
   let planned: CallOffPlan | null = null;
   let firstName = "";
@@ -289,12 +300,16 @@ export async function callOffVisit(db: Firestore, input: CallOffInput): Promise<
       const checked = checkCallOff(facts, input);
       if (!checked.ok) throw new Stop(checked);
       const plan = checked.plan;
+      // Staff's press only: the person's own cancel is never counted.
+      const limits = input.byStaff ? await visitLimitsIn(tx, db, input.runId, input.uid, input.actor.uid) : null;
+      if (limits?.refusal) throw new Stop({ ok: false, status: 429, error: limits.refusal });
       const visits = (facts.place.visits ?? []).filter((visit) => visit.weekNumber !== input.weekNumber);
       const after: CourseEnrolmentDoc = { ...facts.place, ...(visits.length ? { visits } : {}) };
       if (!visits.length) delete after.visits;
       const rollup = weekIsFinished(facts, [plan.host, plan.home], input.weekNumber) ? await rollupAfter(tx, db, facts.run, plan.home, after, input.now) : [];
 
       // Writes, after every read.
+      limits?.write();
       tx.update(db.collection("courseEnrolments").doc(courseEnrolmentId(input.runId, input.uid)), {
         visits: visits.length ? storedVisits(visits) : FieldValue.delete(),
         updatedAt: FieldValue.serverTimestamp(),

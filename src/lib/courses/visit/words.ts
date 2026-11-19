@@ -667,6 +667,23 @@ export function excusedWaitingWords(firstName: string, weekNumber: number): stri
   return `${firstName || "They"} ${firstName ? "is" : "are"} waiting to hear about being excused from week ${weekNumber}. Decide that request first.`;
 }
 
+/**
+ * Refused: staff calling off a visit to a session that is not happening, once
+ * the person's own group's session that week has started. "Group B’s week 4
+ * session has started, so calling this visit off would count Chloe absent
+ * from a session Chloe was told not to go to. The visit stays, and week 4
+ * isn’t counted for Chloe."
+ */
+export function ownStartedCallOffWords(firstName: string, homeName: string, weekNumber: number): string {
+  const who = firstName || "them";
+  return `${possessive(groupName(homeName))} week ${weekNumber} session has started, so calling this visit off would count ${who} absent from a session ${firstName || "they"} ${firstName ? "was" : "were"} told not to go to. The visit stays, and week ${weekNumber} isn’t counted for ${who}.`;
+}
+
+/** Refused: already excused from their own group's session that week by an approved request. "Aisha is excused from week 2, so no visit can be arranged for it." */
+export function excusedApprovedWords(firstName: string, weekNumber: number): string {
+  return `${firstName || "They"} ${firstName ? "is" : "are"} excused from week ${weekNumber}, so no visit can be arranged for it.`;
+}
+
 /** The durable limit on the emails of arranging and calling off (`./limits.ts`). Staff-facing. */
 export const VISIT_LIMIT_WORDS = {
   person: (limit: number) => `This person’s visits have been arranged or called off ${limit} times in the last day. Nothing was changed or sent. Try again tomorrow.`,

@@ -2,10 +2,11 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { campusLabel } from "@/lib/courses/campus";
 import { seesSessionLink } from "@/lib/courses/meetingLink/audience";
-import { firstNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
+import { firstNameOfUser, fullNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
 import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import type { SessionUser } from "@/lib/firebase/session";
+import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
 import { ownGroupForWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { campusForWeek, sessionForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
@@ -41,7 +42,10 @@ export type { OverviewVisit };
  * Only the caller's own place, and only while the session they go to has not
  * ended. The host's link for that one session travels behind the one gate
  * every link does (`seesSessionLink`, by the session's key). A host that no
- * longer meets, or a session that is not happening, draws no card.
+ * longer meets, or a session that is not happening (called off, or its
+ * register marked as not held, before it starts as after), draws no card:
+ * the person's own cancel reads such a visit as none, so the card never
+ * offers what the press would then refuse.
  */
 
 
@@ -72,8 +76,17 @@ export async function ownVisitsOf(
     ahead.push({ weekNumber: visit.weekNumber, host, home, session, own, arrangedByUid: visit.arrangedByUid, arrangedAt: visit.arrangedAt });
   }
   if (ahead.length === 0) return [];
+  // The host's register of each session, for a session marked as not held.
+  const registerSnaps = await db.getAll(
+    ...ahead.map((each) => db.collection("courseAttendance").doc(attendanceDocId(run.id, each.host.id, each.session.weekNumber, each.session.occurrence))),
+  );
+  const notHeld = new Set(
+    ahead.filter((_, at) => registerSnaps[at]?.exists && normalizeCourseAttendance(registerSnaps[at].id, registerSnaps[at].data() ?? {}).held === false).map((each) => each.weekNumber),
+  );
+  const shown = ahead.filter((each) => !notHeld.has(each.weekNumber));
+  if (shown.length === 0) return [];
 
-  const wanted = [...new Set(ahead.flatMap((each) => [...each.host.facilitatorUids, ...each.home.facilitatorUids, each.arrangedByUid ?? ""]))].filter(
+  const wanted = [...new Set(shown.flatMap((each) => [...each.host.facilitatorUids, ...each.home.facilitatorUids, each.arrangedByUid ?? ""]))].filter(
     (uid) => uid && !uid.includes("/"),
   );
   const firstNames = new Map<string, string>();
@@ -95,7 +108,7 @@ export async function ownVisitsOf(
     return group ? resolveSessions(run, group) : null;
   });
 
-  return ahead.map(({ weekNumber, host, home, session, own, arrangedByUid, arrangedAt }) => {
+  return shown.map(({ weekNumber, host, home, session, own, arrangedByUid, arrangedAt }) => {
     const back = paired.find((each) => each.session.weekNumber > weekNumber && each.groupId === home.id && !each.session.cancelled && each.session.dateKey !== "") ?? null;
     // The one deadline the person's own cancel is held to (`cancelDeadline`).
     const deadline = cancelDeadline({ host, hostSession: session, home, ownSession: own, byStaff: false });
@@ -136,11 +149,13 @@ export async function ownVisitsOf(
 }
 
 /**
- * WHO OF THE HOST MAY READ EACH VISIT WEEK OF THE CALLER'S WORK, by first
- * name: each facilitator of the host group for whom the reading rule itself
- * says yes (`hostReadsWeek`, with their own standing), for every visit that
- * stands to a group that still meets. The person's week page adds them to its
- * existing sentences about who can read their work, for that week alone.
+ * WHO OF THE HOST MAY READ EACH VISIT WEEK OF THE CALLER'S WORK: each
+ * facilitator of the host group for whom the reading rule itself says yes
+ * (`hostReadsWeek`, with their own standing), for every visit that stands to
+ * a group that still meets, but somebody who also facilitates the group the
+ * place belongs to that week (named there already). The person's week page
+ * adds them to its existing sentences about who can read their work, for
+ * that week alone, by the name a sentence uses (`OverviewVisitReaders`).
  * Reads the accounts it names, by address.
  */
 export async function visitReadersOf(
@@ -150,22 +165,29 @@ export async function visitReadersOf(
   const liveGroups = input.groups.filter((group) => !group.archived);
   const visits = (input.place.visits ?? []).flatMap((visit) => {
     const host = liveGroups.find((group) => group.id === visit.groupId);
-    return host ? [{ weekNumber: visit.weekNumber, host }] : [];
+    const home = liveGroups.find((group) => group.id === ownGroupForWeek(input.place, visit.weekNumber)) ?? null;
+    return host ? [{ weekNumber: visit.weekNumber, host, home }] : [];
   });
-  const wanted = [...new Set(visits.flatMap((each) => each.host.facilitatorUids))].filter((uid) => uid && !uid.includes("/"));
+  const wanted = [...new Set(visits.flatMap((each) => [...each.host.facilitatorUids, ...(each.home?.facilitatorUids ?? [])]))].filter((uid) => uid && !uid.includes("/"));
   if (wanted.length === 0) return [];
   const accounts = new Map<string, Record<string, unknown>>();
   for (const snap of await db.getAll(...wanted.map((uid) => db.collection("users").doc(uid)))) {
     if (snap.exists) accounts.set(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
   }
-  return visits.map(({ weekNumber, host }) => ({
-    weekNumber,
-    firstNames: host.facilitatorUids
-      .filter((uid) => {
-        const data = accounts.get(uid);
-        return data !== undefined && hostReadsWeek(standingUserOf(uid, data), input.place, liveGroups, weekNumber);
-      })
-      .map((uid) => firstNameOfUser(accounts.get(uid) ?? {}))
-      .filter(Boolean),
-  }));
+  const firstOf = (uid: string) => firstNameOfUser(accounts.get(uid) ?? {});
+  return visits.map(({ weekNumber, host, home }) => {
+    const homeUids = (home?.facilitatorUids ?? []).filter((uid) => uid !== input.place.uid);
+    const readers = host.facilitatorUids.filter((uid) => {
+      const data = accounts.get(uid);
+      return data !== undefined && !homeUids.includes(uid) && hostReadsWeek(standingUserOf(uid, data), input.place, liveGroups, weekNumber) && firstOf(uid) !== "";
+    });
+    // Every first name the sentence holds that week: their own group's facilitators and these readers.
+    const firsts = [...homeUids.map(firstOf), ...readers.map(firstOf)].filter(Boolean);
+    const shared = (first: string) => firsts.filter((each) => each === first).length > 1;
+    return {
+      weekNumber,
+      firstNames: readers.map(firstOf),
+      names: readers.map((uid) => (shared(firstOf(uid)) ? fullNameOfUser(accounts.get(uid) ?? {}) || firstOf(uid) : firstOf(uid))),
+    };
+  });
 }

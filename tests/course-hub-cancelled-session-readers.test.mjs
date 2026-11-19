@@ -145,12 +145,24 @@ const READERS = {
     kind: "asks",
     proof: [
       "if (session.cancelled) return { session, error: hostCancelledWords(host.name, weekNumber) };",
-      "const happening = hostSession !== null && !hostSession.cancelled && !host.archived && (hostRegister?.held ?? true);",
+      "!hostSession.cancelled &&",
+      "(hostRegister?.held ?? true) &&",
     ],
     why:
       "a one-week visit: a host session called off through Change a session is refused in its own sentence before its " +
       "register's held is read, a week whose own session is called off is no week to visit from, and a visit that stands " +
       "to a called-off session is said to be no longer happening",
+  },
+  "lib/courses/visit/card.ts": {
+    kind: "asks",
+    proof: [
+      "if (!session || session.cancelled) continue;",
+      ".held === false).map((each) => each.weekNumber),",
+    ],
+    why:
+      "a person's own visit card: a host session called off through Change a session draws no card, and neither does " +
+      "one whose register says it did not happen, so the card never offers a Cancel that the person's own cancel, which " +
+      "reads such a visit as none, would then refuse",
   },
   "lib/courses/registerCorrection/column.ts": {
     kind: "asks",
