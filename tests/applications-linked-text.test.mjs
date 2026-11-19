@@ -830,8 +830,8 @@ const BUILT = new Map([
   [
     "src/features/applications/people/ProgrammePeople.tsx",
     {
-      built: ["item.href", "row.applicationHref", "row.groupsHref", "row.moveHref", "row.personHref", 'row.moveHref.replace(/\\/move$/, "/visit")'],
-      from: "the People tab's More menu: the person's application on the programme's review screen, People in groups, and the page for moving them to another group for good; and the person's page on the programme, which their name opens. Each built on the server from the programme's own path and, for all but People in groups, the person's uid, encoded; and the page for a one-week visit, the move's own address with its last part, a fixed word, swapped for another fixed word",
+      built: ["item.href", "row.applicationHref", "row.groupsHref", "row.moveHref", "row.personHref", "row.visitHref"],
+      from: "the People tab's More menu: the person's application on the programme's review screen, People in groups, and the page for moving them to another group for good; and the person's page on the programme, which their name opens. Each built on the server from the programme's own path and, for all but People in groups, the person's uid, encoded; and the page for a one-week visit, built on the server beside the move's (`movingLinks`) from the same path and a fixed word",
     },
   ],
   [
