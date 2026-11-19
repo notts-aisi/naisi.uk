@@ -1894,8 +1894,8 @@ record does not name it.
 group id and a whole week, weeks rising, and the last group the place's group.
 A record that contradicts the place reads as none. The writer keeps it that
 way, and every other writer of a place's group deletes the record whenever it
-changes the group: a move on the allocation board (to another group before
-the term or of a place nobody has told, or to none), Remove, somebody changing the session of a seat they took on an open
+changes the group: a move on the allocation board (to another group or to
+none, before the term or of a place nobody has told), Remove, somebody changing the session of a seat they took on an open
 run, and placing a facilitator who holds a place in the group they facilitate.
 Each of those is a move for every week, so the place then reads the group it
 is in now for every week, as every such move always has. A move on the board
@@ -2005,7 +2005,13 @@ met that week (and when to come back), the old group has no session left, the
 old group has no session set at all, the old group still has a session to
 come in a week before N (its weeks met out of order, or a second session of a
 week whose first has started: move them after that session), or the new
-group has no session that week. A week nobody met with the old group
+group has no session that week. When the new group has met week N and
+calling off the old group's week N session, keeping pace, would let the move
+go ahead now, the refusal says so ("If Group C’s week 2 session is called
+off with “Cancel and keep pace”, Leo can be moved now, from week 3."): the
+rule is asked again with that session called off (`ifCalledOff`), so it is
+never said when another session still to come, or a new group's week already
+met, would refuse it all the same. A week nobody met with the old group
 counts too: between the last week the old group met and week N, a week whose
 old session is dated and called off (keeping pace) or marked as not held on
 its register is one the person never met, and the move is from the EARLIEST
@@ -2143,20 +2149,62 @@ Publish's markers are left as the board leaves them. One row on each group's
 History ("Leo Park moved to Group F from week 3 on the Groups tab, to be
 told at the next Publish." and "Leo Park moved here from Group C, from week
 3, on the Groups tab, to be told at the next Publish."), no reason. Before
-the press the board asks (`preview: true` on the route, which writes
-nothing and answers only for people the caller may place): "Move Leo Park to
-Group F from week 3? Weeks 1 and 2 stay with Group C, where Leo met. Nobody
-is emailed now: Leo sees Group F straight away, and the next Publish emails
-them that they have moved." The press sends the week back (`fromWeek`); a
+the press every board asks the same question, through one shared piece of
+code (`askMidTermMoves` in `src/features/courses/askMidTermMoves.ts`, called
+by the run's own board, People in groups and Circles), from the route's
+preview (`preview: true`, which writes nothing and answers only for people
+the caller may place): "Move Leo Park to Group F from week 3? Weeks 1 and 2
+stay with Group C, where Leo met. Nobody is emailed now: Leo sees Group F
+straight away, and the next Publish emails them that they have moved."
+Between the weeks and the last sentence it says what stays behind on the old
+group from week N on, in this page's own sentence for it (`leftBehindOf` and
+`leftBehindWords`, shared): a line excusing them, a "Most weeks, not all"
+tick, a request still waiting. Several moves in one press are asked in one
+confirmation. The press sends the week back (`fromWeek`); a
 week that no longer holds is refused ("The move is now from week 4. Move Leo
 again to see what it does."), nothing written. When the rule offers no week
 the move is refused in this page's sentence for it, prefixed "Leo Park
 wasn’t moved."; so is a move out of a group that no longer meets. Several
 people in one press are each decided on their own, after the chunk of plain
-moves they came in, so one refusal never loses another's move. A move
-before the term (nobody told, or no session of the group started), taking a
-place out of every group, Remove, and somebody changing their own session on
-an open run, are as before.
+moves they came in, so one refusal never loses another's move.
+
+*A seat such a move frees is free before it is taken.* Every capacity check
+reads the count its own transaction read, so no group is ever over its
+capacity at any commit, and a move made mid-term frees its seat only once it
+is written. So a press goes in rounds: the plain placements in their chunks,
+then the moves made mid-term one by one, then each placement refused because
+its group was full, into a group a move made mid-term has just left, is tried
+again the same way, until a round frees nothing. Moving a told person out of
+a full group mid-term and placing somebody else into it in one press works,
+in either order. A move that is refused frees nothing, so nobody is placed
+into its seat. A press with no move made mid-term is one round, exactly as
+before. Two people swapped between two full groups are refused, before the
+term and after, as the board always has: neither can go first. What one move
+made mid-term costs: outside a transaction, the place, the run's groups (one
+equality), the person's account and the registers of their own sessions that
+have started; then one transaction reading the place, the run, the run's
+groups and those registers again, and writing the place, two counts and two
+History rows. Each is its own commit, so a press cut off part way (a
+request that runs out of time) keeps every move written before it stopped,
+the board shows the error and, once reloaded, where everybody is; pressing
+again makes the rest, and a move already made is "already exactly where they
+are", nothing to do.
+
+*Never into no group mid-term.* A place in no group keeps no record of the
+weeks it met: every week reads its group, and it has none. So a told person
+whose group has met (or who has a record) is never taken out of every group
+by the board, on any of its three views: the move is refused, before the
+press and at it, with nothing written ("Amara has already met with Group A,
+so Amara can’t be taken out of every group: the weeks met with Group A
+would be lost. Move Amara straight to the new group instead, or take Amara
+off the run."). Before the term, and for somebody nobody has told, the pool
+works as always. Somebody ALREADY in that state (told, in no group, mid-term,
+taken out before this was refused) has no weeks left to keep: placing them in
+a group is the board's plain move, for every week, as it always was.
+
+A move before the term (nobody told, or no session of the group started),
+Remove, and somebody changing their own session on an open run, are as
+before.
 
 ## A person's page, for the team, and a facilitator's cut of it
 

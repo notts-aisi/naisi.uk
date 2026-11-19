@@ -295,6 +295,20 @@ test(
         { timeout: WAIT_MS },
       );
 
+    /**
+     * The answer to the board's PRESS on the allocate route: the next POST
+     * whose body is not the question asked before a move of somebody already
+     * told (`preview: true`, which writes nothing and goes first).
+     */
+    const pressTo = (pg, suffix) =>
+      pg.waitForResponse(
+        (r) =>
+          new URL(r.url()).pathname.endsWith(suffix) &&
+          r.request().method() === "POST" &&
+          (r.request().postDataJSON?.() ?? {}).preview !== true,
+        { timeout: WAIT_MS },
+      );
+
     /** A JSON answer that must be a success, read once. */
     async function okBody(response, what) {
       const body = await response.json().catch(() => null);
@@ -380,7 +394,9 @@ test(
       }
       assert.ok(from !== -1 && to !== -1, `${person.first}'s menu offers no ${group.name}, or no current place`);
       for (let i = 0; i < Math.abs(to - from); i += 1) await menu.press(to > from ? "ArrowDown" : "ArrowUp");
-      const [response] = await Promise.all([responseTo(adminPage, "/allocate", "POST"), menu.press("Enter")]);
+      // The press, not the question before it: for somebody told, the board
+      // asks the route first, which before the term has nothing to ask.
+      const [response] = await Promise.all([pressTo(adminPage, "/allocate"), menu.press("Enter")]);
       const body = await okBody(response, `Placing ${person.first} in ${group.name}`);
       // One placed is the whole answer: a refused move places nobody, and the
       // answer printed below says why it was refused.
