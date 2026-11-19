@@ -186,7 +186,9 @@ export default async function ReConsentPage() {
           <strong style={{ color: "var(--color-text)" }}>What changed in version 21.</strong>{" "}
           We now email everybody a reminder of each session&apos;s day, time
           and place three days and one day before it, where before we only
-          emailed people with work left to do.
+          emailed people with work left to do. Anonymous feedback from the
+          second form is kept for up to two years and deleted by hand once a
+          year, where before we said two years from the day it is sent.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}

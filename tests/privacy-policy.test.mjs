@@ -222,7 +222,7 @@ const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
 const V20_FLAT = read("src/content/legal/privacy/v20.tsx").replace(/\s+/g, " ");
 /** "What's changed in version 21", as the page carries it (an apostrophe is `&apos;` in the source). */
 const CHANGED_21 =
-  "We now email everybody a reminder of each session&apos;s day, time and place three days and one day before it, where before we only emailed people with work left to do.";
+  "We now email everybody a reminder of each session&apos;s day, time and place three days and one day before it, where before we only emailed people with work left to do. Anonymous feedback from the second form is kept for up to two years and deleted by hand once a year, where before we said two years from the day it is sent.";
 /** v19, frozen: read by the version 19 describe, which proves v19 is v18 with its one change, and by the version 20 describe, which proves v20 is v19 with its changes. */
 const V19_FLAT = read("src/content/legal/privacy/v19.tsx").replace(/\s+/g, " ");
 /** v18, frozen: read by the version 18 describe, which proves v18 is v17 with its changes, and by the version 19 describe, which proves v19 is v18 with its one. */
@@ -6387,6 +6387,10 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/[surveyId]/blanks/route.ts", "the person's own answers to the questions they left blank, signed in, to their own row: there is no uid in the request"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account takes its name off its survey answers and deletes its survey rows"],
         ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off two years after the programme"],
+        [
+          "src/lib/societyFeedback/programmes.ts",
+          "anonymous feedback's list of this term's programmes takes `chooseTerm`, the pure choice of which application form is this term, and reads no survey, answer or name",
+        ],
         // A week's check-ins are fixed the first time it is whole, which is
         // when the programme's lead first reads it: the job records which
         // check-ins the week has, by their ids, and reads no answer and nobody
@@ -12282,6 +12286,9 @@ describe("v21 says the reminders before a session go to everybody due at it, and
   /** "Reminders." in "Your work, progress and reminders": v20's, and v21's as the owner approved it. */
   const REMINDERS_20 =
     "<strong>Reminders.</strong> Before the session a week&apos;s work is due at, we may email you about what&apos;s left of it. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off, and they stop once the week is done.";
+  /** How long anonymous feedback from the second form is kept, as v21 says it: cleared by hand once a year (`src/lib/societyFeedback/admin.ts`, `clearBefore`). */
+  const RETENTION_21 =
+    "up to two years. Once a year an admin deletes by hand every entry more than a year old, so none is kept longer than two years.";
   const REMINDERS_21 =
     "<strong>Reminders.</strong> Three days and one day before each of your sessions we email you its day, time and place, how to tell us if you can&apos;t make it, and what&apos;s left of that week&apos;s work if anything is. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off.";
   /**
@@ -12297,6 +12304,11 @@ describe("v21 says the reminders before a session go to everybody due at it, and
       `<p id="whats-changed"> <strong>What&apos;s changed in version 21:</strong> ${CHANGED_21} </p> <p> <strong>What changed in version 20, on 17 November 2026:</strong> ${CHANGED_20} </p>`,
     ],
     ["the reminders before a session go to everybody due at it, and no longer stop once the week is done", REMINDERS_20, REMINDERS_21],
+    [
+      "anonymous feedback from the second form is kept up to two years and cleared by hand once a year",
+      "<li> <strong>Anonymous feedback from the second form:</strong> two years from the day it is sent. </li>",
+      `<li> <strong>Anonymous feedback from the second form:</strong> ${RETENTION_21} </li>`,
+    ],
   ];
 
   test("v21 is v20 with these changes and no others", () => {

@@ -1,7 +1,8 @@
 /**
  * Version 21 of the Privacy Policy: version 20 with the paragraph
  * "Reminders." in "Your work, progress and reminders" saying the reminders
- * before a session now go to everybody due at it, and "What's changed in
+ * before a session now go to everybody due at it, how long anonymous
+ * feedback from the second form is kept, and "What's changed in
  * version 21" at the top, with version 20's, version 19's, version 18's and
  * version 17's own lines kept under it and dated. Every other word is
  * version 20's.
@@ -16,7 +17,12 @@
  *     the reminders stop once the week is done; they no longer do, so that
  *     clause is gone. The sentence about reminders after a session, from the
  *     people running a group and in later weeks' emails, is version 20's.
- *  2. **What's changed** at the top says so, and keeps version 20's, version
+ *  2. **Anonymous feedback from the second form** (`src/lib/societyFeedback/`)
+ *     is kept for up to two years: nothing deletes it on a timer, and once a
+ *     year an admin clears out by hand every entry more than a year old, so
+ *     none is older than two years. Version 20 said "two years from the day
+ *     it is sent", which a yearly clear-out by hand cannot keep exactly.
+ *  3. **What's changed** at the top says both, and keeps version 20's, version
  *     19's, version 18's and version 17's lines under it, each with its date.
  *
  * It changes how information is used (an email address and a place in a
@@ -96,7 +102,9 @@ export default function PrivacyContentV21({
               <strong>What&apos;s changed in version 21:</strong> We now email
               everybody a reminder of each session&apos;s day, time and place
               three days and one day before it, where before we only emailed
-              people with work left to do.
+              people with work left to do. Anonymous feedback from the second
+              form is kept for up to two years and deleted by hand once a
+              year, where before we said two years from the day it is sent.
             </p>
             <p>
               <strong>What changed in version 20, on 17 November 2026:</strong> This
@@ -1167,8 +1175,9 @@ export default function PrivacyContentV21({
                   exists, like your other records, with our replies.
                 </li>
                 <li>
-                  <strong>Anonymous feedback from the second form:</strong> two
-                  years from the day it is sent.
+                  <strong>Anonymous feedback from the second form:</strong> up
+                  to two years. Once a year an admin deletes by hand every entry
+                  more than a year old, so none is kept longer than two years.
                 </li>
                 <li>
                   <strong>Your choice about Kairos:</strong> while your account

@@ -10,6 +10,7 @@ import { loadSurveyHub } from "@/lib/surveys/hub/load";
 import type { HubView } from "@/lib/surveys/hub/model";
 import { hubTabOf, type HubTab } from "@/lib/surveys/hub/tabs";
 import { questionSetRows } from "@/lib/surveys/questionSets";
+import { ADMIN_WORDS } from "@/lib/societyFeedback/words";
 import { canRunSurveys } from "@/lib/surveys/repo";
 import { LIST_WORDS } from "@/lib/surveys/words";
 
@@ -50,9 +51,14 @@ export default async function SurveysPage({ searchParams }: { searchParams: Prom
         title={LIST_WORDS.title}
         description={LIST_WORDS.lede}
         actions={
-          <Link href="/admin/surveys/new" className={styles.linkButton}>
-            {LIST_WORDS.newSurvey}
-          </Link>
+          <>
+            <Link href="/admin/surveys/anonymous-feedback" className={styles.linkButton}>
+              {ADMIN_WORDS.title}
+            </Link>
+            <Link href="/admin/surveys/new" className={styles.linkButton}>
+              {LIST_WORDS.newSurvey}
+            </Link>
+          </>
         }
       />
       <SurveyList view={view} />

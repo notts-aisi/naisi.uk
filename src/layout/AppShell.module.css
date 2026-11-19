@@ -754,6 +754,36 @@
 }
 
 /* ===== Below --bp-lg: no sidebar. A top bar, a bottom bar, full-bleed main ===== */
+/* The foot of every signed-in page: one link, to anonymous feedback. */
+.appFooter {
+  margin-top: var(--space-12);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-5);
+}
+
+.appFooterLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+
+.appFooterLink:hover {
+  text-decoration: underline;
+}
+
+.appFooterLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
 @media (max-width: 60rem) { /* --bp-lg */
   .frame {
     /* The bottom bar is on the screen from here down, so this is its height:

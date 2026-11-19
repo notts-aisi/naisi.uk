@@ -3,7 +3,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { clearBefore, clearDayFits, countBefore } from "@/lib/societyFeedback/admin";
-import { CLEAR_WORDS } from "@/lib/societyFeedback/words";
+import { CLEAR_WORDS, dayKeyWordsWithYear } from "@/lib/societyFeedback/words";
 
 /**
  * CLEARING OUT ANONYMOUS FEEDBACK BY HAND (docs/surveys.md, "Anonymous
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
   const count = await countBefore(db, before);
-  if (count !== confirmed) return NextResponse.json({ error: CLEAR_WORDS.confirm(count, before), count }, { status: 409 });
+  if (count !== confirmed) return NextResponse.json({ error: CLEAR_WORDS.confirm(count, dayKeyWordsWithYear(before)), count }, { status: 409 });
   const { deleted, left } = await clearBefore(db, before);
   return NextResponse.json({ deleted, left });
 }
