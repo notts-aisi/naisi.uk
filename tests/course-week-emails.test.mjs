@@ -813,7 +813,7 @@ describe("7. the send", () => {
     }
   });
 
-  test("the template has three senders, and nothing else in src renders it", () => {
+  test("the template has four senders, and nothing else in src renders it", () => {
     const senders = [];
     for (const file of walk(SRC)) {
       const path = relative(REPO_ROOT, file).split(sep).join("/");
@@ -822,10 +822,12 @@ describe("7. the send", () => {
       const code = stripSource(readFileSync(file, "utf8"));
       if (/\bWeekEmail\(/.test(code)) senders.push(path);
     }
-    // Remind by hand is built on the reminders: their template, their words of what is left.
+    // Remind by hand is built on the reminders: their template, their words of what is left. A group's rooms
+    // for the rest of term is laid out the same way, its words its own (src/lib/courses/termRoomsEmail/words.ts).
     assert.deepEqual(senders.sort(), [
       "src/lib/courses/groupWeekWork/remind.ts",
       "src/lib/courses/nextWeekEmail.ts",
+      "src/lib/courses/termRoomsEmail/send.ts",
       "src/lib/scheduler/jobs/weekReminders.ts",
     ]);
   });

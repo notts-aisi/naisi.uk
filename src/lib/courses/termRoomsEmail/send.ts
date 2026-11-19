@@ -16,7 +16,7 @@ import { noticeSlotsIn, noticeSlotsRefusal } from "@/lib/email/noticeCaps";
 import type { SessionUser } from "@/lib/firebase/session";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
-import { normalizeCourseEnrolment, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { normalizeCourseEnrolment, placementIsTold, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { termRoomsWindows } from "./limits";
@@ -90,13 +90,17 @@ export function noEmailWords(why: NoEmailWhy | "nobody" | "overCap"): string {
   return why === "overCap" ? REFUSAL.overCap : NO_EMAIL[why];
 }
 
-/** The run's active places by uid, for whose weeks are whose. One equality on `runId` and `status`. */
+/**
+ * The run's active places by uid, for whose weeks are whose. One equality on
+ * `runId` and `status`. Only a place Publish has told: the audience above
+ * already leaves the rest out, and a place nobody has told gives nobody a line.
+ */
 async function placesOf(db: Firestore, runId: string): Promise<Map<string, CourseEnrolmentDoc>> {
   const snap = await db.collection("courseEnrolments").where("runId", "==", runId).where("status", "==", "active").get();
   const out = new Map<string, CourseEnrolmentDoc>();
   for (const doc of snap.docs) {
     const place = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
-    if (place.runId === runId && place.uid) out.set(place.uid, place);
+    if (place.runId === runId && place.uid && placementIsTold(place)) out.set(place.uid, place);
   }
   return out;
 }
