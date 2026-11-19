@@ -518,7 +518,15 @@ describe("6. calling a visit off", () => {
     at("2026-11-17T18:01:00Z");
     assert.equal((await cancel("chloe", 3)).status, 409);
     assert.equal(seat("chloe").visits.length, 1);
-    // Staff still may, until Group C's session starts: Chloe, Tom, Rahul and Sofia.
+    // Staff no longer may either: Group B's session has started, and ending the
+    // visit now would count Chloe absent from it. Refused, nothing written or sent.
+    const staff = await visit("zach", "chloe", { weekNumber: 3, callOff: true, emailCount: 4 });
+    assert.equal(staff.status, 409);
+    assert.match(staff.body.error, /^Group B’s week 3 session has started, so calling this visit off would count Chloe absent/);
+    assert.equal(seat("chloe").visits.length, 1);
+    assert.equal(world.mail.length, 0);
+    // Before it started, staff could: Chloe, Tom, Rahul and Sofia.
+    at("2026-11-17T17:59:00Z");
     assert.equal((await visit("zach", "chloe", { weekNumber: 3, callOff: true, emailCount: 4 })).status, 200);
   });
 

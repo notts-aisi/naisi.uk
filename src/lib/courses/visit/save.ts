@@ -19,7 +19,6 @@ import {
   calledOffWords,
   changedWords,
   nowFullWords,
-  ownStartedCallOffWords,
   tooLateToCancelWords,
   visitingDetail,
   visitsDetail,
@@ -271,8 +270,9 @@ function checkCallOff(facts: VisitFacts, input: CallOffInput): { ok: true; plan:
   if (!outcome.ok) return input.byStaff ? outcome : MEMBER_NO_VISIT;
   const plan = outcome.plan;
   if (!input.byStaff && !plan.happening) return MEMBER_NO_VISIT;
-  if (plan.ownStarted) return { ok: false, status: 409, error: ownStartedCallOffWords(facts.person.firstName, plan.home.name, plan.weekNumber) };
   if (plan.until && input.now.getTime() >= plan.until.getTime()) {
+    // Staff are told which start closed it and what to do instead; the person, the approved line.
+    if (input.byStaff && plan.stays) return { ok: false, status: 409, error: plan.stays, kind: "too-late" };
     return { ok: false, status: 409, error: tooLateToCancelWords(plan.firstName), kind: "too-late" };
   }
   if (input.emailCount !== null && plan.emails !== input.emailCount) {

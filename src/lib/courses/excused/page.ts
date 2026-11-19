@@ -186,7 +186,7 @@ export function excusedThisTermOf(input: {
   sessions: readonly ResolvedSession[];
   registers: ReadonlyMap<string, CourseAttendanceDoc>;
   requests: readonly ExcusedRequestDoc[];
-  /** The group whose sessions these are: a request about another group's session is not about them. */
+  /** The group whose sessions these are: a request asked about a visit to another group's session is not about them. */
   groupId: string;
   seat: Pick<CourseEnrolmentDoc, "role" | "status" | "groupId" | "timeAnswer"> | null;
   group: Pick<CourseGroupDoc, "timeQuestionSince"> | null;
@@ -200,10 +200,10 @@ export function excusedThisTermOf(input: {
   const tickedBefore = new Set(stored?.kind === "mostWeeks" ? stored.sessionKeys : []);
   const approvedKeys = new Set<string>();
   const excepted = new Set<string>();
-  // Matched by group and session key: a request about another group's
-  // session (a visit's, or a group they have left) is not about this one's.
+  // By session key, as always; a request asked about a visit's session is
+  // about that one group's, and says nothing about this group's (`weeksAbout`).
   for (const request of input.requests) {
-    if (request.subjectUid !== uid || request.groupId !== input.groupId) continue;
+    if (request.subjectUid !== uid || (request.aboutVisit && request.groupId !== input.groupId)) continue;
     for (const week of request.weeks) {
       if (request.id === input.except) excepted.add(week.sessionKey);
       else if (week.status === "approved") approvedKeys.add(week.sessionKey);

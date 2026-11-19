@@ -144,6 +144,14 @@ export type ExcusedRequestDoc = {
    * asked, which reads as before.
    */
   confirmed: ExcusedConfirmed | null;
+  /**
+   * Asked about a week the person was due at another group's session by a
+   * one-week visit: `groupId` is the host's. Such a request is about that one
+   * group's session and is paired with a session by group as well as key
+   * (`weeksAbout`). False on every other request, and on every request stored
+   * before the field existed, which pair as they always did.
+   */
+  aboutVisit: boolean;
   status: CourseRequestStatus;
   decidedByUid: string | null;
   decidedAt: Date | null;
@@ -290,6 +298,7 @@ export function normalizeExcusedRequest(id: string, data: Raw): ExcusedRequestDo
     reasonHeld: data.reasonHeld === true && reason !== "",
     reasonGoneAt: tsToDate(data.reasonGoneAt),
     confirmed: confirmedOf(data.confirmed),
+    aboutVisit: data.aboutVisit === true,
     // The weeks are the truth; the stored status is what one equality finds.
     status: excusedStatusOf(weeks),
     decidedByUid: uidOrNull(data.decidedByUid),

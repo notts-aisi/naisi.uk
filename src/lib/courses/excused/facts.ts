@@ -43,7 +43,7 @@ export function excuseFactsFrom(
   const subjects = new Set(requests.map((request) => request.subjectUid).filter((uid) => input.uids.has(uid)));
   for (const sessionKey of input.sessionKeys) {
     for (const uid of subjects) {
-      const fact = factOf(weeksAbout(requests, uid, input.groupId, sessionKey));
+      const fact = factOf(weeksAbout(requests, uid, sessionKey, { groupId: input.groupId, visiting: false }));
       if (fact) (out[sessionKey] ??= {})[uid] = fact;
     }
   }

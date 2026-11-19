@@ -165,6 +165,7 @@ export type NextWeekEmailOutcome = {
     | "missing"
     | "refused"
     | "nobody"
+    | "had"
     | "claimed"
     | null;
   /** The empty values that held a whole email. Empty otherwise. */
@@ -315,6 +316,8 @@ type RecipientsPlan = {
   visiting: Set<string>;
   /** Left out because the copy they work in is not ready (unpublished, or a value missing). */
   skipped: number;
+  /** Left out because they had the week's email from another group's send (`hadItElsewhere`). */
+  hadIt: number;
 };
 
 /**
@@ -341,7 +344,7 @@ async function planRecipients(
   },
 ): Promise<RecipientsPlan> {
   const { run, group, session } = args;
-  const out: RecipientsPlan = { recipients: [], readingOf: new Map(), visiting: new Set(), skipped: 0 };
+  const out: RecipientsPlan = { recipients: [], readingOf: new Map(), visiting: new Set(), skipped: 0, hadIt: 0 };
   const uids = args.members.map((member) => member.uid);
   if (uids.length === 0) return out;
   const [placeSnaps, claimSnaps] = await Promise.all([
@@ -395,7 +398,10 @@ async function planRecipients(
   for (const member of args.members) {
     const place = places.get(member.uid);
     const visit = place ? visitInWeek(place, session.weekNumber) : null;
-    if (hadItElsewhere(claims.get(weekOpenPersonMarkerId(run.id, member.uid, session.weekId)), group.id, visit !== null)) continue;
+    if (hadItElsewhere(claims.get(weekOpenPersonMarkerId(run.id, member.uid, session.weekId)), group.id, visit !== null)) {
+      out.hadIt += 1;
+      continue;
+    }
     const copy = (place ? copyGroupIdFor(place, session.weekNumber, place.groupId) : null) ?? group.id;
     // Visiting another group that week: the host's session, while it meets and has one dated.
     const host = visit && visit.groupId !== group.id ? (hosts.get(visit.groupId) ?? null) : null;
@@ -569,12 +575,16 @@ async function prepareNextWeekEmail(
     appUrl: args.appUrl,
   });
   if (plan.recipients.length === 0) {
-    // Everybody in it has had the week's email from another group's send, or
-    // works in a copy of it not open yet: nothing is claimed, so a copy
+    // Everybody it would reach works in a copy of the week not open yet (it
+    // waits for them, as for an unpublished week), or has had the week's
+    // email from another group's send. Nothing is claimed, so a copy
     // published later still sends.
     return {
       ready: false,
-      outcome: heldOutcome("nobody", "Nobody in this group is set up to receive email, so none was sent.", { skipped: audience.skipped + plan.skipped }),
+      outcome:
+        plan.skipped > 0
+          ? heldOutcome("unpublished", `Week ${session.weekNumber}’s email is waiting: the copy of the week the people it would reach work in isn’t published yet.`, { skipped: audience.skipped + plan.skipped })
+          : heldOutcome("had", `Everybody this email would reach has already had week ${session.weekNumber}’s email from another group, so none was sent.`, { skipped: audience.skipped }),
     };
   }
   return { ready: true, markerId, reading, plan, skipped: audience.skipped + plan.skipped };
@@ -771,14 +781,14 @@ export async function sendNextWeekEmail(args: {
   await dispatchSends(recipients, async (recipient) => {
     // Their own claim on the week, across the run's groups: another group's
     // send can have reached them since the plan was read.
-    // A claim that cannot be made sends them nothing, and never stops the rest of the send.
-    let theirs = false;
+    // Only a claim somebody already holds stops their message; a claim that
+    // cannot be written is logged and the message goes, as it did before
+    // there were claims, so a failed write never loses anybody their email.
+    let theirs = true;
     try {
       theirs = await claimPersonWeek(db, { run, group, session, uid: recipient.uid, visiting: plan.visiting.has(recipient.uid), now: args.now });
     } catch (err) {
-      console.error("[courses week open email] a person's claim on the week failed", group.id, recipient.uid, err);
-      skipped += 1;
-      return;
+      console.error("[courses week open email] a person's claim on the week could not be written; sending all the same", group.id, recipient.uid, err);
     }
     if (!theirs) return;
     // The placeholder-free name: "" drops the greeting rather than addressing

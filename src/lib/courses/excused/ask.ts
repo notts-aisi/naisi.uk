@@ -9,7 +9,7 @@ import { londonDateKey } from "@/lib/courses/weekPlan";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
-import { courseEnrolmentId, normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
+import { courseEnrolmentId, normalizeCourseEnrolment, placementIsTold, visitInWeek } from "@/lib/firestore/courseEnrolments";
 import {
   EXCUSED_KIND,
   normalizeExcusedRequest,
@@ -213,7 +213,7 @@ export async function askToBeExcused(
         startsAt,
         cancelled: session.cancelled,
         line,
-        standing: requestStandingOf(weeksAbout(own, user.uid, group.id, session.sessionKey)),
+        standing: requestStandingOf(weeksAbout(own, user.uid, session.sessionKey, { groupId: group.id, visiting: visitInWeek(seat, session.weekNumber) !== null })),
         now,
       });
       if (!state.open) return refuse(409, askClosedWords(state.why, session.weekNumber, session.occurrence));
@@ -281,6 +281,9 @@ export async function askToBeExcused(
         ? { confirmed: { at: now, inPerson: true, ownOnline: needed.ownOnline ? true : null, otherOnline: true } }
         : {}),
       ...(tellsAdmins ? { adminsToldOn: todayKey } : {}),
+      // Asked about the session of a group they visit that week: paired by
+      // group as well as key from now on (`weeksAbout`).
+      ...(sessions.some((session) => visitInWeek(seat, session.weekNumber)?.groupId === group.id) ? { aboutVisit: true } : {}),
       // Kept until the programme closes: the job that deletes it reads this.
       reasonHeld: true,
       status: "waiting",

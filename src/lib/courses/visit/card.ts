@@ -111,7 +111,7 @@ export async function ownVisitsOf(
   return shown.map(({ weekNumber, host, home, session, own, arrangedByUid, arrangedAt }) => {
     const back = paired.find((each) => each.session.weekNumber > weekNumber && each.groupId === home.id && !each.session.cancelled && each.session.dateKey !== "") ?? null;
     // The one deadline the person's own cancel is held to (`cancelDeadline`).
-    const deadline = cancelDeadline({ host, hostSession: session, home, ownSession: own, byStaff: false });
+    const deadline = cancelDeadline({ host, hostSession: session, home, ownSession: own });
     const earlier = deadline.first?.session ?? null;
     const earlierStart = deadline.until;
     const until = earlier ? { dateKey: earlier.dateKey, startTimeLocal: earlier.session.startTimeLocal } : null;

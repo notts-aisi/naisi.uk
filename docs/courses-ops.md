@@ -2281,11 +2281,20 @@ a person's email of a week is also claimed once across the run's groups (a
 their message as the group's claim is); a send leaves out somebody whose
 marker another group's send made when either send found them on a visit that
 week, and a marker made with no visit in play stops nobody, so with no visit
-anywhere every send goes to whom it always did. A visitor is in the host's
+anywhere every send goes to whom it always did (somebody moved between two
+groups' sends still gets both, as before). A visitor is in the host's
 audience for the week and in their own group's too (`belongingToo`), so
-whichever send reaches them first is theirs, never two, and it is always about
-the session they go to (the host's day, time and place while the host still
-meets) with the words about the week read from their own copy. A visitor whose
+whichever send reaches them first is theirs, never two; a send that reaches
+them while the visit stands is about the session they go to (the host's day,
+time and place while the host still meets), and a visit arranged after their
+own group's send leaves the email they already had, about their own session.
+The words about the week are read from their own copy. A claim that cannot be
+written is logged and the message goes, as before there were claims. When
+everybody a send would reach has had the week's email elsewhere, nothing is
+claimed and the register says so ("Everybody in Group B has already had week
+5’s email from another group, so nobody’s emailed."). Account deletion takes a
+person's claims (`deleteWeekEmailClaims`), and a run's destroy drains them by
+`runId`. A visitor whose
 own copy is not published when a send goes is left out of it and of the
 register's count, and gets the next send that reaches them once it is; with no
 send after, none.
@@ -2310,11 +2319,16 @@ come on their own group's register that week; a week that already has a
 visit; a week whose own group's session has a request to be excused waiting
 (it is decided first) or approved (they are excused from it, and a visit would
 show them as excused from a session whose register does not say so); a host
-register at its limit of people. A request to be excused is about one group's
-session and is matched to it by group and session key, never by the key alone
-(`weeksAbout`): a request about a host's session says nothing about the
-person's own group's once the visit is off, and stays on the admins' Requests
-page to be closed there.
+register at its limit of people; or a week whose own session has an excusal
+that stands by the register's own rule (`excusalStandsFor`: an approved
+request, an excused line an admin set, or one their own word or a time answer
+set). A request asked about a visit's session records it (`aboutVisit`), and
+such a request, or any request while a visit stands that week, is paired with
+a session by group as well as key (`weeksAbout`): a request about a host's
+session says nothing about the person's own group's once the visit is off,
+and stays on the admins' Requests page to be closed there. Every other request
+pairs by the key alone, as it always has, a person moved to another group
+included.
 
 **A limit on the emails** (`src/lib/courses/visit/limits.ts`): every staff press
 that arranges or calls off a visit is counted on the notice lane's stored
@@ -2345,14 +2359,19 @@ line said when it comes too late names the group whose session has started):
 both groups' facilitators are emailed, exactly the people the card names. Their
 own cancel decides their own place first, and answers one 404 for anything that
 is not their own standing visit on a run they hold a place on.
-Staff, from the same page that arranges it, until the host's session starts:
-the person is emailed too. When the host's session is not happening (called
-off, marked as not held, or its group archived before it finished a register
-of the session held), staff can call the visit off whatever the clock says
-until the person's own group's session that week starts; after that it is
-refused in one sentence saying the visit stays and the week is not counted for
-them, because calling it off then would count them absent from a session they
-were told not to go to. Staff can still call one off on a run down to one
+Staff, from the same page that arranges it, until the same moment (the
+earlier of the two sessions' starts, the host's read from its own schedule
+even once its group is archived): the person is emailed too. Once the
+person's own group's session has started, calling it off would count them
+absent from a session they were told not to go to, so it is refused in one
+sentence that says the visit stays and what to do instead (the person's Can't
+make it on the visit card, or an admin marking them excused on the host's
+register); once the host's has, it is refused as too late. When the host's
+session is not happening (called off, marked as not held, or its group
+archived before it finished a register of the session held), staff can call
+the visit off whatever the clock says of the host's until the person's own
+group's session that week starts; after that the sentence says the week is
+not counted for them. Staff can still call one off on a run down to one
 group that still meets. The person's own card draws nothing for a host
 session called off or marked as not held, and their own cancel reads such a
 visit as none. Either way the visit comes off the place, their

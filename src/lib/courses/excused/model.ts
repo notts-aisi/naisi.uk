@@ -309,18 +309,27 @@ export function approvalPlan(input: {
 export type WeekOfRequest = { request: ExcusedRequestDoc; week: ExcusedWeek };
 
 /**
- * Every week of these requests about this person and this ONE GROUP'S
- * session. A request is asked of one group about its session, so it is
- * matched by group AND session key, never by the key alone: two groups'
- * sessions of one week share a key ("w04"), and a request about another
- * group's session (one somebody was visiting, or a group they have left)
- * says nothing about the session of the group they are due at now. It stays
- * on the admins' Requests page, where it is closed.
+ * Every week of these requests about this person and this session, by its key.
+ * WHERE A ONE-WEEK VISIT IS INVOLVED, by its group as well: a request asked
+ * about a visit's session (`aboutVisit`) is about that one group's session,
+ * and while a visit stands for the session's week (`about.visiting`) the
+ * session is the host's; two groups' sessions of one week share a key
+ * ("w04"), so a request about the host's session says nothing about the
+ * person's own group's once the visit is off (it stays on the admins'
+ * Requests page, where it is closed), and none about their own group's says
+ * anything about the host's. Every other request pairs by the key alone, as
+ * it always has, a person moved to another group included.
  */
-export function weeksAbout(requests: readonly ExcusedRequestDoc[], uid: string, groupId: string, sessionKey: string): WeekOfRequest[] {
+export function weeksAbout(
+  requests: readonly ExcusedRequestDoc[],
+  uid: string,
+  sessionKey: string,
+  about: { groupId: string; visiting: boolean },
+): WeekOfRequest[] {
   const out: WeekOfRequest[] = [];
   for (const request of requests) {
-    if (request.subjectUid !== uid || request.groupId !== groupId) continue;
+    if (request.subjectUid !== uid) continue;
+    if ((request.aboutVisit || about.visiting) && request.groupId !== about.groupId) continue;
     for (const week of request.weeks) if (week.sessionKey === sessionKey) out.push({ request, week });
   }
   return out;

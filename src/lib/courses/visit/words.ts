@@ -668,15 +668,22 @@ export function excusedWaitingWords(firstName: string, weekNumber: number): stri
 }
 
 /**
- * Refused: staff calling off a visit to a session that is not happening, once
- * the person's own group's session that week has started. "Group B’s week 4
- * session has started, so calling this visit off would count Chloe absent
- * from a session Chloe was told not to go to. The visit stays, and week 4
- * isn’t counted for Chloe."
+ * Refused: staff calling off a visit once the person's own group's session
+ * that week has started. With the host's session not happening: "Group B’s
+ * week 4 session has started, so calling this visit off would count Chloe
+ * absent from a session Chloe was told not to go to. The visit stays, and
+ * week 4 isn’t counted for Chloe." With it happening, what to do instead:
+ * "... The visit stays. If Chloe can’t go to Group C’s session, Chloe can
+ * say so with Can’t make it on the visit card, or an admin can mark Chloe
+ * excused on Group C’s register."
  */
-export function ownStartedCallOffWords(firstName: string, homeName: string, weekNumber: number): string {
+export function ownStartedCallOffWords(input: { firstName: string; homeName: string; hostName: string; weekNumber: number; hostHappening: boolean }): string {
+  const { firstName, weekNumber } = input;
   const who = firstName || "them";
-  return `${possessive(groupName(homeName))} week ${weekNumber} session has started, so calling this visit off would count ${who} absent from a session ${firstName || "they"} ${firstName ? "was" : "were"} told not to go to. The visit stays, and week ${weekNumber} isn’t counted for ${who}.`;
+  const opening = `${possessive(groupName(input.homeName))} week ${weekNumber} session has started, so calling this visit off would count ${who} absent from a session ${firstName || "they"} ${firstName ? "was" : "were"} told not to go to.`;
+  if (!input.hostHappening) return `${opening} The visit stays, and week ${weekNumber} isn’t counted for ${who}.`;
+  const host = possessive(groupName(input.hostName));
+  return `${opening} The visit stays. If ${firstName || "they"} can’t go to ${host} session, ${firstName || "they"} can say so with Can’t make it on the visit card, or an admin can mark ${who} excused on ${host} register.`;
 }
 
 /** Refused: already excused from their own group's session that week by an approved request. "Aisha is excused from week 2, so no visit can be arranged for it." */

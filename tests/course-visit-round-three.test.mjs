@@ -259,7 +259,7 @@ describe("5. a host reader who shares a first name with one of her own group's f
 // ---------------------------------------------------------------------------
 
 describe("6. Group C meets after her own group in week 4: the deadlines, the card, the registers and the rollup", () => {
-  test("the card and her own cancel go by Group B's Tuesday, the earlier; staff by Group C's Wednesday", async () => {
+  test("the card, her own cancel and staff all go by Group B's Tuesday, the earlier", async () => {
     await arrange("chloe", 4, C);
     const card = (await overview()).visits[0];
     assert.match(card.cancel.until, /^You can cancel until Tue 24 Nov, 6pm\./);
@@ -269,7 +269,8 @@ describe("6. Group C meets after her own group in week 4: the deadlines, the car
     const own = await cancel(4);
     assert.deepEqual([own.status, own.body.error], [409, "The visit can no longer be cancelled: Group B’s session has started."]);
     const standing = await standingOf(4);
-    assert.equal(standing.open, true, "staff until the host's session starts, as the first brief set it");
+    assert.equal(standing.open, false, "staff until the earlier session starts, as the person");
+    assert.match(standing.stays, /^Group B’s week 4 session has started, so calling this visit off would count Chloe absent/);
   });
 
   test("Group C's session called off after Group B's has started: staff are refused in the true sentence", async () => {

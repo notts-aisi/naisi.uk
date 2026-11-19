@@ -20,6 +20,7 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { GROUP, RUN, jobContext, makeWorld, seedWorld } from "./lib/registerWorld.mjs";
 
 const START = new Date("2026-11-04T12:00:00Z");
@@ -34,6 +35,8 @@ const { resolveSessions } = await lib("courses", "sessions.ts");
 const { normalizeCourseRun } = await lib("firestore", "courses.ts");
 const { normalizeCourseGroup } = await lib("firestore", "courseGroups.ts");
 const { DEFAULT_COURSES_CONFIG } = await lib("firestore", "config.ts");
+const accountDeletion = await lib("firestore", "accountDeletion.ts");
+const endingWords = await made.loadTs(join("features", "courses", "registerEndingWords.ts"));
 
 const seatPath = (uid) => `courseEnrolments/${RUN}__${uid}`;
 const runOf = () => normalizeCourseRun(RUN, world.db.read(`courseRuns/${RUN}`));
@@ -176,5 +179,72 @@ describe("with no visit anywhere", () => {
       ["2026-11-11T09", "chloe", "Tue 17 Nov"],
       ["2026-11-11T09", "farah", "Tue 17 Nov"],
     ]);
+  });
+});
+
+describe("a claim on the week's email that cannot be written", () => {
+  test("every person's claim failing to write: the same people are emailed at the same hours as with claims written", async () => {
+    const realCollection = world.db.collection.bind(world.db);
+    world.db.collection = (name) => {
+      const collection = realCollection(name);
+      if (name !== "courseNudges") return collection;
+      const realDoc = collection.doc.bind(collection);
+      return Object.assign(Object.create(Object.getPrototypeOf(collection)), collection, {
+        doc: (id) => {
+          const ref = realDoc(id);
+          if (String(id).startsWith("wkopen__")) ref.create = async () => Promise.reject(Object.assign(new Error("unavailable"), { code: 14 }));
+          return ref;
+        },
+      });
+    };
+    try {
+      const got = await ticks(START, 24 * 12);
+      assert.deepEqual(got, [
+        ["2026-11-10T09", "ana", "Mon 16 Nov"],
+        ["2026-11-11T09", "amara", "Tue 17 Nov"],
+        ["2026-11-11T09", "chloe", "Tue 17 Nov"],
+        ["2026-11-11T09", "farah", "Tue 17 Nov"],
+      ]);
+    } finally {
+      world.db.collection = realCollection;
+    }
+  });
+});
+
+describe("everybody a send would reach has had the week's email elsewhere", () => {
+  test("Group B down to Chloe, who visits Group A and had Group A's: Group B's register says so truly, and nothing is claimed", async () => {
+    for (const uid of ["amara", "farah"]) world.db.poke(seatPath(uid), { status: "withdrawn" });
+    world.db.poke(seatPath("chloe"), { visits: [{ weekNumber: 5, groupId: GROUP.a, arrangedByUid: "zach", arrangedAt: START }] });
+    const got = await ticks(START, 24 * 12);
+    assert.deepEqual(to(got, "chloe"), [["2026-11-10T09", "chloe", "Mon 16 Nov"]]);
+    const run = runOf();
+    const groupB = groupOf(GROUP.b);
+    const session = resolveSessions(run, groupB).find((each) => each.sessionKey === "w05");
+    const preview = await previewNextWeekEmails(world.db, { run, group: groupB, sessions: [session], config: DEFAULT_COURSES_CONFIG, appUrl: "https://naisi.invalid" });
+    assert.deepEqual(preview.get("w05"), { goes: false, why: "had" });
+    assert.ok(!world.db.paths().some((path) => path.startsWith(`courseNudges/gnudge__${RUN}__${GROUP.b}__`) && world.db.read(path).weekNumber === 5));
+    // What the register's confirm says of it: the true sentence, never "nobody is set up to receive email".
+    assert.equal(
+      endingWords.pushEmailSentence("Group B", { kind: "held", why: "had", weekNumber: 5 }),
+      "Nobody is emailed: everybody in Group B has already had week 5’s email from another group.",
+    );
+  });
+});
+
+describe("the claims carry the run and the person, and go with either", () => {
+  test("each claim names its run (a run's destroy drains them by it), and deleting an account takes its claims and nothing else", async () => {
+    await ticks(START, 24 * 12);
+    const claims = world.db.paths().filter((path) => path.startsWith("courseNudges/wkopen__"));
+    // Weeks 4 and 5 are both published and both sent in these twelve days: two each.
+    assert.equal(claims.length, 8);
+    for (const path of claims) assert.equal(world.db.read(path).runId, RUN, path);
+    world.db.seed("courseNudges/other__chloe", { kind: "week-remind-by-hand", uid: "chloe" });
+    const removed = await accountDeletion.deleteWeekEmailClaims(world.db, "chloe");
+    assert.equal(removed, 2);
+    assert.deepEqual(
+      world.db.paths().filter((path) => path.startsWith("courseNudges/wkopen__")).map((path) => world.db.read(path).uid).sort(),
+      ["amara", "amara", "ana", "ana", "farah", "farah"],
+    );
+    assert.ok(world.db.read("courseNudges/other__chloe"), "another kind's record stays");
   });
 });
