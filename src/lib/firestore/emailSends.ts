@@ -193,8 +193,9 @@ export type EmailSendSurface =
   // "Week N is open", 6 days before a group's session, to everybody holding a
   // place in the group (`src/lib/courses/nextWeekEmail.ts`).
   | "course-week"
-  // The reminders 3 days and 1 day before a group's session, to each person
-  // in it whose week is not done (`courses-week-reminders`).
+  // The reminders 3 days and 1 day before a group's session, to everybody
+  // due at it: its day, time and place, and what is left of their week if
+  // anything is (`courses-week-reminders`).
   | "course-week-reminder"
   // Remind, by hand: somebody who reads a group's work reminding the people
   // whose week is not done, about any week, before its session or after it

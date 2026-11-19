@@ -176,8 +176,12 @@ export function facilitatesGroup(user: SessionUser, group: CourseGroupDoc): bool
   return isNamedWithStanding(user, "courseGroups.facilitatorUids", group.facilitatorUids);
 }
 
-/** One person's line of one register, as `cantMakeItState` asks it. */
-function lineOf(data: Record<string, unknown> | undefined, id: string, uid: string): RegisterLine {
+/**
+ * One person's line of one register, as `cantMakeItState` asks it: what the
+ * programme page's ticket is drawn from, and what the reminders before a
+ * session read to know who said they can't make it.
+ */
+export function lineOf(data: Record<string, unknown> | undefined, id: string, uid: string): RegisterLine {
   if (!data) return EMPTY_LINE;
   const register = normalizeCourseAttendance(id, data);
   return {

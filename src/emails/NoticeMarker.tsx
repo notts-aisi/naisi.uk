@@ -54,7 +54,7 @@ const NOTICE_REASON: Record<EmailSendSurface, string | ((facts: NoticeFacts) => 
   "course-check-in-reminder": "you were at this session of your course group and haven’t sent its check-in",
   // "Week N is open": everybody holding a place in the group.
   "course-week": "you are in this course group",
-  // A reminder goes only to somebody whose week is not done, and says so.
+  // The reminders before a session (`courses-week-reminders`).
   "course-week-reminder": "our records show this week’s work isn’t finished",
   // Remind, by hand: pressed about any week, before its session or after it,
   // only for somebody whose week that is and who hasn't done it. It names the

@@ -1,8 +1,10 @@
 /**
  * THE WEEK'S EMAILS: "Week N is open" 6 days before each of a group's
  * sessions, to everybody holding a place in it, and the reminders 3 days and
- * 1 day before, to the people whose week is not done. All three at 9am in
- * London, all three notices, every word fixed in one file.
+ * 1 day before, to everybody due at the session (its day, time and place,
+ * and what is left of their week if anything is; somebody who will not be at
+ * it is sent only what is left). All three at 9am in London, all three
+ * notices, every word fixed in one file.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -16,7 +18,9 @@
  *  1. WHEN. 9am in London on the civil date 6, 3 or 1 days before the
  *     session, either side of the clocks going back; never for a session that
  *     cannot be dated; the group's first session included.
- *  2. THE WORDS, run: the email as drawn for a week with three readings, a
+ *  2. THE WORDS, run (and 2c, the reminder of a session: every place a week
+ *     can be, a missing fact dropping only itself, an incubator, the
+ *     certificate sentence as handed in, never a link): the email as drawn for a week with three readings, a
  *     reflection and a written answer; each of its facts missing in turn; a
  *     cancelled evening and a session covering two weeks; a reminder at 3 days,
  *     at 1 day and about two weeks. Then EVERY combination of the facts that
@@ -356,6 +360,140 @@ describe("2. the reminders, word for word", () => {
 // ===========================================================================
 // 2b. Every combination
 // ===========================================================================
+
+describe("2c. the reminder of a session, word for word", () => {
+  // Thursday 26 November 2026, 6pm to 8pm in London (GMT).
+  const AT = new Date("2026-11-26T18:00:00Z");
+  const ENDS = new Date("2026-11-26T20:00:00Z");
+  const ROOM = { kind: "room", room: "Portland A21", campus: "University Park" };
+  const reading = { kind: "readings", titles: ["Compute as a lever for governance"] };
+  const CERT = "To get your certificate you need to come to at least 5 of your group’s 6 sessions. A session you’re excused from doesn’t count as coming.";
+  const facts = (over = {}) => ({
+    daysBefore: 3,
+    sessionAt: AT,
+    endsAt: ENDS,
+    incubator: false,
+    groupName: "Group C",
+    weekNumber: 5,
+    place: ROOM,
+    facilitatorFirstNames: ["Rahul"],
+    certificate: null,
+    weeks: [5],
+    left: [],
+    weekUrl: "https://naisi.uk/learn/agi/weeks/5",
+    buttonWeek: 5,
+    ...over,
+  });
+  const lead = (over) => words.sessionReminderLead(facts(over));
+
+  test("the session's sentence, in each of its approved forms", () => {
+    assert.equal(lead(), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, in Portland A21 (University Park), with Rahul.");
+    assert.equal(
+      lead({ place: { kind: "to-be-confirmed" } }),
+      "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, with Rahul. The room is still to be confirmed: we’ll email you when it’s booked.",
+    );
+    assert.equal(lead({ place: { kind: "online" } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online, with Rahul. The link is on your programme page.");
+  });
+
+  test("a missing fact drops only itself: no campus, no facilitator, several facilitators, no length", () => {
+    assert.equal(lead({ place: { ...ROOM, campus: "" } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, in Portland A21, with Rahul.");
+    assert.equal(lead({ facilitatorFirstNames: [] }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, in Portland A21 (University Park).");
+    assert.equal(lead({ facilitatorFirstNames: ["Rahul", "Sofia"] }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, in Portland A21 (University Park), with Rahul and Sofia.");
+    assert.equal(lead({ facilitatorFirstNames: ["Rahul", "Sofia", "Tom"] }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, in Portland A21 (University Park), with Rahul, Sofia and Tom.");
+    assert.equal(lead({ endsAt: null }), "Group C’s week 5 session is on Thu 26 Nov, 6pm, in Portland A21 (University Park), with Rahul.");
+    assert.equal(
+      lead({ facilitatorFirstNames: [], place: { kind: "to-be-confirmed" } }),
+      "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm. The room is still to be confirmed: we’ll email you when it’s booked.",
+    );
+    assert.equal(lead({ facilitatorFirstNames: [], place: { kind: "online" } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online. The link is on your programme page.");
+  });
+
+  test("an incubator's people are told of no group and no facilitator", () => {
+    assert.equal(lead({ incubator: true, facilitatorFirstNames: ["Rahul", "Sofia"] }), "Your week 5 session is on Thu 26 Nov, 6pm to 8pm, in Portland A21 (University Park).");
+  });
+
+  test("the email in order: the session, Can't make it, the certificate, what is left under the reminder's lead-in, the button; nothing under it", () => {
+    const email = words.sessionReminderEmailWords(
+      facts({ certificate: CERT, left: [{ weekNumber: 5, left: { items: [reading], notSent: true }, writes: true }] }),
+      "Priya",
+    );
+    assert.equal(email.subject, "Week 5: your session is on Thu 26 Nov");
+    assert.equal(email.greeting, "Hi Priya,");
+    assert.deepEqual(email.paragraphs, [
+      "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, in Portland A21 (University Park), with Rahul.",
+      "Can’t make it? Tell us on your programme page as early as you can: press Can’t make it on this session’s card.",
+      CERT,
+    ]);
+    assert.deepEqual(email.lists, [
+      { lead: "Week 5 isn’t finished yet:", items: ["One reading isn’t ticked: “Compute as a lever for governance”.", "Your written answer isn’t sent yet."] },
+    ]);
+    assert.equal(email.button, "Finish week 5");
+    assert.equal(email.link, "https://naisi.uk/learn/agi/weeks/5");
+    assert.deepEqual(email.after, []);
+    assert.equal(email.feedback, null);
+    assert.equal(words.sessionReminderEmailWords(facts({ daysBefore: 1 }), "Priya").subject, "Week 5: your session is tomorrow");
+  });
+
+  test("done: no list; no rule: no certificate; two weeks: each listed, both in the subject", () => {
+    const done = words.sessionReminderEmailWords(facts(), "");
+    assert.deepEqual(done.lists, []);
+    assert.equal(done.paragraphs.length, 2);
+    assert.equal(done.greeting, "");
+    const two = words.sessionReminderEmailWords(
+      facts({
+        weeks: [4, 5],
+        left: [
+          { weekNumber: 4, left: { items: [reading], notSent: false }, writes: false },
+          { weekNumber: 5, left: { items: [], notSent: true }, writes: true },
+        ],
+        buttonWeek: 4,
+      }),
+      "Priya",
+    );
+    assert.equal(two.subject, "Weeks 4 and 5: your session is on Thu 26 Nov");
+    assert.deepEqual(two.lists.map((list) => list.lead), ["Week 4 isn’t finished yet:", "Week 5 isn’t finished yet:"]);
+    assert.equal(two.button, "Finish week 4");
+  });
+
+  test("rendered, with the notice line: never a meeting link, never a dash, and what was typed is text", async () => {
+    for (const place of [ROOM, { kind: "online" }, { kind: "to-be-confirmed" }, { kind: "room", room: "<b>Hall</b>", campus: "" }]) {
+      for (const incubator of [false, true]) {
+        const email = words.sessionReminderEmailWords(facts({ place, incubator, certificate: CERT, left: [{ weekNumber: 5, left: { items: [reading], notSent: false }, writes: false }] }), "Priya");
+        const text = await textOf(WeekEmail({ words: email, notice: NoticeMarker({ surface: "course-week-reminder" }) }));
+        assert.doesNotMatch(text, /https?:\/\/(?!naisi\.uk\/learn\/agi\/weeks\/5)/, "a link other than the week's page");
+        assert.doesNotMatch(text, /[\u2013\u2014]|undefined|null|\{|\}/);
+        assert.doesNotMatch(text, /\b(mark|grade|score)\b|unsubscribe/i);
+        assert.ok(text.includes("Can’t make it? Tell us on your programme page"));
+      }
+    }
+  });
+
+  test("where a session is, as the reminder says it: that week's room and campus, online only when it is held online, and to be confirmed with no room", () => {
+    const group = (over = {}) => ({
+      campus: null,
+      sessionOverrides: {},
+      session: { weekday: 4, startTimeLocal: "18:00", durationMinutes: 120, location: "Room C20", meetingUrl: "https://meet.example.com/x", notes: "" },
+      ...over,
+    });
+    const at = (location, occurrence = 1) => ({ weekId: "w05", occurrence, session: { location } });
+    assert.deepEqual(model.reminderPlaceOf(group(), at("Room C20")), { kind: "room", room: "Room C20", campus: "" });
+    assert.deepEqual(model.reminderPlaceOf(group({ campus: "university-park" }), at("Room C20")), { kind: "room", room: "Room C20", campus: "University Park" });
+    // The week's own campus wins over the group's.
+    assert.deepEqual(model.reminderPlaceOf(group({ campus: "university-park", sessionOverrides: { w05: { campus: "jubilee" } } }), at("Portland A21")), { kind: "room", room: "Portland A21", campus: "Jubilee" });
+    // A week whose room was cleared, on a group with a usual room: the resolver hands an empty room.
+    assert.deepEqual(model.reminderPlaceOf(group({ campus: "university-park" }), at("")), { kind: "to-be-confirmed" });
+    // A standing link with no room, on no campus or a campus that is a place: a room still to book.
+    assert.deepEqual(model.reminderPlaceOf(group(), at("")), { kind: "to-be-confirmed" });
+    // Held online: the week's own mode, or the Online campus.
+    assert.deepEqual(model.reminderPlaceOf(group({ sessionOverrides: { w05: { mode: "virtual" } } }), at("Room C20")), { kind: "online" });
+    assert.deepEqual(model.reminderPlaceOf(group({ campus: "online" }), at("")), { kind: "online" });
+    assert.deepEqual(model.reminderPlaceOf(group({ sessionOverrides: { w05: { campus: "online" } } }), at("Room C20")), { kind: "online" });
+    // A room that holds a link is never printed.
+    assert.deepEqual(model.reminderPlaceOf(group(), at("https://meet.example.com/abc")), { kind: "to-be-confirmed" });
+    // A week's second session: the group's own campus, and no week's mode.
+    assert.deepEqual(model.reminderPlaceOf(group({ campus: "jubilee", sessionOverrides: { w05: { mode: "virtual" } } }), at("Room C20", 2)), { kind: "room", room: "Room C20", campus: "Jubilee" });
+  });
+});
 
 describe("2b. no combination of missing facts sends a broken email", () => {
   const FLAGS = ["title", "time", "room", "online", "cancelled", "change", "asks", "feedback", "first", "name", "link", "staysOpen", "roomToBeConfirmed", "earlier"];
