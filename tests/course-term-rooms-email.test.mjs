@@ -280,13 +280,16 @@ describe("1. the model, pure", () => {
     assert.deepEqual(model.weeksOf(sessions), [4, 5, 6]);
   });
 
-  test("a learner's lines are the weeks their place belongs to the group, never a visit's host", () => {
+  test("a learner's lines are the weeks they are due at the group's session: a week visiting another group is left out", () => {
     const sessions = model.sessionsStillToCome(runOf(), groupOf(C), NOW);
     const lines = (place) => model.linesForPlace(place, C, sessions).map((line) => line.slice(0, 6));
     assert.deepEqual(lines({ groupId: C }), ["Week 4", "Week 5", "Week 6"]);
     assert.deepEqual(lines({ groupId: A, groupsByWeek: [{ groupId: C, fromWeek: 1 }, { groupId: A, fromWeek: 6 }] }), ["Week 4", "Week 5"]);
     assert.deepEqual(lines({ groupId: C, groupsByWeek: [{ groupId: A, fromWeek: 1 }, { groupId: C, fromWeek: 5 }] }), ["Week 5", "Week 6"]);
-    assert.deepEqual(lines({ groupId: A, visits: [{ weekNumber: 5, groupId: C, arrangedByUid: null, arrangedAt: null }] }), []);
+    // A member of the group visiting Group A in week 5: that week is Group A's session, so it is not their line.
+    assert.deepEqual(lines({ groupId: C, visits: [{ weekNumber: 5, groupId: A, arrangedByUid: null, arrangedAt: null }] }), ["Week 4", "Week 6"]);
+    // A visitor to the group would be due at its week 5 session, but is never in its audience (section 2, through the send).
+    assert.deepEqual(lines({ groupId: A, visits: [{ weekNumber: 5, groupId: C, arrangedByUid: null, arrangedAt: null }] }), ["Week 5"]);
   });
 
   test("why no email goes: an incubator, a group with no name, no session still to come; else none", () => {
@@ -341,13 +344,36 @@ describe("2. who it goes to", () => {
     assert.deepEqual(world.mail.map((each) => each.to), ["tom@example.com"]);
   });
 
-  test("a one-week visitor to the group is not in it; a member visiting another group that week keeps the line", async () => {
+  test("a one-week visitor to the group is not in it; a member visiting another group that week has that week left out", async () => {
     world.db.poke(`courseEnrolments/${RUN.agi}__bea`, { visits: [{ weekNumber: 5, groupId: C, arrangedByUid: "claudia", arrangedAt: NOW }] });
     world.db.poke(`courseEnrolments/${RUN.agi}__tariq`, { visits: [{ weekNumber: 5, groupId: A, arrangedByUid: "claudia", arrangedAt: NOW }] });
+    const shown = await preview("claudia");
+    assert.equal(shown.body.preview.emails, 2);
+    // Tariq's email lists fewer weeks than the group has: he is among those the dialog says move part way through.
+    assert.equal(shown.body.preview.fewer, 1);
     await press("claudia");
     const mail = await mailRead();
     assert.deepEqual(mail.map((each) => each.to).sort(), ["tariq@example.com", "tom@example.com"]);
-    assert.ok(bodyOf(mail.find((each) => each.to === "tariq@example.com").text).includes("Week 5 · Wed 2 Dec"));
+    const tariq = bodyOf(mail.find((each) => each.to === "tariq@example.com").text);
+    assert.ok(tariq.includes("Week 4 · Wed 25 Nov") && tariq.includes("Week 6 · Wed 9 Dec"), tariq);
+    assert.ok(!tariq.includes("Week 5"), tariq);
+    assert.ok(!tariq.includes("Portland A21 (University Park) Week 5"), tariq);
+    const tom = bodyOf(mail.find((each) => each.to === "tom@example.com").text);
+    assert.ok(tom.includes("Week 5 · Wed 2 Dec"), tom);
+  });
+
+  test("somebody whose only week left in the group is one they spend visiting another group gets no email", async () => {
+    // Tariq moves to Group A from week 6 and visits Group A in week 5; week 4 has started.
+    world.db.poke(`courseEnrolments/${RUN.agi}__tariq`, {
+      groupId: A,
+      groupsByWeek: [{ groupId: C, fromWeek: 1 }, { groupId: A, fromWeek: 6 }],
+      visits: [{ weekNumber: 5, groupId: A, arrangedByUid: "claudia", arrangedAt: NOW }],
+    });
+    w.at(new Date("2026-11-25T16:00:00Z"));
+    const shown = await preview("claudia");
+    assert.equal(shown.body.preview.emails, 1);
+    await press("claudia");
+    assert.deepEqual(world.mail.map((each) => each.to), ["tom@example.com"]);
   });
 
   test("no email for an incubator, a group with no name, or a group with no session still to come: the preview says why, the press is refused", async () => {
@@ -478,6 +504,49 @@ describe("3. the press", () => {
     assert.equal(row.emailed, 1);
     assert.equal(row.detail, "Emailed Group C where each of its 3 sessions still to come is, to 1 person.");
     assert.equal(read(`courseNudges/termrooms__${C}`).sent, 1);
+    // Somebody was emailed, so the page says this press was the last.
+    assert.equal(read(`courseNudges/termrooms__${C}`).emailedAuditId, read(`courseNudges/termrooms__${C}`).auditId);
+  });
+
+  test("a press none of whose sends went is not the group's last email: the page goes back to the one before it, or to never", async () => {
+    // The first press goes.
+    const first = await press("claudia");
+    assert.equal(first.status, 200);
+    const firstAudit = read(`courseNudges/termrooms__${C}`).auditId;
+    const draw1 = await draw("zach");
+    const [panel1] = find(draw1.element, "TermRoomsEmail");
+    const before = panel1.props.emailing.last[C];
+    assert.ok(before);
+    // The second press: every send fails.
+    world.mailFate = () => "fail";
+    w.at(new Date(NOW.getTime() + 60 * 60 * 1000));
+    const second = await press("zach");
+    assert.equal(second.status, 200);
+    assert.deepEqual(second.body.emailed, { planned: 2, sent: 0, held: 0, suppressed: 0, failed: 2 });
+    const record = read(`courseNudges/termrooms__${C}`);
+    assert.equal(record.sent, 0);
+    assert.notEqual(record.auditId, firstAudit);
+    assert.equal(record.emailedAuditId, firstAudit);
+    const draw2 = await draw("zach");
+    const [panel2] = find(draw2.element, "TermRoomsEmail");
+    assert.deepEqual(panel2.props.emailing.last[C], before);
+    // History says it reached nobody.
+    assert.deepEqual(auditRows("rooms-emailed").map((row) => row.emailed).sort(), [0, 2]);
+  });
+
+  test("the first press of a group, none of whose sends went: the page still says it was never emailed", async () => {
+    world.mailFate = () => "fail";
+    const pressed = await press("claudia");
+    assert.equal(pressed.status, 200);
+    assert.equal(pressed.body.emailed.sent, 0);
+    const record = read(`courseNudges/termrooms__${C}`);
+    assert.equal(record.emailedAt, null);
+    assert.equal(record.emailedAuditId, null);
+    const drawn = await draw("zach");
+    const [panel] = find(drawn.element, "TermRoomsEmail");
+    assert.equal(panel.props.emailing.last[C], null);
+    const html = renderToStaticMarkup(createElement(panel.type, panel.props));
+    assert.ok(html.includes(words.NEVER_EMAILED));
   });
 
   test("a body that is neither a preview nor a press is refused before anything is read", async () => {

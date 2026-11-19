@@ -5308,11 +5308,14 @@ account gives no name.
 
 **Who it goes to**: everybody whose place Publish has told and whose place
 BELONGS to the group (`ownGroupForWeek`) in a week of a session still to come,
-each with the lines of the weeks they are in it: somebody moving out from a
-later week gets the weeks before it, somebody moving in the weeks from it, and
-somebody only visiting the group for a week is not in it (a member of the group
-visiting another group keeps that week's line, which is still where their group
-meets). Then the group's facilitators who meet their bar, every line. Never the
+so somebody only visiting the group for a week is not sent it. Each person's
+email lists their own timetable with the group: the sessions of the weeks they
+are due at its session (`groupForWeek`). Somebody moving out from a later week
+gets the weeks before it, somebody moving in the weeks from it, and a member
+visiting another group for one week has that week left out (and is counted
+among those whose emails list fewer weeks); somebody whose only week left in
+the group is one they spend visiting elsewhere gets no email. Then the group's
+facilitators who meet their bar, every line. Never the
 presser, nobody who left, nobody not yet told, the do-not-email list applied.
 
 **No email goes** for an incubator (its people are never told the word group,
@@ -5332,7 +5335,10 @@ when, the History row's id, how many; never a uid) and a `rooms-emailed`
 History row (under Time and room), and only then do the emails go, one a
 person. A send that fails is counted and reported ("1 email didn’t go. Nothing
 is sent again by itself: pressing again emails everybody in the group again."),
-and the History row and the record are brought to what went.
+and the History row and the record are brought to what went. A press none of
+whose sends went is not the group's last email: the record puts back the last
+press that reached anybody, so the page goes on saying when that was and by
+whom, or "Not emailed its rooms yet." when there was none.
 
 **Limits** (`limits.ts`): three a day per group, whoever presses (once after a
 term is filled in, perhaps again after a correction), and sixty a day per

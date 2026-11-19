@@ -60,7 +60,9 @@ import { ALREADY_SENT, NO_EMAIL, REFUSAL, countChangedWords, historyWords, sentW
  * Otherwise the transaction claims both limits, writes the record and the
  * group's History row, and only then do the emails go. A send that fails for
  * somebody is counted and reported, the History row and the record are
- * brought to what really went, and nothing is retried by itself.
+ * brought to what really went (a press that reached nobody is not the
+ * group's last email: the page goes back to the one before it), and nothing
+ * is retried by itself.
  */
 
 /** The surface the email goes on: the room-change notice's own. */
@@ -261,15 +263,22 @@ export async function pressTermRoomsEmail(
         });
       }
       limits.write();
+      const at = Timestamp.fromMillis(Date.now());
       tx.set(recordRef, {
         kind: TERM_ROOMS_RECORD_KIND,
         runId: run.id,
         groupId: group.id,
         pressKey,
-        at: Timestamp.fromMillis(Date.now()),
+        at,
         auditId: auditRef.id,
         planned,
         sent: planned,
+        // What the page says ("Last emailed ..."): this press, until its sends say otherwise.
+        emailedAt: at,
+        emailedAuditId: auditRef.id,
+        // The last press that reached anybody before this one, put back if nothing of this one goes.
+        priorEmailedAt: record.emailedAt ?? null,
+        priorEmailedAuditId: typeof record.emailedAuditId === "string" ? record.emailedAuditId : null,
       });
       tx.set(
         auditRef,
@@ -315,11 +324,24 @@ export async function pressTermRoomsEmail(
   });
 
   if (tally.sent !== planned) {
-    // History and the record say what really went.
+    // History and the record say what really went. A press that reached nobody is not the group's last email:
+    // the page goes back to the one before it, or to "Not emailed its rooms yet." with none.
+    const recordFix: Record<string, unknown> = { sent: tally.sent };
+    if (tally.sent === 0) {
+      try {
+        const now = (await recordRef.get()).data() ?? {};
+        recordFix.emailedAt = now.priorEmailedAt ?? null;
+        recordFix.emailedAuditId = typeof now.priorEmailedAuditId === "string" ? now.priorEmailedAuditId : null;
+      } catch (err) {
+        console.error("[courses term rooms email] could not read the record back", group.id, err);
+        recordFix.emailedAt = null;
+        recordFix.emailedAuditId = null;
+      }
+    }
     try {
       await Promise.all([
         auditRef.update({ emailed: tally.sent, detail: historyWords(plan.groupName, plan.sessions.length, tally.sent) }),
-        recordRef.update({ sent: tally.sent }),
+        recordRef.update(recordFix),
       ]);
     } catch (err) {
       console.error("[courses term rooms email] could not record what the email did", group.id, err);

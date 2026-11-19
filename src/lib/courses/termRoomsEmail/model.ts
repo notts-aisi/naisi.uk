@@ -1,7 +1,7 @@
 import { resolveSessions, sessionInstants } from "../sessions";
 import { reminderPlaceOf } from "../weekEmails/model";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
-import { ownGroupForWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { groupForWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { termRoomsLine } from "./words";
 
@@ -21,14 +21,16 @@ import { termRoomsLine } from "./words";
  * week's second session, where a group meets twice, is a line of its own.
  *
  * ── WHOSE LINES ARE WHOSE ───────────────────────────────────────────────────
- * A learner's lines are the sessions of the weeks their place BELONGS to the
- * group (`ownGroupForWeek`): somebody moving out of the group from a later
- * week gets the weeks before it, somebody moving in from a later week gets
- * the weeks from it, and somebody visiting the group for one week is not in
- * it at all (a visit's host is never a group a place belongs to). A member
- * of the group visiting another group for one week keeps that week's line:
- * it is still where their own group meets. Somebody with no line gets no
- * email. A facilitator's lines are every line.
+ * Who it goes to is the places that BELONG to the group in a week of a
+ * session still to come (`../../email/courseFacilitatorEmails.ts`,
+ * `belongingInWeeks`), so somebody only visiting the group for a week is not
+ * sent it. Each person's email then lists their own timetable with the group:
+ * the sessions of the weeks they are due at the group's session
+ * (`groupForWeek`). Somebody moving out of the group from a later week gets
+ * the weeks before it, somebody moving in from a later week gets the weeks
+ * from it, and a member visiting another group for one week has that week
+ * left out, since that week they are due at the other group's session.
+ * Somebody with no line gets no email. A facilitator's lines are every line.
  *
  * ── WHEN NO EMAIL GOES ──────────────────────────────────────────────────────
  * The words are approved as they stand, and no state gets a sentence of its
@@ -86,13 +88,13 @@ export function noEmailWhy(input: { incubator: boolean; group: Pick<CourseGroupD
   return null;
 }
 
-/** A learner's lines: the sessions of the weeks their place belongs to the group, never a visit's. */
+/** A learner's lines: the sessions of the weeks they are due at the group's session, a week visiting another group left out. */
 export function linesForPlace(
-  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek">,
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek" | "visits">,
   groupId: string,
   sessions: readonly TermRoomsSession[],
 ): string[] {
-  return sessions.filter((session) => ownGroupForWeek(place, session.weekNumber) === groupId).map((session) => session.line);
+  return sessions.filter((session) => groupForWeek(place, session.weekNumber) === groupId).map((session) => session.line);
 }
 
 /** The weeks of the sessions still to come, once each: whose places the audience reads. */

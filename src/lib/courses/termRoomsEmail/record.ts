@@ -9,9 +9,13 @@ import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
  * email bookkeeping. Written by the press (`./send.ts`) in the transaction
  * that claims its limits and writes its History row: the press's key (so the
  * same press again sends nothing), when, the History row's id, and how many
- * it was for and how many went. It names nobody: who pressed is on the
- * History row, which keeps it as every row keeps its actor. The run's
- * destroy drains it with the run's other markers (`runId`).
+ * it was for and how many went. Beside those, the last press that reached
+ * anybody (`emailedAt`, `emailedAuditId`), which is what the page shows, and
+ * the one before this press (`priorEmailed...`): a press none of whose sends
+ * went puts that back, so the page never says a group was emailed when it
+ * was not. It names nobody: who pressed is on the History row, which keeps
+ * it as every row keeps its actor. The run's destroy drains it with the
+ * run's other markers (`runId`).
  */
 
 export const TERM_ROOMS_RECORD_KIND = "term-rooms-emailed";
@@ -43,8 +47,8 @@ export async function readLastEmailed(db: Firestore, groupIds: readonly string[]
     out[groupId] = null;
     const snap = records[index];
     const data = snap?.exists ? (snap.data() ?? {}) : null;
-    const at = data && data.kind === TERM_ROOMS_RECORD_KIND ? dateOf(data.at) : null;
-    if (data && at) found.push({ groupId, at, auditId: typeof data.auditId === "string" ? data.auditId : "" });
+    const at = data && data.kind === TERM_ROOMS_RECORD_KIND ? dateOf(data.emailedAt) : null;
+    if (data && at) found.push({ groupId, at, auditId: typeof data.emailedAuditId === "string" ? data.emailedAuditId : "" });
   });
   const withRow = found.filter((each) => each.auditId);
   const rows = withRow.length > 0 ? await db.getAll(...withRow.map((each) => db.collection(COURSE_AUDIT_COLLECTION).doc(each.auditId))) : [];

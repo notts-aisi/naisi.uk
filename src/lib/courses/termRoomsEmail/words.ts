@@ -212,7 +212,6 @@ export const UNKNOWN_OUTCOME = "We couldn’t tell whether that went. Reload thi
 export const REFUSAL = {
   body: "Say whether this is a preview, or the count you were shown and this press’s key.",
   gone: "That group no longer meets.",
-  notYours: "Only an admin or the programme’s lead can email a group its rooms.",
   overCap: "This group has more people than one send can take, so nothing was sent. Raise it with an admin.",
   unread: "The limits on this email couldn’t be read, so nothing was sent. Try again.",
   failed: "That didn’t go through, so nothing was sent.",
