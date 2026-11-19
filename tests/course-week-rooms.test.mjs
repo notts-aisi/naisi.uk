@@ -1012,7 +1012,7 @@ describe("4. a room saved here is the room-only change of that week, and nothing
     assert.equal(world.mail.length, 0);
   });
 
-  test("as each persona: the change route's own gate, the room kind behind it", async () => {
+  test("as each persona: an admin and the programme's own lead; a facilitator and a track lead are sent to the group's page", async () => {
     const body = { kind: "room", weeks: [{ week: 5, dateKey: "2026-11-26", room: "George Green B06" }], tell: false };
     const as = async (who) => (await call(who, w.change.POST, { groupId: A }, { body, course: true })).status;
     // A member of the group, a facilitator of another group, a reviewer and the lead of another programme: refused.
@@ -1020,9 +1020,28 @@ describe("4. a room saved here is the room-only change of that week, and nothing
     assert.equal(await as(null), 401);
     assert.equal(world.mail.length, 0);
     assert.equal(auditRows("session-room").length, 0);
-    // Group A's own facilitator may, as for every one-week change.
-    assert.equal(await as("sofia"), 200);
+    // Group A's own facilitator and the run's track lead pass the route's gate, and are refused the room
+    // kind in one sentence that sends them to the group's page; their one-week move is untouched.
+    for (const who of ["sofia", "yusuf"]) {
+      const answer = await call(who, w.change.POST, { groupId: A }, { body, course: true });
+      assert.deepEqual([answer.status, answer.body.error], [403, roomWords.ROOM_REFUSAL.notYours], who);
+    }
+    assert.equal(read(`courseGroups/${A}`).sessionOverrides?.w05, undefined);
+    const moved = await w.ask.change("sofia", A, {
+      week: 5,
+      dateKey: "2026-11-26",
+      kind: "move",
+      move: { dateKey: "2026-11-26", time: "19:00", room: "Portland A13" },
+      reason: "Later.",
+      tell: false,
+    });
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    // The programme's own lead and an admin may.
+    w.reset(seed());
+    assert.equal(await as("claudia"), 200);
     assert.deepEqual(read(`courseGroups/${A}`).sessionOverrides.w05, { location: "George Green B06" });
+    w.reset(seed());
+    assert.equal(await as("zach"), 200);
   });
 
   test("the body: one week to tell or preview, each week once, a room of one line and no link", async () => {

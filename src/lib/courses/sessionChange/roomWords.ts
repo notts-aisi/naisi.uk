@@ -126,4 +126,5 @@ export const ROOM_REFUSAL = {
   room: "A room is one line of at most 200 characters.",
   roomLink: "A room can’t be a link.",
   sameAsNow: "That’s already this week’s room.",
+  notYours: "Rooms are set here by an admin or the programme’s lead. Change one week’s room on the group’s page, with Change a session.",
 } as const;

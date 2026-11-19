@@ -13,7 +13,7 @@ import {
   startOf,
   toldFacts,
 } from "@/lib/courses/groupChange/facts";
-import { readNamingProgramme } from "@/lib/courses/programmeLead";
+import { programmeLedBy, readNamingProgramme } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { CHANGE_FIELDS, ChangeRefusal, checkPress, putBackSetsChangeFields, type CheckedPress } from "@/lib/courses/sessionChange/check";
@@ -33,6 +33,7 @@ import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/
 import { parseChangePress, type ChangePress } from "@/lib/courses/sessionChange/parse";
 import { isRoomPressBody, parseRoomPress } from "@/lib/courses/sessionChange/room";
 import { answerRoomPress } from "@/lib/courses/sessionChange/roomWrite";
+import { ROOM_REFUSAL } from "@/lib/courses/sessionChange/roomWords";
 import { REFUSAL, countChangedWords, movesMetWords } from "@/lib/courses/sessionChange/words";
 import { updateEmailAudience } from "@/lib/courses/updates/audience";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -91,7 +92,9 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
  * One week's room, or several weeks' of the group in one transaction, set,
  * changed or taken off, its day and time untouched and the week not marked
  * moved (`src/lib/courses/sessionChange/room.ts`). Behind the same gate, in
- * its own body (`parseRoomPress`). Unlike every other kind, it tells the group
+ * its own body (`parseRoomPress`), and then for an admin or the programme's
+ * own lead alone: a facilitator or a track lead is refused in one sentence
+ * that sends them to the group's page. Unlike every other kind, it tells the group
  * itself, after the commit, in the same request, through the same lane, limits
  * and people as a move's update (`src/lib/courses/sessionChange/roomWrite.ts`).
  */
@@ -229,6 +232,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
   if (found.archived) return NextResponse.json({ error: REFUSAL.gone }, { status: 400 });
 
   if (roomParsed?.ok) {
+    // A room and nothing else, for one week or sixty: the people the week's
+    // rooms and the term's rooms are for, an admin and the programme's own
+    // lead. A facilitator and a track lead change a week's room on the group's
+    // page, as a move, as before.
+    if (!isAdmin && (await programmeLedBy(db, actor, run.id)) === null) {
+      return NextResponse.json({ error: ROOM_REFUSAL.notYours }, { status: 403 });
+    }
     const answer = await answerRoomPress(db, { actor, run, group: found, groupRef, press: roomParsed.value, now: new Date() });
     return NextResponse.json(answer.body, { status: answer.status, headers: answer.headers });
   }
