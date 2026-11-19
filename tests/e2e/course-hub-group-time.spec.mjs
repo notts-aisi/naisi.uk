@@ -338,6 +338,7 @@ test(
         assert.equal(body.update?.withFacilitators, true, "the move's update does not reach the group's facilitators too");
         const sent = await okBody(posted, "Telling the group");
         assert.equal(JSON.parse(posted.request().postData() ?? "{}").withFacilitators, true, "the update was posted without withFacilitators");
+        assert.equal(JSON.parse(posted.request().postData() ?? "{}").weekNumber, MOVED_WEEK, "the update was posted without its week");
         assert.equal(sent.email?.sent ?? 0, people.length, "the update did not email the group's people");
         await page.getByRole("status").filter({ hasText: "session has moved" }).waitFor({ timeout: WAIT_MS });
         const group4 = (await fixtureDoc("courseGroups", group.id).get()).data();

@@ -1527,12 +1527,15 @@ test(
               message: UPDATE.message,
               emailCount: inGroup.length,
               withFacilitators: true,
+              // Its week: the update reaches the people in the group that week, as the change counted them.
+              weekNumber: nextWeek,
             },
           },
           "the change's answer",
         );
-        // Posted with `withFacilitators`, as the change answered: a change to the
-        // group's sessions reaches its facilitators too (never the presser).
+        // Posted with `withFacilitators` and the week, as the change answered: a
+        // change to the group's sessions reaches its facilitators too (never the
+        // presser), and the people in the group that week.
         assert.deepEqual(
           posted.request().postDataJSON(),
           {
@@ -1543,6 +1546,7 @@ test(
             email: true,
             emailCount: inGroup.length,
             withFacilitators: true,
+            weekNumber: nextWeek,
           },
           "the update did not go to the group with the count on the button",
         );
