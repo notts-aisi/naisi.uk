@@ -637,7 +637,7 @@ const READERS = {
   "lib/courses/staffMove/board.ts": {
     kind: "writer",
     proof: [
-      'if (place.role !== "learner" || place.status !== "active" || !place.groupId || !placementIsTold(place)) return false;',
+      'return place.role === "learner" && place.status === "active" && place.groupId !== null && placementIsTold(place);',
       "toldAtPublish: true,",
     ],
     told: 1,
