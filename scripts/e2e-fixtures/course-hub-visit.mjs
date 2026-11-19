@@ -97,9 +97,13 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]",
     ],
   },
-  // Verified: first run on Wednesday 18 November 2026 against the harness's own
-  // server on http://127.0.0.1:3100 with its mail caught: all seven steps
-  // completed, 46 rows before teardown and a manifest of zero after it.
+  // Verified: first run on Wednesday 18 November 2026. Changed since (its
+  // sixth step checks the chip itself; its count and teardown include the two
+  // limit counters its presses leave) and run again as it now stands on
+  // Thursday 19 November 2026 against the harness's own server on
+  // http://127.0.0.1:3100 with its mail caught: all seven steps completed, 46
+  // rows of the term and the 2 counters before teardown, and a manifest of
+  // zero after it.
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three" }),
   countRows: async (state) => ({ ...(await countTerm(state)), ...(await countOwn(state)) }),
