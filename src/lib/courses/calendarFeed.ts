@@ -160,8 +160,7 @@ function eventOf(
   // A link makes a week with no room online only on the Online campus or
   // none, as the ticket asks it (`heldOnline`): on a campus, a blank room is a
   // room still to book, whatever link the group keeps.
-  const online =
-    mode === "virtual" || (mode === null && hasLink && (slot.location.trim() !== "" || campus === null || campus === "online"));
+  const online = mode === "virtual" || (mode === null && hasLink && (slot.location.trim() !== "" || campus === null || campus === "online"));
   const room =
     mode !== "virtual" && typed
       ? typed

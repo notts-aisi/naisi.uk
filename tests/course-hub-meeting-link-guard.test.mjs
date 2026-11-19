@@ -217,7 +217,8 @@ describe("3. no message is made beside the link", () => {
     const nudge = read("lib/email/courseNudgeEmail.ts");
     const uses = [...nudge.matchAll(/^.*\bmeetingUrl\b.*$/gm)].map((m) => m[0].trim());
     assert.deepEqual(uses, [
-      'return session.meetingUrl ? "Online" : "";',
+      // Asked only whether there is one, and only on the Online campus or none (a blank room on a campus is a room to book).
+      'return session.meetingUrl && (campus === null || campus === "online") ? "Online" : "";',
     ]);
   });
 
