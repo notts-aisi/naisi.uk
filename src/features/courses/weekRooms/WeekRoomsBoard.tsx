@@ -386,7 +386,9 @@ export default function WeekRoomsBoard({
                           ? W.CHECKING
                           : preview.status === "refused"
                             ? preview.error
-                            : !tell
+                            : preview.quiet
+                              ? W.SPELLING_ONLY
+                              : !tell
                               ? W.rowEmailsWords(0)
                               : preview.overCap
                                 ? TOO_MANY_TO_TELL

@@ -93,7 +93,10 @@ export async function answerRoomPress(
     const [register] = registersOf(await db.getAll(...refs));
     const checked = checkRoomWeek(run, found, week, now, register);
     if (!checked.ok) return refusal(checked.status, checked.error);
-    const told = await toldFacts(db, run, found, actor.uid, week.weekNumber);
+    // Only its spelling changes: nobody is told, so nobody is counted.
+    const told = checked.quiet
+      ? { emails: 0, refused: false, people: 0, facilitatorNames: [] }
+      : await toldFacts(db, run, found, actor.uid, week.weekNumber);
     return {
       status: 200,
       body: {
@@ -103,6 +106,7 @@ export async function answerRoomPress(
           weekNumber: week.weekNumber,
           room: checked.room,
           wasRoom: checked.wasRoom,
+          quiet: checked.quiet,
           told,
           notice: roomNoticeWords(roomNoticeOf(checked), context),
           at: iso(now),
@@ -112,15 +116,18 @@ export async function answerRoomPress(
   }
 
   // ── One week refused is refused before anything else is asked ───────────
+  let quiet = false;
   if (press.weeks.length === 1) {
     const [register] = registersOf(await db.getAll(...refs));
     const checked = checkRoomWeek(run, found, press.weeks[0], now, register);
     if (!checked.ok) return refusal(checked.status, checked.error);
+    quiet = checked.quiet;
   }
 
   // ── Who is told, and the lane's windows, before anything changes ────────
+  // A change of spelling alone tells nobody, whatever the press asked.
   let recipients: UpdateRecipient[] = [];
-  if (press.tell) {
+  if (press.tell && !quiet) {
     const [week] = press.weeks;
     const audience = await updateEmailAudience(db, run, [found], "group", found.id, actor.uid, {
       withFacilitators: true,

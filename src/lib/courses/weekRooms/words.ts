@@ -139,6 +139,8 @@ export function saveButtonWords(rooms: number, groups: number, people: number): 
 }
 
 export const SAVING = "Saving…";
+/** Under a field whose room changes only in case or spacing. */
+export const SPELLING_ONLY = "Only its spelling changes, so nobody is emailed.";
 /** The button before anything has been changed. */
 export const NOTHING_TO_SAVE = "Save rooms";
 /** Beside the button while a changed field is still being checked. */

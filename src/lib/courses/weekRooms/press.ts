@@ -42,6 +42,8 @@ export type RoomPreview =
       tells: boolean;
       /** More than one send can take: the room may be saved, and the group told from Messages. */
       overCap: boolean;
+      /** Only its case or spacing changes: saved, and nobody is told. */
+      quiet?: boolean;
     };
 
 /** What a press did to one row: saved (and who was told), or refused, with a sentence. */
@@ -73,10 +75,12 @@ export async function askPreview(post: Post, row: Pick<RoomRow, "groupId" | "wee
   if (!answer || answer.status !== 200 || answer.body?.ok !== true) {
     return { room: typed, status: "refused", error: error ?? UNKNOWN_OUTCOME };
   }
-  const told = ((answer.body.preview as Record<string, unknown> | undefined)?.told ?? {}) as Record<string, unknown>;
+  const said = (answer.body.preview ?? {}) as Record<string, unknown>;
+  const told = (said.told ?? {}) as Record<string, unknown>;
   const emails = typeof told.emails === "number" ? told.emails : 0;
   const overCap = told.refused === true;
-  return { room: typed, status: "ok", emails, overCap, tells: !overCap && emails > 0 };
+  const quiet = said.quiet === true;
+  return { room: typed, status: "ok", emails, overCap, tells: !quiet && !overCap && emails > 0, quiet };
 }
 
 /** How many a row's press would email with Tell the group on, as its button counts it. */

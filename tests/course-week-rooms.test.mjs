@@ -1044,6 +1044,31 @@ describe("4. a room saved here is the room-only change of that week, and nothing
     assert.equal(await as("zach"), 200);
   });
 
+  test("a change of case or spacing alone is saved as typed and emails nobody; a room taken off a group with no usual room stays the week's own", async () => {
+    const row = await rowOfA();
+    const preview = await press.askPreview(postAs("claudia"), row, "portland  a13");
+    assert.deepEqual([preview.status, preview.quiet, preview.tells, preview.emails], ["ok", true, false, 0]);
+    const outcome = await press.saveRoom(postAs("claudia"), row, "portland  a13", { ...preview, tells: true, emails: 3 }, "", true);
+    assert.deepEqual([outcome.saved, outcome.text], [true, words.ROOM_SAVED_NOBODY_TOLD]);
+    assert.deepEqual(read(`courseGroups/${A}`).sessionOverrides.w05, { location: "portland  a13" });
+    assert.equal(world.mail.length, 0);
+    assert.equal(auditRows("session-room")[0].emailed, 0);
+
+    // Group A with no usual room: week 5 set, then taken off. The week keeps its own empty room, so a
+    // usual room set later does not land on it.
+    w.reset(seed());
+    for (const uid of ["claudia", "lloyd", "tess"]) world.db.poke(`users/${uid}`, { admissionsReviewer: true });
+    world.db.poke(`courseGroups/${A}`, { session: { ...read(`courseGroups/${A}`).session, location: "" } });
+    const ask = (roomText) =>
+      call("claudia", w.change.POST, { groupId: A }, { body: { kind: "room", weeks: [{ week: 5, dateKey: "2026-11-26", room: roomText }] }, course: true });
+    assert.equal((await ask("George Green B06")).status, 200);
+    assert.equal((await ask("tba.")).status, 200);
+    assert.deepEqual(read(`courseGroups/${A}`).sessionOverrides.w05, { location: "" });
+    world.db.poke(`courseGroups/${A}`, { session: { ...read(`courseGroups/${A}`).session, location: "Portland A13" } });
+    const again = await rowOfA();
+    assert.deepEqual([again.room, again.roomSource], ["", "none"]);
+  });
+
   test("the body: one week to tell or preview, each week once, a room of one line and no link", async () => {
     const parse = (body) => room.parseRoomPress({ kind: "room", ...body });
     const week = (n, roomText = "Room 1") => ({ week: n, dateKey: "2026-11-26", room: roomText });
@@ -1057,8 +1082,10 @@ describe("4. a room saved here is the room-only change of that week, and nothing
     assert.equal(parse({ weeks: [week(5)], move: {} }).error, changeWords.REFUSAL.body);
     assert.deepEqual(parse({ weeks: [week(5, " t.b.c. ")] }).value.weeks[0].room, "");
     assert.equal(parse({ weeks: [week(5)] }).value.tell, false);
-    for (const said of ["", "  ", "TBC", "tbc", "T.B.C.", "T B C", "to be confirmed", "-"]) assert.equal(room.isNoRoom(said), true, said);
-    for (const said of ["TBC Room", "B-12", "--", "To be confirmed soon"]) assert.equal(room.isNoRoom(said), false, said);
+    for (const said of ["", "  ", "TBC", "tbc", "T.B.C.", "T B C", "to be confirmed", "-", "TBA", "tba", "T.B.A.", "TBC.", "tba.", "To be confirmed.", "-."]) {
+      assert.equal(room.isNoRoom(said), true, said);
+    }
+    for (const said of ["TBC Room", "B-12", "--", "To be confirmed soon", "TBD"]) assert.equal(room.isNoRoom(said), false, said);
   });
 
   test("the term's grid: several weeks of one group in one request and one transaction, emailing nobody; a refused week says why", async () => {

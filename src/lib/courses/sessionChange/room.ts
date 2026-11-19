@@ -39,6 +39,9 @@ import { REFUSAL, reasonTooLongWords } from "./words";
  * no change record, takes the week's own room away instead, so the week
  * follows the group's room again.
  *
+ * A ROOM THAT DIFFERS ONLY IN CASE OR SPACING is saved as typed, and nobody
+ * is told: nothing the group reads has changed (`quiet`).
+ *
  * REFUSED, per week: a week the group has no session in, a session that is no
  * longer on the date the page showed, one that has started (or met), one
  * called off, one held online (the week's own mode, or the Online campus), and
@@ -67,10 +70,20 @@ export function isRoomPressBody(raw: unknown): boolean {
   return Boolean(raw) && typeof raw === "object" && !Array.isArray(raw) && (raw as Record<string, unknown>).kind === "room";
 }
 
-/** A room typed as no room: empty, "TBC" in any case and with or without dots, "to be confirmed", or a lone "-". */
+/**
+ * A room typed as no room: empty, "TBC" or "TBA" in any case and with or
+ * without dots, "to be confirmed", or a lone "-", each with or without a full
+ * stop after it.
+ */
 export function isNoRoom(text: string): boolean {
-  const said = text.trim().toLowerCase().replace(/\s+/g, " ");
-  return said === "" || said === "-" || said === "to be confirmed" || /^t\.?\s?b\.?\s?c\.?$/.test(said);
+  const said = text.trim().toLowerCase().replace(/\s+/g, " ").replace(/\.$/, "").trim();
+  return said === "" || said === "-" || said === "to be confirmed" || /^t\.?\s?b\.?\s?[ca]\.?$/.test(said);
+}
+
+/** Two rooms that differ only in case or spacing are the same room to the people in it. */
+export function sameRoomToReaders(a: string, b: string): boolean {
+  const norm = (text: string) => text.trim().toLowerCase().replace(/\s+/g, " ");
+  return norm(a) === norm(b);
 }
 
 /** A room as typed, as it is stored: trimmed, and "" for no room. */
@@ -164,6 +177,8 @@ export type CheckedRoomWeek =
       room: string;
       /** What the week's own room becomes: a room ("" for Room to be confirmed), or null to take it away. */
       location: string | null;
+      /** Only its case or spacing changes: nothing the group reads changes, so nobody is told. */
+      quiet: boolean;
       /** The group once this week is written. */
       after: CourseGroupDoc;
     }
@@ -192,7 +207,9 @@ export function checkRoomWeek(
   if (room === wasRoom) return refuse(400, ROOM_REFUSAL.sameAsNow);
 
   // The usual room on a week nobody changed: the week follows the group again.
-  const followsGroup = room === group.session.location.trim() && sessionChangeForWeek(group, weekId) === null;
+  // Never for no room: a week taken off its room keeps its own empty room, so
+  // a usual room set later does not land on a week somebody set to be confirmed.
+  const followsGroup = room !== "" && room === group.session.location.trim() && sessionChangeForWeek(group, weekId) === null;
   const location = followsGroup ? null : room;
   const overrides = { ...group.sessionOverrides };
   const own: GroupSessionOverride = { ...overrides[weekId] };
@@ -208,6 +225,7 @@ export function checkRoomWeek(
     wasRoom,
     room,
     location,
+    quiet: room !== "" && sameRoomToReaders(room, wasRoom),
     after: { ...group, sessionOverrides: overrides },
   };
 }
