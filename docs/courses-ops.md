@@ -6758,9 +6758,11 @@ admins only. It reads every application form (one query, for when this term
 began), this term's kept entries (one range on `day`, at most 2,000) and the
 oldest kept entry (one), never the waiting place. Dealt with and a note write
 `dealtWith` and `note` on the entry, with the admin's uid, name and the time;
-Download writes nothing; the clear-out deletes kept entries sent before a
-chosen day no later than a year before today, after a confirm that counts
-them. The whole of it is in docs/surveys.md, "Anonymous feedback for the
+Download writes nothing; Delete this entry deletes that one kept entry, after a
+confirm; the clear-out deletes kept entries sent before a chosen day no later
+than a year before today, after a confirm that counts them. Each deletion
+writes one record to `societyFeedbackDeletions`: who, when, one entry or a
+clear-out, and how many, never what was in an entry. The whole of it is in docs/surveys.md, "Anonymous feedback for the
 whole society".
 
 ## Destroying an admission round

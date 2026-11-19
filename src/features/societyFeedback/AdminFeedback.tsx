@@ -72,16 +72,17 @@ function Entry({ entry, dayLabel }: { entry: EntryView; dayLabel: string }) {
   const [writing, setWriting] = useState(false);
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
+  const [confirming, setConfirming] = useState(false);
 
-  async function send(body: Record<string, unknown>): Promise<boolean> {
+  async function send(body: Record<string, unknown> | null): Promise<boolean> {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(`/api/admin/anonymous-feedback/${encodeURIComponent(entry.id)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const address = `/api/admin/anonymous-feedback/${encodeURIComponent(entry.id)}`;
+      const response = await fetch(
+        address,
+        body === null ? { method: "DELETE" } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+      );
       const result = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
         setError(result.error ?? ADMIN_WORDS.failed);
@@ -147,6 +148,27 @@ function Entry({ entry, dayLabel }: { entry: EntryView; dayLabel: string }) {
                 {ADMIN_WORDS.addNote}
               </button>
             )}
+          </div>
+        )
+      )}
+      {confirming ? (
+        <div className={styles.field} role="alert">
+          <p className={styles.status}>{ADMIN_WORDS.deleteConfirm}</p>
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.small} ${styles.danger}`} disabled={busy} onClick={() => void send(null)}>
+              {busy ? ADMIN_WORDS.deleting : ADMIN_WORDS.deleteYes}
+            </button>
+            <button type="button" className={styles.small} disabled={busy} onClick={() => setConfirming(false)}>
+              {ADMIN_WORDS.deleteNo}
+            </button>
+          </div>
+        </div>
+      ) : (
+        !writing && (
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.small} ${styles.danger}`} disabled={busy} onClick={() => setConfirming(true)}>
+              {ADMIN_WORDS.deleteEntry}
+            </button>
           </div>
         )
       )}

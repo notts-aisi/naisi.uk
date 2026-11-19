@@ -52,6 +52,6 @@ export async function POST(req: Request) {
 
   const count = await countBefore(db, before);
   if (count !== confirmed) return NextResponse.json({ error: CLEAR_WORDS.confirm(count, dayKeyWordsWithYear(before)), count }, { status: 409 });
-  const { deleted, left } = await clearBefore(db, before);
+  const { deleted, left } = await clearBefore(db, before, { uid: user.uid }, new Date());
   return NextResponse.json({ deleted, left });
 }

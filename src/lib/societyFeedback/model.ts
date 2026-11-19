@@ -10,7 +10,7 @@ import { londonDateKey } from "@/lib/courses/weekPlan";
  * which is one link per programme and read by the programme's lead too. The
  * two share the night's move job and nothing else.
  *
- * Two collections, each server-only in both directions (the rules refuse
+ * Three collections, each server-only in both directions (the rules refuse
  * every browser, admins included):
  *
  *  - `societyFeedbackWaiting/{autoId}`: one entry as it came in, kept until
@@ -20,6 +20,9 @@ import { londonDateKey } from "@/lib/courses/weekPlan";
  *  - `societyFeedback/{autoId}`: one entry as it is kept. The move writes a
  *    finished day's entries in shuffled order, so the database's own time on
  *    each is the move's and says nothing about when any one came in.
+ *  - `societyFeedbackDeletions/{autoId}`: one record per deletion an admin
+ *    makes (`DELETION_FIELDS`): who, when, one entry or a clear-out, and how
+ *    many. Nothing that was in an entry.
  *
  * AN ENTRY HOLDS EXACTLY `ENTRY_FIELDS`: the words, the day in London, and
  * the programme, session and role the sender chose to name ("" or null when
@@ -33,6 +36,15 @@ import { londonDateKey } from "@/lib/courses/weekPlan";
 
 export const SOCIETY_WAITING_COLLECTION = "societyFeedbackWaiting";
 export const SOCIETY_KEPT_COLLECTION = "societyFeedback";
+/**
+ * One record per deletion an admin makes, one entry or a clear-out: who, when,
+ * which of the two and how many entries. NEVER anything that was in an entry.
+ */
+export const SOCIETY_DELETIONS_COLLECTION = "societyFeedbackDeletions";
+
+/** Every field a deletion's record holds. */
+export const DELETION_FIELDS = ["kind", "count", "byUid", "at"] as const;
+export type DeletionKind = "one" | "clear-out";
 
 /** Every field an entry holds as the sender sends it, waiting or kept. Nothing else is ever written by the sender's path. */
 export const ENTRY_FIELDS = ["words", "day", "roundId", "programmeId", "programmeName", "week", "about"] as const;

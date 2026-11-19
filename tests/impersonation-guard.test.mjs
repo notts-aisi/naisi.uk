@@ -788,8 +788,8 @@ const MUST_GUARD = [
   ["src/app/api/events/[id]/collaborators/route.ts", "changes who may edit an event"],
   // ── Anonymous feedback ──────────────────────────────────────────────────────
   ["src/app/api/anonymous-feedback/route.ts", "sends anonymous feedback, which would read as the viewed member's own"],
-  ["src/app/api/admin/anonymous-feedback/[entryId]/route.ts", "marks an entry of anonymous feedback dealt with or writes a note on it, in the presser's name"],
-  ["src/app/api/admin/anonymous-feedback/clear/route.ts", "deletes older anonymous feedback for good"],
+  ["src/app/api/admin/anonymous-feedback/[entryId]/route.ts", "marks an entry of anonymous feedback dealt with, writes a note on it, or deletes it for good, in the presser's name"],
+  ["src/app/api/admin/anonymous-feedback/clear/route.ts", "deletes older anonymous feedback for good, recorded in the presser's name"],
 ];
 
 /**

@@ -152,6 +152,13 @@ const waitingPaths = () => w.world.db.paths().filter((path) => path.startsWith("
 const keptPaths = () => w.world.db.paths().filter((path) => path.startsWith("societyFeedback/")).sort();
 const waiting = () => waitingPaths().map((path) => w.world.db.read(path));
 const kept = () => keptPaths().map((path) => w.world.db.read(path));
+const deletions = () =>
+  w.world.db
+    .paths()
+    .filter((path) => path.startsWith("societyFeedbackDeletions/"))
+    .sort()
+    .map((path) => w.world.db.read(path));
+const DELETION_KEYS = ["at", "byUid", "count", "kind"];
 
 function runMove(now = new Date()) {
   return anonymousFeedbackMoveJob.handler({
@@ -587,6 +594,34 @@ describe("5. Dealt with, a note, the clear-out by hand, and the download: an adm
     assert.equal(record.note.byName, "Zach Levin");
   });
 
+  test("deleting one entry deletes that entry and nothing else, and records who and when, never what was in it", async (t) => {
+    const id = await oneKept(t);
+    await adminCall("zach", mark.POST, { params: { entryId: id }, body: { action: "note", text: "Looked at it." } });
+    // A second kept entry, and one still waiting, which must both survive.
+    await w.world.db.collection("societyFeedback").doc("other").set({ words: "Another.", day: "2026-11-08", roundId: "", programmeId: "", programmeName: "", week: null, about: "" });
+    await sendAs("dev", { words: "Still waiting." });
+    const before = keptPaths().filter((path) => !path.endsWith(id)).map((path) => [path, JSON.stringify(w.world.db.read(path))]);
+    const waitingBefore = JSON.stringify(waiting());
+    const gone = w.world.db.read(`societyFeedback/${id}`);
+    const deleted = await adminCall("zach", mark.DELETE, { params: { entryId: id } });
+    assert.deepEqual([deleted.status, deleted.body], [200, { ok: true }]);
+    assert.equal(w.world.db.read(`societyFeedback/${id}`), undefined, "the entry is still there");
+    assert.deepEqual(keptPaths().map((path) => [path, JSON.stringify(w.world.db.read(path))]), before, "another kept entry changed");
+    assert.equal(JSON.stringify(waiting()), waitingBefore, "the waiting place changed");
+    const records = deletions();
+    assert.equal(records.length, 1);
+    assert.deepEqual(Object.keys(records[0]).sort(), DELETION_KEYS);
+    assert.deepEqual([records[0].kind, records[0].count, records[0].byUid], ["one", 1, "zach"]);
+    assert.ok(records[0].at instanceof Date);
+    const said = stringsIn(records[0]);
+    for (const value of [gone.words, gone.day, gone.programmeName, gone.programmeId, gone.roundId, "Looked at it.", id]) {
+      if (value) assert.ok(!said.includes(value), `the record holds "${value}"`);
+    }
+    // Deleting it again: it is not there, and nothing more is recorded.
+    assert.equal((await adminCall("zach", mark.DELETE, { params: { entryId: id } })).status, 404);
+    assert.equal(deletions().length, 1);
+  });
+
   test("nobody else marks, notes, counts, clears or downloads; view-as is refused; a missing entry is a 404", async (t) => {
     const id = await oneKept(t);
     const routes = [
@@ -594,6 +629,7 @@ describe("5. Dealt with, a note, the clear-out by hand, and the download: an adm
       [clear.GET, { url: "https://naisi.invalid/api?before=2026-11-10" }],
       [clear.POST, { body: { before: "2026-11-10", count: 1 } }],
       [download.GET, {}],
+      [mark.DELETE, { params: { entryId: id } }],
     ];
     for (const [handler, options] of routes) {
       assert.equal((await adminCall(null, handler, options)).status, 401);
@@ -601,10 +637,13 @@ describe("5. Dealt with, a note, the clear-out by hand, and the download: an adm
     }
     assert.equal((await adminCall("zach", mark.POST, { params: { entryId: id }, body: { action: "dealtWith" }, viewAs: true })).status, 403);
     assert.equal((await adminCall("zach", clear.POST, { body: { before: "2026-11-10", count: 1 }, viewAs: true })).status, 403);
+    assert.equal((await adminCall("zach", mark.DELETE, { params: { entryId: id }, viewAs: true })).status, 403);
+    assert.equal((await adminCall("zach", mark.DELETE, { params: { entryId: "e2e-missing" } })).status, 404);
     assert.equal((await adminCall("zach", mark.POST, { params: { entryId: "e2e-missing" }, body: { action: "dealtWith" } })).status, 404);
     assert.equal((await adminCall("zach", mark.POST, { params: { entryId: id }, body: {} })).status, 400);
     assert.equal(keptPaths().length, 1);
     assert.equal(w.world.db.read(`societyFeedback/${id}`).dealtWith, undefined);
+    assert.deepEqual(deletions(), [], "a refused delete recorded something");
   });
 
   test("the clear-out reaches only entries more than a year old: counts, refuses a later day and a stale count, and never touches the waiting place", async (t) => {
@@ -628,6 +667,12 @@ describe("5. Dealt with, a note, the clear-out by hand, and the download: an adm
     assert.equal(keptPaths().length, 4, "a stale confirm deleted something");
     const done = await adminCall("zach", clear.POST, { body: { before: "2025-11-10", count: 2 } });
     assert.deepEqual(done.body, { deleted: 2, left: 0 });
+    // The clear-out is recorded: who, when, a clear-out, how many. Nothing of the entries.
+    const records = deletions();
+    assert.equal(records.length, 1);
+    assert.deepEqual(Object.keys(records[0]).sort(), DELETION_KEYS);
+    assert.deepEqual([records[0].kind, records[0].count, records[0].byUid], ["clear-out", 2, "zach"]);
+    assert.ok(!stringsIn(records[0]).some((value) => /From 2025/.test(value) || value === "2025-01-15" || value === "2025-11-09"), "the record holds what was in an entry");
     assert.deepEqual(keptPaths().map((path) => path.split("/")[1]).sort(), [keptPaths().find((path) => !/ayear/.test(path)).split("/")[1], "ayear"].sort());
     assert.equal(waitingPaths().length, 1, "the clear-out reached the waiting place");
   });
@@ -639,12 +684,12 @@ describe("5. Dealt with, a note, the clear-out by hand, and the download: an adm
       await w.world.db.collection("societyFeedback").doc(`old${i}`).set({ words: `Old ${i}.`, day: `2025-0${i}-01`, roundId: "", programmeId: "", programmeName: "", week: null, about: "" });
     }
     const admin = await loadTs(join("lib", "societyFeedback", "admin.ts"));
-    assert.deepEqual(await admin.clearBefore(w.world.db, "2025-11-10", 2), { deleted: 2, left: 3 });
+    assert.deepEqual(await admin.clearBefore(w.world.db, "2025-11-10", { uid: "zach" }, new Date(), 2), { deleted: 2, left: 3 });
     assert.equal(
       words.CLEAR_WORDS.doneWithMore(2, 3, "Mon 10 Nov 2025"),
       "Deleted 2 entries. 3 more were sent before Mon 10 Nov 2025: press Count them again, then delete, to clear them too.",
     );
-    assert.deepEqual(await admin.clearBefore(w.world.db, "2025-11-10", 5), { deleted: 3, left: 0 });
+    assert.deepEqual(await admin.clearBefore(w.world.db, "2025-11-10", { uid: "zach" }, new Date(), 5), { deleted: 3, left: 0 });
     assert.deepEqual(keptPaths(), []);
   });
 

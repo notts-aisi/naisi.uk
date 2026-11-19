@@ -376,6 +376,13 @@ export const ROUTES = {
         "Dealt with, or a note for admins, on one entry of anonymous feedback is an admin's alone, decided on the " +
         "session before anything is read; an admin meets the 400 for a body that names neither.",
     },
+    DELETE: {
+      expect: adminOnly(404),
+      why:
+        "Deleting one entry of anonymous feedback is an admin's alone, refused in a view-as session and decided on " +
+        "the session before anything is read; an admin is told the made-up entry is not there, and nothing is deleted " +
+        "or recorded.",
+    },
   },
   "/api/admin/anonymous-feedback/clear": {
     GET: {

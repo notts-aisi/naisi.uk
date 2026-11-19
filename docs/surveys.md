@@ -1625,8 +1625,9 @@ term's choice (`chooseTerm`), and nothing else.
 | --- | --- | --- |
 | `societyFeedbackWaiting/{autoId}` | entry, until the night's move | `ENTRY_FIELDS`: `words`, `day`, `roundId`, `programmeId`, `programmeName`, `week`, `about` |
 | `societyFeedback/{autoId}` | entry, kept | the same seven fields, and later `dealtWith` and `note`, each `{ byUid, byName, at }` (the note with its `text`): admins acting |
+| `societyFeedbackDeletions/{autoId}` | deletion an admin makes | `DELETION_FIELDS`: `kind` (`one` or `clear-out`), `count`, `byUid`, `at`. Never anything that was in an entry |
 
-Both are server-only in both directions (deny-all rules). The admins' page
+All three are server-only in both directions (deny-all rules). The admins' page
 reads `societyFeedback` by one range on `day`; the clear-out counts and
 deletes by one range on `day`; the move reads the whole small waiting
 collection. No index is declared for any of them.
@@ -1668,7 +1669,12 @@ programme", and All, each with its count; a filter by role. Words are shown as
 text, never HTML, and no link in them is made live. Dealt with, and Add a note
 for admins (one note, replaced if written again), each record which admin and
 when on the entry; the page shows the note's line with the admin's name and the
-day. Download is every kept entry as a CSV, naming no admin. Before any term
+day. Delete this entry, behind a confirm that says it can't be undone, deletes
+that one kept entry and nothing else (for abuse, or when a named person asks for
+what is written about them to be erased) and records who deleted one entry and
+when, in `societyFeedbackDeletions`, never what was in it. An entry still
+waiting for the move has no id anybody is shown, so it cannot be reached.
+Download is every kept entry as a CSV, naming no admin. Before any term
 has begun the page shows every kept entry and no count line.
 
 **Clearing out, by hand.** Nothing deletes an entry on a timer. At the foot of
@@ -1682,7 +1688,9 @@ deletes by hand "every entry more than a year old", once a year, so none is
 kept longer than two years. The route refuses a count that has changed since
 (409, with the new one), deletes only kept entries sent before the day and never
 the waiting place, and at most 5,000 in one press; a clear that reaches that
-says how many are left and to press again.
+says how many are left and to press again. Each clear-out that deletes
+something is recorded the way deleting one entry is: who, when, a clear-out,
+and how many.
 
 **Guards.** `tests/society-feedback.test.mjs` runs the routes, the move and
 both pages in the programme surveys' world; `tests/society-feedback-no-trace.test.mjs`
@@ -1693,7 +1701,7 @@ the form's page reach that can say who is calling, named; no log anywhere (the
 process's streams and a throw built from anything but a plain sentence count),
 the rate limiter included; only the seven fields written; and no reader of the
 waiting place but the writer and the move;
-`scripts/rules-tests/tests/society-feedback.test.mjs` holds both collections
+`scripts/rules-tests/tests/society-feedback.test.mjs` holds all three collections
 shut to every browser.
 
 ## Surveys after events

@@ -3710,18 +3710,22 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // === societyFeedbackWaiting, societyFeedback ===
+    // === societyFeedbackWaiting, societyFeedback, societyFeedbackDeletions ===
     // Anonymous feedback for the whole society (docs/surveys.md,
-    // src/lib/societyFeedback/model.ts): each entry as it came in, and each
-    // entry as it is kept. Written only by the form's route, the night's move
-    // and the admins' routes (Dealt with, a note, the clear-out by hand), on
-    // the Admin SDK, and read only on the server. So every browser is
+    // src/lib/societyFeedback/model.ts): each entry as it came in, each entry
+    // as it is kept, and a record of each deletion an admin makes (who, when,
+    // how many). Written only by the form's route, the night's move and the
+    // admins' routes (Dealt with, a note, deleting one entry, the clear-out by
+    // hand), on the Admin SDK, and read only on the server. So every browser is
     // refused, admins included: a browser read of an entry would hand over
     // the database's own time on it.
     match /societyFeedbackWaiting/{entryId} {
       allow read, write: if false;
     }
     match /societyFeedback/{entryId} {
+      allow read, write: if false;
+    }
+    match /societyFeedbackDeletions/{recordId} {
       allow read, write: if false;
     }
 

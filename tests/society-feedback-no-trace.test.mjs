@@ -285,6 +285,28 @@ describe("2. an entry is written with exactly its seven fields, by name, in both
     assert.equal((move.match(/tx\.(?:create|set|update)\(/g) ?? []).length, 1, "the move writes something besides the kept entry");
   });
 
+  test("a deletion's record holds who, when, which kind and how many, and is handed nothing of any entry", () => {
+    const declared = /export const DELETION_FIELDS = \[([^\]]*)\] as const;/.exec(codeOf(read("src/lib/societyFeedback/model.ts")));
+    assert.ok(declared, "DELETION_FIELDS moved");
+    assert.deepEqual([...declared[1].matchAll(/"(\w+)"/g)].map((m) => m[1]), ["kind", "count", "byUid", "at"]);
+    const admin = codeOf(read("src/lib/societyFeedback/admin.ts"));
+    const record = /function deletionRecord\(kind: DeletionKind, count: number, admin: \{ uid: string \}, now: Date\) \{\s*return \{([^}]*)\};\s*\}/.exec(admin);
+    assert.ok(record, "the deletion record's writer moved, or is now handed something else");
+    const keys = record[1]
+      .split(",")
+      .map((part) => part.split(":")[0].trim())
+      .filter(Boolean);
+    assert.deepEqual(keys, ["kind", "count", "byUid", "at"], "a deletion's record now holds something else");
+    assert.ok(!/\.\.\./.test(record[1]), "the record copies something whole");
+    // Every write to the deletions collection goes through it.
+    const writes = [...admin.matchAll(/collection\(SOCIETY_DELETIONS_COLLECTION\)[^;]*;/g)].map((m) => m[0]);
+    assert.equal(writes.length, 2, "a deletion is recorded somewhere other than the two places named");
+    // Written as the record alone: nothing spread into it, nothing beside it.
+    for (const write of writes) {
+      assert.match(write, /^collection\(SOCIETY_DELETIONS_COLLECTION\)(?:\.doc\(\), |\.add\()deletionRecord\("(?:one", 1|clear-out", snap\.docs\.length), admin, now\)\);$/, write);
+    }
+  });
+
   test("nothing of the sender reaches the writer: the route hands it what was sent, the programme and the time", () => {
     const route = codeOf(read(SEND_ROUTE));
     assert.match(route, /await keepSocietyFeedback\(db, read\.sent, programme, new Date\(\)\);/);

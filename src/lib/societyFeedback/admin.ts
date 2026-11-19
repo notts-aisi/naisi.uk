@@ -1,6 +1,6 @@
 import "server-only";
 import { Timestamp, type Firestore } from "firebase-admin/firestore";
-import { NOTE_MAX_CHARS, SOCIETY_KEPT_COLLECTION, dayOf, isDayKey, isRecordId, normaliseEntry, normaliseKept, yearBefore, type KeptEntry } from "./model";
+import { NOTE_MAX_CHARS, SOCIETY_DELETIONS_COLLECTION, SOCIETY_KEPT_COLLECTION, dayOf, isDayKey, isRecordId, normaliseEntry, normaliseKept, yearBefore, type DeletionKind, type KeptEntry } from "./model";
 import { termStart } from "./programmes";
 import { buildAdminView, type AdminView } from "./view";
 import { ABOUT_WORDS, ADMIN_WORDS, DOWNLOAD_COLUMNS, weekWords } from "./words";
@@ -78,6 +78,33 @@ export async function setNote(db: Firestore, entryId: string, words: string, adm
 }
 
 /**
+ * The record of one deletion, as it is written: which admin, when, one entry
+ * or a clear-out, and how many. The one place its fields are named, and
+ * nothing of any entry is ever handed to it.
+ */
+function deletionRecord(kind: DeletionKind, count: number, admin: { uid: string }, now: Date) {
+  return { kind, count, byUid: admin.uid, at: Timestamp.fromDate(now) };
+}
+
+/**
+ * Delete ONE kept entry, at an admin's press (for abuse, or when a named
+ * person asks for what is written about them to be erased), and record that
+ * an admin deleted one entry, who and when. An entry still waiting for the
+ * night's move cannot be reached: it has no id anybody is shown.
+ */
+export async function deleteOne(db: Firestore, entryId: string, admin: { uid: string }, now: Date): Promise<MarkResult> {
+  if (!isRecordId(entryId)) return { ok: false, status: 400, problem: "shape" };
+  const ref = db.collection(SOCIETY_KEPT_COLLECTION).doc(entryId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists || !normaliseKept(snap.id, snap.data() ?? {})) return { ok: false, status: 404, problem: "gone" } as const;
+    tx.delete(ref);
+    tx.create(db.collection(SOCIETY_DELETIONS_COLLECTION).doc(), deletionRecord("one", 1, admin, now));
+    return { ok: true } as const;
+  });
+}
+
+/**
  * Whether a clear-out's day can be used at `now`: a real day, no later than
  * the same day a year before today in London. The privacy policy says an
  * admin deletes "every entry more than a year old", so no press can delete an
@@ -94,11 +121,17 @@ export async function countBefore(db: Firestore, before: string): Promise<number
 }
 
 /**
- * Delete every kept entry sent before `before`, by hand, at an admin's press:
- * nothing calls this on a timer. At most `CLEAR_LIMIT` in one press; `left`
+ * Delete every kept entry sent before `before`, by hand, at an admin's press,
+ * and record who cleared out how many and when: nothing calls this on a timer. At most `CLEAR_LIMIT` in one press; `left`
  * says how many it did not reach.
  */
-export async function clearBefore(db: Firestore, before: string, limit = CLEAR_LIMIT): Promise<{ deleted: number; left: number }> {
+export async function clearBefore(
+  db: Firestore,
+  before: string,
+  admin: { uid: string },
+  now: Date,
+  limit = CLEAR_LIMIT,
+): Promise<{ deleted: number; left: number }> {
   const query = db.collection(SOCIETY_KEPT_COLLECTION).where("day", "<", before);
   const snap = await query.limit(limit).get();
   for (let at = 0; at < snap.docs.length; at += CLEAR_BATCH) {
@@ -106,6 +139,8 @@ export async function clearBefore(db: Firestore, before: string, limit = CLEAR_L
     for (const doc of snap.docs.slice(at, at + CLEAR_BATCH)) batch.delete(doc.ref);
     await batch.commit();
   }
+  // Who cleared out how many, and when: never which entries or what was in them.
+  if (snap.docs.length > 0) await db.collection(SOCIETY_DELETIONS_COLLECTION).add(deletionRecord("clear-out", snap.docs.length, admin, now));
   const left = snap.docs.length < limit ? 0 : (await query.count().get()).data().count;
   return { deleted: snap.docs.length, left };
 }

@@ -130,6 +130,11 @@ export const ADMIN_WORDS = {
   note: (name: string, day: string, words: string) => `${name || "An admin"}, ${day}: ${words}`,
   none: "No feedback to read yet.",
   noneHere: "Nothing here.",
+  deleteEntry: "Delete this entry",
+  deleteConfirm: "Delete this entry for good? This can’t be undone.",
+  deleteYes: "Delete it",
+  deleteNo: "Keep it",
+  deleting: "Deleting…",
   failed: "That didn’t save. Try again.",
   /** What the page holds, and what the download holds. */
   scope: (fromDay: string | null) =>

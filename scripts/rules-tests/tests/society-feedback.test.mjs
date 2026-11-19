@@ -1,7 +1,8 @@
 /**
  * Rules tests for anonymous feedback for the whole society (docs/surveys.md,
  * "Anonymous feedback for the whole society"): `societyFeedbackWaiting` and
- * `societyFeedback`, shut to every browser, admins included. The form's route
+ * `societyFeedback`, and the record of each deletion,
+ * `societyFeedbackDeletions`, shut to every browser, admins included. The form's route
  * is the only writer of an entry, the night's move the only writer of a kept
  * one, and the admins' routes the only other writers; the admins' page reads
  * them on the server. A browser read of an entry would hand the database's
@@ -45,6 +46,7 @@ async function seedEntries() {
   await seed(async (db) => {
     await db.collection("societyFeedbackWaiting").doc("waiting1").set(ENTRY);
     await db.collection("societyFeedback").doc("kept1").set(ENTRY);
+    await db.collection("societyFeedbackDeletions").doc("deleted1").set({ kind: "one", count: 1, byUid: "admin1", at: new Date() });
   });
 }
 
@@ -67,6 +69,8 @@ describe("anonymous feedback: shut to every browser", () => {
       await assertFails(db.collection("societyFeedback").get());
       await assertFails(db.collection("societyFeedback").where("day", ">=", "2026-09-01").get());
       await assertFails(db.collection("societyFeedback").where("programmeId", "==", "prog1").get());
+      await assertFails(db.collection("societyFeedbackDeletions").doc("deleted1").get());
+      await assertFails(db.collection("societyFeedbackDeletions").get());
     }
     const anon = await asAnon();
     await assertFails(anon.collection("societyFeedbackWaiting").doc("waiting1").get());
@@ -86,6 +90,8 @@ describe("anonymous feedback: shut to every browser", () => {
       await assertFails(db.collection("societyFeedback").doc("kept1").update({ dealtWith: { byUid: uid, byName: "", at: new Date() } }));
       await assertFails(db.collection("societyFeedback").doc("kept1").update({ note: { text: "A note.", byUid: uid, byName: "", at: new Date() } }));
       await assertFails(db.collection("societyFeedback").doc("kept1").delete());
+      await assertFails(db.collection("societyFeedbackDeletions").doc(`deleted-${uid}`).set({ kind: "one", count: 1, byUid: uid, at: new Date() }));
+      await assertFails(db.collection("societyFeedbackDeletions").doc("deleted1").delete());
     }
     const anon = await asAnon();
     await assertFails(anon.collection("societyFeedbackWaiting").doc("waiting2").set(ENTRY));

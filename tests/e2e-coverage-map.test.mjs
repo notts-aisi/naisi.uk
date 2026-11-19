@@ -1584,7 +1584,7 @@ const NOT_COVERED = {
   },
   "/api/admin/anonymous-feedback/[entryId]": {
     reason:
-      "Dealt with and a note for admins on one kept entry; tests/society-feedback.test.mjs records which admin and when, leaves the entry's seven fields as they were, and refuses everybody but an admin, a view-as session, a missing entry and an empty body.",
+      "Dealt with, a note for admins, and deleting one kept entry; tests/society-feedback.test.mjs records which admin and when, leaves the entry's seven fields as they were, deletes the one entry and nothing else with a record that holds none of its content, and refuses everybody but an admin, a view-as session, a missing entry and an empty body.",
     coverWhen:
       "When a spec can run the night's move against the entry it sent (it reaches admins only from the next day), so it can open the admins' page, mark the entry dealt with, add a note and clear it out by hand.",
   },
