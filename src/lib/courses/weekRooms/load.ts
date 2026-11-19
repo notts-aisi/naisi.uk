@@ -121,7 +121,8 @@ async function placesOf(db: Firestore, runId: string): Promise<Map<string, Place
   const out = new Map<string, PlaceByWeek>();
   for (const doc of snap.docs) {
     const place = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
-    if (place.runId === runId && place.uid) out.set(place.uid, place);
+    // A place given up or taken off is nobody in the group any more: their old line is not counted.
+    if (place.runId === runId && place.uid && place.status !== "withdrawn" && place.status !== "removed") out.set(place.uid, place);
   }
   return out;
 }

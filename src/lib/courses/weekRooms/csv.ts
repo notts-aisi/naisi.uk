@@ -11,6 +11,8 @@ import { CELL_MARK, COLUMN, CSV_COLUMN, TO_BE_CONFIRMED, NO_SESSION, ROW_STATE, 
 /** A row's room as the file says it: the room, To be confirmed, or why it is not changed here. */
 function roomCell(row: RoomRow): string {
   if (row.state === "cancelled") return ROW_STATE.cancelled;
+  // A session held online has no room to book: never To be confirmed.
+  if (row.state === "online") return CELL_MARK.online;
   return row.room || TO_BE_CONFIRMED;
 }
 
@@ -46,7 +48,8 @@ export function termRoomsCsv(sections: readonly TermSection[]): { header: string
           if (!cell) return "";
           if (cell.kind === "none") return NO_SESSION;
           const marks = cell.marks.map((mark) => CELL_MARK[mark]);
-          const room = cell.marks.includes("cancelled") ? "" : cell.room || TO_BE_CONFIRMED;
+          // Called off or held online: no room to say, and never To be confirmed (the mark says which).
+          const room = cell.marks.includes("cancelled") || cell.marks.includes("online") ? "" : cell.room || TO_BE_CONFIRMED;
           return [room, marks.length ? `(${marks.join("; ")})` : ""].filter(Boolean).join(" ");
         }),
       ]),

@@ -4480,7 +4480,7 @@ one called off, one held online, the room it already has, a room of more than
 one line or 200 characters, and a link. Several weeks of one group are checked
 in one transaction, each on the group as the weeks before it leave it: a
 refused week says why and the rest are written. One History row a week
-(`session-room`, "Room set for one week", under Time and room): "Set week 5’s
+(`session-room`, "Room set or taken off for one week", under Time and room): "Set week 5’s
 room to George Green B06, for that week only.", "Changed ...", or "Took week
 5’s room off, for that week only: Room to be confirmed.", then the room before,
 the reason when one was given, and who was emailed.

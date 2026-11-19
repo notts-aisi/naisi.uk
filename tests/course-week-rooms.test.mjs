@@ -23,12 +23,14 @@
  *     reviewer, a track lead, a facilitator, a member and somebody signed
  *     out are refused, at both pages. What each page reads, and that it
  *     writes nothing.
- *  4. ONE WRITER: a room saved from a row is the one-week change route's move
- *     to the same day and time, pressed by the page's own code
- *     (`src/lib/courses/weekRooms/press.ts`) against the real routes: the same
- *     refusals, the same history row and the same email to the group as a
- *     press from the group's page; a count that no longer holds is a 409 and
- *     changes nothing; a view-as session is refused.
+ *  4. ONE WRITER: a room saved from a row or a grid cell is the one-week
+ *     change route's room-only kind (`kind: "room"`), pressed by the pages' own
+ *     code (`src/lib/courses/weekRooms/press.ts`) against the real routes: the
+ *     week's room and nothing else, never marked moved; its own History row;
+ *     its own notice, told by the route itself to the people in the group that
+ *     week; every refusal; a count that changed is a 409 that changes nothing;
+ *     an admin and the programme's lead alone, a view-as session refused; the
+ *     grid's several weeks of one group in one transaction, emailing nobody.
  *
  * Real: the pages, the tree's gate, the loader, the model, the press module,
  * the change route, the updates route and their email templates. Faked: the
@@ -578,6 +580,14 @@ describe("1. a campus held online, and what counts as not booked", () => {
     });
     assert.equal(view.counts.notBooked, 1);
     assert.deepEqual(words.summaryWords(view.counts)[0], "1 not booked");
+    // The download says Online for a session held online, never To be confirmed; so does the term's.
+    const rooms = Object.fromEntries(csv.weekRoomsCsv(view.rows).body.map((line) => [line[1], line[4]]));
+    assert.deepEqual(rooms, { "Group B": "Online", "Group C": "Online", "Group A": "To be confirmed" });
+    const [section] = model.termRoomsView({ roundId: ROUND, programmes: [recordsOf(AGI, RUN.agi)], now: NOW });
+    const term = csv.termRoomsCsv([section]);
+    const c = term.body.find((line) => line[1] === "Group C");
+    assert.ok(c.slice(2).every((cell) => !cell.includes("To be confirmed")), c.join(" | "));
+    assert.ok(c.slice(2).some((cell) => cell === "(Online)"), c.join(" | "));
   });
 });
 
@@ -995,9 +1005,12 @@ describe("4. a room saved here is the room-only change of that week, and nothing
       excusedInAdvance: { bea: { at: new Date() } },
       onlineSaid: { bea: { at: new Date() } },
     });
+    // A withdrawn place on Group A writes its word for week 5 too: not counted either.
+    world.db.poke(`courseEnrolments/${RUN.agi}__nina`, { groupId: A, status: "withdrawn" });
+    world.db.poke(`courseAttendance/${registerId(A, 5)}`, { excusedInAdvance: { bea: { at: new Date() }, nina: { at: new Date() } } });
     const row = await rowOfA();
     assert.deepEqual([row.away, row.online], [0, 0]);
-    assert.deepEqual([model.awayOn(read(`courseAttendance/${registerId(A, 5)}`)), model.onlineOn(read(`courseAttendance/${registerId(A, 5)}`))], [1, 1]);
+    assert.deepEqual([model.awayOn(read(`courseAttendance/${registerId(A, 5)}`)), model.onlineOn(read(`courseAttendance/${registerId(A, 5)}`))], [2, 1]);
     const preview = await press.askPreview(postAs("claudia"), row, "George Green B06");
     assert.equal(preview.emails, await weekEmailsFor(A, "claudia", 5));
     await press.saveRoom(postAs("claudia"), row, "George Green B06", preview, "", true);

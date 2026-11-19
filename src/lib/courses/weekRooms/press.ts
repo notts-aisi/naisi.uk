@@ -1,8 +1,7 @@
 import { roomAsStored } from "../sessionChange/room";
-import { UNKNOWN_OUTCOME } from "../sessionChange/words";
 import { postedWords } from "../updates/words";
 import type { RoomRow } from "./model";
-import { ASKED_AGAIN, ROOM_SAVED, ROOM_SAVED_NOBODY_TOLD, roomSavedNotToldWords } from "./words";
+import { ASKED_AGAIN, UNKNOWN_HERE, ROOM_SAVED, ROOM_SAVED_NOBODY_TOLD, roomSavedNotToldWords } from "./words";
 
 /**
  * HOW THE WEEK'S ROOMS AND THE TERM'S ROOMS PRESS THE ONE WRITER, with no
@@ -73,7 +72,7 @@ export async function askPreview(post: Post, row: Pick<RoomRow, "groupId" | "wee
   });
   const error = typeof answer?.body?.error === "string" ? answer.body.error : null;
   if (!answer || answer.status !== 200 || answer.body?.ok !== true) {
-    return { room: typed, status: "refused", error: error ?? UNKNOWN_OUTCOME };
+    return { room: typed, status: "refused", error: error ?? UNKNOWN_HERE };
   }
   const said = (answer.body.preview ?? {}) as Record<string, unknown>;
   const told = (said.told ?? {}) as Record<string, unknown>;
@@ -108,17 +107,17 @@ export async function saveRoom(
     tell: telling,
     ...(telling ? { emailCount: preview.emails } : {}),
   });
-  if (!answer) return { tone: "problem", text: UNKNOWN_OUTCOME, saved: false };
+  if (!answer) return { tone: "problem", text: UNKNOWN_HERE, saved: false };
   const sentence = typeof answer.body?.error === "string" ? answer.body.error : null;
   if (answer.status === 409 && typeof answer.body?.emails === "number") {
     return {
       tone: "problem",
-      text: `${sentence ?? UNKNOWN_OUTCOME} ${ASKED_AGAIN}`,
+      text: `${sentence ?? UNKNOWN_HERE} ${ASKED_AGAIN}`,
       saved: false,
       asked: { emails: answer.body.emails, overCap: answer.body.overCap === true },
     };
   }
-  if (answer.status !== 200 || answer.body?.ok !== true) return { tone: "problem", text: sentence ?? UNKNOWN_OUTCOME, saved: false };
+  if (answer.status !== 200 || answer.body?.ok !== true) return { tone: "problem", text: sentence ?? UNKNOWN_HERE, saved: false };
   const email = answer.body.email as { planned?: number; sent?: number; held?: number; suppressed?: number; failed?: number } | null;
   if (!email) return { tone: "done", text: ROOM_SAVED_NOBODY_TOLD, saved: true };
   const tally = { sent: email.sent ?? 0, held: email.held ?? 0, suppressed: email.suppressed ?? 0, failed: email.failed ?? 0 };
@@ -149,15 +148,15 @@ export async function saveGroupWeeks(post: Post, groupId: string, weeks: readonl
     for (const week of weeks) out.set(week.weekNumber, { saved: false, text });
     return out;
   };
-  if (!answer) return whole(UNKNOWN_OUTCOME);
+  if (!answer) return whole(UNKNOWN_HERE);
   const sentence = typeof answer.body?.error === "string" ? answer.body.error : null;
-  if (answer.status !== 200 || answer.body?.ok !== true) return whole(sentence ?? UNKNOWN_OUTCOME);
+  if (answer.status !== 200 || answer.body?.ok !== true) return whole(sentence ?? UNKNOWN_HERE);
   const rooms = Array.isArray(answer.body.rooms) ? (answer.body.rooms as Array<Record<string, unknown>>) : [];
   for (const week of weeks) {
     const said = rooms.find((each) => each.week === week.weekNumber);
-    if (!said) out.set(week.weekNumber, { saved: false, text: UNKNOWN_OUTCOME });
+    if (!said) out.set(week.weekNumber, { saved: false, text: UNKNOWN_HERE });
     else if (said.saved === true) out.set(week.weekNumber, { saved: true, text: ROOM_SAVED });
-    else out.set(week.weekNumber, { saved: false, text: typeof said.error === "string" ? said.error : UNKNOWN_OUTCOME });
+    else out.set(week.weekNumber, { saved: false, text: typeof said.error === "string" ? said.error : UNKNOWN_HERE });
   }
   return out;
 }

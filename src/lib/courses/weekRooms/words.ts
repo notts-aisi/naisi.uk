@@ -139,6 +139,8 @@ export function saveButtonWords(rooms: number, groups: number, people: number): 
 }
 
 export const SAVING = "Saving…";
+/** When no answer came back for a room: nothing on these pages to close, so reload. */
+export const UNKNOWN_HERE = "We couldn’t tell whether that went through. Reload this page to see the room as it stands before you press again.";
 /** Under a field whose room changes only in case or spacing. */
 export const SPELLING_ONLY = "Only its spelling changes, so nobody is emailed.";
 /** The button before anything has been changed. */

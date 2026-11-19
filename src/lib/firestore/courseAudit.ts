@@ -269,7 +269,7 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "session-pushed": "Session cancelled, later weeks pushed back",
   "session-restored": "Session put back as usual",
   "session-put-right": "Session put right after it happened",
-  "session-room": "Room set for one week",
+  "session-room": "Room set or taken off for one week",
   "group-time-changed": "Regular time changed",
   "group-room-changed": "Room changed",
   "group-link-set": "Meeting link set",
