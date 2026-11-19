@@ -541,9 +541,15 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
       "src/lib/applications/nextTerm/load.ts",
       "src/lib/courses/coursework/questionLoad.ts",
       "src/lib/courses/coursework/readingLoad.ts",
+      "src/lib/courses/personPage/load.ts",
       "src/lib/courses/weekNotes/gather.ts",
       "src/lib/courses/workRatings/readers.ts",
     ]);
+    // A person's page on the programme: the reading pages' reader, week by week, behind the same gate, never their own work.
+    const personPage = codeOf("src/lib/courses/personPage/load.ts");
+    assert.match(personPage, /if \(owner && mayRateWorkOf\(actor, facts, owner, liveGroups\)\) \{/);
+    assert.ok(personPage.indexOf("mayRateWorkOf(actor, facts, owner, liveGroups)") < personPage.indexOf("readAnswerRatings(db, {"), "the person's page reads ratings before it asks who is looking");
+    assert.doesNotMatch(personPage, /readPersonRatings\(|readWeekRatings\(|readRatingsAbout\(|loadTeamRatings\(/);
     // What a note is drafted from calls only the two readers made for it, held in the next test.
     assert.doesNotMatch(codeOf("src/lib/courses/weekNotes/gather.ts"), /loadTeamRatings\(|readAnswerRatings\(|readRatingsAbout\(/);
     // The written answer's review page's loader, kept behind This week's work's Written answer column after its page
@@ -577,6 +583,8 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
           "src/lib/courses/coursework/readingLoad.ts",
           // One question across a group: the same, person by person, by the gate held above.
           "src/lib/courses/coursework/questionLoad.ts",
+          // A person's page on the programme: the number and the rater for an admin or the lead, by the gate held above.
+          "src/lib/courses/personPage/load.ts",
           "src/features/courses/written/RatingForTheTeam.tsx",
           "src/app/api/courses/runs/[runId]/work-ratings/route.ts",
           "src/lib/applications/nextTerm/load.ts",

@@ -19,14 +19,14 @@ import { MOVE_LINK } from "@/lib/courses/staffMove/words";
 import { copiesOf, readsGroupIdFor } from "@/lib/courses/weekCopy";
 import { weekOpensOn } from "@/lib/courses/weekPlan";
 import { mayRateWorkOf } from "@/lib/courses/workRatings/access";
-import { readPersonRatings } from "@/lib/courses/workRatings/readers";
+import { readAnswerRatings } from "@/lib/courses/workRatings/readers";
 import { liveGroupsOf, ownerFactsFromSeat, reviewerFactsOf, writtenReviewRole } from "@/lib/courses/writtenAnswers/access";
 import { eventsOfPerson } from "@/lib/events/missedEvents";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { courseEnrolmentId, groupForWeek, normalizeCourseEnrolment, placementIsShownTo, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
-import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { normalizeCourseRun, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { isAddressableId } from "@/lib/addressableId";
 import {
   activityOf,
@@ -313,7 +313,17 @@ export async function loadTeamPersonPage(
   const owner = ownerFactsFromSeat(uid, seats.get(uid) ?? null, liveGroups, { isAdmin: facts.isAdmin });
   let ratings: TeamPersonView["ratings"];
   if (owner && mayRateWorkOf(actor, facts, owner, liveGroups)) {
-    const stored = (await readPersonRatings(db, { runId: run.id, uid })).filter((rating) => rating.rating !== null);
+    // The reading pages' own reader, one written answer at a time: each week's ratings on the answer it asks for.
+    const asked = columns.flatMap((column) => {
+      const answer = weekOf(column.weekNumber)?.answer;
+      return answer ? [{ weekNumber: column.weekNumber, itemId: answer.id }] : [];
+    });
+    const perWeek = await Promise.all(
+      asked.map(async (each) =>
+        (await readAnswerRatings(db, { runId: run.id, uid, weekId: weekDocId(each.weekNumber) })).filter((rating) => rating.itemId === each.itemId),
+      ),
+    );
+    const stored = perWeek.flat().filter((rating) => rating.rating !== null);
     const raters = await cardNamesOf(db, stored.map((rating) => rating.raterUid));
     ratings = ratingColumnOf(
       columns.map((column) => column.weekNumber),

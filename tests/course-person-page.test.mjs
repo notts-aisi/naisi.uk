@@ -425,7 +425,8 @@ describe("the source", () => {
   });
 
   test("ratings are read only behind the gate every reader of ratings asks", () => {
-    assert.ok(load.indexOf("mayRateWorkOf(actor, facts, owner, liveGroups)") < load.indexOf("readPersonRatings(db"));
+    assert.ok(load.indexOf("mayRateWorkOf(actor, facts, owner, liveGroups)") < load.indexOf("readAnswerRatings(db"));
+    assert.doesNotMatch(load, /readPersonRatings\(|readWeekRatings\(|readRatingsAbout\(|loadTeamRatings\(/);
   });
 
   test("nobody's words are read: the run's coursework is read with no person's words", () => {

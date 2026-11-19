@@ -4449,6 +4449,10 @@ describe("the course hub passage", () => {
           "src/lib/courses/coursework/questionLoad.ts",
           "one question across a group, after its door's gate (the programme's: its lead and admins; the group's: its live facilitators, the lead and admins), the words read only for the people the one gate on whose work lets the reader read, so a facilitator never reads a facilitator's own",
         ],
+        [
+          "src/lib/courses/personPage/load.ts",
+          "a person's page: their reflections and ticks as states, counts and times, never words, for the programme's lead and admins after the programme's own gate, and for a live facilitator of the group they are in now, their weeks in that group alone, after the one gate on whose work",
+        ],
         ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "the group's page, for its live facilitators and admins"],
         ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx", "the page to read lines out, for the group's live facilitators and admins"],
         ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx", "the lead's view of a group's week, for the programme's lead and admins"],
@@ -8099,8 +8103,11 @@ describe("the check-in passage", () => {
     // both routes as every caller.
     assert.deepEqual(
       sourceFilesNaming(/\bmissedEventsOf\(|\beventsOfPerson\(/).filter((file) => file !== "src/lib/events/missedEvents.ts"),
-      ["src/app/api/admin/members/[uid]/events/route.ts", "src/lib/events/requestCard.ts"],
+      ["src/app/api/admin/members/[uid]/events/route.ts", "src/lib/courses/personPage/load.ts", "src/lib/events/requestCard.ts"],
     );
+    // A person's page on a programme reads them only once the programme's gate has answered an admin.
+    const personPage = withoutComments(read("src/lib/courses/personPage/load.ts"));
+    assert.ok(personPage.indexOf("if (!isAdmin) return") !== -1 && personPage.indexOf("if (!isAdmin) return") < personPage.indexOf("await eventsOfPerson(db, uid, now)"));
     const route = withoutComments(read("src/app/api/admin/members/[uid]/events/route.ts"));
     assert.ok(route.indexOf('if (viewer.role !== "admin") {') < route.indexOf("await eventsOfPerson(db, uid, new Date())"));
     assert.match(
@@ -10775,6 +10782,10 @@ describe("v15 lets the people running a programme rate written work for each oth
         [
           "src/lib/courses/coursework/questionLoad.ts",
           "one question across a group, for an admin or the programme's lead alone, person by person (`mayRateWorkOf`, which never admits a facilitator or the person themselves); tests/course-work-ratings.test.mjs holds the call",
+        ],
+        [
+          "src/lib/courses/personPage/load.ts",
+          "a person's page on the programme, the number and the rater only, for an admin or the programme's lead alone (`mayRateWorkOf`, which never admits a facilitator or the person themselves); tests/course-work-ratings.test.mjs holds the call",
         ],
       ]),
       "reading ratings for the team",

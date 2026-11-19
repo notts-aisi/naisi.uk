@@ -141,6 +141,14 @@ const READERS = {
       "their placement may be shown to the caller, so the lead sees an untold one as not in a group yet; asked a second time " +
       "about a caller who is no admin, to know whether the person was told and so reads the group's copy of a week",
   },
+  "lib/courses/personPage/load.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "a person's page on the programme and a facilitator's cut of it: the person's group comes from the Coursework tab's rows and the " +
+      "one gate, which ask the question themselves; asked here once more about a caller who is no admin, so Activity says Publish told them " +
+      "their group only once it has",
+  },
   "lib/courses/coursework/readingLoad.ts": {
     kind: "shown",
     asks: 3,
