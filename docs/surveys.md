@@ -1640,23 +1640,29 @@ time, and writes exactly the seven fields. The programme's name is the form's,
 found again on the server (one form read and one run read); a session is a week
 of that programme's run, never past its last; "who it is about" is a role from a
 fixed list (`ABOUT_KEYS`), never a name. The words are up to 4,000 characters.
-Nothing is logged, and the answer is `{ ok: true }` with no id. Two limits keep
-floods out, both counts in the server's memory alone: 30 a minute per address
-(read for that key and nothing else) and 300 an hour for the whole form. No
-captcha. The browser sends its sign-in (only members may send) and no referrer,
-and keeps nothing.
+Nothing is logged, and the answer is `{ ok: true }` with no id. Three limits
+keep floods out, all counts in the server's memory alone: per address 30 a
+minute and 30 an hour (the address is read for those two keys and nothing
+else), so one address cannot use up the whole form's allowance, and 300 an hour
+for the whole form. No captcha. The browser sends its sign-in (only members may
+send) and no referrer, and keeps nothing: the installed app's relaunch record
+(`recordLastRoute`, `NOT_RECORDED`) never keeps this page's address.
 
 **The day, not the time.** As for the form above: an entry waits in
 `societyFeedbackWaiting`, and once its London day is over the job
 `anonymous-feedback-move` moves that day's entries, shuffled, into
 `societyFeedback` under new random ids and deletes what waited. Nothing that
 shows an entry ever reads the waiting place, so admins read an entry from the
-day after it was sent, once the move has run.
+day after it was sent, once the move has run. The job runs each form's half
+whatever the other did; when one fails, the run's report names that half and
+says what the other moved.
 
 **The admins' page.** Admins only (`requireAdminPage()`, and the page asks
 again). Reads per view: every application form (one query, for when this term
-began) and this term's kept entries (one range on `day`, at most 2,000). It
-shows only days before today, the newest first, ordered within a day by the
+began), this term's kept entries (one range on `day`, at most 2,000) and the
+oldest kept entry (one, ordered by `day`). It says that it shows this term's
+feedback and that Download holds every entry kept. It shows only days before
+today, the newest first, ordered within a day by the
 entry's random id; a tab per programme named, one for "Not about a
 programme", and All, each with its count; a filter by role. Words are shown as
 text, never HTML, and no link in them is made live. Dealt with, and Add a note
@@ -1666,17 +1672,27 @@ day. Download is every kept entry as a CSV, naming no admin. Before any term
 has begun the page shows every kept entry and no count line.
 
 **Clearing out, by hand.** Nothing deletes an entry on a timer. At the foot of
-the admins' page an admin chooses a day (it starts a year before today), presses
-Count them, and is asked to confirm that number; the route refuses a count that
-has changed since (409, with the new one) and a day after today, and deletes
-only kept entries sent before the day, never the waiting place. Done once a
-year with the day it starts on, no entry is kept for more than two years,
-which is what the privacy policy (version 21) says.
+the admins' page it says when the oldest kept entry is from, and, when some is
+more than a year old, that it is due to be cleared out at the yearly review. An
+admin chooses a day, presses Count them, and is asked to confirm that number.
+The day can be no later than the same day a year before today in London
+(`clearDayFits`, at the route as on the page), so a press only ever deletes
+entries more than a year old: the privacy policy (version 21) says an admin
+deletes by hand "every entry more than a year old", once a year, so none is
+kept longer than two years. The route refuses a count that has changed since
+(409, with the new one), deletes only kept entries sent before the day and never
+the waiting place, and at most 5,000 in one press; a clear that reaches that
+says how many are left and to press again.
 
 **Guards.** `tests/society-feedback.test.mjs` runs the routes, the move and
 both pages in the programme surveys' world; `tests/society-feedback-no-trace.test.mjs`
-walks the form's files for a log, a cookie, a header, a second session read,
-a write of anything but the seven fields, and a reader of the waiting place;
+walks the form's files with allow-lists: a session read only in the send
+route, the three admin routes and the admins' page; a database write only in
+the writer, the move and the admins' library; every file the send route and
+the form's page reach that can say who is calling, named; no log anywhere (the
+process's streams and a throw built from anything but a plain sentence count),
+the rate limiter included; only the seven fields written; and no reader of the
+waiting place but the writer and the move;
 `scripts/rules-tests/tests/society-feedback.test.mjs` holds both collections
 shut to every browser.
 

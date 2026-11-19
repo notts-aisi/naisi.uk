@@ -24,13 +24,35 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  * count on its receipt.
  */
 
+/** An error's own message, short, for the run's report. */
+function errorWords(err: unknown): string {
+  return err instanceof Error ? err.message.slice(0, 200) : "an unknown error";
+}
+
 async function run(ctx: JobContext): Promise<JobResult> {
   const db = getAdminDb();
   if (!db) return { processed: 0, hasMore: false, note: "no database" };
   const today = londonDateKey(ctx.now);
   const expired = () => ctx.budget.expired();
-  const answers = await moveWaitingAnswers(db, today, { max: ctx.maxPerTick, expired });
-  const feedback = await moveWaitingSocietyFeedback(db, today, { max: Math.max(0, ctx.maxPerTick - answers.moved), expired });
+  // Each half runs whatever the other did, and a failure says which half it
+  // was and what the other moved, on the run's report. The message is the
+  // error's own and never holds anybody's words: the moves copy fields by name.
+  const failed: string[] = [];
+  let answers = { moved: 0, left: 0 };
+  let feedback = { moved: 0, left: 0 };
+  try {
+    answers = await moveWaitingAnswers(db, today, { max: ctx.maxPerTick, expired });
+  } catch (err) {
+    failed.push(`the keep, change and drop form's answers (${errorWords(err)})`);
+  }
+  try {
+    feedback = await moveWaitingSocietyFeedback(db, today, { max: Math.max(0, ctx.maxPerTick - answers.moved), expired });
+  } catch (err) {
+    failed.push(`anonymous feedback (${errorWords(err)})`);
+  }
+  if (failed.length > 0) {
+    throw new Error(`The move failed for ${failed.join(" and for ")}. Moved in this run: ${answers.moved} answers, ${feedback.moved} feedback.`);
+  }
   const moved = answers.moved + feedback.moved;
   const hasMore = answers.left > 0 || feedback.left > 0;
   const parts = [answers.moved > 0 ? `${answers.moved} answers` : "", feedback.moved > 0 ? `${feedback.moved} feedback` : ""].filter(Boolean);

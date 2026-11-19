@@ -7,17 +7,11 @@ import styles from "@/features/societyFeedback/societyFeedback.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { readForAdmins } from "@/lib/societyFeedback/admin";
-import { dayOf } from "@/lib/societyFeedback/model";
+import { dayOf, yearBefore } from "@/lib/societyFeedback/model";
 import { buildAdminView } from "@/lib/societyFeedback/view";
 import { ADMIN_WORDS } from "@/lib/societyFeedback/words";
 
 export const dynamic = "force-dynamic";
-
-/** The same day a year earlier, as a day key: where the clear-out's day starts. */
-function aYearBefore(today: string): string {
-  const [year, month, day] = today.split("-");
-  return `${Number(year) - 1}-${month}-${month === "02" && day === "29" ? "28" : day}`;
-}
 
 /**
  * Run NAISI › Surveys › Anonymous feedback: what members sent through the
@@ -34,8 +28,8 @@ function aYearBefore(today: string): string {
  * tells them an entry exists.
  *
  * READS PER VIEW: every application form (one query, for when this term
- * began) and this term's kept entries (one range on `day`, at most 2,000).
- * Never the waiting place.
+ * began), this term's kept entries (one range on `day`, at most 2,000) and the
+ * oldest kept entry (one, ordered by `day`). Never the waiting place.
  */
 export default async function AnonymousFeedbackAdminPage() {
   const viewer = await getCurrentUser();
@@ -57,7 +51,7 @@ export default async function AnonymousFeedbackAdminPage() {
           </a>
         }
       />
-      <AdminFeedback view={view} today={today} clearFrom={aYearBefore(today)} />
+      <AdminFeedback view={view} latestClearDay={yearBefore(today)} />
     </AdminPage>
   );
 }

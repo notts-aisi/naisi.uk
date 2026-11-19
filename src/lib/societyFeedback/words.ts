@@ -131,6 +131,11 @@ export const ADMIN_WORDS = {
   none: "No feedback to read yet.",
   noneHere: "Nothing here.",
   failed: "That didn’t save. Try again.",
+  /** What the page holds, and what the download holds. */
+  scope: (fromDay: string | null) =>
+    fromDay
+      ? `This page shows this term’s feedback, sent from ${fromDay}. Download holds every entry kept.`
+      : "This page shows every entry kept. Download holds them all too.",
 } as const;
 
 /** Clearing out by hand, at the foot of the admins' page. */
@@ -147,7 +152,13 @@ export const CLEAR_WORDS = {
   deleting: "Deleting…",
   keep: "Keep them",
   done: (n: number) => (n === 1 ? "Deleted 1 entry." : `Deleted ${n} entries.`),
-  badDay: "Choose a day on or before today.",
+  /** A clear-out that reached its limit for one press. */
+  doneWithMore: (n: number, left: number, day: string) =>
+    `Deleted ${n} entries. ${left === 1 ? "1 more was" : `${left} more were`} sent before ${day}: press Count them again, then delete, to clear ${left === 1 ? "it" : "them"} too.`,
+  badDay: "Choose a day at least a year before today: only feedback more than a year old is cleared out.",
+  oldest: (day: string) => `The oldest feedback kept is from ${day}.`,
+  due: "Some of it is more than a year old, so it is due to be cleared out at the yearly review.",
+  noneKept: "No feedback is kept yet.",
   failed: "That didn’t work. Try again.",
 } as const;
 

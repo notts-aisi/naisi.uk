@@ -1,6 +1,6 @@
 import "server-only";
 import { Timestamp, type Firestore } from "firebase-admin/firestore";
-import { NOTE_MAX_CHARS, SOCIETY_KEPT_COLLECTION, dayOf, isDayKey, isRecordId, normaliseKept, type KeptEntry } from "./model";
+import { NOTE_MAX_CHARS, SOCIETY_KEPT_COLLECTION, dayOf, isDayKey, isRecordId, normaliseEntry, normaliseKept, yearBefore, type KeptEntry } from "./model";
 import { termStart } from "./programmes";
 import { buildAdminView, type AdminView } from "./view";
 import { ABOUT_WORDS, ADMIN_WORDS, DOWNLOAD_COLUMNS, weekWords } from "./words";
@@ -34,13 +34,15 @@ function keptOf(docs: readonly { id: string; data: () => Record<string, unknown>
  * The admins' page. READS: every application form (one query, to find when
  * this term began), then the kept entries from that day (one range on `day`,
  * at most `READ_LIMIT`), or every kept entry up to the limit before any term
- * has begun.
+ * has begun; and the one oldest kept entry (ordered by `day`, which every
+ * entry has, limit one), for the clear-out's line.
  */
 export async function readForAdmins(db: Firestore, now: Date): Promise<AdminView> {
-  const term = await termStart(db, now);
   const kept = db.collection(SOCIETY_KEPT_COLLECTION);
+  const [term, oldest] = await Promise.all([termStart(db, now), kept.orderBy("day", "asc").limit(1).get()]);
   const snap = await (term ? kept.where("day", ">=", term.day) : kept).limit(READ_LIMIT).get();
-  return buildAdminView(keptOf(snap.docs), dayOf(now), term ? term.day : null);
+  const first = oldest.docs[0] ? normaliseEntry(oldest.docs[0].data() ?? {}) : null;
+  return buildAdminView(keptOf(snap.docs), dayOf(now), term ? term.day : null, first ? first.day : null);
 }
 
 export type MarkResult = { ok: true } | { ok: false; status: 400 | 404; problem: "shape" | "gone" | "long" };
@@ -76,12 +78,13 @@ export async function setNote(db: Firestore, entryId: string, words: string, adm
 }
 
 /**
- * Whether a clear-out's day can be used at `now`: a real day, on or before
- * today in London. Entries from today and yesterday may still be waiting for
- * the move, so a clear-out never reaches them in any case.
+ * Whether a clear-out's day can be used at `now`: a real day, no later than
+ * the same day a year before today in London. The privacy policy says an
+ * admin deletes "every entry more than a year old", so no press can delete an
+ * entry under a year old.
  */
 export function clearDayFits(before: unknown, now: Date): before is string {
-  return isDayKey(before) && before <= dayOf(now);
+  return isDayKey(before) && before <= yearBefore(dayOf(now));
 }
 
 /** How many kept entries were sent before `before`: one count, no entry read. */
@@ -95,15 +98,15 @@ export async function countBefore(db: Firestore, before: string): Promise<number
  * nothing calls this on a timer. At most `CLEAR_LIMIT` in one press; `left`
  * says how many it did not reach.
  */
-export async function clearBefore(db: Firestore, before: string): Promise<{ deleted: number; left: number }> {
+export async function clearBefore(db: Firestore, before: string, limit = CLEAR_LIMIT): Promise<{ deleted: number; left: number }> {
   const query = db.collection(SOCIETY_KEPT_COLLECTION).where("day", "<", before);
-  const snap = await query.limit(CLEAR_LIMIT).get();
+  const snap = await query.limit(limit).get();
   for (let at = 0; at < snap.docs.length; at += CLEAR_BATCH) {
     const batch = db.batch();
     for (const doc of snap.docs.slice(at, at + CLEAR_BATCH)) batch.delete(doc.ref);
     await batch.commit();
   }
-  const left = snap.docs.length < CLEAR_LIMIT ? 0 : (await query.count().get()).data().count;
+  const left = snap.docs.length < limit ? 0 : (await query.count().get()).data().count;
   return { deleted: snap.docs.length, left };
 }
 

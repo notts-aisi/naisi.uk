@@ -18,13 +18,14 @@ import styles from "./societyFeedback.module.css";
  * the note's line. Every word is drawn as text, never as HTML, and no link in
  * it is made live.
  */
-export default function AdminFeedback({ view, today, clearFrom }: { view: AdminView; today: string; clearFrom: string }) {
+export default function AdminFeedback({ view, latestClearDay }: { view: AdminView; latestClearDay: string }) {
   const [tab, setTab] = useState(ALL_TAB);
   const [about, setAbout] = useState<AboutKey | "">("");
   const days = filterDays(view.days, tab, about);
 
   return (
     <div className={styles.admin}>
+      <p className={styles.status}>{view.scopeLine}</p>
       {view.total === 0 ? (
         <p className={styles.empty}>{ADMIN_WORDS.none}</p>
       ) : (
@@ -60,7 +61,7 @@ export default function AdminFeedback({ view, today, clearFrom }: { view: AdminV
           )}
         </>
       )}
-      <ClearOut today={today} defaultDay={clearFrom} />
+      <ClearOut latestDay={latestClearDay} oldestLine={view.oldestLine} dueLine={view.dueLine} />
     </div>
   );
 }

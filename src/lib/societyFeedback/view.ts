@@ -1,5 +1,5 @@
-import type { AboutKey, KeptEntry } from "./model";
-import { ABOUT_AFTER_COLON, ADMIN_WORDS, dayKeyWords, dayWords, weekWords } from "./words";
+import { yearBefore, type AboutKey, type KeptEntry } from "./model";
+import { ABOUT_AFTER_COLON, ADMIN_WORDS, CLEAR_WORDS, dayKeyWords, dayKeyWordsWithYear, dayWords, weekWords } from "./words";
 
 /**
  * WHAT THE ADMINS' PAGE DRAWS, from the kept entries: pure, so every shape of
@@ -44,6 +44,11 @@ export type AdminView = {
   total: number;
   tabs: ProgrammeTab[];
   days: DayView[];
+  /** What the page holds and what the download holds. */
+  scopeLine: string;
+  /** "The oldest feedback kept is from …", and whether some is due to be cleared out. */
+  oldestLine: string;
+  dueLine: string | null;
 };
 
 export const ALL_TAB = "all";
@@ -71,10 +76,11 @@ function entryView(entry: KeptEntry): EntryView {
 
 /**
  * The page, from the kept entries read (`./admin`), today's day key in London,
- * and the day this term began (null before any form has opened, when every
- * kept entry is shown and no count line is drawn).
+ * the day this term began (null before any form has opened, when every kept
+ * entry is shown and no count line is drawn), and the day of the oldest entry
+ * kept (null when none is), for the clear-out's lines.
  */
-export function buildAdminView(entries: readonly KeptEntry[], today: string, termStartDay: string | null): AdminView {
+export function buildAdminView(entries: readonly KeptEntry[], today: string, termStartDay: string | null, oldestDay: string | null = null): AdminView {
   const shown = entries.filter((entry) => entry.day < today && (termStartDay === null || entry.day >= termStartDay));
 
   const byDay = new Map<string, KeptEntry[]>();
@@ -121,6 +127,10 @@ export function buildAdminView(entries: readonly KeptEntry[], today: string, ter
     total: shown.length,
     tabs,
     days,
+    scopeLine: ADMIN_WORDS.scope(termStartDay === null ? null : dayKeyWordsWithYear(termStartDay)),
+    oldestLine: oldestDay ? CLEAR_WORDS.oldest(dayKeyWordsWithYear(oldestDay)) : CLEAR_WORDS.noneKept,
+    // More than a year old: sent before the same day a year ago.
+    dueLine: oldestDay && oldestDay < yearBefore(today) ? CLEAR_WORDS.due : null,
   };
 }
 

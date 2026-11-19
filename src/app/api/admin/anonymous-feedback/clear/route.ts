@@ -9,7 +9,10 @@ import { CLEAR_WORDS, dayKeyWordsWithYear } from "@/lib/societyFeedback/words";
  * CLEARING OUT ANONYMOUS FEEDBACK BY HAND (docs/surveys.md, "Anonymous
  * feedback for the whole society"). Admins only. Nothing deletes an entry on
  * a timer: an admin chooses a day at the yearly review, is told how many were
- * sent before it, and confirms.
+ * sent before it, and confirms. The day can be no later than the same day a
+ * year before today in London (`clearDayFits`), here as on the page, so no
+ * press deletes feedback under a year old: the privacy policy says an admin
+ * deletes "every entry more than a year old".
  *
  *  - GET `?before=YYYY-MM-DD`: `{ count }`, how many kept entries were sent
  *    before that day. One count; no entry is read.

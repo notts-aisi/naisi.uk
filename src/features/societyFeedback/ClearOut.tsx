@@ -9,13 +9,14 @@ import styles from "./societyFeedback.module.css";
 /**
  * CLEARING OUT BY HAND, at the yearly review: choose a day, be told how many
  * entries were sent before it, and confirm that number. Nothing here runs by
- * itself. The day starts a year before today, which keeps no entry for more
- * than two years when the clear-out is done once a year; an admin may choose
- * another.
+ * itself. The day can be no later than the same day a year before today, here
+ * and at the route, so a press only ever deletes feedback more than a year
+ * old: what the privacy policy says, done once a year, keeps none for more
+ * than two years. It starts on that latest day.
  */
-export default function ClearOut({ today, defaultDay }: { today: string; defaultDay: string }) {
+export default function ClearOut({ latestDay, oldestLine, dueLine }: { latestDay: string; oldestLine: string; dueLine: string | null }) {
   const router = useRouter();
-  const [day, setDay] = useState(defaultDay);
+  const [day, setDay] = useState(latestDay);
   const [counted, setCounted] = useState<{ day: string; count: number } | null>(null);
   const [busy, setBusy] = useState<"" | "counting" | "deleting">("");
   const [status, setStatus] = useState("");
@@ -51,7 +52,7 @@ export default function ClearOut({ today, defaultDay }: { today: string; default
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ before: confirmed.day, count: confirmed.count }),
       });
-      const result = (await response.json().catch(() => ({}))) as { deleted?: number; count?: number; error?: string };
+      const result = (await response.json().catch(() => ({}))) as { deleted?: number; left?: number; count?: number; error?: string };
       if (response.status === 409 && typeof result.count === "number") {
         // The number changed since it was counted: show the new one to confirm.
         setCounted(result.count > 0 ? { day: confirmed.day, count: result.count } : null);
@@ -63,7 +64,8 @@ export default function ClearOut({ today, defaultDay }: { today: string; default
         return;
       }
       setCounted(null);
-      setStatus(CLEAR_WORDS.done(result.deleted));
+      const left = typeof result.left === "number" ? result.left : 0;
+      setStatus(left > 0 ? CLEAR_WORDS.doneWithMore(result.deleted, left, dayKeyWordsWithYear(confirmed.day)) : CLEAR_WORDS.done(result.deleted));
       router.refresh();
     } catch {
       setError(CLEAR_WORDS.failed);
@@ -78,6 +80,8 @@ export default function ClearOut({ today, defaultDay }: { today: string; default
         {CLEAR_WORDS.heading}
       </h2>
       <p className={styles.status}>{CLEAR_WORDS.line}</p>
+      <p className={styles.status}>{oldestLine}</p>
+      {dueLine && <p className={styles.status}>{dueLine}</p>}
       <div className={styles.clearRow}>
         <div className={styles.field}>
           <label htmlFor="clear-before" className={styles.label}>
@@ -88,7 +92,7 @@ export default function ClearOut({ today, defaultDay }: { today: string; default
             type="date"
             className={styles.dateInput}
             value={day}
-            max={today}
+            max={latestDay}
             onChange={(event) => {
               setDay(event.target.value);
               setCounted(null);

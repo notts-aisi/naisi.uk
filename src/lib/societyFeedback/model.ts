@@ -105,6 +105,16 @@ export function isDayKey(value: unknown): value is string {
   return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === value;
 }
 
+/**
+ * The same day a year earlier, as a day key: "2025-11-19" for "2026-11-19",
+ * and 28 February for 29 February. An entry sent before it is more than a
+ * year old, which is what the yearly clear-out may delete and nothing newer.
+ */
+export function yearBefore(day: string): string {
+  const [year, month, date] = day.split("-");
+  return `${String(Number(year) - 1).padStart(4, "0")}-${month}-${month === "02" && date === "29" ? "28" : date}`;
+}
+
 /** The day in London an entry sent at `at` came in. */
 export function dayOf(at: Date): string {
   return londonDateKey(at);

@@ -357,6 +357,36 @@ describe("3. the night's move: a finished day's entries, shuffled, into the reco
     assert.notDeepEqual(drawn, written, "the page draws them in the order they were written");
   });
 
+  test("when the feedback half of the move fails after the first form's answers moved, the run's report says which half and what moved", async (t) => {
+    clock(t, new Date("2026-11-09T12:00:00Z"));
+    reset();
+    await sendAs("amara", { words: "One." });
+    w.world.db.collection("anonymousFeedbackWaiting").add({ roundId: ROUND, programmeId: AGI, runId: "run", keep: "Keep it.", change: "", drop: "", day: "2026-11-09" });
+    at(t, "2026-11-10T00:30:00Z");
+    const real = w.world.db;
+    w.world.db = new Proxy(real, {
+      get(object, property) {
+        if (property === "collection") {
+          return (name) => {
+            if (name === "societyFeedbackWaiting") return { get: async () => { throw new Error("the store is down"); } };
+            return object.collection(name);
+          };
+        }
+        const value = object[property];
+        return typeof value === "function" ? value.bind(object) : value;
+      },
+    });
+    try {
+      await assert.rejects(runMove(new Date()), {
+        message: "The move failed for anonymous feedback (the store is down). Moved in this run: 1 answers, 0 feedback.",
+      });
+    } finally {
+      w.world.db = real;
+    }
+    assert.equal(waiting().length, 1, "the feedback waiting record is untouched");
+    assert.equal(w.world.db.paths().filter((path) => path.startsWith("anonymousFeedback/")).length, 1, "the first form's answer moved anyway");
+  });
+
   test("the job moves both forms' entries in one tick and says so", async (t) => {
     clock(t, new Date("2026-11-09T12:00:00Z"));
     reset();
@@ -424,6 +454,19 @@ describe("4. the admins' page: from the next day, by day, by programme, read onl
     assert.deepEqual([empty.total, empty.countLine, empty.days, empty.tabs.map((tab) => tab.label)], [0, "0 this term", [], ["All"]]);
     const noTerm = view.buildAdminView([keptEntry("old", { day: "2025-01-02" })], "2026-11-10", null);
     assert.deepEqual([noTerm.total, noTerm.countLine], [1, null]);
+  });
+
+  test("the model says what the page holds, when the oldest kept entry is from, and when some is due for the yearly clear-out", () => {
+    const term = view.buildAdminView([], "2026-11-10", "2026-10-06", "2026-10-20");
+    assert.equal(term.scopeLine, "This page shows this term’s feedback, sent from Tue 6 Oct 2026. Download holds every entry kept.");
+    assert.equal(term.oldestLine, "The oldest feedback kept is from Tue 20 Oct 2026.");
+    assert.equal(term.dueLine, null);
+    const noTerm = view.buildAdminView([], "2026-11-10", null, null);
+    assert.equal(noTerm.scopeLine, "This page shows every entry kept. Download holds them all too.");
+    assert.equal(noTerm.oldestLine, words.CLEAR_WORDS.noneKept);
+    // Exactly a year old is not yet more than a year old; a day older is.
+    assert.equal(view.buildAdminView([], "2026-11-10", null, "2025-11-10").dueLine, null);
+    assert.equal(view.buildAdminView([], "2026-11-10", null, "2025-11-09").dueLine, words.CLEAR_WORDS.due);
   });
 
   test("the model hands the page a note's line and whether it is dealt with, and never a uid or a time", () => {
@@ -564,22 +607,51 @@ describe("5. Dealt with, a note, the clear-out by hand, and the download: an adm
     assert.equal(w.world.db.read(`societyFeedback/${id}`).dealtWith, undefined);
   });
 
-  test("the clear-out counts, refuses a stale count, deletes only what is older, and never reaches the waiting place", async (t) => {
+  test("the clear-out reaches only entries more than a year old: counts, refuses a later day and a stale count, and never touches the waiting place", async (t) => {
     await oneKept(t);
-    at(t, "2026-11-10T13:00:00Z");
+    // Today is Tue 10 Nov 2026, so the latest day a clear-out may name is Mon 10 Nov 2025.
+    const keep = (id, day) => w.world.db.collection("societyFeedback").doc(id).set({ words: `From ${day}.`, day, roundId: "", programmeId: "", programmeName: "", week: null, about: "" });
+    await keep("old1", "2025-01-15");
+    await keep("old2", "2025-11-09");
+    await keep("ayear", "2025-11-10");
     await sendAs("dev", { words: "Today's, still waiting." });
-    w.world.db.collection("societyFeedback").doc("newer").set({ words: "Newer.", day: "2026-11-10", roundId: "", programmeId: "", programmeName: "", week: null, about: "" });
-    const counted = await adminCall("zach", clear.GET, { url: "https://naisi.invalid/api?before=2026-11-10" });
-    assert.deepEqual(counted.body, { count: 1 });
-    assert.equal((await adminCall("zach", clear.GET, { url: "https://naisi.invalid/api?before=2026-11-11" })).status, 400, "a day after today");
-    const stale = await adminCall("zach", clear.POST, { body: { before: "2026-11-10", count: 3 } });
+    const ask = (before) => adminCall("zach", clear.GET, { url: `https://naisi.invalid/api?before=${before}` });
+    assert.deepEqual((await ask("2025-11-10")).body, { count: 2 }, "the latest day counts only what is more than a year old");
+    for (const later of ["2025-11-11", "2026-11-09", "2026-11-10", "2026-11-11"]) {
+      const refused = await ask(later);
+      assert.deepEqual([refused.status, refused.body.error], [400, words.CLEAR_WORDS.badDay], later);
+      assert.equal((await adminCall("zach", clear.POST, { body: { before: later, count: 1 } })).status, 400, `a press named ${later}`);
+    }
+    const stale = await adminCall("zach", clear.POST, { body: { before: "2025-11-10", count: 3 } });
     assert.equal(stale.status, 409);
-    assert.equal(stale.body.count, 1);
-    assert.equal(keptPaths().length, 2, "a stale confirm deleted something");
-    const done = await adminCall("zach", clear.POST, { body: { before: "2026-11-10", count: 1 } });
-    assert.deepEqual(done.body, { deleted: 1, left: 0 });
-    assert.deepEqual(keptPaths(), ["societyFeedback/newer"]);
+    assert.equal(stale.body.count, 2);
+    assert.equal(keptPaths().length, 4, "a stale confirm deleted something");
+    const done = await adminCall("zach", clear.POST, { body: { before: "2025-11-10", count: 2 } });
+    assert.deepEqual(done.body, { deleted: 2, left: 0 });
+    assert.deepEqual(keptPaths().map((path) => path.split("/")[1]).sort(), [keptPaths().find((path) => !/ayear/.test(path)).split("/")[1], "ayear"].sort());
     assert.equal(waitingPaths().length, 1, "the clear-out reached the waiting place");
+  });
+
+  test("a clear-out past one press's limit says how many are left, and a second press finishes", async (t) => {
+    clock(t, new Date("2026-11-10T12:00:00Z"));
+    reset();
+    for (let i = 1; i <= 5; i += 1) {
+      await w.world.db.collection("societyFeedback").doc(`old${i}`).set({ words: `Old ${i}.`, day: `2025-0${i}-01`, roundId: "", programmeId: "", programmeName: "", week: null, about: "" });
+    }
+    const admin = await loadTs(join("lib", "societyFeedback", "admin.ts"));
+    assert.deepEqual(await admin.clearBefore(w.world.db, "2025-11-10", 2), { deleted: 2, left: 3 });
+    assert.equal(
+      words.CLEAR_WORDS.doneWithMore(2, 3, "Mon 10 Nov 2025"),
+      "Deleted 2 entries. 3 more were sent before Mon 10 Nov 2025: press Count them again, then delete, to clear them too.",
+    );
+    assert.deepEqual(await admin.clearBefore(w.world.db, "2025-11-10", 5), { deleted: 3, left: 0 });
+    assert.deepEqual(keptPaths(), []);
+  });
+
+  test("a year before: the same day, and 28 February for 29 February", () => {
+    assert.equal(model.yearBefore("2026-11-19"), "2025-11-19");
+    assert.equal(model.yearBefore("2028-02-29"), "2027-02-28");
+    assert.equal(model.yearBefore("2026-01-01"), "2025-01-01");
   });
 
   test("the download: every kept entry, its cells guarded against formulas, and no admin named", async (t) => {
