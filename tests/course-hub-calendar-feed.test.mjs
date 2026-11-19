@@ -431,6 +431,35 @@ describe("3. a change lands on the calendar's next fetch", () => {
     assert.ok(readCalendar((await w.fetchFeed(token)).body).events.every((e) => e.LOCATION === "Hallward B12"));
   });
 
+  test("a week with no room on a group with a link is online only on the Online campus or none; on a campus it is the campus, as with no link", async () => {
+    w.reset(calendarSeed({ calls: true }));
+    const slot = w.world.db.read(`courseGroups/${B}`).session;
+    assert.ok(slot.meetingUrl, "the seed's Group B has a link");
+    // Week 5's room taken off for that week, on a group meeting at Jubilee.
+    changeGroup(B, { campus: "jubilee", sessionOverrides: { w05: { location: "" } } });
+    const { events, token } = await w.calendarOf("chloe");
+    const cleared = events.find((e) => e.UID === uidOf(RUN.agi, B, "w05"));
+    assert.equal(cleared.LOCATION, "Jubilee");
+    assert.equal(cleared.DESCRIPTION, undefined);
+    // Byte for byte what the same week says with no link at all.
+    const withLink = (await w.fetchFeed(token)).body;
+    changeGroup(B, { session: { ...slot, meetingUrl: null } });
+    const noLink = readCalendar((await w.fetchFeed(token)).body).events.find((e) => e.UID === uidOf(RUN.agi, B, "w05"));
+    assert.deepEqual(
+      { LOCATION: noLink.LOCATION, DESCRIPTION: noLink.DESCRIPTION },
+      { LOCATION: cleared.LOCATION, DESCRIPTION: cleared.DESCRIPTION },
+    );
+    // A week with its room keeps saying what it said, link and all.
+    const kept = readCalendar(withLink).events.find((e) => e.UID === uidOf(RUN.agi, B, "w04"));
+    assert.deepEqual([kept.LOCATION, kept.DESCRIPTION], ["Hallward B12", `Join on naisi.uk: ${PAGE}`]);
+    // On the Online campus, or none, a blank room with a link is still joined online.
+    for (const campus of ["online", null]) {
+      changeGroup(B, { campus, session: slot });
+      const week5 = readCalendar((await w.fetchFeed(token)).body).events.find((e) => e.UID === uidOf(RUN.agi, B, "w05"));
+      assert.deepEqual([week5.LOCATION, week5.DESCRIPTION], ["Join on naisi.uk", `Join on naisi.uk: ${PAGE}`], String(campus));
+    }
+  });
+
   test("the week the clocks go back: each session at its own London hour", async () => {
     const run = w.world.db.read(`courseRuns/${RUN.agi}`);
     put(`courseRuns/${RUN.agi}`, { ...run, startDate: "2026-10-15" });

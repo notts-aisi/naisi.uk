@@ -29,6 +29,7 @@ import { sendNotice } from "@/lib/email/notice";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import {
+  campusForWeek,
   normalizeCourseGroup,
   sessionModeForWeek,
   type CourseGroupDoc,
@@ -331,7 +332,7 @@ async function remindForSession(
     ? []
     : await reminderWeeks(db, run, group, sessions, due.session, people.map((person) => person.uid), runState.weekStates as RunWeekStates);
   if (!due.stale && weeks.length === 0) return "done";
-  const where = courseNudgeSessionWhere(due.session.session, sessionModeForWeek(group, due.session.weekId));
+  const where = courseNudgeSessionWhere(due.session.session, sessionModeForWeek(group, due.session.weekId), campusForWeek(group, due.session.weekId));
 
   for (const person of people) {
     if (Date.now() >= state.deadlineMs || pass.sent >= ctx.maxPerTick) return "out-of-time";

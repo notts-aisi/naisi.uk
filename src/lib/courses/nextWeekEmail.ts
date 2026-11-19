@@ -227,7 +227,7 @@ export async function readNextWeekEmail(
     weekNumber: session.weekNumber,
     weekTitle: week?.title ?? "",
     sessionAt: sessionInstants(session).startsAt,
-    where: courseNudgeSessionWhere(session.session, sessionModeForWeek(group, session.weekId)),
+    where: courseNudgeSessionWhere(session.session, sessionModeForWeek(group, session.weekId), campusForWeek(group, session.weekId)),
     first: sessions[0]?.sessionKey === session.sessionKey,
     // A cancelled session's email says it is off, why, and when the group
     // meets next, in place of when and where it meets; the session after one
