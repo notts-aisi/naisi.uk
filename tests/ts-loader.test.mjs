@@ -1256,6 +1256,12 @@ const USERS = new Map([
       "fetcher, Next's link and navigation and the stylesheets are stubbed",
   ],
   [
+    "course-facilitators-week.test.mjs",
+    "it draws the facilitator's group page and the register grid as each reader sees them, through the group page's " +
+      "reader, the link writer's route and the attendance route on the sessions world, so the pages' JSX, the server " +
+      "readers and the pure plan of a link are loaded together; Next's link and navigation and the stylesheets are stubbed",
+  ],
+  [
     "course-group-week-work.test.mjs",
     "it renders Remind's email through the real week email template and its notice line, and reads a week's pieces " +
       "through the blocks' own task needs and the one meaning of done, so the template's JSX and the pure modules " +
