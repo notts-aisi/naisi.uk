@@ -2135,8 +2135,9 @@ tick and week record on the run as facts, the run's feedback, the person's
 packs by id), the Attendance tab's (the run, its groups, seats and
 registers, the scheduler's switches and the accounts of its learners and
 facilitators), the person's account, their feedback (one query) and its
-writers' accounts; for an admin or the lead, their ratings (one query) and
-the raters' accounts; for a lead, the forms (`reviewerFactsOf`); for an
+writers' accounts; for an admin or the lead, their ratings (the reading
+pages' reader, one query per week that asks for a written answer) and the
+raters' accounts; for a lead, the forms (`reviewerFactsOf`); for an
 admin, their sign-ups, check-ins and the events those name. About thirty
 reads in all, each bounded by the run. The facilitator's cut: the group, the
 run's groups, the forms (`reviewerFactsOf`), the person's place and account,
