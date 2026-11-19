@@ -3200,8 +3200,53 @@ reviewed, a row per person per week, each "Review" opening the review queue
 on that week), the updates, the pace against the programme, and the notes.
 Once every session is over, the ticket's place says there are no more.
 
-Not drawn, though the board draws them: who can't make it tonight (2.4 is
-not built) and a facilitator guide (no record holds one).
+Under how the group meets, in the order a facilitator needs them before a
+session: the box about who is joining online (unchanged); **Before the
+session**; who has done the week, with Remind; and **Meeting links**.
+
+### Before the session
+
+The group's next session still to end (not cancelled, dated), whichever week
+the row of weeks has chosen, and who has said what about it, one row each, a
+person in the first row that fits them: asked to be excused and waiting
+("Waiting"); excused by an approved request or on their own word that they
+can't make it ("Excused"); joining online ("Online", only for a session held
+in a room); visiting from another group that week, with their line
+("Visiting"); one of the group's own people at another group's session that
+week, with where; and everybody else ("Coming", in the room). Somebody moved
+in from a later week is left out. Worked out by `beforeTheSessionOf`
+(`src/lib/courses/groupPage/model.ts`) from the same facts the staff page's
+week card and the register read (`loadGroupPage`, the facilitator's view):
+the name each person goes by, one of two facts about a request to be excused,
+and nothing else. Never a reason, never when anybody asked, never an address,
+never a place Publish has not told. The only read it adds is the group's
+requests to be excused (one equality on `groupId`), for that one session.
+Admins and the programme's lead are given none: their week card lists the
+week's people already.
+
+### Each week's meeting link
+
+**Meeting links** lists every week of the plan with its date and state and
+which link it reads, in words ("Set: every week", "Set: week 3 only", "No
+link"), never the link (`weekLinkKind`, the rooms page's reading). A week
+still to come has Change (or Set the link); the panel offers **Week 3 only**,
+the default, and **Week 3 onwards**. Admins and the lead have the same panel
+on each week of the programme's group page. Both save through
+`POST .../groups/[groupId]/meeting-link` (`everyWeek` is "onwards"), which
+works it out with `planLinkSave` (`src/lib/courses/meetingLink/plan.ts`):
+
+- **Week 3 only**: week 3's own link. Every other week stays as it is.
+- **Week 3 onwards**: the every-week link becomes this one and week 3's own
+  link goes. A later week with a link of its own keeps it. Every earlier week
+  that read the every-week link is given, as its own, the link it had (none
+  where it had none), so a week that has met keeps the link it had. Nothing
+  is pinned when the every-week link does not change. The box's "Keep this
+  link for every week" is the same press from its week.
+- A week that has ended is refused, as before. Pins that would set apart
+  more weeks than a group keeps (20) refuse the press with nothing written.
+
+Nobody is emailed, and the history row says which weeks and whether there
+was a link before, never the link.
 
 ### Who has done the week, and Remind
 
@@ -3292,6 +3337,15 @@ The register is a page of its own, behind the register's
 own gate. "Take the register" and each register's "See it" lead there. The
 grid is the one the group page used to hold. Before Publish has told anybody
 their group the page says when the names come.
+
+The register opens with what people said already in: an excused line is
+excused as the write that excused it left it; somebody whose request is
+waiting carries "Asked to be excused, waiting"; a visitor carries "Visiting
+from Group K"; and somebody who said they are joining online, on a line not
+marked yet, carries "Said joining online" with their place drawn online, so
+the one tap that marks them records them as present and online. Nothing is
+written until that tap: everybody else is set by a tap, so a register is
+never finished with people present by default.
 
 ### The check-in, on the register
 
