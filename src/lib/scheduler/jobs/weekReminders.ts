@@ -46,7 +46,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
-import { normalizeCourseEnrolment, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { normalizeCourseEnrolment, placementIsTold, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import {
   campusForWeek,
   normalizeCourseGroup,
@@ -408,10 +408,12 @@ async function runPeople(db: Firestore, runState: RunState): Promise<RunPeople> 
     readFinishRule(db, run.id).catch(() => null),
     readNamingProgramme(db, run.id).catch(() => null),
   ]);
+  // Only a place Publish has told its owner: the certificate sentence is
+  // about the group they were told, and the audience holds nobody else.
   const seats = new Map<string, CourseEnrolmentDoc>();
   for (const doc of seatsSnap.docs) {
     const seat = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
-    if (seat.runId === run.id && seat.uid) seats.set(seat.uid, seat);
+    if (seat.runId === run.id && seat.uid && placementIsTold(seat)) seats.set(seat.uid, seat);
   }
   runState.people = { seats, rule, incubator: naming?.kind === "incubator" };
   return runState.people;
