@@ -2215,7 +2215,10 @@ export function accountsOf(state) {
   // the other group, made by its fixture like `lead` and `covering`.
   // `outsider`: a member on no programme, made by the whole term's fixture so
   // a spec can show that nothing reaches them.
-  return [...(state.people ?? []), state.facilitator, state.lead, state.covering, state.otherFacilitator, state.outsider].filter(
+  // `invited`: somebody offered a place given back and not answered yet, made
+  // by the search spec's fixture, whose application and decision are the
+  // form's and go with it.
+  return [...(state.people ?? []), state.facilitator, state.lead, state.covering, state.otherFacilitator, state.outsider, state.invited].filter(
     Boolean,
   );
 }

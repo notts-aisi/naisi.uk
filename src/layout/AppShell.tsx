@@ -12,6 +12,8 @@ import { exitImpersonation } from "@/auth/impersonation";
 import { signOut } from "@/auth/signInWithGoogle";
 import { usePendingCount } from "@/features/admin/usePendingCount";
 import { useWritesMessages } from "@/features/messages/useWritesMessages";
+import PeopleSearch, { SearchButton, useSlashToSearch } from "@/features/search/PeopleSearch";
+import { useSearches } from "@/features/search/useSearches";
 import type { UserPermissions } from "@/lib/firestore/users";
 import { mark, warn } from "@/lib/devMonitor";
 import { hardNavigate } from "@/lib/navigation/hardNavigate";
@@ -162,6 +164,11 @@ export default function AppShell({
   const { user, role, permissions, suRecognised, admissionsReviewer, loading } = useAuth();
   const pendingCount = usePendingCount();
   const writesMessages = useWritesMessages();
+  // Search for a person or a group: drawn only for somebody its route answers,
+  // and asked about only for somebody who could run something.
+  const searches = useSearches(writesMessages || admissionsReviewer);
+  const [searchOpen, setSearchOpen] = useState(false);
+  useSlashToSearch(searches && !searchOpen && !loading, () => setSearchOpen(true));
   const [exiting, setExiting] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Fade the main content in once when we arrive from the sign-in flow.
@@ -264,6 +271,7 @@ export default function AppShell({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDrawerOpen(false);
+    setSearchOpen(false);
   }, [pathname]);
 
   async function handleExitImpersonation() {
@@ -527,6 +535,7 @@ export default function AppShell({
                 </span>
               </button>
             </div>
+            {searches && <SearchButton onOpen={() => setSearchOpen(true)} />}
             {renderNav({ label: "Main" })}
             {renderFoot()}
           </aside>
@@ -604,6 +613,14 @@ export default function AppShell({
             <div className={styles.drawerBrand}>
               <BrandMark size={28} className={styles.sidebarMark} />
             </div>
+            {searches && (
+              <SearchButton
+                onOpen={() => {
+                  setDrawerOpen(false);
+                  setSearchOpen(true);
+                }}
+              />
+            )}
             {renderNav({ onLinkClick: () => setDrawerOpen(false) })}
             {/* Quiet, permanent install route. Renders nothing when installed,
                 on desktop, or on Android before Chrome offers its prompt. */}
@@ -611,6 +628,7 @@ export default function AppShell({
             {renderFoot()}
           </div>
         </Drawer>
+        {searches && <PeopleSearch open={searchOpen} onClose={() => setSearchOpen(false)} />}
       </div>
       {/*
         The phone's bottom bar, shown wherever the sidebar is hidden. A few of

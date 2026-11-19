@@ -244,6 +244,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/search/load.ts",
+    {
+      why: "search for a person or a group: it reads a form's programmes by the ids on that form's own programmeIds (a lead's programmes), or by the id `namingProgrammeIn` found there (the programme that names a run), for the programme's name and its run",
+    },
+  ],
+  [
     "src/lib/courses/requests/load.ts",
     {
       why: "the Requests page finds the runs a reader might lead and each run's programme name: it reads each form's programmes by the ids on that form's own programmeIds, and holds every run it finds to the one gate before reading its requests",

@@ -3921,6 +3921,32 @@ export const ROUTES = {
         "so a cookie is worth nothing here.",
     },
   },
+  "/api/search": {
+    GET: {
+      expect: everyone(403, { admin: 200, lead: 200, facilitator: 200 }),
+      fields: ["searches"],
+      why:
+        "Whether the sidebar draws the search box: yes for an admin, a programme's lead (the lead persona leads " +
+        "THEIRS) and a group's facilitator (the facilitator persona runs one of its groups), worked out from the " +
+        "records. Everybody else, signed out included, gets one 403 with one sentence, so nobody learns whether " +
+        "they are signed in as somebody who runs nothing. It writes nothing.",
+    },
+    POST: {
+      expect: everyone(403, { admin: 200, lead: 200, facilitator: 200 }),
+      fields: ["groups", "moreGroups", "morePeople", "people"],
+      drive: {
+        body: { query: "an" },
+        why:
+          "A real two-letter query, so the answer's fields are held for the three who run things; it reads and " +
+          "writes nothing beyond their own lists, and everybody else is refused before the body is read.",
+      },
+      why:
+        "One query. Everybody search is not for gets the GET's one 403 before the body is read; an admin, a " +
+        "programme's lead and a facilitator with standing are answered, people and groups each with whether more " +
+        "matched. What each finds is held as every kind of reader against a real term in tests/search.test.mjs. " +
+        "It writes nothing.",
+    },
+  },
   "/api/subscriptions": {
     POST: {
       expect: everyone(400),

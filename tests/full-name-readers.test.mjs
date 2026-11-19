@@ -157,6 +157,14 @@ const READERS = new Map([
       "Messages' Sent names everybody a send reached, its writer and a person named one by one through one function, by " +
       "the rule for the session's own viewer: the committee and admins see the full name, a facilitator the name people go by",
   }],
+  ["src/lib/search/load.ts", {
+    who: "rule",
+    proof: ['const name = nameForViewer(viewer, accountNamesOf(doc.data() ?? {}), "");'],
+    why:
+      "search, for an admin only: every account named through one function by the rule for the session's own viewer, " +
+      "who is an admin, so the full name the Members page shows; a lead's names are the People tab's and a " +
+      "facilitator's the group page's, read by those pages' own loaders and never from an account here",
+  }],
   ["src/lib/events/requestCard.ts", {
     who: "rule",
     proof: ["staffNamesFor(db, uids, viewer, { emailShown: access.everyone })"],

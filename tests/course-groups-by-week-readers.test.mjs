@@ -403,6 +403,10 @@ const READERS = {
     kind: "now",
     why: "a leaver no register marked is named under the group their place names, the one they were in when they left; every other row is the Attendance tab's, which reads each week's group",
   },
+  "lib/search/load.ts": {
+    kind: "now",
+    why: "search says the group somebody is in now: an admin's line reads the group their place names, and a facilitator's list is the group page's own rows (listGroups), which reads each week's group as the page does",
+  },
 };
 
 describe("the tree: every reader of a week's group says which group it means", () => {

@@ -12,7 +12,7 @@ import { isTimed } from "../freedPlaces/groups";
 import { placeHoldersOn, type PlaceHolder } from "../handover/holders";
 import { RUNS_COLLECTION, readRun } from "../handover/run";
 import { own } from "../keys";
-import type { ApplicationDoc, ProgrammeSettings } from "../model";
+import type { ApplicationDoc, DecisionDoc, ProgrammeSettings } from "../model";
 import type { ApplicationForm } from "../normalise";
 import { isId } from "../normalise";
 import { loadForm } from "../repo";
@@ -159,6 +159,19 @@ export type ProgrammePeopleRead = {
   applications: ApplicationDoc[];
   /** The run's live groups in the board's order, each with its letter: empty while it names no run. */
   groups: PeopleGroup[];
+  /** The run the programme names, as read for the model, or null while it names none (or one being destroyed). */
+  run: { id: string; label: string } | null;
+};
+
+/**
+ * A form's sent applications and its decisions, read once by a caller that
+ * asks about more than one programme on the form (search, for a lead of two),
+ * so they are not read again for each. Exactly what `readProgrammePeople`
+ * reads for itself when it is handed none.
+ */
+export type FormPeopleRead = {
+  applications: ApplicationDoc[];
+  decisions: Map<string, DecisionDoc>;
 };
 
 /**
@@ -171,12 +184,16 @@ export type ProgrammePeopleRead = {
  *
  * Null until decisions have gone out: nobody is read before everybody has
  * been told, whoever asks.
+ *
+ * `formRead` is the form's applications and decisions when the caller has
+ * read them already for this form; without it they are read here.
  */
 export async function readProgrammePeople(
   db: Firestore,
   actor: SessionUser,
   form: ApplicationForm,
   programme: Pick<ProgrammeSettings, "id" | "runId"> & Partial<Pick<ProgrammeSettings, "kind">>,
+  formRead?: FormPeopleRead,
 ): Promise<ProgrammePeopleRead | null> {
   if (form.decisionsSentAt === null) return null;
   const runSnap = programme.runId ? await db.collection(RUNS_COLLECTION).doc(programme.runId).get() : null;
@@ -185,8 +202,8 @@ export async function readProgrammePeople(
   const runId = read && !read.destroying ? read.run.id : null;
   const groupsRead = runId ? groupsOf(db, runId) : Promise.resolve({ groups: [] as PeopleGroup[], facilitating: new Set<string>() });
   const [applications, decisions, { groups }, seats] = await Promise.all([
-    listSentApplications(db, form),
-    listDecisions(db, form.round.id),
+    formRead ? Promise.resolve(formRead.applications) : listSentApplications(db, form),
+    formRead ? Promise.resolve(formRead.decisions) : listDecisions(db, form.round.id),
     groupsRead,
     runId ? groupsRead.then(({ facilitating }) => seatsOf(db, runId, facilitating)) : Promise.resolve(new Map<string, PeopleSeat>()),
   ]);
@@ -211,7 +228,7 @@ export async function readProgrammePeople(
     movable: runId !== null && read !== null && runMoveRefusal(read.run, read.destroying) === null && groups.length > 1 && programme.kind !== "incubator",
     today: londonDateKey(new Date()),
   });
-  return { model, applications, groups };
+  return { model, applications, groups, run: runId && read ? { id: runId, label: read.run.label } : null };
 }
 
 /**
