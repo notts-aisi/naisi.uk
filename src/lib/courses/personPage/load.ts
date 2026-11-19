@@ -108,8 +108,9 @@ import {
  *    which ask again who reads which note. Never on the reader's own page.
  *  - EVENTS AND ACTIVITY: an admin's alone (the owner's decision). Events are
  *    the events tree's own reader (`eventsOfPersonInTerm`), with a count of
- *    the events they signed up to in the run's dates (`termOf`) and how
- *    many of those the card shows they came to; activity is made from records this page has
+ *    the events they signed up to in the run's dates (`termOf`) and, over
+ *    the events the rule on missed events counts (`countedEvents`), how many
+ *    they came to; activity is made from records this page has
  *    already read, and the History rows one-week visits wrote about them
  *    (`visitHistoryOf`). Neither is read for anybody else.
  *  - THE HEAD'S DETAILS: the name they go by and the month they joined (their
@@ -572,7 +573,7 @@ export async function loadTeamPersonPage(
     view: {
       ...out,
       ...(events ? { events: events.view } : {}),
-      ...(events && events.signedUp !== null ? { signedUp: signedUpWords(events.signedUp.signedUp, events.signedUp.came) } : {}),
+      ...(events && events.signedUp !== null ? { signedUp: signedUpWords(events.signedUp.signedUp, events.signedUp.counted, events.signedUp.came) } : {}),
       activity: activityOf({
         toldAt: told && delivered ? (seat?.allocatedEmailAt ?? null) : null,
         work,

@@ -755,7 +755,7 @@ describe("events this term, for an admin alone", () => {
   });
   const agreed = { ...peopleSeed()["users/amara"], policyVersion: "terms.1+privacy.15", policyAgreedAt: AGREED_AT };
 
-  test("a count of sign-ups inside the run's dates, with no check-in anywhere: no second sentence; absent for the lead and the cut", async () => {
+  test("a count of sign-ups inside the run's dates, with no event over that counts: no second sentence; absent for the lead and the cut", async () => {
     w.reset(
       seed({
         "users/amara": agreed,
@@ -774,7 +774,8 @@ describe("events this term, for an admin alone", () => {
     const admin = await team("zach");
     assert.equal(viewOf(admin).signedUp, "Signed up to 2 this term.");
     assert.match(admin.text, /Signed up to 2 this term\./);
-    assert.doesNotMatch(admin.text, /Came to|missed/i, "a nought come to is never said, nor what they missed");
+    // Film night is over but its door list was never opened, and the rest are still to come: nothing counts yet.
+    assert.doesNotMatch(admin.text, /Came to|missed/i, "came is said over events that could not have been come to");
     const lead = await team("claudia");
     assert.ok(!("signedUp" in viewOf(lead)) && !("events" in viewOf(lead)));
     assert.doesNotMatch(lead.text, /Signed up/);
@@ -817,17 +818,19 @@ describe("events this term, for an admin alone", () => {
       ...over,
     });
 
-  test("Came to counts, of the same events, those the Events card shows as came: by the account or by the sign-up", async () => {
+  const OVER_TWO = "Signed up to 3 this term. Came to 2 of the 2 that are over where they held a place and check-in was used.";
+
+  test("Came to counts, over the events that count, those the Events card shows as came: by the account or by the sign-up", async () => {
     w.reset(cameWorld());
     const admin = await team("zach");
     const view = viewOf(admin);
-    assert.equal(view.signedUp, "Signed up to 3 this term. Came to 2.", "the event still to come is signed up to and not come to");
+    assert.equal(view.signedUp, OVER_TWO, "the event still to come is signed up to, and in no count of came");
     // The card's own rows say the same of the same events: one decision.
     const came = view.events.events.filter((row) => row.state === "came").map((row) => row.eventId).sort();
     assert.ok(came.includes("ev-in") && came.includes("ev-in2"), "the card shows both as came");
     assert.ok(came.includes("ev-drop"), "the card lists the drop-in they came to");
     assert.equal(view.events.events.find((row) => row.eventId === "ev-ahead").state, "place", "the card shows the event still to come as a place");
-    assert.match(admin.text, /Signed up to 3 this term\. Came to 2\./);
+    assert.ok(admin.text.includes(OVER_TWO));
     assert.doesNotMatch(admin.text, /missed \d|Missed \d/);
     for (const who of ["claudia", "rahul"]) {
       const drawn = who === "rahul" ? await cut(who) : await team(who);
@@ -837,14 +840,22 @@ describe("events this term, for an admin alone", () => {
     for (const who of ["tess", "lloyd", "amara", null]) assert.doesNotMatch((await team(who)).text, /Came to|Signed up/, `${who}`);
   });
 
-  test("a place given back is in neither number, even with a check-in; with none come to, no second sentence", async () => {
+  test("a place given back beforehand is in no number, even with a check-in; none come to says the nought over what counts", async () => {
     w.reset(cameWorld({ "eventRsvps/ev-in2__amara": signup("ev-in2", "cancelled") }));
-    assert.equal(viewOf(await team("zach")).signedUp, "Signed up to 2 this term. Came to 1.");
+    assert.equal(viewOf(await team("zach")).signedUp, "Signed up to 2 this term. Came to 1 of the 1 that is over where they held a place and check-in was used.");
     const none = cameWorld();
     delete none["eventCheckIns/ci-in"];
     delete none["eventCheckIns/ci-in2"];
     w.reset(none);
-    assert.equal(viewOf(await team("zach")).signedUp, "Signed up to 3 this term.", "a nought come to is left unsaid");
+    assert.equal(viewOf(await team("zach")).signedUp, "Signed up to 3 this term. Came to 0 of the 2 that are over where they held a place and check-in was used.");
+  });
+
+  test("only events still to come or on the waiting list: the first sentence alone", async () => {
+    const ahead = cameWorld({ "eventRsvps/ev-in__amara": signup("ev-in", "waitlisted"), "eventRsvps/ev-in2__amara": signup("ev-in2", "pending") });
+    delete ahead["eventCheckIns/ci-in"];
+    delete ahead["eventCheckIns/ci-in2"];
+    w.reset(ahead);
+    assert.equal(viewOf(await team("zach")).signedUp, "Signed up to 3 this term.");
   });
 
   test("no sign-ups says so; somebody who has not accepted the policy is sent no count at all", async () => {
@@ -1017,9 +1028,10 @@ describe("this piece's model, pure", () => {
     assert.equal(words.rankedWords("AGI Strategy", 3), "Ranked AGI Strategy third.");
     assert.equal(words.acceptedWords(null), "Accepted.");
     assert.equal(words.invitationTakenWords(null), "Said yes to an invitation.");
-    assert.equal(words.signedUpWords(1, 0), "Signed up to 1 this term.");
-    assert.equal(words.signedUpWords(2, 2), "Signed up to 2 this term. Came to 2.");
-    assert.equal(words.signedUpWords(0, 0), "Not signed up to any this term.", "no second sentence with no sign-ups");
+    assert.equal(words.signedUpWords(1, 0, 0), "Signed up to 1 this term.", "no second sentence with nothing that counts");
+    assert.equal(words.signedUpWords(4, 1, 0), "Signed up to 4 this term. Came to 0 of the 1 that is over where they held a place and check-in was used.");
+    assert.equal(words.signedUpWords(4, 2, 1), "Signed up to 4 this term. Came to 1 of the 2 that are over where they held a place and check-in was used.");
+    assert.equal(words.signedUpWords(0, 0, 0), "Not signed up to any this term.", "no second sentence with no sign-ups");
     assert.equal(words.visitDueWords("Group F", null), "Due at Group F: a visit");
   });
 });

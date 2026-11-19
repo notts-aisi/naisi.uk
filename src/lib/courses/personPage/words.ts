@@ -91,16 +91,18 @@ export function invitationTakenWords(at: Date | null): string {
 }
 
 /**
- * "Signed up to 2 this term. Came to 2.": the sign-ups, then how many of
- * those same events the Events card shows they came to. With none come to,
- * the second sentence is left out: a nought cannot tell an event still to
- * come, or one whose door was never opened, from one they did not come to,
- * and would read as a tally of what they missed. With no sign-ups, one
- * sentence.
+ * "Signed up to 3 this term. Came to 1 of the 2 that are over where they held
+ * a place and check-in was used.": the sign-ups, then, over the events
+ * the rule on missed events counts and no others, how many they came to. The
+ * second sentence is said with a nought too, since its own count says what
+ * it is out of, and left out when no event counts yet. With no sign-ups, the
+ * first sentence alone.
  */
-export function signedUpWords(count: number, came: number): string {
-  if (count === 0) return "Not signed up to any this term.";
-  return came > 0 ? `Signed up to ${count} this term. Came to ${came}.` : `Signed up to ${count} this term.`;
+export function signedUpWords(signedUp: number, counted: number, came: number): string {
+  const first = signedUp === 0 ? "Not signed up to any this term." : `Signed up to ${signedUp} this term.`;
+  if (signedUp === 0 || counted === 0) return first;
+  const over = counted === 1 ? "the 1 that is over" : `the ${counted} that are over`;
+  return `${first} Came to ${came} of ${over} where they held a place and check-in was used.`;
 }
 
 export const NO_WEEKS = "No week of this programme is written yet, so there is no coursework to show.";

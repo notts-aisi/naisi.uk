@@ -2221,24 +2221,28 @@ not read for them, and its key is absent from what the page is handed.
 - *Events* and *Activity*: an admin's alone (`if (!isAdmin) return` comes
   before either is read). Events are the events tree's own reader
   (`eventsOfPersonInTerm`, privacy v15's "Attendance"), drawn by the admin
-  profile's own card body, with one line above it: "Signed up to 2 this
-  term. Came to 2." THIS TERM is the run's own dates: from its first day
+  profile's own card body, with one line above it: "Signed up to 3 this
+  term. Came to 1 of the 2 that are over where they held a place and check-in
+  was used." THIS TERM is the run's own dates: from its first day
   (`courseRuns.startDate`, midnight in London) to the end of its last session
   (`runEndOf`), with no end while none is dated. Counted: each published
   event starting inside them for which their newest own sign-up (never a test
   one) is a place, a request not decided or the waiting list (`signedUpWithin`
   in `src/lib/events/missedEvents.ts`); not a place given back, a request
   turned down, a cancelled event, an undated one or a drop-in with no sign-up.
-  "Came to" counts, of those SAME events, the ones the card shows as came
-  (`cameWithSignups`, the card's own decision: a check-in by their account or
-  through one of their sign-ups). So an event still to come is not come to
-  unless they are already checked in at it; a drop-in they came to with no
-  sign-up is listed by the card and is in neither number; an event whose door
-  was never opened holds nobody's check-in. With none come to, the second
-  sentence is left out, because a nought cannot tell those apart from an
-  event they did not come to and would read as a tally of what they missed;
-  never "missed". With no sign-ups the line is "Not signed up to any this
-  term." alone. Nothing for somebody who has not accepted privacy v15, as the
+  The second sentence is NOT over those: it is over the events in the same
+  dates that the policy's rule on missed events counts (`countedEvents`, the
+  one decision the line beside a request and the card's "came" ask: over, not
+  cancelled, a confirmed place held when it started, check-in used at its
+  door, this academic year, after they agreed), how many there are and how
+  many they came to (a check-in by their account or through one of their
+  sign-ups, `cameWithSignups`). So an event still to come, the waiting list, a
+  request nobody decided, a place given back beforehand and an event whose
+  door list was never opened are never set against "came"; a drop-in they
+  came to with no sign-up is in no number. It is said with a nought too
+  ("Came to 0 of the 2 ..."), because it says what it is out of, and left out
+  when no event counts yet. Never "missed". With no sign-ups the line is "Not
+  signed up to any this term." alone. Nothing for somebody who has not accepted privacy v15, as the
   card lists nothing for them. It comes from the card's own read. Activity is made only of records the page has already read,
   and the History rows one-week visits wrote about them:
   when Publish told them their group ("Publish told them their group", never

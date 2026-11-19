@@ -293,17 +293,28 @@ function attendance({ events, signups, checkIns = [], agreedFrom = AGREED }) {
 const three = { "ev-b": EVENTS["ev-b"], "ev-c": EVENTS["ev-c"], "ev-d": EVENTS["ev-d"] };
 const placesAt = (...ids) => ids.map((eventId) => ({ eventId }));
 
-describe("the sign-ups in a stretch of time, and how many of those the card shows as came", () => {
+describe("the sign-ups in a stretch of time, and, over the events that count, how many they came to", () => {
   const term = { from: new Date("2026-10-01T00:00:00Z"), to: null };
-  const SEASON = { "ev-c": EVENTS["ev-c"], "ev-d": EVENTS["ev-d"], "ev-f": EVENTS["ev-f"], "ev-g": EVENTS["ev-g"], "ev-req": EVENTS["ev-req"], "ev-sep": EVENTS["ev-sep"] };
+  const SEASON = {
+    "ev-c": EVENTS["ev-c"],
+    "ev-d": EVENTS["ev-d"],
+    "ev-e": EVENTS["ev-e"],
+    "ev-f": EVENTS["ev-f"],
+    "ev-g": EVENTS["ev-g"],
+    "ev-req": EVENTS["ev-req"],
+    "ev-sep": EVENTS["ev-sep"],
+  };
 
-  test("came is counted among the same events, by the card's own rule, and never what they did not come to", () => {
+  test("came is counted over the events the rule counts and no others, by the card's own decision", () => {
     const person = attendance({
       events: SEASON,
       signups: [
         { eventId: "ev-c" },
         { id: "sd", eventId: "ev-d" },
-        { eventId: "ev-f", status: "cancelled" },
+        // Pizza and papers: a place, over, and its door list never opened.
+        { eventId: "ev-e" },
+        // Quiz night: told us beforehand, by giving the place back.
+        { eventId: "ev-f", status: "cancelled", writtenAt: new Date("2026-11-10T09:00:00Z") },
         { eventId: "ev-g", status: "waitlisted" },
         { eventId: "ev-req", status: "pending" },
         { eventId: "ev-sep" },
@@ -315,19 +326,48 @@ describe("the sign-ups in a stretch of time, and how many of those the card show
         { eventId: "ev-sep" },
       ],
     });
-    // Film night (no check-in), Policy social (came), Speaker evening and Winter social (still to come).
-    assert.deepEqual(rules.signedUpWithin(person, term), { signedUp: 4, came: 1 });
+    // Signed up: Film night, Policy social, Pizza and papers, Speaker evening and Winter social (five).
+    // Counted (over, a place held at the start, check-in used): Film night and Policy social. Came to Policy social.
+    assert.deepEqual(rules.signedUpWithin(person, term, NOW), { signedUp: 5, counted: 2, came: 1 });
+    // One decision: exactly the events `countedEvents` counts in the stretch, and their own `came`.
+    const counted = rules.countedEvents(person, NOW).filter((each) => each.event.startAt >= term.from);
+    assert.deepEqual(counted.map((each) => [each.event.id, each.came]).sort(), [["ev-c", false], ["ev-d", true]]);
     const rows = rules.personEventRows(person, NOW);
     assert.equal(rows.find((row) => row.eventId === "ev-d").state, "came", "the card says the same of the same event");
     assert.notEqual(rows.find((row) => row.eventId === "ev-c").state, "came");
   });
 
-  test("a drop-in come to with no sign-up is in neither number; nobody who has not agreed is counted", () => {
+  test("the four-event case: the waiting list and a request nobody decided are in no count of came", () => {
+    const person = attendance({
+      events: SEASON,
+      signups: [{ eventId: "ev-c" }, { id: "sd", eventId: "ev-d" }, { eventId: "ev-g", status: "waitlisted" }, { eventId: "ev-req", status: "pending" }],
+      checkIns: [{ eventId: "ev-d", uid: "priya", rsvpId: "sd" }],
+    });
+    assert.deepEqual(rules.signedUpWithin(person, term, NOW), { signedUp: 4, counted: 2, came: 1 });
+  });
+
+  test("nothing over yet counts nothing; nothing come to says a nought over what counts", () => {
+    const ahead = attendance({ events: SEASON, signups: [{ eventId: "ev-g" }, { eventId: "ev-req", status: "pending" }] });
+    assert.deepEqual(rules.signedUpWithin(ahead, term, NOW), { signedUp: 2, counted: 0, came: 0 });
+    const none = attendance({ events: SEASON, signups: placesAt("ev-c", "ev-d") });
+    assert.deepEqual(rules.signedUpWithin(none, term, NOW), { signedUp: 2, counted: 2, came: 0 });
+  });
+
+  test("somebody who told us beforehand, whatever the check-ins say, is in no count", () => {
+    const person = attendance({
+      events: SEASON,
+      signups: [{ eventId: "ev-f", status: "cancelled", writtenAt: new Date("2026-11-10T09:00:00Z") }],
+      checkIns: [{ eventId: "ev-f" }],
+    });
+    assert.deepEqual(rules.signedUpWithin(person, term, NOW), { signedUp: 0, counted: 0, came: 0 });
+  });
+
+  test("a drop-in come to with no sign-up is in no number; nobody who has not agreed is counted", () => {
     const drop = { "ev-drop": { ...EVENTS["ev-e"], noSignup: true } };
     const person = attendance({ events: drop, signups: [], checkIns: [{ eventId: "ev-drop" }] });
-    assert.deepEqual(rules.signedUpWithin(person, term), { signedUp: 0, came: 0 });
+    assert.deepEqual(rules.signedUpWithin(person, term, NOW), { signedUp: 0, counted: 0, came: 0 });
     assert.equal(rules.personEventRows(person, NOW)[0].state, "came", "the card lists it");
-    assert.equal(rules.signedUpWithin(attendance({ events: SEASON, signups: placesAt("ev-d"), agreedFrom: null }), term), null);
+    assert.equal(rules.signedUpWithin(attendance({ events: SEASON, signups: placesAt("ev-d"), agreedFrom: null }), term, NOW), null);
   });
 });
 
