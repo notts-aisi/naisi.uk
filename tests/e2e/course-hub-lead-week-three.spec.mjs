@@ -862,6 +862,7 @@ test(
           const weekRows = byWeekRegion.locator("ol > li");
           assert.equal(await weekRows.count(), weeks.length, "Attendance by week is not one row a week");
           let wholeWeeks = 0;
+          let inProgress = 0;
           let notMet = 0;
           for (const [index, weekNumber] of weeks.entries()) {
             const said = await textOf(weekRows.nth(index));
@@ -895,9 +896,22 @@ test(
               const line = `${tally.room} of ${tally.room + tally.excused + tally.absent} came`;
               assert.ok(said.includes(line), `week ${weekNumber} does not say ${JSON.stringify(line)}: ${said}`);
               wholeWeeks += 1;
+            } else {
+              // A week in progress: how many groups have met, and the registers met and not finished yet.
+              const met = ordered.filter((group) => sessionNow(group, weekNumber, now).ended || counted.includes(group)).length;
+              const waiting = met - counted.length;
+              const lines = [`${met} of ${ordered.length} groups have met so far`];
+              if (waiting > 0) lines.push(`${waiting} ${waiting === 1 ? "register" : "registers"} not ${word()} yet`);
+              for (const line of lines) {
+                assert.ok(said.includes(line), `week ${weekNumber} does not say ${JSON.stringify(line)}: ${said}`);
+              }
+              inProgress += 1;
             }
           }
-          assert.ok(wholeWeeks > 0 && notMet > 0, `checked ${wholeWeeks} whole weeks and ${notMet} weeks not met: the world is off`);
+          assert.ok(
+            wholeWeeks > 0 && inProgress > 0 && notMet > 0,
+            `checked ${wholeWeeks} whole weeks, ${inProgress} in progress and ${notMet} not met: the world is off`,
+          );
           assert.ok((await textOf(byWeekRegion)).includes("Late and left early count as came."), "the card no longer says late counts as came");
 
           // One row per group for the week the programme is in, each opening the group's page on it,
