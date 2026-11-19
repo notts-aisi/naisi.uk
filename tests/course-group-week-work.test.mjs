@@ -289,10 +289,11 @@ describe("7. the words", () => {
   test("last reminded, in the table and in the panel", () => {
     const auto = { at: "2026-11-03T15:00:00.000Z", how: "1-day", byName: null };
     const hand = { at: "2026-11-09T10:02:00.000Z", how: "hand", byName: "Rahul" };
-    assert.equal(words.lastRemindedCell(auto), "Tue 3 Nov, 3pm · 1-day session reminder");
+    assert.equal(words.lastRemindedCell(auto), "Tue 3 Nov, 3pm · 1-day reminder before the session");
     assert.equal(words.lastRemindedCell(hand), "Mon 9 Nov, 10:02am · by Rahul");
-    // The reminder of the session, which goes to everybody due at it, done or not: never called a reminder about the week.
-    assert.equal(words.lastRemindedLine(auto), "Last reminded Tue 3 Nov, 3pm: the 1-day session reminder");
+    // Named by when it went, true of the reminder of the session (to everybody due at it, done or not) and of the
+    // reminder about what is left (to somebody not coming): never a reminder about the week, nor the session's.
+    assert.equal(words.lastRemindedLine(auto), "Last reminded Tue 3 Nov, 3pm: the 1-day reminder before the session");
     assert.equal(words.lastRemindedLine(null), "Not reminded yet");
   });
 

@@ -49,6 +49,7 @@ import { firstWord } from "@/lib/firestore/applicationEmails";
 import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
 import { normalizeCourseEnrolment, placementIsTold, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import {
+  GROUP_FIELD_LIMITS,
   campusForWeek,
   normalizeCourseGroup,
   sessionModeForWeek,
@@ -56,6 +57,7 @@ import {
 } from "@/lib/firestore/courseGroups";
 import {
   normalizeCourseRun,
+  validateSubmissionUrl,
   weekDocId,
   type CourseRunDoc,
   type CourseRunStatus,
@@ -353,6 +355,24 @@ export function sessionReminderVerdict(input: {
 }
 
 /**
+ * WHETHER THE PERSON'S PROGRAMME PAGE SHOWS THIS GROUP'S SESSION, its card
+ * with "Can't make it" and its link: the reminder says those two only when it
+ * does. The page draws its card from the group their place is in now
+ * (`groupId`): the overview builds the card on that group, offers "Can't make
+ * it" only on its own next session (`ticketEntryOf`), and shows a link only
+ * to somebody whose place is in the group (`seesSessionLink`). So somebody
+ * moved to another group from a later week, still reminded by the group they
+ * are leaving for the weeks before, has no card for its session.
+ *
+ * The rule is about what their page shows, not about another group as such:
+ * somebody on a one-week visit has a card for the host's session, so this is
+ * where a visit, once recorded, makes it true for the host.
+ */
+export function programmePageShowsSession(place: Pick<CourseEnrolmentDoc, "groupId"> | null, groupId: string): boolean {
+  return place?.groupId === groupId;
+}
+
+/**
  * The weeks one session's reminder is about: each it covers, written as
  * blocks and published, on the group's copy. A covered week is this
  * session's work only for the people whose week it was this group's
@@ -610,7 +630,8 @@ async function remindForSession(
   const { endsAt } = sessionInstants(due.session);
   // A link set for that week, as the programme page's session card reads it.
   const link = cardChangeFacts(sessions, group, due.session, londonDateKey(ctx.now)).next?.meetingUrl ?? null;
-  const place = reminderPlaceOf(group, due.session, Boolean(link?.trim()));
+  // Shown on the card only when it passes the card's own check.
+  const place = reminderPlaceOf(group, due.session, typeof link === "string" && validateSubmissionUrl(link, GROUP_FIELD_LIMITS.meetingUrl) === null);
 
   for (const person of people) {
     if (Date.now() >= state.deadlineMs || pass.sent >= ctx.maxPerTick) return "out-of-time";
@@ -670,6 +691,7 @@ async function remindForSession(
                 weeks: verdict.weeks,
                 left: verdict.left,
                 programmeUrl: courseProgrammeUrl(state.appUrl, run.id),
+                sessionOnTheirPage: programmePageShowsSession(runFacts?.seats.get(person.uid) ?? null, group.id),
               },
               firstName,
             );
@@ -749,10 +771,11 @@ async function handler(ctx: JobContext): Promise<JobResult> {
   const db = getAdminDb();
   if (!db) return { processed: 0, hasMore: false, note: "no database" };
 
-  // The button in each reminder links to the week's page, built from this.
+  // The button in each reminder links to their programme page (or, in the
+  // reminder about what is left, to the week's page), built from this.
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
   if (!appUrl) {
-    ctx.log("NEXT_PUBLIC_APP_URL is not set, so no reminder can link to its week");
+    ctx.log("NEXT_PUBLIC_APP_URL is not set, so no reminder can link to the site");
     return { processed: 0, hasMore: false, note: "no site address" };
   }
 

@@ -60,7 +60,7 @@ import { pressedBefore } from "./lib/saidBefore.mjs";
 const made = makeWorld("__weekReminders");
 const { world, reset, call, courseRoute, lib, loadTs } = made;
 
-const { weekRemindersJob, dueReminders, sessionReminderVerdict } = await lib("scheduler", "jobs", "weekReminders.ts");
+const { weekRemindersJob, dueReminders, sessionReminderVerdict, programmePageShowsSession } = await lib("scheduler", "jobs", "weekReminders.ts");
 const { weekTaskNeeds } = await lib("courses", "weekBlocks", "progress.ts");
 const { weekAsksForWriting, weekWritingNeeds } = await lib("courses", "weekWork", "model.ts");
 const { JOBS, SCHEDULER_JOB_IDS, jobDefaultEnabled } = await lib("scheduler", "registry.ts");
@@ -604,6 +604,35 @@ describe("8. somebody moved from a week is reminded by the session they are due 
     assert.equal(mailTo("chloe").length, 2);
   });
 
+  test("moved ahead: the group she is leaving reminds her without Can't make it or the link, which her page does not show; her new group's, with both", async () => {
+    const LINK = "https://meet.example.com/abc-defg-hij";
+    for (const id of [GROUP.a, GROUP.b]) {
+      world.db.poke(`courseGroups/${id}`, { session: { ...read(`courseGroups/${id}`).session, meetingUrl: LINK }, sessionModes: { w02: "virtual", w03: "virtual" } });
+    }
+    moveChloe(true);
+    await runJob(DUE.b2three);
+    const leaving = await textOf(mailTo("chloe")[0]);
+    assert.ok(leaving.includes("Group B’s week 2 session is on Tue 27 Oct, 6pm to 8pm, online, with Rahul and Sofia."), leaving);
+    assert.doesNotMatch(leaving, /Can’t make it\?|The link is on your programme page/);
+    // The rest of her email is intact: the notice line, the list and the button.
+    assert.ok(leaving.includes(NOTICE_LINE));
+    assert.match(leaving, new RegExp(`Week 2 isn’t finished yet: .* ${BUTTON}`));
+    // Everybody else in Group B: both, as ever.
+    const amara = await textOf(mailTo("amara")[0]);
+    assert.ok(amara.includes(`${B2(", online", " The link is on your programme page.")} ${CANT_MAKE_IT}`), amara);
+
+    await runJob(A_DUE.a3one);
+    const joined = await textOf(mailTo("chloe")[1]);
+    assert.ok(joined.includes(`Group A’s week 3 session is on Mon 2 Nov, 6pm to 8pm, online, with Amelia. The link is on your programme page. ${CANT_MAKE_IT}`), joined);
+    assert.ok((await textOf(mailTo("ana").at(-1))).includes(CANT_MAKE_IT));
+  });
+
+  test("the rule is what the programme page shows: the group the place is in now", () => {
+    assert.equal(programmePageShowsSession({ groupId: GROUP.a }, GROUP.a), true);
+    assert.equal(programmePageShowsSession({ groupId: GROUP.a }, GROUP.b), false);
+    assert.equal(programmePageShowsSession(null, GROUP.b), false);
+  });
+
   /** Group A's week 2 called off, so its week 3 session covers weeks 2 and 3; its own copy of week 2 asks one reading more. */
   async function groupACoversWeekTwo() {
     const own = blockWeek(2);
@@ -740,6 +769,14 @@ describe("9. the day, time and place are that week's, and never a meeting link",
     });
     assert.equal(await sentence(), B2(", online", " The link is on your programme page."));
     assert.doesNotMatch(await textOf(mailTo("amara")[0]), /meet\.example/);
+  });
+
+  test("a week held online whose stored link fails the card's own check: no link sentence, as the card shows none", async () => {
+    world.db.poke(`courseGroups/${GROUP.b}`, {
+      session: { ...read(`courseGroups/${GROUP.b}`).session, meetingUrl: "meet.example.com/no-scheme" },
+      sessionModes: { w02: "virtual" },
+    });
+    assert.equal(await sentence(), B2(", online"));
   });
 
   test("a group on the Online campus: online, with no campus in brackets", async () => {

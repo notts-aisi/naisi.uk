@@ -395,6 +395,14 @@ export type SessionReminderFacts = {
   left: readonly ReminderWeek[];
   /** Their programme page (the run's home), which the button opens. */
   programmeUrl: string;
+  /**
+   * Their programme page shows this session's card, with its Can't make it
+   * and its link (`programmePageShowsSession` in the job). When it does not
+   * (somebody moved to another group from a later week, reminded by the group
+   * they are leaving), "Can’t make it? ..." and "The link is on your
+   * programme page." are left out, and nothing is said instead.
+   */
+  sessionOnTheirPage: boolean;
 };
 
 /** The reminder of a session's button, for everybody: it opens their programme page. */
@@ -461,7 +469,8 @@ export function sessionReminderLead(
  * EVERY WORD OF THE REMINDER OF A SESSION, for one person due at it, 3 days
  * and 1 day before: the reminder's subject, a greeting, the session's
  * sentence (that week's day, time and place, from the resolver every reader
- * of a session uses), how to say they can't make it, what a certificate
+ * of a session uses), how to say they can't make it (when their programme
+ * page shows this session's card), what a certificate
  * needs (only where the run has a rule, exactly as their programme page says
  * it, and never a count of what they have missed), and, only when the week
  * is not done, what is left of it under the reminder's own lead-in, each
@@ -472,8 +481,10 @@ export function sessionReminderLead(
  * `sessionReminderReason`).
  */
 export function sessionReminderEmailWords(facts: SessionReminderFacts, firstName: string): WeekEmailWords {
-  const lead = sessionReminderLead(facts);
-  const paragraphs = [lead, SESSION_REMINDER_CANT_MAKE_IT];
+  // Their page shows no card for this session: no link there to point to.
+  const place = facts.place.kind === "online" && !facts.sessionOnTheirPage ? { kind: "online" as const, link: false } : facts.place;
+  const lead = sessionReminderLead({ ...facts, place });
+  const paragraphs = facts.sessionOnTheirPage ? [lead, SESSION_REMINDER_CANT_MAKE_IT] : [lead];
   const certificate = oneLine(facts.certificate ?? "");
   if (certificate) paragraphs.push(certificate);
   return {

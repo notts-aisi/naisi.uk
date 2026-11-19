@@ -381,6 +381,7 @@ describe("2c. the reminder of a session, word for word", () => {
     weeks: [5],
     left: [],
     programmeUrl: "https://naisi.uk/learn/agi",
+    sessionOnTheirPage: true,
     ...over,
   });
   const lead = (over) => words.sessionReminderLead(facts(over));
@@ -408,6 +409,20 @@ describe("2c. the reminder of a session, word for word", () => {
     );
     assert.equal(lead({ facilitatorFirstNames: [], place: { kind: "online", link: true } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online. The link is on your programme page.");
     assert.equal(lead({ facilitatorFirstNames: [], place: { kind: "online", link: false } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online.");
+  });
+
+  test("a session their programme page shows no card for: no Can't make it, no link sentence, and nothing said instead", () => {
+    const away = (place) => words.sessionReminderEmailWords(facts({ place, sessionOnTheirPage: false, certificate: CERT }), "Priya");
+    const online = away({ kind: "online", link: true });
+    assert.deepEqual(online.paragraphs, ["Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online, with Rahul.", CERT]);
+    const room = away(ROOM);
+    assert.deepEqual(room.paragraphs, ["Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, in Portland A21 (University Park), with Rahul.", CERT]);
+    assert.equal(room.button, "Open your programme page");
+    assert.equal(room.subject, words.sessionReminderEmailWords(facts({ place: ROOM }), "Priya").subject);
+    assert.equal(
+      away({ kind: "to-be-confirmed" }).paragraphs[0],
+      "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, with Rahul. The room is still to be confirmed: it will be on your programme page as soon as it’s booked.",
+    );
   });
 
   test("an incubator's people are told of no group and no facilitator", () => {
@@ -464,7 +479,7 @@ describe("2c. the reminder of a session, word for word", () => {
         const email = words.sessionReminderEmailWords(facts({ place, incubator, certificate: CERT, left: [{ weekNumber: 5, left: { items: [reading], notSent: false }, writes: false }] }), "Priya");
         const text = await textOf(WeekEmail({ words: email, notice: NoticeMarker({ surface: "course-week-reminder", sessionProgramme: "AGI Strategy" }) }));
         assert.ok(text.includes("You are getting this because you have a session coming up on AGI Strategy, so it reaches you whatever your notification settings say, and it is never marketing."));
-        assert.doesNotMatch(text, /https?:\/\/(?!naisi\.uk\/learn\/agi(?:[^\/]|$))/, "a link other than the programme page");
+        assert.doesNotMatch(text, /https?:\/\/(?!naisi\.uk\/learn\/agi(?:[\s\]]|$))/, "a link other than the programme page");
         assert.doesNotMatch(text, /[\u2013\u2014]|undefined|null|\{|\}/);
         assert.doesNotMatch(text, /\b(mark|grade|score)\b|unsubscribe/i);
         assert.ok(text.includes("Can’t make it? Tell us on your programme page"));

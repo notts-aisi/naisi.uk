@@ -638,7 +638,8 @@ whatever they unsubscribed from, and says why above its words.
   booked, never the usual room; a week held online (its own
   mode, or the Online campus, the rule the rooms pages use) says "online",
   and that the link is on their programme page only when one is set for that
-  week (the link the programme page's session card shows). Never a meeting
+  week and passes the card's own check (the link the programme page's
+  session card shows). Never a meeting
   link. The
   facilitators named are the group's who still stand behind the role, by first
   name; an incubator's people are told of no group and no facilitator ("Your
@@ -647,7 +648,11 @@ whatever they unsubscribed from, and says why above its words.
   programme page uses, so the two say the same; never a count of what they
   missed), then what is left of each week the session covers for them that is
   not done, each with its own list. A week that is done has no list; the
-  reminder still goes. Its button is "Open your programme page", for
+  reminder still goes. Somebody moved to another group from a later week is
+  reminded by the group they are leaving for the weeks before, but their
+  programme page shows the new group's card, so their email leaves out
+  "Can't make it?" and the link sentence (`programmePageShowsSession`).
+  Its button is "Open your programme page", for
   everybody, to the run's own page. The line above its words says why it
   reached them in its own words (`sessionReminderReason`, naming the
   programme); the reminder about what is left keeps the reminders' own line,

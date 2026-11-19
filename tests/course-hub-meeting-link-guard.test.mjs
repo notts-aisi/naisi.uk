@@ -229,10 +229,16 @@ describe("3. no message is made beside the link", () => {
   test("the reminders before a session only ask whether a week has a link, and hand the words a yes or no", () => {
     const job = read("lib/scheduler/jobs/weekReminders.ts");
     const uses = [...job.matchAll(/^.*\bmeetingUrl\b.*$/gm)].map((m) => m[0].trim());
-    assert.deepEqual(uses, ["const link = cardChangeFacts(sessions, group, due.session, londonDateKey(ctx.now)).next?.meetingUrl ?? null;"]);
-    assert.match(job, /const place = reminderPlaceOf\(group, due\.session, Boolean\(link\?\.trim\(\)\)\);/);
-    assert.equal((job.match(/\blink(?:\?\.|\s*=)/g) ?? []).length, 2, "the link is read once and asked once");
-    assert.doesNotMatch(job, /[(,{[]\s*link\s*[,)}\]]|\blink\s*[,})]/, "the link is handed on somewhere");
+    assert.deepEqual(uses, [
+      "const link = cardChangeFacts(sessions, group, due.session, londonDateKey(ctx.now)).next?.meetingUrl ?? null;",
+      'const place = reminderPlaceOf(group, due.session, typeof link === "string" && validateSubmissionUrl(link, GROUP_FIELD_LIMITS.meetingUrl) === null);',
+    ]);
+    // Asked as the card asks it: a yes only for an address that passes the card's own check.
+    const asked =
+      'const place = reminderPlaceOf(group, due.session, typeof link === "string" && validateSubmissionUrl(link, GROUP_FIELD_LIMITS.meetingUrl) === null);';
+    assert.ok(job.includes(asked));
+    assert.equal((job.match(/\blink\b/g) ?? []).length - (job.match(/"[^"\n]*\blink\b[^"\n]*"/g) ?? []).length, 3, "the link is read once and asked once, and goes nowhere else");
+    assert.doesNotMatch(job.replace(asked, ""), /[(,{[]\s*link\s*[,)}\]]|\blink\s*[,})]/, "the link is handed on somewhere");
   });
 
   test("no message composer names it: the room notice, the group email, updates and the change dialog", () => {

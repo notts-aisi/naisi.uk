@@ -181,18 +181,19 @@ export const OWN_WORK_APART = "A facilitator’s own work is counted apart, and 
 // ---------------------------------------------------------------------------
 
 /**
- * Which reminder it was, after its time: "1-day session reminder", "by
- * Rahul". An automatic one is the reminder of the session, which goes to
- * everybody due at it, done or not: named as that, never as a reminder about
- * the week.
+ * Which reminder it was, after its time: "1-day reminder before the
+ * session", "by Rahul". An automatic one is named by when it went, which is
+ * true of both of its emails: the reminder of the session, to everybody due
+ * at it, done or not, and the reminder about what is left, to somebody not
+ * coming. Never as a reminder about the week, nor as the session's.
  */
 function howWords(last: LastReminded, long: boolean): string {
   if (last.how === "hand") return last.byName ? `by ${last.byName}` : "by hand";
   const which = last.how === "3-day" ? "3-day" : "1-day";
-  return long ? `the ${which} session reminder` : `${which} session reminder`;
+  return long ? `the ${which} reminder before the session` : `${which} reminder before the session`;
 }
 
-/** The table's cell: "Tue 3 Nov, 3pm · 1-day session reminder", "Mon 9 Nov, 10:02am · by Rahul"; "" for never. */
+/** The table's cell: "Tue 3 Nov, 3pm · 1-day reminder before the session", "Mon 9 Nov, 10:02am · by Rahul"; "" for never. */
 export function lastRemindedCell(last: LastReminded | null): string {
   if (!last) return "";
   const at = new Date(last.at);
@@ -200,7 +201,7 @@ export function lastRemindedCell(last: LastReminded | null): string {
   return `${dayClock(at)} · ${howWords(last, false)}`;
 }
 
-/** The panel's line: "Last reminded Tue 3 Nov, 3pm: the 1-day session reminder", or that nobody has. */
+/** The panel's line: "Last reminded Tue 3 Nov, 3pm: the 1-day reminder before the session", or that nobody has. */
 export function lastRemindedLine(last: LastReminded | null): string {
   if (!last) return "Not reminded yet";
   const at = new Date(last.at);

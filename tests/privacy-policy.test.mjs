@@ -11344,13 +11344,15 @@ describe("v21 says the reminders before a session go to everybody due at it, wit
 
   test("its day, time and place: that week's, from the session the resolver hands every reader", () => {
     assert.match(job, /sessionAt: due\.startsAt,\s+endsAt,/);
-    assert.match(job, /const place = reminderPlaceOf\(group, due\.session, Boolean\(link\?\.trim\(\)\)\);/);
+    assert.match(job, /const place = reminderPlaceOf\(group, due\.session, typeof link === "string" && validateSubmissionUrl\(link, GROUP_FIELD_LIMITS\.meetingUrl\) === null\);/);
     assert.match(words, /\$\{whose\} week \$\{facts\.weekNumber\} session is on \$\{londonDayLabel\(facts\.sessionAt\)\}/);
   });
 
   test("how to tell us if you can't make it", () => {
     assert.match(words, /export const SESSION_REMINDER_CANT_MAKE_IT =\s+"Can’t make it\? Tell us on your programme page as early as you can: press Can’t make it on this session’s card\.";/);
-    assert.match(words, /const paragraphs = \[lead, SESSION_REMINDER_CANT_MAKE_IT\];/);
+    // Said whenever their programme page shows the session's card, where Can't make it is.
+    assert.match(words, /const paragraphs = facts\.sessionOnTheirPage \? \[lead, SESSION_REMINDER_CANT_MAKE_IT\] : \[lead\];/);
+    assert.match(job, /sessionOnTheirPage: programmePageShowsSession\(runFacts\?\.seats\.get\(person\.uid\) \?\? null, group\.id\),/);
   });
 
   test("what's left of that week's work if anything is: the check's own lines, a written answer not sent yet, only for a week not done", () => {
