@@ -2273,10 +2273,22 @@ The run's week states (`src/lib/courses/weekWork/readers.ts`) answer three
 questions for anybody whose weeks differ (a move or a visit): `belongsTo`
 (whose member they are that week), `dueWith` (whose session their work for a
 week is due at: the host for the visit's week) and `copyGroupOf` (the copy they
-work in). So "Week N is open" reaches a visitor once, from the host (the
-session they go to), with the words about the week read from their own copy,
-and judges their earlier weeks on their own copies; a visitor whose own copy
-of the week is not published is left out of that send and counted as skipped.
+work in). "Week N is open" judges a visitor's earlier weeks on their own
+copies. Each group's email goes once, to the people due at its session when it
+goes, and a visit can be arranged or called off between two groups' sends, so
+a person's email of a week is also claimed once across the run's groups (a
+`wkopen__` marker per person and week in `courseNudges`, created just before
+their message as the group's claim is); a send leaves out somebody whose
+marker another group's send made when either send found them on a visit that
+week, and a marker made with no visit in play stops nobody, so with no visit
+anywhere every send goes to whom it always did. A visitor is in the host's
+audience for the week and in their own group's too (`belongingToo`), so
+whichever send reaches them first is theirs, never two, and it is always about
+the session they go to (the host's day, time and place while the host still
+meets) with the words about the week read from their own copy. A visitor whose
+own copy is not published when a send goes is left out of it and of the
+register's count, and gets the next send that reaches them once it is; with no
+send after, none.
 The reminders before the host's session remind them about the visit's week
 alone, judged on their own copy. The host's This week's work judges their row
 on their own copy (`readGroupWeek`'s `copies`).
@@ -2295,16 +2307,23 @@ inside the save); a host that is missing, archived, of another run or the
 group they belong to that week; a host session that week that is missing,
 called off, marked as not held or started; somebody already marked as having
 come on their own group's register that week; a week that already has a
-visit; a week they are waiting to hear about being excused from (the request is
-decided first; an approved one does not stand in the way: the visit stands and
-their week reads the host's register); a host register at its limit of people.
+visit; a week whose own group's session has a request to be excused waiting
+(it is decided first) or approved (they are excused from it, and a visit would
+show them as excused from a session whose register does not say so); a host
+register at its limit of people. A request to be excused is about one group's
+session and is matched to it by group and session key, never by the key alone
+(`weeksAbout`): a request about a host's session says nothing about the
+person's own group's once the visit is off, and stays on the admins' Requests
+page to be closed there.
 
-**A limit on the emails** (`src/lib/courses/visit/limits.ts`): every press that
-arranges or calls off a visit is counted on the notice lane's stored counters,
-per person visited (10 a day) and per presser (40 a day). At either limit the
-press is refused before anything is written or sent, and the page says so
-before the press. A press refused for any other reason is decided first and
-counts nothing.
+**A limit on the emails** (`src/lib/courses/visit/limits.ts`): every staff press
+that arranges or calls off a visit is counted on the notice lane's stored
+counters, per person visited on that run (10 a day) and per presser (40 a
+day), read and claimed inside the save's own transaction (`noticeSlotsIn`), so
+a press refused at a limit, refused for any other reason, answered 409 or whose
+commit fails claims nothing. The page and the preview read the same counters
+first (`noticeSlotsRefusal`) and say so before the press. The person's own
+cancel is never counted and never refused for a limit.
 
 **The save**, one transaction: the visit on the place; the person's rollup
 rebuilt from the place as written when a register of that week (theirs or the
@@ -2327,8 +2346,16 @@ both groups' facilitators are emailed, exactly the people the card names. Their
 own cancel decides their own place first, and answers one 404 for anything that
 is not their own standing visit on a run they hold a place on.
 Staff, from the same page that arranges it, until the host's session starts:
-the person is emailed too. Staff can still call one off on a run down to one
-group that still meets. Either way the visit comes off the place, their
+the person is emailed too. When the host's session is not happening (called
+off, marked as not held, or its group archived before it finished a register
+of the session held), staff can call the visit off whatever the clock says
+until the person's own group's session that week starts; after that it is
+refused in one sentence saying the visit stays and the week is not counted for
+them, because calling it off then would count them absent from a session they
+were told not to go to. Staff can still call one off on a run down to one
+group that still meets. The person's own card draws nothing for a host
+session called off or marked as not held, and their own cancel reads such a
+visit as none. Either way the visit comes off the place, their
 own words on the host's register for that session (joining online, can't make
 it) come off while it is not finished, the rollup is rebuilt when it must be,
 and each group's History gets a row (`member-visit-off`).
@@ -2340,7 +2367,10 @@ week" in that week's cell, never marked and never counted; a mark sent for it
 is refused ("Aisha is at Group F this week."). A correction of a visitor's line
 is asked on the host's register, and its panel says where their week lives.
 Their own attendance, the Attendance tab, who finished and a certificate's count
-read the host's mark for that week.
+read the host's mark for that week. A host archived since keeps that week as
+it keeps a week of a record of groups by week: its finished register of a
+session held counts, anything else counts for nothing
+(`countsFromArchivedGroup`).
 
 **Who reads the work.** The written work's gate (`writtenReviewRole`) is
 unchanged. Beside it, `hostReadsWeek` (`src/lib/courses/visit/reading.ts`) lets
@@ -2352,6 +2382,11 @@ session report lines and no Remind), the fill-in boxes route (that week
 alone) and the first read (that week alone; the day is kept, never who). They
 never give feedback, rate or reopen the week, and the visitor's answer is never
 on the host's Feedback to write or a row of the host's page of one question.
+The person's week page names them in its existing sentences about who can
+read their work, for that week alone (`visitReadersOf`); somebody who also
+facilitates the person's own group is named once, and a host's facilitator who
+shares a first name with one of the person's own group's facilitators is named
+in full, and so is that facilitator, so nobody is dropped from the sentence.
 
 **The pages.** The host group's pages list the visitor with that week's people
 ("Visiting from Group C, week 2 only. You can read Aisha’s week 2; Rahul gives
