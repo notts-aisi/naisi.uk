@@ -27,7 +27,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AGI, B, C, ROUND, RUN, makePeopleWorld, peopleSeed } from "./lib/peopleWorld.mjs";
+import { A, AGI, B, C, ROUND, RUN, makePeopleWorld, peopleSeed } from "./lib/peopleWorld.mjs";
 import { weekOneBlocks } from "./lib/weekBlocksPageWorld.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
 
@@ -406,6 +406,30 @@ describe("what the page says is true of the live records", () => {
     const other = await w.draw(pages.cut, "rahul", { runId: RUN.tais, groupId: B, uid: "amara" });
     assert.equal(viewOf(other), null);
     assert.ok(other.to, "another run's id in the address is refused");
+  });
+
+  test("weeks spent in a group archived since: the team's page shows their marks once, dated; the cut shows only its own group's weeks", async () => {
+    // Amara was in Group A for weeks 1 and 2 and is in Group B from week 3; Group A has since been archived. Its
+    // finished registers of sessions held still count for her (the record's rule); Group B's carry no line of hers then.
+    const s = seed({ [AMARA_SEAT]: { ...peopleSeed()[AMARA_SEAT], groupsByWeek: [{ groupId: A, fromWeek: 1 }, { groupId: B, fromWeek: 3 }] } });
+    s[`courseGroups/${A}`] = { ...s[`courseGroups/${A}`], archived: true };
+    s[`courseAttendance/${RUN.agi}__${B}__w01`] = registerDoc(B, 1, { kofi: "present" });
+    s[`courseAttendance/${RUN.agi}__${B}__w02`] = registerDoc(B, 2, { kofi: "absent" });
+    s[`courseAttendance/${RUN.agi}__${A}__w01`] = registerDoc(A, 1, { amara: "present" });
+    s[`courseAttendance/${RUN.agi}__${A}__w02`] = registerDoc(A, 2, { amara: "late" }, { amara: true });
+    w.reset(s);
+    const view = viewOf(await team("zach"));
+    const lines = view.attendance.lines.filter((line) => line.weekNumber <= 2);
+    assert.deepEqual(lines.map((line) => line.weekNumber), [1, 2], "each week once");
+    assert.equal(lines[0].said, "In the room");
+    assert.equal(lines[1].said, "Late, online");
+    for (const line of lines) assert.match(line.when, /^Week \d · \w{3} \d{1,2} \w{3}$/, "dated as the archived group's session was held");
+    assert.deepEqual(view.attendance.counts.map((count) => [count.key, count.value]), [["room", 1], ["online", 1]]);
+    const facilitator = viewOf(await cut("rahul"));
+    assert.ok(facilitator.attendance.lines.every((line) => line.weekNumber >= 3), "the cut shows another group's weeks");
+    assert.deepEqual(facilitator.weeks.map((week) => week.weekNumber), [3]);
+    assert.equal(facilitator.elsewhere, "Weeks 1 and 2 were with another group.");
+    assert.doesNotMatch(JSON.stringify(facilitator), new RegExp(A));
   });
 
   test("Your group links a name to its page, never the reader's own or a facilitator's of the group", () => {

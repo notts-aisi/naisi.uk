@@ -2101,7 +2101,9 @@ not read for them, and its key is absent from what the page is handed.
   for anybody else the column is not there.
 - *Attendance*, counts only: in the room and online, from the one record of a
   person's attendance (`buildRunAttendance`, each week off the register of the
-  group they were in that week), and a line per week: what the register says,
+  group they were in that week, a group archived since among them where its
+  register was finished and says the session was held, dated as that session
+  was), and a line per week: what the register says,
   "Not marked" for a session that happened with no mark, "Didn’t happen", and
   the next session alone as "Still to come". Never an allowance and never how
   many sessions anybody may still miss. The counts are a list, so a count of

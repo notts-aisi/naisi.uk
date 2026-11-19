@@ -250,7 +250,13 @@ function attendanceFacts(
   const row = listed?.people.find((person) => person.uid === uid);
   const enrolment = records.enrolments.find((each) => each.uid === uid);
   if (!listed || !row || !enrolment) return null;
-  const sessions = new Map(records.groups.map((group) => [group.id, groupSessions(records, group, now)] as const));
+  // Each week's session from the group they were in that week, a group archived since among them: the record reads
+  // the marks of its finished registers of sessions held (`countsFromArchivedGroup`), so its lines carry their days.
+  const sessions = new Map(
+    [...records.groups, ...(records.archivedGroups ?? []).filter((group) => !records.groups.some((live) => live.id === group.id))].map(
+      (group) => [group.id, groupSessions(records, group, now)] as const,
+    ),
+  );
   const weekGroupOf = (weekNumber: number) => (hasGroupsByWeek(enrolment) ? groupForWeek(enrolment, weekNumber) : listed.id);
   const facts: AttendanceWeekFact[] = [];
   for (const cell of row.cells) {
