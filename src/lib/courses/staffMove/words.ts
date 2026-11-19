@@ -259,6 +259,20 @@ export function skipsOldSessionWords(input: { firstName: string; fromName: strin
   return `${first} won’t go to ${possessive(groupName(input.fromName))} session${on}. To move ${first} from week ${input.weekNumber + 1} instead, come back after that session.`;
 }
 
+/**
+ * In place of the session they skip, when week N is a week nobody met with
+ * the old group: "Group C’s week 3 session on Tue 17 Nov was called off, so
+ * Leo is with Group F from week 3." ("is marked as not held" when its
+ * register says so).
+ */
+export function oldOffWords(input: { firstName: string; fromName: string; toName: string; dateKey: string; weekNumber: number; why: "called-off" | "not-held" }): string {
+  const first = line(input.firstName) || "They";
+  const day = dayWords(input.dateKey);
+  const on = day ? ` on ${day}` : "";
+  const off = input.why === "called-off" ? "was called off" : "is marked as not held";
+  return `${possessive(groupName(input.fromName))} week ${input.weekNumber} session${on} ${off}, so ${first} ${first === "They" ? "are" : "is"} with ${groupName(input.toName)} from week ${input.weekNumber}.`;
+}
+
 /** Group: "From week 3, Leo is in Group F, which then has 6, its limit." */
 export function groupLineWords(input: { firstName: string; weekNumber: number; toName: string; then: number; capacity: number | null }): string {
   const first = line(input.firstName) || "They";

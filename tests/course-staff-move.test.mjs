@@ -249,9 +249,44 @@ describe("1. the week a move is from", () => {
       assert.equal(words.oldNoLongerMeetsWords("", "Group C"), "Group C no longer meets, so there is nothing to move them from.");
     });
 
-    test("the old group's week 4 called off, keeping pace: from week 5, though the new group meets in week 4", () => {
+    // Changed on purpose (a move counts from a week nobody met with the old
+    // group): until then a called-off week stayed with the old group and the
+    // move was from week 5. Each case now pins the week, both sessions and why.
+    test("the old group's week 4 called off, keeping pace, the new group's week 4 still to come: from week 4", () => {
       const out = rule([s(3, "2026-11-11T13:00"), s(4, "2026-11-18T13:00", { cancelled: true }), s(5, "2026-11-25T13:00")]);
-      assert.deepEqual([out.ok, out.weekNumber, out.newSession.dateKey], [true, 5, "2026-11-26"]);
+      assert.deepEqual([out.ok, out.weekNumber, out.newSession.dateKey, out.oldSession.dateKey, out.oldOff], [true, 4, "2026-11-19", "2026-11-18", "called-off"]);
+      // Called off on a day already gone (Mon 16 Nov), moved on Tuesday: still week 4, nobody met it.
+      const gone = rule([s(3, "2026-11-09T13:00"), s(4, "2026-11-16T13:00", { cancelled: true }), s(5, "2026-11-23T13:00")]);
+      assert.deepEqual([gone.ok, gone.weekNumber, gone.oldOff], [true, 4, "called-off"]);
+    });
+
+    test("the old group's week 4 called off and the new group's week 4 started: from week 5, and week 4 counts for nobody", () => {
+      const startedNew = [s(4, "2026-11-16T17:00"), s(5, "2026-11-23T17:00")];
+      const out = week.moveWeekOf({ oldSessions: [s(3, "2026-11-09T13:00"), s(4, "2026-11-16T13:00", { cancelled: true }), s(5, "2026-11-25T13:00")], newSessions: startedNew, now: new Date() });
+      assert.deepEqual([out.ok, out.weekNumber, out.newSession.dateKey, out.oldSession.dateKey, out.oldOff], [true, 5, "2026-11-23", "2026-11-25", null]);
+    });
+
+    test("the old group's week 4 held: from week 5, as always; marked as not held on its register: from week 4", () => {
+      const old = [s(3, "2026-11-09T13:00"), s(4, "2026-11-16T13:00"), s(5, "2026-11-23T13:00")];
+      const held = rule(old);
+      assert.deepEqual([held.ok, held.weekNumber, held.oldOff], [true, 5, null]);
+      const notHeld = week.moveWeekOf({ oldSessions: old, newSessions: newGroup, now: new Date(), notHeld: (session) => session.weekNumber === 4 });
+      assert.deepEqual([notHeld.ok, notHeld.weekNumber, notHeld.newSession.dateKey, notHeld.oldOff], [true, 4, "2026-11-19", "not-held"]);
+    });
+
+    test("the old group's week 4 still to come and the new group's week 4 started: refused as before, never from week 5", () => {
+      const startedNew = [s(4, "2026-11-16T17:00"), s(5, "2026-11-23T17:00")];
+      const out = week.moveWeekOf({ oldSessions: [s(3, "2026-11-11T13:00"), s(4, "2026-11-18T13:00"), s(5, "2026-11-25T13:00")], newSessions: startedNew, now: new Date() });
+      assert.deepEqual([out.ok, out.refusal.kind, out.refusal.weekNumber], [false, "new-has-met", 4]);
+    });
+
+    test("the earliest week nobody met wins, and a week whose new session is called off is passed over", () => {
+      const old = [s(2, "2026-11-02T13:00"), s(3, "2026-11-09T13:00", { cancelled: true }), s(4, "2026-11-16T13:00", { cancelled: true }), s(5, "2026-11-23T13:00")];
+      const fresh = [s(3, "2026-11-18T17:00", { cancelled: true }), s(4, "2026-11-19T17:00"), s(5, "2026-11-26T17:00")];
+      const out = week.moveWeekOf({ oldSessions: old, newSessions: fresh, now: new Date() });
+      assert.deepEqual([out.ok, out.weekNumber, out.oldOff], [true, 4, "called-off"]);
+      const both = week.moveWeekOf({ oldSessions: old, newSessions: [s(3, "2026-11-18T17:00"), ...fresh.slice(1)], now: new Date() });
+      assert.deepEqual([both.ok, both.weekNumber], [true, 3]);
     });
 
     test("through the route: a group with no time set is refused in one sentence, and nothing is written", async () => {
