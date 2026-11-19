@@ -151,6 +151,7 @@ const STYLESHEETS = [
   "./PitchingWeek.module.css",
   "./ProgrammeAttendance.module.css",
   "./ProgrammeOverview.module.css",
+  "./OverviewByWeek.module.css",
   // The Overview's Feedback to send draws with feedback's own stylesheet.
   "./feedback.module.css",
   "./SessionCard.module.css",

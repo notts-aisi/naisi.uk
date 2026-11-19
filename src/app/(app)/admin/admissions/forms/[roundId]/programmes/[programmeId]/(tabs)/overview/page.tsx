@@ -2,6 +2,7 @@ import { NoProgrammeHere, Refusal } from "@/features/applications/editor/Refusal
 import RunBlank from "@/features/applications/groups/RunBlank";
 import ProgrammeOverview from "@/features/applications/overview/ProgrammeOverview";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
+import { own } from "@/lib/applications/keys";
 import { loadForm } from "@/lib/applications/repo";
 import { loadCertificatesSection } from "@/lib/courses/certificates/send";
 import { loadFeedbackBatch } from "@/lib/courses/feedback/send";
@@ -21,6 +22,13 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * programme that names a course run: the week the run is in, each group's
  * session this week and its register, what needs attention, who came by
  * week, and how many are taking part.
+ *
+ * ATTENDANCE BY WEEK AND THE GROUPS IN A WEEK: a row a week of the run, from
+ * its finished registers, and one row per group for the week in the address
+ * (`?week=3`, chosen with the page's own week picker, a plain GET form) or
+ * the week the programme is in (`buildProgrammeOverview`, through
+ * `src/lib/courses/overviewByWeek.ts`). Each row opens the group's page on
+ * that week; each week opens the Attendance tab.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadProgrammeRun`), decided from
  * the form before the run is read, as Groups and Attendance are. A reviewer
@@ -53,10 +61,19 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  */
 export default async function ProgrammeOverviewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
+  searchParams?: Promise<{ week?: string | string[] }>;
 }) {
-  const [{ roundId, programmeId }, user] = await Promise.all([params, requireAdmissionsPage()]);
+  const [{ roundId, programmeId }, query, user] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve({} as { week?: string | string[] }),
+    requireAdmissionsPage(),
+  ]);
+  // The week the groups are shown for: chosen on the page, read only as a whole week number.
+  const asked = Array.isArray(query.week) ? query.week[0] : query.week;
+  const chosenWeek = typeof asked === "string" && /^\d{1,2}$/.test(asked) ? Number(asked) : null;
   const db = getAdminDb();
   const outcome = db ? await loadProgrammeRun(db, user, roundId, programmeId) : null;
   if (!db || !outcome || outcome.status === "none") return <NoProgrammeHere roundId={roundId} />;
@@ -88,8 +105,14 @@ export default async function ProgrammeOverviewPage({
       db,
       records,
       viewer,
-      { programmePath, courseId: view.run.courseId, decisionsSentAt: form?.decisionsSentAt ?? null },
+      {
+        programmePath,
+        courseId: view.run.courseId,
+        decisionsSentAt: form?.decisionsSentAt ?? null,
+        incubator: form ? own(form.programmes, view.programmeId)?.kind === "incubator" : false,
+      },
       now,
+      chosenWeek,
     ),
     updateReadingOf(db, user, records.run, groups).then((reading) =>
       loadUpdatesFor(db, records.run, reading, groups, view.programmeName),

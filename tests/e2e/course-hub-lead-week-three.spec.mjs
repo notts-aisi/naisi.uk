@@ -740,7 +740,7 @@ test(
       });
 
       await step(
-        "the Overview shows week 3, this week's sessions and their registers, what needs attention and the newest update",
+        "the Overview shows week 3, attendance by week from the finished registers, a row for every group, this week's sessions and their registers, what needs attention and the newest update",
         async () => {
           activePage = adminPage;
           await adminPage.goto(overviewUrl, { waitUntil: "domcontentloaded" });
@@ -854,28 +854,102 @@ test(
             "Needs attention's count is not its items",
           );
 
-          // Who came by week, and the people.
-          const totals = weeks.map((weekNumber) => weekTotal(ordered, weekNumber, now));
-          const withData = totals.filter((total) => total.percent !== null);
-          const without = totals.filter((total) => total.percent === null).map((total) => total.weekNumber);
-          const notYet =
-            without.length === 1
-              ? ` Week ${without[0]} not yet.`
-              : without.length > 1
-                ? ` Weeks ${without[0]} to ${without[without.length - 1]} not yet.`
-                : "";
-          const description = `Who came, by week: ${withData
-            .map((total) => `week ${total.weekNumber} ${total.percent}%${total.soFar ? " so far" : ""}`)
-            .join(", ")}.${notYet}`;
-          await overviewRegion("Attendance by week").getByRole("img", { name: description, exact: true }).waitFor({
-            timeout: WAIT_MS,
-          });
-          const latestSoFar = [...withData].reverse().find((total) => total.soFar);
-          if (latestSoFar) {
-            await overviewRegion("Attendance by week")
-              .getByText(`Week ${latestSoFar.weekNumber} is from ${groupsInWords(latestSoFar.from)} so far.`, { exact: true })
+          // Attendance by week, from the finished registers only: each week's
+          // bar in words, as `attendanceByWeek` in src/lib/courses/overviewByWeek.ts
+          // counts it, and its line. This world records nobody as having joined online.
+          const byWeekRegion = overviewRegion("Attendance by week");
+          await byWeekRegion.waitFor({ timeout: WAIT_MS });
+          const weekRows = byWeekRegion.locator("ol > li");
+          assert.equal(await weekRows.count(), weeks.length, "Attendance by week is not one row a week");
+          let wholeWeeks = 0;
+          let inProgress = 0;
+          let notMet = 0;
+          for (const [index, weekNumber] of weeks.entries()) {
+            const said = await textOf(weekRows.nth(index));
+            const counted = ordered.filter(
+              (group) => isFinished(group, weekNumber) && sessionNow(group, weekNumber, now).started,
+            );
+            if (counted.length === 0) {
+              if (!ordered.some((group) => sessionNow(group, weekNumber, now).ended)) {
+                assert.ok(said.includes("Not met yet"), `week ${weekNumber} does not say it has not met: ${said}`);
+                notMet += 1;
+              }
+              continue;
+            }
+            const tally = { room: 0, excused: 0, absent: 0 };
+            for (const group of counted) {
+              for (const person of membersOf(group)) {
+                const mark = markOf(person, weekNumber);
+                if (!mark) continue;
+                if (CAME.has(mark)) tally.room += 1;
+                else if (mark === "excused") tally.excused += 1;
+                else tally.absent += 1;
+              }
+            }
+            await byWeekRegion
+              .getByRole("img", {
+                name: `Week ${weekNumber}: in the room ${tally.room}, online 0, excused ${tally.excused}, absent ${tally.absent}.`,
+                exact: true,
+              })
               .waitFor({ timeout: WAIT_MS });
+            if (counted.length === ordered.length) {
+              const line = `${tally.room} of ${tally.room + tally.excused + tally.absent} came`;
+              assert.ok(said.includes(line), `week ${weekNumber} does not say ${JSON.stringify(line)}: ${said}`);
+              wholeWeeks += 1;
+            } else {
+              // A week in progress: how many groups have met, and the registers met and not finished yet.
+              const met = ordered.filter((group) => sessionNow(group, weekNumber, now).ended || counted.includes(group)).length;
+              const waiting = met - counted.length;
+              const lines = [`${met} of ${ordered.length} groups have met so far`];
+              if (waiting > 0) lines.push(`${waiting} ${waiting === 1 ? "register" : "registers"} not ${word()} yet`);
+              for (const line of lines) {
+                assert.ok(said.includes(line), `week ${weekNumber} does not say ${JSON.stringify(line)}: ${said}`);
+              }
+              inProgress += 1;
+            }
           }
+          assert.ok(
+            wholeWeeks > 0 && inProgress > 0 && notMet > 0,
+            `checked ${wholeWeeks} whole weeks, ${inProgress} in progress and ${notMet} not met: the world is off`,
+          );
+          assert.ok((await textOf(byWeekRegion)).includes("Late and left early count as came."), "the card no longer says late counts as came");
+
+          // One row per group for the week the programme is in, each opening the group's page on it,
+          // and one finished group's row cell by cell.
+          const groupsRegion = overviewRegion(`Groups in week ${thisWeek}`);
+          await groupsRegion.waitFor({ timeout: WAIT_MS });
+          const table = groupsRegion.getByRole("table");
+          for (const group of ordered) {
+            const link = table.getByRole("link", { name: group.name, exact: true });
+            assert.ok(
+              ((await link.getAttribute("href")) ?? "").endsWith(`/groups/${enc(group.id)}?week=${thisWeek}`),
+              `${group.name}'s row does not open its page on week ${thisWeek}`,
+            );
+          }
+          const whole = ordered.find((group) => isFinished(group, thisWeek));
+          assert.ok(whole, `no group's week ${thisWeek} register is finished: the world is off`);
+          const cameIn = (weekNumber) => {
+            const marks = membersOf(whole).map((person) => markOf(person, weekNumber)).filter(Boolean);
+            return `${marks.filter((mark) => CAME.has(mark)).length} of ${marks.length}`;
+          };
+          const session = sessionNow(whole, thisWeek, now);
+          const day = session.dateKey === todayKey ? "Today" : session.dateKey === tomorrowKey ? "Tomorrow" : londonDayLabel(session.startsAt);
+          // The inner locator is asked inside each row, so it is rooted at the page, not the table.
+          const row = table.getByRole("row").filter({ has: adminPage.getByRole("link", { name: whole.name, exact: true }) });
+          await row.getByRole("cell").first().waitFor({ timeout: WAIT_MS });
+          assert.deepEqual(
+            await textsOf(row.getByRole("cell")),
+            [
+              whole === facilitatedGroup ? fern.displayName : "No facilitator yet",
+              `${day}, ${londonClockLabel(session.startsAt)}`,
+              // This point's weeks are not written as blocks, so a group's page counts no week's work either.
+              "Not tracked",
+              "Not tracked",
+              cameIn(thisWeek - 1),
+              cameIn(thisWeek),
+            ],
+            `${whole.name}'s row in Groups in week ${thisWeek}`,
+          );
           const people = await textOf(overviewRegion("People"));
           for (const expected of [
             `${state.people.length} taking part`,

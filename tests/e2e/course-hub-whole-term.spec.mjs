@@ -1756,23 +1756,46 @@ test(
           expectEqual(await textOf(row.locator("td").last()), wantCame, `the Attendance tab, ${person.first}'s Came`);
         }
 
-        // 5. The Overview: who came, by week, from the same lines.
+        // 5. The Overview: attendance by week, a row a week, each held to its own
+        // week's lines (`attendanceByWeek` in src/lib/courses/overviewByWeek.ts):
+        // a whole week (every group's held session finished) by kind and
+        // "N of M came"; a week after this one "Not met yet" (the story's weeks
+        // after week 2 are all to come: asserted at its start).
         await adminPg.goto(`${formBase}/overview`, { waitUntil: "domcontentloaded" });
         const byWeek = adminPg.getByRole("region", { name: "Attendance by week", exact: true });
         await byWeek.waitFor({ timeout: WAIT_MS });
-        const description = (await byWeek.getByRole("img").first().getAttribute("aria-label")) ?? "";
-        for (const week of [1, 2]) {
-          let came = 0;
-          let of = 0;
-          for (const person of [...fellows, ivo]) {
-            const line = finishedLine(person, week);
-            if (!line) continue;
-            of += 1;
-            if (CAME.has(line.mark)) came += 1;
+        const weekRows = byWeek.locator("ol > li");
+        expectEqual(await weekRows.count(), state.weekCount, "the Overview, one row a week");
+        for (let week = 1; week <= state.weekCount; week += 1) {
+          const row = weekRows.nth(week - 1);
+          const said = await textOf(row);
+          expectEqual(said.startsWith(`Week ${week}`), true, `the Overview, row ${week} is week ${week} (${said.slice(0, 40)})`);
+          const held = ["A", "B"].filter((key) => !ATTENDANCE[key][week]?.cancelled);
+          const whole = held.every((key) => ATTENDANCE[key][week]?.finished);
+          if (whole) {
+            const kinds = { room: 0, online: 0, excused: 0, absent: 0 };
+            for (const person of [...fellows, ivo]) {
+              const line = finishedLine(person, week);
+              if (!line) continue;
+              if (CAME.has(line.mark)) kinds[line.online ? "online" : "room"] += 1;
+              else kinds[line.mark === "excused" ? "excused" : "absent"] += 1;
+            }
+            const came = kinds.room + kinds.online;
+            const of = came + kinds.excused + kinds.absent;
+            const bar = (await row.getByRole("img").getAttribute("aria-label").catch(() => null)) ?? "";
+            expectEqual(
+              bar,
+              `Week ${week}: in the room ${kinds.room}, online ${kinds.online}, excused ${kinds.excused}, absent ${kinds.absent}.`,
+              `the Overview, week ${week}'s bar`,
+            );
+            expectEqual(said.includes(`${came} of ${of} came`), true, `the Overview, week ${week} says ${came} of ${of} came (${said})`);
+          } else if (week > runWeek) {
+            expectEqual(said.includes("Not met yet"), true, `the Overview, week ${week} has not met (${said})`);
+          } else {
+            problems.push(`the story's week ${week} is in progress, which this check does not work out`);
           }
-          const percent = Math.round((100 * came) / of);
-          expectEqual(description.includes(`week ${week} ${percent}%`), true, `the Overview, week ${week} at ${percent}% (${description})`);
         }
+        expectEqual((await textOf(byWeek)).includes("Late and left early count as came."), true, "the Overview says late counts as came");
 
         assert.deepEqual(problems, [], `the pages do not agree with the story:\n${problems.join("\n")}`);
       });

@@ -185,21 +185,19 @@ export type PersonWeekFacts = {
   savedAt: (boxId: string) => Date | null;
 };
 
-export async function loadPeopleWeekFacts(
-  db: Firestore,
-  input: {
-    runId: string;
-    weekNumber: number;
-    blocks: readonly WeekBlock[];
-    uids: readonly string[];
-  },
-): Promise<Map<string, PersonWeekFacts>> {
-  const { runId, weekNumber, blocks } = input;
-  const uids = new Set(input.uids);
-  const out = new Map<string, PersonWeekFacts>();
-  if (uids.size === 0) return out;
-  const recordBlocks = recordBlocksOf(blocks);
-  const [rows, ticks, records] = await Promise.all([
+/** One week's answers and ticks on a run, as `loadPeopleWeekFacts` reads them: counts and times, never a word. */
+export type WeekRowsRead = {
+  rows: { docs: ReadonlyArray<{ data(): FirebaseFirestore.DocumentData | undefined }> };
+  ticks: { docs: ReadonlyArray<{ data(): FirebaseFirestore.DocumentData | undefined }> };
+};
+
+/**
+ * THE TWO WEEK-WIDE QUERIES `loadPeopleWeekFacts` asks, on their own, so a
+ * caller reading one week for several copies of it (a programme's Overview,
+ * every group at once) asks them once and hands the answer to each.
+ */
+export async function readWeekRows(db: Firestore, runId: string, weekNumber: number): Promise<WeekRowsRead> {
+  const [rows, ticks] = await Promise.all([
     // Who wrote in which box, when, and which answers are sent: never a word.
     db
       .collection("courseExerciseResponses")
@@ -214,6 +212,28 @@ export async function loadPeopleWeekFacts(
       .where("weekNumber", "==", weekNumber)
       .select("uid", "itemId", "completed", "completedAt")
       .get(),
+  ]);
+  return { rows, ticks };
+}
+
+export async function loadPeopleWeekFacts(
+  db: Firestore,
+  input: {
+    runId: string;
+    weekNumber: number;
+    blocks: readonly WeekBlock[];
+    uids: readonly string[];
+    /** The week's answers and ticks, when the caller has read them already (`readWeekRows`): not read again. */
+    read?: WeekRowsRead | null;
+  },
+): Promise<Map<string, PersonWeekFacts>> {
+  const { runId, weekNumber, blocks } = input;
+  const uids = new Set(input.uids);
+  const out = new Map<string, PersonWeekFacts>();
+  if (uids.size === 0) return out;
+  const recordBlocks = recordBlocksOf(blocks);
+  const [{ rows, ticks }, records] = await Promise.all([
+    input.read ? Promise.resolve(input.read) : readWeekRows(db, runId, weekNumber),
     readPackCaseRecords(
       db,
       runId,

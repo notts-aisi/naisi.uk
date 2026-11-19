@@ -9,11 +9,12 @@ import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { WEEK_REMINDER_DAYS, weekEmailSendAt, weekLeft, type WeekLeft } from "@/lib/courses/weekEmails/model";
 import { weekDone, weekWritingNeeds, workIsClosed, type WeekDue } from "@/lib/courses/weekWork/model";
-import { loadPeopleWeekFacts, loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
+import { loadPeopleWeekFacts, loadRunWeekStates, readWeekRows, type RunWeekStates } from "@/lib/courses/weekWork/readers";
 import { facilitatingOnRunOf, liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import { resolveNoticeAudience } from "@/lib/email/courseFacilitatorEmails";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import {
   HAND_REMINDERS_COLLECTION,
   HAND_REMINDER_KIND,
@@ -132,32 +133,134 @@ export async function readGroupWeek(
   if (!week || !isBlockWeek(week)) return { ok: false, why: "notBlocks" };
   if (!week.published) return { ok: false, why: "unpublished" };
   const blocks = week.blocks as WeekBlock[];
-  const tasks = weekTaskNeeds(blocks);
-  const asks = weekWritingNeeds(blocks);
   const uids = [...new Set(input.uids.filter(Boolean))];
   const [states, facts] = await Promise.all([
     loadRunWeekStates(db, { run, liveGroups, now }),
     loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks, uids }),
   ]);
+  return { ok: true, read: groupWeekReadOf({ group, weekNumber, weekId, blocks, sessions, own, liveGroups, states, facts, now }) };
+}
+
+/** One group's week, put together from what was read for it: the one shape both readers below hand back. */
+function groupWeekReadOf(input: {
+  group: CourseGroupDoc;
+  weekNumber: number;
+  weekId: string;
+  blocks: WeekBlock[];
+  sessions: ResolvedSession[];
+  own: ResolvedSession | null;
+  liveGroups: readonly CourseGroupDoc[];
+  states: RunWeekStates;
+  facts: ReadonlyMap<string, unknown>;
+  now: Date;
+}): GroupWeekRead {
+  const { group, weekNumber, weekId, blocks, sessions, own, liveGroups, states, facts, now } = input;
+  const tasks = weekTaskNeeds(blocks);
+  const asks = weekWritingNeeds(blocks);
   return {
-    ok: true,
-    read: {
-      weekNumber,
-      weekId,
-      blocks,
-      tasks,
-      asks,
-      pieces: weekPiecesOf(blocks, tasks, asks),
-      states,
-      closed: workIsClosed(states.closesAt, now),
-      sessions,
-      session: own,
-      sessionAt: own ? sessionInstants(own).startsAt : null,
-      facts: new Map([...facts].map(([uid, each]) => [uid, each as PersonFacts])),
-      runFacilitatorUids: facilitatingOnRunOf(group, liveGroups),
-      belongs: (uid) => states.belongsTo(uid, group.id, weekNumber),
-    },
+    weekNumber,
+    weekId,
+    blocks,
+    tasks,
+    asks,
+    pieces: weekPiecesOf(blocks, tasks, asks),
+    states,
+    closed: workIsClosed(states.closesAt, now),
+    sessions,
+    session: own,
+    sessionAt: own ? sessionInstants(own).startsAt : null,
+    facts: new Map([...facts].map(([uid, each]) => [uid, each as PersonFacts])),
+    runFacilitatorUids: facilitatingOnRunOf(group, liveGroups),
+    belongs: (uid) => states.belongsTo(uid, group.id, weekNumber),
   };
+}
+
+/**
+ * ONE WEEK OF SEVERAL GROUPS OF A RUN, each read exactly as `readGroupWeek`
+ * reads it for that group's page, with what is the same for every group
+ * read once: the run's live groups and places (handed in when the caller
+ * has read them already), where everybody's weeks stand, and the week's
+ * answers and ticks, asked once and split by copy of the week (the run's
+ * own, or a group's). A programme's Overview asks it for the week it shows,
+ * so its counts are the group pages' own.
+ *
+ * Bounded: the run's groups and places unless handed in (one equality each),
+ * its stored weeks (one equality), each group's copy of the week (two reads
+ * a group), the run's answers and ticks for the week once (two equalities,
+ * projected), and each person's pack records by id, per copy of the week.
+ */
+export async function readGroupsWeek(
+  db: Firestore,
+  input: {
+    run: CourseRunDoc;
+    groups: readonly CourseGroupDoc[];
+    weekNumber: number;
+    /** The people asked about in each group, by the group's id. */
+    uidsOf: (groupId: string) => readonly string[];
+    now: Date;
+    /** The run's live groups and its places, when the caller has read them already: not read again. */
+    liveGroups?: readonly CourseGroupDoc[] | null;
+    enrolments?: readonly CourseEnrolmentDoc[] | null;
+  },
+): Promise<Map<string, { ok: true; read: GroupWeekRead } | { ok: false; why: WeekNotRead }>> {
+  const { run, groups, weekNumber, now } = input;
+  const out = new Map<string, { ok: true; read: GroupWeekRead } | { ok: false; why: WeekNotRead }>();
+  if (groups.length === 0 || !Number.isInteger(weekNumber) || weekNumber < 1) {
+    for (const group of groups) out.set(group.id, { ok: false, why: "week" });
+    return out;
+  }
+  const weekId = weekDocId(weekNumber);
+  const [liveGroups, resolved] = await Promise.all([
+    input.liveGroups ? Promise.resolve(input.liveGroups) : liveGroupsOf(db, run.id),
+    Promise.all(groups.map((group) => resolveWeekDoc(db, run.id, group.id, weekId))),
+  ]);
+  const states = await loadRunWeekStates(db, { run, liveGroups, enrolments: input.enrolments ?? null, now });
+
+  // Which copy each group reads, and everybody reading each copy.
+  type Ready = { group: CourseGroupDoc; sessions: ResolvedSession[]; own: ResolvedSession | null; blocks: WeekBlock[]; copy: string };
+  const ready: Ready[] = [];
+  const copies = new Map<string, { blocks: WeekBlock[]; uids: Set<string> }>();
+  groups.forEach((group, index) => {
+    const sessions = resolveSessions(run, group);
+    if (!sessions.some((session) => session.weekNumber === weekNumber)) {
+      out.set(group.id, { ok: false, why: "week" });
+      return;
+    }
+    const { week, source } = resolved[index];
+    if (!week || !isBlockWeek(week)) {
+      out.set(group.id, { ok: false, why: "notBlocks" });
+      return;
+    }
+    if (!week.published) {
+      out.set(group.id, { ok: false, why: "unpublished" });
+      return;
+    }
+    const blocks = week.blocks as WeekBlock[];
+    const copy = source === "group" ? `group:${group.id}` : "run";
+    const own = sessions.find((session) => session.weekNumber === weekNumber && session.occurrence === 1) ?? null;
+    ready.push({ group, sessions, own, blocks, copy });
+    const entry = copies.get(copy) ?? { blocks, uids: new Set<string>() };
+    for (const uid of input.uidsOf(group.id)) if (uid) entry.uids.add(uid);
+    copies.set(copy, entry);
+  });
+  // The week's answers and ticks once, whatever the number of copies; each copy then reads its people's.
+  const read = copies.size > 0 ? await readWeekRows(db, run.id, weekNumber) : null;
+  const factsByCopy = new Map(
+    await Promise.all(
+      [...copies].map(
+        async ([copy, { blocks, uids }]) =>
+          [copy, await loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks, uids: [...uids], read })] as const,
+      ),
+    ),
+  );
+  for (const { group, sessions, own, blocks, copy } of ready) {
+    const facts = factsByCopy.get(copy) ?? new Map();
+    out.set(group.id, {
+      ok: true,
+      read: groupWeekReadOf({ group, weekNumber, weekId, blocks, sessions, own, liveGroups, states, facts, now }),
+    });
+  }
+  return out;
 }
 
 /** One person's facts on the week, or nothing done. */

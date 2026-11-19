@@ -1059,7 +1059,7 @@ async function tabsOf(who) {
             line: session.line,
             remind: session.remind ? [session.remind.label, session.remind.count, session.remind.sessionKey] : null,
           })),
-          chart: overview.props.model.chart.weeks.map((week) => [week.label, week.percent, week.soFar]),
+          byWeek: overview.props.model.byWeek.weeks.map((week) => [week.label, week.line, week.state]),
           people: overview.props.model.people,
           finishing: overview.props.finishing,
         }
@@ -1921,7 +1921,8 @@ describe("stage three of the course hub, one term from week 3 to after its end",
         { group: "Group B", when: "Tue 24 Nov · 6pm", pill: "Not held", line: null, remind: null },
       ]);
       assert.deepEqual(c().lead.overview.attention, LEFT_ATTENTION);
-      assert.deepEqual(c().lead.overview.chart.find(([label]) => label === "W4"), ["W4", 67, false]);
+      // Week 4 is whole once Group A's register is finished: Group B's cancelled session is no session.
+      assert.deepEqual(c().lead.overview.byWeek.find(([label]) => label === "Week 4"), ["Week 4", "2 of 3 came", "done"]);
       assert.deepEqual(short(c().remind), [409, "Group B’s session on Tue 24 Nov didn’t happen, so its register needs nothing."]);
       assert.deepEqual(c().remindMail, []);
     });

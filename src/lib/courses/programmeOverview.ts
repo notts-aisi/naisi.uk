@@ -12,6 +12,7 @@ import {
   hasLeft,
   listGroups,
   programmeWeekNow,
+  runThisWeek,
   weeksOf,
   type GroupSessionFacts,
   type ListedGroup,
@@ -19,6 +20,17 @@ import {
   type RunRecords,
 } from "@/lib/courses/programmeAttendance";
 import { firstNameOfUser, readRunLead, type RunLead } from "@/lib/courses/programmeLead";
+import {
+  NO_GROUPS_YET,
+  NO_WEEKS_YET,
+  attendanceByWeek,
+  chosenWeekOf,
+  groupsInWeek,
+  type GroupWorkCount,
+  type OverviewByWeek,
+} from "@/lib/courses/overviewByWeek";
+import { countBuckets, doneCount } from "@/lib/courses/groupWeekWork/model";
+import { groupWeekWorkView, readGroupsWeek } from "@/lib/courses/groupWeekWork/load";
 import { emailsCountLine, readReminderState, remindLabel, type ReminderState } from "@/lib/courses/registerRemind";
 import { followUpDueAt } from "@/lib/courses/unmarkedRegisters";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
@@ -26,7 +38,7 @@ import { OPEN_WEEK_ONE, WEEK_ONE_NOT_READY, weekOneLine } from "@/lib/courses/we
 import { weekIsReady } from "@/lib/courses/weekReady";
 import { courseNudgeSessionWhere } from "@/lib/email/courseNudgeEmail";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
-import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { ownGroupForWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { campusForWeek, sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { weekDocId } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
@@ -144,20 +156,13 @@ export type OverviewAttention = {
   ready?: OverviewReady | null;
 };
 
-export type OverviewChart = {
-  weeks: { weekNumber: number; label: string; percent: number | null; soFar: boolean }[];
-  /** "Who came, by week: week 1 94%, ... Weeks 4 to 6 not yet." for assistive technology. */
-  description: string;
-  /** "Week 3 is from Groups A and D so far.", or null. */
-  from: string | null;
-};
-
 export type OverviewModel = {
   /** Null while the run has no start date or no taught weeks. */
   week: OverviewWeek | null;
   sessions: OverviewSession[];
   attention: OverviewAttention[];
-  chart: OverviewChart;
+  /** Attendance by week across the programme, and one row per group for the chosen week (`./overviewByWeek.ts`). */
+  byWeek: OverviewByWeek;
   people: { takingPart: number; left: number; line: string };
   /** The register's own word for finishing it: "finished" or "pushed". */
   ending: "finished" | "pushed";
@@ -179,6 +184,8 @@ export type OverviewPlace = {
   courseId: string;
   /** When decision day's emails went, for the freed places line. */
   decisionsSentAt: Date | null;
+  /** The programme is an incubator's: its groups' pages count no week's work, so neither does the Overview. */
+  incubator?: boolean;
 };
 
 const DAY_PARTS = new Intl.DateTimeFormat("en-GB", {
@@ -206,7 +213,7 @@ export function weekSpanLabel(startKey: string): string {
 }
 
 /** The run's taught weeks, each with the day its slot starts. */
-function taughtSlots(records: RunRecords): { weekNumber: number; index: number; startKey: string }[] {
+export function taughtSlots(records: RunRecords): { weekNumber: number; index: number; startKey: string }[] {
   const { startDate, weekPlan } = records.run;
   if (!isValidDateKey(startDate)) return [];
   const out: { weekNumber: number; index: number; startKey: string }[] = [];
@@ -402,6 +409,8 @@ export async function buildProgrammeOverview(
   viewer: OverviewViewer,
   place: OverviewPlace,
   now: Date,
+  /** The week the groups are shown for (`?week=`), or null for the week the page opens on. */
+  chosenWeek: number | null = null,
 ): Promise<OverviewModel> {
   const attendance: RunAttendance = buildRunAttendance(records, viewer, now);
   const listed = listGroups(records, viewer, now, weeksOf(records));
@@ -662,34 +671,8 @@ export async function buildProgrammeOverview(
     });
   }
 
-  // ── Attendance by week ───────────────────────────────────────────────────
-  const withData = attendance.totals.filter((total) => total.percent !== null);
-  const without = attendance.totals.filter((total) => total.percent === null).map((total) => total.weekNumber);
-  const described = withData.map((total) => `week ${total.weekNumber} ${total.percent}%${total.soFar ? " so far" : ""}`);
-  let notYet = "";
-  if (without.length === 1) notYet = ` Week ${without[0]} not yet.`;
-  else if (without.length > 1) {
-    const contiguous = without.every((n, at) => at === 0 || n === without[at - 1] + 1);
-    notYet = contiguous
-      ? ` Weeks ${without[0]} to ${without[without.length - 1]} not yet.`
-      : ` Weeks ${namesInWords(without.map(String))} not yet.`;
-  }
-  const latestSoFar = [...withData].reverse().find((total) => total.soFar) ?? null;
-  const chart: OverviewChart = {
-    weeks: attendance.totals.map((total) => ({
-      weekNumber: total.weekNumber,
-      label: `W${total.weekNumber}`,
-      percent: total.percent,
-      soFar: total.soFar,
-    })),
-    description: described.length
-      ? `Who came, by week: ${described.join(", ")}.${notYet}`
-      : `Who came, by week: nobody’s marked yet.`,
-    from:
-      latestSoFar && latestSoFar.from.length > 0
-        ? `Week ${latestSoFar.weekNumber} is from ${groupsInWords(latestSoFar.from)} so far.`
-        : null,
-  };
+  // ── Attendance by week, and the groups in the chosen week ─────────────
+  const byWeek = await overviewByWeek(db, records, listed, attendance, viewer, place, chosenWeek, anyGroupMet, now);
 
   // ── People ───────────────────────────────────────────────────────────────
   // Taking part is the grid's own rule (`isListed`, which `listGroups`
@@ -714,7 +697,7 @@ export async function buildProgrammeOverview(
     week,
     sessions,
     attention,
-    chart,
+    byWeek,
     people: { takingPart, left, line: peopleLine },
     ending,
   };
@@ -761,4 +744,113 @@ function chaseDetail(
     );
   }
   return sentences.join(" ");
+}
+
+/**
+ * ATTENDANCE BY WEEK AND THE GROUPS IN THE CHOSEN WEEK
+ * (`./overviewByWeek.ts`), from the Attendance tab's own rows (`listed`)
+ * and each group's week as its own page counts it. The one read it adds is
+ * the chosen week's work, for every group at once (`readGroupsWeek`), never
+ * while "Get ready for week 1" takes the tab's place, and a
+ * read of it that fails draws "Not tracked" rather than no page, as a
+ * group's page draws no card.
+ */
+async function overviewByWeek(
+  db: Firestore,
+  records: RunRecords,
+  listed: readonly ListedGroup[],
+  attendance: RunAttendance,
+  viewer: OverviewViewer,
+  place: OverviewPlace,
+  chosenWeek: number | null,
+  anyGroupMet: boolean,
+  now: Date,
+): Promise<OverviewByWeek> {
+  const { ending } = attendance;
+  const weeks = weeksOf(records);
+  if (weeks.length === 0) return { weeks: [], groups: null, blank: NO_WEEKS_YET };
+  if (listed.length === 0) return { weeks: [], groups: null, blank: NO_GROUPS_YET };
+  const todayKey = londonDateKey(now);
+  const thisWeek = runThisWeek(records.run, now);
+  const slots = taughtSlots(records);
+  const rows = attendanceByWeek({ listed, weeks, slots, thisWeek, totals: attendance.totals, ending });
+  const weekNumber = chosenWeekOf({ asked: chosenWeek, weeks, slots, thisWeek, todayKey });
+  if (weekNumber === null) return { weeks: rows, groups: null, blank: null };
+  // Nothing of the week's work is read while "Get ready for week 1" takes the tab's place (`anyGroupHasMet`).
+  const work =
+    place.incubator || !anyGroupMet ? new Map<string, GroupWorkCount>() : await readWorkCounts(db, records, weekNumber, viewer, now);
+  return {
+    weeks: rows,
+    groups: groupsInWeek({ listed, weeks, weekNumber, thisWeek, work, ending, todayKey, programmePath: place.programmePath }),
+    blank: null,
+  };
+}
+
+/** Nobody reminded: the counts below read no reminder. */
+const NOT_REMINDED = { last: new Map(), went: { threeDay: 0, oneDay: 0 } };
+
+/**
+ * EACH GROUP'S WEEK, COUNTED AS ITS OWN PAGE COUNTS IT: the people its page
+ * lists for the week (the group's active places, its facilitators apart),
+ * through the page's own view (`groupWeekWorkView`), whose rows the page's
+ * "4 of 6 have done week 1" and its readings bar count (`countBuckets`).
+ * Readings done is the readings bar's done; the week done is the week's.
+ */
+async function readWorkCounts(
+  db: Firestore,
+  records: RunRecords,
+  weekNumber: number,
+  viewer: OverviewViewer,
+  now: Date,
+): Promise<Map<string, GroupWorkCount>> {
+  const out = new Map<string, GroupWorkCount>();
+  const seatsOf = (group: RunRecords["groups"][number]) => {
+    const facilitating = new Set(group.facilitatorUids);
+    return records.enrolments.filter(
+      (seat) => seat.groupId === group.id && seat.status === "active" && seat.role === "learner" && !facilitating.has(seat.uid),
+    );
+  };
+  let reads: Awaited<ReturnType<typeof readGroupsWeek>>;
+  try {
+    reads = await readGroupsWeek(db, {
+      run: records.run,
+      groups: records.groups,
+      weekNumber,
+      // As the group's page asks: the places whose week is the group's.
+      // The groups and places the tab has read already.
+      liveGroups: records.groups,
+      enrolments: records.enrolments,
+      uidsOf: (groupId) => {
+        const group = records.groups.find((each) => each.id === groupId);
+        return group ? seatsOf(group).filter((seat) => ownGroupForWeek(seat, weekNumber) === groupId).map((seat) => seat.uid) : [];
+      },
+      now,
+    });
+  } catch (err) {
+    console.error("[overview] the week's work could not be read", records.run.id, weekNumber, err);
+    return out;
+  }
+  for (const group of records.groups) {
+    const got = reads.get(group.id);
+    if (!got || !got.ok) {
+      out.set(group.id, got && !got.ok && got.why === "unpublished" ? { kind: "unpublished" } : { kind: "untracked" });
+      continue;
+    }
+    // `told` decides only who has a Remind, which the Overview neither offers nor counts.
+    const people = seatsOf(group).map((seat) => ({ uid: seat.uid, name: "", firstName: "", told: false }));
+    const view = groupWeekWorkView(
+      { read: got.read, reminded: NOT_REMINDED, automatic: { kind: "off" } },
+      { viewerUid: viewer.uid, people, readsOwnWork: false, ownPeople: [], leadFirstName: null, now },
+    );
+    const readings = view.pieces.some((piece) => piece.key === "readings")
+      ? doneCount(countBuckets(view.rows.map((row) => row.pieces.find((piece) => piece.key === "readings")?.bucket ?? "not-started")))
+      : null;
+    out.set(group.id, {
+      kind: "counted",
+      people: view.rows.length,
+      readingsDone: readings,
+      weekDone: doneCount(countBuckets(view.rows.map((row) => row.week.bucket))),
+    });
+  }
+  return out;
 }

@@ -295,6 +295,15 @@ const READERS = {
     proof: ["listGroups(records, viewer, now, weeksOf(records))"],
     why: "the Overview's sessions this week and Needs attention: each group's session facts, as the lead's tabs read them",
   },
+  "lib/courses/overviewByWeek.ts": {
+    kind: "told",
+    from: ["lib/courses/programmeAttendance.ts"],
+    via: ["facts"],
+    proof: ["const facts = entry.sessions.get(weekNumber);"],
+    why:
+      "the Overview's attendance by week and its groups in a week: each group's session facts as the lead's tabs read them, " +
+      "so a cancelled session is no session in any count and its row says it was cancelled",
+  },
   "lib/surveys/leadOverview.ts": {
     kind: "told",
     from: ["lib/courses/programmeAttendance.ts"],
