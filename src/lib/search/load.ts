@@ -308,18 +308,27 @@ async function adminPeopleLines(db: Firestore, read: AdminWorld, answer: SearchA
 // A lead's world: their People tabs and their runs' groups
 // ---------------------------------------------------------------------------
 
+/**
+ * A form's sent applications and decisions, for the People tab's reader to
+ * be handed once per form: nobody's until the form's decisions have gone out,
+ * as the tab itself reads nobody before then.
+ */
+async function readFormPeople(db: Firestore, form: ApplicationForm): Promise<FormPeopleRead | null> {
+  if (form.decisionsSentAt === null) return null;
+  const [applications, decisions] = await Promise.all([listSentApplications(db, form), listDecisions(db, form.round.id)]);
+  return { applications, decisions };
+}
+
 async function leadWorld(db: Firestore, actor: SessionUser, leads: readonly LedProgramme[]): Promise<SearchWorld> {
   const people: SearchCandidate[] = [];
   const groups: SearchCandidate[] = [];
   // A form's applications and decisions are read once, however many of its programmes the lead leads,
   // and only once its decisions have gone out: before then the People tab lists nobody and reads nothing.
-  const formReads = new Map<string, Promise<FormPeopleRead>>();
-  const formReadOf = (form: ApplicationForm): Promise<FormPeopleRead> => {
+  const formReads = new Map<string, Promise<FormPeopleRead | null>>();
+  const formReadOf = (form: ApplicationForm): Promise<FormPeopleRead | null> => {
     const known = formReads.get(form.round.id);
     if (known) return known;
-    const reading = Promise.all([listSentApplications(db, form), listDecisions(db, form.round.id)]).then(
-      ([applications, decisions]) => ({ applications, decisions }),
-    );
+    const reading = readFormPeople(db, form);
     formReads.set(form.round.id, reading);
     return reading;
   };
@@ -332,9 +341,10 @@ async function leadWorld(db: Firestore, actor: SessionUser, leads: readonly LedP
       ...groupCandidate(group, programmeName, runLabel, `${path}/groups/${enc(group.id)}`),
       key: `group:${group.id}`,
     });
-    if (form.decisionsSentAt !== null) {
+    const formRead = await formReadOf(form);
+    if (formRead) {
       // The People tab's own read, which reads the run and its live groups as well: nothing is read again.
-      const read = await readProgrammePeople(db, actor, form, programme, await formReadOf(form));
+      const read = await readProgrammePeople(db, actor, form, programme, formRead);
       for (const row of read?.model.rows ?? []) {
         people.push({
           name: row.name,
