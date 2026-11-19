@@ -207,9 +207,9 @@ export function cancelledWords(input: { hostName: string; homeName: string; own:
   }`;
 }
 
-/** The person's own cancel, too late: "Group I’s session has started, so this visit can’t be cancelled now." */
+/** The person's own cancel, too late: "Group I’s session has started, so this visit can’t be cancelled now. In an emergency, contact an admin." */
 export function cancelTooLateWords(hostName: string): string {
-  return `${possessive(groupName(hostName))} session has started, so this visit can’t be cancelled now.`;
+  return `${possessive(groupName(hostName))} session has started, so this visit can’t be cancelled now. In an emergency, contact an admin.`;
 }
 
 /** The person's own cancel did not go through, and the visit stands: "That didn’t go through, so your visit to Group I still stands. Try again." */
@@ -664,7 +664,7 @@ export function tooLateToCancelWords(hostName: string): string {
 
 /** Refused: a request to be excused from that week is waiting. "Aisha is waiting to hear about being excused from week 2. Decide that request first." */
 export function excusedWaitingWords(firstName: string, weekNumber: number): string {
-  return `${firstName || "They"} ${firstName ? "is" : "are"} waiting to hear about being excused from week ${weekNumber}. Decide that request first.`;
+  return `${firstName || "They"} ${firstName ? "is" : "are"} waiting to hear about being excused from week ${weekNumber}. Decide that request first, on the Requests page.`;
 }
 
 /**
@@ -675,20 +675,26 @@ export function excusedWaitingWords(firstName: string, weekNumber: number): stri
  * week 4 isn’t counted for Chloe." With it happening, what to do instead:
  * "... The visit stays. If Chloe can’t go to Group C’s session, Chloe can
  * say so with Can’t make it on the visit card, or an admin can mark Chloe
- * excused on Group C’s register."
+ * excused on Group C’s register." Once the host's session has started too,
+ * or its group is archived, nothing of that advice can be followed: "... The
+ * visit can no longer be cancelled."
  */
-export function ownStartedCallOffWords(input: { firstName: string; homeName: string; hostName: string; weekNumber: number; hostHappening: boolean }): string {
+export function ownStartedCallOffWords(input: {
+  firstName: string;
+  homeName: string;
+  hostName: string;
+  weekNumber: number;
+  hostHappening: boolean;
+  /** The host's session has started, or its group no longer meets: no advice. */
+  hostClosed: boolean;
+}): string {
   const { firstName, weekNumber } = input;
   const who = firstName || "them";
   const opening = `${possessive(groupName(input.homeName))} week ${weekNumber} session has started, so calling this visit off would count ${who} absent from a session ${firstName || "they"} ${firstName ? "was" : "were"} told not to go to.`;
   if (!input.hostHappening) return `${opening} The visit stays, and week ${weekNumber} isn’t counted for ${who}.`;
+  if (input.hostClosed) return `${opening} The visit can no longer be cancelled.`;
   const host = possessive(groupName(input.hostName));
   return `${opening} The visit stays. If ${firstName || "they"} can’t go to ${host} session, ${firstName || "they"} can say so with Can’t make it on the visit card, or an admin can mark ${who} excused on ${host} register.`;
-}
-
-/** Refused: already excused from their own group's session that week by an approved request. "Aisha is excused from week 2, so no visit can be arranged for it." */
-export function excusedApprovedWords(firstName: string, weekNumber: number): string {
-  return `${firstName || "They"} ${firstName ? "is" : "are"} excused from week ${weekNumber}, so no visit can be arranged for it.`;
 }
 
 /** The durable limit on the emails of arranging and calling off (`./limits.ts`). Staff-facing. */

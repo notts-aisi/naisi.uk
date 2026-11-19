@@ -537,7 +537,7 @@ describe("6. calling a visit off", () => {
     const late = await cancel("chloe", 3);
     assert.equal(late.status, 409);
     assert.equal(late.body.kind, "too-late");
-    assert.equal(words.cancelOutcomeLine({ status: late.status, kind: late.body.kind }, "Group C"), "Group C’s session has started, so this visit can’t be cancelled now.");
+    assert.equal(words.cancelOutcomeLine({ status: late.status, kind: late.body.kind }, "Group C"), "Group C’s session has started, so this visit can’t be cancelled now. In an emergency, contact an admin.");
     // Already gone (staff called it off, or another tab): nothing is said.
     at("2026-11-17T12:00:00Z");
     assert.equal((await visit("zach", "chloe", { weekNumber: 3, callOff: true, emailCount: 4 })).status, 200);

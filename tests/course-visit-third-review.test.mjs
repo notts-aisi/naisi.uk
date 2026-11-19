@@ -183,17 +183,15 @@ describe("3. a request asked of her old group, then she is moved: exactly as bef
 // 4. No visit over an excusal that stands, however it was given
 // ---------------------------------------------------------------------------
 
-describe("4. no visit for a week she is excused from, by any excusal the register knows", () => {
-  const REFUSED = "Chloe is excused from week 4, so no visit can be arranged for it.";
+describe("4. a visit over an excusal from her own week: allowed, and the excusal stays at home", () => {
   const preview = () => visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, preview: true });
 
-  test("an admin marked her excused on Group B's week 4 register: refused", async () => {
+  test("an admin marked her excused on Group B's week 4 register: the visit can be arranged", async () => {
     assert.equal((await mark("zach", B, 4, "chloe", "excused")).status, 200);
-    const shown = await preview();
-    assert.deepEqual([shown.status, shown.body.error], [409, REFUSED]);
+    assert.equal((await preview()).status, 200);
   });
 
-  test("her week 4 line was excused by a time answer, as \"Most weeks, not all\" writes it: refused", async () => {
+  test("her week 4 line was excused by a time answer, as \"Most weeks, not all\" writes it: the visit can be arranged", async () => {
     const told = new Date("2026-11-10T10:00:00Z");
     world.db.seed(registerPath(B, 4), {
       runId: RUN.agi,
@@ -204,11 +202,6 @@ describe("4. no visit for a week she is excused from, by any excusal the registe
       excusedInAdvance: { chloe: told },
       setBy: { chloe: { byUid: "chloe", at: told, how: "self" } },
     });
-    const shown = await preview();
-    assert.deepEqual([shown.status, shown.body.error], [409, REFUSED]);
-  });
-
-  test("nothing excused: the visit can be arranged", async () => {
     assert.equal((await preview()).status, 200);
   });
 });

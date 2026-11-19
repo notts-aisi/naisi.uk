@@ -157,7 +157,7 @@ describe("3. the too-late line names the group whose session has started", () =>
     assert.equal(late.body.error, "The visit can no longer be cancelled: Group B’s session has started.");
     assert.equal(
       words.cancelOutcomeLine({ status: late.status, kind: late.body.kind }, card.hostName, card.firstName),
-      "Group B’s session has started, so this visit can’t be cancelled now.",
+      "Group B’s session has started, so this visit can’t be cancelled now. In an emergency, contact an admin.",
     );
   });
 
@@ -293,24 +293,21 @@ describe("8. arranging a visit for a week the person asked to be excused from", 
   test("a request still waiting: refused in one sentence, nothing written", async () => {
     await askForWeekFour();
     const shown = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, preview: true });
-    assert.deepEqual([shown.status, shown.body.error], [409, "Chloe is waiting to hear about being excused from week 4. Decide that request first."]);
+    assert.deepEqual([shown.status, shown.body.error], [409, "Chloe is waiting to hear about being excused from week 4. Decide that request first, on the Requests page."]);
     const pressed = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, emailCount: 3, overLimit: false });
     assert.equal(pressed.status, 409);
     assert.equal(seat("chloe").visits, undefined);
   });
 
-  test("once it is approved: she is excused from week 4, and no visit is arranged for it; a request for another week does not stand in the way", async () => {
+  test("once it is approved: the visit can still be arranged, and the excusal stays on her own group's register; a request for another week does not stand in the way", async () => {
     const requestId = await askForWeekFour();
     assert.equal((await visit("zach", "chloe", { weekNumber: 5, hostGroupId: A, preview: true })).status, 200);
     const approved = await call("zach", approveRoute.POST, { requestId }, { body: { sessionKey: "w04" }, course: true });
     assert.equal(approved.status, 200, JSON.stringify(approved.body));
-    const shown = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, preview: true });
-    assert.deepEqual([shown.status, shown.body.error], [409, "Chloe is excused from week 4, so no visit can be arranged for it."]);
-    const pressed = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, emailCount: 3, overLimit: false });
-    assert.deepEqual([pressed.status, pressed.body.error], [409, "Chloe is excused from week 4, so no visit can be arranged for it."]);
-    assert.equal(seat("chloe").visits, undefined);
-    await arrange("chloe", 5, A);
-    assert.equal(enrolments.groupForWeek(seat("chloe"), 5), A);
+    assert.equal(read(registerPath(B, 4)).records.chloe, "excused");
+    await arrange("chloe", 4, A);
+    assert.equal(enrolments.groupForWeek(seat("chloe"), 4), A);
+    assert.equal(read(registerPath(B, 4)).records.chloe, "excused", "her excusal stays where it is");
   });
 });
 

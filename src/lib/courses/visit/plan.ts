@@ -1,8 +1,7 @@
 import "server-only";
 import { MAX_OWN } from "@/lib/courses/excused/ask";
 import { normalizeExcusedRequest, type ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
-import { excusalStandsFor } from "@/lib/courses/excused/marking";
-import { factOf, requestStandingOf, weeksAbout } from "@/lib/courses/excused/model";
+import { requestStandingOf, weeksAbout } from "@/lib/courses/excused/model";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
 import type { DocumentReference, DocumentSnapshot, Firestore, Query, QuerySnapshot, Transaction } from "firebase-admin/firestore";
 import { firstNameOfUser, fullNameOfUser, readNamingProgramme, standingUserOf } from "@/lib/courses/programmeLead";
@@ -31,7 +30,6 @@ import {
   VISIT_REFUSAL,
   alreadyMarkedWords,
   alreadyVisitingWords,
-  excusedApprovedWords,
   excusedWaitingWords,
   ownStartedCallOffWords,
   arrangeButtonWords,
@@ -491,18 +489,13 @@ export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: st
   const hostCheck = hostSessionRefusal(facts, host, weekNumber, now);
   if (hostCheck.error || !hostCheck.session) return { ok: false, status: 409, error: hostCheck.error ?? hostHasNoneWords(host.name, weekNumber) };
   const hostSession = hostCheck.session;
-  // Already marked as having come on their own group's register that week;
-  // or excused from it by any excusal that stands (an approved request, a
-  // line an admin set, or one their own word or a time answer set: the
-  // register's own rule), which a visit would not carry to the host's register.
+  // Already marked as having come on their own group's register that week.
+  // An excusal from it does not stand in the way: it stays where it is, on
+  // their own group's register, and they are a visitor at the host's.
   for (const session of resolveSessions(run, own.home).filter((each) => each.weekNumber === weekNumber)) {
     const register = registerOf(facts, run.id, own.home.id, session);
     const mark = register?.records[place.uid];
     if (mark && CAME.has(mark)) return { ok: false, status: 409, error: alreadyMarkedWords(person.firstName, own.home.name, weekNumber) };
-    const approved = factOf(aboutOwn(session.sessionKey)) === "excused";
-    if (excusalStandsFor({ approved, mark, kept: Boolean(register && Object.hasOwn(register.excusalKept, place.uid)) })) {
-      return { ok: false, status: 409, error: excusedApprovedWords(person.firstName, weekNumber) };
-    }
   }
   const inWeek = peopleInWeek(facts.places, host.id, weekNumber);
   if (inWeek.length + 1 > ATTENDANCE_LIMITS.maxRecords) return { ok: false, status: 409, error: registerFullWords(host.name, weekNumber) };
@@ -671,6 +664,7 @@ export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: bool
   // group's session alone: until it starts, whatever the clock says of the host's.
   const deadline = cancelDeadline({ host, hostSession, home, ownSession: own?.session ?? null });
   const ownStart = own ? sessionInstants(own.session).startsAt : null;
+  const hostStart = hostSession ? sessionInstants(hostSession).startsAt : null;
   const staffNotHappening = byStaff && !happening;
   const until = staffNotHappening ? ownStart : deadline.until;
   const closed = until !== null && now.getTime() >= until.getTime();
@@ -680,7 +674,14 @@ export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: bool
   const stays = !byStaff || !closed
     ? null
     : ownStarted
-      ? ownStartedCallOffWords({ firstName: facts.person.firstName, homeName: home.name, hostName: host.name, weekNumber, hostHappening: happening })
+      ? ownStartedCallOffWords({
+          firstName: facts.person.firstName,
+          homeName: home.name,
+          hostName: host.name,
+          weekNumber,
+          hostHappening: happening,
+          hostClosed: host.archived || hostStart === null || now.getTime() >= hostStart.getTime(),
+        })
       : tooLateToCancelWords(closedBy.name);
   const recipients = visitRecipients({
     person: byStaff ? facts.person : null,
