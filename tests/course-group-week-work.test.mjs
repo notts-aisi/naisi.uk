@@ -289,9 +289,10 @@ describe("7. the words", () => {
   test("last reminded, in the table and in the panel", () => {
     const auto = { at: "2026-11-03T15:00:00.000Z", how: "1-day", byName: null };
     const hand = { at: "2026-11-09T10:02:00.000Z", how: "hand", byName: "Rahul" };
-    assert.equal(words.lastRemindedCell(auto), "Tue 3 Nov, 3pm · 1-day, automatic");
+    assert.equal(words.lastRemindedCell(auto), "Tue 3 Nov, 3pm · 1-day session reminder");
     assert.equal(words.lastRemindedCell(hand), "Mon 9 Nov, 10:02am · by Rahul");
-    assert.equal(words.lastRemindedLine(auto), "Last reminded Tue 3 Nov, 3pm: the 1-day reminder, automatic");
+    // The reminder of the session, which goes to everybody due at it, done or not: never called a reminder about the week.
+    assert.equal(words.lastRemindedLine(auto), "Last reminded Tue 3 Nov, 3pm: the 1-day session reminder");
     assert.equal(words.lastRemindedLine(null), "Not reminded yet");
   });
 
@@ -387,7 +388,7 @@ describe("7. the words", () => {
     }
     assert.equal(
       words.automaticRemindersWords({ kind: "on", threeDay: { at: "2026-11-08T09:00:00Z", went: 5 }, oneDay: { at: "2026-11-10T09:00:00Z", went: 0 } }),
-      "Automatic reminders: the 3-day reminder went on Sun 8 Nov, 9am to 5 people, and the 1-day reminder goes on Tue 10 Nov, 9am to anybody not done.",
+      "Automatic reminders: the 3-day reminder went on Sun 8 Nov, 9am to 5 people, and the 1-day reminder goes on Tue 10 Nov, 9am. They go to everybody due at the session, with what’s left of their week if anything is; somebody excused is sent only what’s left.",
     );
   });
 });

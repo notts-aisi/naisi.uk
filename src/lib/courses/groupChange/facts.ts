@@ -97,7 +97,7 @@ export type ScheduledSend = { before: string | null; after: string | null; gone:
 export type ReminderFacts = {
   /** "Week N is open", 6 days before at 9am: on its schedule, or sent by finishing the register before. */
   weekOpen: ScheduledSend & { scheduled: boolean };
-  /** The reminders 3 days and 1 day before, at 9am, to each person whose week is not done. */
+  /** The reminders 3 days and 1 day before, at 9am, to everybody due at the session. */
   reminders: {
     on: boolean;
     /** How many of the group's people's reminders have already gone (claimed), 3 days and 1 day before. */

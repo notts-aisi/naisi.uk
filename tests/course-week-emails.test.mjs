@@ -380,8 +380,7 @@ describe("2c. the reminder of a session, word for word", () => {
     certificate: null,
     weeks: [5],
     left: [],
-    weekUrl: "https://naisi.uk/learn/agi/weeks/5",
-    buttonWeek: 5,
+    programmeUrl: "https://naisi.uk/learn/agi",
     ...over,
   });
   const lead = (over) => words.sessionReminderLead(facts(over));
@@ -392,7 +391,9 @@ describe("2c. the reminder of a session, word for word", () => {
       lead({ place: { kind: "to-be-confirmed" } }),
       "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, with Rahul. The room is still to be confirmed: we’ll email you when it’s booked.",
     );
-    assert.equal(lead({ place: { kind: "online" } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online, with Rahul. The link is on your programme page.");
+    assert.equal(lead({ place: { kind: "online", link: true } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online, with Rahul. The link is on your programme page.");
+    // No link set for the week: the missing fact drops only itself.
+    assert.equal(lead({ place: { kind: "online", link: false } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online, with Rahul.");
   });
 
   test("a missing fact drops only itself: no campus, no facilitator, several facilitators, no length", () => {
@@ -405,14 +406,15 @@ describe("2c. the reminder of a session, word for word", () => {
       lead({ facilitatorFirstNames: [], place: { kind: "to-be-confirmed" } }),
       "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm. The room is still to be confirmed: we’ll email you when it’s booked.",
     );
-    assert.equal(lead({ facilitatorFirstNames: [], place: { kind: "online" } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online. The link is on your programme page.");
+    assert.equal(lead({ facilitatorFirstNames: [], place: { kind: "online", link: true } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online. The link is on your programme page.");
+    assert.equal(lead({ facilitatorFirstNames: [], place: { kind: "online", link: false } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online.");
   });
 
   test("an incubator's people are told of no group and no facilitator", () => {
     assert.equal(lead({ incubator: true, facilitatorFirstNames: ["Rahul", "Sofia"] }), "Your week 5 session is on Thu 26 Nov, 6pm to 8pm, in Portland A21 (University Park).");
   });
 
-  test("the email in order: the session, Can't make it, the certificate, what is left under the reminder's lead-in, the button; nothing under it", () => {
+  test("the email in order: the session, Can't make it, the certificate, what is left under the reminder's lead-in, Open your programme page; nothing under it", () => {
     const email = words.sessionReminderEmailWords(
       facts({ certificate: CERT, left: [{ weekNumber: 5, left: { items: [reading], notSent: true }, writes: true }] }),
       "Priya",
@@ -427,16 +429,18 @@ describe("2c. the reminder of a session, word for word", () => {
     assert.deepEqual(email.lists, [
       { lead: "Week 5 isn’t finished yet:", items: ["One reading isn’t ticked: “Compute as a lever for governance”.", "Your written answer isn’t sent yet."] },
     ]);
-    assert.equal(email.button, "Finish week 5");
-    assert.equal(email.link, "https://naisi.uk/learn/agi/weeks/5");
+    assert.equal(email.button, "Open your programme page");
+    assert.equal(email.link, "https://naisi.uk/learn/agi");
     assert.deepEqual(email.after, []);
     assert.equal(email.feedback, null);
     assert.equal(words.sessionReminderEmailWords(facts({ daysBefore: 1 }), "Priya").subject, "Week 5: your session is tomorrow");
   });
 
-  test("done: no list; no rule: no certificate; two weeks: each listed, both in the subject", () => {
+  test("done: no list, and the same button; no rule: no certificate; two weeks: each listed, both in the subject", () => {
     const done = words.sessionReminderEmailWords(facts(), "");
     assert.deepEqual(done.lists, []);
+    assert.equal(done.button, "Open your programme page");
+    assert.equal(done.link, "https://naisi.uk/learn/agi");
     assert.equal(done.paragraphs.length, 2);
     assert.equal(done.greeting, "");
     const two = words.sessionReminderEmailWords(
@@ -446,21 +450,21 @@ describe("2c. the reminder of a session, word for word", () => {
           { weekNumber: 4, left: { items: [reading], notSent: false }, writes: false },
           { weekNumber: 5, left: { items: [], notSent: true }, writes: true },
         ],
-        buttonWeek: 4,
       }),
       "Priya",
     );
     assert.equal(two.subject, "Weeks 4 and 5: your session is on Thu 26 Nov");
     assert.deepEqual(two.lists.map((list) => list.lead), ["Week 4 isn’t finished yet:", "Week 5 isn’t finished yet:"]);
-    assert.equal(two.button, "Finish week 4");
+    assert.equal(two.button, "Open your programme page");
   });
 
-  test("rendered, with the notice line: never a meeting link, never a dash, and what was typed is text", async () => {
-    for (const place of [ROOM, { kind: "online" }, { kind: "to-be-confirmed" }, { kind: "room", room: "<b>Hall</b>", campus: "" }]) {
+  test("rendered, with its own notice line: never a meeting link, never a dash, and what was typed is text", async () => {
+    for (const place of [ROOM, { kind: "online", link: true }, { kind: "online", link: false }, { kind: "to-be-confirmed" }, { kind: "room", room: "<b>Hall</b>", campus: "" }]) {
       for (const incubator of [false, true]) {
         const email = words.sessionReminderEmailWords(facts({ place, incubator, certificate: CERT, left: [{ weekNumber: 5, left: { items: [reading], notSent: false }, writes: false }] }), "Priya");
-        const text = await textOf(WeekEmail({ words: email, notice: NoticeMarker({ surface: "course-week-reminder" }) }));
-        assert.doesNotMatch(text, /https?:\/\/(?!naisi\.uk\/learn\/agi\/weeks\/5)/, "a link other than the week's page");
+        const text = await textOf(WeekEmail({ words: email, notice: NoticeMarker({ surface: "course-week-reminder", sessionProgramme: "AGI Strategy" }) }));
+        assert.ok(text.includes("You are getting this because you have a session coming up on AGI Strategy, so it reaches you whatever your notification settings say, and it is never marketing."));
+        assert.doesNotMatch(text, /https?:\/\/(?!naisi\.uk\/learn\/agi(?:[^\/]|$))/, "a link other than the programme page");
         assert.doesNotMatch(text, /[\u2013\u2014]|undefined|null|\{|\}/);
         assert.doesNotMatch(text, /\b(mark|grade|score)\b|unsubscribe/i);
         assert.ok(text.includes("Can’t make it? Tell us on your programme page"));
@@ -476,22 +480,22 @@ describe("2c. the reminder of a session, word for word", () => {
       ...over,
     });
     const at = (location, occurrence = 1) => ({ weekId: "w05", occurrence, session: { location } });
-    assert.deepEqual(model.reminderPlaceOf(group(), at("Room C20")), { kind: "room", room: "Room C20", campus: "" });
-    assert.deepEqual(model.reminderPlaceOf(group({ campus: "university-park" }), at("Room C20")), { kind: "room", room: "Room C20", campus: "University Park" });
+    assert.deepEqual(model.reminderPlaceOf(group(), at("Room C20"), true), { kind: "room", room: "Room C20", campus: "" });
+    assert.deepEqual(model.reminderPlaceOf(group({ campus: "university-park" }), at("Room C20"), true), { kind: "room", room: "Room C20", campus: "University Park" });
     // The week's own campus wins over the group's.
-    assert.deepEqual(model.reminderPlaceOf(group({ campus: "university-park", sessionOverrides: { w05: { campus: "jubilee" } } }), at("Portland A21")), { kind: "room", room: "Portland A21", campus: "Jubilee" });
+    assert.deepEqual(model.reminderPlaceOf(group({ campus: "university-park", sessionOverrides: { w05: { campus: "jubilee" } } }), at("Portland A21"), true), { kind: "room", room: "Portland A21", campus: "Jubilee" });
     // A week whose room was cleared, on a group with a usual room: the resolver hands an empty room.
-    assert.deepEqual(model.reminderPlaceOf(group({ campus: "university-park" }), at("")), { kind: "to-be-confirmed" });
+    assert.deepEqual(model.reminderPlaceOf(group({ campus: "university-park" }), at(""), true), { kind: "to-be-confirmed" });
     // A standing link with no room, on no campus or a campus that is a place: a room still to book.
-    assert.deepEqual(model.reminderPlaceOf(group(), at("")), { kind: "to-be-confirmed" });
+    assert.deepEqual(model.reminderPlaceOf(group(), at(""), true), { kind: "to-be-confirmed" });
     // Held online: the week's own mode, or the Online campus.
-    assert.deepEqual(model.reminderPlaceOf(group({ sessionOverrides: { w05: { mode: "virtual" } } }), at("Room C20")), { kind: "online" });
-    assert.deepEqual(model.reminderPlaceOf(group({ campus: "online" }), at("")), { kind: "online" });
-    assert.deepEqual(model.reminderPlaceOf(group({ sessionOverrides: { w05: { campus: "online" } } }), at("Room C20")), { kind: "online" });
+    assert.deepEqual(model.reminderPlaceOf(group({ sessionOverrides: { w05: { mode: "virtual" } } }), at("Room C20"), true), { kind: "online", link: true });
+    assert.deepEqual(model.reminderPlaceOf(group({ campus: "online" }), at(""), true), { kind: "online", link: true });
+    assert.deepEqual(model.reminderPlaceOf(group({ sessionOverrides: { w05: { campus: "online" } } }), at("Room C20"), false), { kind: "online", link: false });
     // A room that holds a link is never printed.
-    assert.deepEqual(model.reminderPlaceOf(group(), at("https://meet.example.com/abc")), { kind: "to-be-confirmed" });
+    assert.deepEqual(model.reminderPlaceOf(group(), at("https://meet.example.com/abc"), true), { kind: "to-be-confirmed" });
     // A week's second session: the group's own campus, and no week's mode.
-    assert.deepEqual(model.reminderPlaceOf(group({ campus: "jubilee", sessionOverrides: { w05: { mode: "virtual" } } }), at("Room C20", 2)), { kind: "room", room: "Room C20", campus: "Jubilee" });
+    assert.deepEqual(model.reminderPlaceOf(group({ campus: "jubilee", sessionOverrides: { w05: { mode: "virtual" } } }), at("Room C20", 2), true), { kind: "room", room: "Room C20", campus: "Jubilee" });
   });
 });
 

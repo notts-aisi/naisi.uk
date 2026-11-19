@@ -244,7 +244,7 @@ Marker families and where they live:
 | `stagerel__` | `{roundId}__{stageId}__{uid}` | application stage release notices (one per recipient; the `{roundId}__{stageId}` form, with no uid, is the stale verdict for a whole stage) |
 | `unmarked__` | `{groupId}__{sessionKey}` | unmarked-register follow-ups |
 | `regremind__` | `{groupId}__{sessionKey}__{uid}` | the one reminder each facilitator gets about an unfinished register |
-| `weekremind__` | `{groupId}__{sessionKey}__{uid}__{3\|1}` | one person's reminder, 3 days or 1 day before a session, that their week is not done |
+| `weekremind__` | `{groupId}__{sessionKey}__{uid}__{3\|1}` | one person's reminder, 3 days or 1 day before a session they are due at |
 | `breakret__` | `{runId}__{groupId}__{slotStartKey}` | back-after-the-break notices |
 | `wsremind__` | `{circulationId}__{uid}__{dueKey}` | worksheet due-soon reminders (not a courses job, but it shares this collection, so an operator sweeping markers meets it here) |
 | `evannounce__` | `{eventId}__{email\|push}__{recipientKey}` | queued new-event announcements (not a courses job either; one marker per recipient per leg, and `recipientKey` is `u{uid}` for a member or `g{hash}` for a guest row, never an address) |
@@ -635,8 +635,10 @@ whatever they unsubscribed from, and says why above its words.
   moved week its new day, time and room; a week with no room, or whose room
   was cleared for that week on a group with a usual room, says the room is
   still to be confirmed and never the usual room; a week held online (its own
-  mode, or the Online campus, the rule the rooms pages use) says "online" and
-  that the link is on their programme page. Never a meeting link. The
+  mode, or the Online campus, the rule the rooms pages use) says "online",
+  and that the link is on their programme page only when one is set for that
+  week (the link the programme page's session card shows). Never a meeting
+  link. The
   facilitators named are the group's who still stand behind the role, by first
   name; an incubator's people are told of no group and no facilitator ("Your
   week 5 session is ..."). Then "Can't make it?", then the certificate
@@ -644,7 +646,11 @@ whatever they unsubscribed from, and says why above its words.
   programme page uses, so the two say the same; never a count of what they
   missed), then what is left of each week the session covers for them that is
   not done, each with its own list. A week that is done has no list; the
-  reminder still goes.
+  reminder still goes. Its button is "Open your programme page", for
+  everybody, to the run's own page. The line above its words says why it
+  reached them in its own words (`sessionReminderReason`, naming the
+  programme); the reminder about what is left keeps the reminders' own line,
+  and its own button to the week.
 - Somebody who will not be at the session is never told to come to it: an
   excusal for the session that stands (an approved request, or their line
   marked excused, as the register reads it with `excusalStandsFor`), or a word
@@ -4914,12 +4920,16 @@ weeks. It writes the group once and one History row a week: about 240
 documents read and 165 written for fifteen groups over ten weeks.
 
 **Where a week with no room is told it is**: the emails that print a
-session's place (`courseNudgeSessionWhere`: the reminders before a session,
-Week N is open, the register's end, the explainers) and the calendar feed
+session's place through `courseNudgeSessionWhere` (Week N is open, the
+register's end, the explainers, and the reminder about what is left to
+somebody not coming to the session) and the calendar feed
 decide "online" from the week's campus, as the ticket does (`heldOnline`): a
 blank room is online only on the Online campus or none. A week with no room on
 a group that meets on a campus is told exactly what a week with no room and no
-link is told, whatever link the group keeps.
+link is told, whatever link the group keeps. The reminder of a session to everybody due at it
+says its place through `reminderPlaceOf`: online only when the week is held
+online (its own mode, or the Online campus), and a room still to be
+confirmed for any week with no room.
 
 ### Download
 

@@ -433,7 +433,10 @@ people running the programme telling the people on it what this week is,
 when and where its session is, and what is left of their own work (privacy
 policy v21, "Reminders"), so they are
 notices: the line above the words says why each reached them ("you are in
-this course group"; "our records show this week's work isn't finished"),
+this course group"; for the reminder of a session, "you have a session coming
+up on" its programme, from `sessionReminderReason` in `NoticeMarker`; for the
+reminder about what is left, "our records show this week's work isn't
+finished"),
 there is no unsubscribe link, and nothing is pushed. They take no slot under
 the caps below: each is sent by a claim, once per group per session or once
 per person per reminder, and that claim is their bound. Remind, by hand, is a

@@ -12,8 +12,9 @@ import { readFinishRule } from "@/lib/courses/finishing/record";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { groupsOfWeeks, hasGroupsByWeek, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { sessionsFromJoinWeek } from "@/lib/courses/ownAttendance";
+import { londonDateKey } from "@/lib/courses/weekPlan";
 import { firstNameOfUser, readNamingProgramme, standingUserOf } from "@/lib/courses/programmeLead";
-import { coveredWeeks } from "@/lib/courses/sessionChange/model";
+import { cardChangeFacts, coveredWeeks } from "@/lib/courses/sessionChange/model";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
@@ -40,7 +41,7 @@ import {
   resolveNoticeAudience,
   type CohortAudience,
 } from "@/lib/email/courseFacilitatorEmails";
-import { courseNudgeSessionWhere, courseWeekUrl } from "@/lib/email/courseNudgeEmail";
+import { courseNudgeSessionWhere, courseProgrammeUrl, courseWeekUrl } from "@/lib/email/courseNudgeEmail";
 import { sendNotice } from "@/lib/email/notice";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -122,7 +123,9 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  * From the one resolver every reader of a session uses (`resolveSessions`): a
  * moved week's new day and room, a week with its own room, a week whose room
  * was cleared ("to be confirmed", never the group's usual room then), a week
- * held online (`reminderPlaceOf`). Never a meeting link.
+ * held online (`reminderPlaceOf`), which says the link is on their programme
+ * page only when one is set for that week. Never a meeting link. Its button
+ * opens their programme page.
  *
  * ── ONE EACH ────────────────────────────────────────────────────────────────
  * One marker per person per reminder
@@ -197,11 +200,13 @@ type RunState = {
   facilitators: Map<string, Array<{ uid: string; firstName: string }>>;
 };
 
-/** The run's seats, its rule for who finished, and whether it is an incubator's. */
+/** The run's seats, its rule for who finished, whether it is an incubator's, and its programme's name. */
 type RunPeople = {
   seats: Map<string, CourseEnrolmentDoc>;
   rule: FinishRule | null;
   incubator: boolean;
+  /** The short name of the programme that names the run, else the course's title: the notice line names it. */
+  programmeName: string;
 };
 
 type TickState = {
@@ -327,7 +332,9 @@ export function sessionReminderVerdict(input: {
       continue;
     }
     theirs.push(weekNumber);
-    const week = input.weeks.find((each) => each.weekNumber === weekNumber);
+    // The entry for the week that holds this person: one per week today, and
+    // more than one once a week can be read on more than one copy.
+    const week = input.weeks.find((each) => each.weekNumber === weekNumber && each.facts.has(uid));
     const own = week?.facts.get(uid);
     if (!week || !own) continue;
     // The one meaning of done: a week done has nothing to list.
@@ -415,7 +422,12 @@ async function runPeople(db: Firestore, runState: RunState): Promise<RunPeople> 
     const seat = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
     if (seat.runId === run.id && seat.uid && placementIsTold(seat)) seats.set(seat.uid, seat);
   }
-  runState.people = { seats, rule, incubator: naming?.kind === "incubator" };
+  runState.people = {
+    seats,
+    rule,
+    incubator: naming?.kind === "incubator",
+    programmeName: naming?.shortName?.trim() || run.courseTitle.trim(),
+  };
   return runState.people;
 }
 
@@ -596,7 +608,9 @@ async function remindForSession(
   const runFacts = due.stale ? null : await runPeople(db, runState);
   const facilitators = due.stale ? [] : await standingFacilitatorsOf(db, runState, group);
   const { endsAt } = sessionInstants(due.session);
-  const place = reminderPlaceOf(group, due.session);
+  // A link set for that week, as the programme page's session card reads it.
+  const link = cardChangeFacts(sessions, group, due.session, londonDateKey(ctx.now)).next?.meetingUrl ?? null;
+  const place = reminderPlaceOf(group, due.session, Boolean(link?.trim()));
 
   for (const person of people) {
     if (Date.now() >= state.deadlineMs || pass.sent >= ctx.maxPerTick) return "out-of-time";
@@ -655,9 +669,7 @@ async function remindForSession(
                 certificate: runFacts ? await certificateFor(db, runState, runFacts, person.uid) : null,
                 weeks: verdict.weeks,
                 left: verdict.left,
-                // The first week with something left, else the session's own week.
-                buttonWeek: verdict.left[0]?.weekNumber ?? due.session.weekNumber,
-                weekUrl: courseWeekUrl(state.appUrl, run.id, verdict.left[0]?.weekNumber ?? due.session.weekNumber),
+                programmeUrl: courseProgrammeUrl(state.appUrl, run.id),
               },
               firstName,
             );
@@ -666,6 +678,9 @@ async function remindForSession(
         to: person.member.address,
         subject: words.subject,
         surface: "course-week-reminder",
+        // The reminder of the session says its own reason above the words;
+        // the reminder about what is left keeps the reminders' own.
+        ...(verdict.send === "session" ? { sessionProgramme: runFacts?.programmeName ?? run.courseTitle } : {}),
         actorUid: JOB_ID,
         referenceId: run.id,
         render: (notice) => WeekEmail({ words, notice }),

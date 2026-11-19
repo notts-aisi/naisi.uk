@@ -180,14 +180,19 @@ export const OWN_WORK_APART = "A facilitator’s own work is counted apart, and 
 // Last reminded
 // ---------------------------------------------------------------------------
 
-/** Which reminder it was, after its time: "1-day, automatic", "by Rahul". */
+/**
+ * Which reminder it was, after its time: "1-day session reminder", "by
+ * Rahul". An automatic one is the reminder of the session, which goes to
+ * everybody due at it, done or not: named as that, never as a reminder about
+ * the week.
+ */
 function howWords(last: LastReminded, long: boolean): string {
   if (last.how === "hand") return last.byName ? `by ${last.byName}` : "by hand";
   const which = last.how === "3-day" ? "3-day" : "1-day";
-  return long ? `the ${which} reminder, automatic` : `${which}, automatic`;
+  return long ? `the ${which} session reminder` : `${which} session reminder`;
 }
 
-/** The table's cell: "Tue 3 Nov, 3pm · 1-day, automatic", "Mon 9 Nov, 10:02am · by Rahul"; "" for never. */
+/** The table's cell: "Tue 3 Nov, 3pm · 1-day session reminder", "Mon 9 Nov, 10:02am · by Rahul"; "" for never. */
 export function lastRemindedCell(last: LastReminded | null): string {
   if (!last) return "";
   const at = new Date(last.at);
@@ -195,7 +200,7 @@ export function lastRemindedCell(last: LastReminded | null): string {
   return `${dayClock(at)} · ${howWords(last, false)}`;
 }
 
-/** The panel's line: "Last reminded Tue 3 Nov, 3pm: the 1-day reminder, automatic", or that nobody has. */
+/** The panel's line: "Last reminded Tue 3 Nov, 3pm: the 1-day session reminder", or that nobody has. */
 export function lastRemindedLine(last: LastReminded | null): string {
   if (!last) return "Not reminded yet";
   const at = new Date(last.at);
@@ -222,6 +227,10 @@ export type AutomaticReminders =
       oneDay: { at: string | null; went: number };
     };
 
+/** Who the automatic reminders go to, after when they go. */
+export const AUTOMATIC_REMINDERS_GO_TO =
+  "They go to everybody due at the session, with what’s left of their week if anything is; somebody excused is sent only what’s left.";
+
 /** The card's line about the automatic reminders. */
 export function automaticRemindersWords(facts: AutomaticReminders): string {
   switch (facts.kind) {
@@ -235,10 +244,10 @@ export function automaticRemindersWords(facts: AutomaticReminders): string {
       const one = (name: string, send: { at: string | null; went: number }) => {
         const at = send.at ? new Date(send.at) : null;
         if (send.went > 0) return at ? `the ${name} reminder went on ${dayClock(at)} to ${peopleCountWords(send.went)}` : `the ${name} reminder went to ${peopleCountWords(send.went)}`;
-        return at ? `the ${name} reminder goes on ${dayClock(at)} to anybody not done` : "";
+        return at ? `the ${name} reminder goes on ${dayClock(at)}` : "";
       };
       const parts = [one("3-day", facts.threeDay), one("1-day", facts.oneDay)].filter(Boolean);
-      return parts.length > 0 ? `Automatic reminders: ${parts.join(", and ")}.` : "";
+      return parts.length > 0 ? `Automatic reminders: ${parts.join(", and ")}. ${AUTOMATIC_REMINDERS_GO_TO}` : "";
     }
   }
 }

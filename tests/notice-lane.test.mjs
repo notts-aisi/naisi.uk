@@ -1843,6 +1843,29 @@ describe("a bypass is visible in the send log", () => {
     assert.match(table, /^\| `course-week-remind-by-hand` \| Remind, by hand: /m, "docs/notifications.md's surfaces table does not list it");
   });
 
+  test("the reminder of a session says its own reason, and no other notice's line moves", async () => {
+    const { default: NoticeMarker } = await doorLoader.loadTs("emails/NoticeMarker.tsx");
+    const said = async (props) => (await render(NoticeMarker(props), { plainText: true })).replace(/\s+/g, " ");
+    // A DRAFT awaiting the owner's words, in one place: `sessionReminderReason`.
+    assert.match(
+      await said({ surface: "course-week-reminder", sessionProgramme: "AGI Strategy" }),
+      /You are getting this because you have a session coming up on AGI Strategy, so it reaches you whatever your notification settings say, and it is never marketing\./,
+    );
+    assert.doesNotMatch(await said({ surface: "course-week-reminder", sessionProgramme: "AGI Strategy" }), /isn’t finished/);
+    // The reminder about what is left keeps the reminders' own line.
+    assert.match(await said({ surface: "course-week-reminder" }), /our records show this week’s work isn’t finished/);
+    // Every other surface says the same with the fact as without it.
+    const sends = src("lib", "firestore", "emailSends.ts");
+    const others = [...(/export type EmailSendSurface =([\s\S]*?);/.exec(sends)?.[1] ?? "").matchAll(/"([^"]+)"/g)]
+      .map((m) => m[1])
+      .filter((surface) => surface !== "course-week-reminder");
+    assert.ok(others.length >= 10, "could not read the surfaces");
+    for (const surface of others) {
+      assert.equal(await said({ surface, weekNumber: 1, sessionProgramme: "AGI Strategy" }), await said({ surface, weekNumber: 1 }), surface);
+    }
+    assert.match(src("lib", "scheduler", "jobs", "weekReminders.ts"), /\.\.\.\(verdict\.send === "session" \? \{ sessionProgramme: runFacts\?\.programmeName \?\? run\.courseTitle \} : \{\}\),/);
+  });
+
   test("a withheld notice keeps its surface too", () => {
     // A suppression row is the trace of a message that was never sent. If it
     // dropped the surface, "what bypassed the grid" would answer only for the

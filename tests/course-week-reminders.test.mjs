@@ -52,6 +52,7 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { render } from "@react-email/render";
 import { AGI, GROUP, ROUND, RUN, jobContext, makeWorld, seedWorld } from "./lib/registerWorld.mjs";
 import { pressedBefore } from "./lib/saidBefore.mjs";
@@ -59,7 +60,9 @@ import { pressedBefore } from "./lib/saidBefore.mjs";
 const made = makeWorld("__weekReminders");
 const { world, reset, call, courseRoute, lib, loadTs } = made;
 
-const { weekRemindersJob, dueReminders } = await lib("scheduler", "jobs", "weekReminders.ts");
+const { weekRemindersJob, dueReminders, sessionReminderVerdict } = await lib("scheduler", "jobs", "weekReminders.ts");
+const { weekTaskNeeds } = await lib("courses", "weekBlocks", "progress.ts");
+const { weekAsksForWriting, weekWritingNeeds } = await lib("courses", "weekWork", "model.ts");
 const { JOBS, SCHEDULER_JOB_IDS, jobDefaultEnabled } = await lib("scheduler", "registry.ts");
 const { resolveSessions } = await lib("courses", "sessions.ts");
 const { normalizeCourseRun } = await lib("firestore", "courses.ts");
@@ -98,9 +101,18 @@ const read = (path) => world.db.read(path);
 const marker = (uid, days, sessionKey = "w02", groupId = GROUP.b) =>
   read(`schedulerMarkers/weekremind__${groupId}__${sessionKey}__${uid}__${days}`);
 
-/** The notice's line above the words, exactly as the reminder has it. */
+/**
+ * The notice's line above the reminder of a session: its own reason, naming
+ * the programme (AGI Strategy names this run). A DRAFT awaiting the owner's
+ * words: `sessionReminderReason` in src/emails/NoticeMarker.tsx.
+ */
 const NOTICE_LINE =
+  "Sent as an important notice You are getting this because you have a session coming up on AGI Strategy, so it reaches you whatever your notification settings say, and it is never marketing.";
+/** The notice's line above the reminder about what is left, exactly as the reminders have always had it. */
+const LEFT_NOTICE_LINE =
   "Sent as an important notice You are getting this because our records show this week’s work isn’t finished, so it reaches you whatever your notification settings say, and it is never marketing.";
+/** The reminder of a session's button, to the run's own page. */
+const BUTTON = "Open your programme page https://naisi\\.invalid/learn/[^ /]+(?: |$)";
 /** The second paragraph of the reminder of a session, the same for everybody. */
 const CANT_MAKE_IT = "Can’t make it? Tell us on your programme page as early as you can: press Can’t make it on this session’s card.";
 /** Group B's week 2 session as the reminder says it, with the place in the middle. */
@@ -280,7 +292,7 @@ describe("2. everybody due at the session, and what is left only when the week i
     assert.equal(marker("amara", 3).skippedReason ?? null, null);
     assert.equal(message.subject, "Week 2: your session is on Tue 27 Oct");
     const text = await textOf(message);
-    assert.match(text, new RegExp(`Hi Amara, ${escape(NOTICE_LINE)} ${escape(B2())} ${escape(CANT_MAKE_IT)} Finish week 2 https://naisi\\.invalid/learn/[^ ]+/weeks/2`));
+    assert.match(text, new RegExp(`Hi Amara, ${escape(NOTICE_LINE)} ${escape(B2())} ${escape(CANT_MAKE_IT)} ${BUTTON}`));
     assert.doesNotMatch(text, /isn’t finished yet|isn’t ticked|is empty|stops these reminders/);
     assert.equal(mailTo("chloe").length, 1);
   });
@@ -328,7 +340,7 @@ describe("2. everybody due at the session, and what is left only when the week i
       new RegExp(
         `Hi Chloe, ${escape(NOTICE_LINE)} ${escape(B2())} ${escape(CANT_MAKE_IT)} ` +
           "Week 2 isn’t finished yet: \\* One reading isn’t ticked: “Who keeps the lamps”\\. \\* Your written answer is empty\\. " +
-          "Finish week 2 https://naisi\\.invalid/learn/[^ ]+/weeks/2",
+          BUTTON,
       ),
     );
     // No certificate rule on this run: no certificate sentence.
@@ -346,7 +358,7 @@ describe("2. everybody due at the session, and what is left only when the week i
     const [message] = mailTo("chloe");
     assert.ok(message, "a week with an answer written and not sent is not done");
     const text = await textOf(message);
-    assert.match(text, /Week 2 isn’t finished yet: \* Your written answer isn’t sent yet\. Finish week 2/);
+    assert.match(text, /Week 2 isn’t finished yet: \* Your written answer isn’t sent yet\. Open your programme page/);
   });
 
   test("done is never a reason not to mail: every person due at the session is sent each reminder, once", async () => {
@@ -421,7 +433,8 @@ describe("4. the session that actually meets", () => {
     const text = await textOf(message);
     assert.ok(text.includes("Group B’s week 3 session is on Tue 3 Nov, 6pm to 8pm, in Room C20, with Rahul and Sofia."), text);
     assert.match(text, /Week 2 isn’t finished yet: .* Your written answer is empty\. Week 3 isn’t finished yet: .* Your written answer is empty\./);
-    assert.match(text, /Finish week 2/);
+    assert.match(text, new RegExp(BUTTON));
+    assert.doesNotMatch(text, /Finish week|\/weeks\//);
     assert.ok(marker("amara", 1, "w03"), "claimed on the session that meets");
   });
 
@@ -437,7 +450,7 @@ describe("4. the session that actually meets", () => {
     assert.equal(message.subject, "Weeks 2 and 3: your session is tomorrow");
     const text = await textOf(message);
     assert.doesNotMatch(text, /Week 2 isn’t finished yet/);
-    assert.match(text, /Week 3 isn’t finished yet: .* Finish week 3/);
+    assert.match(text, /Week 3 isn’t finished yet: .* Open your programme page/);
   });
 
   test("a moved session is reminded about on its new date, not its old one", async () => {
@@ -713,6 +726,22 @@ describe("9. the day, time and place are that week's, and never a meeting link",
     assert.doesNotMatch(text, /meet\.example|https?:\/\/(?!naisi\.invalid)/, "a meeting link in the email");
   });
 
+  test("a week held online with no link set for it: the sentence stops at online, with the facilitators", async () => {
+    world.db.poke(`courseGroups/${GROUP.b}`, { sessionModes: { w02: "virtual" } });
+    assert.equal(read(`courseGroups/${GROUP.b}`).session.meetingUrl, null);
+    assert.equal(await sentence(), B2(", online"));
+    assert.doesNotMatch(await textOf(mailTo("amara")[0]), /The link is on your programme page/);
+  });
+
+  test("a week held online with a link of its own, on a group with none: the link is on the programme page", async () => {
+    world.db.poke(`courseGroups/${GROUP.b}`, {
+      sessionModes: { w02: "virtual" },
+      sessionOverrides: { w02: { meetingUrl: "https://meet.example.com/week-two" } },
+    });
+    assert.equal(await sentence(), B2(", online", " The link is on your programme page."));
+    assert.doesNotMatch(await textOf(mailTo("amara")[0]), /meet\.example/);
+  });
+
   test("a group on the Online campus: online, with no campus in brackets", async () => {
     world.db.poke(`courseGroups/${GROUP.b}`, {
       campus: "online",
@@ -845,8 +874,10 @@ describe("11. nobody is told to come to a session they will not be at", () => {
     assert.ok(message);
     assert.equal(message.subject, "Week 2: your session is on Tue 27 Oct");
     const text = await textOf(message);
-    assert.ok(text.includes(NOTICE_LINE));
+    assert.ok(text.includes(LEFT_NOTICE_LINE), "the reminder about what is left keeps the reminders' own line");
+    assert.ok(!text.includes("you have a session coming up"));
     assert.match(text, /Your AGI Strategy Fellowship session is on Tue 27 Oct at 6pm in Room C20\. Week 2 isn’t finished yet: /);
+    assert.match(text, /Finish week 2 https:\/\/naisi\.invalid\/learn\/[^ ]+\/weeks\/2/, "and keeps its own button");
     assert.match(
       text,
       /Finishing everything listed above stops these reminders\. You can keep adding to your work after the session: anything you add after it shows as late to the people who read your work, with how late\./,
@@ -927,5 +958,52 @@ describe("12. a covered week whose session was before they were told their group
     assert.match(text, /Week 3 isn’t finished yet/);
     // Everybody else in the group: both weeks, as ever.
     assert.equal(mailTo("amara")[0].subject, "Weeks 2 and 3: your session is tomorrow");
+  });
+});
+
+// ===========================================================================
+// 13. The entry of a week that holds the person
+// ===========================================================================
+
+describe("13. the verdict reads each week on the entry that holds the person", () => {
+  /** A person's state with nothing ticked, written or sent. */
+  const nothingDone = new Proxy({}, { get: (_, key) => (key === "answerOf" ? () => ({ words: 0, emptyBoxes: 1 }) : () => false) });
+  const states = {
+    stateOf: () => ({ kind: "open", due: { at: new Date("2026-10-27T18:00:00Z"), by: "session" }, closesAt: null, submittedAt: null }),
+  };
+  const entry = (uids) => {
+    const { blocks } = blockWeek(2);
+    return {
+      weekNumber: 2,
+      blocks,
+      tasks: weekTaskNeeds(blocks),
+      writes: weekAsksForWriting(blocks),
+      asks: weekWritingNeeds(blocks),
+      facts: new Map(uids.map((uid) => [uid, { state: nothingDone }])),
+    };
+  };
+  const verdict = (weeks) => sessionReminderVerdict({ uid: "amara", covered: [2], belongs: () => true, weeks, weekStates: states, notComing: false });
+
+  test("one entry a week, as today: her week, listed", () => {
+    const one = verdict([entry(["amara", "chloe"])]);
+    assert.equal(one.send, "session");
+    assert.deepEqual(one.weeks, [2]);
+    assert.deepEqual(one.left.map((week) => week.weekNumber), [2]);
+  });
+
+  test("two entries for one week, the first not holding her: hers is the one read, and her week is still listed", () => {
+    const two = verdict([entry(["chloe"]), entry(["amara"])]);
+    assert.equal(two.send, "session");
+    assert.deepEqual(two.left.map((week) => week.weekNumber), [2]);
+    assert.deepEqual(two, verdict([entry(["amara"])]), "the same answer as her one entry alone");
+  });
+
+  test("today the job builds one entry for each covered week, so nothing reads differently", () => {
+    const job = readFileSync(new URL("../src/lib/scheduler/jobs/weekReminders.ts", import.meta.url), "utf8");
+    assert.match(job, /for \(const weekNumber of coveredWeeks\(sessions, session\)\) \{/);
+    const body = job.slice(job.indexOf("async function reminderWeeks("), job.indexOf("const MAX_OWN_REGISTERS"));
+    assert.match(body, /for \(const weekNumber of coveredWeeks\(sessions, session\)\) \{/);
+    assert.equal(body.split("out.push({").length, 2, "reminderWeeks pushes one entry each time round, one week at a time");
+    assert.match(job, /input\.weeks\.find\(\(each\) => each\.weekNumber === weekNumber && each\.facts\.has\(uid\)\)/);
   });
 });

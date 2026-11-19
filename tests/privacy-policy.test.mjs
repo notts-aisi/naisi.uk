@@ -11344,7 +11344,7 @@ describe("v21 says the reminders before a session go to everybody due at it, wit
 
   test("its day, time and place: that week's, from the session the resolver hands every reader", () => {
     assert.match(job, /sessionAt: due\.startsAt,\s+endsAt,/);
-    assert.match(job, /const place = reminderPlaceOf\(group, due\.session\);/);
+    assert.match(job, /const place = reminderPlaceOf\(group, due\.session, Boolean\(link\?\.trim\(\)\)\);/);
     assert.match(words, /\$\{whose\} week \$\{facts\.weekNumber\} session is on \$\{londonDayLabel\(facts\.sessionAt\)\}/);
   });
 

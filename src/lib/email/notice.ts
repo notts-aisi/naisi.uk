@@ -62,6 +62,11 @@ export type SendNoticeArgs = {
    * (Remind, by hand). A fact for the marker, never its words.
    */
   weekNumber?: number;
+  /**
+   * The reminder of a session: the name of its programme, for the marker's
+   * sentence (`sessionReminderReason`). A fact, never words.
+   */
+  sessionProgramme?: string;
   /** The uid of the person who chose to send it. The receipt's actor. */
   actorUid: string;
   /** The event, group or run this is about. The receipt's reference. */
@@ -81,6 +86,7 @@ export async function sendNotice({
   subject,
   surface,
   weekNumber,
+  sessionProgramme,
   actorUid,
   referenceId,
   render,
@@ -90,7 +96,7 @@ export async function sendNotice({
   return sendEmail({
     to,
     subject,
-    react: render(NoticeMarker({ surface, weekNumber })),
+    react: render(NoticeMarker({ surface, weekNumber, sessionProgramme })),
     fromName,
     replyTo,
     kind: "notice",

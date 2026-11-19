@@ -170,7 +170,9 @@ export function weekLeft(input: { blocks: readonly WeekBlock[]; tasks: readonly 
  * the group's), never the group's usual room for a week that has its own.
  *
  *  - ONLINE only when the week is held online: its own mode is online, or its
- *    campus is Online, the rule the rooms pages use (`onlineForRooms`). A
+ *    campus is Online, the rule the rooms pages use (`onlineForRooms`), with
+ *    whether a link is set for that week (`hasLink`: what the programme page's
+ *    session card would show, `cardChangeFacts`). A
  *    group's standing link with no room does not make a week online. A
  *    week's second session (a group meeting twice) carries the group's own
  *    campus and no mode, as the week's changes are its first session's.
@@ -179,11 +181,15 @@ export function weekLeft(input: { blocks: readonly WeekBlock[]; tasks: readonly 
  *    week ("to be confirmed" on a group with a usual room), or what was typed
  *    as the room holds a link, which an email never prints (`couldBeFollowed`).
  */
-export function reminderPlaceOf(group: CourseGroupDoc, session: Pick<ResolvedSession, "weekId" | "occurrence" | "session">): ReminderPlace {
+export function reminderPlaceOf(
+  group: CourseGroupDoc,
+  session: Pick<ResolvedSession, "weekId" | "occurrence" | "session">,
+  hasLink: boolean,
+): ReminderPlace {
   const first = session.occurrence <= 1;
   const campus = first ? campusForWeek(group, session.weekId) : (group.campus ?? null);
   const online = first ? onlineForRooms(group, session.weekId) : campus === "online";
-  if (online) return { kind: "online" };
+  if (online) return { kind: "online", link: hasLink };
   const { location: typed } = session.session;
   const room = couldBeFollowed(typed) ? "" : typed.replace(/\s+/g, " ").trim();
   if (!room) return { kind: "to-be-confirmed" };

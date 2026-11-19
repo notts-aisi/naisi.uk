@@ -366,7 +366,11 @@ export function weekReminderEmailWords(facts: WeekReminderFacts, firstName: stri
  * that is a place ("University Park", "Jubilee"; "" for none); online; or a
  * room still to be confirmed.
  */
-export type ReminderPlace = { kind: "room"; room: string; campus: string } | { kind: "online" } | { kind: "to-be-confirmed" };
+export type ReminderPlace =
+  | { kind: "room"; room: string; campus: string }
+  /** `link`: a link is set for that week, as the programme page's session card shows it. */
+  | { kind: "online"; link: boolean }
+  | { kind: "to-be-confirmed" };
 
 /** What the reminder of a session is made from, every value read from records. */
 export type SessionReminderFacts = {
@@ -389,17 +393,18 @@ export type SessionReminderFacts = {
   weeks: readonly number[];
   /** Of those, each not done, with what is left of it, in order. Empty when every one is done. */
   left: readonly ReminderWeek[];
-  /** The page of the week the button opens. */
-  weekUrl: string;
-  /** The week the button names. */
-  buttonWeek: number;
+  /** Their programme page (the run's home), which the button opens. */
+  programmeUrl: string;
 };
+
+/** The reminder of a session's button, for everybody: it opens their programme page. */
+export const SESSION_REMINDER_BUTTON = "Open your programme page";
 
 /** The reminder's second paragraph, the same for everybody. */
 export const SESSION_REMINDER_CANT_MAKE_IT =
   "Can’t make it? Tell us on your programme page as early as you can: press Can’t make it on this session’s card.";
 
-/** After "online," in the session's sentence: the link is never in the email. */
+/** After "online," in the session's sentence, when a link is set for that week: the link is never in the email. */
 export const SESSION_REMINDER_ONLINE = "The link is on your programme page.";
 
 /** After the session's sentence, for a week with no room. */
@@ -417,7 +422,8 @@ function sessionTimesWords(sessionAt: Date, endsAt: Date | null): string {
 /**
  * THE SESSION'S SENTENCE: "Group C’s week 5 session is on Thu 26 Nov, 6pm to
  * 8pm, in Portland A21 (University Park), with Rahul." Online: "..., 6pm to
- * 8pm, online, with Rahul. The link is on your programme page." No room yet:
+ * 8pm, online, with Rahul. The link is on your programme page.", the last
+ * sentence only when a link is set for that week. No room yet:
  * "..., 6pm to 8pm, with Rahul. The room is still to be confirmed: we’ll
  * email you when it’s booked." A missing fact drops only itself: no campus,
  * no "(University Park)"; no facilitator, no "with Rahul"; several, "with
@@ -445,7 +451,7 @@ export function sessionReminderLead(
   const names = facts.incubator ? [] : facts.facilitatorFirstNames.map(oneLine).filter(Boolean);
   if (names.length > 0) parts.push(`with ${namesAnd(names)}`);
   const said = `${parts.join(", ")}.`;
-  if (facts.place.kind === "online") return `${said} ${SESSION_REMINDER_ONLINE}`;
+  if (facts.place.kind === "online") return facts.place.link ? `${said} ${SESSION_REMINDER_ONLINE}` : said;
   if (facts.place.kind === "to-be-confirmed") return `${said} ${SESSION_REMINDER_ROOM_TO_BE_CONFIRMED}`;
   return said;
 }
@@ -458,9 +464,11 @@ export function sessionReminderLead(
  * needs (only where the run has a rule, exactly as their programme page says
  * it, and never a count of what they have missed), and, only when the week
  * is not done, what is left of it under the reminder's own lead-in, each
- * week of a session covering two on its own. Then the reminder's button.
- * Never a meeting link: an online session says the link is on their
- * programme page. Why it reached them is the notice line above the words.
+ * week of a session covering two on its own. Then "Open your programme
+ * page", for everybody, done or not. Never a meeting link: an online session
+ * with one says the link is on their programme page. Why it reached them is
+ * the notice line above the words (its own reason: `NoticeMarker`'s
+ * `sessionReminderReason`).
  */
 export function sessionReminderEmailWords(facts: SessionReminderFacts, firstName: string): WeekEmailWords {
   const lead = sessionReminderLead(facts);
@@ -476,8 +484,8 @@ export function sessionReminderEmailWords(facts: SessionReminderFacts, firstName
       lead: `Week ${week.weekNumber} isn’t finished yet:`,
       items: weekLeftWords(week.left),
     })),
-    button: `Finish week ${facts.buttonWeek}`,
-    link: facts.weekUrl,
+    button: SESSION_REMINDER_BUTTON,
+    link: facts.programmeUrl,
     after: [],
     feedback: null,
   };
