@@ -22,13 +22,21 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * lines and replies, never an email address or anything written under access
  * requirements; an admin is sent the same, and reads those where they always
  * have.
+ *
+ * `?person=<uid>` opens the tab on one person's row, with the search set to
+ * the name the row already carries: where search sends a lead
+ * (`src/lib/search/load.ts`). A uid that is no row here opens the tab as
+ * usual, saying nothing about it.
  */
 export default async function ProgrammePeoplePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
+  searchParams?: Promise<{ person?: string | string[] }>;
 }) {
   const [{ roundId, programmeId }, user] = await Promise.all([params, requireAdmissionsPage()]);
+  const personParam = (await (searchParams ?? Promise.resolve({} as { person?: string | string[] }))).person;
   const db = getAdminDb();
   const outcome = db ? await loadProgrammePeople(db, user, roundId, programmeId) : null;
   if (!db || !outcome || outcome.status === "none") return <NoProgrammeHere roundId={roundId} />;
@@ -51,5 +59,7 @@ export default async function ProgrammePeoplePage({
       </section>
     );
   }
-  return <ProgrammePeople view={view} />;
+  // One person's row, by the name the row already carries: nothing more is sent.
+  const opened = typeof personParam === "string" ? (view.rows.find((row) => row.uid === personParam)?.name ?? "") : "";
+  return <ProgrammePeople key={opened} view={view} search={opened} />;
 }

@@ -125,10 +125,11 @@ function StatusCell({ row }: { row: PersonRow }) {
   );
 }
 
-export default function ProgrammePeople({ view }: { view: PeopleView }) {
+export default function ProgrammePeople({ view, search: opened = "" }: { view: PeopleView; search?: string }) {
   const live = useHydrated();
   const [filter, setFilter] = useState<PeopleFilter>("everyone");
-  const [search, setSearch] = useState("");
+  // Opened on one person's row (`?person=`, from search): the search set to their name.
+  const [search, setSearch] = useState(opened);
   const [shown, setShown] = useState(PAGE_SIZE);
   /** The row whose More menu is open, and the button that opened it. */
   const [openUid, setOpenUid] = useState<string | null>(null);
@@ -210,7 +211,7 @@ export default function ProgrammePeople({ view }: { view: PeopleView }) {
             type="search"
             className={styles.searchInput}
             placeholder={SEARCH_LABEL}
-            defaultValue=""
+            defaultValue={opened}
             onInput={(event) => {
               setSearch(event.currentTarget.value);
               setShown(PAGE_SIZE);

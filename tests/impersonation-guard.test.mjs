@@ -93,6 +93,12 @@ const GUARDED_TREES = [
   // list, a send) is caught by the sweep.
   "src/app/api/audience",
 
+  // Search for a person or a group. Its one route only reads: a POST so the
+  // words typed travel in the body, never an address a log keeps, and on
+  // ALLOWLIST with that reason. The tree is registered so a route added
+  // beside it that writes is caught by the sweep.
+  "src/app/api/search",
+
   // Messages: every write in this tree is a message sent in the session's
   // name, or the test it waits for. Its one read (whether the menu draws
   // Messages) is a GET, which the sweep does not ask about.
@@ -788,6 +794,10 @@ const ALLOWLIST = [
   [
     "src/app/api/audience/who/route.ts",
     "Reads only. Its POST carries a choice of tags and answers the names it reaches, never an address, and it writes and sends nothing, so a view-as session reads what the member being viewed may read.",
+  ],
+  [
+    "src/app/api/search/route.ts",
+    "Reads only. Its POST carries the words typed into the search box and answers names, what each is and a page to open, and it writes, sends and keeps nothing, so a view-as session is answered as the person being viewed would be, which is the question view-as exists to answer.",
   ],
 ];
 

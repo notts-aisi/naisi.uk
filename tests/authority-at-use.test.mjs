@@ -459,6 +459,18 @@ const RAW_SITES = {
       "naming the caller grants nothing here: the answer is `messageWriterOf`'s, which reads the " +
       "term and holds every facilitator to their bar with `isNamedWithStanding`.",
   },
+  "src/lib/search/load.ts": {
+    role: "not-a-gate",
+    matches: { facilitatorUids: 1 },
+    provedBy: ['isNamedWithStanding(user, "courseGroups.facilitatorUids", group.facilitatorUids),'],
+    // The control runs after the query: the query only finds the groups that might be the caller's.
+    controlAfter: true,
+    why:
+      "Search finds the groups a caller might facilitate with one `array-contains` query scoped to their own " +
+      "uid. A group naming them grants nothing: each is held to the facilitator's bar with " +
+      "`isNamedWithStanding` (and to being live, on a run that is not being destroyed) before it is " +
+      "searched, which is the group page's own gate.",
+  },
   "src/app/api/members/roster/route.ts": {
     role: "not-a-gate",
     matches: { completerUids: 1, reviewerUids: 1 },
