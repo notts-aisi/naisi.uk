@@ -25,7 +25,9 @@
  *
  * ## It reads its own mail, so it runs only where the mail is caught
  */
-import { countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs";
+import { isHarnessAccount } from "../e2e/lib/admin.mjs";
+import { fixtureDoc } from "./core.mjs";
+import { accountsOf, countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs";
 
 export const VISIT_STEPS = [
   "the admin names the running course run on the programme's Settings tab and hands its people over",
@@ -39,6 +41,39 @@ export const VISIT_STEPS = [
 
 /** NOTHING ON THIS JOURNEY IS reCAPTCHA-GATED. */
 export const RECAPTCHA_DEPENDENT_STEPS = [];
+
+/**
+ * The counters the visit's presses leave (`src/lib/courses/visit/limits.ts`
+ * keeps them in `courseNudges` as `emailrate__<key>`): one a day for the
+ * person visited on this run, and one a day for the presser, the harness's
+ * admin. They carry no run id, so the term's own teardown never reaches them.
+ */
+function visitCounterIdsOf(state) {
+  const ben = (state.people ?? []).find((each) => each.key === "ben");
+  return [
+    ...(ben ? [`emailrate__visitperson__${state.runId}__${ben.uid}`] : []),
+    ...(state.adminUid ? [`emailrate__visitpresser__${state.adminUid}`] : []),
+  ];
+}
+
+async function countOwn(state) {
+  let visitCounters = 0;
+  for (const id of visitCounterIdsOf(state)) if ((await fixtureDoc("courseNudges", id).get()).exists) visitCounters += 1;
+  return { visitCounters };
+}
+
+async function teardown(state) {
+  // The namespace check FIRST, before a single delete, as every fixture's teardown makes it.
+  for (const account of accountsOf(state)) {
+    if (!isHarnessAccount(account.email)) {
+      throw new Error(`REFUSING to tear down ${account.email}: not a harness account. The state file is not one this harness wrote.`);
+    }
+  }
+  for (const id of visitCounterIdsOf(state)) await fixtureDoc("courseNudges", id).delete();
+  const term = await teardownTerm(state);
+  const left = await countOwn(state);
+  return { ...term, ...left, total: term.total + left.visitCounters };
+}
 
 export const SPEC = {
   name: "course-hub-visit",
@@ -67,6 +102,6 @@ export const SPEC = {
   // completed, 46 rows before teardown and a manifest of zero after it.
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three" }),
-  countRows: countTerm,
-  teardown: teardownTerm,
+  countRows: async (state) => ({ ...(await countTerm(state)), ...(await countOwn(state)) }),
+  teardown,
 };
