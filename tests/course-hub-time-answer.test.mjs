@@ -763,8 +763,17 @@ describe("4. a told seat keeps its answer through a move, shown only while it is
     assert.ok(!JSON.stringify(register.body.cantMakeIt ?? []).includes("amara"));
   });
 
+  // Changed on purpose: mid-term, a told person whose group has met is never
+  // taken out of every group (`tests/course-board-move.test.mjs`), so the
+  // answer simply stays where it was; before the term the pool takes them,
+  // and keeps it, as always.
   test("taking somebody out of groups keeps it, and shows it nowhere", async () => {
     await answer("dev", { ...CANT });
+    const refused = await w.join.place("zach", [{ uid: "dev", groupId: null }]);
+    assert.deepEqual([refused.status, refused.body.rejected.map((each) => each.reason)], [200, ["mid-term-to-pool"]]);
+    assert.deepEqual([seat("dev").groupId, seat("dev").timeAnswer.kind], [A, "cant"]);
+    // Before the run's first session the pool takes them, and the answer stays, shown nowhere.
+    mock.timers.setTime(new Date("2026-10-20T12:00:00Z").getTime());
     assert.equal((await w.join.place("zach", [{ uid: "dev", groupId: null }])).status, 200);
     assert.deepEqual([seat("dev").groupId, seat("dev").timeAnswer.forGroupId, seat("dev").allocatedEmailAt instanceof Date], [null, A, true]);
     assert.equal((await boardRows("zach")).rows.dev.timeAnswer, null);
