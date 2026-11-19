@@ -43,8 +43,8 @@ export const SPEC = {
     routes: ["/api/auth/session", "/api/search"],
     pages: ["/(auth)/login", "/(app)/dashboard", "/(app)/learn/[runId]/group/[groupId]"],
   },
-  /** Written 19 Nov 2026 and not yet run. */
-  status: "unverified",
+  /** Passed locally on 19 Nov 2026, every step, with a teardown manifest of zero. */
+  status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three" }),
   countRows: countTerm,
   teardown: teardownTerm,

@@ -1365,12 +1365,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the members directory is switched back on.",
   },
-  "/api/search": {
-    reason:
-      "Search from the sidebar: its browser spec (course-hub-search) is written and has not yet passed a local run, so it counts for nothing until it has. Who finds what is driven as every kind of reader against a real term in tests/search.test.mjs.",
-    coverWhen:
-      "When the course-hub-search spec first passes end to end with a teardown manifest of zero.",
-  },
   "/api/newsletter/[id]/send": {
     reason:
       "Newsletter: /api/newsletter/[id]/send is pressed by a drafter or an approver who then reads the outcome on the screen.",
