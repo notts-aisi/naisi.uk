@@ -408,7 +408,7 @@ export const SESSION_REMINDER_CANT_MAKE_IT =
 export const SESSION_REMINDER_ONLINE = "The link is on your programme page.";
 
 /** After the session's sentence, for a week with no room. */
-export const SESSION_REMINDER_ROOM_TO_BE_CONFIRMED = "The room is still to be confirmed: we’ll email you when it’s booked.";
+export const SESSION_REMINDER_ROOM_TO_BE_CONFIRMED = "The room is still to be confirmed: it will be on your programme page as soon as it’s booked.";
 
 /**
  * "6pm to 8pm", or "6pm" for a session with no length. The house clock, in
@@ -424,8 +424,9 @@ function sessionTimesWords(sessionAt: Date, endsAt: Date | null): string {
  * 8pm, in Portland A21 (University Park), with Rahul." Online: "..., 6pm to
  * 8pm, online, with Rahul. The link is on your programme page.", the last
  * sentence only when a link is set for that week. No room yet:
- * "..., 6pm to 8pm, with Rahul. The room is still to be confirmed: we’ll
- * email you when it’s booked." A missing fact drops only itself: no campus,
+ * "..., 6pm to 8pm, with Rahul. The room is still to be confirmed: it will
+ * be on your programme page as soon as it’s booked." A missing fact drops
+ * only itself: no campus,
  * no "(University Park)"; no facilitator, no "with Rahul"; several, "with
  * Rahul and Sofia" (`inWords`, as the site's other emails to members list
  * them).

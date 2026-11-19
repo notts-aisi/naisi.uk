@@ -634,7 +634,8 @@ whatever they unsubscribed from, and says why above its words.
   (University Park), with Rahul." A week with its own room says that room; a
   moved week its new day, time and room; a week with no room, or whose room
   was cleared for that week on a group with a usual room, says the room is
-  still to be confirmed and never the usual room; a week held online (its own
+  still to be confirmed and will be on their programme page as soon as it's
+  booked, never the usual room; a week held online (its own
   mode, or the Online campus, the rule the rooms pages use) says "online",
   and that the link is on their programme page only when one is set for that
   week (the link the programme page's session card shows). Never a meeting

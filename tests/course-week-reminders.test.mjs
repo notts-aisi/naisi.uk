@@ -103,8 +103,8 @@ const marker = (uid, days, sessionKey = "w02", groupId = GROUP.b) =>
 
 /**
  * The notice's line above the reminder of a session: its own reason, naming
- * the programme (AGI Strategy names this run). A DRAFT awaiting the owner's
- * words: `sessionReminderReason` in src/emails/NoticeMarker.tsx.
+ * the programme (AGI Strategy names this run), from
+ * `sessionReminderReason` in src/emails/NoticeMarker.tsx.
  */
 const NOTICE_LINE =
   "Sent as an important notice You are getting this because you have a session coming up on AGI Strategy, so it reaches you whatever your notification settings say, and it is never marketing.";
@@ -700,7 +700,7 @@ describe("9. the day, time and place are that week's, and never a meeting link",
     });
     assert.equal(cleared.status, 200, JSON.stringify(cleared.body));
     const said = await sentence();
-    assert.equal(said, B2("", " The room is still to be confirmed: we’ll email you when it’s booked."));
+    assert.equal(said, B2("", " The room is still to be confirmed: it will be on your programme page as soon as it’s booked."));
     assert.doesNotMatch(said, /Room C20/);
   });
 
@@ -708,12 +708,12 @@ describe("9. the day, time and place are that week's, and never a meeting link",
     world.db.poke(`courseGroups/${GROUP.b}`, {
       session: { ...read(`courseGroups/${GROUP.b}`).session, location: "", meetingUrl: "https://meet.example.com/abc-defg-hij" },
     });
-    assert.equal(await sentence(), B2("", " The room is still to be confirmed: we’ll email you when it’s booked."));
+    assert.equal(await sentence(), B2("", " The room is still to be confirmed: it will be on your programme page as soon as it’s booked."));
   });
 
   test("a room that holds a link is never printed: a room to confirm", async () => {
     world.db.poke(`courseGroups/${GROUP.b}`, { session: { ...read(`courseGroups/${GROUP.b}`).session, location: "https://meet.example.com/abc" } });
-    assert.equal(await sentence(), B2("", " The room is still to be confirmed: we’ll email you when it’s booked."));
+    assert.equal(await sentence(), B2("", " The room is still to be confirmed: it will be on your programme page as soon as it’s booked."));
   });
 
   test("a week held online, by the week's own switch: online, and the link is on the programme page, never in the email", async () => {

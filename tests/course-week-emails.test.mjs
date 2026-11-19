@@ -389,7 +389,7 @@ describe("2c. the reminder of a session, word for word", () => {
     assert.equal(lead(), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, in Portland A21 (University Park), with Rahul.");
     assert.equal(
       lead({ place: { kind: "to-be-confirmed" } }),
-      "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, with Rahul. The room is still to be confirmed: we’ll email you when it’s booked.",
+      "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, with Rahul. The room is still to be confirmed: it will be on your programme page as soon as it’s booked.",
     );
     assert.equal(lead({ place: { kind: "online", link: true } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online, with Rahul. The link is on your programme page.");
     // No link set for the week: the missing fact drops only itself.
@@ -404,7 +404,7 @@ describe("2c. the reminder of a session, word for word", () => {
     assert.equal(lead({ endsAt: null }), "Group C’s week 5 session is on Thu 26 Nov, 6pm, in Portland A21 (University Park), with Rahul.");
     assert.equal(
       lead({ facilitatorFirstNames: [], place: { kind: "to-be-confirmed" } }),
-      "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm. The room is still to be confirmed: we’ll email you when it’s booked.",
+      "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm. The room is still to be confirmed: it will be on your programme page as soon as it’s booked.",
     );
     assert.equal(lead({ facilitatorFirstNames: [], place: { kind: "online", link: true } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online. The link is on your programme page.");
     assert.equal(lead({ facilitatorFirstNames: [], place: { kind: "online", link: false } }), "Group C’s week 5 session is on Thu 26 Nov, 6pm to 8pm, online.");

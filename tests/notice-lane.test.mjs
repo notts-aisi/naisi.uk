@@ -1846,7 +1846,7 @@ describe("a bypass is visible in the send log", () => {
   test("the reminder of a session says its own reason, and no other notice's line moves", async () => {
     const { default: NoticeMarker } = await doorLoader.loadTs("emails/NoticeMarker.tsx");
     const said = async (props) => (await render(NoticeMarker(props), { plainText: true })).replace(/\s+/g, " ");
-    // A DRAFT awaiting the owner's words, in one place: `sessionReminderReason`.
+    // In one place: `sessionReminderReason`.
     assert.match(
       await said({ surface: "course-week-reminder", sessionProgramme: "AGI Strategy" }),
       /You are getting this because you have a session coming up on AGI Strategy, so it reaches you whatever your notification settings say, and it is never marketing\./,
