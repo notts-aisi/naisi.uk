@@ -5,7 +5,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { GROUP_FIELD_LIMITS, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, validateSubmissionUrl } from "@/lib/firestore/courses";
-import { MEETING_LINK_REFUSAL } from "@/lib/courses/joiningOnline/words";
+import { MEETING_LINK_REFUSAL, meetingLinkFullWords } from "@/lib/courses/joiningOnline/words";
 import { planLinkSave } from "./plan";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { historyDetail, linkBeforeWords, linkHeadline } from "@/lib/courses/groupChange/words";
@@ -117,19 +117,29 @@ export async function saveSessionLink(
     // standing link from that week on, every earlier week keeping the link it
     // had. A dotted path is safe: a week id is "w" and digits (`weekDocId`),
     // never a dot, unlike a uid, which is why maps keyed by uid take a `FieldPath`.
-    const plan = planLinkSave({
-      week: { weekNumber: session.weekNumber, weekId: session.weekId },
-      url: request.url,
-      onwards: request.everyWeek,
-      standing: groupSnap.data()?.session?.meetingUrl,
-      storedWeeks,
-      weeks: resolveSessions(run, group)
-        .filter((each) => each.occurrence === 1)
-        .map((each) => ({ weekNumber: each.weekNumber, weekId: each.weekId })),
-      maxWeeks: GROUP_FIELD_LIMITS.maxSessionOverrides,
-    });
+    const planFor = (onwards: boolean) =>
+      planLinkSave({
+        week: { weekNumber: session.weekNumber, weekId: session.weekId },
+        url: request.url,
+        onwards,
+        standing: groupSnap.data()?.session?.meetingUrl,
+        storedWeeks,
+        weeks: resolveSessions(run, group)
+          .filter((each) => each.occurrence === 1)
+          .map((each) => {
+            const ends = sessionInstants(each).endsAt;
+            return { weekNumber: each.weekNumber, weekId: each.weekId, ended: ends !== null && ends.getTime() <= now.getTime() };
+          }),
+        maxWeeks: GROUP_FIELD_LIMITS.maxSessionOverrides,
+      });
+    const plan = planFor(request.everyWeek);
     if (!plan.ok) {
-      return { ok: false, status: 409, error: plan.reason === "full" ? MEETING_LINK_REFUSAL.full : MEETING_LINK_REFUSAL.earlierFull };
+      // Said with what is possible instead: the other choice, when it would be saved.
+      return {
+        ok: false,
+        status: 409,
+        error: meetingLinkFullWords({ weekNumber: session.weekNumber, onwards: request.everyWeek, otherWorks: planFor(!request.everyWeek).ok }),
+      };
     }
     tx.update(groupRef, {
       ...plan.set,
@@ -145,7 +155,7 @@ export async function saveSessionLink(
         actor,
         weekId: session.weekId,
         detail: historyDetail({
-          headline: linkHeadline(session.weekNumber, request.everyWeek),
+          headline: linkHeadline(session.weekNumber, request.everyWeek, plan.keptLater),
           before: linkBeforeWords(hadLink),
         }),
         before: { link: hadLink },

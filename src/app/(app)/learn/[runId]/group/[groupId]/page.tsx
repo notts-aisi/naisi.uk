@@ -733,7 +733,7 @@ export default async function GroupHomePage({
       {meets?.work && !meets.incubator && <FacilitatorWeekWork groupId={groupId} work={meets.work} />}
 
       {/* Each week's meeting link, in words, and the way to change one. */}
-      {meets && <MeetingLinks view={meets} />}
+      {meets && <MeetingLinks view={meets} canChange={!viewAs} />}
 
       {groupWeek ? (
         /* A week written as blocks, in the board's rows: the ticket and the

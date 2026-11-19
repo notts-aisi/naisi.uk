@@ -374,7 +374,9 @@ describe("3. the box asks the facilitators for a link, and the link route saves 
     assert.ok(asking.text.includes("2 people are joining online on Tue 17 Nov. Add a meeting link for week 3."), asking.text);
     assert.ok(asking.text.includes("Chloe Nguyen and Farah Hussain"), asking.text);
     assert.match(asking.html, /<label[^>]*>Meeting link for week 3<\/label>/);
-    assert.ok(asking.text.includes(words.EVERY_WEEK), asking.text);
+    // CHANGED ON PURPOSE (November 2026): the tick saves a link from the box's week on, and says so.
+    assert.ok(asking.text.includes(words.fromWeekOnWords(3)), asking.text);
+    assert.ok(asking.text.includes("Also use it for every week after week 3 that has no link of its own"), asking.text);
     assert.match(asking.html, /<button type="submit"[^>]*>Add the link<\/button>/);
     assert.ok(asking.text.includes(words.BOX_NOTE), asking.text);
     // In a view-as session the box says who, and offers nothing to press.
@@ -476,12 +478,20 @@ describe("3. the box asks the facilitators for a link, and the link route saves 
       ["w01", "w02", "w03", ...Array.from({ length: 17 }, (_, i) => `w${String(i + 10).padStart(2, "0")}`)].map((weekId) => [weekId, { location: "Somewhere" }]),
     );
     world.db.poke(`courseGroups/${B}`, { sessionChanges: {}, sessionOverrides: apart });
-    assert.deepEqual(await giveLink("rahul", { sessionKey: "w04", url: LINK }), { status: 409, body: { error: words.MEETING_LINK_REFUSAL.full } });
+    // The refusal says what is possible instead: here, from week 4 on.
+    assert.deepEqual(await giveLink("rahul", { sessionKey: "w04", url: LINK }), {
+      status: 409,
+      body: { error: words.meetingLinkFullWords({ weekNumber: 4, onwards: false, otherWorks: true }) },
+    });
+    assert.equal(
+      words.meetingLinkFullWords({ weekNumber: 4, onwards: false, otherWorks: true }),
+      "This group already keeps as many weeks apart from its usual slot as it can, so week 4 can’t have a link of its own. Week 4 onwards can still be saved.",
+    );
     assert.equal((await giveLink("rahul", { sessionKey: "w04", url: LINK, everyWeek: true })).status, 200);
     assert.deepEqual(
       ["w01", "w02", "w03"].map((weekId) => world.db.read(`courseGroups/${B}`).sessionOverrides[weekId]),
-      ["w01", "w02", "w03"].map(() => ({ location: "Somewhere", meetingUrl: null })),
-      "the earlier weeks keep the link they had: none",
+      ["w01", "w02", "w03"].map(() => ({ location: "Somewhere", meetingUrl: null, linkPinned: true })),
+      "the earlier weeks keep the link they had, none, marked as kept",
     );
     // Twenty set apart, none of them earlier than the week: keeping the earlier weeks' links needs three more, so nothing is written.
     const later = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`w${String(i + 10).padStart(2, "0")}`, { location: "Somewhere" }]));
@@ -489,9 +499,25 @@ describe("3. the box asks the facilitators for a link, and the link route saves 
     const before = w.everything();
     assert.deepEqual(await giveLink("rahul", { sessionKey: "w04", url: LINK, everyWeek: true }), {
       status: 409,
-      body: { error: words.MEETING_LINK_REFUSAL.earlierFull },
+      body: { error: words.meetingLinkFullWords({ weekNumber: 4, onwards: true, otherWorks: false }) },
     });
+    assert.equal(
+      words.meetingLinkFullWords({ weekNumber: 4, onwards: true, otherWorks: false }),
+      "This group already keeps as many weeks apart from its usual slot as it can, so the weeks before week 4 can’t keep their links as they are. Nothing was saved. Ask an admin about the group’s weeks.",
+      "week 4 only would need a twenty-first week too, so neither choice is offered",
+    );
     assert.equal(w.everything(), before, "a refused link was written");
+    // With room for week 4's own entry but not for the earlier weeks' three, "only" is offered instead.
+    const nineteen = Object.fromEntries(Object.entries(later).slice(0, 19));
+    world.db.poke(`courseGroups/${B}`, { sessionOverrides: nineteen });
+    assert.deepEqual(await giveLink("rahul", { sessionKey: "w04", url: LINK, everyWeek: true }), {
+      status: 409,
+      body: {
+        error:
+          "This group already keeps as many weeks apart from its usual slot as it can, so the weeks before week 4 can’t keep their links as they are. Week 4 only can still be saved.",
+      },
+    });
+    assert.equal((await giveLink("rahul", { sessionKey: "w04", url: LINK })).status, 200, "and it can");
   });
 });
 
@@ -835,7 +861,9 @@ describe("8. the words", () => {
       words.joiningNamesWords(["Sam", "Priya", "Kofi"], "Tue 10 Nov"),
       words.addLinkWords(2),
       words.linkFieldLabel(2),
-      words.EVERY_WEEK,
+      words.fromWeekOnWords(2),
+      words.meetingLinkFullWords({ weekNumber: 2, onwards: true, otherWorks: true }),
+      words.meetingLinkFullWords({ weekNumber: 2, onwards: false, otherWorks: false }),
       words.ADD_LINK,
       words.LINK_ADDED,
       words.BOX_NOTE,

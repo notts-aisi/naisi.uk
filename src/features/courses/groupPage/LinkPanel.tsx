@@ -67,7 +67,7 @@ export default function LinkPanel({
       setProblem(typeof body?.error === "string" ? body.error : UNKNOWN_OUTCOME);
       return;
     }
-    onDone(W.linkSavedWords(target.weekNumber, everyWeek));
+    onDone(W.linkSavedWords(target.weekNumber, everyWeek, everyWeek ? (facts?.laterOwn ?? []) : []));
   }
 
   const titleId = `${ids}-title`;
@@ -121,7 +121,7 @@ export default function LinkPanel({
                   {facts && (
                     <span className={styles.optionHint}>
                       {every
-                        ? W.onwardsHintWords(target.weekNumber, facts.earlier, view.meets.hasLink)
+                        ? W.onwardsHintWords(target.weekNumber, facts.earlier, view.meets.hasLink, facts.laterOwn)
                         : W.onlyHintWords(facts.laterOnEvery)}
                     </span>
                   )}

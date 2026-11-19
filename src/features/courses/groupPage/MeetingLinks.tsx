@@ -12,7 +12,7 @@ import styles from "./GroupPage.module.css";
 /**
  * EACH WEEK'S MEETING LINK, on a facilitator's group page: one row a week of
  * the plan, its date and state, which link it reads in words ("Set: every
- * week", "Set: week 3 only", "No link"), and, for a session still to end and
+ * week", "Set: week 3 only", "Kept the link it had before", "No link"), and, for a session still to end and
  * not cancelled, the way to change it: the same panel as "Set the link",
  * on that week, for that week only (the default) or from that week on. A week
  * that has met keeps the link it had and has nothing to press.
@@ -20,10 +20,11 @@ import styles from "./GroupPage.module.css";
  * Drawn from `loadGroupPage`'s view, which carries which kind of link each
  * week reads and never a link. The route behind the panel admits the
  * group's facilitators, the programme's lead, the run's track leads and
- * admins, and asks again; nobody is emailed. In a view-as session the list
- * is drawn as the facilitator sees it, and the route refuses the press.
+ * admins, and asks again; nobody is emailed. In a view-as session
+ * (`canChange` false) the list is drawn with nothing to press, as the box
+ * about joining online draws its own.
  */
-export default function MeetingLinks({ view }: { view: GroupPageView }) {
+export default function MeetingLinks({ view, canChange }: { view: GroupPageView; canChange: boolean }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [week, setWeek] = useState<{ weekNumber: number; sessionKey: string } | null>(null);
@@ -43,7 +44,7 @@ export default function MeetingLinks({ view }: { view: GroupPageView }) {
       )}
       <ul className={styles.linkList}>
         {view.weeks.map((each) => {
-          const changeable = linkChangeable(each);
+          const changeable = canChange && linkChangeable(each);
           return (
             <li key={each.weekNumber} className={styles.linkRow}>
               <span className={styles.linkText}>

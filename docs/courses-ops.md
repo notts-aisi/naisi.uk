@@ -3227,23 +3227,38 @@ week's people already.
 ### Each week's meeting link
 
 **Meeting links** lists every week of the plan with its date and state and
-which link it reads, in words ("Set: every week", "Set: week 3 only", "No
-link"), never the link (`weekLinkKind`, the rooms page's reading). A week
+which link it reads, in words ("Set: every week", "Set: week 3 only", "Kept
+the link it had before", "No link"), never the link (`weekLinkKind`, the rooms page's reading). A week
 still to come has Change (or Set the link); the panel offers **Week 3 only**,
 the default, and **Week 3 onwards**. Admins and the lead have the same panel
 on each week of the programme's group page. Both save through
 `POST .../groups/[groupId]/meeting-link` (`everyWeek` is "onwards"), which
 works it out with `planLinkSave` (`src/lib/courses/meetingLink/plan.ts`):
 
-- **Week 3 only**: week 3's own link. Every other week stays as it is.
+- **Week 3 only**: week 3's own link, set on purpose. Every other week stays
+  as it is.
 - **Week 3 onwards**: the every-week link becomes this one and week 3's own
-  link goes. A later week with a link of its own keeps it. Every earlier week
-  that read the every-week link is given, as its own, the link it had (none
-  where it had none), so a week that has met keeps the link it had. Nothing
-  is pinned when the every-week link does not change. The box's "Keep this
-  link for every week" is the same press from its week.
-- A week that has ended is refused, as before. Pins that would set apart
-  more weeks than a group keeps (20) refuse the press with nothing written.
+  link goes. A later week still to come with a link set for it on purpose
+  keeps it; the panel names each such week before the press ("Week 5 keeps
+  the link set for it, and won’t get this one."), and so do the saved line
+  and the history line. Every week before week 3, and any week that has
+  ended, keeps what it read: one that read the every-week link is given it
+  as its own, MARKED as kept (`linkPinned: true` beside `meetingUrl` on the
+  week's entry), where it had none, none. A later press from an earlier week
+  replaces kept links from its week on, and keeps links set on purpose. An
+  entry with no mark is set on purpose, which is every entry stored before
+  the mark, so stored data reads as it did. The list says "Kept the link it
+  had before" of a kept week, never that it was set for that week. "Week 3
+  only" on a kept week makes it set on purpose. An entry left holding only a
+  link and its mark is deleted whole. Nothing is kept when the every-week
+  link does not change. The box's tick, "Also use it for every week after
+  week 3 that has no link of its own", is the same press from its week.
+- A week that has ended is refused, as before. A press that would set apart
+  more weeks than a group keeps (20) is refused with nothing written, and the
+  refusal says whether the other choice can still be saved.
+- In a view-as session the list has nothing to press, as the box has none.
+- The rooms page still reads a kept link as that week's own ("Set: week 2
+  only"): it does not know the mark.
 
 Nobody is emailed, and the history row says which weeks and whether there
 was a link before, never the link.

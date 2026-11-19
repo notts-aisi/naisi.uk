@@ -120,10 +120,11 @@ export function roomHeadline(room: string): string {
 }
 
 /** "Set the meeting link for week 2 only." / "Set the meeting link for every week, from week 2." Never the link. */
-export function linkHeadline(weekNumber: number, everyWeek: boolean): string {
-  return everyWeek
-    ? `Set the meeting link for every week, from week ${weekNumber}.`
-    : `Set the meeting link for week ${weekNumber} only.`;
+export function linkHeadline(weekNumber: number, everyWeek: boolean, keptLater: readonly number[] = []): string {
+  if (!everyWeek) return `Set the meeting link for week ${weekNumber} only.`;
+  if (keptLater.length === 0) return `Set the meeting link for every week, from week ${weekNumber}.`;
+  const kept = keptLater.length === 1 ? `week ${keptLater[0]}` : `weeks ${keptLater.slice(0, -1).join(", ")} and ${keptLater[keptLater.length - 1]}`;
+  return `Set the meeting link from week ${weekNumber} on, except ${kept}, which ${keptLater.length === 1 ? "keeps its" : "keep their"} own.`;
 }
 
 /** "Before: no link." / "Before: a link of its own." Never the link. */

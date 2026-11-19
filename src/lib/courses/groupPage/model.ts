@@ -310,18 +310,20 @@ export function beforeTheSessionOf(input: {
 /**
  * What the two choices of a week's link say, from the page's weeks: the
  * later weeks still to come that read the every-week link (they keep it when
- * the link is for this week only), and the earlier weeks of the plan (they
- * keep the link they had when it is from this week on). Mirrors what the
- * writer does (`planLinkSave`).
+ * the link is for this week only), the later weeks still to come with a link
+ * set for them on purpose (they keep it, and do not get a link from this week
+ * on), and the earlier weeks of the plan (they keep the link they had when it
+ * is from this week on). Mirrors what the writer does (`planLinkSave`).
  */
 export function linkChoiceFacts(
   weeks: ReadonlyArray<Pick<GroupPageWeek, "weekNumber" | "ended" | "cancelled" | "link">>,
   weekNumber: number,
-): { laterOnEvery: number[]; earlier: number[] } {
+): { laterOnEvery: number[]; laterOwn: number[]; earlier: number[] } {
+  const later = weeks.filter((week) => week.weekNumber > weekNumber && !week.ended && !week.cancelled);
   return {
-    laterOnEvery: weeks
-      .filter((week) => week.weekNumber > weekNumber && !week.ended && !week.cancelled && week.link === "every")
-      .map((week) => week.weekNumber),
+    laterOnEvery: later.filter((week) => week.link === "every").map((week) => week.weekNumber),
+    // A link set for the week on purpose: from that week on, it keeps it and does not get the new one.
+    laterOwn: later.filter((week) => week.link === "week").map((week) => week.weekNumber),
     earlier: weeks.filter((week) => week.weekNumber < weekNumber).map((week) => week.weekNumber),
   };
 }

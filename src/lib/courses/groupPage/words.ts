@@ -469,17 +469,24 @@ export function onlyHintWords(laterOnEvery: readonly number[]): string {
 }
 
 /**
- * Under "Week 3 onwards": what it replaces from that week on, and that the
- * earlier weeks keep the link they had ("Replaces the every-week link from
- * week 3. Week 2 keeps the link it had.").
+ * Under "Week 3 onwards": what it replaces from that week on, every later
+ * week still to come that will NOT get it (a link set for it on purpose), and
+ * that the earlier weeks keep the link they had ("Replaces the every-week
+ * link from week 3. Week 2 keeps the link it had.").
  */
-export function onwardsHintWords(weekNumber: number, earlier: readonly number[], standing: boolean): string {
-  const first = standing
-    ? `Replaces the every-week link from week ${weekNumber}.`
-    : `Sets it for week ${weekNumber} and every later week without a link of its own.`;
-  if (earlier.length === 0) return first;
-  const kept = earlier.length === 1 ? "keeps the link it had" : "keep the links they had";
-  return `${first} ${weeksWords(earlier)} ${kept}.`;
+export function onwardsHintWords(weekNumber: number, earlier: readonly number[], standing: boolean, laterOwn: readonly number[] = []): string {
+  const parts = [
+    standing
+      ? `Replaces the every-week link from week ${weekNumber}.`
+      : `Sets it for week ${weekNumber} and every later week without a link of its own.`,
+  ];
+  if (laterOwn.length > 0) {
+    parts.push(`${weeksWords(laterOwn)} ${laterOwn.length === 1 ? "keeps the link set for it" : "keep the links set for them"}, and won’t get this one.`);
+  }
+  if (earlier.length > 0) {
+    parts.push(`${weeksWords(earlier)} ${earlier.length === 1 ? "keeps the link it had" : "keep the links they had"}.`);
+  }
+  return parts.join(" ");
 }
 
 // ---------------------------------------------------------------------------
@@ -489,9 +496,16 @@ export function onwardsHintWords(weekNumber: number, earlier: readonly number[],
 export const MEETING_LINKS = "Meeting links";
 /** Under the list, while the group has an every-week link. */
 export const ANY_WEEK_OWN_LINK = "Any week can still have a link of its own.";
-/** Which link a week reads, as the rooms page says it. Never the link. */
-export function weekLinkWords(kind: "week" | "every" | "none", weekNumber: number): string {
-  return kind === "week" ? `Set: week ${weekNumber} only` : kind === "every" ? "Set: every week" : "No link";
+/**
+ * Which link a week reads, as the rooms page says it, and for a week given
+ * the link it had when a later week's press changed the every-week link, that
+ * it kept it. Never the link.
+ */
+export function weekLinkWords(kind: "week" | "every" | "kept" | "none", weekNumber: number): string {
+  if (kind === "week") return `Set: week ${weekNumber} only`;
+  if (kind === "every") return "Set: every week";
+  if (kind === "kept") return "Kept the link it had before";
+  return "No link";
 }
 
 // ---------------------------------------------------------------------------
@@ -522,11 +536,12 @@ export function beforeSaysWords(kind: "waiting" | "excused" | "online" | "coming
 }
 
 export const SAVE_THE_LINK = "Save the link";
-/** Said once a link is saved: nobody is emailed. */
-export function linkSavedWords(weekNumber: number, everyWeek: boolean): string {
-  return everyWeek
-    ? `The meeting link is set for every week, from week ${weekNumber}. Nobody was emailed.`
-    : `The meeting link is set for week ${weekNumber}. Nobody was emailed.`;
+/** Said once a link is saved: nobody is emailed. From a week on, the later weeks that kept a link set for them are named. */
+export function linkSavedWords(weekNumber: number, everyWeek: boolean, keptLater: readonly number[] = []): string {
+  if (!everyWeek) return `The meeting link is set for week ${weekNumber}. Nobody was emailed.`;
+  if (keptLater.length === 0) return `The meeting link is set for every week, from week ${weekNumber}. Nobody was emailed.`;
+  const kept = keptLater.length === 1 ? `week ${keptLater[0]}` : `weeks ${namesWords(keptLater.map(String))}`;
+  return `The meeting link is set from week ${weekNumber} on, except ${kept}, which ${keptLater.length === 1 ? "keeps its" : "keep their"} own. Nobody was emailed.`;
 }
 /** No session left that a link could be set on. */
 export const NO_SESSION_FOR_LINK = "There’s no session still to come, so there’s nothing to set a link for.";
