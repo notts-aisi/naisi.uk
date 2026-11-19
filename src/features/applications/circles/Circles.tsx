@@ -73,7 +73,11 @@ async function send(url: string, method: string, body: unknown) {
 }
 
 const rejectedOf = (data: Record<string, unknown>) =>
-  Array.isArray(data.rejected) ? (data.rejected as { uid: string; reason: string }[]) : [];
+  Array.isArray(data.rejected) ? (data.rejected as { uid: string; reason: string; words?: string }[]) : [];
+
+/** The allocate route's preview: for a move made mid-term, its week and the board's question, or why no week can be offered. */
+type PlacePreview = { uid: string; fromWeek: number | null; words: string | null; refusal: { reason: string; words?: string } | null };
+const previewOf = (data: Record<string, unknown>) => (Array.isArray(data.preview) ? (data.preview as PlacePreview[]) : []);
 
 const DAYS = [1, 2, 3, 4, 5, 6, 0];
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -175,8 +179,33 @@ export default function Circles({ initial }: { initial: CirclesView }) {
     }
   };
 
-  const allocate = (placements: { uid: string; groupId: string | null }[]) =>
+  const allocate = (placements: { uid: string; groupId: string | null; fromWeek?: number }[]) =>
     send(`/api/courses/runs/${encodeURIComponent(live.runId ?? "")}/allocate`, "POST", { placements });
+
+  /**
+   * Before moving anybody Publish has told about a group: the route says which
+   * moves are made mid-term, and each such move's week and question are asked
+   * in one confirmation. The placements with the weeks shown, to send with the
+   * press; null when the confirmation is declined or the preview failed (its
+   * sentence in `lines`).
+   */
+  const askMidTerm = async (
+    placements: { uid: string; groupId: string | null }[],
+  ): Promise<{ placements: { uid: string; groupId: string | null; fromWeek?: number }[] } | { placements: null; lines: string[] }> => {
+    const told = placements.filter((each) => each.groupId !== null && own(live.people, each.uid)?.toldGroupId);
+    if (told.length === 0) return { placements };
+    const asked = await send(`/api/courses/runs/${encodeURIComponent(live.runId ?? "")}/allocate`, "POST", { placements: told, preview: true });
+    if (!asked.ok) return { placements: null, lines: [asked.error] };
+    const said = previewOf(asked.data);
+    const questions = said.filter((each) => each.fromWeek !== null && each.words).map((each) => each.words as string);
+    if (questions.length > 0 && !window.confirm(questions.join("\n\n"))) return { placements: null, lines: [] };
+    return {
+      placements: placements.map((each) => {
+        const week = said.find((entry) => entry.uid === each.uid)?.fromWeek ?? null;
+        return week !== null ? { ...each, fromWeek: week } : each;
+      }),
+    };
+  };
 
   const liveName = (groupId: string | null) => live.groups.find((group) => group.id === groupId)?.name ?? W.A_GROUP;
 
@@ -199,12 +228,14 @@ export default function Circles({ initial }: { initial: CirclesView }) {
 
   const moveLive = (uid: string, groupId: string | null) =>
     save(async () => {
-      const answer = await allocate([{ uid, groupId }]);
+      const asked = await askMidTerm([{ uid, groupId }]);
+      if (!asked.placements) return { ok: false, lines: asked.lines };
+      const answer = await allocate(asked.placements);
       if (!answer.ok) return { ok: false, lines: [answer.error] };
       const refused = rejectedOf(answer.data);
       if (refused.length > 0) {
         const where = groupId ? liveName(groupId) : liveName(own(live.people, uid)?.groupId ?? null);
-        return { ok: false, lines: refused.map((r) => notMovedWords(nameOf(r.uid), where, r.reason)) };
+        return { ok: false, lines: refused.map((r) => notMovedWords(nameOf(r.uid), where, r.reason, r.words)) };
       }
       const told = toldSentence(uid, groupId ? { id: groupId, name: liveName(groupId) } : null);
       return { ok: true, lines: [told ?? W.movedWords(nameOf(uid), groupId ? liveName(groupId) : null)] };
@@ -241,7 +272,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
       const placed = await allocate([{ uid: withUid, groupId: id }]);
       const refused = placed.ok ? rejectedOf(placed.data) : [];
       if (!placed.ok) return { ok: false, lines: [...lines, placed.error] };
-      if (refused.length > 0) return { ok: false, lines: [...lines, ...refused.map((r) => notMovedWords(nameOf(r.uid), name, r.reason))] };
+      if (refused.length > 0) return { ok: false, lines: [...lines, ...refused.map((r) => notMovedWords(nameOf(r.uid), name, r.reason, r.words))] };
       return { ok: true, lines: [...lines, toldSentence(withUid, { id, name }) ?? W.movedWords(nameOf(withUid), name)] };
     });
 
@@ -452,8 +483,9 @@ export default function Circles({ initial }: { initial: CirclesView }) {
       }
       if (!stopped && changes.places.length > 0) {
         const ordered = placementOrder(changes.places);
-        const body = ordered.map((place) => ({ uid: place.uid, groupId: place.to ? (idOf.get(place.to) ?? null) : null }));
-        const answer = await allocate(body);
+        const asked = await askMidTerm(ordered.map((place) => ({ uid: place.uid, groupId: place.to ? (idOf.get(place.to) ?? null) : null })));
+        const body = asked.placements ?? [];
+        const answer = asked.placements ? await allocate(body) : { ok: false as const, error: asked.lines.join(" ") || W.RESULT.notConfirmed, data: {} };
         if (!answer.ok) {
           say(false, W.RESULT.placesFailed(answer.error));
           stopped = true;
@@ -469,7 +501,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
             const to = place.to ? (nameOfKey.get(place.to) ?? W.A_GROUP) : null;
             const toId = place.to ? (idOf.get(place.to) ?? null) : null;
             const no = refused.find((r) => r.uid === place.uid);
-            if (no) say(false, notMovedWords(nameOf(place.uid), to ?? liveName(place.from), no.reason));
+            if (no) say(false, notMovedWords(nameOf(place.uid), to ?? liveName(place.from), no.reason, no.words));
             else say(true, toldSentence(place.uid, toId && to ? { id: toId, name: to } : null) ?? W.RESULT.placed(nameOf(place.uid), to));
           }
           if (refused.length > 0) stopped = true;

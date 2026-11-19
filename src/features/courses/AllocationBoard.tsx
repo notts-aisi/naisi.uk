@@ -976,7 +976,8 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
         const where = groupId
           ? (groupsById.get(groupId)?.name ?? "that group")
           : "the unallocated pool";
-        return `${nameOf(r.uid)} → ${where} (${r.reason})`;
+        // A move made mid-term refused by its own save carries the sentence.
+        return `${nameOf(r.uid)} → ${where} (${r.words ?? r.reason})`;
       });
       const extra = result.rejected.length - named.length;
       return (

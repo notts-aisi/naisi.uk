@@ -629,10 +629,23 @@ const READERS = {
     proof: ["if (!placementIsTold(place)) return { ok: false, refusal: \"not-told\" };", "patch.toldGroupId = fromGroupId;"],
     told: 1,
     why:
-      "moving somebody to another group from a week, called by the staff move alone: it moves only a seat Publish has told " +
-      "(a seat nobody has told is the board's to move), keeps it told, and writes the group it was told about the first " +
-      "time a seat told before that was kept moves, or, for the staff move, the group they join, whose own email tells them. " +
-      "It shows nobody anything and emails nobody",
+      "moving somebody to another group from a week, called by the staff move and by a move made mid-term on the board: " +
+      "it moves only a seat Publish has told (a seat nobody has told is the board's to move), keeps it told, and writes " +
+      "the group it was told about the first time a seat told before that was kept moves, or, for the staff move, the " +
+      "group they join, whose own email tells them. It shows nobody anything and emails nobody",
+  },
+  "lib/courses/staffMove/board.ts": {
+    kind: "writer",
+    proof: [
+      'if (place.role !== "learner" || place.status !== "active" || !place.groupId || !placementIsTold(place)) return false;',
+      "toldAtPublish: true,",
+    ],
+    told: 1,
+    why:
+      "a move made mid-term on the board, behind the allocate route's gate: only a seat Publish has told is moved from a " +
+      "week (a seat nobody has told is the board's plain move, as always), through the writer above, told at the next " +
+      "Publish as every move on the board is. Its question before the press goes to the staff who may place the person, " +
+      "and it emails nobody",
   },
   "lib/courses/nextWeekEmail.ts": {
     kind: "told",

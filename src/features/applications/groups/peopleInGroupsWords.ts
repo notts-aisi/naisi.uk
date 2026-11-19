@@ -162,14 +162,12 @@ export function takeOffConfirm(name: string, where: string, programmeName: strin
 
 /**
  * Why the allocate route did not move somebody, from its reason's code, in a
- * sentence: "Pat Doe wasn’t moved: Group A is full."
+ * sentence: "Pat Doe wasn’t moved: Group A is full." A move made mid-term
+ * that its own save refused carries the server's sentence (`words`): "Pat
+ * Doe wasn’t moved. Group F has already met for week 3, ..."
  */
-export function notMovedWords(name: string, where: string, reason: string): string {
-  // A place with weeks in two groups is not moved here at all: the staff move keeps them.
-  if (reason === "moved-mid-term") {
-    const first = name.trim().split(/\s+/)[0] || "They";
-    return `${first} was moved mid-term and has weeks with two groups. Use Move on ${first}’s row, which keeps them.`;
-  }
+export function notMovedWords(name: string, where: string, reason: string, words?: string): string {
+  if (words) return `${name} wasn’t moved. ${words}`;
   const why =
     reason === "group-full"
       ? `${where} is full.`
@@ -181,7 +179,9 @@ export function notMovedWords(name: string, where: string, reason: string): stri
             ? "they facilitate another group, and somebody holding a place sits in the group they facilitate."
             : reason === "not-accepted"
               ? "their row on the run’s own list doesn’t say Accepted."
-              : "the move was refused. Try again.";
+              : reason === "failed"
+                ? "the move couldn’t be saved. Reload the board to see where they are."
+                : "the move was refused. Try again.";
   return `${name} wasn’t moved: ${why}`;
 }
 

@@ -384,23 +384,28 @@ export function moveWeekFor(
 
 /** The week rule's refusal in its sentence. */
 function weekRefusal(week: Extract<MoveWeek, { ok: false }>, facts: MoveFacts, to: CourseGroupDoc): string {
+  return weekRefusalWords(week, facts.person.firstName, facts.from.name, to.name);
+}
+
+/** The week rule's refusal in its sentence, from the names alone: the move page's and the board's. */
+export function weekRefusalWords(week: Extract<MoveWeek, { ok: false }>, firstName: string, fromName: string, toName: string): string {
   const refusal = week.refusal;
-  if (refusal.kind === "old-has-none-set") return oldHasNoneSetWords(facts.person.firstName, facts.from.name);
+  if (refusal.kind === "old-has-none-set") return oldHasNoneSetWords(firstName, fromName);
   if (refusal.kind === "old-still-to-come") {
     return oldStillToComeWords({
-      firstName: facts.person.firstName,
-      fromName: facts.from.name,
+      firstName,
+      fromName,
       weekNumber: refusal.session.weekNumber,
       dateKey: refusal.session.dateKey,
       startTimeLocal: refusal.session.session.startTimeLocal,
     });
   }
-  if (refusal.kind === "old-has-none-left") return oldHasNoneLeftWords(facts.person.firstName, facts.from.name);
-  if (refusal.kind === "new-has-none") return newHasNoneWords(to.name, refusal.weekNumber);
+  if (refusal.kind === "old-has-none-left") return oldHasNoneLeftWords(firstName, fromName);
+  if (refusal.kind === "new-has-none") return newHasNoneWords(toName, refusal.weekNumber);
   return newHasMetWords({
-    firstName: facts.person.firstName,
-    toName: to.name,
-    fromName: facts.from.name,
+    firstName,
+    toName,
+    fromName,
     weekNumber: refusal.weekNumber,
     dateKey: refusal.oldSession.dateKey,
     startTimeLocal: refusal.oldSession.session.startTimeLocal,
@@ -424,8 +429,18 @@ export function targetOf(facts: MoveFacts, toGroupId: string): { ok: true; to: C
 
 /** The weeks before N, by the groups they were spent in (one for somebody never moved before). */
 function stayNamesOf(facts: MoveFacts, weeks: readonly number[]): string[] {
-  const ids = [...new Set(weeks.map((week) => groupForWeek(facts.place, week) ?? facts.from.id))];
-  return ids.map((id) => facts.groups.find((group) => group.id === id)?.name.trim() || "the group");
+  return stayNamesFor(facts.place, facts.groups, facts.from.id, weeks);
+}
+
+/** The same, from the place and the run's groups: the move page's and the board's. */
+export function stayNamesFor(
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek" | "visits">,
+  groups: readonly CourseGroupDoc[],
+  fromId: string,
+  weeks: readonly number[],
+): string[] {
+  const ids = [...new Set(weeks.map((week) => groupForWeek(place, week) ?? fromId))];
+  return ids.map((id) => groups.find((group) => group.id === id)?.name.trim() || "the group");
 }
 
 /** The fields of a week that say when and by whom it was made, not what it says. */

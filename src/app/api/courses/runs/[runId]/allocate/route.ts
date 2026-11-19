@@ -19,8 +19,9 @@ import {
   normalizeCourseEnrolment,
   placementIsTold,
 } from "@/lib/firestore/courseEnrolments";
-import { hasGroupsByWeek, visitsAfterGroupChange } from "@/lib/courses/groupsByWeek";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { visitsAfterGroupChange } from "@/lib/courses/groupsByWeek";
+import { isMidTermBoardMove, planBoardMove, saveBoardMove, type BoardRefusal } from "@/lib/courses/staffMove/board";
+import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 
@@ -75,6 +76,27 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * a board-wide "auto-place all" stays inside Firestore's transaction limits
  * while a single drag is still one tiny atomic commit.
  *
+ * ── A MOVE MADE MID-TERM KEEPS THE WEEKS ALREADY MET ────────────────────────
+ * A seat told its group, moved to another group once a session of the group
+ * it belongs to has started (or one that already has a record of groups by
+ * week), is not written by the chunk: a move here would be for every week,
+ * and the weeks met with the old group would turn into blanks and absences.
+ * Each such move is made on its own, after its chunk, through the one writer
+ * of the record (`saveBoardMove` in `src/lib/courses/staffMove/board.ts`,
+ * which calls `moveFromWeek`), from the week the move page's rule gives:
+ * earlier weeks stay with the old group, a History row goes on each group,
+ * and nobody is emailed (the next Publish tells them, as it tells any move
+ * here). One person's refusal never loses another's move. A placement may
+ * carry the week the board showed (`fromWeek`): a move whose week is now
+ * another is refused, and the board says so.
+ *
+ * `preview: true` writes nothing and answers, for each placement the caller
+ * may place, the week such a move would be from and the board's question,
+ * or the rule's refusal in its sentence; anybody else, and every move made
+ * before the term, is answered with no week, exactly as a move with nothing
+ * to say. A move before the term is written exactly as it always was.
+ * ────────────────────────────────────────────────────────────────────────────
+ *
  * ── A TOLD SEAT STAYS TOLD, WHEREVER IT IS MOVED ────────────────────────────
  * A move of a seat whose owner Publish has told about a group (a learner's
  * seat still on the run, `placementIsTold`) never clears Publish's stamp: to
@@ -112,7 +134,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 
 type Ctx = { params: Promise<{ runId: string }> };
 
-type Placement = { uid: string; groupId: string | null };
+type Placement = { uid: string; groupId: string | null; fromWeek?: number };
 
 /** Placements per transaction. Reads ~3n docs and writes ≤2n — well inside
  * Firestore's 500-writes-per-transaction limit with room for counter docs. */
@@ -130,11 +152,13 @@ const MAX_PLACEMENTS = 500;
  *  - "facilitates-another-group": they facilitate one of the run's other
  *    live groups, and somebody who holds a place sits in the group they
  *    facilitate
- *  - "moved-mid-term": the place was moved mid-term and has weeks with two
- *    groups (`groupsByWeek`); a move here would lose them, so the staff move
- *    on the person's row is the way
+ *  - a move made mid-term (see the note at the top) refused by its own
+ *    save: "no-week" (the move page's rule offers no week), "week-changed"
+ *    (not the week the board showed), "old-no-longer-meets" (the group they
+ *    are in is archived) and "changed" (the board is out of date), each with
+ *    the sentence the board shows (`words`); and the codes above
  */
-type Rejection = { uid: string; reason: string };
+type Rejection = { uid: string; reason: string; words?: string };
 
 function parsePlacements(body: unknown): Placement[] | null {
   if (!body || typeof body !== "object") return null;
@@ -143,13 +167,18 @@ function parsePlacements(body: unknown): Placement[] | null {
   const out: Placement[] = [];
   for (const entry of raw) {
     if (!entry || typeof entry !== "object") return null;
-    const { uid, groupId } = entry as { uid?: unknown; groupId?: unknown };
+    const { uid, groupId, fromWeek } = entry as { uid?: unknown; groupId?: unknown; fromWeek?: unknown };
     if (typeof uid !== "string" || !uid) return null;
     if (groupId !== null && (typeof groupId !== "string" || !groupId)) return null;
-    out.push({ uid, groupId: groupId ?? null });
+    // The week the board showed for a move made mid-term, when it showed one.
+    if (fromWeek !== undefined && fromWeek !== null && !(typeof fromWeek === "number" && Number.isInteger(fromWeek) && fromWeek >= 1 && fromWeek <= 60)) return null;
+    out.push({ uid, groupId: groupId ?? null, ...(typeof fromWeek === "number" ? { fromWeek } : {}) });
   }
   return out;
 }
+
+/** What the board is told before a press, for one placement. */
+type PreviewEntry = { uid: string; groupId: string | null; fromWeek: number | null; words: string | null; refusal: BoardRefusal | null };
 
 /** Last write wins for a uid listed twice — the board sends latest intent. */
 function dedupeByUid(placements: Placement[]): Placement[] {
@@ -187,9 +216,10 @@ export async function POST(req: Request, ctx: Ctx) {
       { status: 400 },
     );
   }
+  const preview = (body as { preview?: unknown }).preview === true;
   const placements = dedupeByUid(parsed);
   if (placements.length === 0) {
-    return NextResponse.json({ ok: true, placed: 0, rejected: [] });
+    return NextResponse.json(preview ? { ok: true, preview: [] } : { ok: true, placed: 0, rejected: [] });
   }
 
   const runSnap = await db.collection("courseRuns").doc(runId).get();
@@ -201,6 +231,33 @@ export async function POST(req: Request, ctx: Ctx) {
   const staffing = await runStaffingOf(db, actor, run);
   if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const now = new Date();
+
+  if (preview) {
+    // Writes nothing. Only a person this caller may place, to one of the run's
+    // groups that still meets, is answered with a week; anybody else as a move
+    // with nothing to say, so the answer tells a caller nothing it may not see.
+    const out: PreviewEntry[] = [];
+    for (const { uid, groupId } of placements) {
+      const blank: PreviewEntry = { uid, groupId, fromWeek: null, words: null, refusal: null };
+      if (!groupId) {
+        out.push(blank);
+        continue;
+      }
+      const appSnap = await db.collection("courseApplications").doc(courseApplicationId(runId, uid)).get();
+      const application = appSnap.exists ? normalizeCourseApplication(appSnap.id, appSnap.data() ?? {}) : null;
+      if (!application || application.status !== "accepted" || !rowIsServedTo(application, staffing)) {
+        out.push(blank);
+        continue;
+      }
+      const planned = await planBoardMove(db, run, uid, groupId, now);
+      if (planned.kind === "mid-term") out.push({ ...blank, fromWeek: planned.weekNumber, words: planned.words });
+      else if (planned.kind === "refused") out.push({ ...blank, refusal: planned.refusal });
+      else out.push(blank);
+    }
+    return NextResponse.json({ ok: true, preview: out });
   }
 
   let placed = 0;
@@ -219,7 +276,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
   for (let i = 0; i < placements.length; i += CHUNK_SIZE) {
     const chunk = placements.slice(i, i + CHUNK_SIZE);
-    let outcome: { placed: number; rejected: Rejection[] };
+    let outcome: { placed: number; rejected: Rejection[]; midTerm: Placement[] };
     try {
       // Accumulators live INSIDE the callback (returned, not captured):
       // Firestore retries a contended transaction, and outer accumulators
@@ -227,6 +284,8 @@ export async function POST(req: Request, ctx: Ctx) {
       outcome = await db.runTransaction(async (tx) => {
         const chunkRejected: Rejection[] = [];
         let chunkPlaced = 0;
+        // Moves made mid-term, made one by one after this chunk commits.
+        const chunkMidTerm: Placement[] = [];
 
         // ── Reads first, ALL of them ──────────────────────────────────────
         // Firestore transactions forbid reads after the first write, so the
@@ -261,8 +320,11 @@ export async function POST(req: Request, ctx: Ctx) {
             tx.get(db.collection("courseGroups").where("runId", "==", runId)),
           ]);
         const facilitatedBy = new Map<string, string[]>();
+        // The run's groups, archived ones included: whether a move is made mid-term.
+        const runGroups: CourseGroupDoc[] = [];
         for (const doc of runGroupsSnap.docs) {
           const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
+          if (group.runId === runId) runGroups.push(group);
           if (group.runId !== runId || group.archived) continue;
           for (const uid of group.facilitatorUids) {
             facilitatedBy.set(uid, [...(facilitatedBy.get(uid) ?? []), group.id]);
@@ -420,20 +482,18 @@ export async function POST(req: Request, ctx: Ctx) {
             continue;
           }
 
-          // A place moved mid-term HAS WEEKS WITH TWO GROUPS (`groupsByWeek`):
-          // a move on the board is for every week, and would throw the weeks
-          // spent with the old group away. Moving it to another group here is
-          // refused; the staff move on the person's row keeps them. Taking it
-          // out of every group, and every place with no record, are as always.
+          // A MOVE MADE MID-TERM keeps the weeks already met (see the note at
+          // the top): not written here, but on its own once this chunk has
+          // committed, from the week the rule gives. Taking a place out of
+          // every group, and every move before the term, are as always.
           if (
             enrolment &&
             !facilitatorRow &&
-            enrolment.status === "active" &&
             groupId !== null &&
             groupId !== enrolment.groupId &&
-            hasGroupsByWeek(enrolment)
+            isMidTermBoardMove(run, enrolment, runGroups, now)
           ) {
-            chunkRejected.push({ uid, reason: "moved-mid-term" });
+            chunkMidTerm.push(placement);
             continue;
           }
 
@@ -585,7 +645,7 @@ export async function POST(req: Request, ctx: Ctx) {
         // form's counters, in the same transaction as the seat.
         if (restoring.length > 0) restorePlaces(tx, restoring);
 
-        return { placed: chunkPlaced, rejected: chunkRejected };
+        return { placed: chunkPlaced, rejected: chunkRejected, midTerm: chunkMidTerm };
       });
     } catch (err) {
       // Chunks are independent transactions, so earlier chunks are already
@@ -605,6 +665,19 @@ export async function POST(req: Request, ctx: Ctx) {
     }
     placed += outcome.placed;
     rejected.push(...outcome.rejected);
+    // Each move made mid-term on its own: one person's refusal never loses another's move.
+    for (const move of outcome.midTerm) {
+      if (!move.groupId) continue;
+      let refusal: BoardRefusal | null;
+      try {
+        refusal = await saveBoardMove(db, { run, uid: move.uid, toGroupId: move.groupId, fromWeek: move.fromWeek ?? null, actor, now });
+      } catch (err) {
+        console.error("[courses allocate] move made mid-term failed", runId, err);
+        refusal = { reason: "failed" };
+      }
+      if (refusal) rejected.push({ uid: move.uid, ...refusal });
+      else placed += 1;
+    }
   }
 
   return NextResponse.json({ ok: true, placed, rejected });

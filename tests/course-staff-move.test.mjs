@@ -32,8 +32,8 @@
  *     move, as the control, sends its three announcements; a move from week
  *     1 (no record) then a board move back is announced afresh; a second
  *     staff move back a week later sends its own three emails and Publish
- *     then sends nothing; the board refuses a place with a record and Remove
- *     still works. And the moved person's own programme page: their next
+ *     then sends nothing; the board folds a record back, emailing nobody,
+ *     and Remove still works. And the moved person's own programme page: their next
  *     session is the new group's week they join from, and the schedule shows
  *     each week from the group they were in.
  *
@@ -926,12 +926,22 @@ describe("9. a real Publish after a move, and the person's own page", () => {
     assert.deepEqual(sent(), []);
   });
 
-  test("the board refuses a place with a record, and Remove still takes it out", async () => {
+  // Changed on purpose: the board refused a place with a record until a move
+  // made mid-term there went through the writer. Now it folds the record back
+  // exactly as the move page does, emails nobody, and Remove still takes it out.
+  test("the board moves a place with a record back before the earlier move took effect: folded back, nobody emailed; Remove still takes it out", async () => {
     await publish();
     assert.equal((await press("claudia", "freya", C)).saved.status, 200);
-    const refused = await w.join.place("claudia", [{ uid: "freya", groupId: D }]);
-    assert.deepEqual(refused.body.rejected, [{ uid: "freya", reason: "moved-mid-term" }]);
-    assert.equal(read(seatPath("freya")).groupId, C);
+    assert.deepEqual(read(seatPath("freya")).groupsByWeek, [
+      { groupId: D, fromWeek: 1 },
+      { groupId: C, fromWeek: 4 },
+    ]);
+    world.mail.length = 0;
+    const back = await w.join.place("claudia", [{ uid: "freya", groupId: D, fromWeek: 4 }]);
+    assert.deepEqual([back.body.placed, back.body.rejected], [1, []]);
+    assert.equal(read(seatPath("freya")).groupId, D);
+    assert.equal("groupsByWeek" in read(seatPath("freya")), false, "back in Group D for every week: no record");
+    assert.deepEqual(sent(), [], "a move on the board emails nobody");
     const out = await w.join.place("claudia", [{ uid: "freya", groupId: null }]);
     assert.equal(out.body.placed, 1);
     assert.equal(read(seatPath("freya")).groupId, null);

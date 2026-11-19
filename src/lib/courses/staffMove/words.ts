@@ -481,6 +481,53 @@ export function movedInDetail(personName: string, fromName: string, weekNumber: 
 }
 
 // ---------------------------------------------------------------------------
+// A move made mid-term on the allocation board (the Groups tab)
+// ---------------------------------------------------------------------------
+
+/** On the old group's history, for a move on the Groups tab: "Leo Park moved to Group F from week 3 on the Groups tab, to be told at the next Publish." */
+export function boardMovedOutDetail(personName: string, toName: string, weekNumber: number): string {
+  return `${line(personName) || "Somebody"} moved to ${groupName(toName)} from week ${weekNumber} on the Groups tab, to be told at the next Publish.`;
+}
+
+/** On the new group's history: "Leo Park moved here from Group C, from week 3, on the Groups tab, to be told at the next Publish." */
+export function boardMovedInDetail(personName: string, fromName: string, weekNumber: number): string {
+  return `${line(personName) || "Somebody"} moved here from ${groupName(fromName)}, from week ${weekNumber}, on the Groups tab, to be told at the next Publish.`;
+}
+
+/**
+ * The board's question before a move made mid-term: "Move Leo Park to
+ * Group F from week 3? Weeks 1 and 2 stay with Group C, where Leo met.
+ * Nobody is emailed now: Leo sees Group F straight away, and the next
+ * Publish emails them that they have moved." With a week nobody met with
+ * the old group, why the move is from it, between the two.
+ */
+export function boardMoveConfirmWords(input: {
+  name: string;
+  firstName: string;
+  toName: string;
+  weekNumber: number;
+  /** "Weeks 1 and 2 stay with Group C, where Leo met.", or "". */
+  weeksStay: string;
+  /** Why week N is a week nobody met with the old group (`oldOffWords`), or "". */
+  oldOff: string;
+}): string {
+  const first = line(input.firstName) || line(input.name) || "They";
+  const to = groupName(input.toName);
+  return [
+    `Move ${line(input.name) || first} to ${to} from week ${input.weekNumber}?`,
+    [input.weeksStay, input.oldOff].filter(Boolean).join(" "),
+    `Nobody is emailed now: ${first} sees ${to} straight away, and the next Publish emails them that they have moved.`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** A move on the board whose week changed between the question and the press: "The move is now from week 4. Move Leo again to see what it does." */
+export function boardWeekChangedWords(firstName: string, weekNumber: number): string {
+  return `The move is now from week ${weekNumber}. Move ${line(firstName) || "them"} again to see what it does.`;
+}
+
+// ---------------------------------------------------------------------------
 // What the route and the page refuse
 // ---------------------------------------------------------------------------
 

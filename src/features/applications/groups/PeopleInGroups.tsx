@@ -291,7 +291,7 @@ function Column({
 
 export default function PeopleInGroups({ view, views }: Props) {
   const runId = view.run.id;
-  const { data, loading, error, reload, place, removeEnrolment } = useAllocation(runId);
+  const { data, loading, error, reload, place, previewPlace, removeEnrolment } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
   // "They meant some weeks" saved on a card: the board is read again, and says so.
   const onAnswerChanged = useCallback(
@@ -398,6 +398,26 @@ export default function PeopleInGroups({ view, views }: Props) {
       if (!row) return;
       const from = columnOf(row);
       if (from === columnId) return;
+      // SOMEBODY TOLD THEIR GROUP, moved to another: the server says whether
+      // the move is made mid-term, and if it is, the week it is from and that
+      // the earlier weeks stay, asked before anything is written.
+      let fromWeek: number | undefined;
+      if (row.told && columnId !== POOL) {
+        const asked = await previewPlace([{ uid, groupId: columnId }]);
+        if (!asked.ok) {
+          await raise(asked.error);
+          return;
+        }
+        const said = asked.preview.find((entry) => entry.uid === uid) ?? null;
+        if (said?.refusal) {
+          await raise(words.notMovedWords(nameOf(uid), columnName(columnId), said.refusal.reason, said.refusal.words));
+          return;
+        }
+        if (said?.fromWeek != null) {
+          if (!window.confirm(said.words ?? "")) return;
+          fromWeek = said.fromWeek;
+        }
+      }
       // What the move did, for somebody who already knew their group: they
       // see the group they are in now at once, and the next Publish emails
       // them. Beside any note about the group's weeks.
@@ -418,6 +438,7 @@ export default function PeopleInGroups({ view, views }: Props) {
       const placement: Placement = {
         uid,
         groupId: columnId === POOL ? null : columnId,
+        ...(fromWeek !== undefined ? { fromWeek } : {}),
       };
       setPending((was) => ({ ...was, [uid]: placement.groupId }));
       const result = await place([placement]);
@@ -428,10 +449,10 @@ export default function PeopleInGroups({ view, views }: Props) {
       }
       if (result.rejected.length > 0) {
         revert([uid]);
-        await raise(words.notMovedWords(nameOf(uid), columnName(columnId), result.rejected[0].reason));
+        await raise(words.notMovedWords(nameOf(uid), columnName(columnId), result.rejected[0].reason, result.rejected[0].words));
       }
     },
-    [rowsByUid, columnOf, groupsById, columnName, nameOf, place, revert, raise],
+    [rowsByUid, columnOf, groupsById, columnName, nameOf, place, previewPlace, revert, raise],
   );
 
   const takeOff = useCallback(

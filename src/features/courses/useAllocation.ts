@@ -226,16 +226,32 @@ export type AllocationPayload = {
 // Every result is a discriminated union the caller can render precisely.
 // ---------------------------------------------------------------------------
 
-export type Placement = { uid: string; groupId: string | null };
+/** A move: `fromWeek` is the week the board showed for a move made mid-term, sent back with the press. */
+export type Placement = { uid: string; groupId: string | null; fromWeek?: number };
 
 export type PlaceResult =
   | {
       ok: true;
       placed: number;
-      /** Per-person refusals (group full, no longer accepted, …). */
-      rejected: { uid: string; reason: string }[];
+      /** Per-person refusals (group full, no longer accepted, …); a move made mid-term refused by its own save carries its sentence. */
+      rejected: { uid: string; reason: string; words?: string }[];
     }
   | { ok: false; error: string };
+
+/**
+ * What a move would do, asked before the press: for a move made mid-term, the
+ * week it is from and the board's question, or why no week can be offered in
+ * the server's sentence; for every other move, nothing (`fromWeek` null).
+ */
+export type PlacePreview = {
+  uid: string;
+  groupId: string | null;
+  fromWeek: number | null;
+  words: string | null;
+  refusal: { reason: string; words?: string } | null;
+};
+
+export type PreviewResult = { ok: true; preview: PlacePreview[] } | { ok: false; error: string };
 
 export type PublishResult =
   | { ok: true; report: PublishReport }
@@ -266,6 +282,8 @@ export type UseAllocation = {
   reload: () => void;
   /** Move people between groups (`groupId: null` returns them to the pool). */
   place: (placements: Placement[]) => Promise<PlaceResult>;
+  /** What those moves would do, before the press: writes nothing. */
+  previewPlace: (placements: Placement[]) => Promise<PreviewResult>;
   /**
    * Publish, carrying the number of emails the board showed: the press is
    * refused if that is no longer what it would send. Refuses while anyone is
@@ -388,6 +406,27 @@ export function useAllocation(runId: string): UseAllocation {
     [base, reload],
   );
 
+  /** The same route with `preview: true`: the week of each move made mid-term, and the board's question. */
+  const previewPlace = useCallback(
+    async (placements: Placement[]): Promise<PreviewResult> => {
+      try {
+        const res = await fetch(`${base}/allocate`, {
+          method: "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ placements, preview: true }),
+        });
+        const body = await readBody<{ preview: PlacePreview[] }>(res);
+        if (!res.ok || !body?.ok || !Array.isArray(body.preview)) {
+          return { ok: false, error: body?.error ?? `That move didn't go through (${res.status}).` };
+        }
+        return { ok: true, preview: body.preview };
+      } catch (e: unknown) {
+        return { ok: false, error: messageFrom(e) };
+      }
+    },
+    [base],
+  );
+
   /**
    * Publish: subscribe everyone placed to the cohort channel, email them their
    * group, and tell each facilitator. Carries the number the button showed.
@@ -481,6 +520,7 @@ export function useAllocation(runId: string): UseAllocation {
     error,
     reload,
     place,
+    previewPlace,
     publishAllocation,
     sendPublishTest,
     removeEnrolment,
