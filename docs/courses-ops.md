@@ -2381,7 +2381,7 @@ the lists each reader can already open, through those lists' own gates:
 | Reader | People, from | Groups, from | Each result opens |
 | --- | --- | --- | --- |
 | An admin | every account, by the full name the Members page shows | every live group of every run that is not being destroyed | the person's page under Members; the group's page under the programme that names its run, or the group's own page when no programme names it |
-| A programme's lead | the People tab's rows of each programme they lead (`readProgrammePeople`, after the tab's own gate and the admissions tree's page gate), by the tab's names | the live groups of the run each of those programmes names | the People tab opened on the person's row (`?person=`); the group's page under the programme |
+| A programme's lead | the People tab's rows of each programme they lead (`readProgrammePeople`, after the tab's own gate and the admissions tree's page gate), by the tab's names | the live groups of the run each of those programmes names | the People tab opened on the person's row (`?person=`: under the filter that holds the row, Invited for somebody invited, with the search set to their name and enough pages to reach it, `openedOn`); the group's page under the programme |
 | A group's facilitator | the people their group's page lists (`listGroups` over `readRunRecords`, as `loadFacilitatorGroup` reads them), by the page's names | the live groups that name them, held to the facilitator's bar | the group's page, for both |
 
 Somebody who is both a lead and a facilitator finds each person once, by the
@@ -2410,11 +2410,14 @@ At most six people and four groups, with a line when more matched.
 
 - Fewer than two letters asks nothing; more than 80 characters is refused.
 - The box asks after a pause in typing (350 milliseconds) or on Enter, never
-  on every key.
-- Thirty queries a minute and three hundred an hour per account, by the
-  site's per-account throttle (`src/lib/rateLimit.ts`), kept in the server's
-  memory, so nothing is written to count them; over it, a 429 with
-  `Retry-After`.
+  on every key, and never twice for the same words: Enter while they are on
+  their way, or once they are answered, does not ask again.
+- Thirty requests a minute and three hundred an hour per account, and per
+  address for somebody signed out, by the site's own throttles
+  (`src/lib/rateLimit.ts`), checked before anything works out who the caller
+  is, so a refused caller cannot spend reads without limit either. Kept in
+  the server's memory, so nothing is written to count them; over it, a 429
+  with `Retry-After`. The menu's one question has a count of its own.
 - The words typed travel in a POST body, never in an address a request log
   keeps. Nothing about a query (the words, what was found, that it was asked)
   is written or logged anywhere, and no index of people is built or stored.
@@ -2424,8 +2427,11 @@ At most six people and four groups, with a line when more matched.
 - An admin: every account (three fields each), every group, each group's run
   by address, every application form, and for the six people at most in the
   answer, their places on courses (one `in`).
-- A lead: every form, then per programme they lead the form's sent
-  applications and decisions, the run and its groups and places.
+- A lead: every form, then per form whose decisions have gone out its sent
+  applications and decisions once, however many of its programmes they lead,
+  and per programme the run, its groups and its places, each once (the People
+  tab's own reader is handed the form's read). One programme: forms + A + D +
+  1 + g + e; two on one form: forms + A + D + 2 + g1 + g2 + e1 + e2.
 - A facilitator: the groups that name them (one `array-contains`), then per
   run those groups are on, the run's records as the group page reads them
   (the run, its groups, places and registers, the register switches, and the

@@ -28,7 +28,9 @@ import styles from "./PeopleSearch.module.css";
  * between one opening and the next, and nothing is remembered about what was
  * typed.
  *
- * It asks after a pause in typing, or at once on Enter, never on every key.
+ * It asks after a pause in typing, or at once on Enter, never on every key,
+ * and never twice for the same words: Enter while they are on their way, or
+ * after they were answered with nothing, does not ask again.
  */
 
 /** How long typing has to pause before the box asks. */
@@ -86,7 +88,7 @@ export function useSlashToSearch(enabled: boolean, open: () => void): void {
 
 type State =
   | { kind: "idle" }
-  | { kind: "waiting" }
+  | { kind: "waiting"; query: string }
   | { kind: "answered"; query: string; answer: SearchAnswer }
   | { kind: "failed"; message: string };
 
@@ -131,7 +133,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
     const mine = ++asked.current;
     const controller = new AbortController();
     inFlight.current = controller;
-    setState({ kind: "waiting" });
+    setState({ kind: "waiting", query });
     try {
       const res = await fetch("/api/search", {
         method: "POST",
@@ -186,9 +188,13 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
       setActive((at) => (at <= 0 ? hits.length - 1 : at - 1));
     } else if (event.key === "Enter") {
       event.preventDefault();
-      const answeredNow = state.kind === "answered" && state.query === typed;
-      if (answeredNow && active >= 0 && hits[active]) go(hits[active]);
-      else void ask(typed);
+      // These very words are on their way, or already answered: Enter opens the active result, and never asks again.
+      if (state.kind === "waiting" && state.query === typed) return;
+      if (state.kind === "answered" && state.query === typed) {
+        if (active >= 0 && hits[active]) go(hits[active]);
+        return;
+      }
+      void ask(typed);
     }
   }
 

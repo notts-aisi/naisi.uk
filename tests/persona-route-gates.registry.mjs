@@ -3932,11 +3932,19 @@ export const ROUTES = {
         "they are signed in as somebody who runs nothing. It writes nothing.",
     },
     POST: {
-      expect: everyone(403, { admin: 400, lead: 400, facilitator: 400 }),
+      expect: everyone(403, { admin: 200, lead: 200, facilitator: 200 }),
+      fields: ["groups", "moreGroups", "morePeople", "people"],
+      drive: {
+        body: { query: "an" },
+        why:
+          "A real two-letter query, so the answer's fields are held for the three who run things; it reads and " +
+          "writes nothing beyond their own lists, and everybody else is refused before the body is read.",
+      },
       why:
-        "One query. Everybody search is not for gets the GET's one 403 before the body is read; the three who run " +
-        "things meet the query check, and an empty body is a 400. What each finds is held as every kind of reader " +
-        "against a real term in tests/search.test.mjs. It writes nothing.",
+        "One query. Everybody search is not for gets the GET's one 403 before the body is read; an admin, a " +
+        "programme's lead and a facilitator with standing are answered, people and groups each with whether more " +
+        "matched. What each finds is held as every kind of reader against a real term in tests/search.test.mjs. " +
+        "It writes nothing.",
     },
   },
   "/api/subscriptions": {

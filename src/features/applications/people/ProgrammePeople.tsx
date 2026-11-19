@@ -4,7 +4,7 @@ import { Fragment, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { useHydrated } from "@/hooks/useHydrated";
-import { rowMatches, rowMatchesSearch } from "@/lib/applications/people/filters";
+import { openedOn, rowMatches, rowMatchesSearch } from "@/lib/applications/people/filters";
 import { PEOPLE_FILTERS, type PeopleFilter, type PeopleView, type PersonRow } from "@/lib/applications/people/views";
 import {
   COLUMNS,
@@ -125,12 +125,13 @@ function StatusCell({ row }: { row: PersonRow }) {
   );
 }
 
-export default function ProgrammePeople({ view, search: opened = "" }: { view: PeopleView; search?: string }) {
+export default function ProgrammePeople({ view, person = null }: { view: PeopleView; person?: string | null }) {
   const live = useHydrated();
-  const [filter, setFilter] = useState<PeopleFilter>("everyone");
-  // Opened on one person's row (`?person=`, from search): the search set to their name.
-  const [search, setSearch] = useState(opened);
-  const [shown, setShown] = useState(PAGE_SIZE);
+  // Opened on one person's row (`?person=`, from search): the filter, the search and the pages set so it is drawn.
+  const [opened] = useState(() => openedOn(view.rows, person, PAGE_SIZE));
+  const [filter, setFilter] = useState<PeopleFilter>(opened?.filter ?? "everyone");
+  const [search, setSearch] = useState(opened?.search ?? "");
+  const [shown, setShown] = useState(opened?.shown ?? PAGE_SIZE);
   /** The row whose More menu is open, and the button that opened it. */
   const [openUid, setOpenUid] = useState<string | null>(null);
   const opener = useRef<HTMLButtonElement | null>(null);
@@ -211,7 +212,7 @@ export default function ProgrammePeople({ view, search: opened = "" }: { view: P
             type="search"
             className={styles.searchInput}
             placeholder={SEARCH_LABEL}
-            defaultValue={opened}
+            defaultValue={opened?.search ?? ""}
             onInput={(event) => {
               setSearch(event.currentTarget.value);
               setShown(PAGE_SIZE);

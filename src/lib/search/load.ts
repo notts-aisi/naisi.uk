@@ -4,7 +4,8 @@ import { roleOnProgramme } from "@/lib/applications/access";
 import { listForms } from "@/lib/applications/handover/run";
 import { own } from "@/lib/applications/keys";
 import type { ApplicationForm } from "@/lib/applications/normalise";
-import { readProgrammePeople } from "@/lib/applications/people/load";
+import { readProgrammePeople, type FormPeopleRead } from "@/lib/applications/people/load";
+import { listDecisions, listSentApplications } from "@/lib/applications/staffRepo";
 import { listGroups, readRunRecords, slotLine, weeksOf } from "@/lib/courses/programmeAttendance";
 import { namingProgrammeIn } from "@/lib/courses/programmeLead";
 import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -61,9 +62,12 @@ import { lineOf, searchWorld, type SearchAnswer, type SearchCandidate, type Sear
  *  - admin: every account (U, three fields each), every group (G), each
  *    group's run (R, addressed), every application form (F); then, for the
  *    six people at most in the answer, their seats on courses (one `in`).
- *  - lead: every form (F); per programme they lead, the form's sent
- *    applications (A) and decisions (D), its run (1), the run's groups (g)
- *    and seats (e).
+ *  - lead: every form (F); per form whose decisions have gone out, its sent
+ *    applications (A) and decisions (D), once however many of its
+ *    programmes they lead; per programme, its run (1), the run's groups (g)
+ *    and seats (e), each read once (`readProgrammePeople`, handed the
+ *    form's read). A lead of one programme: F + A + D + 1 + g + e; of two
+ *    on one form: F + A + D + 2 + g1 + g2 + e1 + e2.
  *  - facilitator: the groups that name them (k, one `array-contains`); per
  *    run those groups are on, the run, its groups, seats, registers, the
  *    scheduler's switches and the accounts of its people and facilitators,
@@ -196,17 +200,23 @@ function programmeNameFor(forms: readonly ApplicationForm[], run: CourseRunDoc):
 }
 
 /** "Thursdays 6pm", or null for a group with no weekly time yet. */
-function slotOf(group: CourseGroupDoc): string | null {
-  const { weekday, startTimeLocal } = group.session;
+function slotOf(session: { weekday: number; startTimeLocal: string } | null): string | null {
+  if (!session) return null;
+  const { weekday, startTimeLocal } = session;
   return Number.isInteger(weekday) && startTimeLocal ? slotLine({ weekday, startTimeLocal }) : null;
 }
 
 /** A group as a result: its name, then its programme, its run and its weekly time. */
-function groupCandidate(group: CourseGroupDoc, programme: string, runLabel: string, href: string): SearchCandidate {
+function groupCandidate(
+  group: { name: string; session: { weekday: number; startTimeLocal: string } | null },
+  programme: string,
+  runLabel: string,
+  href: string,
+): SearchCandidate {
   const name = group.name.trim() || "Untitled group";
   return {
     name,
-    line: lineOf([programme, runLabel, slotOf(group)]),
+    line: lineOf([programme, runLabel, slotOf(group.session)]),
     href,
     matchOn: `${name} ${programme} ${runLabel}`,
   };
@@ -301,23 +311,43 @@ async function adminPeopleLines(db: Firestore, read: AdminWorld, answer: SearchA
 async function leadWorld(db: Firestore, actor: SessionUser, leads: readonly LedProgramme[]): Promise<SearchWorld> {
   const people: SearchCandidate[] = [];
   const groups: SearchCandidate[] = [];
+  // A form's applications and decisions are read once, however many of its programmes the lead leads,
+  // and only once its decisions have gone out: before then the People tab lists nobody and reads nothing.
+  const formReads = new Map<string, Promise<FormPeopleRead>>();
+  const formReadOf = (form: ApplicationForm): Promise<FormPeopleRead> => {
+    const known = formReads.get(form.round.id);
+    if (known) return known;
+    const reading = Promise.all([listSentApplications(db, form), listDecisions(db, form.round.id)]).then(
+      ([applications, decisions]) => ({ applications, decisions }),
+    );
+    formReads.set(form.round.id, reading);
+    return reading;
+  };
   for (const { form, programmeId } of leads) {
     const programme = own(form.programmes, programmeId);
     if (!programme) continue;
     const path = programmePathOf(form.round.id, programme.id);
     const programmeName = programme.shortName.trim() || programme.name.trim();
-    // The People tab's own read, which lists nobody before decisions have gone out.
-    const read = await readProgrammePeople(db, actor, form, programme);
-    for (const row of read?.model.rows ?? []) {
-      people.push({
-        name: row.name,
-        line: lineOf([programmeName, row.group]),
-        href: `${path}/people?person=${enc(row.uid)}`,
-        matchOn: row.name,
-        key: `person:${row.uid}`,
-      });
+    const groupOf = (group: { id: string; name: string; session: { weekday: number; startTimeLocal: string } | null }, runLabel: string) => ({
+      ...groupCandidate(group, programmeName, runLabel, `${path}/groups/${enc(group.id)}`),
+      key: `group:${group.id}`,
+    });
+    if (form.decisionsSentAt !== null) {
+      // The People tab's own read, which reads the run and its live groups as well: nothing is read again.
+      const read = await readProgrammePeople(db, actor, form, programme, await formReadOf(form));
+      for (const row of read?.model.rows ?? []) {
+        people.push({
+          name: row.name,
+          line: lineOf([programmeName, row.group]),
+          href: `${path}/people?person=${enc(row.uid)}`,
+          matchOn: row.name,
+          key: `person:${row.uid}`,
+        });
+      }
+      if (read?.run) for (const group of read.groups) groups.push(groupOf(group, read.run.label));
+      continue;
     }
-    // The run's groups, as the Groups tab lists them: live groups of a run that is there and not being destroyed.
+    // Before decisions go out the tab lists nobody, and the Groups tab still lists the run's live groups.
     if (!programme.runId || !isPlainId(programme.runId)) continue;
     const [runSnap, groupSnap] = await Promise.all([
       db.collection("courseRuns").doc(programme.runId).get(),
@@ -328,7 +358,7 @@ async function leadWorld(db: Firestore, actor: SessionUser, leads: readonly LedP
     for (const doc of groupSnap.docs) {
       const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
       if (group.archived || group.runId !== run.id) continue;
-      groups.push({ ...groupCandidate(group, programmeName, run.label, `${path}/groups/${enc(group.id)}`), key: `group:${group.id}` });
+      groups.push(groupOf(group, run.label));
     }
   }
   return { people, groups };

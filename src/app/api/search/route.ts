@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { rateLimit } from "@/lib/rateLimit";
+import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { answerSearch, searcherOf } from "@/lib/search/load";
 import { NO_ANSWER, isAskableQuery, queryWords } from "@/lib/search/model";
 import { SEARCH_REFUSAL } from "@/lib/search/words";
@@ -34,9 +34,13 @@ import { SEARCH_REFUSAL } from "@/lib/search/words";
  * what it is, and a page the reader may already open. Fewer than two letters
  * is answered with nothing, without a read.
  *
- * LIMITS: thirty queries a minute and three hundred an hour for one account
- * (`rateLimit`, the site's own per-account throttle, kept in the server's
- * memory: nothing is written to count them). The box asks after a pause in
+ * LIMITS, checked BEFORE anything decides who the caller is, so a caller
+ * who is refused cannot spend reads without limit either: thirty requests a
+ * minute and three hundred an hour, for each account, and for a caller with
+ * no session for each address the request came from (`rateLimit` and
+ * `clientIp`, the site's own throttles, kept in the server's memory: nothing
+ * is written to count them). The GET has its own count, so the shell's one
+ * question never takes a query from the box. The box asks after a pause in
  * typing, or on Enter, never on every key.
  *
  * NOTHING IS KEPT OR LOGGED: not the query, not what it found, not that it
@@ -50,13 +54,29 @@ const HOUR_MS = 60 * MINUTE_MS;
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
+/**
+ * One request against the two windows, by account, or by address for a
+ * caller with no session. Null when it may go on; the 429 when it may not.
+ */
+function throttled(req: Request, uid: string | null, kind: "ask" | "check") {
+  const who = uid ? `uid:${uid}` : `ip:${clientIp(req)}`;
+  // Both windows count every request, so a burst cannot hide inside the hour.
+  const minute = rateLimit(`search:${kind}:${who}`, PER_MINUTE, MINUTE_MS);
+  const hour = rateLimit(`search:${kind}:hour:${who}`, PER_HOUR, HOUR_MS);
+  if (minute.ok && hour.ok) return null;
+  const wait = Math.max(minute.retryAfterSeconds, hour.retryAfterSeconds);
+  return NextResponse.json({ error: SEARCH_REFUSAL.tooMany }, { status: 429, headers: { ...NO_STORE, "Retry-After": String(wait) } });
+}
+
 /** The one answer for everybody search is not for. */
 function refused() {
   return NextResponse.json({ error: SEARCH_REFUSAL.notYours }, { status: 403, headers: NO_STORE });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const user = await getCurrentUser();
+  const slow = throttled(req, user?.uid ?? null, "check");
+  if (slow) return slow;
   if (!user) return refused();
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: SEARCH_REFUSAL.notConfigured }, { status: 500, headers: NO_STORE });
@@ -71,6 +91,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const user = await getCurrentUser();
+  const slow = throttled(req, user?.uid ?? null, "ask");
+  if (slow) return slow;
   if (!user) return refused();
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: SEARCH_REFUSAL.notConfigured }, { status: 500, headers: NO_STORE });
@@ -83,17 +105,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: SEARCH_REFUSAL.failed }, { status: 500, headers: NO_STORE });
   }
   if (!searcher) return refused();
-
-  // Both windows count every query, so a burst cannot hide inside the hour.
-  const minute = rateLimit(`search:uid:${user.uid}`, PER_MINUTE, MINUTE_MS);
-  const hour = rateLimit(`search:hour:uid:${user.uid}`, PER_HOUR, HOUR_MS);
-  if (!minute.ok || !hour.ok) {
-    const wait = Math.max(minute.retryAfterSeconds, hour.retryAfterSeconds);
-    return NextResponse.json(
-      { error: SEARCH_REFUSAL.tooMany },
-      { status: 429, headers: { ...NO_STORE, "Retry-After": String(wait) } },
-    );
-  }
 
   const body = (await req.json().catch(() => null)) as { query?: unknown } | null;
   const query = body && typeof body === "object" ? body.query : undefined;

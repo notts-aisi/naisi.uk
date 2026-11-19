@@ -9,7 +9,7 @@
  * never says whether somebody it does not show exists:
  *
  *  1. THE PURE HALF: folding, the shortest query, matching on the name shown,
- *     the order, the caps, and the empty states the boxes draw.
+ *     the order, the caps, and the empty states the box draws.
  *  2. WHO MAY: the route as every persona the standing red team knows, GET and
  *     POST, every refusal one answer, the fields of every answer, view-as.
  *  3. WHAT EACH READER FINDS, against a real term: an admin everybody and
@@ -74,6 +74,7 @@ const route = await w.loadTs(join("app", "api", "search", "route.ts"));
 const peopleLoad = await w.loadTs(join("lib", "applications", "people", "load.ts"));
 const facilitatorGroup = await w.loadTs(join("lib", "courses", "facilitatorGroup.ts"));
 const ProgrammePeople = (await w.loadTs(join("features", "applications", "people", "ProgrammePeople.tsx"))).default;
+const filters = await w.loadTs(join("lib", "applications", "people", "filters.ts"));
 
 // ---------------------------------------------------------------------------
 // The term
@@ -96,11 +97,11 @@ function sessionFor(uid) {
 
 let requests = 0;
 /** One request to a real handler, as `who`, with the session `getCurrentUser()` would hand back. */
-async function call(who, handler, { body, viewAs = false } = {}) {
+async function call(who, handler, { body, viewAs = false, ip = `10.8.0.${(requests + 1) % 250}` } = {}) {
   requests += 1;
   w.world.user = who === null ? null : sessionFor(who);
   w.world.viewAs = viewAs;
-  const init = { method: handler.name, headers: { "Content-Type": "application/json", "x-forwarded-for": `10.8.0.${requests % 250}` } };
+  const init = { method: handler.name, headers: { "Content-Type": "application/json", "x-forwarded-for": `${ip}, 10.0.0.1` } };
   if (body !== undefined) init.body = typeof body === "string" ? body : JSON.stringify(body);
   try {
     const response = await handler(new Request("https://naisi.invalid/api/search", init));
@@ -171,7 +172,7 @@ describe("the pure half", () => {
 
   test("every word typed is somewhere in the name, as the People tab's search matches, best first", () => {
     const world = { people: [person("Cleo Martin"), person("Leonie Hart"), person("Leo Park"), person("Ada Lovelace")], groups: [] };
-    // "leo" finds Leo and Leonie by the start of their names, and Cleo inside hers, as the board draws it.
+    // "leo" finds Leo and Leonie by the start of their names, and Cleo inside hers, as the People tab's own search matches.
     assert.deepEqual(names(model.searchWorld(world, "leo")), ["Leo Park", "Leonie Hart", "Cleo Martin"]);
     assert.deepEqual(names(model.searchWorld(world, "LÉO park")), ["Leo Park"]);
     assert.deepEqual(names(model.searchWorld(world, "zz")), []);
@@ -204,7 +205,7 @@ describe("the pure half", () => {
     assert.deepEqual(names(model.searchWorld({ people, groups: [] }, "agi")), []);
   });
 
-  test("a line joins what it has, and the empty states say what the boards say", () => {
+  test("a line joins what it has, and the empty states name what was typed", () => {
     assert.equal(model.lineOf(["AGI Strategy", null, " ", "Group C"]), "AGI Strategy · Group C");
     assert.equal(words.noPeopleWords(" group f "), "Nobody’s name matches “group f”.");
     assert.equal(words.noGroupsWords("leo"), "No group matches “leo”.");
@@ -510,6 +511,54 @@ describe("nothing is kept and nothing is logged", () => {
     assert.equal((await call("tom", route.POST, { body: { query: "zz" } })).status, 200);
   });
 
+  test("a caller who is refused is limited too, before anything decides who they are, and by address when signed out", async (t) => {
+    freshTerm(t);
+    for (const who of ["amara", null]) {
+      // From one address, as one browser would ask.
+      const ip = "10.7.7.7";
+      for (let at = 0; at < 30; at += 1) assert.equal((await call(who, route.POST, { body: { query: "zz" }, ip })).status, 403, `${who} ${at + 1}`);
+      // The thirty-first: refused by the limit, and nothing is read to refuse it.
+      const collection = t.mock.method(w.world.db, "collection", () => {
+        throw new Error("read");
+      });
+      const over = await call(who, route.POST, { body: { query: "zz" }, ip });
+      assert.deepEqual([over.status, over.body], [429, { error: words.SEARCH_REFUSAL.tooMany }], String(who));
+      collection.mock.restore();
+    }
+    const route_ = read("src", "app", "api", "search", "route.ts");
+    for (const handler of ["GET", "POST"]) {
+      const body = route_.slice(route_.indexOf(`export async function ${handler}`));
+      assert.ok(body.indexOf("throttled(req") < body.indexOf("searcherOf("), `${handler} decides who the caller is before the limit`);
+    }
+    assert.match(route_, /const who = uid \? `uid:\$\{uid\}` : `ip:\$\{clientIp\(req\)\}`;/);
+  });
+
+  test("a lead's records are read once: a form's applications and decisions, the run, its groups and its places", async (t) => {
+    freshTerm(t);
+    const counted = (who) => async () => {
+      const counts = {};
+      const collection = w.world.db.collection.bind(w.world.db);
+      const spy = t.mock.method(w.world.db, "collection", (path) => {
+        counts[path] = (counts[path] ?? 0) + 1;
+        return collection(path);
+      });
+      await search(who, "zz");
+      spy.mock.restore();
+      return counts;
+    };
+    // Claudia leads one programme: the People tab's own reads, once each, and the search's own look for groups naming her.
+    const one = await counted("claudia")();
+    assert.equal(one.admissionApplications, 1);
+    assert.equal(one.admissionDecisions, 1);
+    assert.equal(one.courseRuns, 1);
+    assert.equal(one.courseEnrolments, 1);
+    assert.equal(one.courseGroups, 2, "the run's groups, and the groups that name her as a facilitator");
+    // Tess leads two programmes on one form: its applications and decisions are read once.
+    const two = await counted("tess")();
+    assert.equal(two.admissionApplications, 1);
+    assert.equal(two.admissionDecisions, 1);
+  });
+
   test("the route and the loader keep nothing: no write, no log of a query, no stored index", () => {
     for (const file of [read("src", "app", "api", "search", "route.ts"), read("src", "lib", "search", "load.ts")]) {
       const code = file.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
@@ -526,15 +575,52 @@ describe("nothing is kept and nothing is logged", () => {
 // ---------------------------------------------------------------------------
 
 describe("the pages", () => {
-  test("the People tab opens on one person's row, with its search set to the name the row carries", async (t) => {
+  test("the People tab opens on one person's row and DRAWS it, for every kind of row search can return", async (t) => {
     freshTerm(t);
     const tab = await peopleLoad.loadProgrammePeople(w.world.db, sessionFor("claudia"), ROUND, AGI);
-    const [row] = tab.view.rows;
-    const html = renderToStaticMarkup(createElement(ProgrammePeople, { view: tab.view, search: row.name }));
-    assert.ok(html.includes(`value="${row.name}"`), "the search is not set");
+    const [base] = tab.view.rows;
+    const path = `${programmePath(AGI)}/applications/`;
+    const row = (uid, name, over) => ({ ...base, uid, name, firstName: name.split(" ")[0], applicationHref: `${path}${uid}`, ...over });
+    const kinds = {
+      // Holding a place, in a group, said they are coming: under Everyone.
+      holdingInGroup: row("k-holding", "Kit Holding", { category: "holding", group: "Group C", coming: { kind: "yes", on: "Mon 26 Oct" }, status: { kind: "holding" } }),
+      // Holding a place, in no group, not said they are coming, nor when they are free.
+      holdingNoGroup: row("k-nogroup", "Nia Nogroup", { category: "holding", group: null, coming: { kind: "not-yet" }, free: { kind: "not-said" }, status: { kind: "holding" } }),
+      // Gave the place back.
+      gaveBack: row("k-gave", "Gus Gave", { category: "gave-back", group: null, coming: { kind: "no" }, status: { kind: "gave-back", reason: null, on: null } }),
+      // Left the run after it was theirs.
+      left: row("k-left", "Lea Left", { category: "gave-back", group: null, coming: { kind: "no" }, status: { kind: "left", on: null, by: "themselves" } }),
+      // Invited and not answered: Everyone leaves them out, so the tab opens on Invited.
+      invited: row("k-invited", "Ivo Invited", { category: "invited", group: null, coming: { kind: "not-yet" }, status: { kind: "invited", until: null, on: null } }),
+    };
+    // More rows sharing one name than one page holds, so "Show more" would hide the last of them.
+    const twins = Array.from({ length: 14 }, (_, at) => row(`k-twin-${at}`, "Sam Sample", { category: "holding", group: "Group A", status: { kind: "holding" } }));
+    const rows = [...Object.values(kinds), ...twins];
+    const view = { ...tab.view, rows };
+    const drawn = (person) => renderToStaticMarkup(createElement(ProgrammePeople, { view, person }));
+    /** How many rows of the table carry this name: the name cell of a drawn row. */
+    const rowsNamed = (html, name) => html.split(`class="name">${name}</div>`).length - 1;
+    // Opened on nobody: Everyone and one page of twelve, so the invited row is not drawn, nor every twin.
+    assert.equal(rowsNamed(drawn(null), "Ivo Invited"), 0);
+    assert.ok(rowsNamed(drawn(null), "Sam Sample") < 14);
+    for (const [kind, each] of Object.entries(kinds)) {
+      const html = drawn(each.uid);
+      assert.equal(rowsNamed(html, each.name), 1, `${kind}: the row is not drawn`);
+      assert.ok(html.includes(`value="${each.name}"`), `${kind}: the search is not set`);
+    }
+    // The last of fourteen with one name: every one of them drawn, so it is.
+    assert.equal(rowsNamed(drawn(twins.at(-1).uid), "Sam Sample"), 14);
+    assert.deepEqual(filters.openedOn(rows, "k-invited", 12), { search: "Ivo Invited", filter: "invited", shown: 12 });
+    assert.deepEqual(filters.openedOn(rows, "k-gave", 12), { search: "Gus Gave", filter: "everyone", shown: 12 });
+    assert.equal(filters.openedOn(rows, "k-twin-13", 12).shown, 24);
+    // A uid that is no row opens the tab as usual.
+    assert.equal(filters.openedOn(rows, "nobody", 12), null);
+    assert.equal(filters.openedOn(rows, null, 12), null);
+    // Every filter that can hide a row is handled: each row opens under a filter that holds it.
+    for (const each of rows) assert.ok(filters.rowMatches(each, filters.openedOn(rows, each.uid, 12).filter), each.uid);
     const page = read("src", "app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)", "people", "page.tsx");
-    // The name comes from the tab's own rows, after its own gate: a uid that is no row opens the tab as usual.
-    assert.match(page, /view\.rows\.find\(\(row\) => row\.uid === personParam\)\?\.name \?\? ""/);
+    // The uid is one of the tab's own rows, after its own gate: anything else opens the tab as usual.
+    assert.match(page, /view\.rows\.some\(\(row\) => row\.uid === personParam\) \? personParam : null/);
   });
 
   test("the shell draws the box and listens for the key only for somebody the route answers", () => {
@@ -563,6 +649,9 @@ describe("the pages", () => {
     ]) {
       assert.ok(box.includes(needle), needle);
     }
+    // Enter never asks twice for the same words: not while they are on their way, nor once answered (with nothing or not).
+    assert.ok(box.includes('if (state.kind === "waiting" && state.query === typed) return;'));
+    assert.match(box, /if \(state\.kind === "answered" && state\.query === typed\) \{\s+if \(active >= 0 && hits\[active\]\) go\(hits\[active\]\);\s+return;\s+\}/);
     // It asks after a pause or on Enter, and the query goes in a body, never an address.
     assert.match(box, /const PAUSE_MS = \d{3};/);
     assert.match(box, /method: "POST"/);

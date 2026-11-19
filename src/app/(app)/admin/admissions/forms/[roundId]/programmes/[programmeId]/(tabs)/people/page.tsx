@@ -23,10 +23,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * requirements; an admin is sent the same, and reads those where they always
  * have.
  *
- * `?person=<uid>` opens the tab on one person's row, with the search set to
- * the name the row already carries: where search sends a lead
- * (`src/lib/search/load.ts`). A uid that is no row here opens the tab as
- * usual, saying nothing about it.
+ * `?person=<uid>` opens the tab on one person's row, drawn: the filter that
+ * holds it, the search set to the name it already carries, and enough pages
+ * (`openedOn`). Where search sends a lead (`src/lib/search/load.ts`). A uid
+ * that is no row here opens the tab as usual, saying nothing about it.
  */
 export default async function ProgrammePeoplePage({
   params,
@@ -59,7 +59,7 @@ export default async function ProgrammePeoplePage({
       </section>
     );
   }
-  // One person's row, by the name the row already carries: nothing more is sent.
-  const opened = typeof personParam === "string" ? (view.rows.find((row) => row.uid === personParam)?.name ?? "") : "";
-  return <ProgrammePeople key={opened} view={view} search={opened} />;
+  // One person's row, among the rows the tab has loaded: nothing more is read or sent.
+  const person = typeof personParam === "string" && view.rows.some((row) => row.uid === personParam) ? personParam : null;
+  return <ProgrammePeople key={person ?? ""} view={view} person={person} />;
 }
