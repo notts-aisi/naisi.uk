@@ -60,6 +60,10 @@ export const SENT_KINDS: Record<EmailSendKind, SentEntry> = {
     notListed:
       "A move to another group for good, made mid-term: one email to the person moved and one to each facilitator of the two groups. Never the reason.",
   },
+  "course-visit": {
+    notListed:
+      "A one-week visit to another group’s session, arranged or called off: one email to the person when staff pressed, and one to each facilitator of the two groups. Never the reason.",
+  },
   "course-feedback": { notListed: "One email to each person saying feedback on their own week is waiting." },
   "course-certificate": { notListed: "One email to each person with their own certificates." },
   admissions: { notListed: "Somebody’s own application to a round: its receipt, a decision or an invitation." },

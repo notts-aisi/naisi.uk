@@ -31,8 +31,10 @@ import {
   type PreviewLine,
   type PushBlock,
   type RegularPreview,
+  VISITS_LABEL,
 } from "@/lib/courses/groupPage/model";
 import * as W from "@/lib/courses/groupPage/words";
+import { visitsOffDoneWords } from "@/lib/courses/visit/words";
 import { pushHasRecordsHint } from "@/lib/courses/registerCover/words";
 import {
   DRAFT_DIDNT_HAPPEN_LINE,
@@ -321,6 +323,8 @@ export default function ChangePanel({
           // A session called off after it started: what else follows, from the route's own preview.
           ...(preview.data.didNotHappen ? didNotHappenLines(preview.data.didNotHappen, preview.data.weekNumber, preview.data.kind) : []),
           ...oneWeekPreviewLines({ preview: preview.data, metAtAnotherTime: met, tell, groupName: view.groupName, incubator: view.incubator }),
+          // Visits to it that end with it: their emails go whatever the tick says.
+          ...(preview.data.visitsOff ? [{ label: VISITS_LABEL, text: preview.data.visitsOff.words }] : []),
         ]
       : preview.status === "regular"
         ? regularPreviewLines({ preview: preview.data, groupName: view.groupName, incubator: view.incubator, todayKey: view.todayKey })
@@ -388,7 +392,9 @@ export default function ChangePanel({
     if (!body || !ready) return;
     setBusy(true);
     setProblem(null);
-    const answer = await postJson(body.url, { ...body.body, tell, ...(tell ? { emailCount: buttonEmails } : {}) });
+    // The visit emails the preview said: the press is refused if they changed.
+    const visitEmails = preview.status === "one" ? (preview.data.visitsOff?.emails ?? 0) : 0;
+    const answer = await postJson(body.url, { ...body.body, tell, ...(tell ? { emailCount: buttonEmails } : {}), ...(visitEmails > 0 ? { visitEmails } : {}) });
     if (!answer) {
       setBusy(false);
       setProblem(UNKNOWN_OUTCOME);
@@ -416,10 +422,14 @@ export default function ChangePanel({
       return;
     }
     const change = answer.body.change as { kind?: string; dateKey?: string } | undefined;
-    const changed = changedWords(kind ?? "move", String(change?.dateKey ?? week?.dateKey ?? ""));
+    // Visits that ended with the session: said beside what changed, emailed whatever the tick.
+    const ended = answer.body.visitsOff as { people: number; sent: number; failed: number } | undefined;
+    const changed = [changedWords(kind ?? "move", String(change?.dateKey ?? week?.dateKey ?? "")), ended ? visitsOffDoneWords(ended.people, ended.sent, ended.failed) : ""]
+      .filter(Boolean)
+      .join(" ");
     const update = answer.body.update as PendingUpdate | null;
     if (update) await postUpdate({ ...update, withFacilitators: update.withFacilitators === true }, changed);
-    else onDone(`${changed} Nobody was emailed.`);
+    else onDone(`${changed} ${ended ? "Nobody else was emailed." : "Nobody was emailed."}`);
     setBusy(false);
   }
 

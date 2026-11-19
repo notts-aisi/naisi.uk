@@ -830,8 +830,8 @@ const BUILT = new Map([
   [
     "src/features/applications/people/ProgrammePeople.tsx",
     {
-      built: ["item.href", "row.applicationHref", "row.groupsHref", "row.moveHref", "row.personHref"],
-      from: "the People tab's More menu: the person's application on the programme's review screen, People in groups, and the page for moving them to another group for good; and the person's page on the programme, which their name opens. Each built on the server from the programme's own path and, for all but People in groups, the person's uid, encoded",
+      built: ["item.href", "row.applicationHref", "row.groupsHref", "row.moveHref", "row.personHref", 'row.moveHref.replace(/\\/move$/, "/visit")'],
+      from: "the People tab's More menu: the person's application on the programme's review screen, People in groups, and the page for moving them to another group for good; and the person's page on the programme, which their name opens. Each built on the server from the programme's own path and, for all but People in groups, the person's uid, encoded; and the page for a one-week visit, the move's own address with its last part, a fixed word, swapped for another fixed word",
     },
   ],
   [
@@ -1329,6 +1329,13 @@ const BUILT = new Map([
     {
       built: ["outcome.back"],
       from: "the way back to the programme's own People tab, from its loader: the path from the form's and the programme's ids, encoded. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit/page.tsx",
+    {
+      built: ["backHref", "backHref"],
+      from: "the way back to the programme's own People tab, on a refusal and on the refusal of a run down to one group with no visit standing: its path from the form's and the programme's ids in the address, encoded. Nothing anybody typed",
     },
   ],
   [

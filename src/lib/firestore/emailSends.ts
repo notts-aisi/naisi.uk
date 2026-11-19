@@ -63,6 +63,12 @@ export type EmailSendKind =
   // Harriet told Leo joins her group" is answerable without reading subject
   // lines. Its `referenceId` is the RUN id. Never the reason for the move.
   | "course-move"
+  // A one-week visit to another group's session, arranged or called off by
+  // staff, or cancelled by the person: to the person (when staff pressed)
+  // and to each facilitator of the two groups. Its own kind so "was Lucy told
+  // Daniel is coming to her session" is answerable without reading subject
+  // lines. Its `referenceId` is the RUN id. Never the reason for the visit.
+  | "course-visit"
   // The "you have feedback" email: an admin's batch tells each person that
   // feedback a facilitator, the programme's lead or an admin saved on their
   // week is on the site, one message a person however many pieces it

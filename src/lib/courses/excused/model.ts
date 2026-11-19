@@ -308,11 +308,28 @@ export function approvalPlan(input: {
 /** One week of one request, with the request it belongs to. */
 export type WeekOfRequest = { request: ExcusedRequestDoc; week: ExcusedWeek };
 
-/** Every week of these requests about this person and this session. */
-export function weeksAbout(requests: readonly ExcusedRequestDoc[], uid: string, sessionKey: string): WeekOfRequest[] {
+/**
+ * Every week of these requests about this person and this session, by its key.
+ * WHERE A ONE-WEEK VISIT IS INVOLVED, by its group as well: a request asked
+ * about a visit's session (`aboutVisit`) is about that one group's session,
+ * and while a visit stands for the session's week (`about.visiting`) the
+ * session is the host's; two groups' sessions of one week share a key
+ * ("w04"), so a request about the host's session says nothing about the
+ * person's own group's once the visit is off (it stays on the admins'
+ * Requests page, where it is closed), and none about their own group's says
+ * anything about the host's. Every other request pairs by the key alone, as
+ * it always has, a person moved to another group included.
+ */
+export function weeksAbout(
+  requests: readonly ExcusedRequestDoc[],
+  uid: string,
+  sessionKey: string,
+  about: { groupId: string; visiting: boolean },
+): WeekOfRequest[] {
   const out: WeekOfRequest[] = [];
   for (const request of requests) {
     if (request.subjectUid !== uid) continue;
+    if ((request.aboutVisit || about.visiting) && request.groupId !== about.groupId) continue;
     for (const week of request.weeks) if (week.sessionKey === sessionKey) out.push({ request, week });
   }
   return out;

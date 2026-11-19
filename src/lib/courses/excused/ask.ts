@@ -9,7 +9,7 @@ import { londonDateKey } from "@/lib/courses/weekPlan";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
-import { courseEnrolmentId, normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
+import { courseEnrolmentId, normalizeCourseEnrolment, placementIsTold, visitInWeek } from "@/lib/firestore/courseEnrolments";
 import {
   EXCUSED_KIND,
   normalizeExcusedRequest,
@@ -81,7 +81,7 @@ const refuse = (status: 400 | 403 | 404 | 409, error: string): AskOutcome => ({ 
 /** Most groups a run holds: one equality, read for when the programme closes. */
 const MAX_GROUPS = 100;
 /** Most requests one person has made: a term holds a handful. */
-const MAX_OWN = 200;
+export const MAX_OWN = 200;
 
 /** Whether one session of the group is held online for everybody, from its own week (as joining online asks). */
 function sessionHeldOnline(group: CourseGroupDoc, session: ResolvedSession): boolean {
@@ -213,7 +213,7 @@ export async function askToBeExcused(
         startsAt,
         cancelled: session.cancelled,
         line,
-        standing: requestStandingOf(weeksAbout(own, user.uid, session.sessionKey)),
+        standing: requestStandingOf(weeksAbout(own, user.uid, session.sessionKey, { groupId: group.id, visiting: visitInWeek(seat, session.weekNumber) !== null })),
         now,
       });
       if (!state.open) return refuse(409, askClosedWords(state.why, session.weekNumber, session.occurrence));
@@ -281,6 +281,9 @@ export async function askToBeExcused(
         ? { confirmed: { at: now, inPerson: true, ownOnline: needed.ownOnline ? true : null, otherOnline: true } }
         : {}),
       ...(tellsAdmins ? { adminsToldOn: todayKey } : {}),
+      // Asked about the session of a group they visit that week: paired by
+      // group as well as key from now on (`weeksAbout`).
+      ...(sessions.some((session) => visitInWeek(seat, session.weekNumber)?.groupId === group.id) ? { aboutVisit: true } : {}),
       // Kept until the programme closes: the job that deletes it reads this.
       reasonHeld: true,
       status: "waiting",

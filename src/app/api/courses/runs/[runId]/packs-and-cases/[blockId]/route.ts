@@ -7,7 +7,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
-import { hasGroupsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
 import { findCase, findPack } from "@/lib/courses/packsAndCases/model";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { dueMoment } from "@/lib/courses/weekBlocks/due";
@@ -203,11 +203,11 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
     }
     // Open until the session starts: the week's own, or the next one when it
     // is cancelled. Each week's session is the group's they were in that week
-    // (`sessionsByWeekGroup`) when their place records a move; otherwise the
+    // (`sessionsByWeekGroup`, a one-week visit's host for its week) when their place records a move or a visit; otherwise the
     // group's whose copy they read, as always.
     const ownSessions = !ownGroup
       ? null
-      : takesPart && enrolment && ownGroup.id === enrolment.groupId && hasGroupsByWeek(enrolment)
+      : takesPart && enrolment && ownGroup.id === enrolment.groupId && differsByWeek(enrolment)
         ? sessionsByWeekGroup(enrolment, (groupId) => {
             const group = liveGroups.find((each) => each.id === groupId);
             return group ? resolveSessions(run, group) : null;

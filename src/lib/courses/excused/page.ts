@@ -107,6 +107,12 @@ export type ExcusedRequestPageView = {
   id: string;
   kind: "excused";
   status: CourseRequestStatus;
+  /**
+   * Withdrawn because the visit it was about ended, by whoever ended it,
+   * never by the person. Present only then, so a request no visit touched
+   * reads exactly as before.
+   */
+  withdrawnWithVisit?: true;
   askedAt: string | null;
   subject: Named;
   programme: { roundId: string | null; programmeId: string | null; name: string };
@@ -186,6 +192,8 @@ export function excusedThisTermOf(input: {
   sessions: readonly ResolvedSession[];
   registers: ReadonlyMap<string, CourseAttendanceDoc>;
   requests: readonly ExcusedRequestDoc[];
+  /** The group whose sessions these are: a request asked about a visit to another group's session is not about them. */
+  groupId: string;
   seat: Pick<CourseEnrolmentDoc, "role" | "status" | "groupId" | "timeAnswer"> | null;
   group: Pick<CourseGroupDoc, "timeQuestionSince"> | null;
   except?: string | null;
@@ -198,8 +206,10 @@ export function excusedThisTermOf(input: {
   const tickedBefore = new Set(stored?.kind === "mostWeeks" ? stored.sessionKeys : []);
   const approvedKeys = new Set<string>();
   const excepted = new Set<string>();
+  // By session key, as always; a request asked about a visit's session is
+  // about that one group's, and says nothing about this group's (`weeksAbout`).
   for (const request of input.requests) {
-    if (request.subjectUid !== uid) continue;
+    if (request.subjectUid !== uid || (request.aboutVisit && request.groupId !== input.groupId)) continue;
     for (const week of request.weeks) {
       if (request.id === input.except) excepted.add(week.sessionKey);
       else if (week.status === "approved") approvedKeys.add(week.sessionKey);
@@ -363,6 +373,7 @@ export async function loadExcusedRequestPage(
       runId: run.id,
       group: { id: group.id, name: group.name.trim() || "Untitled group" },
       facilitators: standing.map((each) => ({ uid: each.uid, name: each.name })),
+      ...(request.withdrawnWithVisit ? { withdrawnWithVisit: true as const } : {}),
       reason: request.reason,
       confirmed: request.confirmed
         ? { at: request.confirmed.at ? request.confirmed.at.toISOString() : null, ownOnline: request.confirmed.ownOnline }
@@ -375,6 +386,7 @@ export async function loadExcusedRequestPage(
         sessions,
         registers,
         requests: others,
+        groupId: group.id,
         seat,
         group,
         except: request.id,

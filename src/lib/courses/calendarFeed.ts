@@ -21,7 +21,7 @@ import { normalizeCourseRun, validateSubmissionUrl, type CourseRunDoc } from "@/
 import { campusLabel } from "./campus";
 import { couldBeFollowed } from "./followable";
 import { programmePageAddress } from "./calendarLink";
-import { groupStretchesOf, hasGroupsByWeek, type GroupStretch } from "./groupsByWeek";
+import { differsByWeek, groupStretchesOf, type GroupStretch } from "./groupsByWeek";
 import { JOIN_ON_SITE, cancelledTitle, joinWords, sessionTitle, type CalendarLineGroup } from "./calendarWords";
 import { sessionsFromJoinWeek } from "./ownAttendance";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "./sessions";
@@ -212,7 +212,7 @@ export async function readCalendarFeed(db: Firestore, owner: SessionUser): Promi
     if (!isNamedWithStanding(owner, "courseEnrolments.uid", seat.uid)) continue;
     const live = seat.status === "active" || seat.status === "completed";
     if (!live && !seat.droppedOutAt) continue;
-    if (!hasGroupsByWeek(seat)) {
+    if (!differsByWeek(seat)) {
       // A group they facilitate is already theirs whole.
       if (seats.has(seat.groupId)) continue;
       seats.set(seat.groupId, {
@@ -225,8 +225,9 @@ export async function readCalendarFeed(db: Firestore, owner: SessionUser): Promi
       });
       continue;
     }
-    // Moved from a week: each group for the weeks they were in it. Only the
-    // group they are in now is one they are still in, for the dialog's line.
+    // Moved from a week, or going to another group's session for one week:
+    // each group for the weeks its session was theirs. Only the group they
+    // are in now is one they are still in, for the dialog's line.
     for (const stretch of groupStretchesOf(seat)) {
       if (facilitated.has(stretch.groupId)) continue;
       const weeks = { fromWeek: stretch.fromWeek, untilWeek: stretch.untilWeek };

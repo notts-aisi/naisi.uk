@@ -21,8 +21,10 @@ import { certificateNeedsFor } from "@/lib/courses/finishing/needs";
 import { finishedForMember, readFinishRule } from "@/lib/courses/finishing/record";
 import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
-import { groupsOfWeeks, hasGroupsByWeek, inGroupForWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, groupsOfWeeks, hasGroupsByWeek, hasVisits, inGroupForWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { rawCountsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
+import { ownVisitsOf, visitReadersOf } from "@/lib/courses/visit/card";
+import type { OverviewVisit, OverviewVisitReaders } from "@/lib/courses/visit/view";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import { memberExplainerOn, type MemberExplainer } from "@/lib/courses/explainers/model";
@@ -635,6 +637,20 @@ export type OverviewPayload = {
    * `forkedWeekIds` is then their own group's, as it always was.
    */
   forkedWeekGroups?: Record<string, string>;
+  /**
+   * The caller's own one-week visits to another group's session still to
+   * come or under way, in week order, each as their programme page's card
+   * draws it (`OverviewVisit`). ABSENT for everybody with none.
+   */
+  visits?: OverviewVisit[];
+  /**
+   * For each week of a one-week visit that stands, the first names of the
+   * host group's facilitators who may read that week of the caller's work
+   * (`hostReadsWeek`, the rule that decides they may): their week page's
+   * existing sentences about who can read their work name them too, that
+   * week alone. ABSENT for everybody with no visit.
+   */
+  visitReaders?: OverviewVisitReaders[];
   /** The caller's OWN enrolment summary; null when they read as facilitator/admin. */
   enrolment: {
     status: CourseEnrolmentStatus;
@@ -1376,10 +1392,12 @@ export async function GET(
   // EACH WEEK FROM THE GROUP THEY WERE IN THAT WEEK (`sessionsWithGroup`):
   // somebody whose place records a move reads their earlier weeks off their
   // old group's registers and the rest off their group's now, as one record,
-  // from the week they joined and capped the same way. A week in a group
-  // archived since is read off its register, which counts only once finished
-  // and held (`rawCountsFromArchivedGroup`, below). With no such record, their own
-  // group's sessions, as always.
+  // from the week they joined and capped the same way. A week of a one-week
+  // visit is read off the host's register. A week in a group archived since
+  // (a group the record or a visit gives that week) is read off its register,
+  // which counts only once finished and held (`rawCountsFromArchivedGroup`,
+  // below). With no such record and no visit, their own group's sessions, as
+  // always.
   const archivedOfRecord = (groupId: string): CourseGroupDoc | null => {
     const doc = groupSnap.docs.find((each) => each.id === groupId);
     const group = doc ? normalizeCourseGroup(doc.id, doc.data() ?? {}) : null;
@@ -1388,7 +1406,7 @@ export async function GET(
   const ownSessionsWithGroup: Array<{ groupId: string; session: ResolvedSession }> =
     !ownLearnerGroup || !liveEnrolment
       ? []
-      : hasGroupsByWeek(liveEnrolment)
+      : differsByWeek(liveEnrolment)
         ? ownSessionsAcrossGroups(liveEnrolment, (groupId) => {
             const group = groups.find((each) => each.id === groupId);
             if (!group) {
@@ -1545,8 +1563,11 @@ export async function GET(
     // one they are due at (moved in from week 3, never its week 2), and the
     // tickets beside it are offered for that one. With no record, every
     // session, as always.
+    // A week of a one-week visit is the host's session, never their own
+    // group's: their own group's card skips it, as it skips a week spent in
+    // another group before a move.
     const movedHere = Boolean(
-      ownLearnerGroup && liveEnrolment && source.id === ownLearnerGroup.id && hasGroupsByWeek(liveEnrolment),
+      ownLearnerGroup && liveEnrolment && source.id === ownLearnerGroup.id && differsByWeek(liveEnrolment),
     );
     const theirs =
       movedHere && liveEnrolment ? resolved.filter((each) => inGroupForWeek(liveEnrolment, source.id, each.weekNumber)) : resolved;
@@ -1612,6 +1633,18 @@ export async function GET(
   };
 
   const groupCardPayloads = groupCards.map(toCard);
+
+  // THE CALLER'S OWN ONE-WEEK VISITS, while the session they go to has not
+  // ended: the host's session that week (its day, room and link, behind the
+  // same gate as any link), the group they stay in and their next session
+  // there, who arranged it, and until when they can cancel it (the earlier of
+  // the two sessions' starts) with who is told. Absent with none.
+  const visits: OverviewVisit[] | undefined =
+    ownLearnerGroup && liveEnrolment && hasVisits(liveEnrolment)
+      ? await ownVisitsOf(db, { run, groups, place: liveEnrolment, actor, isAdmin, now })
+      : undefined;
+  const visitReaders: OverviewVisitReaders[] | undefined =
+    ownLearnerGroup && liveEnrolment && hasVisits(liveEnrolment) ? await visitReadersOf(db, { groups, place: liveEnrolment }) : undefined;
   // `group` is the first card when there is one, which for every caller who
   // had a card before is the same object they had before. NULL for a
   // multi-group facilitator, because `ownGroup` is. See the wire type.
@@ -1655,7 +1688,7 @@ export async function GET(
   // so never a session of the group they are in now from a week they spent
   // elsewhere. With no record, their group's sessions, as always.
   const weekSchedule =
-    ownLearnerGroup && liveEnrolment && hasGroupsByWeek(liveEnrolment)
+    ownLearnerGroup && liveEnrolment && differsByWeek(liveEnrolment)
       ? sessionsWithGroup(liveEnrolment, (groupId) => {
           const each = groups.find((candidate) => candidate.id === groupId);
           return each ? resolveSessions(run, each, each.id === ownLearnerGroup.id ? calendar : undefined) : null;
@@ -1671,7 +1704,7 @@ export async function GET(
    * go by it, and so does the schedule above.
    */
   const ownDueSessions: readonly ResolvedSession[] =
-    ownLearnerGroup && liveEnrolment && hasGroupsByWeek(liveEnrolment)
+    ownLearnerGroup && liveEnrolment && differsByWeek(liveEnrolment)
       ? sessionsByWeekGroup(liveEnrolment, (groupId) => {
           const each = groups.find((candidate) => candidate.id === groupId);
           return each ? resolveSessions(run, each, each.id === ownLearnerGroup.id ? calendar : undefined) : null;
@@ -1812,7 +1845,7 @@ export async function GET(
     registers: ownRegisters,
     // Each week's group, for a place that records a move.
     liveGroups: groups,
-    archivedGroups: liveEnrolment && hasGroupsByWeek(liveEnrolment) ? groupsOfWeeks(liveEnrolment).map(archivedOfRecord).filter((group) => group !== null) : [],
+    archivedGroups: liveEnrolment && differsByWeek(liveEnrolment) ? groupsOfWeeks(liveEnrolment).map(archivedOfRecord).filter((group) => group !== null) : [],
   });
 
   const payload: OverviewPayload = {
@@ -1846,6 +1879,8 @@ export async function GET(
     shownCrest: shownCrests.get(run.id) ?? null,
     forkedWeekIds,
     ...(forkedWeekGroups ? { forkedWeekGroups } : {}),
+    ...(visits && visits.length > 0 ? { visits } : {}),
+    ...(visitReaders && visitReaders.length > 0 ? { visitReaders } : {}),
     enrolment: enrolment
       ? {
           status: enrolment.status,

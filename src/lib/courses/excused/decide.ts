@@ -36,6 +36,7 @@ import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/cours
 import { COURSE_REQUESTS_COLLECTION, type CourseRequestStatus } from "@/lib/firestore/courseRequests";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { excuseLineOf } from "./ask";
+import { standingRequestsIn } from "./standing";
 import { approvalPlan, parseDecision, parseReplyPress, parseWithdraw, type ApprovalPlan } from "./model";
 import {
   EXCUSED_REFUSAL,
@@ -681,4 +682,48 @@ export async function replyToExcused(
     });
   }
   return { ok: true, value: { status: fresh.status, replied: true, emailed: { person: personOutcome } } };
+}
+
+// ---------------------------------------------------------------------------
+// A visit that ends takes its waiting request with it, quietly
+// ---------------------------------------------------------------------------
+
+/**
+ * WHEN A ONE-WEEK VISIT ENDS (called off by staff or the person, ended with a
+ * session called off, or replaced), a request still WAITING to be excused
+ * from that visit's session (`aboutVisit`, asked of the host) is about a
+ * session the person is no longer due at. Calling a session off leaves its
+ * own people's waiting requests where they are; a visitor's is different, as
+ * the visit it was about is gone. So its waiting week is WITHDRAWN in the
+ * visit's own transaction, with a line in the request's history saying who
+ * ended the visit (`byUid`), and NOBODY IS EMAILED: no refusal, no notice.
+ * Read in the caller's transaction (`standingRequestsIn`) before any write;
+ * `write` is called with the caller's writes.
+ */
+export async function withdrawVisitRequestsIn(
+  tx: Transaction,
+  db: Firestore,
+  input: { runId: string; uid: string; hostGroupId: string; weekNumber: number; byUid: string; now: Date },
+): Promise<() => void> {
+  const requests = (await standingRequestsIn(tx, db, input.uid, input.runId)).filter(
+    (request) =>
+      request.aboutVisit &&
+      request.groupId === input.hostGroupId &&
+      request.weeks.some((week) => week.weekNumber === input.weekNumber && week.status === "waiting"),
+  );
+  return () => {
+    for (const request of requests) {
+      const keys = request.weeks.filter((week) => week.weekNumber === input.weekNumber && week.status === "waiting").map((week) => week.sessionKey);
+      const weeks = request.weeks.map((week) => (keys.includes(week.sessionKey) ? { ...week, status: "withdrawn" as const, withdrawnAt: input.now } : week));
+      let history = request.history;
+      for (const key of keys) history = withEvent({ ...request, history }, "withdrawn", input.byUid, input.now, key);
+      tx.update(db.collection(COURSE_REQUESTS_COLLECTION).doc(request.id), {
+        "change.weeks": weeks.map(storedWeek),
+        ...requestFields(weeks, input.now),
+        history,
+        withdrawnWithVisit: true,
+        updatedAt: input.now,
+      });
+    }
+  };
 }

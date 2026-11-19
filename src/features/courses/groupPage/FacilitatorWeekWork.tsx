@@ -38,7 +38,8 @@ export default function FacilitatorWeekWork({ groupId, work }: { groupId: string
   const buckets = work.rows.map((row) => row.week.bucket);
   const counts = countBuckets(buckets);
   const remindCount = work.remind?.count ?? 0;
-  const leftOut = filterRows(work.rows, "week").filter((row) => !row.remindable);
+  // A visitor from another group is never this group's to remind: not named as left out.
+  const leftOut = filterRows(work.rows, "week").filter((row) => !row.remindable && !row.visiting);
 
   return (
     <section className={`${styles.card} ${styles.facCard}`} aria-labelledby="fac-week-work" data-testid="week-work-count">

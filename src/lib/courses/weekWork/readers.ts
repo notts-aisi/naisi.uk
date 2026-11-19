@@ -2,6 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
 import {
+  groupForWeek,
   normalizeCourseEnrolment,
   ownGroupForWeek,
   placementIsTold,
@@ -15,7 +16,7 @@ import {
   normalizeCourseWeekWork,
   type CourseWeekWorkDoc,
 } from "@/lib/firestore/courseWeekWork";
-import { hasGroupsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
 import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { readPackCaseRecords, recordBlocksOf } from "@/lib/courses/packsAndCases/readers";
 import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
@@ -58,9 +59,10 @@ import {
  * moved from a week is due at their old group's sessions before it and their
  * new group's from it (`sessionsByWeekGroup`), so Late and the reminders
  * before a session are told against the session they were really due at. A
- * week spent in a group that no longer meets has no session to be due at.
- * With no record of groups by week, the group they are in now for every
- * week, exactly as before.
+ * week of a one-week visit is the host's session that week. A week spent in
+ * a group that no longer meets has no session to be due at. With no record
+ * of groups by week and no visit, the group they are in now for every week,
+ * exactly as before.
  */
 export function sessionSourceFor(
   run: CourseRunDoc,
@@ -80,7 +82,7 @@ export function sessionSourceFor(
       : null;
   if (placed && enrolment) {
     const toldAt = enrolment.selfEnrolled ? (enrolment.createdAt ?? null) : (enrolment.allocatedEmailAt ?? null);
-    const sessions = hasGroupsByWeek(enrolment)
+    const sessions = differsByWeek(enrolment)
       ? sessionsByWeekGroup(enrolment, (groupId) => {
           const group = liveGroups.find((each) => each.id === groupId);
           return group ? sessionsOf(group) : null;
@@ -363,18 +365,30 @@ export type RunWeekStates = {
    */
   sessionOf: (uid: string, weekNumber: number) => Date | null;
   /**
-   * Whether the person's week is one of `groupId`'s: their place records a
-   * move mid-term and belonged to that group in that week
-   * (`ownGroupForWeek`), or it records no move at all (true, as before any
-   * move was recorded), or they hold no place on the run.
+   * Whether the person's week is one of `groupId`'s, as its MEMBER: for a
+   * place whose weeks differ (a move mid-term, or a one-week visit:
+   * `differsByWeek`), whether it belonged to that group in that week
+   * (`ownGroupForWeek`, never a visit's host); for a place whose weeks do not
+   * differ, true, as before any move was recorded; true for somebody holding
+   * no place on the run.
    */
   belongsTo: (uid: string, groupId: string, weekNumber: number) => boolean;
   /**
+   * Whether the person's work for the week is due at `groupId`'s session:
+   * for a place whose weeks differ, whether that group's session is the one
+   * they go to that week (`groupForWeek`: a visit's host for the visit's
+   * week); otherwise as `belongsTo`. The reminders before a session ask this
+   * of each week the session covers. For a place with no visit it answers as
+   * `belongsTo`.
+   */
+  dueWith: (uid: string, groupId: string, weekNumber: number) => boolean;
+  /**
    * The group whose copy of the week the person works in and is read on, as
-   * their own week page reads it: for a place that records a move mid-term,
-   * the group it belonged to that week, whether or not that group still meets
-   * (`copyGroupIdFor`, with their group now's copy for a week in it); for
-   * everybody else, `fallback`, the group the caller has always read.
+   * their own week page reads it: for a place whose weeks differ (a move
+   * mid-term, or a one-week visit), the group it belonged to that week,
+   * whether or not that group still meets (`copyGroupIdFor`, with their group
+   * now's copy for a week in it), never a visit's host; for everybody else,
+   * `fallback`, the group the caller has always read.
    */
   copyGroupOf: (uid: string, weekNumber: number, fallback: string) => string;
 };
@@ -443,11 +457,15 @@ export async function loadRunWeekStates(
     sessionOf: (uid, weekNumber) => groupSessionAt(sourceOf(uid), weekNumber),
     belongsTo: (uid, groupId, weekNumber) => {
       const seat = seatOf.get(uid);
-      return !seat || !hasGroupsByWeek(seat) || ownGroupForWeek(seat, weekNumber) === groupId;
+      return !seat || !differsByWeek(seat) || ownGroupForWeek(seat, weekNumber) === groupId;
+    },
+    dueWith: (uid, groupId, weekNumber) => {
+      const seat = seatOf.get(uid);
+      return !seat || !differsByWeek(seat) || groupForWeek(seat, weekNumber) === groupId;
     },
     copyGroupOf: (uid, weekNumber, fallback) => {
       const seat = seatOf.get(uid);
-      if (!seat || !hasGroupsByWeek(seat)) return fallback;
+      if (!seat || !differsByWeek(seat)) return fallback;
       return copyGroupIdFor(seat, weekNumber, seat.groupId) ?? fallback;
     },
   };

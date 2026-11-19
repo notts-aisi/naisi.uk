@@ -141,6 +141,36 @@ const READERS = {
       "a line of a finished register corrected, by a lead or an admin or an approved request: a session that did not " +
       "happen, called off or said so on its register, has no line to correct",
   },
+  "lib/courses/visit/plan.ts": {
+    kind: "asks",
+    proof: [
+      "if (session.cancelled) return { session, error: hostCancelledWords(host.name, weekNumber) };",
+      "const happening = session !== null && !session.cancelled && (register?.held ?? true) && (!host.archived || countsFromArchivedGroup(session, register));",
+    ],
+    why:
+      "a one-week visit: a host session called off through Change a session is refused in its own sentence before its " +
+      "register's held is read, a week whose own session is called off is no week to visit from, and a visit that stands " +
+      "to a called-off session is said to be no longer happening",
+  },
+  "lib/courses/visit/card.ts": {
+    kind: "asks",
+    proof: [
+      "if (!session || session.cancelled) continue;",
+      ".held === false).map((each) => each.weekNumber),",
+    ],
+    why:
+      "a person's own visit card: a host session called off through Change a session draws no card, and neither does " +
+      "one whose register says it did not happen, so the card never offers a Cancel that the person's own cancel, which " +
+      "reads such a visit as none, would then refuse",
+  },
+  "lib/scheduler/jobs/weekReminders.ts": {
+    kind: "asks",
+    proof: ["if (session.cancelled) continue;", "notHeld: data ? normalizeCourseAttendance(id, data).held === false : false,"],
+    why:
+      "the reminders before a session: a session called off through Change a session is reminded about by nobody, and " +
+      "for somebody visiting it for one week, a register that says it did not happen means their programme page draws " +
+      "no visit card for it, so the reminder says neither Can't make it nor where its link is",
+  },
   "lib/courses/registerCorrection/column.ts": {
     kind: "asks",
     proof: [

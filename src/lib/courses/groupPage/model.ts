@@ -82,9 +82,13 @@ export type GroupPageWeek = {
    * The week's people, for staff. Somebody moved into the group mid-term is
    * listed for a week before they joined it with `joins` (`joinsLaterOf` in
    * `src/lib/courses/staffMove/joins.ts`): not one of the week's people, with
-   * no word said.
+   * no word said. Somebody from another group coming to this session for one
+   * week (a one-week visit) is listed with `visiting`, its line ("Visiting
+   * from Group C, week 2 only. You can read Aisha’s week 2; Rahul gives the
+   * feedback."), and counted; a member of this group at another group's
+   * session that week with `awayAt`, that group's name, and not counted.
    */
-  people: { uid: string; name: string; said: WeekSaid; excuse?: ExcuseFact; joins?: JoinsLater }[];
+  people: { uid: string; name: string; said: WeekSaid; excuse?: ExcuseFact; joins?: JoinsLater; visiting?: { line: string }; awayAt?: string }[];
   /** Its register is finished. */
   finished: boolean;
   /** Its register says the session did not happen (the old switch). */
@@ -508,6 +512,8 @@ export type OneWeekPreview = {
   /** A session called off after it started: what else follows (attendance, its lines, its check-in and report, the chase); null otherwise. */
   didNotHappen?: DidNotHappenPreview | null;
   notice: { title: string; message: string };
+  /** Visits to it that end with it, told by their own emails whatever the tick (`visit/hostOff.ts`); null with none. */
+  visitsOff?: { people: number; emails: number; words: string } | null;
   at: string | null;
 };
 
@@ -532,6 +538,9 @@ export type RegularPreview = {
 
 /** One line of "What will happen": its label and its sentence. */
 export type PreviewLine = { label: string; text: string };
+
+/** The label of the line saying which visits end with a session called off. */
+export const VISITS_LABEL = "Visits";
 
 /** The label of the line saying which covers end, as the route wrote each. */
 export const COVER_ENDS = "Cover";

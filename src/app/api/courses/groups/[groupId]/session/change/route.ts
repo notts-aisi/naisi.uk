@@ -49,6 +49,8 @@ import {
   type CourseGroupDoc,
 } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { endVisitsIn, sendVisitsOff, visitsEndingWith, visitsOffPreview, type EndingVisit } from "@/lib/courses/visit/hostOff";
+import { VISITS_CHANGED_WORDS, visitsOffFailedWords } from "@/lib/courses/visit/words";
 
 /**
  * CHANGE ONE WEEK'S SESSION OF ONE GROUP: hold it online,
@@ -102,6 +104,8 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 /** What the press changed, for the dialog's sentence. */
 type Answer = {
   ok: true;
+  /** Visits that ended with a session called off, and what became of their emails (`visit/hostOff.ts`); absent with none. */
+  visitsOff?: { people: number; sent: number; failed: number; words: string | null };
   change: { kind: ChangePress["kind"]; weekNumber: number; dateKey: string; newDateKey: string | null };
   update: {
     groupId: string;
@@ -248,7 +252,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
   // ── The session, as the dialog showed it ─────────────────────────────────
   const now = new Date();
   const registerRef = registerRefOf(db, run, found.id, press.weekNumber);
-  let outcome: { change: Answer["change"]; checked: CheckedPress };
+  let outcome: { change: Answer["change"]; checked: CheckedPress; ending: EndingVisit[] };
   try {
     const registerSnap = await registerRef.get();
     const register = registerSnap.exists ? (registerSnap.data() ?? {}) : undefined;
@@ -258,6 +262,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     if (press.kind === "push" && (await sessionHasCheckInOrReport(db, run.id, found.id, first.session.sessionKey))) {
       throw new ChangeRefusal(pushHasRecordsWords(press.weekNumber), 409);
     }
+    // Calling it off: the visits to it that end with it (`visit/hostOff.ts`),
+    // left out of the group's notice and told by their own emails instead.
+    const callsOff = press.kind === "cancel" || press.kind === "push";
+    const ending = callsOff ? await visitsEndingWith(db, { run, host: found, weekNumber: press.weekNumber, actorUid: actor.uid, now }) : [];
+    const except = new Set(ending.map((visit) => visit.uid));
     const naming = await readNamingProgramme(db, run.id);
     const incubator = naming?.kind === "incubator";
     const groupName = found.name.trim() || "Untitled group";
@@ -279,7 +288,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
         reminderFacts(db, { run, group: found, before: first.session, after: weekSessionAfter(run, first, press.weekNumber), switches }),
         saidFacts(db, register),
         // A change to one session tells that week's people (`updateEmailAudience`'s week).
-        toldFacts(db, run, found, actor.uid, press.weekNumber),
+        toldFacts(db, run, found, actor.uid, press.weekNumber, except),
         // Whose cover the press would take off, by the press's own rule (`../registerCover/moves`).
         coversEndLines(db, startMovedRegisters(before, after, metRefs, metSnaps)),
       ]);
@@ -307,6 +316,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
               ? await didNotHappenFacts(db, { run, group: found, session: first.session, register })
               : null,
           notice: oneWeekNoticeFor(run, first, press, { groupName, incubator }),
+          // Visits that end with it, and their emails, whatever the tick says: present only where one does.
+          ...(ending.length ? { visitsOff: visitsOffPreview(ending) } : {}),
           at: iso(now),
         },
       });
@@ -320,6 +331,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
         withFacilitators: true,
         // The people of the changed session's week: somebody moved mid-term is told about their own week's session.
         weekNumber: press.weekNumber,
+        except,
       });
       if (audience.refused) throw new ChangeRefusal(REFUSAL.overCap, 400);
       if (audience.recipients.length === 0) throw new ChangeRefusal(REFUSAL.nobodyToEmail, 400);
@@ -342,6 +354,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       const freshRegister = await tx.get(registerRef);
       const freshData = freshRegister.exists ? (freshRegister.data() ?? {}) : undefined;
       const checked = checkPress(run, group, press, now, freshData);
+      // The visits that end with it, as they stand now, and the limits on their emails: read before any write.
+      const endingNow = callsOff ? await visitsEndingWith(db, { run, host: group, weekNumber: press.weekNumber, actorUid: actor.uid, now, tx }) : [];
+      // Who is visiting, and the number of their emails the press was shown, as they are now.
+      const visitEmailsNow = endingNow.reduce((sum, visit) => sum + visit.recipients.length, 0);
+      if (endingNow.map((visit) => visit.uid).sort().join() !== [...except].sort().join() || visitEmailsNow !== press.visitEmails) {
+        throw new ChangeRefusal(VISITS_CHANGED_WORDS, 409, { visitEmails: visitEmailsNow });
+      }
+      const visitsOff = endingNow.length ? await endVisitsIn(tx, db, { run, host: group, weekNumber: press.weekNumber, ending: endingNow, actor }) : null;
+      if (visitsOff?.refusal) throw new ChangeRefusal(visitsOff.refusal, 429);
 
       // Every session whose start moves, and its register: read before anything is written.
       const before = resolveSessions(run, group);
@@ -441,6 +462,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
         tx.update(movedRefs[index], { sessionAt: startsAt });
       });
       writeCoversOff(tx, coversOff);
+      visitsOff?.write();
 
       const emailed = press.tell ? press.emailCount : 0;
       const afterSession = weekSessionAfter(run, checked, press.weekNumber);
@@ -478,6 +500,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       );
       return {
         checked,
+        ending: endingNow,
         change: {
           kind: press.kind,
           weekNumber: press.weekNumber,
@@ -499,9 +522,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       await closeCalledOffFollowUp(db, { runId: run.id, groupId: found.id, sessionKey: outcome.checked.session.sessionKey });
     }
 
+    // The visits ended: their emails, after the commit; a send that fails is said.
+    // To the recipients read in the transaction, whose number the press was shown.
+    const endedNow = outcome.ending;
+    const visitsSent = endedNow.length ? await sendVisitsOff({ run, host: found, weekNumber: press.weekNumber, ending: endedNow, actorUid: actor.uid }) : null;
     const answer: Answer = {
       ok: true,
       change: outcome.change,
+      ...(visitsSent ? { visitsOff: { people: endedNow.length, sent: visitsSent.sent, failed: visitsSent.failed, words: visitsSent.failed > 0 ? visitsOffFailedWords(visitsSent.failed) : null } } : {}),
       update: press.tell
         ? {
             groupId: found.id,

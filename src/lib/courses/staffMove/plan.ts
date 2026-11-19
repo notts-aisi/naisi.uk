@@ -18,7 +18,7 @@ import {
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { sessionKeyParts } from "../excused/model";
-import { sessionsByWeekGroup } from "../groupsByWeek";
+import { belonging, sessionsByWeekGroup } from "../groupsByWeek";
 import { moveLimitRefusal } from "./limits";
 import type { MoveLineView, MovePreviewView } from "./view";
 import { moveWeekOf, weeksThatCome, type MoveWeek } from "./week";
@@ -58,6 +58,7 @@ import {
   type LeftBehind,
   type MoveEmailFacts,
   type MoveEmailWords,
+  visitsAheadWords,
 } from "./words";
 
 /**
@@ -317,7 +318,7 @@ export function moveChoices(facts: MoveFacts): MoveChoice[] {
  */
 export function moveWeekFor(
   run: CourseRunDoc,
-  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek">,
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek" | "visits">,
   groups: readonly CourseGroupDoc[],
   to: CourseGroupDoc,
   now: Date,
@@ -326,7 +327,8 @@ export function moveWeekFor(
     const group = groups.find((each) => each.id === groupId);
     return group && !group.archived ? resolveSessions(run, group) : null;
   };
-  return moveWeekOf({ oldSessions: sessionsByWeekGroup(place, sessionsOf), newSessions: resolveSessions(run, to), now });
+  // The groups the place BELONGS to: never a one-week visit's host.
+  return moveWeekOf({ oldSessions: sessionsByWeekGroup(belonging(place), sessionsOf), newSessions: resolveSessions(run, to), now });
 }
 
 /** The week rule's refusal in its sentence. */
@@ -519,6 +521,13 @@ export async function planMove(
     weeksWrittenFrom(db, facts.run.id, person.uid, weekNumber).then((written) => copiesDiffer(db, facts.run.id, from, to, written)),
   ]);
   const feedbackFrom = [...new Set(feedback.map((piece) => piece.byUid))].filter((uid) => from.facilitatorUids.includes(uid));
+  const visitsAhead = (place.visits ?? [])
+    .filter((visit) => visit.weekNumber >= weekNumber)
+    .map((visit) => ({
+      weekNumber: visit.weekNumber,
+      hostName: facts.groups.find((group) => group.id === visit.groupId)?.name ?? "",
+      goes: visit.groupId === to.id,
+    }));
   const firstOf = (uid: string) => {
     const data = accounts.get(uid);
     return data ? firstNameOfUser(data) : "";
@@ -565,6 +574,9 @@ export async function planMove(
     { label: LINE_LABEL.late, text: lateLineWords({ toName: to.name, weekday: to.session.weekday, weekNumber }) },
     { label: LINE_LABEL.registers, text: registersLineWords({ firstName: person.firstName, fromName: from.name, toName: to.name, weekNumber }) },
     ...(leftBehind.length > 0 ? [{ label: LINE_LABEL.leftBehind, text: leftBehindWords(person.firstName, from.name, leftBehind) }] : []),
+    // A one-week visit ahead, from week N on: the save drops one to the group
+    // they move into (no visit at all) and keeps every other.
+    ...(visitsAhead.length > 0 ? [{ label: LINE_LABEL.visits, text: visitsAheadWords(person.firstName, to.name, weekNumber, visitsAhead) }] : []),
   ];
 
   const toPerson = recipients.find((each) => each.as === "person") ?? null;

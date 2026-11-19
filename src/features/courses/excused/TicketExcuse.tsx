@@ -98,6 +98,7 @@ export default function TicketExcuse({
         // `weeksToChoose` offers sessions still to come alone.
         upcoming: true,
         onlineOffered: each.first.online,
+        ...(each.visit ? { line: each.visit.line } : {}),
       }))
     : [];
 
@@ -183,7 +184,7 @@ export default function TicketExcuse({
           open={open}
           onClose={() => setOpen(false)}
           day={day}
-          groupId={view.groupId}
+          groupId={session.visit?.groupId ?? view.groupId}
           groupName={groupName}
           first={{
             sessionKey: session.sessionKey,
@@ -193,6 +194,7 @@ export default function TicketExcuse({
             upcoming: true,
             onlineOffered: session.first.online,
             when,
+            ...(session.visit ? { line: session.visit.line } : {}),
           }}
           weeks={weeks}
           facilitatorFirstNames={facilitatorFirstNames}

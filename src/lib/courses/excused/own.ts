@@ -2,7 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { facilitatesGroup, takesPartIn } from "@/lib/courses/cantMakeIt/seat";
 import { rawCountsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
-import { groupsOfWeeks, hasGroupsByWeek, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, groupsOfWeeks, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { heldOnline } from "@/lib/courses/joiningOnline/model";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
@@ -11,7 +11,8 @@ import { currentTimeAnswer, timeQuestionSinceOf } from "@/lib/courses/timeAnswer
 import { workClosesAt } from "@/lib/courses/weekWork/closes";
 import type { SessionUser } from "@/lib/firebase/session";
 import { attendanceDocId, cameBy } from "@/lib/firestore/courseAttendance";
-import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { visitInWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { excuseVisitWeekWords } from "@/lib/courses/visit/words";
 import type { ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
 import {
   campusForWeek,
@@ -95,6 +96,13 @@ export type OwnExcusedSession = {
   ask: OwnAsk;
   /** What the flow offers first: joining online where that is a real choice (`onlineOfferedFor`). */
   first: { online: boolean };
+  /**
+   * A week of a one-week visit: the HOST group, whose session this is, which a
+   * request about it is asked of (and so found by the host's facilitators'
+   * side and the admins' Requests page), and the excuse form's line for it
+   * ("Week 2 · Wed 11 Nov, at Group I"). Absent for every other session.
+   */
+  visit?: { groupId: string; line: string };
 };
 
 export type OwnExcusedRequest = {
@@ -138,8 +146,8 @@ function sessionHeldOnline(group: CourseGroupDoc, session: ResolvedSession): boo
 const iso = (at: Date | null): string | null => (at ? at.toISOString() : null);
 
 /**
- * The groups of the run archived since that the place's record names, read
- * by their ids: none unless the record names a group that is not live.
+ * The groups of the run archived since that the place's record (or a visit)
+ * names, read by their ids: none unless one names a group that is not live.
  */
 async function archivedGroupsOf(
   db: Firestore,
@@ -170,17 +178,18 @@ export async function excusedFor(
   const closed = closesAtDate !== null && now.getTime() >= closesAtDate.getTime();
 
   // Each week's session from the group they were in that week, and its line
-  // from that group's register (`sessionsWithGroup`). A week in a group
-  // archived since stays, as history, only where its register was finished
-  // for a session held (`rawCountsFromArchivedGroup`), as on their own
-  // attendance; nothing is offered about it. With no record of groups by
-  // week, their group's sessions, as always.
+  // from that group's register (`sessionsWithGroup`; a one-week visit's week
+  // is the host's). A week in a group archived since stays, as history, only
+  // where its register was finished for a session held
+  // (`rawCountsFromArchivedGroup`), as on their own attendance; nothing is
+  // offered about it. With no record of groups by week and no visit, their
+  // group's sessions, as always.
   const live = (groupId: string) =>
     input.groups.find((each) => each.id === groupId && each.runId === run.id && !each.archived) ?? null;
-  const archived = hasGroupsByWeek(seat) ? await archivedGroupsOf(db, run.id, seat, live) : [];
+  const archived = differsByWeek(seat) ? await archivedGroupsOf(db, run.id, seat, live) : [];
   const archivedOf = (groupId: string) => archived.find((each) => each.id === groupId) ?? null;
   const candidates = (
-    hasGroupsByWeek(seat)
+    differsByWeek(seat)
       ? sessionsWithGroup(seat, (groupId) => {
           const each = live(groupId) ?? archivedOf(groupId);
           return each ? resolveSessions(run, each) : null;
@@ -223,7 +232,7 @@ export async function excusedFor(
     const snap = snaps[at];
     const line = excuseLineOf(snap?.exists ? snap.data() : undefined, refs[at].id, user.uid);
     const { startsAt, endsAt } = sessionInstants(session);
-    const weeks = weeksAbout(requests, user.uid, session.sessionKey);
+    const weeks = weeksAbout(requests, user.uid, session.sessionKey, { groupId: paired[at].groupId, visiting: visitInWeek(seat, session.weekNumber) !== null });
     const standing = standingWeek(weeks);
     // The group whose session this is: theirs now, or, for a week their
     // place records them in another group, that group. The answer to "Can
@@ -231,6 +240,8 @@ export async function excusedFor(
     // are read on that group's sessions alone.
     const ownGroupsSession = paired[at].groupId === group.id;
     const sessionGroup = ownGroupsSession ? group : (live(paired[at].groupId) ?? group);
+    // A week of a one-week visit: the host's session, asked about of the host.
+    const visiting = !ownGroupsSession && visitInWeek(seat, session.weekNumber)?.groupId === paired[at].groupId && sessionGroup.id === paired[at].groupId;
     let excuse: OwnExcuse | null = null;
     if (standing?.week.status === "waiting") {
       excuse = { kind: "waiting", requestId: standing.request.id, askedAt: iso(standing.request.askedAt), reason: standing.request.reason };
@@ -259,7 +270,7 @@ export async function excusedFor(
     });
     const ask: OwnAsk = !asks
       ? { open: false, why: "facilitates" }
-      : !ownGroupsSession
+      : !ownGroupsSession && !visiting
         ? { open: false, why: "another-group" }
         : closed && state.open
           ? { open: false, why: "closed" }
@@ -280,10 +291,15 @@ export async function excusedFor(
       first: {
         online: ask.open && onlineOfferedFor({ when: ask.when, heldOnline: sessionHeldOnline(sessionGroup, session) }),
       },
+      ...(visiting ? { visit: { groupId: sessionGroup.id, line: excuseVisitWeekWords(session.weekNumber, session.dateKey, sessionGroup.name) } } : {}),
     };
   });
 
+  // A request withdrawn because the visit it was about ended was not withdrawn
+  // by them, and no words say so: it is left off their own list (staff read it
+  // in its history on the Requests page).
   const own: OwnExcusedRequest[] = [...requests]
+    .filter((request) => !(request.withdrawnWithVisit && request.status === "withdrawn"))
     .sort((a, b) => (b.askedAt?.getTime() ?? 0) - (a.askedAt?.getTime() ?? 0))
     .slice(0, OWN_LIST)
     .map((request: ExcusedRequestDoc) => ({

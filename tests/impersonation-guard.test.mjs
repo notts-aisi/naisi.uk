@@ -436,6 +436,10 @@ const MUST_GUARD = [
     "moves one person to another group for good on the run a programme names, mid-term, and emails them and both groups' facilitators",
   ],
   [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit/route.ts",
+    "arranges or calls off one person's one-week visit to another group's session on the run a programme names, and emails them and both groups' facilitators",
+  ],
+  [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room/route.ts",
     "sets the room a group meets in every week on the run a programme names, from the Groups tab",
   ],
@@ -458,6 +462,10 @@ const MUST_GUARD = [
   [
     "src/app/api/courses/groups/[groupId]/joining-online/route.ts",
     "keeps the person's own word that they are joining a session online on its register, which their facilitators read and are asked for a link by",
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/visit/cancel/route.ts",
+    "cancels the caller's own one-week visit to another group's session, takes their own words off that session's register and emails both groups' facilitators",
   ],
   [
     "src/app/api/courses/groups/[groupId]/meeting-link/route.ts",

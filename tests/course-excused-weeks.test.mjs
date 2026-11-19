@@ -307,13 +307,22 @@ describe("the arithmetic: what a press says, which sessions may be asked about, 
   });
 
   test("the one fact: waiting, else excused, else nothing; a request's status follows its weeks", () => {
-    const req = (weeks) => ({ id: "r", subjectUid: "amara", askedAt: new Date(1), weeks: weeks.map(([sessionKey, status, ms = 2]) => ({ sessionKey, status, decidedAt: new Date(ms), withdrawnAt: null })) });
+    const req = (weeks, groupId = B, aboutVisit = false) => ({ id: "r", subjectUid: "amara", groupId, aboutVisit, askedAt: new Date(1), weeks: weeks.map(([sessionKey, status, ms = 2]) => ({ sessionKey, status, decidedAt: new Date(ms), withdrawnAt: null })) });
+    const about = { groupId: B, visiting: false };
     const requests = [req([["w02", "declined", 5]]), req([["w02", "waiting"]])];
-    assert.equal(model.factOf(model.weeksAbout(requests, "amara", "w02")), "waiting");
-    assert.equal(model.factOf(model.weeksAbout([req([["w02", "approved"]])], "amara", "w02")), "excused");
-    assert.equal(model.factOf(model.weeksAbout([req([["w02", "declined"]])], "amara", "w02")), null);
-    assert.equal(model.factOf(model.weeksAbout([req([["w02", "withdrawn"]])], "amara", "w02")), null);
-    assert.equal(model.factOf(model.weeksAbout([req([["w02", "approved"]])], "dev", "w02")), null);
+    assert.equal(model.factOf(model.weeksAbout(requests, "amara", "w02", about)), "waiting");
+    assert.equal(model.factOf(model.weeksAbout([req([["w02", "approved"]])], "amara", "w02", about)), "excused");
+    assert.equal(model.factOf(model.weeksAbout([req([["w02", "declined"]])], "amara", "w02", about)), null);
+    assert.equal(model.factOf(model.weeksAbout([req([["w02", "withdrawn"]])], "amara", "w02", about)), null);
+    assert.equal(model.factOf(model.weeksAbout([req([["w02", "approved"]])], "dev", "w02", about)), null);
+    // With no visit, a request pairs by the session key alone, as it always
+    // has: one asked of another group (somebody moved since) still counts.
+    assert.equal(model.factOf(model.weeksAbout([req([["w02", "waiting"]], A)], "amara", "w02", about)), "waiting");
+    // A request asked about a visit to another group's session is about that
+    // group's alone; and while a visit stands that week, so is every request.
+    assert.equal(model.factOf(model.weeksAbout([req([["w02", "waiting"]], A, true)], "amara", "w02", about)), null);
+    assert.equal(model.factOf(model.weeksAbout([req([["w02", "approved"]], A, true)], "amara", "w02", { groupId: A, visiting: true })), "excused");
+    assert.equal(model.factOf(model.weeksAbout([req([["w02", "approved"]], B)], "amara", "w02", { groupId: A, visiting: true })), null);
     assert.equal(record.excusedStatusOf([{ status: "approved" }, { status: "waiting" }]), "waiting");
     assert.equal(record.excusedStatusOf([{ status: "declined" }, { status: "approved" }]), "approved");
     assert.equal(record.excusedStatusOf([{ status: "declined" }, { status: "withdrawn" }]), "declined");
@@ -1124,9 +1133,9 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     const register = (n, mark, extra = {}) =>
       attendanceLib.normalizeCourseAttendance(`${RUN.agi}__${B}__w0${n}`, { runId: RUN.agi, groupId: B, weekNumber: n, occurrence: 1, records: { amara: mark }, ...extra });
     const seat = { role: "learner", status: "active", groupId: B, timeAnswer: { kind: "mostWeeks", sessionKeys: ["w01", "w04"], forGroupId: B, at: new Date("2026-11-01T10:00:00Z") } };
-    const approved = (...keys) => ({ id: "r1", subjectUid: "amara", weeks: keys.map((sessionKey) => ({ sessionKey, status: "approved" })) });
+    const approved = (...keys) => ({ id: "r1", subjectUid: "amara", groupId: B, weeks: keys.map((sessionKey) => ({ sessionKey, status: "approved" })) });
     const count = (registers, requests = [approved("w02", "w03")]) =>
-      page.excusedThisTermOf({ uid: "amara", sessions, registers: new Map(registers), requests, seat, group: { timeQuestionSince: null }, now: AFTER_W2 });
+      page.excusedThisTermOf({ uid: "amara", sessions, registers: new Map(registers), requests, groupId: B, seat, group: { timeQuestionSince: null }, now: AFTER_W2 });
     const told = { excusedInAdvance: { amara: new Date("2026-11-01T10:00:00Z") } };
     const all = count([
       // Week 1 ticked, and she came after all: not counted.
@@ -1147,6 +1156,13 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     assert.equal(count([["w02", register(2, "excused", { held: false })]]).count, 0);
     // A week ticked with no line saying Excused: nothing to count, ahead or past.
     assert.deepEqual(count([], []).comingUp, []);
+    // A request approved about a VISIT to another group's session of the same
+    // weeks says nothing about this group's: week 2 reads as told in advance
+    // on this group's register, never as approved.
+    const elsewhere = count([["w02", register(2, "excused", { pushedAt: new Date("2026-11-10T21:00:00Z") })]], [{ ...approved("w02"), groupId: A, aboutVisit: true }]);
+    assert.deepEqual(elsewhere.counts.approved, 0);
+    // One asked of another group with no visit (she was moved since) counts, as it always has.
+    assert.deepEqual(count([["w02", register(2, "excused", { pushedAt: new Date("2026-11-10T21:00:00Z") })]], [{ ...approved("w02"), groupId: A }]).counts.approved, 1);
   });
 
   test("the person's own: their card's facts and their own words, never a count", async () => {

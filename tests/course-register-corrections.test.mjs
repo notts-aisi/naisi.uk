@@ -820,6 +820,9 @@ describe("3. correcting the whole column", () => {
       "if (!groupSnap.exists) throw new ChangeRefusal(REFUSAL.gone, 400);": "the group is gone, for either pace",
       "if (fresh.archived || fresh.runId !== run.id) throw new ChangeRefusal(REFUSAL.gone, 400);": "the group is gone, for either pace",
       "if (again || !stored) throw new Refused(409, again ?? CORRECTION_REFUSAL.noRegister);": "the register stopped being finished, for either pace",
+      // A visit to the session that ends with it, for either pace (`visit/hostOff.ts`).
+      "throw new ChangeRefusal(VISITS_CHANGED_WORDS, 409, { visitEmails: visitEmailsNow });": "who is visiting it, or their emails, changed since the preview, for either pace",
+      "if (visitsOff?.refusal) throw new ChangeRefusal(visitsOff.refusal, 429);": "the limit on the emails of the visits that end with it, for either pace",
     };
     const PUSH_ONLY = {
       "if (press.pace === \"push\" && pushRefused) return refuse(pushRefused.status, pushRefused.error, pushRefused.detail);": "pushRefusalOf",

@@ -350,8 +350,19 @@ export default function BlockWeek({
   const prev = at > 0 ? taught[at - 1] : null;
   const next = at >= 0 && at < taught.length - 1 ? taught[at + 1] : null;
 
-  // Names from records, for who reads what.
-  const facilitatorNames = (payload.group?.facilitatorNames ?? []).map((name) => firstName(name) || name);
+  // Names from records, for who reads what: the group's facilitators, and in
+  // a week of a one-week visit the host's facilitators the reading rule lets
+  // read that week (the server's `visitReaders`), in the same sentences.
+  // Where one of the host's readers shares a first name with one of their own
+  // group's facilitators, both are named in full, so neither is dropped.
+  const visitWeekReaders = payload.visitReaders?.find((entry) => entry.weekNumber === weekNumber) ?? null;
+  const hostReaderFirsts = visitWeekReaders?.firstNames ?? [];
+  const groupFacilitatorNames = (payload.group?.facilitatorNames ?? []).map((name) => {
+    const first = firstName(name) || name;
+    return hostReaderFirsts.includes(first) ? name : first;
+  });
+  const hostReaderNames = visitWeekReaders?.names ?? [];
+  const facilitatorNames = [...groupFacilitatorNames, ...hostReaderNames];
 
   // This week, and its count.
   const thisWeekBlock = blocks.find((block): block is ThisWeekBlock => block.type === "thisWeek") ?? null;
@@ -360,7 +371,7 @@ export default function BlockWeek({
   const answerReaders: AnswerReaders =
     overviewWeek?.thisWeek?.answersReadBy === "lead"
       ? { kind: "lead", leadName: leadFirstName }
-      : { kind: "facilitators", names: facilitatorNames };
+      : { kind: "facilitators", names: groupFacilitatorNames, ...(hostReaderNames.length > 0 ? { alsoRead: hostReaderNames } : {}) };
   // Whose work this is, for the lines under the boxes and the ticks: a
   // facilitator's own work is read by the programme's lead and admins and
   // never by a co-facilitator (`readsFacilitatorsOwnWork`), and nobody
@@ -625,7 +636,7 @@ export default function BlockWeek({
                   ? { access: facilitatorReflectionsReadByWords(leadFirstName), readOut: null }
                   : {
                       access: reflectionsReadByWords(facilitatorNames, leadFirstName),
-                      readOut: readOutWords(facilitatorNames),
+                      readOut: readOutWords(groupFacilitatorNames),
                     },
                 ticksLine: ownWorkIsTheLeads
                   ? facilitatorTicksSeenByWords(leadFirstName)
@@ -1138,7 +1149,7 @@ type ChildContext = {
   fillInReaders: (title: string) => string;
 };
 
-type AnswerReaders = { kind: "facilitators"; names: string[] } | { kind: "lead"; leadName: string | null };
+type AnswerReaders = { kind: "facilitators"; names: string[]; alsoRead?: string[] } | { kind: "lead"; leadName: string | null };
 
 /**
  * One block of a part, drawn; sources that follow one another share one card,

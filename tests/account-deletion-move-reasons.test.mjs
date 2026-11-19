@@ -37,6 +37,7 @@ const { loadTs } = createLoader({
 });
 const { deleteAccountCascade } = await loadTs(join("lib", "firestore", "accountDeletion.ts"));
 const { movedInDetail, movedOutDetail, withoutMoveReason } = await loadTs(join("lib", "courses", "staffMove", "words.ts"));
+const { calledOffDetail, visitingDetail, visitsDetail } = await loadTs(join("lib", "courses", "visit", "words.ts"));
 const auth = { async deleteUser() {}, async revokeRefreshTokens() {} };
 
 const AT = new Date("2026-11-18T09:00:00Z");
@@ -104,5 +105,31 @@ describe("deleting the account of somebody moved mid-term", () => {
     assert.equal(withoutMoveReason("Leo Park moved to Group F from week 3. Reason: Has a  lab", "Something else"), "Leo Park moved to Group F from week 3.");
     assert.equal(withoutMoveReason("Leo Park moved to Group F from week 3. Reason: Has a lab", null), "Leo Park moved to Group F from week 3.");
     assert.equal(withoutMoveReason("Leo Park moved to Group F from week 3.", null), "Leo Park moved to Group F from week 3.");
+  });
+});
+
+describe("deleting the account of somebody with a one-week visit", () => {
+  test("both groups' History rows of the visit stay, and the reason comes off each; a called-off row has none to take", async () => {
+    const rows = {
+      "users/leo": { uid: "leo", role: "member" },
+      "courseAudit/visits": movedRow("group-c", visitsDetail("Leo Park", "Group F", 2, REASON), { kind: "member-visits" }),
+      "courseAudit/visiting": movedRow("group-f", visitingDetail("Leo Park", "Group F", 2, REASON), { kind: "member-visits" }),
+      "courseAudit/off": movedRow("group-c", calledOffDetail("Leo Park", "Group F", 2), { kind: "member-visit-off", reason: null }),
+      "courseAudit/ana": movedRow("group-c", visitsDetail("Ana Lee", "Group F", 2, REASON), { kind: "member-visits", subjectUid: "ana" }),
+    };
+    const db = makeCascadeDb(rows);
+    db.recursiveDelete = async (ref) => ref.delete();
+    const summary = await deleteAccountCascade(auth, db, "leo");
+    assert.equal(summary.courseMoveReasonsCleared, 2);
+    assert.equal(db.read("courseAudit/visits").detail, "Leo Park visits Group F for week 2.");
+    assert.equal(db.read("courseAudit/visiting").detail, "Leo Park is at Group F for week 2.");
+    for (const id of ["visits", "visiting"]) {
+      const row = db.read(`courseAudit/${id}`);
+      assert.equal("reason" in row, false);
+      assert.equal(row.kind, "member-visits");
+      assert.ok(!JSON.stringify(row).includes("lab on Mondays"));
+    }
+    assert.deepEqual(db.read("courseAudit/off"), rows["courseAudit/off"]);
+    assert.deepEqual(db.read("courseAudit/ana"), rows["courseAudit/ana"]);
   });
 });

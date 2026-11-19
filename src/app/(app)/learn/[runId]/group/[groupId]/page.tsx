@@ -569,6 +569,8 @@ export default async function GroupHomePage({
         groupName={groupName}
         personBase={facilitatesThisGroup ? `${groupPath}/people` : null}
         unlinked={[access.user.uid, ...group.facilitatorUids]}
+        visitors={model.visitors}
+        readBase={`${groupPath}/coursework`}
       />
       <GroupRegistersCard
         registers={model.registers}
@@ -737,6 +739,7 @@ export default async function GroupHomePage({
             week={groupWeek}
             groupName={groupName}
             personHref={(uid) => readHref(uid, groupWeek.weekNumber)}
+            visitorHref={(uid) => readingHref(`${groupPath}/coursework`, uid, groupWeek.weekNumber)}
             columns={workColumnsOf(workColumns)}
             boxes={boxes}
             boxesFirstRead={boxesRead ? { runId, ...boxesRead } : null}

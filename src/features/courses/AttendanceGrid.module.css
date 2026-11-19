@@ -600,6 +600,18 @@
   opacity: 0.5;
 }
 
+/*
+ * A one-week visit's line: under a visitor's name on the host's register
+ * ("Visiting from Group C"), and in place of the cell on their own group's
+ * register for that week ("At Group F this week"), which is never marked.
+ */
+.rowNote {
+  display: block;
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--color-text-muted);
+  white-space: normal;
+}
+
 /* === Reduced motion =======================================
    The token belt already collapses these durations to 1ms, but it cannot
    remove a keyframe's from-state — so the pop is answered explicitly here per

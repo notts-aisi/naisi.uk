@@ -22,9 +22,12 @@ import {
   normalizeCourseAttendance,
   registerIsTaken,
 } from "@/lib/firestore/courseAttendance";
-import { normalizeCourseEnrolment, ownGroupForWeek, placementIsTold, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
+import { normalizeCourseEnrolment, ownGroupForWeek, placementIsTold, visitInWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { visitingLineWords } from "@/lib/courses/visit/words";
 import {
   campusForWeek,
+  normalizeCourseGroup,
   sessionChangeForWeek,
   sessionModeForWeek,
   type CourseGroupDoc,
@@ -176,15 +179,60 @@ export async function loadGroupPage(
     staff
       ? [...new Set(snaps.map((snap) => (snap?.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}).cover?.byUid ?? "" : "")).filter(Boolean))]
       : [];
-  const namesRead = Promise.all([seatsRead, registerRead]).then(([seats, snaps]) =>
-    namesOf(db, [...group.facilitatorUids, ...seats.map((seat) => seat.uid), ...coverUidsOf(snaps)]),
+  // Somebody from another group coming to one of its sessions for one week (a
+  // one-week visit), for the page's staff (the facilitator's cut lists no
+  // people) and for the week's work. BOUNDED: first one row at most, by two
+  // equalities, of the History a visit TO this group leaves on the visitor's
+  // own group when it is arranged (`member-visits`, its `after` naming this
+  // group; every visit is arranged that way and History rows are never
+  // deleted while a place is). With none, nobody ever visited this group and
+  // nothing more is read; with one, the run's active places (one equality on
+  // the run and one on the status). A place Publish has not told is never a
+  // visitor: a visit is arranged only for a told place.
+  const visitorsRead = seatRead.then(async () => {
+    const hosted = await db
+      .collection(COURSE_AUDIT_COLLECTION)
+      .where("after.groupId", "==", group.id)
+      .where("kind", "==", "member-visits")
+      .limit(1)
+      .get();
+    if (hosted.empty) return { seats: [] as CourseEnrolmentDoc[], homes: new Map<string, CourseGroupDoc>() };
+    const snap = await db.collection("courseEnrolments").where("runId", "==", run.id).where("status", "==", "active").get();
+    const visitors = snap.docs
+      .map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}))
+      .filter((seat) => seat.runId === run.id && seat.role === "learner" && seat.groupId !== group.id && placementIsTold(seat) && (seat.visits ?? []).some((visit) => visit.groupId === group.id));
+    // The groups they belong to in the weeks they visit, by address: named on their line.
+    const homeIds = [...new Set(visitors.flatMap((seat) => (seat.visits ?? []).map((visit) => ownGroupForWeek(seat, visit.weekNumber) ?? "")))].filter((id) => id && !id.includes("/"));
+    const homes = new Map<string, CourseGroupDoc>();
+    for (const homeSnap of homeIds.length ? await db.getAll(...homeIds.map((id) => db.collection("courseGroups").doc(id))) : []) {
+      if (homeSnap.exists) homes.set(homeSnap.id, normalizeCourseGroup(homeSnap.id, homeSnap.data() ?? {}));
+    }
+    return { seats: visitors, homes };
+  });
+  // The groups this group's people go to for one week, by address: named on their line ("At Group F this week").
+  const awayHostsRead = seatsRead.then(async (seats) => {
+    const ids = [...new Set(seats.flatMap((seat) => (seat.visits ?? []).map((visit) => visit.groupId)))].filter((id) => id && !id.includes("/"));
+    const out = new Map<string, string>();
+    for (const hostSnap of ids.length ? await db.getAll(...ids.map((id) => db.collection("courseGroups").doc(id))) : []) {
+      if (hostSnap.exists) out.set(hostSnap.id, normalizeCourseGroup(hostSnap.id, hostSnap.data() ?? {}).name.trim());
+    }
+    return out;
+  });
+  const namesRead = Promise.all([seatsRead, registerRead, visitorsRead]).then(([seats, snaps, visitors]) =>
+    namesOf(db, [
+      ...group.facilitatorUids,
+      ...seats.map((seat) => seat.uid),
+      ...visitors.seats.map((seat) => seat.uid),
+      ...[...visitors.homes.values()].flatMap((home) => home.facilitatorUids),
+      ...coverUidsOf(snaps),
+    ]),
   );
 
   // The chosen week's work, read beside the names it is drawn with. Not for
   // an incubator's group, whose weeks are rows with no card, on either page.
   // A read of it that fails draws no card rather than no page.
-  const workRead = Promise.all([namingRead, seatsRead])
-    .then(([naming, seats]) => {
+  const workRead = Promise.all([namingRead, seatsRead, visitorsRead])
+    .then(([naming, seats, visitors]) => {
       const placed = seats.filter((seat) => !facilitatorSet.has(seat.uid));
       if (workWeek === null || placed.length === 0 || naming?.kind === "incubator") return null;
       return readGroupWeekWork(db, {
@@ -196,7 +244,13 @@ export async function loadGroupPage(
         // work only from the week they joined it: the week is the group's
         // when their place belonged to it that week (`ownGroupForWeek`, the
         // card's own rule, `GroupWeekRead.belongs`).
-        uids: [...seats.filter((seat) => ownGroupForWeek(seat, workWeek) === group.id).map((seat) => seat.uid), ...(staff ? group.facilitatorUids : [])],
+        // A visitor to that week's session is read too, for their row: read,
+        // never reminded by this group.
+        uids: [
+          ...seats.filter((seat) => ownGroupForWeek(seat, workWeek) === group.id).map((seat) => seat.uid),
+          ...visitors.seats.filter((seat) => visitInWeek(seat, workWeek)?.groupId === group.id).map((seat) => seat.uid),
+          ...(staff ? group.facilitatorUids : []),
+        ],
         now,
       });
     })
@@ -218,7 +272,7 @@ export async function loadGroupPage(
       )
     : Promise.resolve<ExcuseFacts>({});
 
-  const [naming, registerSnaps, weekSnaps, seats, audience, history, withRecords, lead, names, worked, excuseFacts] = await Promise.all([
+  const [naming, registerSnaps, weekSnaps, seats, audience, history, withRecords, lead, names, worked, excuseFacts, visitors] = await Promise.all([
     namingRead,
     registerRead,
     weekRefs.length ? db.getAll(...weekRefs) : Promise.resolve([]),
@@ -237,7 +291,10 @@ export async function loadGroupPage(
     namesRead,
     workRead,
     excuseRead,
+    visitorsRead,
   ]);
+  const awayHosts = await awayHostsRead;
+  const awayNameOf = (groupId: string) => awayHosts.get(groupId) || "another group";
 
   const fellows = seats.filter((seat) => !facilitatorSet.has(seat.uid));
   const placedFacilitators = seats.filter((seat) => facilitatorSet.has(seat.uid));
@@ -273,7 +330,18 @@ export async function loadGroupPage(
     // from the week they joined it: before it they are listed as joining
     // later (`joinsLaterOf`), with no word said, in no count of who said what.
     const inWeek = (seat: CourseEnrolmentDoc) => inGroupForWeek(seat, group.id, session.weekNumber);
-    const everyone = [...seats.filter(inWeek).map((seat) => seat.uid)];
+    // Somebody from another group at this session for one week: one of its people that week.
+    const visitingIn = visitors.seats.filter((seat) => visitInWeek(seat, session.weekNumber)?.groupId === group.id);
+    const everyone = [...seats.filter(inWeek).map((seat) => seat.uid), ...visitingIn.map((seat) => seat.uid)];
+    const visitingLine = (seat: CourseEnrolmentDoc) => {
+      const home = visitors.homes.get(ownGroupForWeek(seat, session.weekNumber) ?? "") ?? null;
+      return visitingLineWords({
+        firstName: names.get(seat.uid)?.first || nameOf(seat.uid),
+        homeName: home?.name ?? "",
+        weekNumber: session.weekNumber,
+        homeFacilitatorFirstNames: (home?.facilitatorUids ?? []).map((uid) => names.get(uid)?.first ?? "").filter(Boolean),
+      });
+    };
     return {
       weekNumber: session.weekNumber,
       weekId: session.weekId,
@@ -307,14 +375,20 @@ export async function loadGroupPage(
       joiningOnline: staff ? everyone.filter((uid) => onlineUids.has(uid) && !cantUids.has(uid)).map(nameOf).filter(Boolean) : [],
       cantMakeIt: staff ? everyone.filter((uid) => cantUids.has(uid)).map(nameOf).filter(Boolean) : [],
       people: staff
-        ? fellows
-            .map((seat) => {
+        ? [
+            ...fellows.map((seat) => {
               const joins = inWeek(seat) ? null : joinsLaterOf(seat, group.id, session.weekNumber);
               if (joins) return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: "coming" as const, joins };
+              // At another group's session that week: listed, with no word said, in no count.
+              const away = visitInWeek(seat, session.weekNumber);
+              if (away && away.groupId !== group.id) {
+                return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: "coming" as const, awayAt: awayNameOf(away.groupId) };
+              }
               const excuse = excuseFacts[session.sessionKey]?.[seat.uid];
               return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid), ...(excuse ? { excuse } : {}) };
-            })
-            .sort((a, b) => a.name.localeCompare(b.name))
+            }),
+            ...visitingIn.map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid), visiting: { line: visitingLine(seat) } })),
+          ].sort((a, b) => a.name.localeCompare(b.name))
         : [],
       finished: Boolean(stored?.pushedAt),
       heldFalse: register?.held === false,
@@ -340,6 +414,11 @@ export async function loadGroupPage(
             firstName: names.get(seat.uid)?.first ?? "",
             told: placementIsTold(seat),
           }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+        // Somebody from another group at that week's session: their row, read and never reminded here.
+        visitors: visitors.seats
+          .filter((seat) => workWeek !== null && visitInWeek(seat, workWeek)?.groupId === group.id)
+          .map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", firstName: names.get(seat.uid)?.first ?? "" }))
           .sort((a, b) => a.name.localeCompare(b.name)),
         readsOwnWork: staff,
         // A facilitator's own week is the programme's lead's and admins' alone.

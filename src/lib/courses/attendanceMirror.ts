@@ -1,7 +1,7 @@
 import "server-only";
 import type { DocumentReference, Firestore, Transaction } from "firebase-admin/firestore";
 import { recomputeRollup, type RegisterFact } from "./attendanceRollup";
-import { groupsOfWeeks, hasGroupsByWeek, sessionsWithGroup } from "./groupsByWeek";
+import { differsByWeek, groupsOfWeeks, sessionsWithGroup } from "./groupsByWeek";
 import { resolveSessions, type ResolvedSession } from "./sessions";
 import type { MirrorMember } from "./registerAccess";
 import {
@@ -120,6 +120,13 @@ export async function readMirrorPlan(
     members: MirrorMember[];
     /** Keyed by session key. */
     overrides?: Map<string, RegisterOverride>;
+    /**
+     * A member's place as the caller's transaction will write it, by uid,
+     * read in place of the stored one: a one-week visit arranged or called
+     * off rebuilds the figures of the weeks it changes from the place it is
+     * writing. Absent everywhere else.
+     */
+    placesAfter?: ReadonlyMap<string, CourseEnrolmentDoc>;
     now: Date;
   },
 ): Promise<MirrorPlan> {
@@ -165,16 +172,16 @@ export async function readMirrorPlan(
     const uid = uidByEnrolmentId.get(snap.id);
     if (snap.exists && uid) {
       enrolmentByUid.set(uid, snap.ref);
-      placeByUid.set(uid, normalizeCourseEnrolment(snap.id, snap.data() ?? {}));
+      placeByUid.set(uid, args.placesAfter?.get(uid) ?? normalizeCourseEnrolment(snap.id, snap.data() ?? {}));
     }
   }
 
   // The other groups the members' weeks were spent in, their sessions, and
   // the registers of those weeks: read here, still before any write, and only
-  // for a member whose place records a move.
+  // for a member whose place records a move or a one-week visit.
   const movers = members.filter((m) => {
     const place = placeByUid.get(m.uid);
-    return place !== undefined && hasGroupsByWeek(place);
+    return place !== undefined && differsByWeek(place);
   });
   const otherGroupIds = [
     ...new Set(movers.flatMap((m) => groupsOfWeeks(placeByUid.get(m.uid) as CourseEnrolmentDoc))),

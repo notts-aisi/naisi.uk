@@ -43,6 +43,8 @@ export type WorkRow = {
   remindable: boolean;
   /** Done after the session: the line under them in "Late in week N", and how late; null otherwise. */
   late: { line: string; detail: string } | null;
+  /** From another group, at this week's session for one week: chip "Visiting", never reminded here. Absent otherwise. */
+  visiting?: true;
 };
 
 /** One facilitator's own week, for the programme's lead and admins only. */

@@ -798,13 +798,15 @@ describe("8. a notice about ONE session goes to the people of that session's wee
   test("the one-week change, the cover notice and a corrected column's tell hand the session's week; a regular time does not", () => {
     const source = (...parts) => readFileSync(join(SRC_ROOT, ...parts), "utf8");
     const change = source("app", "api", "courses", "groups", "[groupId]", "session", "change", "route.ts");
-    assert.match(change, /toldFacts\(db, run, found, actor\.uid, press\.weekNumber\)/);
+    // Its week, leaving out the visitors whose visit ends with a session called off (`except`).
+    assert.match(change, /toldFacts\(db, run, found, actor\.uid, press\.weekNumber, except\)/);
     assert.match(change, /withFacilitators: true,\s*\/\/[^\n]*\n\s*weekNumber: press\.weekNumber,/);
     const cover = source("app", "api", "courses", "groups", "[groupId]", "attendance", "cover", "route.ts");
     assert.match(cover, /updateEmailAudience\(db, run, \[group\], "group", group\.id, actor\.uid, \{ weekNumber: session\.weekNumber \}\)/);
     const column = source("lib", "courses", "registerCorrection", "column.ts");
-    assert.match(column, /toldFacts\(db, run, group, actor\.uid, session\.weekNumber\)/);
-    assert.match(column, /withFacilitators: true,\s*weekNumber: session\.weekNumber,/);
+    // Its week too, and it leaves out the visitors whose visit ends with It didn't happen (`except`), as the change does.
+    assert.match(column, /toldFacts\(db, run, group, actor\.uid, session\.weekNumber, except\)/);
+    assert.match(column, /withFacilitators: true,\s*weekNumber: session\.weekNumber,\s*except,/);
     const regular = source("app", "api", "courses", "groups", "[groupId]", "session", "regular", "route.ts");
     assert.match(regular, /toldFacts\(db, run, found, actor\.uid\),/);
   });

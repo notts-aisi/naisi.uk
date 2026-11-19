@@ -1,4 +1,4 @@
-import { groupStretchesOf, type PlaceByWeek } from "../groupsByWeek";
+import { belonging, groupStretchesOf, type PlaceByWeek } from "../groupsByWeek";
 import { weeksWords } from "./words";
 
 /**
@@ -26,7 +26,8 @@ export type JoinsLater = {
  * group that week, or never in it.
  */
 export function joinsLaterOf(place: PlaceByWeek & { joinedWeekNumber?: number }, groupId: string, weekNumber: number): JoinsLater | null {
-  const stretch = groupStretchesOf(place).find((each) => each.groupId === groupId && each.fromWeek > weekNumber);
+  // The groups they BELONG to: a one-week visit is never joining a group.
+  const stretch = groupStretchesOf(belonging(place)).find((each) => each.groupId === groupId && each.fromWeek > weekNumber);
   if (!stretch) return null;
   const from = Number.isInteger(place.joinedWeekNumber) && (place.joinedWeekNumber ?? 1) > 1 ? (place.joinedWeekNumber as number) : 1;
   const weeksToRead: number[] = [];

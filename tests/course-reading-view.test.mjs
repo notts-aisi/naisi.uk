@@ -841,8 +841,19 @@ describe("8. the tree", () => {
     assert.doesNotMatch(page, /\.collection\("courseExerciseResponses"\)/);
     const loader = codeOf("lib/courses/coursework/readingLoad.ts");
     const door = loader.slice(loader.indexOf("export async function loadGroupPersonWeek("));
-    const refused = door.indexOf('if (!readable.some((owner) => owner.uid === input.uid)) return { status: "refused" };');
+    const refused = door.indexOf("if (!readable.some((owner) => owner.uid === input.uid)) {");
     assert.ok(refused !== -1 && refused < door.indexOf("readPersonWeek("), "the group's door reads a week before the one gate");
+    // Not one of the group's people: refused, or a visitor read by the host's facilitator for the visit's week alone,
+    // decided by the second answer before any week of theirs is read.
+    assert.ok(
+      door.includes('return input.facilitatesThisGroup ? loadVisitorWeek(db, actor, input, enrolments) : { status: "refused" };'),
+      "anybody but the group's facilitator is refused a person who is not one of its people",
+    );
+    const visitor = loader.slice(loader.indexOf("async function loadVisitorWeek("), loader.indexOf("export async function loadGroupPersonWeek("));
+    const asked = visitor.indexOf("hostReadsWeek(actor, seat, liveGroups, weekNumber)");
+    const refusedVisitor = visitor.indexOf('if (!seat || weeks.length === 0) return { status: "refused" };');
+    assert.ok(asked !== -1 && refusedVisitor > asked && refusedVisitor < visitor.indexOf("readPersonWeek("), "a visitor's week is read before the second answer");
+    assert.match(visitor, /hostWeek,\n  \}\);/, "the visitor's week is read as the host's, that week alone");
     assert.match(loader, /return \{ owners: reviewableIn\(actor, facts, group, owners, liveGroups\), seats, told, enrolments \};/);
     // The run's places are read once a request: the door hands what its gate read to the run-wide read.
     assert.match(loader, /readRunCoursework\(db, \{ run, liveGroups, now, enrolments: input\.enrolments \}, uid\)/);

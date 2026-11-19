@@ -386,6 +386,11 @@ const READERS = new Map([
   // last test in this block holds that), with the viewer its page or route
   // is drawn for: the committee and admins see "Priya Shah (Pri)", a lead or
   // facilitator who is not on the committee the name people go by.
+  ["src/lib/courses/facilitatorGroup.ts", {
+    who: "rule",
+    proof: ['const name = nameForViewer({ role: viewer.actor.role }, accountNamesOf(account), "NAISI member");'],
+    why: "a facilitator's own group page: somebody from another group coming to its next session for one week, named for the viewer's own role, so a facilitator who is not on the committee reads the name they go by",
+  }],
   ["src/lib/courses/registerAccess.ts", {
     who: "rule",
     proof: ['nameByUid.set(doc.id, nameForViewer(viewer, accountNamesOf(data), "NAISI member"));'],

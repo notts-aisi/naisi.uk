@@ -211,6 +211,7 @@ export const LINE_LABEL = {
   registers: "Registers",
   told: "Told",
   leftBehind: "Left behind",
+  visits: "Visits",
 } as const;
 
 /** "Group F · Thursdays, 5pm to 7pm · George Green B06 · Harriet · 5 people": one choice under "Move to". */
@@ -400,6 +401,24 @@ export function leftBehindWords(firstName: string, fromName: string, items: read
     );
   }
   return out.join(" ");
+}
+
+/**
+ * Visits, only when one is ahead from week N on: "Leo’s week 4 visit to Group
+ * F goes: from week 3 Leo is in Group F." for a visit to the group they move
+ * into, and "Leo’s week 5 visit to Group K stays." for any other. Nobody is
+ * emailed about it.
+ */
+export function visitsAheadWords(firstName: string, toName: string, weekNumber: number, items: ReadonlyArray<{ weekNumber: number; hostName: string; goes: boolean }>): string {
+  const first = line(firstName) || "Their";
+  const whose = line(firstName) ? possessive(first) : "Their";
+  return items
+    .map((item) =>
+      item.goes
+        ? `${whose} week ${item.weekNumber} visit to ${groupName(item.hostName)} goes: from week ${weekNumber} ${line(firstName) || "they"} is in ${groupName(toName)}.`
+        : `${whose} week ${item.weekNumber} visit to ${groupName(item.hostName)} stays.`,
+    )
+    .join(" ");
 }
 
 // ---------------------------------------------------------------------------

@@ -56,7 +56,8 @@ import { COURSE_AUDIT_COLLECTION } from "./courseAudit";
 import { withoutMoveReason } from "@/lib/courses/staffMove/words";
 
 /** The History rows a move to another group mid-term writes, one on each group (`saveMove`). */
-const MOVED_KIND = "member-moved";
+/** The History kinds whose optional "Why" is a note about the person: a move for good, and a one-week visit. */
+const MOVED_KINDS = new Set(["member-moved", "member-visits"]);
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -222,6 +223,13 @@ export type AccountDeletionSummary = {
    * markers are.
    */
   courseHandRemindersDeleted: number;
+  /**
+   * Each week's claim on this account's "Week N is open" (`courseNudges`,
+   * kind `week-open-person`, `wkopen__<run>__<uid>__<week>`), which says
+   * which group's send emailed them. Deleted: each is about this account's
+   * email alone. A run's destroy drains them with the rest of the run's markers.
+   */
+  courseWeekEmailClaimsDeleted: number;
   /**
    * Feedback (`courseFeedback`): every piece on this account's work, and
    * every piece it wrote on somebody else's, deleted (a piece is shown signed
@@ -1001,11 +1009,12 @@ export async function clearExplainerNames(db: Firestore, uid: string): Promise<n
 
 /**
  * Take the reason off every History row about this account's moves to
- * another group mid-term (`courseAudit`, kind `member-moved`, `subjectUid`
- * this account), found by the one equality on `subjectUid`: the optional
- * "Why" staff gave is a note about this person, in the row's own field and at
- * the end of its sentence (`withoutMoveReason`). The rows stay, as every
- * History row does: a move still reads on both groups' History, without why.
+ * another group mid-term and its one-week visits to another group's session
+ * (`courseAudit`, kinds `member-moved` and `member-visits`, `subjectUid` this
+ * account), found by the one equality on `subjectUid`: the optional "Why"
+ * staff gave is a note about this person, in the row's own field and at the
+ * end of its sentence (`withoutMoveReason`). The rows stay, as every History
+ * row does: a move or a visit still reads on both groups' History, without why.
  * Counted once per row changed.
  */
 export async function clearMoveReasons(db: Firestore, uid: string): Promise<number> {
@@ -1013,7 +1022,7 @@ export async function clearMoveReasons(db: Firestore, uid: string): Promise<numb
   let cleared = 0;
   for (const doc of snap.docs) {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
-    if (data.kind !== MOVED_KIND) continue;
+    if (typeof data.kind !== "string" || !MOVED_KINDS.has(data.kind)) continue;
     const reason = typeof data.reason === "string" ? data.reason : null;
     const detail = typeof data.detail === "string" ? data.detail : "";
     const cut = withoutMoveReason(detail, reason);
@@ -1104,6 +1113,24 @@ export async function deleteCourseWeekWork(db: Firestore, uid: string): Promise<
 export async function deleteCourseHandReminders(db: Firestore, uid: string): Promise<number> {
   const snap = await db.collection(HAND_REMINDERS_COLLECTION).where("uid", "==", uid).get();
   const mine = snap.docs.filter((doc) => (doc.data() ?? {}).kind === HAND_REMINDER_KIND);
+  for (let at = 0; at < mine.length; at += 400) {
+    const batch = db.batch();
+    for (const doc of mine.slice(at, at + 400)) batch.delete(doc.ref);
+    await batch.commit();
+  }
+  return mine.length;
+}
+
+/**
+ * Delete this account's claims on each week's "Week N is open" (`courseNudges`,
+ * kind `week-open-person`, written by `src/lib/courses/nextWeekEmail.ts`), on
+ * every run. Found by the one equality on `uid` and told apart by their kind,
+ * as the reminders by hand are: the other records in the collection that
+ * carry a `uid` are not this sweep's.
+ */
+export async function deleteWeekEmailClaims(db: Firestore, uid: string): Promise<number> {
+  const snap = await db.collection("courseNudges").where("uid", "==", uid).get();
+  const mine = snap.docs.filter((doc) => (doc.data() ?? {}).kind === "week-open-person");
   for (let at = 0; at < mine.length; at += 400) {
     const batch = db.batch();
     for (const doc of mine.slice(at, at + 400)) batch.delete(doc.ref);
@@ -1905,6 +1932,7 @@ export async function deleteAccountCascade(
     courseWeekWorkDeleted: 0,
     courseWorkLogDeleted: 0,
     courseHandRemindersDeleted: 0,
+    courseWeekEmailClaimsDeleted: 0,
     courseFeedbackDeleted: 0,
     courseFeedbackCleared: 0,
     courseWorkRatingsDeleted: 0,
@@ -2405,6 +2433,15 @@ export async function deleteAccountCascade(
     summary.courseHandRemindersDeleted = await deleteCourseHandReminders(db, uid);
   } catch (err) {
     console.error("[deleteAccount] course hand reminders delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c, AND "WEEK N IS OPEN" CLAIMS. Which group's send emailed this account each
+  //      week is about its email alone, and goes with it.
+  try {
+    summary.courseWeekEmailClaimsDeleted = await deleteWeekEmailClaims(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] week email claims delete failed:", uid, err);
     partialFailure = true;
   }
 

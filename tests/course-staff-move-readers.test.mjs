@@ -825,8 +825,8 @@ const COPY_READERS = {
     why: "the earlier weeks Week N is open names as not done are judged for each person on the copy they read that week (copyGroupOf), never the group's own for a week they spent elsewhere",
   },
   "lib/scheduler/jobs/weekReminders.ts": {
-    kind: "group",
-    why: "the reminders before a session read the group's copy of each week the session covers, for only the people whose week it was the group's (belongsTo), so the copy read is theirs; a covered week somebody spent elsewhere is not this session's work",
+    kind: "person",
+    why: "the reminders before a session read each week the session covers on the copy each person works in that week (copyGroupOf), for only the people whose work for it is due at this session (dueWith); a covered week somebody spent elsewhere is not this session's work, and a visitor is judged on their own group's copy, never the host's",
   },
   "app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts": { kind: "person", why: "a fill-in box is saved against the copy of that week the person works in" },
   "app/api/courses/runs/[runId]/overview/route.ts": { kind: "person", why: "the member's own weeks, each on the copy they work in, named to the browser in forkedWeekGroups" },
@@ -860,11 +860,11 @@ const COPY_READERS = {
   "lib/courses/getReady/read.ts": { kind: "group", why: "getting ready reads the run's own week 1, no group's copy and no person's week, so a move changes nothing it reads" },
   "lib/courses/groupWeekWork/load.ts": {
     kind: "group",
-    why: "a group's This week's work and Remind for one week read the group's copy and list only the people whose place belonged to the group that week (belongsTo), so the copy read is theirs",
+    why: "a group's This week's work and Remind for one week read the group's copy and list only the people whose place belonged to the group that week (belongsTo), so the copy read is theirs; a visitor's row is judged on the copy of the group they belong to (copyGroupOf), never the host's",
   },
   "lib/courses/nextWeekEmail.ts": {
     kind: "group",
-    why: "Week N is open reads the group's copy of week N and reaches only the people whose group for week N is the group (the notice audience asked for the week), so it is their copy; their earlier weeks are judged one by one in groupWeekWork/earlier.ts",
+    why: "Week N is open reads the group's copy of week N and reaches only the people whose group for week N is the group (the notice audience asked for the week), so it is their copy, but for a visitor, whose words are read from the copy of the group they belong to that week (copyGroupIdFor); their earlier weeks are judged one by one in groupWeekWork/earlier.ts",
   },
   "lib/courses/packsAndCases/readers.ts": {
     kind: "group",
@@ -884,7 +884,10 @@ const COPY_READERS = {
     kind: "person",
     why: "the run's questions for Claude and Pangram are read from the run's copy and every live group's, keyed by question, so an answer is gathered under its own question whichever copy asked it; a question only the own copy of a group archived since asks is gathered only for the people whose own record names that group for its week (copyGroupIdFor)",
   },
-  "lib/courses/facilitatorWeek/readers.ts": { kind: "group", why: "a group's week as its facilitators and the programme's lead read it, across the group's people, is the group's own copy" },
+  "lib/courses/facilitatorWeek/readers.ts": {
+    kind: "group",
+    why: "a group's week as its facilitators and the programme's lead read it, across the group's people, is the group's own copy; a visitor from another group's row is judged on the copy of the group they belong to that week (copyGroupIdFor), never the host's",
+  },
   "lib/courses/pitching/load.ts": { kind: "group", why: "pitching week is worked in the group somebody is in now, on that group's copy" },
   "lib/courses/programmeOverview.ts": { kind: "group", why: "the Overview's titles and each group's next week are the run's or that group's copy; no person's week is read" },
   "lib/courses/writtenAnswers/reviewPage.ts": {

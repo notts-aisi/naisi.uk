@@ -36,6 +36,12 @@ export type LineSheetTarget = {
   setBy: { name: string; at: string; how?: string; yours?: boolean } | null;
   story: P.StoryView | null;
   request: P.RequestView | null;
+  /**
+   * A visitor's line, on the host's register (a one-week visit): the
+   * paragraph under the request, saying where their week lives. Absent for
+   * everybody else.
+   */
+  visitorNote?: string;
 };
 
 export default function LineSheet({
@@ -223,6 +229,11 @@ export default function LineSheet({
                 )}
               </div>
               <p className={styles.footLine}>{correcting ? P.correctGoesWords(person.name) : P.askGoesWords(person.name)}</p>
+              {target.visitorNote && (
+                <p className={styles.footLine}>
+                  {target.visitorNote}
+                </p>
+              )}
             </>
           )}
 
