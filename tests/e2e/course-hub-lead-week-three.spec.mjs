@@ -920,7 +920,9 @@ test(
           };
           const session = sessionNow(whole, thisWeek, now);
           const day = session.dateKey === todayKey ? "Today" : session.dateKey === tomorrowKey ? "Tomorrow" : londonDayLabel(session.startsAt);
-          const row = table.getByRole("row").filter({ has: table.getByRole("link", { name: whole.name, exact: true }) });
+          // The inner locator is asked inside each row, so it is rooted at the page, not the table.
+          const row = table.getByRole("row").filter({ has: adminPage.getByRole("link", { name: whole.name, exact: true }) });
+          await row.getByRole("cell").first().waitFor({ timeout: WAIT_MS });
           assert.deepEqual(
             await textsOf(row.getByRole("cell")),
             [
