@@ -1,7 +1,8 @@
 import "server-only";
 import { MAX_OWN } from "@/lib/courses/excused/ask";
 import { normalizeExcusedRequest, type ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
-import { requestStandingOf, weeksAbout } from "@/lib/courses/excused/model";
+import { excusalStandsFor } from "@/lib/courses/excused/marking";
+import { factOf, requestStandingOf, weeksAbout } from "@/lib/courses/excused/model";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
 import type { DocumentReference, DocumentSnapshot, Firestore, Query, QuerySnapshot, Transaction } from "firebase-admin/firestore";
 import { firstNameOfUser, fullNameOfUser, readNamingProgramme, standingUserOf } from "@/lib/courses/programmeLead";
@@ -455,6 +456,20 @@ export function replaceableVisit(facts: Pick<VisitFacts, "run" | "registers" | "
   return hostHappeningIn(facts, host, weekNumber).happening ? null : { host };
 }
 
+/**
+ * Whether an excusal stands for the person on their own group's session that
+ * week (`excusalStandsFor`, the register's own rule: an approved request, a
+ * line that says excused, or one kept beside a mark that says they came).
+ * Then "with Group B as usual" is untrue, and is left out where a visit ends.
+ */
+export function excusedAtHomeIn(facts: Pick<VisitFacts, "run" | "groups" | "place" | "registers" | "requests">, weekNumber: number): boolean {
+  const own = ownSessionIn(facts, weekNumber);
+  if (!own) return false;
+  const register = registerOf(facts, facts.run.id, own.home.id, own.session);
+  const approved = factOf(weeksAbout(facts.requests, facts.place.uid, own.session.sessionKey, { groupId: own.home.id, visiting: false })) === "excused";
+  return excusalStandsFor({ approved, mark: register?.records[facts.place.uid] ?? null, kept: Boolean(register && Object.hasOwn(register.excusalKept, facts.place.uid)) });
+}
+
 /** The marks that say somebody came: in the room, online, late, left early. */
 const CAME = new Set(["present", "late", "left-early"]);
 
@@ -724,6 +739,8 @@ export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: bool
           weekNumber,
           hostHappening: happening,
           hostClosed: host.archived || hostStart === null || now.getTime() >= hostStart.getTime(),
+          // Their card asks to be excused unless they facilitate their own group (`ticketEntryOf`'s instant).
+          cardAsks: !home.facilitatorUids.includes(facts.place.uid),
         })
       : tooLateToCancelWords(closedBy.name);
   const recipients = visitRecipients({
@@ -735,10 +752,11 @@ export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: bool
     actorUid,
   });
   const ownWhen = own ? { dateKey: own.session.dateKey, startTimeLocal: own.session.session.startTimeLocal } : null;
+  const excusedAtHome = excusedAtHomeIn(facts, weekNumber);
   const emailFor = (recipient: VisitRecipient): VisitEmailWords =>
     recipient.as === "person"
-      ? calledOffPersonEmailWords({ hostName: host.name, homeName: home.name, weekNumber, hostDateKey: hostSession?.dateKey ?? "", own: ownWhen })
-      : calledOffEmailWords({ personName: facts.person.name, hostName: host.name, homeName: home.name, weekNumber });
+      ? calledOffPersonEmailWords({ hostName: host.name, homeName: home.name, weekNumber, hostDateKey: hostSession?.dateKey ?? "", own: ownWhen, excusedAtHome })
+      : calledOffEmailWords({ personName: facts.person.name, hostName: host.name, homeName: home.name, weekNumber, excusedAtHome });
   const standing: VisitStandingView = {
     weekNumber,
     hostGroupId: host.id,

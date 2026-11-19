@@ -107,6 +107,8 @@ export type ExcusedRequestPageView = {
   id: string;
   kind: "excused";
   status: CourseRequestStatus;
+  /** Withdrawn because the visit it was about ended, by whoever ended it, never by the person. */
+  withdrawnWithVisit: boolean;
   askedAt: string | null;
   subject: Named;
   programme: { roundId: string | null; programmeId: string | null; name: string };
@@ -367,6 +369,7 @@ export async function loadExcusedRequestPage(
       runId: run.id,
       group: { id: group.id, name: group.name.trim() || "Untitled group" },
       facilitators: standing.map((each) => ({ uid: each.uid, name: each.name })),
+      withdrawnWithVisit: request.withdrawnWithVisit,
       reason: request.reason,
       confirmed: request.confirmed
         ? { at: request.confirmed.at ? request.confirmed.at.toISOString() : null, ownOnline: request.confirmed.ownOnline }

@@ -183,13 +183,15 @@ export function cancelQuestionWords(input: {
   /** Their own group's session that week, or null with none. */
   own: { dateKey: string; startTimeLocal: string } | null;
   toldFirstNames: readonly string[];
+  /** An excusal stands for their own group's session that week: the "as usual" sentence is untrue and left out. */
+  excusedAtHome?: boolean;
 }): string {
   const day = dayWords(input.hostDateKey);
   const own = input.own ? startWords(input.own.dateKey, input.own.startTimeLocal) : "";
   const names = andList(input.toldFirstNames);
   return [
     `Cancel your visit to ${groupName(input.hostName)}${day ? ` on ${day}` : ""}?`,
-    own ? `You’ll be with ${groupName(input.homeName)} as usual: ${own}.` : `You’ll be with ${groupName(input.homeName)} as usual.`,
+    input.excusedAtHome ? "" : own ? `You’ll be with ${groupName(input.homeName)} as usual: ${own}.` : `You’ll be with ${groupName(input.homeName)} as usual.`,
     names ? `${names} ${input.toldFirstNames.filter((name) => line(name)).length === 1 ? "is" : "are"} told.` : "",
   ]
     .filter(Boolean)
@@ -200,8 +202,9 @@ export const CANCEL_THE_VISIT = "Cancel the visit";
 export const KEEP_IT = "Keep it";
 
 /** After cancelling: "You cancelled your visit to Group I. You’re with Group C as usual on Thu 12 Nov, 3pm." */
-export function cancelledWords(input: { hostName: string; homeName: string; own: { dateKey: string; startTimeLocal: string } | null }): string {
+export function cancelledWords(input: { hostName: string; homeName: string; own: { dateKey: string; startTimeLocal: string } | null; excusedAtHome?: boolean }): string {
   const own = input.own ? startWords(input.own.dateKey, input.own.startTimeLocal) : "";
+  if (input.excusedAtHome) return `You cancelled your visit to ${groupName(input.hostName)}.`;
   return `You cancelled your visit to ${groupName(input.hostName)}. ${
     own ? `You’re with ${groupName(input.homeName)} as usual on ${own}.` : `You’re with ${groupName(input.homeName)} as usual.`
   }`;
@@ -340,12 +343,17 @@ export function homeEmailWords(facts: VisitEmailFacts): VisitEmailWords {
 }
 
 /** To both groups' facilitators, when a visit is called off: "Daniel Kim’s visit to Group I for week 2 is off". No greeting. */
-export function calledOffEmailWords(input: { personName: string; hostName: string; homeName: string; weekNumber: number }): VisitEmailWords {
+export function calledOffEmailWords(input: { personName: string; hostName: string; homeName: string; weekNumber: number; excusedAtHome?: boolean }): VisitEmailWords {
   const person = line(input.personName) || "Somebody";
   const host = groupName(input.hostName);
   return {
     subject: `${possessive(person)} visit to ${host} for week ${input.weekNumber} is off`,
-    lines: [`${person} is no longer coming to ${possessive(host)} week ${input.weekNumber} session, and will be at ${possessive(groupName(input.homeName))} as usual.`],
+    // Excused from their own group's session that week: "as usual" is untrue there, and left out.
+    lines: [
+      input.excusedAtHome
+        ? `${person} is no longer coming to ${possessive(host)} week ${input.weekNumber} session.`
+        : `${person} is no longer coming to ${possessive(host)} week ${input.weekNumber} session, and will be at ${possessive(groupName(input.homeName))} as usual.`,
+    ],
     button: "Open your group",
     footnote: "This is an automated email.",
   };
@@ -358,16 +366,19 @@ export function calledOffPersonEmailWords(input: {
   weekNumber: number;
   hostDateKey: string;
   own: { dateKey: string; startTimeLocal: string } | null;
+  /** Excused from their own group's session that week: the "as usual" sentence is left out. */
+  excusedAtHome?: boolean;
 }): VisitEmailWords {
   const host = groupName(input.hostName);
   const day = dayWords(input.hostDateKey);
   const own = input.own ? startWords(input.own.dateKey, input.own.startTimeLocal) : "";
+  const cancelled = `Your visit to ${possessive(host)} session${day ? ` on ${day}` : ""} has been cancelled.`;
   return {
     subject: `Your visit to ${host} for week ${input.weekNumber} is off`,
     lines: [
-      `Your visit to ${possessive(host)} session${day ? ` on ${day}` : ""} has been cancelled. ${
-        own ? `You’re with ${groupName(input.homeName)} as usual on ${own}.` : `You’re with ${groupName(input.homeName)} as usual.`
-      }`,
+      input.excusedAtHome
+        ? cancelled
+        : `${cancelled} ${own ? `You’re with ${groupName(input.homeName)} as usual on ${own}.` : `You’re with ${groupName(input.homeName)} as usual.`}`,
     ],
     button: "Open your programme page",
     footnote: "",
@@ -689,6 +700,8 @@ export function ownStartedCallOffWords(input: {
   hostHappening: boolean;
   /** The host's session has started, or its group no longer meets: no advice. */
   hostClosed: boolean;
+  /** Whether their programme page's visit card offers Can't make it (not where theirs is instant): else that clause is left out. */
+  cardAsks: boolean;
 }): string {
   const { firstName, weekNumber } = input;
   const who = firstName || "them";
@@ -696,6 +709,7 @@ export function ownStartedCallOffWords(input: {
   if (!input.hostHappening) return `${opening} The visit stays, and week ${weekNumber} isn’t counted for ${who}.`;
   if (input.hostClosed) return `${opening} The visit can no longer be cancelled.`;
   const host = possessive(groupName(input.hostName));
+  if (!input.cardAsks) return `${opening} The visit stays. If ${firstName || "they"} can’t go to ${host} session, an admin can mark ${who} excused on ${host} register.`;
   return `${opening} The visit stays. If ${firstName || "they"} can’t go to ${host} session, ${firstName || "they"} can say so with Can’t make it on the visit card, or an admin can mark ${who} excused on ${host} register.`;
 }
 
@@ -736,14 +750,13 @@ export function visitsOffFailedWords(failed: number): string {
 export const VISITS_CHANGED_WORDS = "Who is visiting this session has changed since the page was opened. Check it, then press again.";
 
 /**
- * Staff-facing, after calling off a session somebody was visiting: "1 person
- * visiting it was told their visit is off: 2 emails sent." with, when one
- * could not be sent, `visitsOffFailedWords`.
+ * Staff-facing, after calling off a session somebody was visiting: "1 visit
+ * to it ended: 2 emails sent." with, when one could not be sent,
+ * `visitsOffFailedWords`. Never "was told" of an email that did not go.
  */
 export function visitsOffDoneWords(people: number, sent: number, failed: number): string {
-  const who = people === 1 ? "1 person visiting it was" : `${people} people visiting it were`;
-  const told = `${who} told their visit is off: ${sent === 1 ? "1 email" : `${sent} emails`} sent.`;
-  return failed > 0 ? `${told} ${visitsOffFailedWords(failed)}` : told;
+  const ended = `${people === 1 ? "1 visit" : `${people} visits`} to it ended: ${sent === 1 ? "1 email" : `${sent} emails`} sent.`;
+  return failed > 0 ? `${ended} ${visitsOffFailedWords(failed)}` : ended;
 }
 
 /** Staff-facing, the preview's first line when a visit replaces one to a session not happening: "This replaces Chloe’s visit to Group A’s session that week, which is not happening." */

@@ -428,7 +428,8 @@ describe("11. a host session called off or archived, the person leaving, and the
     const audience = await resolveNoticeAudience(world.courseDb, RUN.agi, { logTag: "test", channelCategory: "courses" }, { groupId: A, weekNumber: 4 });
     assert.ok(audience.members.some((member) => member.uid === "chloe"));
     const off = await call("sofia", changeRoute.POST, { groupId: A }, {
-      body: { week: 4, dateKey: "2026-11-19", kind: "cancel", reason: "Sofia is away.", tell: false },
+      // The visit emails the preview said: Chloe and Rahul.
+      body: { week: 4, dateKey: "2026-11-19", kind: "cancel", reason: "Sofia is away.", tell: false, visitEmails: 2 },
       course: true,
     });
     assert.equal(off.status, 200, JSON.stringify(off.body));

@@ -28,6 +28,9 @@ const { loadRegisterMembers } = await w.loadTs(join("lib", "courses", "registerA
 const { resolveNoticeAudience } = await w.loadTs(join("lib", "email", "courseFacilitatorEmails.ts"));
 const cancelRoute = await w.courseRoute("runs", "[runId]", "visit", "cancel");
 const askRoute = await w.courseRoute("groups", "[groupId]", "excused");
+const { excusedFor } = await w.loadTs(join("lib", "courses", "excused", "own.ts"));
+const { normalizeCourseRun } = await w.loadTs(join("lib", "firestore", "courses.ts"));
+const { normalizeCourseGroup } = await w.loadTs(join("lib", "firestore", "courseGroups.ts"));
 const pushRoute = await w.courseRoute("groups", "[groupId]", "attendance", "push");
 const register = await w.courseRoute("groups", "[groupId]", "attendance");
 const { readVisitFacts, dbReader, weekChoices, standingVisits } = await w.loadTs(join("lib", "courses", "visit", "plan.ts"));
@@ -44,7 +47,14 @@ async function arrange(uid, weekNumber, hostGroupId) {
   assert.equal(saved.status, 200, JSON.stringify(saved.body));
 }
 const DATE = { [A]: "2026-11-19", [C]: "2026-11-25" };
-const change = (who, groupId, body) => call(who, changeRoute.POST, { groupId }, { body: { week: 4, dateKey: DATE[groupId], kind: "cancel", reason: "Away that week.", ...body }, course: true });
+/** Change a session as the panel presses it: a press sends the visit emails its preview said (`visitEmails`). */
+async function change(who, groupId, body) {
+  const base = { week: 4, dateKey: DATE[groupId], kind: "cancel", reason: "Away that week.", ...body };
+  if (base.preview || base.visitEmails !== undefined || (base.kind !== "cancel" && base.kind !== "push")) return call(who, changeRoute.POST, { groupId }, { body: base, course: true });
+  const shown = await call(who, changeRoute.POST, { groupId }, { body: { ...base, preview: true }, course: true });
+  const visitEmails = shown.body?.preview?.visitsOff?.emails ?? 0;
+  return call(who, changeRoute.POST, { groupId }, { body: { ...base, ...(visitEmails > 0 ? { visitEmails } : {}) }, course: true });
+}
 const rowsOf = async (groupId, forWeek) => (await loadRegisterMembers(world.courseDb, RUN.agi, groupId, { isAdmin: true }, forWeek)).members.map((row) => row.uid);
 const mailTo = (uid) => world.mail.filter((message) => message.to.startsWith(`${uid}@`)).map((message) => message.subject);
 const historyOf = (groupId) => world.db.paths().filter((path) => path.startsWith("courseAudit/")).map(read).filter((row) => row.kind === "member-visit-off" && row.groupId === groupId);
@@ -296,5 +306,68 @@ describe("6. excused from her own week 4 by an admin, then a visit to Group A", 
     const tab = w.lib.attendance.buildRunAttendance(await w.lib.attendance.readRunRecords(world.courseDb, RUN.agi), { isAdmin: true }, new Date());
     const cell = tab.groups.find((group) => group.id === B).people.find((person) => person.uid === "chloe").cells.find((each) => each.weekNumber === 4);
     assert.deepEqual([cell.state, cell.mark], ["mark", "present"]);
+  });
+});
+
+describe("7. a request withdrawn because its visit ended is not on her own list", () => {
+  const ownList = async () => {
+    const groups = [A, B, C, D].map((id) => normalizeCourseGroup(id, read(`courseGroups/${id}`)));
+    const own = await excusedFor(world.courseDb, { user: w.sessionOf("chloe"), run: normalizeCourseRun(RUN.agi, read(`courseRuns/${RUN.agi}`)), enrolment: seat("chloe"), groups, now: new Date() });
+    return own.requests.map((request) => request.id);
+  };
+  const askA = () => call("chloe", askRoute.POST, { groupId: A }, { body: { sessionKeys: ["w04"], reason: "A family wedding that weekend.", inPerson: true, ownOnline: true, otherOnline: true }, course: true });
+
+  test("staff end the visit: the request is withdrawn with the visit, marked so, and left off her own list", async () => {
+    await arrange("chloe", 4, A);
+    assert.equal((await askA()).status, 200);
+    assert.equal((await ownList()).length, 1);
+    assert.equal((await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: 3 })).status, 200);
+    const stored = world.db.paths().filter((path) => /^courseRequests\/[^/]+$/.test(path)).map(read)[0];
+    assert.equal(stored.withdrawnWithVisit, true);
+    assert.deepEqual(await ownList(), []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Excused at home when the visit ends; the count at the press; the notes
+// ---------------------------------------------------------------------------
+
+describe("8. the third and fourth items, and the notes", () => {
+  const said = (uid) => JSON.stringify(world.mail.filter((message) => message.to.startsWith(`${uid}@`)));
+
+  test("excused from her own week 4 at home: no \"as usual\" in her email, her facilitator's, her card's question or its done line", async () => {
+    assert.equal((await call("zach", register.POST, { groupId: B }, { body: { weekNumber: 4, marks: [{ uid: "chloe", status: "excused" }] }, course: true })).status, 200);
+    await arrange("chloe", 4, A);
+    const card = (await call("chloe", w.routes.overview.GET, { runId: RUN.agi }, { course: true })).body.visits[0];
+    assert.doesNotMatch(card.cancel.question, /as usual/);
+    assert.equal(card.cancel.done, "You cancelled your visit to Group A.");
+    world.mail.length = 0;
+    assert.equal((await change("sofia", A, { tell: false })).status, 200);
+    assert.match(said("chloe"), /has been cancelled\./);
+    assert.doesNotMatch(said("chloe"), /as usual/);
+    assert.match(said("rahul"), /is no longer coming to Group A’s week 4 session\./);
+    assert.doesNotMatch(said("rahul"), /as usual/);
+  });
+
+  test("the visit emails the press was shown are checked in its transaction: a different number refuses, nothing written", async () => {
+    await arrange("chloe", 4, A);
+    const pressed = await call("sofia", changeRoute.POST, { groupId: A }, { body: { week: 4, dateKey: DATE[A], kind: "cancel", reason: "Away.", tell: false, visitEmails: 1 }, course: true });
+    assert.deepEqual([pressed.status, pressed.body.visitEmails], [409, 2]);
+    assert.equal(seat("chloe").visits.length, 1);
+  });
+
+  test("called off before it starts: her own words on the host's register come off; the done line never says told; the presser is counted per visit", async () => {
+    await arrange("chloe", 4, A);
+    await arrange("farah", 4, A);
+    const online = await w.courseRoute("groups", "[groupId]", "joining-online");
+    const said = await call("chloe", online.POST, { groupId: A }, { body: { sessionKey: "w04", online: true }, course: true });
+    assert.equal(said.status, 200, JSON.stringify(said.body));
+    assert.equal(Object.hasOwn(read(`courseAttendance/${RUN.agi}__${A}__w04`)?.onlineSaid ?? {}, "chloe"), true);
+    const before = read("courseNudges/emailrate__visitpresser__zach")?.count ?? 0;
+    const pressed = await change("sofia", A, { tell: false });
+    assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
+    assert.equal(Object.hasOwn(read(`courseAttendance/${RUN.agi}__${A}__w04`)?.onlineSaid ?? {}, "chloe"), false);
+    assert.equal(read("courseNudges/emailrate__visitpresser__sofia").count, 2);
+    assert.equal(read("courseNudges/emailrate__visitpresser__zach")?.count ?? 0, before);
   });
 });

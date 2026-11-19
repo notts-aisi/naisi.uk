@@ -721,6 +721,7 @@ export async function withdrawVisitRequestsIn(
         "change.weeks": weeks.map(storedWeek),
         ...requestFields(weeks, input.now),
         history,
+        withdrawnWithVisit: true,
         updatedAt: input.now,
       });
     }

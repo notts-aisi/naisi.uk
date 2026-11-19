@@ -11,6 +11,9 @@ import { ownGroupForWeek, type CourseEnrolmentDoc } from "@/lib/firestore/course
 import { campusForWeek, sessionForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { sessionsWithGroup } from "../groupsByWeek";
+import { ownRequestsIn } from "../excused/ask";
+import { excusalStandsFor } from "../excused/marking";
+import { factOf, weeksAbout } from "../excused/model";
 import { cancelDeadline, ownSessionThatWeek, visitRecipients } from "./plan";
 import type { OverviewVisit, OverviewVisitReaders } from "./view";
 import { hostReadsWeek } from "./reading";
@@ -97,6 +100,24 @@ export async function ownVisitsOf(
     accounts.set(snap.id, data);
     firstNames.set(snap.id, firstNameOfUser(data));
   }
+  // Whether an excusal stands for their own group's session of each visit's
+  // week: then the "as usual" sentences of the question and the done line are
+  // left out (the register's own rule, `excusalStandsFor`).
+  const ownRefs = shown.map((each) => (each.own ? db.collection("courseAttendance").doc(attendanceDocId(run.id, each.home.id, each.own.weekNumber, each.own.occurrence)) : null));
+  const presentRefs = ownRefs.filter((ref): ref is NonNullable<typeof ref> => ref !== null);
+  const [ownSnaps, requests] = await Promise.all([
+    presentRefs.length ? db.getAll(...presentRefs) : Promise.resolve([]),
+    ownRequestsIn(null, db, place.uid, run.id),
+  ]);
+  const excusedAtHome = new Map<number, boolean>();
+  for (const each of shown) {
+    if (!each.own) continue;
+    const id = attendanceDocId(run.id, each.home.id, each.own.weekNumber, each.own.occurrence);
+    const snap = ownSnaps.find((one) => one.id === id);
+    const register = snap?.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}) : null;
+    const approved = factOf(weeksAbout(requests, place.uid, each.own.sessionKey, { groupId: each.home.id, visiting: false })) === "excused";
+    excusedAtHome.set(each.weekNumber, excusalStandsFor({ approved, mark: register?.records[place.uid] ?? null, kept: Boolean(register && Object.hasOwn(register.excusalKept, place.uid)) }));
+  }
   const firstOf = (uids: readonly string[]) => uids.filter((uid) => uid !== actor.uid).map((uid) => firstNames.get(uid) ?? "").filter(Boolean);
   // "... are told": exactly the people the person's own cancel emails (`visitRecipients`), their own group's first.
   const toldOf = (host: CourseGroupDoc, home: CourseGroupDoc) => {
@@ -138,8 +159,8 @@ export async function ownVisitsOf(
         until && (!earlierStart || now.getTime() < earlierStart.getTime())
           ? {
               until: cancelUntilWords(until, told),
-              question: cancelQuestionWords({ hostName: host.name, hostDateKey: session.dateKey, homeName: home.name, own: ownWhen, toldFirstNames: told }),
-              done: cancelledWords({ hostName: host.name, homeName: home.name, own: ownWhen }),
+              question: cancelQuestionWords({ hostName: host.name, hostDateKey: session.dateKey, homeName: home.name, own: ownWhen, toldFirstNames: told, excusedAtHome: excusedAtHome.get(weekNumber) === true }),
+              done: cancelledWords({ hostName: host.name, homeName: home.name, own: ownWhen, excusedAtHome: excusedAtHome.get(weekNumber) === true }),
             }
           : null,
       hostFacilitatorFirstNames: firstOf(host.facilitatorUids),

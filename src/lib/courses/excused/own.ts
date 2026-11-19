@@ -295,7 +295,11 @@ export async function excusedFor(
     };
   });
 
+  // A request withdrawn because the visit it was about ended was not withdrawn
+  // by them, and no words say so: it is left off their own list (staff read it
+  // in its history on the Requests page).
   const own: OwnExcusedRequest[] = [...requests]
+    .filter((request) => !(request.withdrawnWithVisit && request.status === "withdrawn"))
     .sort((a, b) => (b.askedAt?.getTime() ?? 0) - (a.askedAt?.getTime() ?? 0))
     .slice(0, OWN_LIST)
     .map((request: ExcusedRequestDoc) => ({

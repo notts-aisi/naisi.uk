@@ -9,7 +9,12 @@ import { courseEnrolmentId, normalizeCourseEnrolment, ownGroupForWeek, placement
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { withdrawVisitRequestsIn } from "@/lib/courses/excused/decide";
-import { visitLimitsIn } from "./limits";
+import { visitsLimitsIn } from "./limits";
+import { excusalStandsFor } from "@/lib/courses/excused/marking";
+import { factOf, weeksAbout } from "@/lib/courses/excused/model";
+import { standingRequestsIn } from "@/lib/courses/excused/standing";
+import { ONLINE_SAID, attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
+import { writeTakenBack, type SessionLine } from "@/lib/courses/cantMakeIt/seat";
 import { ownSessionThatWeek, visitRecipients, type VisitRecipient } from "./plan";
 import { sendAll, type VisitSaveAnswer } from "./save";
 import { calledOffDetail, calledOffEmailWords, calledOffPersonEmailWords, visitsOffPreviewWords } from "./words";
@@ -26,7 +31,7 @@ import { calledOffDetail, calledOffEmailWords, calledOffPersonEmailWords, visits
  * STANDS, uncounted, and can be replaced by staff (`./plan.ts`).
  *
  * ORDER: the visits are read, and the limits on these emails read and claimed
- * (`visitLimitsIn`, one press per visit ended), inside the change's own
+ * (`visitsLimitsIn`: each person's counter, and the presser's once per visit ended), inside the change's own
  * transaction, before it writes; past a limit the whole change is refused and
  * nothing is written. The visits end in that same transaction, so the session
  * is never called off with such a visit standing. The emails go after the
@@ -42,6 +47,8 @@ export type EndingVisit = {
   home: CourseGroupDoc;
   recipients: VisitRecipient[];
   ownWhen: { dateKey: string; startTimeLocal: string } | null;
+  /** An excusal stands for their own group's session that week: the "as usual" sentences are left out. */
+  excusedAtHome: boolean;
 };
 
 /** Where the visits read are: the reads of a transaction, or of the database. */
@@ -95,7 +102,15 @@ export async function visitsEndingWith(
   });
   if (candidates.length === 0) return [];
   const accounts = await reads.users(candidates.flatMap(({ place, home }) => [place.uid, ...home.facilitatorUids]));
-  return candidates.map(({ place, home, own }) => {
+  // Whether an excusal stands at home: their own register that week, and their requests on the run.
+  const registerRefs = candidates.map(({ home, own }) => db.collection("courseAttendance").doc(attendanceDocId(input.run.id, home.id, own.weekNumber, own.occurrence)));
+  const registerSnaps = input.tx ? await input.tx.getAll(...registerRefs) : await db.getAll(...registerRefs);
+  const requestsOf = await Promise.all(candidates.map(({ place }) => standingRequestsIn(input.tx ?? null, db, place.uid, input.run.id)));
+  return candidates.map(({ place, home, own }, at) => {
+    const snap = registerSnaps[at];
+    const register = snap?.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}) : null;
+    const approved = factOf(weeksAbout(requestsOf[at], place.uid, own.sessionKey, { groupId: home.id, visiting: false })) === "excused";
+    const excusedAtHome = excusalStandsFor({ approved, mark: register?.records[place.uid] ?? null, kept: Boolean(register && Object.hasOwn(register.excusalKept, place.uid)) });
     const data = accounts.get(place.uid);
     const person = {
       uid: place.uid,
@@ -111,6 +126,7 @@ export async function visitsEndingWith(
       home,
       recipients,
       ownWhen: { dateKey: own.dateKey, startTimeLocal: own.session.startTimeLocal },
+      excusedAtHome,
     };
   });
 }
@@ -134,12 +150,26 @@ export async function endVisitsIn(
   input: { run: CourseRunDoc; host: CourseGroupDoc; weekNumber: number; ending: readonly EndingVisit[]; actor: SessionUser },
 ): Promise<{ refusal: string | null; write: () => void }> {
   const claims: Array<() => void> = [];
+  // The limits: each person's counter, and the presser's once for each visit.
+  const limits = await visitsLimitsIn(tx, db, input.run.id, input.ending.map((visit) => visit.uid), input.actor.uid);
+  if (limits.refusal) return { refusal: limits.refusal, write: () => {} };
+  claims.push(limits.write);
+  // The host's register of that session: their own words on it, while it is not finished.
+  const hostSession = resolveSessions(input.run, input.host).find((each) => each.weekNumber === input.weekNumber && each.occurrence === 1) ?? null;
+  const registerRef = hostSession ? db.collection("courseAttendance").doc(attendanceDocId(input.run.id, input.host.id, hostSession.weekNumber, hostSession.occurrence)) : null;
+  const registerSnap = registerRef ? await tx.get(registerRef) : null;
+  const hostRegister = registerSnap?.exists ? normalizeCourseAttendance(registerSnap.id, registerSnap.data() ?? {}) : null;
   for (const visit of input.ending) {
-    const limits = await visitLimitsIn(tx, db, input.run.id, visit.uid, input.actor.uid);
-    if (limits.refusal) return { refusal: limits.refusal, write: () => {} };
-    claims.push(limits.write);
     // A request still waiting about the session goes with the visit, quietly.
     claims.push(await withdrawVisitRequestsIn(tx, db, { runId: input.run.id, uid: visit.uid, hostGroupId: input.host.id, weekNumber: input.weekNumber, byUid: input.actor.uid, now: new Date() }));
+    // Their own words on the host's register for that session, while it is not finished, as calling the visit off takes them back.
+    if (registerRef && registerSnap && hostSession && hostRegister && hostRegister.pushedAt === null) {
+      if (Object.hasOwn(hostRegister.onlineSaid, visit.uid)) claims.push(() => tx.set(registerRef, { [ONLINE_SAID]: { [visit.uid]: FieldValue.delete() } }, { merge: true }));
+      if (Object.hasOwn(hostRegister.excusedInAdvance, visit.uid)) {
+        const data = registerSnap.data() ?? {};
+        claims.push(() => writeTakenBack(tx, { session: hostSession, ref: registerRef, data, state: { kind: "told" } } as unknown as SessionLine, visit.uid));
+      }
+    }
   }
   return {
     refusal: null,
@@ -184,8 +214,8 @@ export async function sendVisitsOff(
       homeGroupId: visit.home.id,
       wordsFor: (recipient) =>
         recipient.as === "person"
-          ? calledOffPersonEmailWords({ hostName: input.host.name, homeName: visit.home.name, weekNumber: input.weekNumber, hostDateKey: hostSession?.dateKey ?? "", own: visit.ownWhen })
-          : calledOffEmailWords({ personName: visit.name, hostName: input.host.name, homeName: visit.home.name, weekNumber: input.weekNumber }),
+          ? calledOffPersonEmailWords({ hostName: input.host.name, homeName: visit.home.name, weekNumber: input.weekNumber, hostDateKey: hostSession?.dateKey ?? "", own: visit.ownWhen, excusedAtHome: visit.excusedAtHome })
+          : calledOffEmailWords({ personName: visit.name, hostName: input.host.name, homeName: visit.home.name, weekNumber: input.weekNumber, excusedAtHome: visit.excusedAtHome }),
       greet: (recipient) => recipient.as === "person",
     });
     sent += emails.sent;

@@ -77,7 +77,11 @@ async function weekFour() {
   return own.sessions.filter((each) => each.weekNumber === 4).map((each) => ({ excuse: each.excuse?.kind ?? null, open: each.ask.open, visit: each.visit?.groupId ?? null }));
 }
 const callOffSession = async (who, groupId, dateKey) => {
-  const answer = await call(who, changeRoute.POST, { groupId }, { body: { week: 4, dateKey, kind: "cancel", reason: "Away that week.", tell: false }, course: true });
+  // Pressed as the panel presses it: with the visit emails its preview said.
+  const body = { week: 4, dateKey, kind: "cancel", reason: "Away that week.", tell: false };
+  const shown = await call(who, changeRoute.POST, { groupId }, { body: { ...body, preview: true }, course: true });
+  const visitEmails = shown.body?.preview?.visitsOff?.emails ?? 0;
+  const answer = await call(who, changeRoute.POST, { groupId }, { body: { ...body, ...(visitEmails > 0 ? { visitEmails } : {}) }, course: true });
   assert.equal(answer.status, 200, JSON.stringify(answer.body));
 };
 const notHeld = (groupId, pushedAt) =>

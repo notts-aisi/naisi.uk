@@ -49,7 +49,7 @@ import {
   type CourseGroupDoc,
 } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
-import { endVisitsIn, sendVisitsOff, visitsEndingWith, visitsOffPreview } from "@/lib/courses/visit/hostOff";
+import { endVisitsIn, sendVisitsOff, visitsEndingWith, visitsOffPreview, type EndingVisit } from "@/lib/courses/visit/hostOff";
 import { VISITS_CHANGED_WORDS, visitsOffFailedWords } from "@/lib/courses/visit/words";
 
 /**
@@ -252,7 +252,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
   // ── The session, as the dialog showed it ─────────────────────────────────
   const now = new Date();
   const registerRef = registerRefOf(db, run, found.id, press.weekNumber);
-  let outcome: { change: Answer["change"]; checked: CheckedPress };
+  let outcome: { change: Answer["change"]; checked: CheckedPress; ending: EndingVisit[] };
   try {
     const registerSnap = await registerRef.get();
     const register = registerSnap.exists ? (registerSnap.data() ?? {}) : undefined;
@@ -356,8 +356,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       const checked = checkPress(run, group, press, now, freshData);
       // The visits that end with it, as they stand now, and the limits on their emails: read before any write.
       const endingNow = callsOff ? await visitsEndingWith(db, { run, host: group, weekNumber: press.weekNumber, actorUid: actor.uid, now, tx }) : [];
-      if (endingNow.map((visit) => visit.uid).sort().join() !== [...except].sort().join()) {
-        throw new ChangeRefusal(VISITS_CHANGED_WORDS, 409);
+      // Who is visiting, and the number of their emails the press was shown, as they are now.
+      const visitEmailsNow = endingNow.reduce((sum, visit) => sum + visit.recipients.length, 0);
+      if (endingNow.map((visit) => visit.uid).sort().join() !== [...except].sort().join() || visitEmailsNow !== press.visitEmails) {
+        throw new ChangeRefusal(VISITS_CHANGED_WORDS, 409, { visitEmails: visitEmailsNow });
       }
       const visitsOff = endingNow.length ? await endVisitsIn(tx, db, { run, host: group, weekNumber: press.weekNumber, ending: endingNow, actor }) : null;
       if (visitsOff?.refusal) throw new ChangeRefusal(visitsOff.refusal, 429);
@@ -498,6 +500,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       );
       return {
         checked,
+        ending: endingNow,
         change: {
           kind: press.kind,
           weekNumber: press.weekNumber,
@@ -520,11 +523,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     }
 
     // The visits ended: their emails, after the commit; a send that fails is said.
-    const visitsSent = ending.length ? await sendVisitsOff({ run, host: found, weekNumber: press.weekNumber, ending, actorUid: actor.uid }) : null;
+    // To the recipients read in the transaction, whose number the press was shown.
+    const endedNow = outcome.ending;
+    const visitsSent = endedNow.length ? await sendVisitsOff({ run, host: found, weekNumber: press.weekNumber, ending: endedNow, actorUid: actor.uid }) : null;
     const answer: Answer = {
       ok: true,
       change: outcome.change,
-      ...(visitsSent ? { visitsOff: { people: ending.length, sent: visitsSent.sent, failed: visitsSent.failed, words: visitsSent.failed > 0 ? visitsOffFailedWords(visitsSent.failed) : null } } : {}),
+      ...(visitsSent ? { visitsOff: { people: endedNow.length, sent: visitsSent.sent, failed: visitsSent.failed, words: visitsSent.failed > 0 ? visitsOffFailedWords(visitsSent.failed) : null } } : {}),
       update: press.tell
         ? {
             groupId: found.id,

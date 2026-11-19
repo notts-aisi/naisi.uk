@@ -1,5 +1,5 @@
 import "server-only";
-import type { Firestore, Transaction } from "firebase-admin/firestore";
+import { Timestamp, type Firestore, type Transaction } from "firebase-admin/firestore";
 import { DAY_MS, noticeSlotsIn, noticeSlotsRefusal, type NoticeWindow } from "@/lib/email/noticeCaps";
 import { VISIT_LIMIT_WORDS } from "./words";
 
@@ -70,4 +70,42 @@ export async function visitLimitsIn(
 ): Promise<{ refusal: string | null; write: () => void }> {
   const read = await noticeSlotsIn(tx, db, { windows: visitSendWindows(runId, personUid, presserUid), noun: "emails" });
   return { refusal: read.refusal ? (read.refusal.refusal ?? VISIT_LIMIT_WORDS.unread) : null, write: read.write };
+}
+
+/**
+ * ONE PRESS ENDING SEVERAL VISITS (a session called off): the person's
+ * counter of each visit, and the presser's claimed once for EACH visit, read
+ * in the caller's transaction. Answers the refusal, or `write` claiming them
+ * all. The presser's counter is the same document the arrange and call-off
+ * presses claim (`visitpresser__<uid>`), judged by the same day window.
+ */
+export async function visitsLimitsIn(
+  tx: Transaction,
+  db: Firestore,
+  runId: string,
+  personUids: readonly string[],
+  presserUid: string,
+): Promise<{ refusal: string | null; write: () => void }> {
+  const writes: Array<() => void> = [];
+  for (const uid of personUids) {
+    const [person] = visitSendWindows(runId, uid, uid);
+    const read = await noticeSlotsIn(tx, db, { windows: [person], noun: "emails" });
+    if (read.refusal) return { refusal: read.refusal.refusal ?? VISIT_LIMIT_WORDS.unread, write: () => {} };
+    writes.push(read.write);
+  }
+  const others = personUids.filter((uid) => uid !== presserUid).length;
+  if (others > 0) {
+    const key = `visitpresser__${presserUid}`;
+    const ref = db.collection("courseNudges").doc(`emailrate__${key}`);
+    const data = (await tx.get(ref)).data() ?? {};
+    const startedAt = data.windowStartAt instanceof Timestamp ? data.windowStartAt.toMillis() : data.windowStartAt instanceof Date ? data.windowStartAt.getTime() : 0;
+    const now = Date.now();
+    const inWindow = startedAt > 0 && now - startedAt < DAY_MS;
+    const count = inWindow && typeof data.count === "number" ? data.count : 0;
+    if (count + others > VISIT_SEND_LIMITS.perPresserDay) return { refusal: VISIT_LIMIT_WORDS.presser(VISIT_SEND_LIMITS.perPresserDay), write: () => {} };
+    writes.push(() =>
+      tx.set(ref, { kind: "staff-email-throttle", key, windowStartAt: Timestamp.fromMillis(inWindow ? startedAt : now), count: count + others, updatedAt: Timestamp.fromMillis(now) }),
+    );
+  }
+  return { refusal: null, write: () => writes.forEach((each) => each()) };
 }

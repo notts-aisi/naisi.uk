@@ -392,7 +392,9 @@ export default function ChangePanel({
     if (!body || !ready) return;
     setBusy(true);
     setProblem(null);
-    const answer = await postJson(body.url, { ...body.body, tell, ...(tell ? { emailCount: buttonEmails } : {}) });
+    // The visit emails the preview said: the press is refused if they changed.
+    const visitEmails = preview.status === "one" ? (preview.data.visitsOff?.emails ?? 0) : 0;
+    const answer = await postJson(body.url, { ...body.body, tell, ...(tell ? { emailCount: buttonEmails } : {}), ...(visitEmails > 0 ? { visitEmails } : {}) });
     if (!answer) {
       setBusy(false);
       setProblem(UNKNOWN_OUTCOME);
