@@ -11,7 +11,7 @@ import { readRunCoursework } from "@/lib/courses/facilitatorWeek/readers";
 import { readOwnFeedback, cardNamesOf } from "@/lib/courses/feedback/readers";
 import { weeklySlotWords } from "@/lib/courses/facilitatingEmail";
 import { resolveGroupCalendar, type GroupCalendar } from "@/lib/courses/groupResolve";
-import { hasGroupsByWeek, inGroupForWeek } from "@/lib/courses/groupsByWeek";
+import { differsByWeek } from "@/lib/courses/groupsByWeek";
 import { readPackCaseRecords } from "@/lib/courses/packsAndCases/readers";
 import { buildRunAttendance, groupSessions, readRunRecords, type GroupSessionFacts, type RunRecords } from "@/lib/courses/programmeAttendance";
 import { dayWords } from "@/lib/courses/sessionChange/words";
@@ -24,7 +24,7 @@ import { liveGroupsOf, ownerFactsFromSeat, reviewerFactsOf, writtenReviewRole } 
 import { eventsOfPerson } from "@/lib/events/missedEvents";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
-import { courseEnrolmentId, groupForWeek, normalizeCourseEnrolment, placementIsShownTo, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { courseEnrolmentId, groupForWeek, normalizeCourseEnrolment, ownGroupForWeek, placementIsShownTo, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { feedbackIsClaimed } from "@/lib/firestore/courseFeedback";
 import { legacyCardId } from "@/lib/courses/feedback/model";
@@ -257,7 +257,8 @@ function attendanceFacts(
       (group) => [group.id, groupSessions(records, group, now)] as const,
     ),
   );
-  const weekGroupOf = (weekNumber: number) => (hasGroupsByWeek(enrolment) ? groupForWeek(enrolment, weekNumber) : listed.id);
+  // The session they were due at that week: a one-week visit's host for its week.
+  const weekGroupOf = (weekNumber: number) => (differsByWeek(enrolment) ? groupForWeek(enrolment, weekNumber) : listed.id);
   const facts: AttendanceWeekFact[] = [];
   for (const cell of row.cells) {
     const weekGroup = weekGroupOf(cell.weekNumber);
@@ -479,7 +480,8 @@ export async function loadFacilitatorPersonPage(
     notToldYet: false,
   };
   const { columns, cells, work, weekOf } = await courseworkFor(db, { run, liveGroups, enrolments, person, now });
-  const inGroup = (weekNumber: number) => inGroupForWeek(seat, groupId, weekNumber);
+  // The weeks they belonged to this group: a one-week visit's week stays theirs here (their work, its feedback).
+  const inGroup = (weekNumber: number) => ownGroupForWeek(seat, weekNumber) === groupId;
   // Only the feedback this facilitator wrote, pieces and feedback given before pieces existed alike.
   const { facts: feedback, firstName } = await feedbackFactsOf(db, {
     uid,

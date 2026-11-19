@@ -322,8 +322,8 @@ const READERS = {
     why: "the page of one question lists the people whose place names the group now (who reads whose work is the group they are in now); a week somebody did with another group they belonged to (copyGroupIdFor) on another week document carries none of their answer, states or deadline; a visitor is never one of the host's rows, being in another group now",
   },
   "lib/courses/personPage/load.ts": {
-    kind: "week",
-    why: "a person's page reads their attendance off the one record (buildRunAttendance), each week's line dated by the session of the group they were in that week (groupForWeek); a facilitator's cut keeps only the weeks spent in that facilitator's group (inGroupForWeek), and is opened only by a facilitator of the group they are in now, who reads their work now",
+    kinds: ["week", "own"],
+    why: "a person's page reads their attendance off the one record (buildRunAttendance), each week's line dated by the session they were due at that week (groupForWeek: the host's for a visit's week, its mark the host's register's); a facilitator's cut keeps the attendance of the weeks whose session was that facilitator's group's, and the coursework of the weeks the person belonged to it (ownGroupForWeek: a visitor's week stays their own group's, whose facilitators give its feedback), and is opened only by a facilitator of the group they are in now",
   },
   "lib/courses/coursework/readingLoad.ts": {
     kinds: ["own", "now"],
@@ -386,12 +386,12 @@ const READERS = {
     why: "the calendar somebody subscribes to holds each week's session from that week's session's group, a visit's host for its week, past and future; the dialog's line counts the group they are in now",
   },
   "lib/courses/weekRooms/load.ts": {
-    kind: "week",
-    why: "the week's rooms count away and online on a session's register only for the people whose group that week is the row's, so a line left by somebody since moved is not counted",
+    kinds: ["week"],
+    why: "the week's rooms count away and online on a session's register only for the people whose session that week is the row's (inGroupForWeek, groupForWeek), so a line left by somebody since moved is not counted, a visitor to that session is, and somebody away on a visit is not counted on their own group's",
   },
   "lib/courses/sessionChange/roomWrite.ts": {
-    kind: "week",
-    why: "a room-only change of one week tells the people in the group that week (`updateEmailAudience` with the week), as a one-week move's notice does",
+    kinds: ["week"],
+    why: "a room-only change of one week tells the people whose session it is that week (`updateEmailAudience` with the week, groupForWeek), as a one-week move's notice does: a visitor to the host is told of the host's room, somebody away on a visit is not told about their own group's",
   },
   "lib/courses/cantMakeIt/seat.ts": {
     kinds: ["week"],
@@ -462,11 +462,15 @@ const READERS = {
     why: "a week's card (its rows, counts and button) and Remind are the people in the group now whose place belonged to the group in that week (belongs, through RunWeekStates.belongsTo): who reads whose work is the group they are in now, and a week somebody spent in another group they belonged to is not this group's to count or chase; a visitor in is never chased by the host's Remind, and their row is judged on the copy of the group they belong to (copyGroupOf), never the host's",
   },
   "lib/courses/programmeOverview.ts": {
-    kinds: ["now"],
-    why: "a leaver no register marked is named under the group their place names, the one they were in when they left; every other row is the Attendance tab's, which reads each week's group",
+    kinds: ["now", "own"],
+    why: "a leaver no register marked is named under the group their place names, the one they were in when they left; every attendance row and figure is the Attendance tab's, which reads each week's session's group (a visitor counted on the host's row that week and once in the whole week); the week's work is counted under the group each place belongs to that week (ownGroupForWeek), as its group page counts it, so a visitor's work stays their own group's",
+  },
+  "app/api/courses/runs/[runId]/updates/route.ts": {
+    kinds: ["week"],
+    why: "an update about one week's session goes to the people whose session it is that week (`updateEmailAudience` with the week, groupForWeek): a visitor to the host is told, somebody away on a visit is not told about their own group's session",
   },
   "lib/search/load.ts": {
-    kind: "now",
+    kinds: ["now"],
     why: "search says the group somebody is in now: an admin's line reads the group their place names, and a facilitator's list is the group page's own rows (listGroups), which reads each week's group as the page does",
   },
 };
