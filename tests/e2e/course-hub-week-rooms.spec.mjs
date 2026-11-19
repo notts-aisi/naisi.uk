@@ -51,7 +51,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { assertTarget, hasAdminCredentials, loadSecrets } from "../../scripts/e2e/lib/env.mjs";
 import { createStepRecorder, openBrowser, signInWithPassword, stubRecaptchaOnLoopback } from "../../scripts/e2e/lib/browser.mjs";
-import { getMessage, waitForMessagesTo } from "../../scripts/e2e/lib/mailpit.mjs";
+import { getMessage, messagesTo, waitForMessagesTo } from "../../scripts/e2e/lib/mailpit.mjs";
 import {
   ARTIFACTS_DIR,
   RECAPTCHA_SKIP_REASON,
@@ -79,6 +79,8 @@ const ROOM_A = "Portland A21";
 const ROOM_B = "George Green B09";
 /** Group A's weeks 5 and 6, set from the term's grid. */
 const GRID_ROOMS = ["Portland A22", "Portland A23"];
+/** How long the last step waits before it counts each inbox: a second email, had one gone, is there by then. */
+const NO_SECOND_EMAIL_MS = 5000;
 const REASON = "The usual rooms are booked for exams that week.";
 
 let skipReasonFor = () => null;
@@ -345,9 +347,11 @@ test("course hub: the week's rooms, a room set in its row and one pasted, and th
         await row.waitFor({ timeout: WAIT_MS });
         assert.equal(await row.getByLabel(new RegExp(`^Room for .*, ${escapeRegExp(groupA.name)}$`)).inputValue(), room, `week ${week}`);
       }
-      // Nobody in Group A has a second email: the grid told nobody.
+      // Nobody in Group A has a second email: the grid told nobody. A send would follow the save within the
+      // same request, so a fixed wait after it is long enough for one to land, and then every inbox is counted.
+      await page.waitForTimeout(NO_SECOND_EMAIL_MS);
       for (const person of peopleA) {
-        const seen = await waitForMessagesTo(person.email, { count: 1, timeoutMs: WAIT_MS });
+        const seen = await messagesTo(person.email);
         assert.equal(seen.length, 1, `${person.first} has ${seen.length} emails`);
       }
     });
