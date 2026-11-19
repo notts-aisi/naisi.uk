@@ -5268,6 +5268,82 @@ says its place through `reminderPlaceOf`: online only when the week is held
 online (its own mode, or the Online campus), and a room still to be
 confirmed for any week with no room.
 
+### Emailing a group its rooms
+
+Under the term's grid, each group has a button, "Email Group C its rooms",
+with when its rooms were last emailed and by whom, and there is one button for
+every group shown. It is the only way the email goes: saving the grid or a
+week's rooms emails nobody, and no job sends it. The route is
+`POST /api/courses/groups/[groupId]/rooms-email`; the code is
+`src/lib/courses/termRoomsEmail/`.
+
+**Who may press**: an admin and the lead of the programme that names the run
+(`programmeLedBy`), the people who save rooms on the page. A facilitator and a
+track lead are refused. View-as is refused first.
+
+**The email**, a notice on the `course-group` surface, so its marker line is the
+room-change notice's own. The words are approved and live in
+`TERM_ROOMS_EMAIL_WORDS` (`words.ts`):
+
+> Where Group C meets for the rest of term
+>
+> Hi Daniel,
+>
+> Here is where each of Group C’s sessions is:
+>
+> Week 4 · Wed 25 Nov, 3pm to 5pm · Portland A21 (University Park)
+> Week 5 · Wed 2 Dec, 3pm to 5pm · room to be confirmed
+>
+> The latest is always on your programme page.
+>
+> [Open your programme page]
+
+One line a session still to come (dated, not called off, not started when the
+email goes), as every reader resolves it (`resolveSessions`): a moved week
+shows its new day and time, a week with its own room that room, a week held
+online "online", and a week with no room, its room cleared, or a link typed as
+its room "room to be confirmed" (`reminderPlaceOf`). Never a meeting link. The
+button opens the person's programme page for the run. No greeting when the
+account gives no name.
+
+**Who it goes to**: everybody whose place Publish has told and whose place
+BELONGS to the group (`ownGroupForWeek`) in a week of a session still to come,
+each with the lines of the weeks they are in it: somebody moving out from a
+later week gets the weeks before it, somebody moving in the weeks from it, and
+somebody only visiting the group for a week is not in it (a member of the group
+visiting another group keeps that week's line, which is still where their group
+meets). Then the group's facilitators who meet their bar, every line. Never the
+presser, nobody who left, nobody not yet told, the do-not-email list applied.
+
+**No email goes** for an incubator (its people are never told the word group,
+and the email names it: the page says so instead of a button), a group with no
+name, a group with no session still to come, or a group nobody would get it
+for. The dialog says which; the press is refused (409) in the same sentence.
+
+**The press**: the dialog asks with `{ preview: true }` (who, how many, how
+many get fewer lines, one email exactly as it goes, and a limit already met),
+then presses with `{ emailCount, pressKey }`. The count is worked out again
+and a difference is a 409 with the new count and nothing sent. Then one
+transaction reads the group's record (`courseNudges/termrooms__<groupId>`) and
+both limits: the record holding the same `pressKey` is the same press again
+(a double press) and sends nothing; a limit met is a 429 in one sentence with
+nothing claimed; otherwise it claims both limits, writes the record (the key,
+when, the History row's id, how many; never a uid) and a `rooms-emailed`
+History row (under Time and room), and only then do the emails go, one a
+person. A send that fails is counted and reported ("1 email didn’t go. Nothing
+is sent again by itself: pressing again emails everybody in the group again."),
+and the History row and the record are brought to what went.
+
+**Limits** (`limits.ts`): three a day per group, whoever presses (once after a
+term is filled in, perhaps again after a correction), and sixty a day per
+presser across every group. The preview says a limit met before the press.
+
+**What it reads**: the page adds each shown group's record by id and the
+History row each record names, by id (2 x G at most). A preview or a press
+reads the forms (the naming programme), the run's active places twice (the
+notice audience, then whose weeks are whose), the cohort list, the accounts
+of those in scope and the group's facilitators.
+
 ### Download
 
 
