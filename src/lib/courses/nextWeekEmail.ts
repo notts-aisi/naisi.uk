@@ -771,7 +771,15 @@ export async function sendNextWeekEmail(args: {
   await dispatchSends(recipients, async (recipient) => {
     // Their own claim on the week, across the run's groups: another group's
     // send can have reached them since the plan was read.
-    const theirs = await claimPersonWeek(db, { run, group, session, uid: recipient.uid, visiting: plan.visiting.has(recipient.uid), now: args.now });
+    // A claim that cannot be made sends them nothing, and never stops the rest of the send.
+    let theirs = false;
+    try {
+      theirs = await claimPersonWeek(db, { run, group, session, uid: recipient.uid, visiting: plan.visiting.has(recipient.uid), now: args.now });
+    } catch (err) {
+      console.error("[courses week open email] a person's claim on the week failed", group.id, recipient.uid, err);
+      skipped += 1;
+      return;
+    }
     if (!theirs) return;
     // The placeholder-free name: "" drops the greeting rather than addressing
     // somebody as "NAISI member".

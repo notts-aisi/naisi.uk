@@ -786,7 +786,7 @@ describe("7. the send", () => {
     const nobodyLeft = send.indexOf("if (plan.recipients.length === 0) {");
     assert.ok(nobodyLeft > nobody && prepared > nobodyLeft, "an audience this send reaches nobody of is decided after the claim could be taken");
     // Each person's own claim on the week is taken before their message goes.
-    const personClaim = send.indexOf("const theirs = await claimPersonWeek(");
+    const personClaim = send.indexOf("theirs = await claimPersonWeek(");
     const message = send.indexOf("await sendNotice({");
     assert.ok(personClaim > dispatch && message > personClaim, "a person's claim on the week is taken after their message goes");
     assert.ok(send.indexOf("async function prepareNextWeekEmail") < claim, "the decision is made before the claim");
