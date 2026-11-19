@@ -4583,12 +4583,11 @@ History records each as not emailed.
 It reads the form, each shown programme's run and groups, and one register a
 group and taught week by id: 1 + S + G + G x W (for fifteen groups over ten
 weeks, about 170). A Save of every cell is one request a group (fifteen). Each
-reads the session user's standing and the group (the route's gate, about 3),
-its run, the forms that name the run (the lead's check and the naming
-programme), then the ten registers once outside the transaction and again
-inside it with the group (about 22 a group with ten weeks), and writes the
-group once and one History row a week: about 375 documents read and 165
-written for fifteen groups over ten weeks.
+reads the group and its run (the route's gate), the form naming the run (the
+lead's check and the naming programme, one or two), then inside one
+transaction the group again and its ten registers: about 16 a group with ten
+weeks. It writes the group once and one History row a week: about 240
+documents read and 165 written for fifteen groups over ten weeks.
 
 **Where a week with no room is told it is**: the emails that print a
 session's place (`courseNudgeSessionWhere`: the reminders before a session,
