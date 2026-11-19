@@ -334,6 +334,15 @@ const READERS = {
       "the Overview's attendance by week and its groups in a week: each group's session facts as the lead's tabs read them, " +
       "so a cancelled session is no session in any count and its row says it was cancelled",
   },
+  "lib/courses/personPage/load.ts": {
+    kind: "told",
+    from: ["lib/courses/programmeAttendance.ts"],
+    via: ["session"],
+    proof: ["groupSessions(records, group, now)"],
+    why:
+      "a person's page: whether a one-week visit's session is happening, read off the host group's session facts as the " +
+      "lead's tabs read them, so a visit whose session was cancelled through Change a session is no visit on the page",
+  },
   "lib/surveys/leadOverview.ts": {
     kind: "told",
     from: ["lib/courses/programmeAttendance.ts"],

@@ -100,8 +100,9 @@ function moreItems(row: PersonRow): { href: string; label: string }[] {
   if (row.moveHref) items.push({ href: row.moveHref, label: MOVE_LINK });
   // A one-week visit is offered for exactly the place and the run a move is
   // (`placeTakesVisit` is `placeTakesMove`, and the run's refusals are the
-  // same set), beside it, at the person's own address under the programme.
-  if (row.moveHref) items.push({ href: row.moveHref.replace(/\/move$/, "/visit"), label: VISIT_LINK });
+  // same set), beside it: one decision on the server (`movingLinks`), which
+  // the person's own page draws too.
+  if (row.visitHref) items.push({ href: row.visitHref, label: VISIT_LINK });
   return items;
 }
 

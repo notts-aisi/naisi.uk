@@ -27,7 +27,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { A, AGI, B, C, ROUND, RUN, makePeopleWorld, peopleSeed } from "./lib/peopleWorld.mjs";
+import { A, AGI, B, C, ROUND, RUN, TAIS, makePeopleWorld, peopleSeed } from "./lib/peopleWorld.mjs";
 import { weekOneBlocks } from "./lib/weekBlocksPageWorld.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
 
@@ -188,9 +188,16 @@ function viewOf(drawn) {
 const team = (who, uid = "amara") => w.draw(pages.team, who, { roundId: ROUND, programmeId: AGI, uid });
 const cut = (who, uid = "amara", groupId = B) => w.draw(pages.cut, who, { runId: RUN.agi, groupId, uid });
 
-/** Nothing anybody wrote, and nothing about conduct, in the payload or on the page. */
+/**
+ * Nothing anybody wrote, and nothing about conduct, in the payload or on the
+ * page; and no address anywhere in it but the person's own, under `email`,
+ * for an admin alone.
+ */
 function assertNothingWritten(drawn, label) {
-  const payload = JSON.stringify(viewOf(drawn) ?? {});
+  const view = viewOf(drawn) ?? {};
+  if (view.reader !== "admin") assert.ok(!("email" in view), `${label}: the payload carries the person's address`);
+  const { email: _address, ...rest } = view;
+  const payload = JSON.stringify(rest);
   for (const [what, words] of Object.entries(WRITTEN)) {
     assert.ok(!payload.includes(words), `${label}: the payload carries the ${what}`);
     assert.ok(!drawn.html.includes(words), `${label}: the page shows the ${what}`);
@@ -288,6 +295,7 @@ describe("the facilitator's cut, on the payload", () => {
     assert.deepEqual(view.attendance.counts, [
       { key: "room", label: "In the room", value: 1 },
       { key: "online", label: "Online", value: 1 },
+      { key: "visits", label: "Visits to another group", value: 0 },
     ]);
     assert.match(drawn.text, /Applications, notes and contact details are for the programme team/);
     assertNothingWritten(drawn, "facilitator");
@@ -385,7 +393,9 @@ describe("what the page says is true of the live records", () => {
       const drawn = await team(who, "sam");
       const view = viewOf(drawn);
       assert.ok(view, `${who} is handed Sam's page`);
-      assert.deepEqual(Object.keys(view).sort(), ["attendance", "back", "header", "reader", "uid"], `${who}: a section the tabs do not show for a leaver`);
+      // The head (with, for an admin alone, their address) and the attendance.
+      const head = who === "zach" ? ["about", "attendance", "back", "email", "header", "reader", "uid"] : ["about", "attendance", "back", "header", "reader", "uid"];
+      assert.deepEqual(Object.keys(view).sort(), head, `${who}: a section the tabs do not show for a leaver`);
       assert.equal(view.header.group, null);
       assert.match(view.header.status, /Left the programme/);
       assert.equal(view.attendance.counts.find((count) => count.key === "room").value, 1, "the mark the register kept");
@@ -424,7 +434,7 @@ describe("what the page says is true of the live records", () => {
     assert.equal(lines[0].said, "In the room");
     assert.equal(lines[1].said, "Late, online");
     for (const line of lines) assert.match(line.when, /^Week \d · \w{3} \d{1,2} \w{3}$/, "dated as the archived group's session was held");
-    assert.deepEqual(view.attendance.counts.map((count) => [count.key, count.value]), [["room", 1], ["online", 1]]);
+    assert.deepEqual(view.attendance.counts.map((count) => [count.key, count.value]), [["room", 1], ["online", 1], ["visits", 0]]);
     const facilitator = viewOf(await cut("rahul"));
     assert.ok(facilitator.attendance.lines.every((line) => line.weekNumber >= 3), "the cut shows another group's weeks");
     assert.deepEqual(facilitator.weeks.map((week) => week.weekNumber), [3]);
@@ -447,6 +457,412 @@ describe("what the page says is true of the live records", () => {
     assert.match(html, /href="\/learn\/run\/group\/b\/people\/amara"/);
     assert.doesNotMatch(html, /people\/rahul|people\/sofia/);
     assert.doesNotMatch(renderToStaticMarkup(createElement(GroupPeopleCard, { people: [person("amara", "Amara")], leavers: [], finishedWeeks: [], notYetTold: false })), /href=/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Visits, the head's details, the application's line, the batch's sender and
+// the events line: each as every kind of reader, on the payload.
+// ---------------------------------------------------------------------------
+
+const ARRANGED = new Date("2026-11-04T10:40:00Z");
+/** Amara's place with one-week visits to Group C's session (Wednesdays at 1pm). */
+const visiting = (...weeks) => ({ ...peopleSeed()[AMARA_SEAT], visits: weeks.map((weekNumber) => ({ weekNumber, groupId: C, arrangedByUid: "claudia", arrangedAt: ARRANGED })) });
+/** Week 2 spent at Group C's session, in the room, off Group C's register; Group B's register for it has no line of hers. */
+function heldVisitSeed(over = {}) {
+  return seed({
+    [AMARA_SEAT]: visiting(2),
+    [`courseAttendance/${RUN.agi}__${B}__w02`]: registerDoc(B, 2, { kofi: "absent" }),
+    [`courseAttendance/${RUN.agi}__${C}__w02`]: { ...registerDoc(C, 2, { amara: "present" }), pushedByUid: "tom", markedByUid: "tom" },
+    ...over,
+  });
+}
+/** The History rows arranging a visit and calling it off write, one on each group. */
+function visitHistory() {
+  const row = (id, kind, groupId, detail, at, extra = {}) => ({
+    kind,
+    runId: RUN.agi,
+    groupId,
+    subjectUid: "amara",
+    actorUid: "claudia",
+    actorName: "Claudia Reyes",
+    targetLabel: groupId === C ? "Group C" : "Group B",
+    detail,
+    weekId: "w04",
+    emailed: 3,
+    at,
+    ...extra,
+  });
+  const on = new Date("2026-11-10T12:20:00Z");
+  const off = new Date("2026-11-12T09:00:00Z");
+  return {
+    "courseAudit/v-home": row("v-home", "member-visits", B, "Amara Okafor visits Group C for week 4.", on, { after: { groupId: C, group: "Group C" } }),
+    "courseAudit/v-host": row("v-host", "member-visits", C, "Amara Okafor is at Group C for week 4.", on, { before: { groupId: B, group: "Group B" } }),
+    "courseAudit/off-home": row("off-home", "member-visit-off", B, "Amara Okafor’s visit to Group C for week 4 is off.", off),
+    "courseAudit/off-host": row("off-host", "member-visit-off", C, "Amara Okafor’s visit to Group C for week 4 is off.", off),
+    // Not a visit's: never on this page.
+    "courseAudit/moved": row("moved", "member-moved", B, "Amara Okafor moves to Group B from week 1.", on),
+  };
+}
+
+describe("visits, as each kind of reader", () => {
+  test("a visit held: the week's line at the host's session with the Visit chip, the count, and where its work was due", async () => {
+    w.reset(heldVisitSeed());
+    for (const who of ["zach", "claudia"]) {
+      const view = viewOf(await team(who));
+      const line = view.attendance.lines.find((each) => each.weekNumber === 2);
+      assert.equal(line.said, "At Group C’s session, in the room", who);
+      assert.deepEqual(line.chips, ["Visit"], who);
+      assert.deepEqual(view.attendance.counts.map((count) => [count.key, count.value]), [["room", 2], ["online", 0], ["visits", 1]], who);
+      assert.equal(view.weeks.find((week) => week.weekNumber === 2).visit, "Due at Group C, Wed 11 Nov, 1pm: a visit", who);
+      assert.ok(view.weeks.filter((week) => week.weekNumber !== 2).every((week) => week.visit === null), `${who}: a week with no visit says one`);
+    }
+    // Group B's facilitator: the visit week's line, and nothing else from this piece.
+    const drawn = await cut("rahul");
+    const view = viewOf(drawn);
+    assert.deepEqual(Object.keys(view).sort(), ["attendance", "back", "elsewhere", "feedback", "header", "uid", "weeks"]);
+    const line = view.attendance.lines.find((each) => each.weekNumber === 2);
+    assert.equal(line.said, "At Group C’s session, in the room");
+    assert.deepEqual(line.chips, ["Visit"]);
+    assert.equal(view.attendance.counts.find((count) => count.key === "visits").value, 1);
+    assert.equal(view.weeks.find((week) => week.weekNumber === 2).visit, "Due at Group C, Wed 11 Nov, 1pm: a visit");
+    assert.equal(view.elsewhere, null, "a visit week stays the group's own");
+    assert.doesNotMatch(JSON.stringify(view), /Coming|Today, with|batch sent by|Signed up|Ranked|Joined/);
+    assertNothingWritten(drawn, "facilitator, visit held");
+  });
+
+  test("a visit ahead: tomorrow's session reads as the board draws it, Coming and Visit; the cut says it without Coming", async () => {
+    w.reset(seed({ [AMARA_SEAT]: visiting(3) }));
+    const view = viewOf(await team("zach"));
+    const line = view.attendance.lines.find((each) => each.weekNumber === 3);
+    assert.equal(line.when, "Week 3 · Wed 18 Nov");
+    assert.equal(line.said, "Tomorrow, with Group C");
+    assert.deepEqual(line.chips, ["Coming", "Visit"]);
+    assert.equal(view.attendance.counts.find((count) => count.key === "visits").value, 0, "a visit still to come is not counted");
+    assert.equal(view.weeks.find((week) => week.weekNumber === 3).visit, "Due at Group C, Wed 18 Nov, 1pm: a visit");
+    const rahul = viewOf(await cut("rahul"));
+    const theirs = rahul.attendance.lines.find((each) => each.weekNumber === 3);
+    assert.equal(theirs.said, "At Group C’s session, still to come");
+    assert.deepEqual(theirs.chips, ["Visit"]);
+  });
+
+  test("no visit: today's session with their own group reads Coming, and nothing says a visit", async () => {
+    w.reset(seed());
+    const view = viewOf(await team("claudia"));
+    const line = view.attendance.lines.find((each) => each.weekNumber === 3);
+    assert.equal(line.said, "Today, with Group B");
+    assert.deepEqual(line.chips, ["Coming"]);
+    assert.ok(view.weeks.every((week) => week.visit === null));
+    assert.doesNotMatch(JSON.stringify(view), /Visit”|"Visit"|a visit/);
+    assert.equal(viewOf(await cut("rahul")).attendance.lines.find((each) => each.weekNumber === 3).said, "Still to come", "the cut keeps its own words");
+  });
+
+  test("a visit whose session was called off is no visit here: no chip, no count, no line naming the host", async () => {
+    w.reset(heldVisitSeed({ [`courseAttendance/${RUN.agi}__${C}__w02`]: { ...registerDoc(C, 2, {}), held: false } }));
+    const view = viewOf(await team("zach"));
+    const line = view.attendance.lines.find((each) => each.weekNumber === 2);
+    assert.deepEqual(line.chips, []);
+    assert.doesNotMatch(line.said, /Group C/);
+    assert.equal(view.attendance.counts.find((count) => count.key === "visits").value, 0);
+    assert.equal(view.weeks.find((week) => week.weekNumber === 2).visit, null);
+    const rahul = viewOf(await cut("rahul"));
+    assert.ok(!rahul.attendance.lines.some((each) => each.weekNumber === 2), "the cut keeps a week whose session was another group's");
+  });
+
+  test("a visit standing to a session cancelled through Change a session is no visit here either", async () => {
+    const s = seed({ [AMARA_SEAT]: visiting(3) });
+    s[`courseGroups/${C}`] = {
+      ...s[`courseGroups/${C}`],
+      sessionChanges: { w03: { kind: "cancelled", reason: "Reading week", dateKey: "2026-11-18", byUid: "tom", at: new Date("2026-11-16T09:00:00Z") } },
+    };
+    w.reset(s);
+    const view = viewOf(await team("zach"));
+    assert.ok(!view.attendance.lines.some((each) => each.chips.includes("Visit")), "a cancelled session's visit is drawn as a visit");
+    assert.equal(view.weeks.find((week) => week.weekNumber === 3).visit, null);
+    assert.equal(view.attendance.counts.find((count) => count.key === "visits").value, 0);
+  });
+
+  test("a visit that ended: nothing beyond its History rows, which an admin's Activity carries in their own words, once each", async () => {
+    w.reset(seed(visitHistory()));
+    const admin = viewOf(await team("zach"));
+    assert.ok(admin.weeks.every((week) => week.visit === null));
+    assert.equal(admin.attendance.counts.find((count) => count.key === "visits").value, 0);
+    const rows = admin.activity.filter((line) => line.who === "Claudia Reyes");
+    assert.deepEqual(
+      rows.map((line) => line.said),
+      ["Amara Okafor’s visit to Group C for week 4 is off.", "Amara Okafor visits Group C for week 4."],
+      "the home row of the arranging, the calling off once, and nothing of a move",
+    );
+    assert.equal(rows[0].when, "Thu 12 Nov, 9am");
+    // The lead has no Activity, and is handed none of it.
+    const lead = viewOf(await team("claudia"));
+    assert.ok(!("activity" in lead));
+    assert.doesNotMatch(JSON.stringify(lead), /visit to Group C|visits Group C/);
+  });
+
+  test("the host's facilitator during a visit, and the person themselves, are refused the cut", async () => {
+    w.reset(heldVisitSeed());
+    const home = `/learn/${RUN.agi}`;
+    assert.equal((await cut("tom", "amara", C)).to, home, "Tom facilitates the host group, not Amara's");
+    assert.equal(viewOf(await cut("tom", "amara", C)), null);
+    assert.equal((await cut("amara", "amara", B)).to, home);
+    assert.equal(viewOf(await cut(null)), null, "signed out");
+  });
+});
+
+describe("the header's details and its two links", () => {
+  test("Goes by and Joined for admins and leads, the address for an admin alone, never on the cut", async () => {
+    const approved = new Date("2026-09-14T10:00:00Z");
+    w.reset(seed({ "users/amara": { ...peopleSeed()["users/amara"], approvedAt: approved, createdAt: new Date("2026-08-01T10:00:00Z") } }));
+    const admin = await team("zach");
+    const adminView = viewOf(admin);
+    assert.deepEqual(adminView.about, { goesBy: "Amara", joined: "Sep 2026" }, "the approval's month, not the account's");
+    assert.equal(adminView.email, "amara@example.com");
+    assert.match(admin.text, /amara@example\.com/);
+    assert.match(admin.text, /\(admins only\)/);
+    const lead = await team("claudia");
+    const leadView = viewOf(lead);
+    assert.deepEqual(leadView.about, { goesBy: "Amara", joined: "Sep 2026" });
+    assert.ok(!("email" in leadView), "the lead is never sent the address");
+    assert.doesNotMatch(lead.html, /@/, "no address anywhere on the lead's page");
+    assertNothingWritten(lead, "lead, head");
+    const rahul = await cut("rahul");
+    assert.ok(!("email" in viewOf(rahul)) && !("about" in viewOf(rahul)));
+    assert.doesNotMatch(rahul.html, /@|Joined|Goes by/);
+  });
+
+  test("an account with no approval on record joined when it was made, and with neither says nothing", async () => {
+    w.reset(seed({ "users/amara": { ...peopleSeed()["users/amara"], createdAt: new Date("2026-10-02T10:00:00Z") } }));
+    assert.equal(viewOf(await team("zach")).about.joined, "Oct 2026");
+    w.reset(seed());
+    const view = viewOf(await team("zach"));
+    assert.equal(view.about.joined, null);
+    assert.doesNotMatch((await team("zach")).text, /Joined/);
+  });
+
+  test("Visit and Move are drawn exactly where the People tab offers them, from its one decision", async () => {
+    w.reset(seed());
+    const rows = (await w.peoplePage("claudia")) && w.viewOf(await w.peoplePage("claudia")).rows;
+    for (const row of rows) {
+      assert.equal(row.visitHref !== null, row.moveHref !== null, `${row.uid}: the two links go together`);
+      const view = viewOf(await team("claudia", row.uid));
+      if (!view) continue;
+      assert.equal(view.move?.href ?? null, row.moveHref, `${row.uid}: Move`);
+      assert.equal(view.visit?.href ?? null, row.visitHref, `${row.uid}: Visit`);
+    }
+    const amara = await team("zach");
+    assert.equal(viewOf(amara).visit.label, "Visit another group for one week");
+    assert.ok(amara.html.indexOf("Visit another group for one week") < amara.html.indexOf("Move to another group"), "Visit comes first, as drawn");
+    // Kofi is placed and not told: neither link.
+    const kofi = viewOf(await team("zach", "kofi"));
+    assert.ok(!("visit" in kofi) && !("move" in kofi));
+  });
+
+  test("the strip of section links names only the sections the reader is shown", async () => {
+    w.reset(seed());
+    const strip = (drawn) => [...drawn.html.matchAll(/href="#person-([a-z]+)"/g)].map((match) => match[1]);
+    assert.deepEqual(strip(await team("zach")), ["coursework", "attendance", "feedback", "notes", "application", "events", "activity"]);
+    assert.deepEqual(strip(await team("claudia")), ["coursework", "attendance", "feedback", "notes", "application"]);
+    assert.deepEqual(strip(await team("zach", "zach")), ["coursework", "attendance", "feedback", "events", "activity"], "no notes and no application about themselves");
+    assert.deepEqual(strip(await cut("rahul")), [], "the cut has no strip");
+    for (const id of strip(await team("zach"))) assert.match((await team("zach")).html, new RegExp(`id="person-${id}"`), `${id}: the link has somewhere to go`);
+  });
+});
+
+describe("the application's line", () => {
+  test("ranked and accepted: the board's line, with Read the application, for an admin and the lead", async () => {
+    w.reset(seed());
+    for (const who of ["zach", "claudia"]) {
+      const view = viewOf(await team(who));
+      assert.deepEqual(view.application, {
+        href: `/admin/admissions/forms/${ROUND}/programmes/${AGI}/applications/amara`,
+        label: "Read the application",
+        line: "Ranked AGI Strategy first. Accepted Fri 23 Oct.",
+      }, who);
+    }
+  });
+
+  test("a ranking says where the programme sat; an application that did not rank it says only what it has", async () => {
+    const s = seed();
+    const path = `admissionApplications/${ROUND}__amara`;
+    s[path] = { ...s[path], sent: { ...s[path].sent, rankedProgrammeIds: [TAIS, AGI] } };
+    w.reset(s);
+    assert.equal(viewOf(await team("zach")).application.line, "Ranked AGI Strategy second. Accepted Fri 23 Oct.");
+    w.reset(seed());
+    // Kofi ranked only Technical AI Safety and said yes to an invitation to AGI Strategy: no ranking of it to say.
+    assert.equal(viewOf(await team("zach", "kofi")).application.line, "Said yes to an invitation Tue 27 Oct.");
+    assert.equal(viewOf(await team("claudia", "kofi")).application.line, "Said yes to an invitation Tue 27 Oct.");
+  });
+
+  test("nobody is sent the line without the link: not about themselves, not on the cut", async () => {
+    w.reset(seed());
+    assert.ok(!("application" in viewOf(await team("zach", "zach"))));
+    assert.doesNotMatch(JSON.stringify(viewOf(await cut("rahul"))), /Ranked|Accepted|invitation/);
+  });
+});
+
+describe("who sent the batch", () => {
+  test("an emailed piece names who pressed Send, on the team's page alone; a stopped one and older feedback never do", async () => {
+    w.reset(seed());
+    for (const who of ["zach", "claudia"]) {
+      const view = viewOf(await team(who));
+      assert.equal(view.feedback.find((each) => each.id === "piece-rahul").line, "Rahul, Mon 16 Nov · Emailed to Amara on Mon 16 Nov in a batch sent by Zach", who);
+      assert.equal(view.feedback.find((each) => each.id === "piece-claudia").line, "Claudia, Mon 16 Nov · Not emailed yet", who);
+    }
+    assert.doesNotMatch(JSON.stringify(viewOf(await cut("rahul"))), /batch sent by/, "the cut is never told who sent it");
+    const s = seed();
+    s["courseFeedback/piece-rahul"] = { ...s["courseFeedback/piece-rahul"], emailDelivery: "suppressed" };
+    w.reset(s);
+    assert.doesNotMatch(JSON.stringify(viewOf(await team("zach"))), /batch sent by/, "an email that never went was sent by nobody");
+  });
+});
+
+describe("events this term, for an admin alone", () => {
+  const AGREED_AT = new Date("2026-09-20T10:00:00Z");
+  const event = (title, start, extra = {}) => ({
+    title,
+    blocks: [],
+    startAt: new Date(start),
+    endAt: new Date(new Date(start).getTime() + 2 * 3600_000),
+    location: "Room B52",
+    locationHidden: false,
+    locationPublicText: "",
+    visibility: "public",
+    capacity: 30,
+    waitlistEnabled: true,
+    noSignup: false,
+    signupForm: [],
+    status: "published",
+    archived: false,
+    authorUid: "zach",
+    collaboratorUids: [],
+    doorOpenedAt: null,
+    doorOpenedBy: null,
+    createdAt: new Date("2026-09-01T10:00:00Z"),
+    updatedAt: new Date("2026-09-01T10:00:00Z"),
+    ...extra,
+  });
+  const signup = (eventId, status) => ({
+    eventId,
+    uid: "amara",
+    name: "Amara Okafor",
+    email: "amara@example.com",
+    answers: {},
+    status,
+    synthetic: false,
+    createdAt: new Date("2026-09-29T10:00:00Z"),
+    cancelledAt: null,
+  });
+  const agreed = { ...peopleSeed()["users/amara"], policyVersion: "terms.1+privacy.15", policyAgreedAt: AGREED_AT };
+
+  test("a count of sign-ups inside the run's dates, with no event over that counts: no second sentence; absent for the lead and the cut", async () => {
+    w.reset(
+      seed({
+        "users/amara": agreed,
+        "events/ev-before": event("Welcome drinks", "2026-10-08T18:00:00Z"),
+        "events/ev-in": event("Film night", "2026-11-05T19:00:00Z"),
+        "events/ev-ahead": event("Speaker evening", "2026-11-26T19:00:00Z"),
+        "events/ev-gave-back": event("Quiz night", "2026-11-12T19:00:00Z"),
+        "events/ev-off": event("Pizza and papers", "2026-11-10T19:00:00Z", { status: "cancelled" }),
+        "eventRsvps/ev-before__amara": signup("ev-before", "confirmed"),
+        "eventRsvps/ev-in__amara": signup("ev-in", "confirmed"),
+        "eventRsvps/ev-ahead__amara": signup("ev-ahead", "waitlisted"),
+        "eventRsvps/ev-gave-back__amara": signup("ev-gave-back", "cancelled"),
+        "eventRsvps/ev-off__amara": signup("ev-off", "confirmed"),
+      }),
+    );
+    const admin = await team("zach");
+    assert.equal(viewOf(admin).signedUp, "Signed up to 2 this term.");
+    assert.match(admin.text, /Signed up to 2 this term\./);
+    // Film night is over but its door list was never opened, and the rest are still to come: nothing counts yet.
+    assert.doesNotMatch(admin.text, /Came to|missed/i, "came is said over events that could not have been come to");
+    const lead = await team("claudia");
+    assert.ok(!("signedUp" in viewOf(lead)) && !("events" in viewOf(lead)));
+    assert.doesNotMatch(lead.text, /Signed up/);
+    assert.doesNotMatch(JSON.stringify(viewOf(await cut("rahul"))), /Signed up/);
+  });
+
+  const checkIn = (eventId, extra = {}) => ({
+    eventId,
+    kind: "signup",
+    rsvpId: null,
+    uid: "amara",
+    name: null,
+    email: null,
+    emailGoesAt: null,
+    how: "door",
+    byUid: "zach",
+    at: new Date("2026-11-05T19:05:00Z"),
+    namesOffAt: new Date("2027-12-01T00:00:00Z"),
+    namesOff: false,
+    ...extra,
+  });
+  const cameWorld = (over = {}) =>
+    seed({
+      "users/amara": agreed,
+      "events/ev-in": event("Film night", "2026-11-05T19:00:00Z", { doorOpenedAt: new Date("2026-11-05T18:30:00Z"), doorOpenedBy: "zach" }),
+      "events/ev-in2": event("Board games", "2026-11-12T19:00:00Z", { doorOpenedAt: new Date("2026-11-12T18:30:00Z"), doorOpenedBy: "zach" }),
+      "events/ev-ahead": event("Speaker evening", "2026-11-26T19:00:00Z"),
+      "events/ev-drop": event("Coffee drop-in", "2026-11-10T12:00:00Z", { noSignup: true, doorOpenedAt: new Date("2026-11-10T11:30:00Z"), doorOpenedBy: "zach" }),
+      "events/ev-before": event("Welcome drinks", "2026-10-08T18:00:00Z", { doorOpenedAt: new Date("2026-10-08T17:30:00Z"), doorOpenedBy: "zach" }),
+      "eventRsvps/ev-in__amara": signup("ev-in", "confirmed"),
+      "eventRsvps/ev-in2__amara": signup("ev-in2", "confirmed"),
+      "eventRsvps/ev-ahead__amara": signup("ev-ahead", "confirmed"),
+      "eventRsvps/ev-before__amara": signup("ev-before", "confirmed"),
+      // Checked in at Film night by the account, and at Board games through the sign-up (as the door's list does it).
+      "eventCheckIns/ci-in": checkIn("ev-in"),
+      "eventCheckIns/ci-in2": checkIn("ev-in2", { rsvpId: "ev-in2__amara", at: new Date("2026-11-12T19:05:00Z") }),
+      // Came to a drop-in with no sign-up, and to an event before the term: in neither number.
+      "eventCheckIns/ci-drop": checkIn("ev-drop", { kind: "walk-in", at: new Date("2026-11-10T12:05:00Z") }),
+      "eventCheckIns/ci-before": checkIn("ev-before", { at: new Date("2026-10-08T18:05:00Z") }),
+      ...over,
+    });
+
+  const OVER_TWO = "Signed up to 3 this term. Came to 2 of the 2 that are over where they held a place and check-in was used.";
+
+  test("Came to counts, over the events that count, those the Events card shows as came: by the account or by the sign-up", async () => {
+    w.reset(cameWorld());
+    const admin = await team("zach");
+    const view = viewOf(admin);
+    assert.equal(view.signedUp, OVER_TWO, "the event still to come is signed up to, and in no count of came");
+    // The card's own rows say the same of the same events: one decision.
+    const came = view.events.events.filter((row) => row.state === "came").map((row) => row.eventId).sort();
+    assert.ok(came.includes("ev-in") && came.includes("ev-in2"), "the card shows both as came");
+    assert.ok(came.includes("ev-drop"), "the card lists the drop-in they came to");
+    assert.equal(view.events.events.find((row) => row.eventId === "ev-ahead").state, "place", "the card shows the event still to come as a place");
+    assert.ok(admin.text.includes(OVER_TWO));
+    assert.doesNotMatch(admin.text, /missed \d|Missed \d/);
+    for (const who of ["claudia", "rahul"]) {
+      const drawn = who === "rahul" ? await cut(who) : await team(who);
+      assert.doesNotMatch(JSON.stringify(viewOf(drawn)), /Came to|Signed up/, `${who} is sent the line`);
+      assert.doesNotMatch(drawn.text, /Came to|Signed up/, `${who} is shown the line`);
+    }
+    for (const who of ["tess", "lloyd", "amara", null]) assert.doesNotMatch((await team(who)).text, /Came to|Signed up/, `${who}`);
+  });
+
+  test("a place given back beforehand is in no number, even with a check-in; none come to says the nought over what counts", async () => {
+    w.reset(cameWorld({ "eventRsvps/ev-in2__amara": signup("ev-in2", "cancelled") }));
+    assert.equal(viewOf(await team("zach")).signedUp, "Signed up to 2 this term. Came to 1 of the 1 that is over where they held a place and check-in was used.");
+    const none = cameWorld();
+    delete none["eventCheckIns/ci-in"];
+    delete none["eventCheckIns/ci-in2"];
+    w.reset(none);
+    assert.equal(viewOf(await team("zach")).signedUp, "Signed up to 3 this term. Came to 0 of the 2 that are over where they held a place and check-in was used.");
+  });
+
+  test("only events still to come or on the waiting list: the first sentence alone", async () => {
+    const ahead = cameWorld({ "eventRsvps/ev-in__amara": signup("ev-in", "waitlisted"), "eventRsvps/ev-in2__amara": signup("ev-in2", "pending") });
+    delete ahead["eventCheckIns/ci-in"];
+    delete ahead["eventCheckIns/ci-in2"];
+    w.reset(ahead);
+    assert.equal(viewOf(await team("zach")).signedUp, "Signed up to 3 this term.");
+  });
+
+  test("no sign-ups says so; somebody who has not accepted the policy is sent no count at all", async () => {
+    w.reset(seed({ "users/amara": agreed }));
+    assert.equal(viewOf(await team("zach")).signedUp, "Not signed up to any this term.");
+    w.reset(seed());
+    assert.ok(!("signedUp" in viewOf(await team("zach"))), "the events card lists nothing for them, so nothing is counted");
   });
 });
 
@@ -510,7 +926,7 @@ describe("the page's model, pure", () => {
     assert.equal(row.answer, "Not sent");
     const empty = model.attendanceViewOf([]);
     assert.equal(empty.empty, true);
-    assert.deepEqual(empty.counts.map((count) => count.value), [0, 0]);
+    assert.deepEqual(empty.counts.map((count) => count.value), [0, 0, 0]);
     assert.deepEqual(model.feedbackLinesOf([], "Amara"), []);
     assert.deepEqual(model.ratingColumnOf([1], []), [{ weekNumber: 1, lines: ["Not rated"] }]);
   });
@@ -524,14 +940,14 @@ describe("the page's model, pure", () => {
       { weekNumber: 5, state: "not-held", mark: null, online: false, dateLabel: "Tue 1 Dec", happened: false },
     ];
     const view = model.attendanceViewOf(facts);
-    assert.deepEqual(view.counts.map((count) => [count.key, count.value]), [["room", 1], ["online", 1]]);
+    assert.deepEqual(view.counts.map((count) => [count.key, count.value]), [["room", 1], ["online", 1], ["visits", 0]]);
     assert.deepEqual(view.lines.map((line) => `${line.when}: ${line.said}`), [
       "Week 1 · Tue 3 Nov: In the room",
       "Week 2 · Tue 10 Nov: Late, online",
       "Week 3 · Tue 17 Nov: Still to come",
       "Week 5 · Tue 1 Dec: Didn’t happen",
     ]);
-    assert.deepEqual(model.attendanceViewOf(facts, { came: 4, online: 1 }).counts.map((count) => count.value), [3, 1], "the record's counts win");
+    assert.deepEqual(model.attendanceViewOf(facts, { came: 4, online: 1 }).counts.map((count) => count.value), [3, 1, 0], "the record's counts win");
     assert.doesNotMatch(JSON.stringify(view), /miss|allow|left to|more than|at most/i);
   });
 
@@ -556,13 +972,79 @@ describe("the page's model, pure", () => {
   });
 });
 
+describe("this piece's model, pure", () => {
+  const fact = (over) => ({ weekNumber: 1, state: "mark", mark: "present", online: false, dateLabel: "Thu 5 Nov", happened: true, ...over });
+
+  test("a visit's week names the host's session, counts once among visits, and never reads as an allowance", () => {
+    const view = model.attendanceViewOf(
+      [
+        fact({ visit: true, groupName: "Group F" }),
+        fact({ weekNumber: 2, mark: "late", online: true, visit: true, groupName: "Group F" }),
+        fact({ weekNumber: 3, mark: "absent", visit: true, groupName: "Group F" }),
+        fact({ weekNumber: 4, state: "not-yet", mark: null, happened: false, dayWord: "Tomorrow", groupName: "Group C" }),
+      ],
+      undefined,
+      { coming: true },
+    );
+    assert.deepEqual(
+      view.lines.map((line) => [line.said, line.chips]),
+      [
+        ["At Group F’s session, in the room", ["Visit"]],
+        ["At Group F’s session, late, online", ["Visit"]],
+        ["At Group F’s session, absent", ["Visit"]],
+        ["Tomorrow, with Group C", ["Coming"]],
+      ],
+    );
+    assert.deepEqual(view.counts.map((count) => [count.label, count.value]), [["In the room", 1], ["Online", 1], ["Visits to another group", 2]]);
+    assert.doesNotMatch(JSON.stringify(view), /miss|allow|left to|more than|at most/i);
+    // On another day the line says the group alone; without `coming`, the line it always said.
+    const later = [fact({ state: "not-yet", mark: null, happened: false, dayWord: null, groupName: "Group C" })];
+    assert.equal(model.attendanceViewOf(later, undefined, { coming: true }).lines[0].said, "With Group C");
+    assert.equal(model.attendanceViewOf(later).lines[0].said, "Still to come");
+    assert.deepEqual(model.attendanceViewOf(later).lines[0].chips, []);
+  });
+
+  test("the batch's sender only after an email that went; activity carries a History row with who did it", () => {
+    const piece = { id: "f", weekNumber: 1, on: "week", byName: "Rahul", createdAt: null, emailedAt: new Date("2026-11-08T10:00:00Z"), delivery: "sent", sending: false, legacy: false, sentBy: "Zach" };
+    assert.equal(model.feedbackLineOf(piece, "Amara"), "Rahul · Emailed to Amara on Sun 8 Nov in a batch sent by Zach");
+    assert.equal(model.feedbackLineOf({ ...piece, delivery: "held" }, "Amara"), "Rahul · Not emailed: this copy of the site doesn’t email Amara’s address.");
+    assert.equal(model.feedbackLineOf({ ...piece, sending: true }, "Amara"), "Rahul · Being emailed now");
+    assert.equal(model.feedbackLineOf({ ...piece, sentBy: undefined }, "Amara"), "Rahul · Emailed to Amara on Sun 8 Nov");
+    const lines = model.activityOf({
+      toldAt: null,
+      work: { reflections: new Set(), boxes: new Set(), answers: new Map(), ticked: new Set() },
+      weeks: [],
+      feedback: [],
+      history: [{ at: new Date("2026-11-04T10:40:00Z"), who: "Zach Levin", said: "Kwame Asante visits Group F for week 1." }],
+    });
+    assert.deepEqual(lines, [{ at: "2026-11-04T10:40:00.000Z", when: "Wed 4 Nov, 10:40am", said: "Kwame Asante visits Group F for week 1.", who: "Zach Levin" }]);
+  });
+
+  test("the words: joined, ranked, accepted, an invitation, the events count", async () => {
+    const words = await w.loadTs(join("lib", "courses", "personPage", "words.ts"));
+    assert.equal(words.joinedMonthWords(new Date("2026-09-14T10:00:00Z")), "Sep 2026");
+    assert.equal(words.joinedMonthWords(new Date("2026-06-30T23:30:00Z")), "Jul 2026", "the month in London");
+    assert.equal(words.rankedWords("AGI Strategy", 1), "Ranked AGI Strategy first.");
+    assert.equal(words.rankedWords("AGI Strategy", 3), "Ranked AGI Strategy third.");
+    assert.equal(words.acceptedWords(null), "Accepted.");
+    assert.equal(words.invitationTakenWords(null), "Said yes to an invitation.");
+    assert.equal(words.signedUpWords(1, 0, 0), "Signed up to 1 this term.", "no second sentence with nothing that counts");
+    assert.equal(words.signedUpWords(4, 1, 0), "Signed up to 4 this term. Came to 0 of the 1 that is over where they held a place and check-in was used.");
+    assert.equal(words.signedUpWords(4, 2, 1), "Signed up to 4 this term. Came to 1 of the 2 that are over where they held a place and check-in was used.");
+    assert.equal(words.signedUpWords(0, 0, 0), "Not signed up to any this term.", "no second sentence with no sign-ups");
+    assert.equal(words.visitDueWords("Group F", null), "Due at Group F: a visit");
+  });
+});
+
 describe("the source", () => {
   const load = codeOf("lib/courses/personPage/load.ts");
 
   test("events and activity are read only once the reader is known to be an admin", () => {
     const adminOnly = load.indexOf("if (!isAdmin) return");
     assert.ok(adminOnly > 0);
-    assert.ok(adminOnly < load.indexOf("eventsOfPerson(db"), "events are read after the admin check");
+    assert.ok(adminOnly < load.indexOf("eventsOfPersonInTerm(db"), "events are read after the admin check");
+    assert.ok(adminOnly < load.indexOf("visitHistoryOf(db, run.id, uid)"), "the visits' History rows are read after the admin check");
+    assert.equal((load.match(/eventsOfPersonInTerm\(db/g) ?? []).length, 1, "one read of the events");
     assert.ok(adminOnly < load.indexOf("activity: activityOf("), "activity is made after the admin check");
   });
 

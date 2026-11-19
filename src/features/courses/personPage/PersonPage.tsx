@@ -8,17 +8,24 @@ import {
   ACTIVITY,
   ACTIVITY_HINT,
   ACTIVITY_WHO,
+  ADMINS_ONLY_NOTE,
   APPLICATION,
+  APPLICATION_WHO,
   ATTENDANCE,
   ATTENDANCE_HINT,
   COURSEWORK,
   COURSEWORK_HINT,
   DONE,
+  EMAIL_ADDRESS,
+  EVENTS,
   EVENTS_WHO,
   FACILITATOR_FOOT,
   FEEDBACK,
   FEEDBACK_WHO,
+  GOES_BY,
+  JOINED,
   NONE_ASKED,
+  NOTES,
   NOT_TOLD,
   NO_ACTIVITY,
   NO_FEEDBACK,
@@ -26,6 +33,7 @@ import {
   NO_WEEKS,
   READINGS,
   REFLECTION,
+  SECTIONS_LABEL,
   TEAM_RATING,
   WEEK,
   WRITTEN_ANSWER,
@@ -103,7 +111,9 @@ function Coursework({ weeks, ratings }: { weeks: readonly PersonWeekRow[]; ratin
             {weeks.map((week) => (
               <tr key={week.weekNumber}>
                 <th scope="row">{week.weekNumber}</th>
-                <td>{week.state}</td>
+                <td>
+                  <Lines lines={week.visit ? [week.state, week.visit] : [week.state]} />
+                </td>
                 {week.open ? (
                   <>
                     <td>{week.readings ?? NONE_ASKED}</td>
@@ -135,6 +145,7 @@ function Coursework({ weeks, ratings }: { weeks: readonly PersonWeekRow[]; ratin
             <p className={styles.weekCardHead}>
               {WEEK} {week.weekNumber} · {week.state}
             </p>
+            {week.visit ? <span className={styles.line}>{week.visit}</span> : null}
             {week.open ? (
               <>
                 {week.readings ? (
@@ -192,7 +203,14 @@ function Attendance({ attendance }: { attendance: AttendanceView }) {
           {attendance.lines.map((line) => (
             <li key={line.weekNumber} className={styles.listItem}>
               <span>{line.when}</span>
-              <span>{line.said}</span>
+              <span className={styles.lineWithChips}>
+                <span>{line.said}</span>
+                {line.chips.map((chip) => (
+                  <span key={chip} className={styles.chip}>
+                    {chip}
+                  </span>
+                ))}
+              </span>
             </li>
           ))}
         </ul>
@@ -215,9 +233,23 @@ function Feedback({ feedback, none }: { feedback: readonly FeedbackLine[]; none:
   );
 }
 
+/** The strip of links to the sections this reader is shown, in the page's order. */
+function sectionsOf(view: TeamPersonView): Array<{ id: string; label: string }> {
+  return [
+    view.weeks ? { id: "person-coursework", label: COURSEWORK } : null,
+    { id: "person-attendance", label: ATTENDANCE },
+    view.feedback ? { id: "person-feedback", label: FEEDBACK } : null,
+    view.notes ? { id: "person-notes", label: NOTES } : null,
+    view.application ? { id: "person-application", label: APPLICATION } : null,
+    view.events ? { id: "person-events", label: EVENTS } : null,
+    view.activity ? { id: "person-activity", label: ACTIVITY } : null,
+  ].filter((each): each is { id: string; label: string } => each !== null);
+}
+
 /** THE TEAM'S PAGE: for an admin and the programme's lead. */
 export default function PersonPage({ view }: { view: TeamPersonView }) {
   const { header } = view;
+  const sections = sectionsOf(view);
   return (
     <div className={styles.page}>
       <Link href={view.back.href} className={styles.backLink}>
@@ -231,15 +263,55 @@ export default function PersonPage({ view }: { view: TeamPersonView }) {
           {header.notTold ? <span className={styles.chip}>{NOT_TOLD}</span> : null}
           {header.status ? <span className={styles.chip}>{header.status}</span> : null}
         </div>
-        {view.move ? (
+        {view.about || view.email ? (
+          <dl className={styles.facts}>
+            {view.about?.goesBy ? (
+              <div className={styles.fact}>
+                <dt>{GOES_BY}</dt>
+                <dd>{view.about.goesBy}</dd>
+              </div>
+            ) : null}
+            {view.about?.joined ? (
+              <div className={styles.fact}>
+                <dt>{JOINED}</dt>
+                <dd>{view.about.joined}</dd>
+              </div>
+            ) : null}
+            {view.email ? (
+              <div className={styles.fact}>
+                <dt>{EMAIL_ADDRESS}</dt>
+                <dd>
+                  {view.email} <span className={styles.who}>{ADMINS_ONLY_NOTE}</span>
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+        ) : null}
+        {view.visit || view.move ? (
           <div className={styles.actions}>
-            {/* A visit, once it exists, goes beside Move. */}
-            <Link href={view.move.href} className={styles.action}>
-              {view.move.label}
-            </Link>
+            {view.visit ? (
+              <Link href={view.visit.href} className={styles.action}>
+                {view.visit.label}
+              </Link>
+            ) : null}
+            {view.move ? (
+              <Link href={view.move.href} className={styles.action}>
+                {view.move.label}
+              </Link>
+            ) : null}
           </div>
         ) : null}
       </header>
+
+      {sections.length > 1 ? (
+        <nav className={styles.sections} aria-label={SECTIONS_LABEL}>
+          {sections.map((section) => (
+            <a key={section.id} href={`#${section.id}`} className={styles.sectionLink}>
+              {section.label}
+            </a>
+          ))}
+        </nav>
+      ) : null}
 
       {view.weeks ? (
         <Card id="person-coursework" title={COURSEWORK} hint={COURSEWORK_HINT}>
@@ -259,7 +331,7 @@ export default function PersonPage({ view }: { view: TeamPersonView }) {
 
       {view.notes ? (
         // The notes' own component draws its own head, and asks its own routes who reads which note.
-        <div className={styles.card}>
+        <div className={styles.card} id="person-notes">
           <PersonNotes
             uid={view.uid}
             firstName={view.notes.firstName}
@@ -270,7 +342,8 @@ export default function PersonPage({ view }: { view: TeamPersonView }) {
       ) : null}
 
       {view.application ? (
-        <Card id="person-application" title={APPLICATION}>
+        <Card id="person-application" title={APPLICATION} who={APPLICATION_WHO}>
+          {view.application.line ? <p className={styles.line}>{view.application.line}</p> : null}
           <Link href={view.application.href} className={styles.action}>
             {view.application.label}
           </Link>
@@ -279,6 +352,7 @@ export default function PersonPage({ view }: { view: TeamPersonView }) {
 
       {view.events ? (
         <Card id="person-events" title={PERSON_EVENTS_WORDS.title} who={EVENTS_WHO}>
+          {view.signedUp ? <p className={styles.line}>{view.signedUp}</p> : null}
           <MemberEventsView view={view.events} />
         </Card>
       ) : null}
@@ -291,7 +365,10 @@ export default function PersonPage({ view }: { view: TeamPersonView }) {
             <ul className={styles.list}>
               {view.activity.map((line) => (
                 <li key={`${line.at} ${line.said}`} className={styles.listItem}>
-                  <span>{line.said}</span>
+                  <span>
+                    {line.who ? <span className={styles.activityWho}>{line.who}</span> : null}
+                    {line.said}
+                  </span>
                   <span className={styles.listWhen}>{line.when}</span>
                 </li>
               ))}

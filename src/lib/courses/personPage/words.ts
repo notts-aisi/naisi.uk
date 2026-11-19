@@ -1,5 +1,6 @@
 import { dayAndClockWords } from "@/lib/courses/writtenAnswerWords";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
+import { formatSiteDate } from "@/lib/datetime/siteTime";
 
 /**
  * THE WORDS OF A PERSON'S PAGE: the team's page under a programme
@@ -30,6 +31,79 @@ export const TEAM_RATING = "Team rating";
 
 export const IN_THE_ROOM = "In the room";
 export const ONLINE = "Online";
+export const VISITS_TO_ANOTHER_GROUP = "Visits to another group";
+export const VISIT_CHIP = "Visit";
+export const COMING_CHIP = "Coming";
+
+/** "At Group F’s session, in the room": a week of a one-week visit, at the host's session. */
+export function atSessionWords(groupName: string, said: string): string {
+  return `At ${groupName}’s session, ${said}`;
+}
+
+/** "Tomorrow, with Group C", "Today, with Group F", or "With Group C" on another day: the next session still to come. */
+export function comingWords(dayWord: string | null, groupName: string): string {
+  return dayWord ? `${dayWord}, with ${groupName}` : `With ${groupName}`;
+}
+
+/** "Due at Group F, Thu 5 Nov, 5pm: a visit", or "Due at Group F: a visit" with no moment to tell. */
+export function visitDueWords(hostName: string, at: Date | null): string {
+  return at ? `Due at ${hostName}, ${dayAndClockWords(at)}: a visit` : `Due at ${hostName}: a visit`;
+}
+
+/** "in a batch sent by Zach", after what became of a piece's email. */
+export function batchSentByWords(name: string): string {
+  return `in a batch sent by ${name}`;
+}
+
+/** The strip of links to the page's sections. */
+export const SECTIONS_LABEL = "On this page";
+export const NOTES = "Notes";
+export const EVENTS = "Events";
+
+export const GOES_BY = "Goes by";
+export const JOINED = "Joined";
+export const ADMINS_ONLY_NOTE = "(admins only)";
+export const EMAIL_ADDRESS = "Email address";
+export const APPLICATION_WHO = "Admins and leads";
+export const READ_THE_APPLICATION = "Read the application";
+
+/** "Sep 2026": the month an account joined, in London, its name cut to three letters as the house dates cut it ("Sept" never). */
+export function joinedMonthWords(at: Date): string {
+  return `${formatSiteDate(at, { month: "short" }).slice(0, 3)} ${formatSiteDate(at, { year: "numeric" })}`;
+}
+
+const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
+
+/** "Ranked AGI Strategy first." */
+export function rankedWords(programmeName: string, choice: number): string {
+  const ordinal = ORDINALS[choice - 1] ?? `number ${choice}`;
+  return `Ranked ${programmeName} ${ordinal}.`;
+}
+
+/** "Accepted Wed 28 Oct.", or "Accepted." with no day on record. */
+export function acceptedWords(at: Date | null): string {
+  return at ? `Accepted ${londonDayLabel(at)}.` : "Accepted.";
+}
+
+/** "Said yes to an invitation Thu 29 Oct.", or without the day when none is on record. */
+export function invitationTakenWords(at: Date | null): string {
+  return at ? `Said yes to an invitation ${londonDayLabel(at)}.` : "Said yes to an invitation.";
+}
+
+/**
+ * "Signed up to 3 this term. Came to 1 of the 2 that are over where they held
+ * a place and check-in was used.": the sign-ups, then, over the events
+ * the rule on missed events counts and no others, how many they came to. The
+ * second sentence is said with a nought too, since its own count says what
+ * it is out of, and left out when no event counts yet. With no sign-ups, the
+ * first sentence alone.
+ */
+export function signedUpWords(signedUp: number, counted: number, came: number): string {
+  const first = signedUp === 0 ? "Not signed up to any this term." : `Signed up to ${signedUp} this term.`;
+  if (signedUp === 0 || counted === 0) return first;
+  const over = counted === 1 ? "the 1 that is over" : `the ${counted} that are over`;
+  return `${first} Came to ${came} of ${over} where they held a place and check-in was used.`;
+}
 
 export const NO_WEEKS = "No week of this programme is written yet, so there is no coursework to show.";
 export const NO_REGISTERS = "No register has marked them yet.";

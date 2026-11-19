@@ -90,6 +90,11 @@ export type PersonRow = {
    * more than one group that is not an incubator's. Null otherwise.
    */
   moveHref: string | null;
+  /**
+   * Their page for a one-week visit to another group's session: offered
+   * exactly where `moveHref` is (`movingLinks`). Null otherwise.
+   */
+  visitHref: string | null;
 };
 
 export type PeopleCounts = Record<PeopleFilter, number>;

@@ -206,6 +206,8 @@ describe("2. nothing a lead may not read", () => {
         "personHref",
         "status",
         "uid",
+        // A one-week visit, offered exactly where Move is (one decision, `movingLinks`).
+        "visitHref",
       ]);
       assert.equal(row.personHref, `/admin/admissions/forms/${ROUND}/programmes/${AGI}/people/${encodeURIComponent(row.uid)}`);
     }
@@ -402,6 +404,7 @@ describe("3. one count", () => {
       applicationHref: `/x/${n}`,
       groupsHref: null,
       moveHref: null,
+      visitHref: null,
       ...over,
     });
     const rows = [...Array.from({ length: 13 }, (_, n) => row(n)), row(13, { coming: { kind: "not-yet" } })];

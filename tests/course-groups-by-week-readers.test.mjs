@@ -323,7 +323,7 @@ const READERS = {
   },
   "lib/courses/personPage/load.ts": {
     kinds: ["week", "own"],
-    why: "a person's page reads their attendance off the one record (buildRunAttendance), each week's line dated by the session they were due at that week (groupForWeek: the host's for a visit's week, its mark the host's register's); a facilitator's cut keeps the attendance of the weeks whose session was that facilitator's group's, and the coursework of the weeks the person belonged to it (ownGroupForWeek: a visitor's week stays their own group's, whose facilitators give its feedback), and is opened only by a facilitator of the group they are in now",
+    why: "a person's page reads their attendance off the one record (buildRunAttendance), each week's line dated by the session they were due at that week (groupForWeek: the host's for a visit's week, its mark the host's register's); a facilitator's cut keeps the attendance of the weeks whose session was that facilitator's group's, and the coursework of the weeks the person belonged to it (ownGroupForWeek: a visitor's week stays their own group's, whose facilitators give its feedback), and is opened only by a facilitator of the group they are in now; a week of a one-week visit that stands to a session still happening (visitInWeek, the host's session by groupForWeek) is named on the week's line, counted among visits, and kept on the cut of the group they belong to that week (ownGroupForWeek)",
   },
   "lib/courses/coursework/readingLoad.ts": {
     kinds: ["own", "now"],

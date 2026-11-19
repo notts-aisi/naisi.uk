@@ -137,6 +137,16 @@ function cameTo(person: Pick<Attendance, "uid" | "checkIns">, eventId: string, s
   );
 }
 
+/**
+ * Whether they came to an event they signed up for: checked in by their
+ * account, or through one of those sign-ups. The one decision the Events
+ * card's "came", the events that count (`countedEvents`) and the count on a
+ * person's page (`signedUpWithin`) all ask.
+ */
+function cameWithSignups(person: Pick<Attendance, "uid" | "checkIns">, eventId: string, signups: readonly SignupRead[]): boolean {
+  return cameTo(person, eventId, new Set(signups.map((signup) => signup.id)));
+}
+
 /** Their own sign-ups, test ones left out, grouped by the event they are for. */
 function signupsByEvent(person: Attendance): Map<string, SignupRead[]> {
   const out = new Map<string, SignupRead[]>();
@@ -164,7 +174,7 @@ export function countedEvents(person: Attendance, now: Date): CountedEvent[] {
     if (!inThisYear(event, yearStart)) continue;
     if (!cameAfter(event.startAt, person.agreedFrom)) continue;
     if (!isOver(event, now) || openingOf(event) === null) continue;
-    out.push({ event, came: cameTo(person, eventId, new Set(signups.map((signup) => signup.id))) });
+    out.push({ event, came: cameWithSignups(person, eventId, signups) });
   }
   return out.sort(
     (a, b) => (b.event.startAt?.getTime() ?? 0) - (a.event.startAt?.getTime() ?? 0) || a.event.id.localeCompare(b.event.id),
@@ -222,7 +232,7 @@ export function personEventRows(person: Attendance, now: Date): PersonEventRow[]
     const newest = newestOf(signups);
     const live = signups.some((signup) => signup.status === "pending" || signup.status === "confirmed" || signup.status === "waitlisted");
     if (event.startAt ? !inThisYear(event, yearStart) : !live) continue;
-    const came = cameTo(person, eventId, new Set(signups.map((signup) => signup.id)));
+    const came = cameWithSignups(person, eventId, signups);
     rows.push({
       row: {
         eventId,
@@ -259,6 +269,57 @@ export function personEventsView(person: Attendance, now: Date): PersonEventsVie
     missed: missedTwoInARow(person, now),
     events: personEventRows(person, now),
   };
+}
+
+/** A stretch of time by its two ends: `to` null for one with no end known yet. */
+export type TermWindow = { from: Date; to: Date | null };
+
+/** Whether an event starts inside a stretch of time. */
+function startsWithin(event: Pick<EventRead, "startAt">, term: TermWindow): boolean {
+  if (!event.startAt) return false;
+  const at = event.startAt.getTime();
+  return at >= term.from.getTime() && (term.to === null || at <= term.to.getTime());
+}
+
+/**
+ * HOW MANY EVENTS THEY SIGNED UP TO IN A STRETCH OF TIME, AND OF THOSE THAT
+ * COUNT, HOW MANY THEY CAME TO, for an admin's page about them.
+ *
+ * `signedUp`: the events that start inside `term` for which their newest own
+ * sign-up (a test one never) still stands: a place, a request not decided
+ * yet, or the waiting list. A place given back, a request turned down, an
+ * event cancelled, an event with no date and anything they came to with no
+ * sign-up are not counted.
+ *
+ * `counted` and `came`: NOT over those. Over the events that start inside
+ * `term` and that the policy's rule counts (`countedEvents`, the same
+ * decision the line beside a request and the Events card's "came" ask: over,
+ * not cancelled, a confirmed place held when it started, check-in used at
+ * its door, this academic year, after they agreed), how many there are and
+ * how many they came to. An event still to come, the waiting list, a request
+ * nobody decided, a place given back (beforehand or at any time) and an
+ * event whose door list was never opened are in neither, so "came" is never
+ * set beside sign-ups that could not have been come to. A drop-in they came
+ * to with no sign-up is in none of the three.
+ *
+ * Null for somebody who has not agreed to privacy version 15, for whom the
+ * page lists none of their events (`personEventRows`).
+ */
+export function signedUpWithin(
+  person: Attendance,
+  term: TermWindow,
+  now: Date,
+): { signedUp: number; counted: number; came: number } | null {
+  if (!person.agreedFrom) return null;
+  let signedUp = 0;
+  for (const [eventId, signups] of signupsByEvent(person)) {
+    const event = person.events.get(eventId);
+    if (!event || event.id !== eventId || event.status !== "published" || !startsWithin(event, term)) continue;
+    const newest = newestOf(signups);
+    if (newest.status === "confirmed" || newest.status === "pending" || newest.status === "waitlisted") signedUp += 1;
+  }
+  const counted = countedEvents(person, now).filter((each) => startsWithin(each.event, term));
+  return { signedUp, counted: counted.length, came: counted.filter((each) => each.came).length };
 }
 
 // ---------------------------------------------------------------------------
@@ -369,4 +430,18 @@ export async function missedEventsOf(db: Firestore, uids: readonly string[], now
 export async function eventsOfPerson(db: Firestore, uid: string, now: Date): Promise<PersonEventsView | null> {
   const person = (await readAttendance(db, [uid])).get(uid);
   return person ? personEventsView(person, now) : null;
+}
+
+/**
+ * The same card, and the count of events they signed up to in `term`
+ * (`signedUpWithin`), from the one read. Null when there is no account here.
+ */
+export async function eventsOfPersonInTerm(
+  db: Firestore,
+  uid: string,
+  now: Date,
+  term: TermWindow | null,
+): Promise<{ view: PersonEventsView; signedUp: { signedUp: number; counted: number; came: number } | null } | null> {
+  const person = (await readAttendance(db, [uid])).get(uid);
+  return person ? { view: personEventsView(person, now), signedUp: term ? signedUpWithin(person, term, now) : null } : null;
 }
