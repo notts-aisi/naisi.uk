@@ -1234,6 +1234,55 @@ a.pill {
   color: var(--color-ok);
 }
 
+/* Before the session, and each week's meeting link, on the facilitator's page */
+
+.beforeList,
+.linkList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.beforeRow,
+.linkRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 2.75rem;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.beforeRow:first-child,
+.linkRow:first-child {
+  border-top: 0;
+}
+
+.beforeText,
+.linkText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.beforeNames,
+.linkWeek {
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.beforeSays,
+.linkState {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .title {
     font-size: var(--text-3xl);
@@ -1281,6 +1330,12 @@ a.pill {
     text-align: center;
   }
   .panelActions > * {
+    flex: 1 1 auto;
+  }
+  .linkRow {
+    flex-wrap: wrap;
+  }
+  .linkRow .button {
     flex: 1 1 auto;
   }
 }

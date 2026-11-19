@@ -444,6 +444,83 @@ export function weekOnlyWords(weekNumber: number): string {
   return `Week ${weekNumber} only`;
 }
 export const EVERY_WEEK = "Every week";
+/** "Week 3 onwards": the link from that week on, every earlier week keeping the link it had. */
+export function weekOnwardsWords(weekNumber: number): string {
+  return `Week ${weekNumber} onwards`;
+}
+
+/** "Week 4", "Weeks 4 and 5", "Weeks 4 to 6", "Weeks 2, 4 and 6". */
+function weeksWords(numbers: readonly number[]): string {
+  const sorted = [...numbers].sort((a, b) => a - b);
+  if (sorted.length === 1) return `Week ${sorted[0]}`;
+  const consecutive = sorted.every((n, i) => i === 0 || n === sorted[i - 1] + 1);
+  if (consecutive && sorted.length > 2) return `Weeks ${sorted[0]} to ${sorted[sorted.length - 1]}`;
+  return `Weeks ${namesWords(sorted.map(String))}`;
+}
+
+/**
+ * Under "Week 3 only": the later weeks that read the every-week link keep
+ * it ("Weeks 4 to 6 keep the every-week link."), or, with none, that every
+ * other week stays as it is.
+ */
+export function onlyHintWords(laterOnEvery: readonly number[]): string {
+  if (laterOnEvery.length === 0) return "Other weeks stay as they are.";
+  return `${weeksWords(laterOnEvery)} ${laterOnEvery.length === 1 ? "keeps" : "keep"} the every-week link.`;
+}
+
+/**
+ * Under "Week 3 onwards": what it replaces from that week on, and that the
+ * earlier weeks keep the link they had ("Replaces the every-week link from
+ * week 3. Week 2 keeps the link it had.").
+ */
+export function onwardsHintWords(weekNumber: number, earlier: readonly number[], standing: boolean): string {
+  const first = standing
+    ? `Replaces the every-week link from week ${weekNumber}.`
+    : `Sets it for week ${weekNumber} and every later week without a link of its own.`;
+  if (earlier.length === 0) return first;
+  const kept = earlier.length === 1 ? "keeps the link it had" : "keep the links they had";
+  return `${first} ${weeksWords(earlier)} ${kept}.`;
+}
+
+// ---------------------------------------------------------------------------
+// Each week's meeting link, on the facilitator's page
+// ---------------------------------------------------------------------------
+
+export const MEETING_LINKS = "Meeting links";
+/** Under the list, while the group has an every-week link. */
+export const ANY_WEEK_OWN_LINK = "Any week can still have a link of its own.";
+/** Which link a week reads, as the rooms page says it. Never the link. */
+export function weekLinkWords(kind: "week" | "every" | "none", weekNumber: number): string {
+  return kind === "week" ? `Set: week ${weekNumber} only` : kind === "every" ? "Set: every week" : "No link";
+}
+
+// ---------------------------------------------------------------------------
+// Before the session, on the facilitator's page
+// ---------------------------------------------------------------------------
+
+export const BEFORE_THE_SESSION = "Before the session";
+/** "Week 2 · Tue 10 Nov", under the title. */
+export function beforeWhenWords(weekNumber: number, dateKey: string): string {
+  const day = dayWords(dateKey);
+  return day ? `Week ${weekNumber} · ${day}` : `Week ${weekNumber}`;
+}
+/** Each row's chip. Somebody away at another group's session has none: their line says where. */
+export const BEFORE_CHIP: Record<"waiting" | "excused" | "online" | "visiting" | "away" | "coming", string | null> = {
+  waiting: "Waiting",
+  excused: "Excused",
+  online: "Online",
+  visiting: "Visiting",
+  away: null,
+  coming: "Coming",
+};
+/** What a row says beside its names, where it has no line of its own. */
+export function beforeSaysWords(kind: "waiting" | "excused" | "online" | "coming", sessionOnline: boolean): string {
+  if (kind === "waiting") return "Asked to be excused, waiting";
+  if (kind === "excused") return "Can’t make it";
+  if (kind === "online") return "Joining online";
+  return sessionOnline ? "Joining online" : "In the room";
+}
+
 export const SAVE_THE_LINK = "Save the link";
 /** Said once a link is saved: nobody is emailed. */
 export function linkSavedWords(weekNumber: number, everyWeek: boolean): string {

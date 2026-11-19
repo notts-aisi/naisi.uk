@@ -469,10 +469,29 @@ describe("3. the box asks the facilitators for a link, and the link route saves 
     });
     assert.deepEqual(await giveLink("rahul", { sessionKey: "w03", url: LINK }), { status: 409, body: { error: words.MEETING_LINK_REFUSAL.cancelled } });
     // Twenty weeks already set apart: a new one is refused; one of them may change, and every week may too.
-    const apart = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`w${String(i + 10).padStart(2, "0")}`, { location: "Somewhere" }]));
+    // CHANGED ON PURPOSE (November 2026): a link from a week on keeps every
+    // earlier week's link as it was, which sets those weeks apart too. Here
+    // weeks 1 to 3 are among the twenty, so nothing more is set apart.
+    const apart = Object.fromEntries(
+      ["w01", "w02", "w03", ...Array.from({ length: 17 }, (_, i) => `w${String(i + 10).padStart(2, "0")}`)].map((weekId) => [weekId, { location: "Somewhere" }]),
+    );
     world.db.poke(`courseGroups/${B}`, { sessionChanges: {}, sessionOverrides: apart });
     assert.deepEqual(await giveLink("rahul", { sessionKey: "w04", url: LINK }), { status: 409, body: { error: words.MEETING_LINK_REFUSAL.full } });
     assert.equal((await giveLink("rahul", { sessionKey: "w04", url: LINK, everyWeek: true })).status, 200);
+    assert.deepEqual(
+      ["w01", "w02", "w03"].map((weekId) => world.db.read(`courseGroups/${B}`).sessionOverrides[weekId]),
+      ["w01", "w02", "w03"].map(() => ({ location: "Somewhere", meetingUrl: null })),
+      "the earlier weeks keep the link they had: none",
+    );
+    // Twenty set apart, none of them earlier than the week: keeping the earlier weeks' links needs three more, so nothing is written.
+    const later = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`w${String(i + 10).padStart(2, "0")}`, { location: "Somewhere" }]));
+    world.db.poke(`courseGroups/${B}`, { session: { ...world.db.read(`courseGroups/${B}`).session, meetingUrl: null }, sessionOverrides: later });
+    const before = w.everything();
+    assert.deepEqual(await giveLink("rahul", { sessionKey: "w04", url: LINK, everyWeek: true }), {
+      status: 409,
+      body: { error: words.MEETING_LINK_REFUSAL.earlierFull },
+    });
+    assert.equal(w.everything(), before, "a refused link was written");
   });
 });
 

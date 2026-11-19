@@ -77,6 +77,10 @@ const READERS = {
     does: "saves",
     why: "the facilitators' box saves the link they typed for one week (the week's own) or for every week (the group's standing link), behind its route's gate; it emails nobody",
   },
+  "lib/courses/meetingLink/plan.ts": {
+    does: "saves",
+    why: "the arithmetic of a link saved for one week or from a week on: the field paths the writer sets, every earlier week keeping the link it had; and which kind of link a week reads (its own, every week, none) as a word, never the link",
+  },
   "features/courses/facilitator/JoiningOnlineBox.tsx": {
     does: "saves",
     why: "the facilitators' box at the top of the group page and the register: the field a facilitator types a week's link into, held to the group's own cap, which it sends to its route and never shows back",

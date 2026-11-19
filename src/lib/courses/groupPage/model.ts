@@ -21,6 +21,7 @@ import { clockWords, dayWords, hoursWords, namesWords, peopleWords } from "../se
 import { weekdaysWords } from "../regularTime/words";
 import type { DidNotHappenPreview } from "../registerCover/pageWords";
 import type { GroupWeekWorkView } from "../groupWeekWork/view";
+import type { WeekLinkKind } from "../meetingLink/plan";
 import {
   ROOM_TO_BE_CONFIRMED,
   type HistoryFilter,
@@ -66,6 +67,8 @@ export type GroupPageWeek = {
   taken: boolean;
   /** The week has a meeting link, its own or the group's. Never the link. */
   hasLink: boolean;
+  /** Which link the week reads: its own, the group's every-week link, or none (`weekLinkKind`). Never the link. */
+  link: WeekLinkKind;
   /** The seven days of the week's slot, for a move's Day. */
   slotDays: string[];
   /** Who said they are joining this session online, and who said they can't make it: names. */
@@ -173,6 +176,13 @@ export type GroupPageView = {
   /** The session "Set the link" for every week saves on: the next one still to end, not cancelled. */
   linkSessionKey: string | null;
   linkWeekNumber: number | null;
+  /**
+   * "Before the session", on the facilitator's page only (null for staff,
+   * whose week card lists the week's people): the group's next session still
+   * to end, and who has said what about it (`beforeTheSessionOf`). Null with
+   * no such session or nobody to list.
+   */
+  before: BeforeTheSession | null;
   /** The group's history, for admins and the lead; null on the facilitator's page. */
   history: { rows: GroupPageHistoryRow[]; more: boolean } | null;
   /**
@@ -207,6 +217,118 @@ export function weekRegisterFacts(week: GroupPageWeek): {
     covered: week.cover !== null,
     taken: week.taken,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Before the session, on the facilitator's page
+// ---------------------------------------------------------------------------
+
+/** What a row of "Before the session" says about the people on it. */
+export type BeforeKind = "waiting" | "excused" | "online" | "visiting" | "away" | "coming";
+
+/** The order the rows are drawn in: what needs a decision or a link first, who is simply coming last. */
+export const BEFORE_ORDER: readonly BeforeKind[] = ["waiting", "excused", "online", "visiting", "away", "coming"];
+
+/**
+ * One row: the names it is about (as the reader is shown people), and, for a
+ * visitor and somebody away, their own line ("Visiting from Group C, week 2
+ * only. ..." / "At Group F this week"). Names only: no uid, no address, never
+ * a reason or when anything was asked.
+ */
+export type BeforeRow = { kind: BeforeKind; names: string[]; line: string };
+
+export type BeforeTheSession = {
+  weekNumber: number;
+  /** The session's civil date. */
+  dateKey: string;
+  /** The session is held online for everybody: whoever is coming is joining online. */
+  online: boolean;
+  rows: BeforeRow[];
+};
+
+/**
+ * WHO HAS SAID WHAT ABOUT ONE SESSION, for its facilitators before it: each
+ * of the week's people once, in the first row that fits them.
+ *
+ *  - VISITING: somebody from another group at this session for the week,
+ *    with their line.
+ *  - AWAY: one of the group's own people at another group's session that
+ *    week, with where.
+ *  - WAITING: a request to be excused, not decided yet.
+ *  - EXCUSED: an approved request, or their own word that they can't make it.
+ *  - ONLINE: their own word that they are joining online (on a session held
+ *    in a room).
+ *  - COMING: everybody else.
+ *
+ * Somebody moved into the group from a later week is not one of the week's
+ * people and is left out. The facts are the ones the register and the staff
+ * page already read (`GroupPageWeek.people`), so the three cannot disagree.
+ */
+export function beforeTheSessionOf(input: {
+  weekNumber: number;
+  dateKey: string;
+  online: boolean;
+  people: GroupPageWeek["people"];
+  /** "At Group F this week", from the host group's name. */
+  awayWords: (hostName: string) => string;
+}): BeforeTheSession | null {
+  const grouped = new Map<BeforeKind, string[]>();
+  const single: BeforeRow[] = [];
+  for (const person of input.people) {
+    if (person.joins) continue;
+    if (person.visiting) {
+      single.push({ kind: "visiting", names: [person.name], line: person.visiting.line });
+      continue;
+    }
+    if (person.awayAt !== undefined) {
+      single.push({ kind: "away", names: [person.name], line: input.awayWords(person.awayAt) });
+      continue;
+    }
+    const kind: BeforeKind =
+      person.excuse === "waiting"
+        ? "waiting"
+        : person.excuse === "excused" || person.said === "cant"
+          ? "excused"
+          : person.said === "online" && !input.online
+            ? "online"
+            : "coming";
+    grouped.set(kind, [...(grouped.get(kind) ?? []), person.name]);
+  }
+  const rows: BeforeRow[] = [];
+  for (const kind of BEFORE_ORDER) {
+    if (kind === "visiting" || kind === "away") rows.push(...single.filter((row) => row.kind === kind));
+    else if (grouped.has(kind)) rows.push({ kind, names: grouped.get(kind) ?? [], line: "" });
+  }
+  if (rows.length === 0) return null;
+  return { weekNumber: input.weekNumber, dateKey: input.dateKey, online: input.online, rows };
+}
+
+// ---------------------------------------------------------------------------
+// A week's meeting link: for that week only, or from that week on
+// ---------------------------------------------------------------------------
+
+/**
+ * What the two choices of a week's link say, from the page's weeks: the
+ * later weeks still to come that read the every-week link (they keep it when
+ * the link is for this week only), and the earlier weeks of the plan (they
+ * keep the link they had when it is from this week on). Mirrors what the
+ * writer does (`planLinkSave`).
+ */
+export function linkChoiceFacts(
+  weeks: ReadonlyArray<Pick<GroupPageWeek, "weekNumber" | "ended" | "cancelled" | "link">>,
+  weekNumber: number,
+): { laterOnEvery: number[]; earlier: number[] } {
+  return {
+    laterOnEvery: weeks
+      .filter((week) => week.weekNumber > weekNumber && !week.ended && !week.cancelled && week.link === "every")
+      .map((week) => week.weekNumber),
+    earlier: weeks.filter((week) => week.weekNumber < weekNumber).map((week) => week.weekNumber),
+  };
+}
+
+/** Whether a week's link may be set or changed: a session still to end, not cancelled. A week that has met keeps its link. */
+export function linkChangeable(week: Pick<GroupPageWeek, "ended" | "cancelled" | "dateKey">): boolean {
+  return !week.ended && !week.cancelled && Boolean(week.dateKey);
 }
 
 // ---------------------------------------------------------------------------

@@ -132,6 +132,9 @@ export const MEETING_LINK_REFUSAL = {
   over: "That session is over, so it needs no link.",
   /** The group already keeps its most weeks apart from its usual slot. */
   full: "This group has too many weeks set apart from its usual slot to add one more. Keep the link for every week instead.",
+  /** From a week on, the earlier weeks keeping their links would set apart more weeks than the group keeps. */
+  earlierFull:
+    "This group has too many weeks set apart from its usual slot to keep the earlier weeks’ links as they are. Set it for this week only instead.",
   failed: "That link didn’t save. Try again.",
 } as const;
 
