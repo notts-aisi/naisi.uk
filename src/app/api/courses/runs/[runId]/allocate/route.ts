@@ -20,7 +20,13 @@ import {
   placementIsTold,
 } from "@/lib/firestore/courseEnrolments";
 import { visitsAfterGroupChange } from "@/lib/courses/groupsByWeek";
-import { isMidTermBoardMove, planBoardMove, saveBoardMove, type BoardRefusal } from "@/lib/courses/staffMove/board";
+import {
+  isMidTermBoardMove,
+  midTermToPoolRefusal,
+  planBoardMove,
+  saveBoardMove,
+  type BoardRefusal,
+} from "@/lib/courses/staffMove/board";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -95,6 +101,27 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * or the rule's refusal in its sentence; anybody else, and every move made
  * before the term, is answered with no week, exactly as a move with nothing
  * to say. A move before the term is written exactly as it always was.
+ *
+ * A SEAT SUCH A MOVE FREES IS FREE BEFORE IT IS TAKEN, as the boards send
+ * their placements (`placementOrder` in
+ * `src/lib/applications/arrange/changes.ts`). Every capacity check reads the
+ * count its own transaction read, so no group is ever over its capacity at
+ * any commit, and a move made mid-term frees its seat only when it is
+ * written. So the press goes in rounds: the placements in their chunks, then
+ * the moves made mid-term one by one; then each placement refused because
+ * its group was full, into a group a move made mid-term has just left, is
+ * tried again, in the same way, until a round frees nothing more. A move made
+ * mid-term that is refused frees nothing, so nobody is ever placed into a
+ * seat it did not free. A press with no move made mid-term is one round,
+ * exactly as it always was. Two people swapped between two full groups are
+ * still refused, as they always were: neither can go first.
+ *
+ * NEVER INTO NO GROUP MID-TERM. A told seat whose group has met (or one with
+ * a record) taken out of every group would keep no record of the weeks it
+ * met, so it is refused (`mid-term-to-pool`), in the board's sentence: move
+ * the person straight to the new group, or take them off the run. Before the
+ * term, and a seat nobody has told, as always. A told seat already in no
+ * group is placed by the plain move, as always.
  * ────────────────────────────────────────────────────────────────────────────
  *
  * ── A TOLD SEAT STAYS TOLD, WHEREVER IT IS MOVED ────────────────────────────
@@ -157,6 +184,8 @@ const MAX_PLACEMENTS = 500;
  *    (not the week the board showed), "old-no-longer-meets" (the group they
  *    are in is archived) and "changed" (the board is out of date), each with
  *    the sentence the board shows (`words`); and the codes above
+ *  - "mid-term-to-pool": a told seat whose group has met, taken out of every
+ *    group (see the note at the top), with its sentence (`words`)
  */
 type Rejection = { uid: string; reason: string; words?: string };
 
@@ -235,6 +264,22 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const now = new Date();
 
+  /**
+   * The refusal of taking this person out of every group, when that would be
+   * mid-term (see the note at the top), read outside any transaction for the
+   * preview; null when the pool takes them as it always has.
+   */
+  const poolRefusalOf = async (uid: string): Promise<BoardRefusal | null> => {
+    const seatSnap = await db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid)).get();
+    if (!seatSnap.exists) return null;
+    const seat = normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {});
+    if (seat.runId !== runId || seat.uid !== uid || !seat.groupId) return null;
+    const groupsSnap = await db.collection("courseGroups").where("runId", "==", runId).get();
+    const groups = groupsSnap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})).filter((group) => group.runId === runId);
+    if (!isMidTermBoardMove(run, seat, groups, now)) return null;
+    return midTermToPoolRefusal(db, uid, groups.find((group) => group.id === seat.groupId)?.name ?? "");
+  };
+
   if (preview) {
     // Writes nothing. Only a person this caller may place, to one of the run's
     // groups that still meets, is answered with a week; anybody else as a move
@@ -242,14 +287,15 @@ export async function POST(req: Request, ctx: Ctx) {
     const out: PreviewEntry[] = [];
     for (const { uid, groupId } of placements) {
       const blank: PreviewEntry = { uid, groupId, fromWeek: null, words: null, refusal: null };
-      if (!groupId) {
-        out.push(blank);
-        continue;
-      }
       const appSnap = await db.collection("courseApplications").doc(courseApplicationId(runId, uid)).get();
       const application = appSnap.exists ? normalizeCourseApplication(appSnap.id, appSnap.data() ?? {}) : null;
       if (!application || application.status !== "accepted" || !rowIsServedTo(application, staffing)) {
         out.push(blank);
+        continue;
+      }
+      if (!groupId) {
+        // Out of every group: refused mid-term (see the note at the top), else nothing to say.
+        out.push({ ...blank, refusal: await poolRefusalOf(uid) });
         continue;
       }
       const planned = await planBoardMove(db, run, uid, groupId, now);
@@ -261,7 +307,9 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   let placed = 0;
-  const rejected: Rejection[] = [];
+  // Each person's refusal, by uid: one tried again in a later round loses its earlier refusal.
+  const rejectedByUid = new Map<string, Rejection>();
+  const rejectedNow = () => [...rejectedByUid.values()];
 
   // Each form a seat that has left may get its place back on, read once for
   // the request and outside its transactions, as leaving and Remove read it.
@@ -274,9 +322,13 @@ export async function POST(req: Request, ctx: Ctx) {
     return loading;
   };
 
-  for (let i = 0; i < placements.length; i += CHUNK_SIZE) {
-    const chunk = placements.slice(i, i + CHUNK_SIZE);
-    let outcome: { placed: number; rejected: Rejection[]; midTerm: Placement[] };
+  // The rounds (see the note at the top): the first takes every placement,
+  // and the groups a move made mid-term left in a round have a seat free.
+  let pending: Placement[] = placements;
+  let freed = new Set<string>();
+  for (let i = 0; i < pending.length; i += CHUNK_SIZE) {
+    const chunk = pending.slice(i, i + CHUNK_SIZE);
+    let outcome: { placed: number; rejected: Rejection[]; midTerm: Placement[]; toPool: { uid: string; fromName: string }[] };
     try {
       // Accumulators live INSIDE the callback (returned, not captured):
       // Firestore retries a contended transaction, and outer accumulators
@@ -286,6 +338,8 @@ export async function POST(req: Request, ctx: Ctx) {
         let chunkPlaced = 0;
         // Moves made mid-term, made one by one after this chunk commits.
         const chunkMidTerm: Placement[] = [];
+        // Told seats whose group has met, refused the pool: worded after the commit.
+        const chunkToPool: { uid: string; fromName: string }[] = [];
 
         // ── Reads first, ALL of them ──────────────────────────────────────
         // Firestore transactions forbid reads after the first write, so the
@@ -496,6 +550,18 @@ export async function POST(req: Request, ctx: Ctx) {
             chunkMidTerm.push(placement);
             continue;
           }
+          // NEVER INTO NO GROUP MID-TERM (see the note at the top): refused,
+          // and the seat, its record and its group's count stay as they are.
+          if (
+            enrolment &&
+            !facilitatorRow &&
+            groupId === null &&
+            enrolment.groupId !== null &&
+            isMidTermBoardMove(run, enrolment, runGroups, now)
+          ) {
+            chunkToPool.push({ uid, fromName: runGroups.find((group) => group.id === enrolment.groupId)?.name ?? "" });
+            continue;
+          }
 
           // CAPACITY IS HARD here: the in-transaction effective count (stored
           // memberCount adjusted by this chunk's earlier placements) must stay
@@ -645,7 +711,7 @@ export async function POST(req: Request, ctx: Ctx) {
         // form's counters, in the same transaction as the seat.
         if (restoring.length > 0) restorePlaces(tx, restoring);
 
-        return { placed: chunkPlaced, rejected: chunkRejected, midTerm: chunkMidTerm };
+        return { placed: chunkPlaced, rejected: chunkRejected, midTerm: chunkMidTerm, toPool: chunkToPool };
       });
     } catch (err) {
       // Chunks are independent transactions, so earlier chunks are already
@@ -658,27 +724,41 @@ export async function POST(req: Request, ctx: Ctx) {
               ? `Some placements failed to save — ${placed} were applied before the error. Reload the board to see the current state.`
               : "Couldn't save those placements.",
           placed,
-          rejected,
+          rejected: rejectedNow(),
         },
         { status: 500 },
       );
     }
     placed += outcome.placed;
-    rejected.push(...outcome.rejected);
+    for (const refusal of outcome.rejected) rejectedByUid.set(refusal.uid, refusal);
+    for (const { uid, fromName } of outcome.toPool) rejectedByUid.set(uid, { uid, ...(await midTermToPoolRefusal(db, uid, fromName)) });
     // Each move made mid-term on its own: one person's refusal never loses another's move.
     for (const move of outcome.midTerm) {
       if (!move.groupId) continue;
-      let refusal: BoardRefusal | null;
       try {
-        refusal = await saveBoardMove(db, { run, uid: move.uid, toGroupId: move.groupId, fromWeek: move.fromWeek ?? null, actor, now });
+        const saved = await saveBoardMove(db, { run, uid: move.uid, toGroupId: move.groupId, fromWeek: move.fromWeek ?? null, actor, now });
+        if (saved.ok) {
+          placed += 1;
+          freed.add(saved.leftGroupId);
+        } else {
+          rejectedByUid.set(move.uid, { uid: move.uid, ...saved.refusal });
+        }
       } catch (err) {
         console.error("[courses allocate] move made mid-term failed", runId, err);
-        refusal = { reason: "failed" };
+        rejectedByUid.set(move.uid, { uid: move.uid, reason: "failed" });
       }
-      if (refusal) rejected.push({ uid: move.uid, ...refusal });
-      else placed += 1;
+    }
+    // The round's last chunk: the next round tries again each placement
+    // refused because its group was full, into a group a move made mid-term
+    // has just left. None when nothing was freed, and the press is over.
+    if (i + CHUNK_SIZE >= pending.length) {
+      const again = pending.filter((each) => each.groupId !== null && freed.has(each.groupId) && rejectedByUid.get(each.uid)?.reason === "group-full");
+      for (const each of again) rejectedByUid.delete(each.uid);
+      pending = again;
+      freed = new Set<string>();
+      i = -CHUNK_SIZE; // the loop's step makes it 0: the next round's first chunk
     }
   }
 
-  return NextResponse.json({ ok: true, placed, rejected });
+  return NextResponse.json({ ok: true, placed, rejected: rejectedNow() });
 }

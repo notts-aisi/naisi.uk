@@ -56,6 +56,7 @@ mock.timers.enable({ apis: ["Date"], now: NOW });
 const w = await makeLeavingWorld("__staffMove");
 const { world, call } = w;
 const moveRoute = await w.formRoute("programmes", "[programmeId]", "people", "[uid]", "move");
+const removeRoute = await w.courseRoute("runs", "[runId]", "enrolments", "[uid]", "remove");
 const words = await w.loadTs(join("lib", "courses", "staffMove", "words.ts"));
 const week = await w.loadTs(join("lib", "courses", "staffMove", "week.ts"));
 const { resolveSessions } = await w.loadTs(join("lib", "courses", "sessions.ts"));
@@ -276,8 +277,34 @@ describe("1. the week a move is from", () => {
 
     test("the old group's week 4 still to come and the new group's week 4 started: refused as before, never from week 5", () => {
       const startedNew = [s(4, "2026-11-16T17:00"), s(5, "2026-11-23T17:00")];
-      const out = week.moveWeekOf({ oldSessions: [s(3, "2026-11-11T13:00"), s(4, "2026-11-18T13:00"), s(5, "2026-11-25T13:00")], newSessions: startedNew, now: new Date() });
+      const old = [s(3, "2026-11-11T13:00"), s(4, "2026-11-18T13:00"), s(5, "2026-11-25T13:00")];
+      const out = week.moveWeekOf({ oldSessions: old, newSessions: startedNew, now: new Date() });
       assert.deepEqual([out.ok, out.refusal.kind, out.refusal.weekNumber], [false, "new-has-met", 4]);
+      // What calling off the old group's week 4 would do: the rule asked again with it called off.
+      assert.equal(out.refusal.ifCalledOff, 5);
+      const calledOff = week.moveWeekOf({ oldSessions: old.map((each) => (each.weekNumber === 4 ? { ...each, cancelled: true } : each)), newSessions: startedNew, now: new Date() });
+      assert.deepEqual([calledOff.ok, calledOff.weekNumber], [true, 5], "the sentence's week is the week the rule then gives");
+    });
+
+    test("calling off the old group's week 4 is said only when it lets the move go ahead", () => {
+      const startedNew = [s(4, "2026-11-16T17:00"), s(5, "2026-11-23T17:00")];
+      // The new group has no week 5: calling it off would still leave no week.
+      const noFive = week.moveWeekOf({ oldSessions: [s(3, "2026-11-11T13:00"), s(4, "2026-11-18T13:00"), s(5, "2026-11-25T13:00")], newSessions: [startedNew[0]], now: new Date() });
+      assert.deepEqual([noFive.refusal.kind, noFive.refusal.ifCalledOff], ["new-has-met", null]);
+      // The old group's last week is week 4: nothing would be left to move from.
+      const last = week.moveWeekOf({ oldSessions: [s(3, "2026-11-11T13:00"), s(4, "2026-11-18T13:00")], newSessions: startedNew, now: new Date() });
+      assert.deepEqual([last.refusal.kind, last.refusal.ifCalledOff], ["new-has-met", null]);
+      // The new group has started its week 5 too: calling off week 4 would meet the same refusal a week on.
+      const both = week.moveWeekOf({ oldSessions: [s(3, "2026-11-04T13:00"), s(4, "2026-11-18T13:00"), s(5, "2026-11-25T13:00")], newSessions: [s(4, "2026-11-09T17:00"), s(5, "2026-11-16T17:00"), s(6, "2026-11-23T17:00")], now: new Date() });
+      assert.deepEqual([both.refusal.kind, both.refusal.ifCalledOff], ["new-has-met", null]);
+      // And the words: the sentence is added only with a week.
+      const base = { firstName: "Leo", toName: "Group F", fromName: "Group C", weekNumber: 2, dateKey: "2026-11-11", startTimeLocal: "17:00" };
+      assert.equal(
+        words.newHasMetWords({ ...base, ifCalledOff: 3 }),
+        "Group F has already met for week 2, so Leo can’t join it for that week. To move Leo from week 3, come back after Group C’s week 2 session (Wed 11 Nov, 5pm). If Group C’s week 2 session is called off with “Cancel and keep pace”, Leo can be moved now, from week 3.",
+      );
+      assert.equal(words.newHasMetWords({ ...base, ifCalledOff: null }), words.newHasMetWords(base));
+      assert.doesNotMatch(words.newHasMetWords(base), /called off/);
     });
 
     test("the earliest week nobody met wins, and a week whose new session is called off is passed over", () => {
@@ -425,11 +452,19 @@ describe("3. every refusal, one sentence, nothing written", () => {
   });
 
   test("the week rule's three refusals, with the names, weeks and times filled in", async () => {
+    // Changed on purpose: the refusal now says, when it is true, that calling
+    // off the old group's session lets the move go ahead now (proved just below).
     await refused(
       "chloe",
       A,
-      "Group A has already met for week 3, so Chloe can’t join it for that week. To move Chloe from week 4, come back after Group B’s week 3 session (Tue 17 Nov, 6pm).",
+      "Group A has already met for week 3, so Chloe can’t join it for that week. To move Chloe from week 4, come back after Group B’s week 3 session (Tue 17 Nov, 6pm). " +
+        "If Group B’s week 3 session is called off with “Cancel and keep pace”, Chloe can be moved now, from week 4.",
     );
+    // And it is true: Group B's week 3 called off, keeping pace, and the move is from week 4 at once.
+    world.db.poke(`courseGroups/${B}`, { sessionChanges: { w03: { kind: "cancelled", reason: "Reading week", dateKey: "2026-11-17", byUid: "claudia", at: new Date() } } });
+    const calledOff = await preview("claudia", "chloe", A);
+    assert.deepEqual([calledOff.status, calledOff.body.preview?.weekNumber], [200, 4], JSON.stringify(calledOff.body));
+    world.db.poke(`courseGroups/${B}`, { sessionChanges: {} });
     world.db.poke(`courseGroups/${C}`, { session: { ...read(`courseGroups/${C}`).session, startTimeLocal: "" } });
     await refused("freya", C, "Group C has no session for week 4.");
     at("2027-01-10T12:00:00Z");
@@ -929,7 +964,7 @@ describe("9. a real Publish after a move, and the person's own page", () => {
   // Changed on purpose: the board refused a place with a record until a move
   // made mid-term there went through the writer. Now it folds the record back
   // exactly as the move page does, emails nobody, and Remove still takes it out.
-  test("the board moves a place with a record back before the earlier move took effect: folded back, nobody emailed; Remove still takes it out", async () => {
+  test("the board moves a place with a record back before the earlier move took effect: folded back, nobody emailed; out of every group refused, Remove still takes it out", async () => {
     await publish();
     assert.equal((await press("claudia", "freya", C)).saved.status, 200);
     assert.deepEqual(read(seatPath("freya")).groupsByWeek, [
@@ -942,9 +977,17 @@ describe("9. a real Publish after a move, and the person's own page", () => {
     assert.equal(read(seatPath("freya")).groupId, D);
     assert.equal("groupsByWeek" in read(seatPath("freya")), false, "back in Group D for every week: no record");
     assert.deepEqual(sent(), [], "a move on the board emails nobody");
+    // Changed on purpose: out of every group mid-term is refused now (the
+    // weeks Freya met with Group D would be lost), with nothing written.
+    const before = everything();
     const out = await w.join.place("claudia", [{ uid: "freya", groupId: null }]);
-    assert.equal(out.body.placed, 1);
-    assert.equal(read(seatPath("freya")).groupId, null);
+    assert.deepEqual([out.body.placed, out.body.rejected.map((each) => each.reason)], [0, ["mid-term-to-pool"]]);
+    assert.equal(everything(), before);
+    // Remove still takes Freya off the run.
+    const removed = await call("claudia", removeRoute.POST, { runId: RUN.agi, uid: "freya" }, { course: true });
+    assert.equal(removed.status, 200, JSON.stringify(removed.body));
+    assert.equal(read(seatPath("freya")).status, "removed");
+    assert.deepEqual(sent(), [], "nobody emailed: Freya had no visit ahead");
   });
 
   test("the person's own page: the next session is the new group's week 4, never its week 3 tonight; each week from the group they were in", async () => {

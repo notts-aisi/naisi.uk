@@ -26,7 +26,7 @@
  *
  * `tests/lib/groupPublishedWorld.mjs` says what is real and what is stubbed.
  */
-import { beforeEach, describe, test } from "node:test";
+import { afterEach, beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
@@ -206,11 +206,12 @@ describe("2. every other writer of a place's group", () => {
   // Changed on purpose (a move made mid-term on the board keeps the weeks met):
   // until then the board refused a place with a record ("moved-mid-term") and
   // moved one without a record for every week. Both now go through the writer
-  // from the move page's week (`tests/course-board-move.test.mjs` runs that on
-  // a fixed clock); here, on this world's own clock, a group with no session
-  // to join refuses in the rule's sentence and writes nothing, with a record or
-  // without one.
-  const NO_WEEK = /^To be arranged has no session for week \d+\.$|has no sessions left, so there is nothing to move \S+ from\.$/;
+  // from the move page's week (`tests/course-board-move.test.mjs` runs that);
+  // here, on a fixed clock, a group with no session to join refuses in the
+  // rule's one sentence and writes nothing, with a record or without one.
+  // On a fixed clock, Thu 19 Nov 2026 at noon (week 4 of the run), so each refusal is the one the rule gives that day.
+  beforeEach(() => mock.timers.enable({ apis: ["Date"], now: new Date("2026-11-19T12:00:00Z") }));
+  afterEach(() => mock.timers.reset());
   test("a move on the board of a place with weeks in two groups goes through the writer: into a group with no session it is refused in the rule's sentence, and the record and the counts stay", async () => {
     await steps.published();
     await move("dev", GROUP.thursday, 3);
@@ -219,7 +220,7 @@ describe("2. every other writer of a place's group", () => {
     const placed = await steps.place([{ uid: "dev", groupId: GROUP.unset }]);
     assert.equal(placed.status, 200, JSON.stringify(placed.body));
     assert.deepEqual(placed.body.rejected.map((r) => [r.uid, r.reason]), [["dev", "no-week"]]);
-    assert.match(placed.body.rejected[0].words, NO_WEEK);
+    assert.equal(placed.body.rejected[0].words, "To be arranged has no session for week 5.");
     assert.deepEqual(storedOf("dev"), before, "nothing written");
     assert.equal(seatOf("dev").groupId, GROUP.thursday);
     assert.deepEqual([GROUP.monday, GROUP.thursday, GROUP.unset].map(countOf), counts);
@@ -232,7 +233,7 @@ describe("2. every other writer of a place's group", () => {
     const placed = await steps.place([{ uid: "dev", groupId: GROUP.unset }]);
     assert.equal(placed.status, 200, JSON.stringify(placed.body));
     assert.deepEqual(placed.body.rejected.map((r) => [r.uid, r.reason]), [["dev", "no-week"]]);
-    assert.match(placed.body.rejected[0].words, NO_WEEK);
+    assert.equal(placed.body.rejected[0].words, "To be arranged has no session for week 5.");
     assert.deepEqual(storedOf("dev"), before, "nothing written");
     assert.equal("groupsByWeek" in storedOf("dev"), false);
     assert.deepEqual([GROUP.monday, GROUP.thursday, GROUP.unset].map(countOf), counts);
@@ -249,13 +250,19 @@ describe("2. every other writer of a place's group", () => {
     ]);
   });
 
-  test("taking somebody out of every group on the board deletes the record", async () => {
+  // Changed on purpose (a told person whose group has met is never taken out
+  // of every group): until then the board took them out and deleted the
+  // record, and the weeks met turned into absences once they were placed again.
+  test("taking somebody with a record out of every group on the board is refused, and the record and the counts stay", async () => {
     await steps.published();
     await move("dev", GROUP.thursday, 3);
+    const before = storedOf("dev");
+    const counts = [GROUP.monday, GROUP.thursday].map(countOf);
     const placed = await steps.place([{ uid: "dev", groupId: null }]);
     assert.equal(placed.status, 200, JSON.stringify(placed.body));
-    assert.equal(seatOf("dev").groupId, null);
-    assert.equal("groupsByWeek" in storedOf("dev"), false);
+    assert.deepEqual([placed.body.placed, placed.body.rejected.map((r) => [r.uid, r.reason])], [0, [["dev", "mid-term-to-pool"]]]);
+    assert.deepEqual(storedOf("dev"), before, "nothing written");
+    assert.deepEqual([GROUP.monday, GROUP.thursday].map(countOf), counts);
   });
 
   /**

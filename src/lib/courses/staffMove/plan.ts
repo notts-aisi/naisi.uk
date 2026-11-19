@@ -409,6 +409,7 @@ export function weekRefusalWords(week: Extract<MoveWeek, { ok: false }>, firstNa
     weekNumber: refusal.weekNumber,
     dateKey: refusal.oldSession.dateKey,
     startTimeLocal: refusal.oldSession.session.startTimeLocal,
+    ifCalledOff: refusal.ifCalledOff,
   });
 }
 
@@ -522,9 +523,10 @@ async function weeksWrittenFrom(db: Firestore, runId: string, uid: string, weekN
  * What the move leaves behind on the old group, from week N on: a line on
  * one of its registers that says they are excused (asked, or approved), a
  * "most weeks" tick about one of its sessions, and a request to be excused
- * still waiting about one.
+ * still waiting about one. The move page's line and the board's question
+ * both read it here (`leftBehindWords`).
  */
-async function leftBehindOf(db: Firestore, facts: MoveFacts, weekNumber: number): Promise<LeftBehind[]> {
+export async function leftBehindOf(db: Firestore, facts: Pick<MoveFacts, "run" | "from" | "place">, weekNumber: number): Promise<LeftBehind[]> {
   const { run, from, place } = facts;
   const later = resolveSessions(run, from).filter((session) => session.weekNumber >= weekNumber);
   const ticked = new Set(

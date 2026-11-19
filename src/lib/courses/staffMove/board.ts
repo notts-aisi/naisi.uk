@@ -10,7 +10,7 @@ import { courseEnrolmentId, normalizeCourseEnrolment, placementIsTold, type Cour
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { belonging, hasGroupsByWeek, sessionsByWeekGroup } from "../groupsByWeek";
-import { moveWeekFor, readNotHeld, stayNamesFor, weekRefusalWords } from "./plan";
+import { leftBehindOf, moveWeekFor, readNotHeld, stayNamesFor, weekRefusalWords } from "./plan";
 import { weeksThatCome, type MoveWeek } from "./week";
 import {
   MOVE_REFUSAL,
@@ -18,6 +18,8 @@ import {
   boardMovedInDetail,
   boardMovedOutDetail,
   boardWeekChangedWords,
+  leftBehindWords,
+  midTermToPoolWords,
   oldNoLongerMeetsWords,
   oldOffWords,
   weeksStayWords,
@@ -50,10 +52,20 @@ import {
  * started) is not this: the board writes it in its own transaction as it
  * always has (`isMidTermBoardMove` answers which).
  *
- * WHAT THE BOARD SAYS BEFORE THE PRESS is `planBoardMove`: the week, and that
- * the earlier weeks stay with the old group. The press may send that week
- * back (`fromWeek`): when the rule now gives another, nothing is written and
- * the board is told so.
+ * WHAT THE BOARD SAYS BEFORE THE PRESS is `planBoardMove`: the week, that
+ * the earlier weeks stay with the old group, and what the move leaves behind
+ * on the old group from that week on, in the move page's sentence. The press
+ * may send that week back (`fromWeek`): when the rule now gives another,
+ * nothing is written and the board is told so.
+ *
+ * NEVER INTO NO GROUP MID-TERM. A place in no group keeps no record of the
+ * weeks it met (every week reads its group, and it has none), so a told place
+ * whose group has met is never taken out of every group by the board: it is
+ * refused (`midTermToPoolRefusal`), and the board says to move the person
+ * straight to the new group, or to take them off the run. A told place that
+ * is ALREADY in no group mid-term (taken out before this was refused) has no
+ * weeks left to keep: placing it in a group is the board's plain move, as it
+ * always was.
  */
 
 /** A refusal of one person's move, the board's shape: a code, and the sentence when the board cannot word it from the code. */
@@ -83,10 +95,19 @@ export function isMidTermBoardMove(
   });
 }
 
+/**
+ * The refusal of a move into no group mid-term (see the note at the top), in
+ * the board's sentence: the person's first name read from their account.
+ */
+export async function midTermToPoolRefusal(db: Firestore, uid: string, fromName: string): Promise<BoardRefusal> {
+  const person = await namesOf(db, uid);
+  return { reason: "mid-term-to-pool", words: midTermToPoolWords(person.firstName, fromName) };
+}
+
 /** What the board says before a press, for one person: the week and the question, or why no week can be offered. */
 export type BoardMovePlan =
   | { kind: "plain" }
-  | { kind: "mid-term"; weekNumber: number; words: string; personName: string }
+  | { kind: "mid-term"; weekNumber: number; words: string; personName: string; firstName: string }
   | { kind: "refused"; refusal: BoardRefusal };
 
 /** The person's names, from their account. */
@@ -114,9 +135,11 @@ async function weekNow(db: Firestore, run: CourseRunDoc, place: CourseEnrolmentD
  * transaction: a move as the board always made it (`plain`), a move made
  * mid-term with its week and the board's question, or the week rule's
  * refusal in its sentence. The caller has already decided the person is one
- * it may place, and the group one of the run's that still meets.
+ * it may place, and the group one of the run's that still meets. The
+ * question is worded only when `ask` (the preview): the press needs the week
+ * alone, and is spared the reads of what is left behind.
  */
-export async function planBoardMove(db: Firestore, run: CourseRunDoc, uid: string, toGroupId: string, now: Date): Promise<BoardMovePlan> {
+export async function planBoardMove(db: Firestore, run: CourseRunDoc, uid: string, toGroupId: string, now: Date, ask = true): Promise<BoardMovePlan> {
   const placeSnap = await db.collection("courseEnrolments").doc(courseEnrolmentId(run.id, uid)).get();
   if (!placeSnap.exists) return { kind: "plain" };
   const place = normalizeCourseEnrolment(placeSnap.id, placeSnap.data() ?? {});
@@ -132,7 +155,10 @@ export async function planBoardMove(db: Firestore, run: CourseRunDoc, uid: strin
   }
   const week = await weekNow(db, run, place, groups, to, now);
   if (!week.ok) return { kind: "refused", refusal: { reason: "no-week", words: weekRefusalWords(week, person.firstName, from.name, to.name) } };
+  if (!ask) return { kind: "mid-term", weekNumber: week.weekNumber, words: "", personName: person.name, firstName: person.firstName };
   const weeks = weeksThatCome(place.joinedWeekNumber, week.weekNumber);
+  // What stays on the old group from week N on, as the move page says it.
+  const leftBehind = await leftBehindOf(db, { run, from, place }, week.weekNumber);
   const words = boardMoveConfirmWords({
     name: person.name,
     firstName: person.firstName,
@@ -142,30 +168,42 @@ export async function planBoardMove(db: Firestore, run: CourseRunDoc, uid: strin
     oldOff: week.oldOff
       ? oldOffWords({ firstName: person.firstName, fromName: from.name, toName: to.name, dateKey: week.oldSession.dateKey, weekNumber: week.weekNumber, why: week.oldOff })
       : "",
+    leftBehind: leftBehind.length > 0 ? leftBehindWords(person.firstName, from.name, leftBehind) : "",
   });
-  return { kind: "mid-term", weekNumber: week.weekNumber, words, personName: person.name };
+  return { kind: "mid-term", weekNumber: week.weekNumber, words, personName: person.name, firstName: person.firstName };
 }
 
 /** What stopped a board move inside its transaction. */
 type Stop = { refusal: BoardRefusal };
 
+/** What a board move's save did: the group it left, or why nothing was written. */
+export type BoardMoveSaved = { ok: true; leftGroupId: string } | { ok: false; refusal: BoardRefusal };
+
 /**
  * THE MOVE ITSELF, one person, in its own transaction (`moveFromWeek`): the
  * week worked out again from what that transaction read, and refused when it
  * is not the week the board stated (`fromWeek`, when the press sent one) or
- * the week the plan just read. Null when it is written; else the refusal.
+ * the week the plan just read. The group it left when it is written (a seat
+ * there is free from that commit); else the refusal.
+ *
+ * WHAT ONE MOVE COSTS: outside the transaction, the plan's reads (the place,
+ * the run's groups by one equality, the person's account, and the registers
+ * of the person's own sessions that have started, for "not held"); then one
+ * transaction (the place, the run, the run's groups, those registers again)
+ * that writes the place, two counts and two History rows.
  */
 export async function saveBoardMove(
   db: Firestore,
   input: { run: CourseRunDoc; uid: string; toGroupId: string; fromWeek: number | null; actor: SessionUser; now: Date },
-): Promise<BoardRefusal | null> {
-  const planned = await planBoardMove(db, input.run, input.uid, input.toGroupId, input.now);
-  if (planned.kind === "refused") return planned.refusal;
+): Promise<BoardMoveSaved> {
+  const refused = (refusal: BoardRefusal): BoardMoveSaved => ({ ok: false, refusal });
+  const planned = await planBoardMove(db, input.run, input.uid, input.toGroupId, input.now, false);
+  if (planned.kind === "refused") return refused(planned.refusal);
   // Not mid-term any longer (a race with another press): the board is out of date.
-  if (planned.kind === "plain") return { reason: "changed", words: MOVE_REFUSAL.changed };
-  const person = await namesOf(db, input.uid);
+  if (planned.kind === "plain") return refused({ reason: "changed", words: MOVE_REFUSAL.changed });
+  const person = { name: planned.personName, firstName: planned.firstName };
   if (input.fromWeek !== null && input.fromWeek !== planned.weekNumber) {
-    return { reason: "week-changed", words: boardWeekChangedWords(person.firstName, planned.weekNumber) };
+    return refused({ reason: "week-changed", words: boardWeekChangedWords(person.firstName, planned.weekNumber) });
   }
   const weekNumber = planned.weekNumber;
   const result = await moveFromWeek<Stop>(
@@ -208,11 +246,11 @@ export async function saveBoardMove(
       },
     },
   );
-  if (result.ok) return null;
-  if (result.refusal === "stopped") return result.stop.refusal;
+  if (result.ok) return { ok: true, leftGroupId: result.fromGroupId };
+  if (result.refusal === "stopped") return refused(result.stop.refusal);
   // The board's own codes, worded by the board as for any other move.
   if (result.refusal === "group-full" || result.refusal === "group-not-found" || result.refusal === "group-archived" || result.refusal === "facilitates-another-group") {
-    return { reason: result.refusal };
+    return refused({ reason: result.refusal });
   }
-  return { reason: "changed", words: MOVE_REFUSAL.changed };
+  return refused({ reason: "changed", words: MOVE_REFUSAL.changed });
 }

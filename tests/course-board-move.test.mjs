@@ -32,13 +32,26 @@
  *  5. SEVERAL AT ONCE: each decided on its own; one refused, the others
  *     written; the refusal in its sentence.
  *  6. BEFORE THE TERM, and a seat nobody has told: the board's plain move,
- *     the same documents written as always and nothing else.
+ *     the same documents written as always and nothing else, into a group
+ *     and into no group.
  *  7. PUBLISH after a mid-term board move: "You’ve moved" once, naming the
  *     first session of the new group they are due at, never the new group's
  *     week still spent in the old group.
  *  8. REMOVE with a visit still to come: the count before the press, the
  *     host's facilitators told, a changed count and the limit refused with
  *     nothing written.
+ *  9. A SEAT A MOVE MADE MID-TERM FREES is taken in the same press, in
+ *     either order; a refused move frees nothing; no group is over its
+ *     capacity after any commit; a swap between two full groups is refused,
+ *     before the term and after, as it always was.
+ * 10. NEVER INTO NO GROUP MID-TERM: a told person whose group has met is
+ *     refused the pool in the board's sentence, before the press and at it;
+ *     a told place already in no group is placed by the plain move.
+ *
+ * The board's question before the press (2) also says what is left behind
+ * on the old group, in the move page's own sentence; the week rule's
+ * "already met" refusal (1) says when calling off the old group's session
+ * lets the move go ahead now, and that it does.
  *
  * The world is week 3 of AGI Strategy's run (`tests/lib/leavingWorld.mjs`):
  * Tue 17 Nov 2026 at noon. Group A meets on Thursdays at 6pm (Sofia) and met
@@ -48,7 +61,9 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render } from "@react-email/render";
 import { A, AGI, B, C, D, NOW, ROUND, RUN, makeLeavingWorld, registerPath } from "./lib/leavingWorld.mjs";
 
@@ -163,10 +178,17 @@ describe("1. the week rule's four cases, through both routes", () => {
     const before = everything();
     const both = await bothWeeks(D);
     assert.equal(both.page, both.board);
-    assert.match(both.board, /^Group D has already met for week 3, so Chloe can’t join it for that week\./);
+    assert.equal(
+      both.board,
+      "Group D has already met for week 3, so Chloe can’t join it for that week. To move Chloe from week 4, come back after Group B’s week 3 session (Tue 17 Nov, 6pm). " +
+        "If Group B’s week 3 session is called off with “Cancel and keep pace”, Chloe can be moved now, from week 4.",
+    );
     const placed = await place([{ uid: "chloe", groupId: D }]);
     assert.deepEqual(placed.body.rejected.map((each) => [each.uid, each.reason]), [["chloe", "no-week"]]);
     assert.equal(everything(), before);
+    // The last sentence is true: Group B's week 3 called off, keeping pace, and the board moves Chloe from week 4 now.
+    await callOff("rahul", B, 3, "2026-11-17");
+    assert.deepEqual(await bothWeeks(D), { page: 4, board: 4 });
   });
 });
 
@@ -191,6 +213,26 @@ describe("2. a move on the board mid-term goes through the writer", () => {
     ]);
     // A preview writes nothing.
     assert.equal(seat("amara").groupId, A);
+  });
+
+  test("the question says what is left behind on the old group, in the move page's own sentence", async () => {
+    // Amara is excused from Group A's week 5 and ticked its week 6 under "Most weeks, not all".
+    world.db.seed(registerPath(A, 5), { runId: RUN.agi, groupId: A, weekNumber: 5, occurrence: 1, records: {}, excusedInAdvance: { amara: { at: new Date() } } });
+    world.db.poke(seatPath("amara"), { timeAnswer: { kind: "mostWeeks", sessionKeys: ["w06"], forGroupId: A, at: new Date("2026-11-01T10:00:00Z") } });
+    const page = await movePreview("amara", B);
+    assert.equal(page.status, 200, JSON.stringify(page.body));
+    const line = page.body.preview.lines.find((each) => each.label === "Left behind");
+    assert.equal(
+      line?.text,
+      "Amara was excused from Group A’s week 5 session. That no longer applies once Amara moves. Amara ticked Group A’s week 6 session under “Most weeks, not all”. That no longer applies once Amara moves.",
+    );
+    const shown = await preview([{ uid: "amara", groupId: B }]);
+    assert.equal(
+      shown.body.preview[0].words,
+      "Move Amara Okafor to Group B from week 4?\n\nWeeks 1 to 3 stay with Group A, where Amara met.\n\n" +
+        `${line.text}\n\n` +
+        "Nobody is emailed now: Amara sees Group B straight away, and the next Publish emails them that they have moved.",
+    );
   });
 
   test("the press: the record, both counts, a History row on each group, the seat told as before, nobody emailed", async () => {
@@ -267,13 +309,22 @@ describe("3. the weeks met stay met, on every reader, through a finished and a c
     });
     assert.equal(corrected.status, 200, JSON.stringify(corrected.body));
     assert.deepEqual(rollupOf("amara"), { attendedInFull: 3, excused: 0, absent: 1 });
-    // Group B's own figure for week 3 counts its own register's marks only: three, not four.
+    // Four rows under Group B show a week 3 mark: her row shows Group A's mark for her week 3.
     const tab = w.lib.attendance.buildRunAttendance(await w.lib.attendance.readRunRecords(world.courseDb, RUN.agi), { isAdmin: true }, new Date());
     const groupB = tab.groups.find((group) => group.id === B);
     const weekThree = groupB.people.filter((person) => person.cells.some((cell) => cell.weekNumber === 3 && cell.mark));
     assert.deepEqual(weekThree.map((person) => person.uid).sort(), ["amara", "chloe", "farah", "kofi"].sort());
     const amaraWeekThree = groupB.people.find((person) => person.uid === "amara").cells.find((cell) => cell.weekNumber === 3);
     assert.equal(amaraWeekThree.mark, "present", "her week 3 is Group A's mark, read under her row");
+    // But Group B's own figure for week 3 counts its own register's marks only: three of three, not four.
+    // Her week 4, Group B's, is counted there; her week 3 is counted in Group A's figure, once.
+    const figure = (group, week) => {
+      const total = tab.groups.find((each) => each.id === group).totals.find((each) => each.weekNumber === week);
+      return [total.came, total.of];
+    };
+    assert.deepEqual(figure(B, 3), [3, 3]);
+    assert.deepEqual(figure(B, 4), [4, 4]);
+    assert.deepEqual(figure(A, 3), [3, 4], "Group A's week 3: its four, Amara among them");
   });
 
   test("the control, as the base did it: the same move for every week turns her Group A weeks into absences once Group B finishes a register", async () => {
@@ -380,10 +431,21 @@ describe("6. a move before the term is the board's plain move, as always", () =>
     assert.deepEqual(audits(), []);
   });
 
-  test("taking a told seat out of every group mid-term is as always: no record, no row", async () => {
+  // Changed on purpose: taking a told seat whose group has met out of every
+  // group mid-term is refused now (section 10). Before the term it is the
+  // board's plain move, byte for byte, as it always was.
+  test("taking a told seat out of every group before the term: the group cleared, one count, and nothing else", async () => {
+    at("2026-10-20T12:00:00Z");
+    const before = snapshot();
     const placed = await place([{ uid: "amara", groupId: null }]);
-    assert.equal(placed.body.placed, 1);
-    assert.equal(seat("amara").groupId, null);
+    assert.deepEqual([placed.body.placed, placed.body.rejected], [1, []]);
+    const changed = changes(before, snapshot());
+    assert.deepEqual(Object.keys(changed).sort(), [`courseGroups/${A}`, seatPath("amara")].sort());
+    const was = before[seatPath("amara")];
+    const { updatedAt: _a, ...now } = changed[seatPath("amara")];
+    const { updatedAt: _b, ...then } = was;
+    assert.deepEqual(now, { ...then, groupId: null, status: "active", ...(was.toldGroupId ? {} : { toldGroupId: A }) });
+    assert.equal(read(`courseGroups/${A}`).memberCount, 3);
     assert.deepEqual(audits(), []);
   });
 });
@@ -476,5 +538,174 @@ describe("8. Remove tells the host's facilitators of a visit still to come", () 
     assert.equal(refused.status, 429, JSON.stringify(refused.body));
     assert.equal(everything(), before);
     assert.equal(world.mail.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. A seat a move made mid-term frees, in the same press
+// ---------------------------------------------------------------------------
+
+describe("9. a seat a move made mid-term frees is free before it is taken, and no group is ever over its capacity", () => {
+  /** Every group's count against its capacity, after every commit of the press. */
+  function watchCapacity() {
+    const over = [];
+    const real = world.db.runTransaction.bind(world.db);
+    world.db.runTransaction = async (fn) => {
+      const result = await real(fn);
+      for (const path of world.db.paths().filter((each) => /^courseGroups\/[^/]+$/.test(each))) {
+        const group = read(path);
+        if (typeof group.capacity === "number" && group.memberCount > group.capacity) over.push([path, group.memberCount, group.capacity]);
+      }
+      return result;
+    };
+    return { over, stop: () => (world.db.runTransaction = real) };
+  }
+  const membersOf = (groupId) =>
+    world.db.paths().filter((path) => path.startsWith(`courseEnrolments/${RUN.agi}__`) && read(path).groupId === groupId && read(path).status === "active").length;
+
+  for (const order of ["the move first", "the placement first"]) {
+    test(`out of a full Group A mid-term, and Una into Group A, in one press (${order})`, async () => {
+      world.db.poke(`courseGroups/${A}`, { capacity: 4 });
+      const watch = watchCapacity();
+      const both = [{ uid: "amara", groupId: B }, { uid: "una", groupId: A }];
+      const placed = await place(order === "the move first" ? both : both.reverse());
+      watch.stop();
+      assert.deepEqual([placed.status, placed.body.placed, placed.body.rejected], [200, 2, []]);
+      assert.deepEqual([seat("amara").groupId, seat("una").groupId], [B, A]);
+      assert.deepEqual(seat("amara").groupsByWeek, [{ groupId: A, fromWeek: 1 }, { groupId: B, fromWeek: 4 }]);
+      assert.deepEqual([read(`courseGroups/${A}`).memberCount, membersOf(A)], [4, 4]);
+      assert.deepEqual(watch.over, []);
+    });
+  }
+
+  test("one seat freed and two wanting it: one placed, the other refused as full, Group A never over", async () => {
+    world.db.poke(`courseGroups/${A}`, { capacity: 4 });
+    const watch = watchCapacity();
+    const placed = await place([{ uid: "amara", groupId: B }, { uid: "una", groupId: A }, { uid: "freya", groupId: A }]);
+    watch.stop();
+    assert.equal(placed.body.placed, 2);
+    assert.deepEqual(placed.body.rejected, [{ uid: "una", reason: "group-full" }]);
+    assert.deepEqual([seat("amara").groupId, seat("freya").groupId, seat("una").groupId], [B, A, C]);
+    assert.deepEqual([read(`courseGroups/${A}`).memberCount, membersOf(A)], [4, 4]);
+    assert.deepEqual(watch.over, []);
+  });
+
+  test("a move made mid-term that is refused frees nothing: nobody is placed into its seat", async () => {
+    // Group B full at 3. Chloe's move out of it to Group D is refused (Group D has met week 3).
+    world.db.poke(`courseGroups/${B}`, { capacity: 3 });
+    const before = everything();
+    const watch = watchCapacity();
+    const placed = await place([{ uid: "chloe", groupId: D }, { uid: "una", groupId: B }]);
+    watch.stop();
+    assert.equal(placed.body.placed, 0);
+    assert.deepEqual(placed.body.rejected.map((each) => [each.uid, each.reason]), [["una", "group-full"], ["chloe", "no-week"]]);
+    assert.equal(everything(), before);
+    assert.deepEqual(watch.over, []);
+  });
+
+  test("two people swapped between two full groups are refused, as they always were: neither can go first", async () => {
+    // Before the term too: the board has never placed a swap between two full groups.
+    for (const when of ["2026-10-20T12:00:00Z", "2026-11-18T20:00:00Z"]) {
+      w.reset();
+      for (const [groupId, count] of [[A, 4], [B, 3], [C, 2], [D, 2]]) world.db.poke(`courseGroups/${groupId}`, { memberCount: count });
+      at(when);
+      world.db.poke(`courseGroups/${A}`, { capacity: 4 });
+      world.db.poke(`courseGroups/${B}`, { capacity: 3 });
+      const before = everything();
+      const placed = await place([{ uid: "amara", groupId: B }, { uid: "farah", groupId: A }]);
+      assert.equal(placed.body.placed, 0, when);
+      assert.deepEqual(placed.body.rejected.map((each) => each.reason).sort(), ["group-full", "group-full"], when);
+      assert.equal(everything(), before, when);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. Never into no group mid-term
+// ---------------------------------------------------------------------------
+
+describe("10. a told person whose group has met is never taken out of every group", () => {
+  const POOL_WORDS =
+    "Amara has already met with Group A, so Amara can’t be taken out of every group: the weeks met with Group A would be lost. " +
+    "Move Amara straight to the new group instead, or take Amara off the run.";
+
+  test("refused, in the board's sentence, before the press and at it, with nothing written", async () => {
+    const shown = await preview([{ uid: "amara", groupId: null }]);
+    assert.deepEqual(shown.body.preview, [{ uid: "amara", groupId: null, fromWeek: null, words: null, refusal: { reason: "mid-term-to-pool", words: POOL_WORDS } }]);
+    const before = everything();
+    const placed = await place([{ uid: "amara", groupId: null }]);
+    assert.deepEqual([placed.status, placed.body.placed, placed.body.rejected], [200, 0, [{ uid: "amara", reason: "mid-term-to-pool", words: POOL_WORDS }]]);
+    assert.equal(everything(), before);
+  });
+
+  test("a place with a record is refused too, and the record stays", async () => {
+    await place([{ uid: "amara", groupId: B }]);
+    const placed = await place([{ uid: "amara", groupId: null }]);
+    assert.deepEqual(placed.body.rejected.map((each) => each.reason), ["mid-term-to-pool"]);
+    assert.deepEqual(seat("amara").groupsByWeek, [{ groupId: A, fromWeek: 1 }, { groupId: B, fromWeek: 4 }]);
+  });
+
+  test("one refused, the others in the same press as always: a seat nobody told goes to the pool", async () => {
+    const placed = await place([{ uid: "amara", groupId: null }, { uid: "una", groupId: null }]);
+    assert.equal(placed.body.placed, 1);
+    assert.deepEqual(placed.body.rejected.map((each) => [each.uid, each.reason]), [["amara", "mid-term-to-pool"]]);
+    assert.deepEqual([seat("amara").groupId, seat("una").groupId], [A, null]);
+  });
+
+  test("a told place already in no group mid-term is placed by the plain move, as always", async () => {
+    // As a place taken out before the refusal existed: told, in no group.
+    world.db.poke(seatPath("amara"), { groupId: null, toldGroupId: A });
+    world.db.poke(`courseGroups/${A}`, { memberCount: 3 });
+    const placed = await place([{ uid: "amara", groupId: B }]);
+    assert.deepEqual([placed.body.placed, placed.body.rejected], [1, []]);
+    assert.equal(seat("amara").groupId, B);
+    assert.equal("groupsByWeek" in read(seatPath("amara")), false);
+    assert.deepEqual(audits(), []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. Every board asks the one question
+// ---------------------------------------------------------------------------
+
+describe("11. the run's own board, People in groups and Circles ask the same question before a move made mid-term", () => {
+  const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
+
+  test("one shared piece of code, called by each of the three boards, and no board asks it its own way", () => {
+    for (const file of ["features/courses/AllocationBoard.tsx", "features/applications/groups/PeopleInGroups.tsx", "features/applications/circles/Circles.tsx"]) {
+      const code = readFileSync(join(SRC, file), "utf8");
+      assert.match(code, /\baskMidTermMoves\(/, `${file} asks through askMidTermMoves`);
+      assert.doesNotMatch(code, /fromWeek\s*!==?\s*null\s*&&/, `${file} reads no preview's week itself`);
+    }
+  });
+
+  test("it asks only about told people, in one confirmation, and sends each move's week back with the press", async () => {
+    const { askMidTermMoves } = await w.loadTs(join("features", "courses", "askMidTermMoves.ts"));
+    const asked = [];
+    const questions = [];
+    const preview = async (placements) => {
+      asked.push(placements);
+      return {
+        ok: true,
+        preview: [
+          { uid: "amara", groupId: B, fromWeek: 4, words: "Move Amara?", refusal: null },
+          { uid: "chloe", groupId: D, fromWeek: null, words: null, refusal: { reason: "no-week", words: "Group D has already met." } },
+        ],
+      };
+    };
+    const told = (uid) => uid !== "una";
+    const placements = [{ uid: "amara", groupId: B }, { uid: "chloe", groupId: D }, { uid: "una", groupId: A }];
+    const yes = await askMidTermMoves(placements, { told, preview, confirm: (question) => (questions.push(question), true) });
+    assert.deepEqual(asked, [[{ uid: "amara", groupId: B }, { uid: "chloe", groupId: D }]], "Una, never told, is not asked about");
+    assert.deepEqual(questions, ["Move Amara?"]);
+    assert.deepEqual(yes, {
+      go: true,
+      placements: [{ uid: "amara", groupId: B, fromWeek: 4 }, { uid: "chloe", groupId: D }, { uid: "una", groupId: A }],
+      refused: [{ uid: "chloe", reason: "no-week", words: "Group D has already met." }],
+    });
+    assert.deepEqual(await askMidTermMoves(placements, { told, preview, confirm: () => false }), { go: false, error: null }, "declined: nothing pressed");
+    assert.deepEqual(await askMidTermMoves(placements, { told, preview: async () => ({ ok: false, error: "No." }), confirm: () => true }), { go: false, error: "No." });
+    const nobodyTold = await askMidTermMoves(placements, { told: () => false, preview: async () => assert.fail("never asked"), confirm: () => assert.fail("never asked") });
+    assert.deepEqual(nobodyTold, { go: true, placements, refused: [] });
   });
 });

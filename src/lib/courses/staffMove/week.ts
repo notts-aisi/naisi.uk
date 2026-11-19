@@ -43,7 +43,11 @@ import { sessionInstants, type ResolvedSession } from "../sessions";
  * from week 4, as N always was. Such a week is only ever before N: a session
  * of the old group still to come is never left behind the move's week, which
  * is why a new group that has met week N still refuses (`new-has-met`) rather
- * than moving from the week after it.
+ * than moving from the week after it. That refusal says, when it is true,
+ * that calling off the old group's week N session, keeping pace, lets the
+ * move go ahead at once (`ifCalledOff`: the rule asked again with that
+ * session called off, so it is never said when another session still to come
+ * or a new group's week already met would refuse it all the same).
  *
  * TWO MORE REFUSALS keep the rule's promise that no session still to come is
  * left with the old group: the old group still has a session to come in a
@@ -57,8 +61,13 @@ import { sessionInstants, type ResolvedSession } from "../sessions";
 
 /** Why no week can be offered: the refusals of the rule. */
 export type MoveWeekRefusal =
-  /** The new group has met (or started) week N already. */
-  | { kind: "new-has-met"; weekNumber: number; oldSession: ResolvedSession }
+  /**
+   * The new group has met (or started) week N already. `ifCalledOff`: the
+   * week the move would be from at once if the old group's week N session
+   * were called off, keeping pace, worked out by this rule; null when calling
+   * it off would not let the move go ahead.
+   */
+  | { kind: "new-has-met"; weekNumber: number; oldSession: ResolvedSession; ifCalledOff: number | null }
   /** The old group has no session with a time at all. */
   | { kind: "old-has-none-set" }
   /** The old group still has a session to come in a week before N: the earliest such. */
@@ -123,6 +132,27 @@ export function moveWeekOf(input: {
   /** Whether one of the person's own sessions is marked as not held on its register. */
   notHeld?: NotHeld;
 }): MoveWeek {
+  const week = ruleOf(input);
+  if (week.ok || week.refusal.kind !== "new-has-met") return week;
+  // WHAT CALLING OFF THE OLD GROUP'S WEEK N SESSION WOULD DO: the same rule,
+  // with that session called off, keeping pace (only a week's first session
+  // can be). Said beside the refusal only when it lets the move go ahead.
+  const { oldSession } = week.refusal;
+  if (oldSession.occurrence !== 1) return week;
+  const calledOff = ruleOf({ ...input, oldSessions: input.oldSessions.map((session) => (session === oldSession ? { ...session, cancelled: true } : session)) });
+  return { ok: false, refusal: { ...week.refusal, ifCalledOff: calledOff.ok ? calledOff.weekNumber : null } };
+}
+
+/** The rule itself (see the module header). */
+function ruleOf(input: {
+  /** The person's own sessions, each week's from the group they were in that week. */
+  oldSessions: readonly ResolvedSession[];
+  /** The new group's sessions, on its own calendar. */
+  newSessions: readonly ResolvedSession[];
+  now: Date;
+  /** Whether one of the person's own sessions is marked as not held on its register. */
+  notHeld?: NotHeld;
+}): MoveWeek {
   const { newSessions, now } = input;
   const notHeld = input.notHeld ?? NONE_NOT_HELD;
   // No session with a time at all, called off or not: nothing to move from.
@@ -169,7 +199,7 @@ export function moveWeekOf(input: {
   const newWeek = weekSessions(newSessions, weekNumber);
   if (newWeek.length === 0) return { ok: false, refusal: { kind: "new-has-none", weekNumber } };
   if (newWeek.some((session) => started(session, now) === true)) {
-    return { ok: false, refusal: { kind: "new-has-met", weekNumber, oldSession } };
+    return { ok: false, refusal: { kind: "new-has-met", weekNumber, oldSession, ifCalledOff: null } };
   }
   return { ok: true, weekNumber, newSession: newWeek[0], oldSession, oldOff: null };
 }
