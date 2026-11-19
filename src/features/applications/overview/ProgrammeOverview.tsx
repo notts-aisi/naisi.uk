@@ -279,7 +279,7 @@ export default function ProgrammeOverview({
         </section>
       )}
 
-      <OverviewByWeekSections byWeek={byWeek} programmePath={programmePath} />
+      <OverviewByWeekSections byWeek={byWeek} programmePath={programmePath} ending={model.ending} />
 
       <section aria-labelledby="overview-sessions">
         <h2 id="overview-sessions" className={styles.sectionTitle}>

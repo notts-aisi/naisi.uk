@@ -672,7 +672,7 @@ export async function buildProgrammeOverview(
   }
 
   // ── Attendance by week, and the groups in the chosen week ─────────────
-  const byWeek = await overviewByWeek(db, records, listed, viewer, place, chosenWeek, ending, now);
+  const byWeek = await overviewByWeek(db, records, listed, attendance, viewer, place, chosenWeek, anyGroupMet, now);
 
   // ── People ───────────────────────────────────────────────────────────────
   // Taking part is the grid's own rule (`isListed`, which `listGroups`
@@ -750,7 +750,8 @@ function chaseDetail(
  * ATTENDANCE BY WEEK AND THE GROUPS IN THE CHOSEN WEEK
  * (`./overviewByWeek.ts`), from the Attendance tab's own rows (`listed`)
  * and each group's week as its own page counts it. The one read it adds is
- * the chosen week's work, for every group at once (`readGroupsWeek`), and a
+ * the chosen week's work, for every group at once (`readGroupsWeek`), never
+ * while "Get ready for week 1" takes the tab's place, and a
  * read of it that fails draws "Not tracked" rather than no page, as a
  * group's page draws no card.
  */
@@ -758,22 +759,26 @@ async function overviewByWeek(
   db: Firestore,
   records: RunRecords,
   listed: readonly ListedGroup[],
+  attendance: RunAttendance,
   viewer: OverviewViewer,
   place: OverviewPlace,
   chosenWeek: number | null,
-  ending: "finished" | "pushed",
+  anyGroupMet: boolean,
   now: Date,
 ): Promise<OverviewByWeek> {
+  const { ending } = attendance;
   const weeks = weeksOf(records);
   if (weeks.length === 0) return { weeks: [], groups: null, blank: NO_WEEKS_YET };
   if (listed.length === 0) return { weeks: [], groups: null, blank: NO_GROUPS_YET };
   const todayKey = londonDateKey(now);
   const thisWeek = runThisWeek(records.run, now);
   const slots = taughtSlots(records);
-  const rows = attendanceByWeek({ listed, weeks, slots, thisWeek, ending });
+  const rows = attendanceByWeek({ listed, weeks, slots, thisWeek, totals: attendance.totals, ending });
   const weekNumber = chosenWeekOf({ asked: chosenWeek, weeks, slots, thisWeek, todayKey });
   if (weekNumber === null) return { weeks: rows, groups: null, blank: null };
-  const work = place.incubator ? new Map<string, GroupWorkCount>() : await readWorkCounts(db, records, weekNumber, viewer, now);
+  // Nothing of the week's work is read while "Get ready for week 1" takes the tab's place (`anyGroupHasMet`).
+  const work =
+    place.incubator || !anyGroupMet ? new Map<string, GroupWorkCount>() : await readWorkCounts(db, records, weekNumber, viewer, now);
   return {
     weeks: rows,
     groups: groupsInWeek({ listed, weeks, weekNumber, thisWeek, work, ending, todayKey, programmePath: place.programmePath }),
@@ -812,6 +817,9 @@ async function readWorkCounts(
       groups: records.groups,
       weekNumber,
       // As the group's page asks: the places whose week is the group's.
+      // The groups and places the tab has read already.
+      liveGroups: records.groups,
+      enrolments: records.enrolments,
       uidsOf: (groupId) => {
         const group = records.groups.find((each) => each.id === groupId);
         return group ? seatsOf(group).filter((seat) => ownGroupForWeek(seat, weekNumber) === groupId).map((seat) => seat.uid) : [];

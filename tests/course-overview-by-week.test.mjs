@@ -15,7 +15,12 @@
  *     nobody in it ("Nobody yet") and an incubator's groups ("Not tracked",
  *     as their pages draw no card).
  *  3. ONE READ OF THE WEEK FOR EVERY GROUP: the week's answers and ticks are
- *     asked once per copy of the week, not once per group.
+ *     asked once, whatever the number of groups or copies of the week, and
+ *     the run's places are not read again.
+ *  4. ONE ROW, ONE SET OF PEOPLE: a facilitator holding a place in their own
+ *     group is set apart from the group's came, as from its readings and
+ *     coursework and as the group's page sets them apart, while the week's
+ *     programme figure counts their mark, as the Attendance tab's total does.
  *
  * The world is `tests/lib/remindWorld.mjs`: Group B's week 3 is over, Amara
  * did all of it, Rahul (who facilitates Group B and holds a place in it)
@@ -27,7 +32,7 @@ import { B, BEFORE_WEEK3, RUN, makeRemindWorld, tickRow } from "./lib/remindWorl
 
 const w = await makeRemindWorld("__overviewByWeek");
 const { world } = w;
-const { readRunRecords } = await w.loadTs("lib/courses/programmeAttendance.ts");
+const { readRunRecords, buildRunAttendance } = await w.loadTs("lib/courses/programmeAttendance.ts");
 const { buildProgrammeOverview } = await w.loadTs("lib/courses/programmeOverview.ts");
 const { countBuckets, doneCount } = await w.loadTs("lib/courses/groupWeekWork/model.ts");
 
@@ -119,5 +124,54 @@ describe("3. one read of the week for every group", () => {
     }
     assert.equal(asked.filter((path) => path === "courseProgress").length, 1);
     assert.equal(asked.filter((path) => path === "courseExerciseResponses").length, 1);
+    // The run's places are read once, by the records the tab reads (`readRunRecords`), and handed on.
+    assert.equal(asked.filter((path) => path === "courseEnrolments").length, 1);
+  });
+
+  test("a group with its own copy of the week still asks the week's answers and ticks once", async () => {
+    world.db.seed(`courseGroups/${B}/weeks/w03`, { ...world.db.read(`courseRuns/${RUN.agi}/weeks/w03`) });
+    const asked = [];
+    const collection = world.courseDb.collection.bind(world.courseDb);
+    world.courseDb.collection = (path) => {
+      asked.push(path);
+      return collection(path);
+    };
+    try {
+      await overviewRows(3);
+    } finally {
+      world.courseDb.collection = collection;
+    }
+    assert.equal(asked.filter((path) => path === "courseProgress").length, 1);
+    assert.equal(asked.filter((path) => path === "courseExerciseResponses").length, 1);
+  });
+});
+
+describe("4. a facilitator holding a place in their own group", () => {
+  test("is set apart from the group's came, as from its readings and coursework, and counted in the week's figure", async () => {
+    // Rahul facilitates Group B and holds a place in it; Group B's week 3 register is finished with him on it.
+    world.db.seed(`courseAttendance/${RUN.agi}__${B}__w03`, {
+      runId: RUN.agi,
+      groupId: B,
+      weekNumber: 3,
+      occurrence: 1,
+      held: true,
+      records: { amara: "present", ines: "absent", omar: "present", rahul: "present" },
+      pushedAt: new Date("2026-11-17T20:00:00Z"),
+      pushedByUid: "sofia",
+    });
+    const { model, rows } = await overviewRows(3);
+    const row = rows.get(B);
+    assert.equal(row.came, "2 of 3", "Rahul's own mark is not one of Group B's people's");
+    const week3 = model.byWeek.weeks.find((week) => week.weekNumber === 3);
+    // Without Rahul's line, the row is the same and the week's figure is one fewer: his mark counts there alone.
+    world.db.poke(`courseAttendance/${RUN.agi}__${B}__w03`, { records: { amara: "present", ines: "absent", omar: "present" } });
+    const without = await overviewRows(3);
+    assert.equal(without.rows.get(B).came, "2 of 3");
+    const after = without.model.byWeek.weeks.find((week) => week.weekNumber === 3);
+    assert.equal(after.counts.room + after.counts.online, week3.counts.room + week3.counts.online - 1);
+    // Where the week is whole its figure is the Attendance tab's total, which counts the place Rahul holds.
+    const records = await readRunRecords(world.courseDb, RUN.agi);
+    const total = buildRunAttendance(records, LEAD, new Date()).totals.find((each) => each.weekNumber === 3);
+    if (after.state === "done") assert.deepEqual([after.came, after.of], [total.came, total.of]);
   });
 });

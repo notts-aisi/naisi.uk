@@ -9,11 +9,12 @@ import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { WEEK_REMINDER_DAYS, weekEmailSendAt, weekLeft, type WeekLeft } from "@/lib/courses/weekEmails/model";
 import { weekDone, weekWritingNeeds, workIsClosed, type WeekDue } from "@/lib/courses/weekWork/model";
-import { loadPeopleWeekFacts, loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
+import { loadPeopleWeekFacts, loadRunWeekStates, readWeekRows, type RunWeekStates } from "@/lib/courses/weekWork/readers";
 import { facilitatingOnRunOf, liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import { resolveNoticeAudience } from "@/lib/email/courseFacilitatorEmails";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import {
   HAND_REMINDERS_COLLECTION,
   HAND_REMINDER_KIND,
@@ -177,15 +178,16 @@ function groupWeekReadOf(input: {
 /**
  * ONE WEEK OF SEVERAL GROUPS OF A RUN, each read exactly as `readGroupWeek`
  * reads it for that group's page, with what is the same for every group
- * read once: the run's live groups, where everybody's weeks stand, and what
- * people did of each copy of the week (the run's own, or a group's), asked
- * once for everybody reading that copy. A programme's Overview asks it for
- * the week it shows, so its counts are the group pages' own.
+ * read once: the run's live groups and places (handed in when the caller
+ * has read them already), where everybody's weeks stand, and the week's
+ * answers and ticks, asked once and split by copy of the week (the run's
+ * own, or a group's). A programme's Overview asks it for the week it shows,
+ * so its counts are the group pages' own.
  *
- * Bounded: the run's groups (one equality, at most 50), its stored weeks and
- * places (two equalities), each group's copy of the week (two reads a
- * group), and, per copy of the week, the run's answers and ticks for the week
- * (two equalities, projected) and each person's pack records by id.
+ * Bounded: the run's groups and places unless handed in (one equality each),
+ * its stored weeks (one equality), each group's copy of the week (two reads
+ * a group), the run's answers and ticks for the week once (two equalities,
+ * projected), and each person's pack records by id, per copy of the week.
  */
 export async function readGroupsWeek(
   db: Firestore,
@@ -196,6 +198,9 @@ export async function readGroupsWeek(
     /** The people asked about in each group, by the group's id. */
     uidsOf: (groupId: string) => readonly string[];
     now: Date;
+    /** The run's live groups and its places, when the caller has read them already: not read again. */
+    liveGroups?: readonly CourseGroupDoc[] | null;
+    enrolments?: readonly CourseEnrolmentDoc[] | null;
   },
 ): Promise<Map<string, { ok: true; read: GroupWeekRead } | { ok: false; why: WeekNotRead }>> {
   const { run, groups, weekNumber, now } = input;
@@ -206,10 +211,10 @@ export async function readGroupsWeek(
   }
   const weekId = weekDocId(weekNumber);
   const [liveGroups, resolved] = await Promise.all([
-    liveGroupsOf(db, run.id),
+    input.liveGroups ? Promise.resolve(input.liveGroups) : liveGroupsOf(db, run.id),
     Promise.all(groups.map((group) => resolveWeekDoc(db, run.id, group.id, weekId))),
   ]);
-  const states = await loadRunWeekStates(db, { run, liveGroups, now });
+  const states = await loadRunWeekStates(db, { run, liveGroups, enrolments: input.enrolments ?? null, now });
 
   // Which copy each group reads, and everybody reading each copy.
   type Ready = { group: CourseGroupDoc; sessions: ResolvedSession[]; own: ResolvedSession | null; blocks: WeekBlock[]; copy: string };
@@ -238,11 +243,13 @@ export async function readGroupsWeek(
     for (const uid of input.uidsOf(group.id)) if (uid) entry.uids.add(uid);
     copies.set(copy, entry);
   });
+  // The week's answers and ticks once, whatever the number of copies; each copy then reads its people's.
+  const read = copies.size > 0 ? await readWeekRows(db, run.id, weekNumber) : null;
   const factsByCopy = new Map(
     await Promise.all(
       [...copies].map(
         async ([copy, { blocks, uids }]) =>
-          [copy, await loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks, uids: [...uids] })] as const,
+          [copy, await loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks, uids: [...uids], read })] as const,
       ),
     ),
   );

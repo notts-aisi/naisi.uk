@@ -665,7 +665,59 @@ describe("4. attendance by week, and the people", () => {
     const noWeeks = await buildProgrammeOverview(world.db, { ...records, run: { ...records.run, weekPlan: [] }, groups: [] }, viewer, place, NOW);
     assert.deepEqual(noWeeks.byWeek, { weeks: [], groups: null, blank: NO_WEEKS_YET });
     // The pure rows over nothing: nothing.
-    assert.deepEqual(attendanceByWeek({ listed: listGroups(records, viewer, NOW, []), weeks: [], slots: [], thisWeek: null, ending: "pushed" }), []);
+    assert.deepEqual(attendanceByWeek({ listed: listGroups(records, viewer, NOW, []), weeks: [], slots: [], thisWeek: null, totals: [], ending: "pushed" }), []);
+  });
+
+  test("somebody who joined online is counted online, and a whole week's figure is the Attendance tab's own total", async () => {
+    // Dev came to week 2 online (a finished register), and Amara to week 3 (Group A's, finished; the week is not whole).
+    world.db.poke(registerPath(A, 2), { "online.dev": true });
+    world.db.poke(registerPath(A, 3), { "online.amara": true });
+    const { model, html } = await draw("claudia");
+    const byWeek = Object.fromEntries(model.byWeek.weeks.map((week) => [week.weekNumber, week]));
+    assert.deepEqual(byWeek[2].counts, { room: 6, online: 1, excused: 1, absent: 3 });
+    assert.equal(byWeek[2].line, "7 of 11 came");
+    assert.deepEqual(byWeek[3].counts, { room: 2, online: 1, excused: 0, absent: 1 });
+    assert.match(html, /aria-label="Week 2: in the room 6, online 1, excused 1, absent 3\."/);
+    const { readRunRecords, buildRunAttendance } = await lib("courses", "programmeAttendance.ts");
+    const total = buildRunAttendance(await readRunRecords(world.db, RUN.agi), { isAdmin: false }, NOW).totals.find((each) => each.weekNumber === 2);
+    assert.deepEqual([byWeek[2].came, byWeek[2].of, byWeek[2].counts.online], [total.came, total.of, total.online]);
+    // A group's row: Group A's week 2 and week 3, the online mark counted as came.
+    const a = model.byWeek.groups.rows.find((row) => row.groupId === A);
+    assert.deepEqual([a.cameBefore, a.came], ["2 of 5", "3 of 4"]);
+    // The line the old chart carried stays, under the rows, and the card names where a week goes.
+    assert.match(html, /Late and left early count as came\./);
+    assert.match(html, /Every group, from the pushed registers\. Each week opens the Attendance tab\./);
+  });
+
+  test("a whole week reads the tab's total, even a week only a group archived since held", async () => {
+    const { attendanceByWeek } = await lib("courses", "overviewByWeek.ts");
+    const totals = [{ weekNumber: 1, percent: 75, came: 3, of: 4, online: 1, soFar: false, from: ["Group Z"] }];
+    const [row] = attendanceByWeek({ listed: [], weeks: [1], slots: [], thisWeek: null, totals, ending: "finished" });
+    assert.deepEqual([row.state, row.line, row.counts], ["done", "3 of 4 came", { room: 2, online: 1, excused: 0, absent: 1 }]);
+    const [none] = attendanceByWeek({ listed: [], weeks: [1], slots: [], thisWeek: null, totals: [], ending: "finished" });
+    assert.deepEqual([none.state, none.line], ["none", "No group meets in week 1"]);
+  });
+
+  test("a held session with no date keeps the week from no state, and its row says it has no date yet", async () => {
+    // Group D's week 3 register finished; Groups B and C's week 3 sessions have no date and no register.
+    world.db.poke(registerPath(D, 3), { pushedAt: new Date("2026-11-16T20:30:00Z"), pushedByUid: "grace" });
+    const { readRunRecords, listGroups, weeksOf, buildRunAttendance } = await lib("courses", "programmeAttendance.ts");
+    const { attendanceByWeek, groupsInWeek } = await lib("courses", "overviewByWeek.ts");
+    const records = await readRunRecords(world.db, RUN.agi);
+    const viewer = { isAdmin: false };
+    const listed = listGroups(records, viewer, NOW, weeksOf(records));
+    for (const entry of listed.filter((each) => each.group.id === B || each.group.id === C)) {
+      const facts = entry.sessions.get(3);
+      Object.assign(facts, { startsAt: null, endsAt: null, started: false, ended: false, tag: null, session: { ...facts.session, dateKey: "" } });
+    }
+    const totals = buildRunAttendance(records, viewer, NOW).totals;
+    const week3 = attendanceByWeek({ listed, weeks: [3], slots: [], thisWeek: 3, totals, ending: "pushed" })[0];
+    assert.deepEqual([week3.state, week3.line], ["done", "4 of 6 came"]);
+    const rows = groupsInWeek({ listed, weeks: [1, 2, 3], weekNumber: 3, thisWeek: 3, work: new Map(), ending: "pushed", todayKey: "2026-11-17", programmePath: PAGE_PATH }).rows;
+    assert.deepEqual(rows.filter((row) => row.groupId === B || row.groupId === C).map((row) => [row.session, row.came]), [
+      ["No date yet", "No date yet"],
+      ["No date yet", "No date yet"],
+    ]);
   });
 
   test("how many take part and how many left, and that freed places are over", async () => {

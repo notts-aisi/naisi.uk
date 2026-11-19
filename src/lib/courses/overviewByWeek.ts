@@ -3,6 +3,7 @@ import { londonClockLabel, londonDayLabel } from "@/lib/courses/londonLabels";
 import {
   dayLabel,
   happened,
+  type GridWeekTotal,
   type GroupSessionFacts,
   type ListedGroup,
 } from "@/lib/courses/programmeAttendance";
@@ -38,7 +39,11 @@ import { campusForWeek, sessionChangeForWeek, sessionModeForWeek } from "@/lib/f
  * week was moved on its own, "room to be confirmed" when no room is set),
  * how many have done its readings and the whole week (the group page's own
  * counts, handed in as `work`), and who came the week before and that week,
- * from the group's own finished register.
+ * from the group's own finished register, its facilitators apart as the
+ * group's page sets them apart (one holding a place in the group included),
+ * so every number on a row is out of the same people. The week's own figure
+ * above counts every mark, a facilitator's place included, as the
+ * Attendance tab's total does.
  */
 
 /** A week's marks on finished registers, by kind. */
@@ -131,11 +136,17 @@ function counts(facts: GroupSessionFacts | undefined): boolean {
 }
 
 /**
- * The marks on finished registers in one week, for the groups `of` asks
- * about (every group, or one): each listed row's cell, counted for the group
- * whose register holds it, once.
+ * The marks on finished registers in one week, for every group or one
+ * (`groupId`): each listed row's cell, counted for the group whose register
+ * holds it, once. `leaveOut` drops some people from a group's own figure: its
+ * facilitators, whom the group's page sets apart from its people.
  */
-export function weekCounts(listed: readonly ListedGroup[], weekNumber: number, groupId: string | null = null): WeekCounts {
+export function weekCounts(
+  listed: readonly ListedGroup[],
+  weekNumber: number,
+  groupId: string | null = null,
+  leaveOut: ReadonlySet<string> = new Set(),
+): WeekCounts {
   const out: WeekCounts = { room: 0, online: 0, excused: 0, absent: 0 };
   const owners = new Map<GroupSessionFacts, string>();
   for (const entry of listed) {
@@ -147,6 +158,7 @@ export function weekCounts(listed: readonly ListedGroup[], weekNumber: number, g
       const facts = sessionOf(weekNumber);
       if (!facts || !counts(facts)) continue;
       if (groupId !== null && owners.get(facts) !== groupId) continue;
+      if (leaveOut.has(row.uid)) continue;
       const cell = row.cells.find((each) => each.weekNumber === weekNumber);
       if (!cell || cell.state !== "mark" || !cell.mark || cell.saved) continue;
       if (CAME.has(cell.mark)) {
@@ -171,24 +183,50 @@ function barWords(weekNumber: number, each: WeekCounts): string {
  * ATTENDANCE BY WEEK, a row a week of the run. `slots` dates each taught week
  * from the run's own plan (the day its week starts); `thisWeek` is the
  * programme's week now, or null outside one.
+ *
+ * A WHOLE WEEK'S FIGURE IS THE ATTENDANCE TAB'S OWN. Once every group that
+ * holds a dated session that week has a finished register, "came" and "of"
+ * (and online) are the tab's weekly total for the week (`totals`, from
+ * `buildRunAttendance`), whatever that total counts, so the two never
+ * differ; the excused and absent split is this file's count of the same
+ * marks, held inside the tab's "of". Until then, the figures are the
+ * finished registers' alone. A held session with no date and no finished
+ * register has no day to meet on: it keeps the week from no state, and its
+ * group's row says it has no date yet.
  */
 export function attendanceByWeek(input: {
   listed: readonly ListedGroup[];
   weeks: readonly number[];
   slots: readonly { weekNumber: number; startKey: string }[];
   thisWeek: number | null;
+  /** The Attendance tab's weekly totals (`buildRunAttendance(...).totals`). */
+  totals: readonly GridWeekTotal[];
   /** "finished" or "pushed": the register's own word for finishing it. */
   ending: "finished" | "pushed";
 }): OverviewWeekRow[] {
-  const { listed, weeks, slots, thisWeek, ending } = input;
+  const { listed, weeks, slots, thisWeek, totals, ending } = input;
   return weeks.map((weekNumber): OverviewWeekRow => {
     const slot = slots.find((each) => each.weekNumber === weekNumber) ?? null;
     const isThisWeek = weekNumber === thisWeek;
     const when = isThisWeek ? "this week" : slot ? `w/c ${dayLabel(slot.startKey)}` : "";
-    const held = listed.map((entry) => entry.sessions.get(weekNumber)).filter((facts): facts is GroupSessionFacts => Boolean(facts?.held));
+    // The groups holding a session the week can wait for: held, and dated or already counted.
+    const held = listed
+      .map((entry) => entry.sessions.get(weekNumber))
+      .filter((facts): facts is GroupSessionFacts => Boolean(facts?.held && (facts.startsAt !== null || counts(facts))));
     const counted = held.filter((facts) => counts(facts)).length;
     const met = held.filter((facts) => facts.ended || counts(facts)).length;
-    const each = weekCounts(listed, weekNumber);
+    const own = weekCounts(listed, weekNumber);
+    const tab = totals.find((total) => total.weekNumber === weekNumber) ?? null;
+    const whole = counted === held.length && (held.length > 0 || (tab?.of ?? 0) > 0);
+    // A whole week reads the tab's total; the split of what did not come is this file's, inside it.
+    const each: WeekCounts =
+      whole && tab
+        ? (() => {
+            const away = Math.max(0, tab.of - tab.came);
+            const excused = Math.min(own.excused, away);
+            return { room: tab.came - tab.online, online: tab.online, excused, absent: away - excused };
+          })()
+        : own;
     const base = {
       weekNumber,
       label: `Week ${weekNumber}`,
@@ -199,15 +237,13 @@ export function attendanceByWeek(input: {
       of: ofOf(each),
       description: barWords(weekNumber, each),
     };
+    if (whole) return { ...base, state: "done", line: `${base.came} of ${base.of} came`, unfinished: null };
     if (held.length === 0) {
       return { ...base, state: "none", line: `No group meets in week ${weekNumber}`, unfinished: null };
     }
     if (met === 0) return { ...base, state: "not-met", line: NOT_MET_YET, unfinished: null };
     const waiting = met - counted;
     const unfinished = waiting > 0 ? `${waiting} ${waiting === 1 ? "register" : "registers"} not ${ending} yet` : null;
-    if (counted === held.length) {
-      return { ...base, state: "done", line: `${base.came} of ${base.of} came`, unfinished: null };
-    }
     return {
       ...base,
       state: "so-far",
@@ -244,13 +280,15 @@ function cameWords(entry: ListedGroup, listed: readonly ListedGroup[], weekNumbe
   if (!facts) return "No session";
   if (!facts.held) return facts.session.cancelled ? "Cancelled" : "Not held";
   if (counts(facts)) {
-    const each = weekCounts(listed, weekNumber, entry.group.id);
+    // The group's people as its own page lists them: its facilitators apart, even one holding a place in it.
+    const each = weekCounts(listed, weekNumber, entry.group.id, new Set(entry.group.facilitatorUids));
     return `${cameOf(each)} of ${ofOf(each)}`;
   }
   if (facts.tag === "tonight") return "Tonight";
   if (facts.tag === "today") return "Today";
   if (facts.tag === "tomorrow") return "Tomorrow";
   if (facts.ended) return `Not ${ending}`;
+  if (!facts.startsAt) return "No date yet";
   return "No register yet";
 }
 

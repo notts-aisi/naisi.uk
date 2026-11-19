@@ -134,10 +134,13 @@ function GroupsList({ groups }: { groups: OverviewGroupsWeek }) {
 export default function OverviewByWeekSections({
   byWeek,
   programmePath,
+  ending,
 }: {
   byWeek: OverviewByWeek;
   /** The programme's own address, no trailing slash. */
   programmePath: string;
+  /** The register's own word for finishing it, as the rows say it: "finished" or "pushed". */
+  ending: "finished" | "pushed";
 }) {
   const attendanceHref = `${programmePath}/attendance`;
   const { groups } = byWeek;
@@ -148,16 +151,19 @@ export default function OverviewByWeekSections({
           <h2 id="overview-by-week" className={styles.title}>
             Attendance by week
           </h2>
-          <p className={styles.sub}>Every group, from the finished registers. Each week opens the registers.</p>
+          <p className={styles.sub}>Every group, from the {ending} registers. Each week opens the Attendance tab.</p>
         </div>
         {byWeek.blank ? (
           <p className={styles.muted}>{byWeek.blank}</p>
         ) : (
-          <ol className={styles.weeks}>
-            {byWeek.weeks.map((row) => (
-              <WeekRow key={row.weekNumber} row={row} attendanceHref={attendanceHref} />
-            ))}
-          </ol>
+          <>
+            <ol className={styles.weeks}>
+              {byWeek.weeks.map((row) => (
+                <WeekRow key={row.weekNumber} row={row} attendanceHref={attendanceHref} />
+              ))}
+            </ol>
+            <p className={styles.muted}>Late and left early count as came.</p>
+          </>
         )}
       </section>
 
