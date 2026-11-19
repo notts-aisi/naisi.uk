@@ -620,7 +620,7 @@ whatever they unsubscribed from, and says why above its words.
 | --- | --- |
 | Marker | `schedulerMarkers/weekremind__{groupId}__{sessionKey}__{uid}__{3\|1}`, one per person per reminder |
 | Due | from 9am on its day for 12 hours (`maxLateHours`), and never once the session has started |
-| Who | every active learner whose group for the session's week is the session's group and who has been told their group; never a facilitator |
+| Who | every active learner whose session that week is the session's group's (somebody on a one-week visit at the host's, never their own group's) and who has been told their group; never a facilitator |
 | Weeks | each week the session covers (two, for the session after a cancelled one); a session none of whose weeks is written as blocks and published is reminded about by nobody |
 | Runs scanned | status `applications-open`, `applications-closed` or `running`; archived groups skipped |
 | `maxPerTick` | 100 |
@@ -652,6 +652,21 @@ whatever they unsubscribed from, and says why above its words.
   reminded by the group they are leaving for the weeks before, but their
   programme page shows the new group's card, so their email leaves out
   "Can't make it?" and the link sentence (`programmePageShowsSession`).
+  Somebody on a one-week visit is reminded of the HOST's session that week
+  alone, once at each of the two moments, and never of their own group's
+  session that week: the host's day, time and place and the host's
+  facilitators, about the visit's week alone, judged on their own group's copy.
+  Their page shows the visit's card for that session, so the reminder says the
+  link is on their programme page as the card shows the host's link, and says
+  "Can't make it?" where the card offers it (never to somebody who
+  facilitates their own group, whose own Can't make it is the instant one);
+  where the page draws no visit card (their own group no longer meets, or the
+  host's register already says the session was not held) it says neither.
+  An excusal for their own group's session is no excusal from the host's:
+  they are reminded of it. Who is not coming is asked of the host's session,
+  its register and its requests. The certificate sentence reads each week's
+  session's group, the host's register for the visit's week, as their
+  programme page does.
   Its button is "Open your programme page", for
   everybody, to the run's own page. The line above its words says why it
   reached them in its own words (`sessionReminderReason`, naming the
@@ -2062,9 +2077,9 @@ column draws no row for a week spent elsewhere). "Week N is open"'s line
 about an earlier week not done judges each person's week on the copy they
 read it on, so a week finished on the old group's version is never called
 not done because the new group's asks something more. The reminders before
-a session remind somebody about a week the session covers only when that
-week was this group's for them (`belongsTo`): a week spent in another group
-was due at that group's session, finished or not. The Coursework tab reads
+a session remind somebody about a week the session covers only when their
+work for that week was due at this group's session (`dueWith`): a week spent
+in another group was due at that group's session, finished or not. The Coursework tab reads
 the copies of a group archived since that somebody's record names, so a week
 spent there keeps its answers; such a week has no session for anybody
 reading it, so it reads as undated there, as everywhere. The run's questions
@@ -2316,19 +2331,24 @@ inside the save); a host that is missing, archived, of another run or the
 group they belong to that week; a host session that week that is missing,
 called off, marked as not held or started; somebody already marked as having
 come on their own group's register that week; a week that already has a
-visit; a week whose own group's session has a request to be excused waiting
-(it is decided first) or approved (they are excused from it, and a visit would
-show them as excused from a session whose register does not say so); a host
-register at its limit of people; or a week whose own session has an excusal
-that stands by the register's own rule (`excusalStandsFor`: an approved
-request, an excused line an admin set, or one their own word or a time answer
-set). A request asked about a visit's session records it (`aboutVisit`), and
-such a request, or any request while a visit stands that week, is paired with
-a session by group as well as key (`weeksAbout`): a request about a host's
-session says nothing about the person's own group's once the visit is off,
-and stays on the admins' Requests page to be closed there. Every other request
-pairs by the key alone, as it always has, a person moved to another group
-included.
+visit to a session that is happening; a week whose own group's session has a
+request to be excused waiting ("Chloe is waiting to hear about being excused
+from week 4. Decide that request first, on the Requests page."); or a host
+register at its limit of people. A visit CAN be arranged for a week the
+person is excused from: the excusal stays where it is, on their own group's
+register; on the host's they are a visitor with no excusal, counted as there
+when marked there; if the visit ends they are back with their own group,
+still excused. A request asked about a visit's session records it
+(`aboutVisit`), and such a request, or any request while a visit stands that
+week, is paired with a session by group as well as key (`weeksAbout`): a
+request about a host's session says nothing about the person's own group's
+once the visit is off. When a visit ends, by any path, a request of theirs
+still waiting about its session is withdrawn quietly in the same write
+(`withdrawVisitRequestsIn`): no email, a line in the request's history by
+whoever ended the visit, left off the person's own list of requests (no words
+there say that somebody else withdrew it), and on the admins' Requests page
+"Withdrawn when the visit ended" with when. Every other request pairs by the
+key alone, as it always has, a person moved to another group included.
 
 **A limit on the emails** (`src/lib/courses/visit/limits.ts`): every staff press
 that arranges or calls off a visit is counted on the notice lane's stored
@@ -2365,8 +2385,13 @@ even once its group is archived): the person is emailed too. Once the
 person's own group's session has started, calling it off would count them
 absent from a session they were told not to go to, so it is refused in one
 sentence that says the visit stays and what to do instead (the person's Can't
-make it on the visit card, or an admin marking them excused on the host's
-register); once the host's has, it is refused as too late. When the host's
+make it on the visit card, where the card offers one, or an admin marking
+them excused on the host's register); once both sessions have started, the
+sentence closes "The visit can no longer be cancelled."; once the host's has,
+it is refused as too late. There is no exception for when a visit was
+arranged: a replacement arranged after the person's own session started can
+never be ended, by them or by staff (its card shows no Cancel and no "You can
+cancel until" line, and its email leaves out "Changed your mind?"). When the host's
 session is not happening (called off, marked as not held, or its group
 archived before it finished a register of the session held), staff can call
 the visit off whatever the clock says of the host's until the person's own
@@ -2379,6 +2404,44 @@ own words on the host's register for that session (joining online, can't make
 it) come off while it is not finished, the rollup is rebuilt when it must be,
 and each group's History gets a row (`member-visit-off`).
 
+**When the session they visit is called off.** By Change a session (kept
+pace or pushed back, before it or after the fact) or by a finished register's
+own correction, It didn't happen (`POST .../attendance/column`, admins and the
+people leading the programme), through the same code
+(`src/lib/courses/visit/hostOff.ts`):
+
+- Their own group's session that week is still to come: the visit ENDS in the
+  same write as the change. The person is sent "Your visit to Group I for week
+  2 is off" and their own group's facilitators the visit's called-off email,
+  whether or not the group is told of the change, and they are left out of the
+  group's notice and its count. Somebody excused from their own group's session
+  that week has the "as usual" sentence left out of both emails. A History row
+  on each group; their own words on the host's register taken back while it is
+  not finished; a request waiting about the visit withdrawn quietly; back on
+  their own group's register; their figures rebuilt from their own group's
+  registers. The preview says, before the press, how many people visiting are
+  told and how many emails that is ("1 person visiting this session is told
+  their visit is off, whatever Tell the group says, and so are their own
+  group’s facilitators: 3 emails."; on the register's correction "whether or
+  not the group is emailed"); the press carries that number, and the
+  transaction works it out again and refuses a different one ("Who is visiting
+  this session has changed since the page was opened. Check it, then press
+  again."). The limits on these emails are read and claimed in the same
+  transaction, the presser's once per visit; at a limit the whole change is
+  refused with nothing written. The emails go after the commit; one that
+  cannot be sent is said to staff by count.
+- Their own session has started, or their own group has none that week: the
+  visit STANDS, counts for nothing, and can be REPLACED: a visit to another
+  group's session that week that has not started may be arranged over it, the
+  old entry going in the same write with a History row, with the emails an
+  arranged visit always sends and a preview line ("This replaces Chloe’s visit
+  to Group D’s session that week, which is not happening.").
+- A session put back keeps an ended visit ended; staff arrange it again. Said
+  to have happened after all, the same.
+
+With nobody visiting the session, the change's answers, writes and emails are
+as they always were.
+
 **The registers.** The host's register lists the visitor as a row of that week
 alone, with the line "Visiting from Group C"; they are marked like anybody and
 take the host's check-in. Their own group's register shows "At Group F this
@@ -2386,7 +2449,10 @@ week" in that week's cell, never marked and never counted; a mark sent for it
 is refused ("Aisha is at Group F this week."). A correction of a visitor's line
 is asked on the host's register, and its panel says where their week lives.
 Their own attendance, the Attendance tab, who finished and a certificate's count
-read the host's mark for that week. A host archived since keeps that week as
+read the host's mark for that week. The Overview counts them on the host's
+session for that week (its "N of M came" and "N in the group"), never on
+their own group's, and once in the week's figure; their coursework for the
+week is counted under their own group. A host archived since keeps that week as
 it keeps a week of a record of groups by week: its finished register of a
 session held counts, anything else counts for nothing
 (`countsFromArchivedGroup`).
