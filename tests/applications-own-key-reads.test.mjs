@@ -250,6 +250,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/weekRooms/load.ts",
+    {
+      why: "the week's rooms and the term's rooms find the programmes a reader may see on a form: it reads the form's programmes by the ids `programmeRolesFor` hands back for that reader off the same form, to take each programme's short name and the run it names",
+    },
+  ],
+  [
     "src/lib/courses/programmeLead.ts",
     {
       why: "the one answer to who leads the programme that names a course run: it reads each form's programmes by the ids on that form's own programmeIds, to find the programme whose runId names the run and take its lead",
