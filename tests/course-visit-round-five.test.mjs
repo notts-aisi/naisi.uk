@@ -192,25 +192,41 @@ describe("3. Group D's Monday was called off after the fact, her own Tuesday has
     assert.equal(historyOf(D).length, 1);
   });
 
-  test("the new visit can be ended by her until Group C's session starts", async () => {
-    await standingToDCalledOff();
-    await arrange("chloe", 4, C);
-    at("2026-11-25T10:00:00Z");
-    const own = await call("chloe", cancelRoute.POST, { runId: RUN.agi }, { body: { weekNumber: 4 }, course: true });
-    assert.equal(own.status, 200, JSON.stringify(own.body));
-    assert.equal(seat("chloe").visits, undefined);
-    // Ended, she has no session that week, as before the replacement; nothing is left to replace.
-    assert.equal((await visit("zach", "chloe", { weekNumber: 4, hostGroupId: C, preview: true })).status, 409);
-  });
+  const figures = () => {
+    const { sessionsHeld, attendedInFull, absent } = read(seatPath("chloe")).attendance ?? {};
+    return { sessionsHeld, attendedInFull, absent };
+  };
 
-  test("once Group C's session has started, staff can no longer end the new visit", async () => {
+  test("her own session has started, so the replacement can never be ended: her card offers no Cancel, her press and staff's are refused, and her figures do not move", async () => {
     await standingToDCalledOff();
+    // Group B's week 4 register finished without her (she was a visitor that week).
+    for (const uid of await rowsOf(B, 4)) await call("rahul", register.POST, { groupId: B }, { body: { weekNumber: 4, marks: [{ uid, status: "present" }] }, course: true });
+    assert.equal((await call("rahul", pushRoute.POST, { groupId: B }, { body: { weekNumber: 4 } , course: true })).status, 200);
+    const before = figures();
     await arrange("chloe", 4, C);
-    at("2026-11-25T13:30:00Z");
+    assert.deepEqual(figures(), before);
+    at("2026-11-25T10:00:00Z");
+    const card = (await call("chloe", w.routes.overview.GET, { runId: RUN.agi }, { course: true })).body.visits[0];
+    assert.equal(card.cancel, null, "no Cancel and no line saying until when");
+    const own = await call("chloe", cancelRoute.POST, { runId: RUN.agi }, { body: { weekNumber: 4 }, course: true });
+    assert.deepEqual([own.status, own.body.kind], [409, "too-late"]);
+    assert.deepEqual(figures(), before);
     const facts = await readVisitFacts(dbReader(world.courseDb), world.courseDb, RUN.agi, "chloe", "ahead", new Date());
     const standing = standingVisits(facts.facts, "zach", new Date())[0];
-    const late = await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: standing.emails });
-    assert.deepEqual([late.status, late.body.error], [409, "The visit can no longer be cancelled: Group C’s session has started."]);
+    assert.equal(standing.open, false);
+    const staff = await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: standing.emails });
+    assert.equal(staff.status, 409);
+    assert.deepEqual(figures(), before);
+    assert.deepEqual(seat("chloe").visits.map((each) => [each.weekNumber, each.groupId]), [[4, C]]);
+  });
+
+  test("the email about the replacement leaves out the line about cancelling", async () => {
+    await standingToDCalledOff();
+    world.mail.length = 0;
+    await arrange("chloe", 4, C);
+    const toHer = world.mail.find((message) => message.to.startsWith("chloe@"));
+    assert.ok(toHer);
+    assert.doesNotMatch(JSON.stringify(toHer), /Changed your mind/);
   });
 
   test("a visit to a session that IS happening is not replaced", async () => {

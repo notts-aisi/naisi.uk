@@ -400,21 +400,12 @@ export function cancelDeadline(input: {
   hostSession: ResolvedSession | null;
   home: CourseGroupDoc | null;
   ownSession: ResolvedSession | null;
-  /**
-   * When the visit was arranged (now, for one being arranged). A visit
-   * arranged after their own group's session had started (it replaced a
-   * visit to a session that stopped happening) goes by the host's session
-   * alone: their own session is behind them, and by the earlier of the two
-   * nobody could ever end it.
-   */
-  arrangedAt?: Date | null;
 }): { until: Date | null; first: { group: CourseGroupDoc; session: ResolvedSession } | null } {
   const hostStart = input.hostSession ? sessionInstants(input.hostSession).startsAt : null;
   const ownStart = input.ownSession ? sessionInstants(input.ownSession).startsAt : null;
   const hostFirst = input.hostSession ? { group: input.host, session: input.hostSession } : null;
   const ownFirst = input.ownSession && input.home ? { group: input.home, session: input.ownSession } : null;
-  const ownBehind = ownStart !== null && input.arrangedAt != null && ownStart.getTime() <= input.arrangedAt.getTime();
-  if (ownStart && !ownBehind && (!hostStart || ownStart.getTime() < hostStart.getTime())) return { until: ownStart, first: ownFirst };
+  if (ownStart && (!hostStart || ownStart.getTime() < hostStart.getTime())) return { until: ownStart, first: ownFirst };
   return { until: hostStart, first: hostStart ? hostFirst : ownFirst };
 }
 
@@ -549,7 +540,7 @@ export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: st
   const hostFacts = sessionFacts(host, hostSession);
   const back = backDateKeyOf(facts, weekNumber, own.home.id);
   // The person's own cancel line ("Changed your mind? ... until ..."): the one deadline.
-  const earlier = cancelDeadline({ host, hostSession, home: own.home, ownSession: own.session, arrangedAt: now }).first?.session ?? hostSession;
+  const earlier = cancelDeadline({ host, hostSession, home: own.home, ownSession: own.session }).first?.session ?? hostSession;
   const emailFacts: VisitEmailFacts = {
     personName: person.name,
     personFirstName: person.firstName,
@@ -559,7 +550,8 @@ export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: st
     host: hostFacts,
     hostFacilitatorFirstNames: hostFirst,
     backDateKey: back,
-    cancelUntil: { dateKey: earlier.dateKey, startTimeLocal: earlier.session.startTimeLocal },
+    // Left out once it has passed: a visit replacing one, their own session started, cannot be cancelled.
+    cancelUntil: (sessionInstants(earlier).startsAt?.getTime() ?? 0) > now.getTime() ? { dateKey: earlier.dateKey, startTimeLocal: earlier.session.startTimeLocal } : null,
   };
   const lines: VisitLineView[] = [
     ...(replaces ? [{ label: LINE_LABEL.replaces, text: replacesLineWords(person.firstName, replaces.host.name) }] : []),
@@ -713,7 +705,7 @@ export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: bool
   // own schedule even once its group is archived (`cancelDeadline`). Staff
   // calling off a visit to a session that is not happening go by their own
   // group's session alone: until it starts, whatever the clock says of the host's.
-  const deadline = cancelDeadline({ host, hostSession, home, ownSession: own?.session ?? null, arrangedAt: visit.arrangedAt });
+  const deadline = cancelDeadline({ host, hostSession, home, ownSession: own?.session ?? null });
   const ownStart = own ? sessionInstants(own.session).startsAt : null;
   const hostStart = hostSession ? sessionInstants(hostSession).startsAt : null;
   const staffNotHappening = byStaff && !happening;

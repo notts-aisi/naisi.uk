@@ -268,7 +268,8 @@ export type VisitEmailFacts = {
   /** Their own group's next session after the visit's week, or null with none. */
   backDateKey: string | null;
   /** When the earlier of the two sessions of that week starts: the last moment the visit can be cancelled. */
-  cancelUntil: { dateKey: string; startTimeLocal: string };
+  /** Until when the person can cancel it; null once that time has passed (a visit replacing one, their own session started): the line is left out. */
+  cancelUntil: { dateKey: string; startTimeLocal: string } | null;
 };
 
 /**
@@ -284,7 +285,7 @@ export function personEmailWords(facts: VisitEmailFacts): VisitEmailWords {
   const names = andList(facts.hostFacilitatorFirstNames);
   const where = [place, names ? `with ${names}` : ""].filter(Boolean).join(", ");
   const back = facts.backDateKey ? dayWords(facts.backDateKey) : "";
-  const until = startWords(facts.cancelUntil.dateKey, facts.cancelUntil.startTimeLocal);
+  const until = facts.cancelUntil ? startWords(facts.cancelUntil.dateKey, facts.cancelUntil.startTimeLocal) : "";
   return {
     subject: `You’re going to ${possessive(host)} session${day ? ` on ${day}` : ""}`,
     lines: [
