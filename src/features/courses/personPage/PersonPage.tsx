@@ -227,7 +227,7 @@ export default function PersonPage({ view }: { view: TeamPersonView }) {
         <p className={styles.eyebrow}>{header.programmeName}</p>
         <h1 className={styles.name}>{header.name}</h1>
         <div className={styles.chips}>
-          <span className={styles.chip}>{header.group}</span>
+          {header.group ? <span className={styles.chip}>{header.group}</span> : null}
           {header.notTold ? <span className={styles.chip}>{NOT_TOLD}</span> : null}
           {header.status ? <span className={styles.chip}>{header.status}</span> : null}
         </div>
@@ -241,17 +241,21 @@ export default function PersonPage({ view }: { view: TeamPersonView }) {
         ) : null}
       </header>
 
-      <Card id="person-coursework" title={COURSEWORK} hint={COURSEWORK_HINT}>
-        <Coursework weeks={view.weeks} ratings={view.ratings} />
-      </Card>
+      {view.weeks ? (
+        <Card id="person-coursework" title={COURSEWORK} hint={COURSEWORK_HINT}>
+          <Coursework weeks={view.weeks} ratings={view.ratings} />
+        </Card>
+      ) : null}
 
       <Card id="person-attendance" title={ATTENDANCE} hint={ATTENDANCE_HINT}>
         <Attendance attendance={view.attendance} />
       </Card>
 
-      <Card id="person-feedback" title={FEEDBACK} who={FEEDBACK_WHO}>
-        <Feedback feedback={view.feedback} none={NO_FEEDBACK} />
-      </Card>
+      {view.feedback ? (
+        <Card id="person-feedback" title={FEEDBACK} who={FEEDBACK_WHO}>
+          <Feedback feedback={view.feedback} none={NO_FEEDBACK} />
+        </Card>
+      ) : null}
 
       {view.notes ? (
         // The notes' own component draws its own head, and asks its own routes who reads which note.

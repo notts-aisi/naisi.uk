@@ -2,6 +2,8 @@ import { cellStateWords } from "@/lib/courses/coursework/words";
 import { cellStateOf, workKey, type CourseworkCell, type CourseworkWeek, type PersonWork } from "@/lib/courses/coursework/model";
 import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import type { PersonEventsView } from "@/lib/events/attendanceWords";
+import { emailStateWords } from "@/lib/courses/feedback/words";
+import type { FeedbackDelivery } from "@/lib/firestore/courseFeedback";
 import {
   ANSWER_STARTED,
   DID_NOT_HAPPEN,
@@ -14,7 +16,6 @@ import {
   STILL_TO_COME,
   activityWhenWords,
   elsewhereWords,
-  emailedWords,
   feedbackByWords,
   feedbackEmailedWords,
   feedbackOnWords,
@@ -25,7 +26,7 @@ import {
   savedWords,
   sentAnswerWords,
   sentWords,
-  toldGroupWords,
+  TOLD_THEIR_GROUP,
   weekLineWords,
 } from "./words";
 
@@ -69,7 +70,11 @@ export type PersonWeekRow = {
   readLabel: string;
 };
 
-/** One piece of feedback, as who wrote it, about what and when, and its email. Never its words. */
+/**
+ * One piece of feedback, as who wrote it, about what and when, and what
+ * became of its email. Never its words. Feedback given before pieces existed
+ * (`legacy`, on the answer's own row) was emailed when it was given.
+ */
 export type FeedbackFact = {
   id: string;
   weekNumber: number;
@@ -77,6 +82,11 @@ export type FeedbackFact = {
   byName: string;
   createdAt: Date | null;
   emailedAt: Date | null;
+  /** What became of its email, beside `emailedAt`: handed over, held by this copy of the site, or stopped by the do-not-email list. */
+  delivery: FeedbackDelivery | null;
+  /** A press is sending its email now. */
+  sending: boolean;
+  legacy: boolean;
 };
 
 /** One rating for the team, as its number and who gave it. Never its comment. */
@@ -89,6 +99,8 @@ export type CourseworkRowInput = {
   week: CourseworkWeek | null;
   work: PersonWork;
   feedback: readonly FeedbackFact[];
+  /** The person's first name, for what became of each piece's email. */
+  firstName: string;
   readHref: string | null;
   now: Date;
 };
@@ -99,9 +111,25 @@ function latest(dates: ReadonlyArray<Date | null | undefined>): Date | null {
   return out;
 }
 
-/** The line of one piece of feedback in the table and in the Feedback section. */
-export function feedbackLineOf(piece: FeedbackFact): string {
-  return `${feedbackByWords(piece.byName, piece.createdAt)} · ${emailedWords(piece.emailedAt)}`;
+/** What became of a piece's email, as it was handed over: the reading view's own facts. */
+function emailedOf(piece: FeedbackFact): { at: string | null; delivery: FeedbackDelivery } | null {
+  if (piece.legacy) return { at: piece.emailedAt ? piece.emailedAt.toISOString() : null, delivery: "sent" };
+  return piece.emailedAt ? { at: piece.emailedAt.toISOString(), delivery: piece.delivery ?? "sent" } : null;
+}
+
+/** Whether a piece's email really went: emailed, and neither held nor stopped. */
+export function wasEmailed(piece: FeedbackFact): boolean {
+  return emailedOf(piece)?.delivery === "sent";
+}
+
+/**
+ * The line of one piece of feedback in the table and in the Feedback section:
+ * who and when, then what became of its email in the reading view's own words
+ * (`emailStateWords`), so a piece stopped by the do-not-email list is never
+ * called emailed. `firstName` is the person's, as the reading view names them.
+ */
+export function feedbackLineOf(piece: FeedbackFact, firstName: string): string {
+  return `${feedbackByWords(piece.byName, piece.createdAt)} · ${emailStateWords(firstName, emailedOf(piece), piece.sending)}`;
 }
 
 const byWhen = (a: FeedbackFact, b: FeedbackFact) =>
@@ -142,7 +170,7 @@ export function weekRowOf(input: CourseworkRowInput): PersonWeekRow {
     feedback: input.feedback
       .filter((piece) => piece.weekNumber === n)
       .sort(byWhen)
-      .map(feedbackLineOf),
+      .map((piece) => feedbackLineOf(piece, input.firstName)),
     readHref: input.readHref,
     readLabel: readWeekWords(n),
   };
@@ -262,8 +290,8 @@ export function attendanceViewOf(weeks: readonly AttendanceWeekFact[], counted?:
 export type FeedbackLine = { id: string; on: string; line: string };
 
 /** The Feedback section: every piece handed, by week and then when it was written. */
-export function feedbackLinesOf(pieces: readonly FeedbackFact[]): FeedbackLine[] {
-  return [...pieces].sort(byWhen).map((piece) => ({ id: piece.id, on: feedbackOnWords(piece.weekNumber, piece.on), line: feedbackLineOf(piece) }));
+export function feedbackLinesOf(pieces: readonly FeedbackFact[], firstName: string): FeedbackLine[] {
+  return [...pieces].sort(byWhen).map((piece) => ({ id: piece.id, on: feedbackOnWords(piece.weekNumber, piece.on), line: feedbackLineOf(piece, firstName) }));
 }
 
 /** How many activity lines are drawn. */
@@ -279,14 +307,15 @@ export type ActivityLine = { at: string; when: string; said: string };
  * here is recorded for this page.
  */
 export function activityOf(input: {
+  /** When Publish's email about their group went, only where it was handed over (never held or stopped); null otherwise. */
   toldAt: Date | null;
-  toldGroup: string | null;
   work: PersonWork;
   weeks: ReadonlyArray<{ weekNumber: number; week: CourseworkWeek | null }>;
   feedback: readonly FeedbackFact[];
 }): ActivityLine[] {
   const out: Array<{ at: Date; said: string }> = [];
-  if (input.toldAt) out.push({ at: input.toldAt, said: toldGroupWords(input.toldGroup) });
+  // Never a group's name: a move keeps the day Publish first told them, so the group they are in now may not be the one it named.
+  if (input.toldAt) out.push({ at: input.toldAt, said: TOLD_THEIR_GROUP });
   for (const { weekNumber, week } of input.weeks) {
     if (!week) continue;
     const saved = latest(
@@ -302,7 +331,8 @@ export function activityOf(input: {
   // One line per email of feedback on a week, however many pieces it carried.
   const emailed = new Map<string, { at: Date; weekNumber: number }>();
   for (const piece of input.feedback) {
-    if (!piece.emailedAt) continue;
+    // Only an email that went: one held, or stopped by the do-not-email list, is no email.
+    if (!piece.emailedAt || !wasEmailed(piece)) continue;
     emailed.set(`${piece.weekNumber} ${piece.emailedAt.getTime()}`, { at: piece.emailedAt, weekNumber: piece.weekNumber });
   }
   for (const { at, weekNumber } of emailed.values()) out.push({ at, said: feedbackEmailedWords(weekNumber) });
@@ -325,8 +355,8 @@ export function elsewhereLineOf(weeks: readonly number[]): string | null {
 export type PersonHeader = {
   name: string;
   programmeName: string;
-  /** "Group C · Wednesdays at 3pm", or "Not in a group yet". */
-  group: string;
+  /** "Group C · Wednesdays at 3pm", or "Not in a group yet"; null for somebody the Coursework tab has no row for (somebody who left). */
+  group: string | null;
   /** Where their place stands, in the People tab's words; null where the reader has no People tab. */
   status: string | null;
   notTold: boolean;
@@ -334,7 +364,8 @@ export type PersonHeader = {
 
 /**
  * THE TEAM'S PAGE. Every optional key is ABSENT for a reader who may not see
- * that section: `ratings` (an admin, and the programme's lead while they
+ * that section (and every one but the head and attendance for somebody the
+ * Coursework tab has no row for): `ratings` (an admin, and the programme's lead while they
  * stand, never about themselves), `notes` (who reads notes about a person
  * today, never about themselves), `application` (whoever may open it),
  * `move` (as the People tab offers it), `events` and `activity` (an admin's
@@ -345,10 +376,11 @@ export type TeamPersonView = {
   uid: string;
   header: PersonHeader;
   back: { label: string; href: string };
-  weeks: PersonWeekRow[];
+  /** Absent, with `feedback`, for somebody the Coursework tab has no row for (somebody who left): the reading view refuses them. */
+  weeks?: PersonWeekRow[];
   ratings?: Array<{ weekNumber: number; lines: string[] }>;
   attendance: AttendanceView;
-  feedback: FeedbackLine[];
+  feedback?: FeedbackLine[];
   notes?: { runId: string; firstName: string; lead: { roundId: string; programmeId: string } | null };
   application?: { href: string; label: string };
   move?: { href: string; label: string };
@@ -359,7 +391,7 @@ export type TeamPersonView = {
 /** THE FACILITATOR'S CUT: their group's weeks of the person, and the feedback this facilitator wrote. */
 export type FacilitatorPersonView = {
   uid: string;
-  header: Omit<PersonHeader, "status" | "notTold">;
+  header: Omit<PersonHeader, "status" | "notTold" | "group"> & { group: string };
   back: { label: string; href: string };
   weeks: PersonWeekRow[];
   /** "Weeks 1 and 2 were with another group.", or null. Never which group. */

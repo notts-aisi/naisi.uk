@@ -603,6 +603,8 @@ export async function readRunCoursework(
         changed:
           takesFeedback &&
           changedSinceFeedback(feedbackVersionsOf(id, onThis, record.feedback, piece), read.savedAt ? read.savedAt.toISOString() : null),
+        // Feedback given before pieces existed, as who and when, never its words: as readable as the reading view shows it.
+        legacy: readable && record.feedback ? { byUid: record.feedback.byUid, sentAt: record.feedback.sentAt } : null,
       });
       const own = wordsOfUid(uid);
       if (own) {

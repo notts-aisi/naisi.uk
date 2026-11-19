@@ -3,10 +3,10 @@ import type { Firestore } from "firebase-admin/firestore";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { loadProgrammePeople } from "@/lib/applications/people/load";
 import { seeApplicationWords, statusWords } from "@/lib/applications/people/words";
-import { NO_WORK, chooseOneIdsOf, type CourseworkPerson, type CourseworkWeek } from "@/lib/courses/coursework/model";
+import { NO_WORK, chooseOneIdsOf, workKey, type CourseworkPerson, type CourseworkWeek, type PersonWork } from "@/lib/courses/coursework/model";
 import { courseworkRows } from "@/lib/courses/coursework/overview";
 import { columnsOf, namesOf, weeksRead } from "@/lib/courses/coursework/reads";
-import { peopleOf, readRunSeats } from "@/lib/courses/coursework/load";
+import { peopleOf, placedIn, readRunSeats } from "@/lib/courses/coursework/load";
 import { readRunCoursework } from "@/lib/courses/facilitatorWeek/readers";
 import { readOwnFeedback, cardNamesOf } from "@/lib/courses/feedback/readers";
 import { weeklySlotWords } from "@/lib/courses/facilitatingEmail";
@@ -19,14 +19,16 @@ import { MOVE_LINK } from "@/lib/courses/staffMove/words";
 import { copiesOf, readsGroupIdFor } from "@/lib/courses/weekCopy";
 import { weekOpensOn } from "@/lib/courses/weekPlan";
 import { mayRateWorkOf } from "@/lib/courses/workRatings/access";
-import { readAnswerRatings } from "@/lib/courses/workRatings/readers";
+import { readPersonRatings } from "@/lib/courses/workRatings/readers";
 import { liveGroupsOf, ownerFactsFromSeat, reviewerFactsOf, writtenReviewRole } from "@/lib/courses/writtenAnswers/access";
 import { eventsOfPerson } from "@/lib/events/missedEvents";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { courseEnrolmentId, groupForWeek, normalizeCourseEnrolment, placementIsShownTo, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
-import { normalizeCourseRun, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
+import { feedbackIsClaimed } from "@/lib/firestore/courseFeedback";
+import { legacyCardId } from "@/lib/courses/feedback/model";
+import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { isAddressableId } from "@/lib/addressableId";
 import {
   activityOf,
@@ -167,17 +169,62 @@ async function courseworkFor(
   return { columns, cells: row?.cells ?? [], work, weekOf };
 }
 
-/** The pieces of feedback handed, as facts: who wrote each by the name they go by, never its words. */
-async function feedbackFactsOf(db: Firestore, pieces: ReadonlyArray<Awaited<ReturnType<typeof readOwnFeedback>>[number]>): Promise<FeedbackFact[]> {
-  const names = await cardNamesOf(db, pieces.map((piece) => piece.byUid));
-  return pieces.map((piece) => ({
-    id: piece.id,
-    weekNumber: piece.weekNumber,
-    on: piece.on.kind,
-    byName: names.firstName(piece.byUid),
-    createdAt: piece.createdAt,
-    emailedAt: piece.emailedAt,
-  }));
+type FeedbackPiece = Awaited<ReturnType<typeof readOwnFeedback>>[number];
+
+/**
+ * THE FEEDBACK ABOUT A PERSON, as facts, never words, as the reading view
+ * lists it: every piece (`courseFeedback`), and feedback given before pieces
+ * existed, kept on the written answer's own row, as `readRunCoursework` hands
+ * its facts (who gave it and when it was emailed, on an answer its readers
+ * may read). `keep` narrows both to the pieces a reader may see. Each writer
+ * by the first word of the name they go by, and the person's first name, as
+ * the reading view names them beside what became of each email.
+ */
+async function feedbackFactsOf(
+  db: Firestore,
+  input: {
+    uid: string;
+    pieces: readonly FeedbackPiece[];
+    work: PersonWork;
+    weeks: ReadonlyArray<{ weekNumber: number; week: CourseworkWeek | null }>;
+    keep: (byUid: string) => boolean;
+    now: Date;
+  },
+): Promise<{ facts: FeedbackFact[]; firstName: string }> {
+  const legacy = input.weeks.flatMap(({ weekNumber, week }) => {
+    const given = week?.answer ? (input.work.answerFacts?.get(workKey(weekNumber, week.answer.id))?.legacy ?? null) : null;
+    return given && week?.answer ? [{ weekNumber, answerId: week.answer.id, ...given }] : [];
+  });
+  const pieces = input.pieces.filter((piece) => input.keep(piece.byUid));
+  const older = legacy.filter((given) => input.keep(given.byUid));
+  const names = await cardNamesOf(db, [input.uid, ...pieces.map((piece) => piece.byUid), ...older.map((given) => given.byUid)]);
+  return {
+    firstName: names.firstName(input.uid),
+    facts: [
+      ...older.map((given) => ({
+        id: legacyCardId(given.answerId),
+        weekNumber: given.weekNumber,
+        on: "writtenAnswer" as const,
+        byName: names.firstName(given.byUid),
+        createdAt: given.sentAt,
+        emailedAt: given.sentAt,
+        delivery: "sent" as const,
+        sending: false,
+        legacy: true,
+      })),
+      ...pieces.map((piece) => ({
+        id: piece.id,
+        weekNumber: piece.weekNumber,
+        on: piece.on.kind,
+        byName: names.firstName(piece.byUid),
+        createdAt: piece.createdAt,
+        emailedAt: piece.emailedAt,
+        delivery: piece.emailedAt ? (piece.emailDelivery ?? "sent") : null,
+        sending: feedbackIsClaimed(piece, input.now),
+        legacy: false,
+      })),
+    ],
+  };
 }
 
 /** Whether a session counts towards what they came to: the record's own rule. */
@@ -273,18 +320,30 @@ export async function loadTeamPersonPage(
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  const [liveGroups, { enrolments, seats }, facts, names, pieces, records] = await Promise.all([
+  const [liveGroups, { enrolments, seats }, facts, names, records] = await Promise.all([
     liveGroupsOf(db, run.id),
     // One equality on one field: the run's seats.
     readRunSeats(db, run.id),
     reviewerFactsOf(db, actor, run.id),
     namesOf(db, [uid], actor),
-    // Every piece of feedback about them on the run: one equality on each of two fields.
-    readOwnFeedback(db, run.id, uid),
     readRunRecords(db, run.id),
   ]);
-  const viewer = isAdmin ? "admin" : "lead";
   const name = names.get(uid) ?? row.name;
+  const attended = records ? attendanceFacts(records, uid, { isAdmin, role: actor.role }, now, null) : null;
+  const attendance = attended ? attendanceViewOf(attended.facts, { came: attended.came, online: attended.online }) : attendanceViewOf([]);
+
+  // A ROW OF THE COURSEWORK TAB, by the tab's own test: holding a place, facilitating one of the run's live groups, or
+  // placed in one. Anybody else (somebody who left the run, gave their place back or is invited) is no row of it, and the
+  // reading view refuses them, so their page is what the People tab and the Attendance tab show of them: the head and
+  // their attendance, and nothing else.
+  const onTheTab =
+    row.category === "holding" || liveGroups.some((group) => group.facilitatorUids.includes(uid)) || placedIn(seats.get(uid), liveGroups);
+  if (!onTheTab) {
+    const { weeks: _weeks, feedback: _feedback, application: _application, move: _move, ...head } = view;
+    return { status: "ok", view: { ...head, header: { ...view.header, name, group: null }, attendance } };
+  }
+
+  const viewer = isAdmin ? "admin" : "lead";
   // The person as the Coursework tab makes its rows: an admin sees every placement, the lead only a told one.
   const person: CourseworkPerson = peopleOf({ viewer, groups: liveGroups, holders: [], seats, names }).find((each) => each.uid === uid) ?? {
     uid,
@@ -295,8 +354,13 @@ export async function loadTeamPersonPage(
     notToldYet: false,
   };
   const shownGroup = person.groupId ? (liveGroups.find((group) => group.id === person.groupId) ?? null) : null;
-  const { columns, cells, work, weekOf } = await courseworkFor(db, { run, liveGroups, enrolments, person, now });
-  const feedback = await feedbackFactsOf(db, pieces);
+  const [{ columns, cells, work, weekOf }, pieces] = await Promise.all([
+    courseworkFor(db, { run, liveGroups, enrolments, person, now }),
+    // Every piece of feedback about them on the run: one equality on each of two fields.
+    readOwnFeedback(db, run.id, uid),
+  ]);
+  const weekList = columns.map((column) => ({ weekNumber: column.weekNumber, week: weekOf(column.weekNumber) }));
+  const { facts: feedback, firstName } = await feedbackFactsOf(db, { uid, pieces, work, weeks: weekList, keep: () => true, now });
   const weeks: PersonWeekRow[] = columns.map((column, at) =>
     weekRowOf({
       column,
@@ -304,6 +368,7 @@ export async function loadTeamPersonPage(
       week: weekOf(column.weekNumber),
       work,
       feedback,
+      firstName,
       readHref: cells[at]?.reached ? `${path}/coursework/${encodeURIComponent(uid)}?week=${column.weekNumber}` : null,
       now,
     }),
@@ -313,17 +378,9 @@ export async function loadTeamPersonPage(
   const owner = ownerFactsFromSeat(uid, seats.get(uid) ?? null, liveGroups, { isAdmin: facts.isAdmin });
   let ratings: TeamPersonView["ratings"];
   if (owner && mayRateWorkOf(actor, facts, owner, liveGroups)) {
-    // The reading pages' own reader, one written answer at a time: each week's ratings on the answer it asks for.
-    const asked = columns.flatMap((column) => {
-      const answer = weekOf(column.weekNumber)?.answer;
-      return answer ? [{ weekNumber: column.weekNumber, itemId: answer.id }] : [];
-    });
-    const perWeek = await Promise.all(
-      asked.map(async (each) =>
-        (await readAnswerRatings(db, { runId: run.id, uid, weekId: weekDocId(each.weekNumber) })).filter((rating) => rating.itemId === each.itemId),
-      ),
-    );
-    const stored = perWeek.flat().filter((rating) => rating.rating !== null);
+    // One query for the person on the run, split by week: each week's ratings on the written answer it asks for.
+    const all = await readPersonRatings(db, { runId: run.id, uid });
+    const stored = all.filter((rating) => rating.rating !== null && weekOf(rating.weekNumber)?.answer?.id === rating.itemId);
     const raters = await cardNamesOf(db, stored.map((rating) => rating.raterUid));
     ratings = ratingColumnOf(
       columns.map((column) => column.weekNumber),
@@ -331,16 +388,14 @@ export async function loadTeamPersonPage(
     );
   }
 
-  const attended = records ? attendanceFacts(records, uid, { isAdmin, role: actor.role }, now, null) : null;
   const seat = seats.get(uid) ?? null;
-  const told = seat !== null && seat.groupId !== null && placementIsShownTo(seat, { isAdmin: false });
   const out: TeamPersonView = {
     ...view,
     header: { ...view.header, name, group: groupLineOf(shownGroup), notTold: person.notToldYet },
     weeks,
     ...(ratings ? { ratings } : {}),
-    attendance: attended ? attendanceViewOf(attended.facts, { came: attended.came, online: attended.online }) : attendanceViewOf([]),
-    feedback: feedbackLinesOf(feedback),
+    attendance,
+    feedback: feedbackLinesOf(feedback, firstName),
     // Notes are never shown about the person looking, an admin included.
     ...(self ? {} : { notes: { runId: run.id, firstName: row.firstName, lead: isAdmin ? null : { roundId: gate.view.roundId, programmeId: gate.view.programmeId } } }),
   };
@@ -348,17 +403,18 @@ export async function loadTeamPersonPage(
 
   // An admin's alone: read for nobody else.
   const events = await eventsOfPerson(db, uid, now);
-  const toldGroup = told && seat?.groupId ? (liveGroups.find((group) => group.id === seat.groupId)?.name.trim() ?? null) : null;
+  // Told only once Publish's email was handed over: one held, or stopped by the do-not-email list, told nobody.
+  const told = seat !== null && seat.groupId !== null && placementIsShownTo(seat, { isAdmin: false });
+  const delivered = seat?.allocatedEmailDelivery !== "held" && seat?.allocatedEmailDelivery !== "suppressed";
   return {
     status: "ok",
     view: {
       ...out,
       ...(events ? { events } : {}),
       activity: activityOf({
-        toldAt: told ? (seat?.allocatedEmailAt ?? null) : null,
-        toldGroup,
+        toldAt: told && delivered ? (seat?.allocatedEmailAt ?? null) : null,
         work,
-        weeks: columns.map((column) => ({ weekNumber: column.weekNumber, week: weekOf(column.weekNumber) })),
+        weeks: weekList,
         feedback,
       }),
     },
@@ -418,8 +474,15 @@ export async function loadFacilitatorPersonPage(
   };
   const { columns, cells, work, weekOf } = await courseworkFor(db, { run, liveGroups, enrolments, person, now });
   const inGroup = (weekNumber: number) => inGroupForWeek(seat, groupId, weekNumber);
-  // Only the feedback this facilitator wrote.
-  const feedback = await feedbackFactsOf(db, pieces.filter((piece) => piece.byUid === actor.uid));
+  // Only the feedback this facilitator wrote, pieces and feedback given before pieces existed alike.
+  const { facts: feedback, firstName } = await feedbackFactsOf(db, {
+    uid,
+    pieces,
+    work,
+    weeks: columns.map((column) => ({ weekNumber: column.weekNumber, week: weekOf(column.weekNumber) })),
+    keep: (byUid) => byUid === actor.uid,
+    now,
+  });
   const groupPath = `/learn/${encodeURIComponent(run.id)}/group/${encodeURIComponent(groupId)}`;
   const weeks = columns.flatMap((column, at) =>
     inGroup(column.weekNumber)
@@ -430,6 +493,7 @@ export async function loadFacilitatorPersonPage(
             week: weekOf(column.weekNumber),
             work,
             feedback,
+            firstName,
             readHref: cells[at]?.reached ? `${groupPath}/coursework/${encodeURIComponent(uid)}?week=${column.weekNumber}` : null,
             now,
           }),
@@ -446,7 +510,7 @@ export async function loadFacilitatorPersonPage(
       weeks,
       elsewhere: elsewhereLineOf(columns.map((column) => column.weekNumber).filter((weekNumber) => !inGroup(weekNumber))),
       attendance: attendanceViewOf(attended?.facts ?? []),
-      feedback: feedbackLinesOf(feedback),
+      feedback: feedbackLinesOf(feedback, firstName),
     },
   };
 }

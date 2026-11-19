@@ -260,6 +260,7 @@ export function GroupPeopleCard({
   notYetTold,
   groupName = "",
   personBase = null,
+  unlinked = [],
 }: {
   people: GroupPersonRow[];
   leavers: GroupPersonRow[];
@@ -273,6 +274,8 @@ export function GroupPeopleCard({
    * as their facilitator sees them. Left out, names are plain text.
    */
   personBase?: string | null;
+  /** Whose names stay plain text though `personBase` is given: the reader's own, and the group's facilitators', whose page is not the reader's to open. */
+  unlinked?: readonly string[];
 }) {
   const meta = finishedWeeksWords(finishedWeeks);
   return (
@@ -291,7 +294,7 @@ export function GroupPeopleCard({
             <li key={person.uid} className={styles.person}>
               <InitialsChip name={person.name} uid={person.uid} size="lg" />
               <span className={styles.personText}>
-                {personBase && !person.joins ? (
+                {personBase && !person.joins && !unlinked.includes(person.uid) ? (
                   <Link href={`${personBase}/${encodeURIComponent(person.uid)}`} className={`${styles.personName} ${styles.personLink}`}>
                     {person.name}
                   </Link>

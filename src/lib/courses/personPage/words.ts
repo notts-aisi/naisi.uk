@@ -95,11 +95,6 @@ export function feedbackByWords(by: string, at: Date | null): string {
   return [by, day].filter(Boolean).join(", ");
 }
 
-/** "Emailed Sun 8 Nov", or "Not emailed yet". */
-export function emailedWords(at: Date | null): string {
-  return at ? `Emailed ${londonDayLabel(at)}` : "Not emailed yet";
-}
-
 /** "Week 1 written answer", "Week 1 as a whole". */
 export function feedbackOnWords(weekNumber: number, on: "writtenAnswer" | "week"): string {
   return on === "writtenAnswer" ? `Week ${weekNumber} written answer` : `Week ${weekNumber} as a whole`;
@@ -125,9 +120,8 @@ export function savedReflectionWords(weekNumber: number): string {
 export function sentAnswerWords(weekNumber: number): string {
   return `Sent week ${weekNumber}’s written answer`;
 }
-export function toldGroupWords(group: string | null): string {
-  return group ? `Publish told them about ${group}` : "Publish told them their group";
-}
+/** Never a group's name: a move keeps the day Publish first told them, so a name could pair the wrong group with it. */
+export const TOLD_THEIR_GROUP = "Publish told them their group";
 export function feedbackEmailedWords(weekNumber: number): string {
   return `Emailed feedback on week ${weekNumber}`;
 }

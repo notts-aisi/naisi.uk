@@ -21,6 +21,8 @@
  * The clock is Tue 17 Nov 2026 at noon in London.
  */
 import { describe, mock, test } from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -42,6 +44,7 @@ const pages = {
   cut: (await w.loadTs(join("app", "(app)", "learn", "[runId]", "group", "[groupId]", "people", "[uid]", "page.tsx"))).default,
 };
 const model = await w.loadTs(join("lib", "courses", "personPage", "model.ts"));
+const { GroupPeopleCard } = await w.loadTs(join("features", "courses", "facilitator", "GroupCards.tsx"));
 
 /** Every word anybody wrote in the world: none may ever be in a view or on a page. */
 const WRITTEN = {
@@ -50,6 +53,7 @@ const WRITTEN = {
   rahulFeedback: "A strong argument about the harbour trust.",
   claudiaFeedback: "Good week, keep reading the second source.",
   ratingComment: "Ready to facilitate next term, in my view.",
+  olderFeedback: "Older feedback about the harbour trust, given before pieces.",
 };
 const SENT = new Date("2026-11-16T09:00:00Z");
 
@@ -174,7 +178,7 @@ function viewOf(drawn) {
       }
       return null;
     }
-    if (node.props?.view && typeof node.props.view === "object" && "weeks" in node.props.view) return node.props.view;
+    if (node.props?.view && typeof node.props.view === "object" && "attendance" in node.props.view) return node.props.view;
     if (typeof node.type === "function" && !node.props?.children) return null;
     return visit(node.props?.children);
   };
@@ -320,6 +324,108 @@ describe("the facilitator's cut, on the payload", () => {
   });
 });
 
+const AMARA_SEAT = `courseEnrolments/${RUN.agi}__amara`;
+const ANSWER_ROW = `courseExerciseResponses/${RUN.agi}__amara__w03__k3-wa`;
+
+describe("what the page says is true of the live records", () => {
+  test("feedback stopped by the do-not-email list, or held, is never called emailed, and adds nothing to Activity", async () => {
+    const s = seed();
+    s["courseFeedback/piece-rahul"] = { ...s["courseFeedback/piece-rahul"], emailDelivery: "suppressed" };
+    s["courseFeedback/piece-held"] = { ...s["courseFeedback/piece-rahul"], weekId: "w03", on: { kind: "week" }, emailDelivery: "held", text: "Held for the week." };
+    w.reset(s);
+    for (const who of ["zach", "rahul"]) {
+      const view = viewOf(await (who === "zach" ? team(who) : cut(who)));
+      const lines = view.feedback.map((each) => each.line).join(" | ");
+      assert.match(lines, /Not emailed: Amara’s address is on the do-not-email list\./, who);
+      assert.match(lines, /Not emailed: this copy of the site doesn’t email Amara’s address\./, who);
+      assert.doesNotMatch(lines, /Emailed to Amara/, `${who}: a stopped email is called emailed`);
+      assert.match(view.weeks.find((week) => week.weekNumber === 3).feedback.join(" | "), /do-not-email list/, `${who}: the week's cell agrees`);
+    }
+    const admin = viewOf(await team("zach"));
+    assert.ok(!admin.activity.some((line) => /Emailed feedback/.test(line.said)), "Activity counts a stopped email");
+  });
+
+  test("feedback given before pieces existed shows on both pages as the reading view counts it, never its words", async () => {
+    const s = seed();
+    delete s["courseFeedback/piece-rahul"];
+    delete s["courseFeedback/piece-claudia"];
+    s[ANSWER_ROW] = {
+      ...s[ANSWER_ROW],
+      feedback: { levels: [{ row: "Argument", level: "Strong", descriptor: "Names a keeper." }], comment: WRITTEN.olderFeedback, byUid: "rahul", sentAt: new Date("2026-11-08T10:00:00Z") },
+    };
+    w.reset(s);
+    const admin = await team("zach");
+    const view = viewOf(admin);
+    assert.deepEqual(view.feedback.map((each) => [each.on, each.line]), [["Week 3 written answer", "Rahul, Sun 8 Nov · Emailed to Amara on Sun 8 Nov"]]);
+    assert.deepEqual(view.weeks.find((week) => week.weekNumber === 3).feedback, ["Rahul, Sun 8 Nov · Emailed to Amara on Sun 8 Nov"]);
+    assert.doesNotMatch(admin.text, /Nobody has given them feedback yet/);
+    assert.ok(view.activity.some((line) => line.said === "Emailed feedback on week 3"), "it was emailed when it was given");
+    assertNothingWritten(admin, "admin, older feedback");
+    // On the cut, only where that facilitator wrote it: Rahul did, Sofia (who facilitates Group B with Rahul) did not.
+    assert.equal(viewOf(await cut("rahul")).feedback.length, 1);
+    const sofia = viewOf(await cut("sofia"));
+    assert.ok(sofia, "Sofia facilitates Group B");
+    assert.deepEqual(sofia.feedback, [], "Sofia is shown feedback Rahul gave");
+    assert.deepEqual(sofia.weeks.find((week) => week.weekNumber === 3).feedback, []);
+  });
+
+  test("Publish's line never names a group, and says nothing when its email was stopped", async () => {
+    const moved = { ...peopleSeed()[AMARA_SEAT], groupsByWeek: [{ groupId: C, fromWeek: 1 }, { groupId: B, fromWeek: 3 }], toldGroupId: B };
+    w.reset(seed({ [AMARA_SEAT]: moved }));
+    const lines = viewOf(await team("zach")).activity.map((line) => line.said);
+    assert.ok(lines.includes("Publish told them their group"));
+    assert.ok(!lines.some((line) => /Publish told them about/.test(line)), "a group is paired with the day Publish first told them");
+    w.reset(seed({ [AMARA_SEAT]: { ...peopleSeed()[AMARA_SEAT], allocatedEmailDelivery: "suppressed" } }));
+    assert.ok(!viewOf(await team("zach")).activity.some((line) => /Publish/.test(line.said)), "a stopped email is said to have told them");
+  });
+
+  test("somebody who left: the head and their attendance only, as the tabs show a leaver; the cut refuses them", async () => {
+    w.reset(seed({ [`courseAttendance/${RUN.agi}__${B}__w01`]: registerDoc(B, 1, { amara: "present", kofi: "present", sam: "present" }) }));
+    for (const who of ["zach", "claudia"]) {
+      const drawn = await team(who, "sam");
+      const view = viewOf(drawn);
+      assert.ok(view, `${who} is handed Sam's page`);
+      assert.deepEqual(Object.keys(view).sort(), ["attendance", "back", "header", "reader", "uid"], `${who}: a section the tabs do not show for a leaver`);
+      assert.equal(view.header.group, null);
+      assert.match(view.header.status, /Left the programme/);
+      assert.equal(view.attendance.counts.find((count) => count.key === "room").value, 1, "the mark the register kept");
+      assert.doesNotMatch(drawn.text, /Read week/);
+    }
+    assert.equal((await cut("rahul", "sam")).to, `/learn/${RUN.agi}`);
+  });
+
+  test("the cut refuses: somebody moved out of the group, an archived group, and another run's id", async () => {
+    const home = `/learn/${RUN.agi}`;
+    w.reset(seed({ [AMARA_SEAT]: { ...peopleSeed()[AMARA_SEAT], groupId: C, groupsByWeek: [{ groupId: B, fromWeek: 1 }, { groupId: C, fromWeek: 3 }] } }));
+    assert.equal((await cut("rahul")).to, home, "Amara moved out of Group B: Group B's facilitators read nothing more");
+    const s = seed();
+    s[`courseGroups/${B}`] = { ...s[`courseGroups/${B}`], archived: true };
+    w.reset(s);
+    assert.equal((await cut("rahul")).to, home, "an archived group's door is closed");
+    w.reset(seed());
+    const other = await w.draw(pages.cut, "rahul", { runId: RUN.tais, groupId: B, uid: "amara" });
+    assert.equal(viewOf(other), null);
+    assert.ok(other.to, "another run's id in the address is refused");
+  });
+
+  test("Your group links a name to its page, never the reader's own or a facilitator's of the group", () => {
+    const person = (uid, name) => ({ uid, name, firstName: name, left: null, marks: [] });
+    const html = renderToStaticMarkup(
+      createElement(GroupPeopleCard, {
+        people: [person("amara", "Amara Okafor"), person("rahul", "Rahul Mehta"), person("sofia", "Sofia Rossi")],
+        leavers: [],
+        finishedWeeks: [],
+        notYetTold: false,
+        personBase: "/learn/run/group/b/people",
+        unlinked: ["rahul", "sofia"],
+      }),
+    );
+    assert.match(html, /href="\/learn\/run\/group\/b\/people\/amara"/);
+    assert.doesNotMatch(html, /people\/rahul|people\/sofia/);
+    assert.doesNotMatch(renderToStaticMarkup(createElement(GroupPeopleCard, { people: [person("amara", "Amara")], leavers: [], finishedWeeks: [], notYetTold: false })), /href=/);
+  });
+});
+
 describe("the page's model, pure", () => {
   const cell = (over = {}) => ({
     weekNumber: 1,
@@ -353,7 +459,8 @@ describe("the page's model, pure", () => {
         savedAt: new Map([["1 rp1", new Date("2026-11-09T21:02:00Z")]]),
         answerFacts: new Map([["1 wa", { firstSentAt: new Date("2026-11-05T14:02:00Z"), sentLateMs: 60000 }]]),
       }),
-      feedback: [{ id: "f", weekNumber: 1, on: "writtenAnswer", byName: "Rahul", createdAt: new Date("2026-11-07T10:00:00Z"), emailedAt: null }],
+      feedback: [{ id: "f", weekNumber: 1, on: "writtenAnswer", byName: "Rahul", createdAt: new Date("2026-11-07T10:00:00Z"), emailedAt: null, delivery: null, sending: false, legacy: false }],
+      firstName: "Amara",
       readHref: "/read",
       now: NOW,
     });
@@ -362,11 +469,17 @@ describe("the page's model, pure", () => {
     assert.equal(row.reflection, "Saved Mon 9 Nov, 9:02pm");
     assert.equal(row.answer, "Sent Thu 5 Nov, 2:02pm · late");
     assert.deepEqual(row.feedback, ["Rahul, Sat 7 Nov · Not emailed yet"]);
+    // What became of an email, in the reading view's own words: a stopped one is never called emailed.
+    const line = (over) => model.feedbackLineOf({ id: "f", weekNumber: 1, on: "week", byName: "Rahul", createdAt: null, emailedAt: new Date("2026-11-08T10:00:00Z"), delivery: "sent", sending: false, legacy: false, ...over }, "Amara");
+    assert.equal(line({}), "Rahul · Emailed to Amara on Sun 8 Nov");
+    assert.equal(line({ delivery: "suppressed" }), "Rahul · Not emailed: Amara’s address is on the do-not-email list.");
+    assert.equal(line({ delivery: "held" }), "Rahul · Not emailed: this copy of the site doesn’t email Amara’s address.");
+    assert.equal(line({ legacy: true, delivery: "sent" }), "Rahul · Emailed to Amara on Sun 8 Nov");
     assert.equal(row.readLabel, "Read week 1");
   });
 
   test("the empty states the boards draw", () => {
-    const row = model.weekRowOf({ column: { weekNumber: 4, title: "Four" }, cell: cell({ reached: false, opensOn: "2026-11-26", ticks: null }), week, work: work(), feedback: [], readHref: null, now: NOW });
+    const row = model.weekRowOf({ column: { weekNumber: 4, title: "Four" }, cell: cell({ reached: false, opensOn: "2026-11-26", ticks: null }), week, work: work(), feedback: [], firstName: "Amara", readHref: null, now: NOW });
     assert.equal(row.open, false);
     assert.equal(row.state, "Opens Thu 26 Nov");
     assert.equal(row.reflection, "Not written");
@@ -374,7 +487,7 @@ describe("the page's model, pure", () => {
     const empty = model.attendanceViewOf([]);
     assert.equal(empty.empty, true);
     assert.deepEqual(empty.counts.map((count) => count.value), [0, 0]);
-    assert.deepEqual(model.feedbackLinesOf([]), []);
+    assert.deepEqual(model.feedbackLinesOf([], "Amara"), []);
     assert.deepEqual(model.ratingColumnOf([1], []), [{ weekNumber: 1, lines: ["Not rated"] }]);
   });
 
@@ -399,17 +512,22 @@ describe("the page's model, pure", () => {
   });
 
   test("activity: newest first, one line per email of feedback, at most twelve", () => {
+    const emailed = new Date("2026-11-10T08:00:00Z");
+    const fact = (id, over = {}) => ({ id, weekNumber: 1, on: "week", byName: "Rahul", createdAt: null, emailedAt: emailed, delivery: "sent", sending: false, legacy: false, ...over });
     const lines = model.activityOf({
       toldAt: new Date("2026-10-28T18:00:00Z"),
-      toldGroup: "Group B",
       work: work({ reflections: new Set(["1 rp1"]), savedAt: new Map([["1 rp1", new Date("2026-11-09T21:02:00Z")]]) }),
       weeks: [{ weekNumber: 1, week }],
       feedback: [
-        { id: "a", weekNumber: 1, on: "week", byName: "Rahul", createdAt: null, emailedAt: new Date("2026-11-10T08:00:00Z") },
-        { id: "b", weekNumber: 1, on: "writtenAnswer", byName: "Rahul", createdAt: null, emailedAt: new Date("2026-11-10T08:00:00Z") },
+        fact("a"),
+        fact("b", { on: "writtenAnswer" }),
+        // Stopped by the do-not-email list, and held by this copy of the site: neither is an email.
+        fact("c", { weekNumber: 2, delivery: "suppressed", emailedAt: new Date("2026-11-11T08:00:00Z") }),
+        fact("d", { weekNumber: 3, delivery: "held", emailedAt: new Date("2026-11-12T08:00:00Z") }),
       ],
     });
-    assert.deepEqual(lines.map((line) => line.said), ["Emailed feedback on week 1", "Saved a reflection in week 1", "Publish told them about Group B"]);
+    // Publish's line names no group: a move keeps the day Publish first told them.
+    assert.deepEqual(lines.map((line) => line.said), ["Emailed feedback on week 1", "Saved a reflection in week 1", "Publish told them their group"]);
     assert.equal(model.ACTIVITY_SHOWN, 12);
   });
 });
@@ -425,8 +543,9 @@ describe("the source", () => {
   });
 
   test("ratings are read only behind the gate every reader of ratings asks", () => {
-    assert.ok(load.indexOf("mayRateWorkOf(actor, facts, owner, liveGroups)") < load.indexOf("readAnswerRatings(db"));
-    assert.doesNotMatch(load, /readPersonRatings\(|readWeekRatings\(|readRatingsAbout\(|loadTeamRatings\(/);
+    assert.ok(load.indexOf("mayRateWorkOf(actor, facts, owner, liveGroups)") < load.indexOf("readPersonRatings(db"));
+    assert.equal((load.match(/readPersonRatings\(/g) ?? []).length, 1, "one query for the person on the run");
+    assert.doesNotMatch(load, /readAnswerRatings\(|readWeekRatings\(|readRatingsAbout\(|loadTeamRatings\(/);
   });
 
   test("nobody's words are read: the run's coursework is read with no person's words", () => {

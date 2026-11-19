@@ -545,11 +545,12 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
       "src/lib/courses/weekNotes/gather.ts",
       "src/lib/courses/workRatings/readers.ts",
     ]);
-    // A person's page on the programme: the reading pages' reader, week by week, behind the same gate, never their own work.
+    // A person's page on the programme: one query for the person on the run, behind the same gate, never their own work.
     const personPage = codeOf("src/lib/courses/personPage/load.ts");
     assert.match(personPage, /if \(owner && mayRateWorkOf\(actor, facts, owner, liveGroups\)\) \{/);
-    assert.ok(personPage.indexOf("mayRateWorkOf(actor, facts, owner, liveGroups)") < personPage.indexOf("readAnswerRatings(db, {"), "the person's page reads ratings before it asks who is looking");
-    assert.doesNotMatch(personPage, /readPersonRatings\(|readWeekRatings\(|readRatingsAbout\(|loadTeamRatings\(/);
+    assert.ok(personPage.indexOf("mayRateWorkOf(actor, facts, owner, liveGroups)") < personPage.indexOf("readPersonRatings(db, {"), "the person's page reads ratings before it asks who is looking");
+    assert.equal((personPage.match(/readPersonRatings\(/g) ?? []).length, 1, "the person's page reads ratings in more than one place");
+    assert.doesNotMatch(personPage, /readAnswerRatings\(|readWeekRatings\(|readRatingsAbout\(|loadTeamRatings\(/);
     // What a note is drafted from calls only the two readers made for it, held in the next test.
     assert.doesNotMatch(codeOf("src/lib/courses/weekNotes/gather.ts"), /loadTeamRatings\(|readAnswerRatings\(|readRatingsAbout\(/);
     // The written answer's review page's loader, kept behind This week's work's Written answer column after its page
@@ -608,7 +609,9 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
     // that week as it stands then, sent or not, with the feedback, ratings
     // and comments people on the team gave it."
     const callers = filesMatching(/\b(?:readPersonRatings|readWeekRatings)\(/);
-    assert.deepEqual(callers, ["src/lib/courses/weekNotes/gather.ts", "src/lib/courses/workRatings/readers.ts"]);
+    // A person's page on the programme reads one person's ratings too, behind the reading pages' own gate (held above).
+    assert.deepEqual(callers, ["src/lib/courses/personPage/load.ts", "src/lib/courses/weekNotes/gather.ts", "src/lib/courses/workRatings/readers.ts"]);
+    assert.doesNotMatch(codeOf("src/lib/courses/personPage/load.ts"), /readWeekRatings\(/);
     // The gatherer is called by the end-of-week notes' store and the
     // profile's draft, each of them an admin's alone.
     assert.deepEqual(filesMatching(/\bgather(?:PersonNote|WeekNotes)\(/), [

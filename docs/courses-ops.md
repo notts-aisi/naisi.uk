@@ -2070,6 +2070,17 @@ may open); anybody else, whether or not the account exists, gets one calm
 sentence. The admin tree is closed in a view-as session, as everywhere under
 `/admin`.
 
+**Somebody the Coursework tab has no row for.** The tab's rows are the people
+holding a place, the facilitators of the run's live groups, and anybody placed
+in one of them; the reading view of a week opens only for a row. Somebody who
+LEFT the run gave the form's place back in the same act (the People tab lists
+them under Gave their place back, "Left the programme"), and their seat is
+withdrawn or removed, so they are no row: the tab shows nothing of their work
+and the reading view refuses them. The Attendance tab still lists them with
+the marks a register kept. So their page, like the page of somebody who gave
+a place back before the run or is invited, is the head (no group) and their
+attendance, and nothing else.
+
 **Each section, and who it is read for.** A section a reader may not see is
 not read for them, and its key is absent from what the page is handed.
 
@@ -2095,8 +2106,14 @@ not read for them, and its key is absent from what the page is handed.
   the next session alone as "Still to come". Never an allowance and never how
   many sessions anybody may still miss. The counts are a list, so a count of
   visits to another group can be added beside them once visits exist.
-- *Feedback*: every piece about them on the run (`readOwnFeedback`), as who
-  wrote it, about which week, when and its email. Never its words.
+- *Feedback*: every piece about them on the run (`readOwnFeedback`), and
+  feedback given before pieces existed, kept on the written answer's own row
+  (its facts, who and when, handed by `readRunCoursework` as `legacy`, on an
+  answer its readers may read, as the reading view shows it), as who wrote
+  it, about which week and when. What became of its email is said in the
+  reading view's own words (`emailStateWords`): a piece stopped by the
+  do-not-email list, or held by this copy of the site, is "Not emailed", and
+  older feedback was emailed when it was given. Never its words.
 - *Notes*: the notes' own component (`PersonNotes`), through the notes' own
   routes, which decide who reads which note (see "Claude and Pangram on
   coursework, and the notes the team keeps"). Never on the reader's own page.
@@ -2106,13 +2123,17 @@ not read for them, and its key is absent from what the page is handed.
   before either is read). Events are the events tree's own reader
   (`eventsOfPerson`, privacy v15's "Attendance"), drawn by the admin profile's
   own card body. Activity is made only of records the page has already read:
-  when Publish told them their group, the last save of each week's
-  reflections, each written answer's first send and each email of feedback,
-  newest first, the first twelve. Nothing is recorded for it.
+  when Publish told them their group ("Publish told them their group", never
+  a group's name, because a move keeps the day Publish first told them; and
+  nothing when that email was held or stopped), the last save of each week's
+  reflections, each written answer's first send and each email of feedback
+  that went (never one held or stopped), newest first, the first twelve.
+  Nothing is recorded for it.
 
 **The facilitator's cut**, `/learn/[runId]/group/[groupId]/people/[uid]`,
 reached from a name on the group's "Your group" card (`GroupPeopleCard`'s
-`personBase`, handed only to a facilitator of the group). Read by
+`personBase`, handed only to a facilitator of the group; never on the reader's
+own name or a name of one of the group's facilitators, `unlinked`). Read by
 `loadFacilitatorPersonPage`: a live facilitator of the group with standing,
 and nobody else (the lead and admins have the team's page); about somebody
 placed in the group now and told, whose work the one gate lets them read
@@ -2121,8 +2142,10 @@ else is sent to the run's home. It holds the name they go by, the weeks they
 spent in this group (`inGroupForWeek`) with their coursework as above,
 "Weeks 1 and 2 were with another group." for the rest (never which), their
 attendance at this group's sessions counted from those weeks alone, and the
-feedback this facilitator wrote. No application, notes, ratings, contact
-details, events or activity.
+feedback this facilitator wrote, pieces and older feedback alike. No
+application, notes, ratings, contact details, events or activity. Somebody
+moved out of the group, who left, in an archived group or on another run is
+sent to the run's home.
 
 **Reads per view.** Every query is an equality on one or two fields, so
 nothing needs a declared index, and no read is added to any other page. The
@@ -2135,14 +2158,26 @@ tick and week record on the run as facts, the run's feedback, the person's
 packs by id), the Attendance tab's (the run, its groups, seats and
 registers, the scheduler's switches and the accounts of its learners and
 facilitators), the person's account, their feedback (one query) and its
-writers' accounts; for an admin or the lead, their ratings (the reading
-pages' reader, one query per week that asks for a written answer) and the
-raters' accounts; for a lead, the forms (`reviewerFactsOf`); for an
-admin, their sign-ups, check-ins and the events those name. About thirty
-reads in all, each bounded by the run. The facilitator's cut: the group, the
-run's groups, the forms (`reviewerFactsOf`), the person's place and account,
-the run's seats, the same coursework reads, their feedback and its writers'
-accounts, and the Attendance tab's read.
+writers' accounts; for an admin or the lead, their ratings (one query for
+the person on the run, split by week) and the raters' accounts; for a lead,
+the forms (`reviewerFactsOf`); for an admin, their sign-ups, check-ins and
+the events those name. About thirty queries and addressed reads.
+
+IN DOCUMENTS that is a lot more: the Coursework tab's reads are the whole
+run's, so one view reads every reflection, box, written answer and tick on
+the run, every week record, the run's feedback twice, every seat three times,
+the run's registers and the accounts of everybody on it, and every sent
+application and decision on the form. For a run of sixty people six weeks
+in, with the usual week, that is roughly four to six thousand documents a
+view, about what opening the reading view of one week costs plus the People
+and Attendance tabs; fewer early in a term. Bounded by the run and the form,
+never by anything a person can grow. Narrowing it to one person's rows would
+mean a per-person mode in `readRunCoursework` and in the week states it
+reads, which every coursework page shares; that is not a small change, so it
+is left. The facilitator's cut: the group, the run's groups, the forms
+(`reviewerFactsOf`), the person's place and account, the run's seats, the
+same coursework reads, their feedback and its writers' accounts, and the
+Attendance tab's read: the same order of documents.
 
 `tests/course-person-page.test.mjs` draws both pages as every reader and
 holds each to what it is handed.
