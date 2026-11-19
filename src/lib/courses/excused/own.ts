@@ -1,7 +1,8 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { facilitatesGroup, takesPartIn } from "@/lib/courses/cantMakeIt/seat";
-import { hasGroupsByWeek, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { rawCountsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
+import { groupsOfWeeks, hasGroupsByWeek, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { heldOnline } from "@/lib/courses/joiningOnline/model";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
@@ -14,6 +15,7 @@ import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import type { ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
 import {
   campusForWeek,
+  normalizeCourseGroup,
   sessionModeForWeek,
   type CourseGroupDoc,
 } from "@/lib/firestore/courseGroups";
@@ -30,8 +32,10 @@ import { askState, excusedKindOf, onlineOfferedFor, requestStandingOf, standingW
  * EACH WEEK FROM THE GROUP THEY WERE IN THAT WEEK: somebody whose place
  * records a move has the old group's sessions, read off its registers, for
  * the weeks before it, and nothing is offered to ask about those (a request
- * is asked of the group they are in now). With no record, every session is
- * their group's, as always.
+ * is asked of the group they are in now). A week in a group archived since
+ * stays only where its register was finished for a session held, with what
+ * was asked about it, as their own attendance keeps it. With no record,
+ * every session is their group's, as always.
  *
  * WHAT EACH SESSION SAYS:
  *  - `excuse`: asked and waiting (with when they asked, and their own reason
@@ -133,6 +137,25 @@ function sessionHeldOnline(group: CourseGroupDoc, session: ResolvedSession): boo
 
 const iso = (at: Date | null): string | null => (at ? at.toISOString() : null);
 
+/**
+ * The groups of the run archived since that the place's record names, read
+ * by their ids: none unless the record names a group that is not live.
+ */
+async function archivedGroupsOf(
+  db: Firestore,
+  runId: string,
+  seat: CourseEnrolmentDoc,
+  live: (groupId: string) => CourseGroupDoc | null,
+): Promise<CourseGroupDoc[]> {
+  const ids = groupsOfWeeks(seat).filter((groupId) => !live(groupId) && isAddressableId(groupId));
+  if (ids.length === 0) return [];
+  const snaps = await db.getAll(...ids.map((groupId) => db.collection("courseGroups").doc(groupId)));
+  return snaps
+    .filter((snap) => snap.exists)
+    .map((snap) => normalizeCourseGroup(snap.id, snap.data() ?? {}))
+    .filter((each) => each.archived && each.runId === runId);
+}
+
 export async function excusedFor(
   db: Firestore,
   input: { user: SessionUser; run: CourseRunDoc; enrolment: CourseEnrolmentDoc | null; groups: readonly CourseGroupDoc[]; now: Date },
@@ -147,24 +170,39 @@ export async function excusedFor(
   const closed = closesAtDate !== null && now.getTime() >= closesAtDate.getTime();
 
   // Each week's session from the group they were in that week, and its line
-  // from that group's register (`sessionsWithGroup`). A week in a group that
-  // no longer meets has no session here. With no record of groups by week,
-  // their group's sessions, as always.
+  // from that group's register (`sessionsWithGroup`). A week in a group
+  // archived since stays, as history, only where its register was finished
+  // for a session held (`rawCountsFromArchivedGroup`), as on their own
+  // attendance; nothing is offered about it. With no record of groups by
+  // week, their group's sessions, as always.
   const live = (groupId: string) =>
     input.groups.find((each) => each.id === groupId && each.runId === run.id && !each.archived) ?? null;
-  const paired = (
+  const archived = hasGroupsByWeek(seat) ? await archivedGroupsOf(db, run.id, seat, live) : [];
+  const archivedOf = (groupId: string) => archived.find((each) => each.id === groupId) ?? null;
+  const candidates = (
     hasGroupsByWeek(seat)
       ? sessionsWithGroup(seat, (groupId) => {
-          const each = live(groupId);
+          const each = live(groupId) ?? archivedOf(groupId);
           return each ? resolveSessions(run, each) : null;
         })
       : resolveSessions(run, group).map((session) => ({ groupId: group.id, session }))
   ).filter((each) => each.session.weekNumber >= seat.joinedWeekNumber);
-  const sessions = paired.map((each) => each.session);
-  const refs = paired.map(({ groupId, session }) =>
+  const candidateRefs = candidates.map(({ groupId, session }) =>
     db.collection("courseAttendance").doc(attendanceDocId(run.id, groupId, session.weekNumber, session.occurrence)),
   );
-  const [snaps, requests] = await Promise.all([refs.length ? db.getAll(...refs) : Promise.resolve([]), ownRequestsIn(null, db, user.uid, run.id)]);
+  const [candidateSnaps, requests] = await Promise.all([
+    candidateRefs.length ? db.getAll(...candidateRefs) : Promise.resolve([]),
+    ownRequestsIn(null, db, user.uid, run.id),
+  ]);
+  const kept = candidates.map(
+    (each, at) =>
+      !archivedOf(each.groupId) ||
+      rawCountsFromArchivedGroup(each.session, candidateSnaps[at]?.exists ? candidateSnaps[at].data() : undefined),
+  );
+  const paired = candidates.filter((_, at) => kept[at]);
+  const refs = candidateRefs.filter((_, at) => kept[at]);
+  const snaps = candidateSnaps.filter((_, at) => kept[at]);
+  const sessions = paired.map((each) => each.session);
 
   // Who decided, by first name: never anything else of theirs.
   const deciders = [...new Set(requests.flatMap((request) => request.weeks.map((week) => week.decidedByUid ?? "")))].filter(
