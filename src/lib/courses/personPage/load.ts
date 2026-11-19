@@ -2,7 +2,10 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { loadProgrammePeople } from "@/lib/applications/people/load";
-import { seeApplicationWords, statusWords } from "@/lib/applications/people/words";
+import { statusWords } from "@/lib/applications/people/words";
+import { loadForm } from "@/lib/applications/repo";
+import { choiceNumber } from "@/lib/applications/sections";
+import { loadApplication } from "@/lib/applications/staffRepo";
 import { NO_WORK, chooseOneIdsOf, workKey, type CourseworkPerson, type CourseworkWeek, type PersonWork } from "@/lib/courses/coursework/model";
 import { courseworkRows } from "@/lib/courses/coursework/overview";
 import { columnsOf, namesOf, weeksRead } from "@/lib/courses/coursework/reads";
@@ -16,15 +19,28 @@ import { readPackCaseRecords } from "@/lib/courses/packsAndCases/readers";
 import { buildRunAttendance, groupSessions, readRunRecords, type GroupSessionFacts, type RunRecords } from "@/lib/courses/programmeAttendance";
 import { dayWords } from "@/lib/courses/sessionChange/words";
 import { MOVE_LINK } from "@/lib/courses/staffMove/words";
+import { VISIT_LINK } from "@/lib/courses/visit/words";
+import { runEndOf } from "@/lib/courses/finishing/runEnd";
 import { copiesOf, readsGroupIdFor } from "@/lib/courses/weekCopy";
-import { weekOpensOn } from "@/lib/courses/weekPlan";
+import { addDaysToKey, isValidDateKey, londonDateKey, londonWallClockToInstant, weekOpensOn } from "@/lib/courses/weekPlan";
 import { mayRateWorkOf } from "@/lib/courses/workRatings/access";
 import { readPersonRatings } from "@/lib/courses/workRatings/readers";
 import { liveGroupsOf, ownerFactsFromSeat, reviewerFactsOf, writtenReviewRole } from "@/lib/courses/writtenAnswers/access";
-import { eventsOfPerson } from "@/lib/events/missedEvents";
+import { eventsOfPersonInTerm, type TermWindow } from "@/lib/events/missedEvents";
+import { COURSE_AUDIT_COLLECTION, normalizeCourseAudit } from "@/lib/firestore/courseAudit";
+import { normalizeUser } from "@/lib/firestore/users";
+import { goByNameOf } from "@/lib/names/staffName";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
-import { courseEnrolmentId, groupForWeek, normalizeCourseEnrolment, ownGroupForWeek, placementIsShownTo, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import {
+  courseEnrolmentId,
+  groupForWeek,
+  normalizeCourseEnrolment,
+  ownGroupForWeek,
+  placementIsShownTo,
+  visitInWeek,
+  type CourseEnrolmentDoc,
+} from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { feedbackIsClaimed } from "@/lib/firestore/courseFeedback";
 import { legacyCardId } from "@/lib/courses/feedback/model";
@@ -40,10 +56,23 @@ import {
   type AttendanceWeekFact,
   type FacilitatorPersonView,
   type FeedbackFact,
+  type PersonAbout,
   type PersonWeekRow,
   type TeamPersonView,
+  type VisitHistoryFact,
 } from "./model";
-import { BACK_TO_GROUP, BACK_TO_PEOPLE, NOT_IN_A_GROUP, groupLineWords } from "./words";
+import {
+  BACK_TO_GROUP,
+  BACK_TO_PEOPLE,
+  NOT_IN_A_GROUP,
+  READ_THE_APPLICATION,
+  acceptedWords,
+  groupLineWords,
+  invitationTakenWords,
+  joinedMonthWords,
+  rankedWords,
+  signedUpWords,
+} from "./words";
 
 /**
  * A PERSON'S PAGE, READ (Wed 18 Nov 2026): one person on a programme, for the
@@ -188,6 +217,8 @@ async function feedbackFactsOf(
     work: PersonWork;
     weeks: ReadonlyArray<{ weekNumber: number; week: CourseworkWeek | null }>;
     keep: (byUid: string) => boolean;
+    /** Name who pressed Send on each emailed piece's batch (`emailedByUid`): the team's page alone. */
+    senders?: boolean;
     now: Date;
   },
 ): Promise<{ facts: FeedbackFact[]; firstName: string }> {
@@ -197,7 +228,8 @@ async function feedbackFactsOf(
   });
   const pieces = input.pieces.filter((piece) => input.keep(piece.byUid));
   const older = legacy.filter((given) => input.keep(given.byUid));
-  const names = await cardNamesOf(db, [input.uid, ...pieces.map((piece) => piece.byUid), ...older.map((given) => given.byUid)]);
+  const senders = input.senders ? pieces.map((piece) => piece.emailedByUid).filter(Boolean) : [];
+  const names = await cardNamesOf(db, [input.uid, ...pieces.map((piece) => piece.byUid), ...older.map((given) => given.byUid), ...senders]);
   return {
     firstName: names.firstName(input.uid),
     facts: [
@@ -222,6 +254,10 @@ async function feedbackFactsOf(
         delivery: piece.emailedAt ? (piece.emailDelivery ?? "sent") : null,
         sending: feedbackIsClaimed(piece, input.now),
         legacy: false,
+        // Who pressed Send, only where the send recorded it and a name is on record.
+        ...(input.senders && piece.emailedAt && piece.emailedByUid && names.firstName(piece.emailedByUid)
+          ? { sentBy: names.firstName(piece.emailedByUid) }
+          : {}),
       })),
     ],
   };
@@ -244,7 +280,7 @@ function attendanceFacts(
   viewer: { isAdmin: boolean; role?: string | null },
   now: Date,
   onlyGroup: string | null,
-): { facts: AttendanceWeekFact[]; came: number; online: number } | null {
+): { facts: AttendanceWeekFact[]; came: number; online: number; visits: Map<number, string> } | null {
   const grid = buildRunAttendance(records, viewer, now);
   const listed = grid.groups.find((group) => group.people.some((person) => person.uid === uid));
   const row = listed?.people.find((person) => person.uid === uid);
@@ -259,11 +295,24 @@ function attendanceFacts(
   );
   // The session they were due at that week: a one-week visit's host for its week.
   const weekGroupOf = (weekNumber: number) => (differsByWeek(enrolment) ? groupForWeek(enrolment, weekNumber) : listed.id);
+  const names = new Map(
+    [...records.groups, ...(records.archivedGroups ?? [])].map((group) => [group.id, group.name.trim() || "Untitled group"] as const),
+  );
+  const todayKey = londonDateKey(now);
+  const tomorrowKey = addDaysToKey(todayKey, 1);
   const facts: AttendanceWeekFact[] = [];
+  // The weeks of a one-week visit that stands, to a session that is happening, by week: the host's name.
+  const visits = new Map<number, string>();
   for (const cell of row.cells) {
     const weekGroup = weekGroupOf(cell.weekNumber);
-    if (onlyGroup !== null && weekGroup !== onlyGroup) continue;
     const session = weekGroup ? sessions.get(weekGroup)?.get(cell.weekNumber) : undefined;
+    // A visit called off is gone from the place; one whose session was called off stands, uncounted: neither is a visit here.
+    const visit = visitInWeek(enrolment, cell.weekNumber);
+    const visiting = visit !== null && weekGroup === visit.groupId && session !== undefined && session.held;
+    if (visiting && weekGroup) visits.set(cell.weekNumber, names.get(weekGroup) ?? "another group");
+    // The cut keeps the weeks whose session was its group's, and a week its people spent visiting another group's session.
+    if (onlyGroup !== null && weekGroup !== onlyGroup && !(visiting && ownGroupForWeek(enrolment, cell.weekNumber) === onlyGroup)) continue;
+    const dateKey = session?.session.dateKey ?? "";
     facts.push({
       weekNumber: cell.weekNumber,
       state: cell.state,
@@ -271,9 +320,84 @@ function attendanceFacts(
       online: cell.online === true,
       dateLabel: session ? dayWords(session.session.dateKey) || null : null,
       happened: happened(session),
+      dayWord: dateKey === todayKey ? "Today" : dateKey === tomorrowKey ? "Tomorrow" : null,
+      groupName: weekGroup ? (names.get(weekGroup) ?? null) : null,
+      visit: visiting,
     });
   }
-  return { facts, came: row.came, online: row.online };
+  return { facts, came: row.came, online: row.online, visits };
+}
+
+/** "Goes by" and "Joined", off their account: approved as a member, or made where no approval is on record. */
+function aboutOf(account: Record<string, unknown> | null, uid: string): { about: PersonAbout; email: string | null } {
+  if (!account) return { about: { goesBy: null, joined: null }, email: null };
+  const user = normalizeUser(uid, account);
+  const joinedAt = user.approvedAt ?? user.createdAt ?? null;
+  return {
+    about: { goesBy: goByNameOf(account), joined: joinedAt ? joinedMonthWords(joinedAt) : null },
+    email: typeof user.email === "string" && user.email.trim() ? user.email.trim() : null,
+  };
+}
+
+/**
+ * THE APPLICATION'S LINE, from what the records hold: where they ranked this
+ * programme (`choiceNumber` on what they sent), then whether decision day
+ * accepted them onto it (`result`, on the day it was sent) or they said yes
+ * to an invitation to it (`invitation`, on the day they answered). A part
+ * the records cannot say is left out; null with neither.
+ */
+async function applicationLineOf(db: Firestore, roundId: string, programmeId: string, programmeName: string, uid: string): Promise<string | null> {
+  const form = await loadForm(db, roundId);
+  if (!form) return null;
+  const application = await loadApplication(db, form, uid);
+  if (!application || application.uid !== uid) return null;
+  const parts: string[] = [];
+  const choice = application.sent ? choiceNumber(form, application.sent, programmeId) : null;
+  if (choice !== null) parts.push(rankedWords(programmeName, choice));
+  const result = application.result;
+  const invitation = application.invitation;
+  if (result?.kind === "accepted" && result.programmeId === programmeId) parts.push(acceptedWords(result.publishedAt));
+  else if (invitation?.programmeId === programmeId && invitation.response === "accepted") parts.push(invitationTakenWords(invitation.respondedAt));
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
+/** How many History rows about one person's visits on a run are read: a run holds at most 60 weeks, four rows a visit at most. */
+export const VISIT_HISTORY_READ = 240;
+
+/**
+ * THE HISTORY ROWS ONE-WEEK VISITS WROTE ABOUT A PERSON on a run, in the words
+ * they were written with: one equality on each of two fields and one `in`
+ * (no declared index). A visit writes a row on each of the two groups:
+ * arranging one is kept as their own group's row (the one naming the host),
+ * and a visit called off, whose two rows say the same, once.
+ */
+async function visitHistoryOf(db: Firestore, runId: string, uid: string): Promise<VisitHistoryFact[]> {
+  const snap = await db
+    .collection(COURSE_AUDIT_COLLECTION)
+    .where("subjectUid", "==", uid)
+    .where("runId", "==", runId)
+    .where("kind", "in", ["member-visits", "member-visit-off"])
+    .limit(VISIT_HISTORY_READ)
+    .get();
+  const seen = new Set<string>();
+  const out: VisitHistoryFact[] = [];
+  for (const doc of snap.docs) {
+    const row = normalizeCourseAudit(doc.id, doc.data() ?? {});
+    if (row.subjectUid !== uid || row.runId !== runId || !row.at || !row.detail) continue;
+    if (row.kind === "member-visits" && !row.after) continue;
+    if (row.kind !== "member-visits" && row.kind !== "member-visit-off") continue;
+    const key = `${row.kind} ${row.at.getTime()} ${row.detail}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ at: row.at, who: row.actorName, said: row.detail });
+  }
+  return out;
+}
+
+/** "This term", for the events line: from the run's first day, midnight in London, to the end of its last session (no end while none is dated). */
+function termOf(run: CourseRunDoc, liveGroups: readonly CourseGroupDoc[], now: Date): TermWindow | null {
+  if (!isValidDateKey(run.startDate)) return null;
+  return { from: londonWallClockToInstant(run.startDate, "00:00"), to: runEndOf(run, liveGroups, now).endsAt };
 }
 
 /** "Group C · Wednesdays at 3pm" for a group, or "Not in a group yet". */
@@ -309,15 +433,27 @@ export async function loadTeamPersonPage(
 
   const isAdmin = gate.view.viewer === "admin";
   const self = actor.uid === uid;
+  const [accountSnap, applicationLine] = await Promise.all([
+    // Their account, by address: the name they go by, when they joined, and for an admin alone their address.
+    db.collection("users").doc(uid).get(),
+    // The application's line, read only for a reader the People tab lets open the application.
+    row.applicationHref ? applicationLineOf(db, gate.view.roundId, gate.view.programmeId, gate.view.programmeName, uid) : Promise.resolve(null),
+  ]);
+  const { about, email } = aboutOf(accountSnap.exists ? ((accountSnap.data() ?? {}) as Record<string, unknown>) : null, uid);
   const view: TeamPersonView = {
     reader: gate.view.viewer,
     uid,
     header: { name: row.name, programmeName: gate.view.programmeName, group: NOT_IN_A_GROUP, status: statusWords(row.status), notTold: false },
+    about,
+    // The address is an admin's alone: never handed to a lead.
+    ...(isAdmin && email ? { email } : {}),
     back: { label: BACK_TO_PEOPLE, href: `${path}/people` },
     weeks: [],
-    attendance: attendanceViewOf([]),
+    attendance: attendanceViewOf([], undefined, { coming: true }),
     feedback: [],
-    ...(row.applicationHref ? { application: { href: row.applicationHref, label: seeApplicationWords(row.firstName) } } : {}),
+    ...(row.applicationHref ? { application: { href: row.applicationHref, label: READ_THE_APPLICATION, line: applicationLine } } : {}),
+    // Visit and Move: the People tab's one decision (`movingLinks`), drawn as it draws them.
+    ...(row.visitHref ? { visit: { href: row.visitHref, label: VISIT_LINK } } : {}),
     ...(row.moveHref ? { move: { href: row.moveHref, label: MOVE_LINK } } : {}),
   };
 
@@ -337,7 +473,9 @@ export async function loadTeamPersonPage(
   ]);
   const name = names.get(uid) ?? row.name;
   const attended = records ? attendanceFacts(records, uid, { isAdmin, role: actor.role }, now, null) : null;
-  const attendance = attended ? attendanceViewOf(attended.facts, { came: attended.came, online: attended.online }) : attendanceViewOf([]);
+  const attendance = attended
+    ? attendanceViewOf(attended.facts, { came: attended.came, online: attended.online }, { coming: true })
+    : attendanceViewOf([], undefined, { coming: true });
 
   // A ROW OF THE COURSEWORK TAB, by the tab's own test: holding a place, facilitating one of the run's live groups, or
   // placed in one. Anybody else (somebody who left the run, gave their place back or is invited) is no row of it, and the
@@ -346,7 +484,7 @@ export async function loadTeamPersonPage(
   const onTheTab =
     row.category === "holding" || liveGroups.some((group) => group.facilitatorUids.includes(uid)) || placedIn(seats.get(uid), liveGroups);
   if (!onTheTab) {
-    const { weeks: _weeks, feedback: _feedback, application: _application, move: _move, ...head } = view;
+    const { weeks: _weeks, feedback: _feedback, application: _application, move: _move, visit: _visit, ...head } = view;
     return { status: "ok", view: { ...head, header: { ...view.header, name, group: null }, attendance } };
   }
 
@@ -367,7 +505,7 @@ export async function loadTeamPersonPage(
     readOwnFeedback(db, run.id, uid),
   ]);
   const weekList = columns.map((column) => ({ weekNumber: column.weekNumber, week: weekOf(column.weekNumber) }));
-  const { facts: feedback, firstName } = await feedbackFactsOf(db, { uid, pieces, work, weeks: weekList, keep: () => true, now });
+  const { facts: feedback, firstName } = await feedbackFactsOf(db, { uid, pieces, work, weeks: weekList, keep: () => true, senders: true, now });
   const weeks: PersonWeekRow[] = columns.map((column, at) =>
     weekRowOf({
       column,
@@ -377,6 +515,7 @@ export async function loadTeamPersonPage(
       feedback,
       firstName,
       readHref: cells[at]?.reached ? `${path}/coursework/${encodeURIComponent(uid)}?week=${column.weekNumber}` : null,
+      visitHost: attended?.visits.get(column.weekNumber) ?? null,
       now,
     }),
   );
@@ -409,7 +548,7 @@ export async function loadTeamPersonPage(
   if (!isAdmin) return { status: "ok", view: out };
 
   // An admin's alone: read for nobody else.
-  const events = await eventsOfPerson(db, uid, now);
+  const [events, history] = await Promise.all([eventsOfPersonInTerm(db, uid, now, termOf(run, liveGroups, now)), visitHistoryOf(db, run.id, uid)]);
   // Told only once Publish's email was handed over: one held, or stopped by the do-not-email list, told nobody.
   const told = seat !== null && seat.groupId !== null && placementIsShownTo(seat, { isAdmin: false });
   const delivered = seat?.allocatedEmailDelivery !== "held" && seat?.allocatedEmailDelivery !== "suppressed";
@@ -417,12 +556,14 @@ export async function loadTeamPersonPage(
     status: "ok",
     view: {
       ...out,
-      ...(events ? { events } : {}),
+      ...(events ? { events: events.view } : {}),
+      ...(events && events.signedUp !== null ? { signedUp: signedUpWords(events.signedUp) } : {}),
       activity: activityOf({
         toldAt: told && delivered ? (seat?.allocatedEmailAt ?? null) : null,
         work,
         weeks: weekList,
         feedback,
+        history,
       }),
     },
   };
@@ -480,6 +621,7 @@ export async function loadFacilitatorPersonPage(
     notToldYet: false,
   };
   const { columns, cells, work, weekOf } = await courseworkFor(db, { run, liveGroups, enrolments, person, now });
+  const attended = records ? attendanceFacts(records, uid, { isAdmin: false, role: "member" }, now, groupId) : null;
   // The weeks they belonged to this group: a one-week visit's week stays theirs here (their work, its feedback).
   const inGroup = (weekNumber: number) => ownGroupForWeek(seat, weekNumber) === groupId;
   // Only the feedback this facilitator wrote, pieces and feedback given before pieces existed alike.
@@ -503,12 +645,13 @@ export async function loadFacilitatorPersonPage(
             feedback,
             firstName,
             readHref: cells[at]?.reached ? `${groupPath}/coursework/${encodeURIComponent(uid)}?week=${column.weekNumber}` : null,
+            // A week they spent visiting another group's session: where its work was due.
+            visitHost: attended?.visits.get(column.weekNumber) ?? null,
             now,
           }),
         ]
       : [],
   );
-  const attended = records ? attendanceFacts(records, uid, { isAdmin: false, role: "member" }, now, groupId) : null;
   return {
     status: "ok",
     view: {

@@ -6,6 +6,7 @@ import { emailStateWords } from "@/lib/courses/feedback/words";
 import type { FeedbackDelivery } from "@/lib/firestore/courseFeedback";
 import {
   ANSWER_STARTED,
+  COMING_CHIP,
   DID_NOT_HAPPEN,
   IN_THE_ROOM,
   NOT_MARKED,
@@ -27,6 +28,12 @@ import {
   sentAnswerWords,
   sentWords,
   TOLD_THEIR_GROUP,
+  VISITS_TO_ANOTHER_GROUP,
+  VISIT_CHIP,
+  atSessionWords,
+  batchSentByWords,
+  comingWords,
+  visitDueWords,
   weekLineWords,
 } from "./words";
 
@@ -63,6 +70,8 @@ export type PersonWeekRow = {
   reflection: string | null;
   /** "Sent Thu 5 Nov, 2:02pm · late", "Started, not sent", "Not sent", or null for a week that asks for none. */
   answer: string | null;
+  /** "Due at Group F, Thu 5 Nov, 5pm: a visit" for a week of a one-week visit that stands; null otherwise. */
+  visit: string | null;
   /** "Rahul, Sat 7 Nov · Emailed Sun 8 Nov", one per piece on the week, oldest first. */
   feedback: string[];
   /** The reading view of that week, for a reader its own gate admits; null otherwise. */
@@ -87,6 +96,12 @@ export type FeedbackFact = {
   /** A press is sending its email now. */
   sending: boolean;
   legacy: boolean;
+  /**
+   * Who pressed Send on the batch its email went in, by first name
+   * (`emailedByUid`), handed only where the reader may see it. Absent with
+   * none on record, and for feedback given before pieces existed.
+   */
+  sentBy?: string;
 };
 
 /** One rating for the team, as its number and who gave it. Never its comment. */
@@ -102,6 +117,8 @@ export type CourseworkRowInput = {
   /** The person's first name, for what became of each piece's email. */
   firstName: string;
   readHref: string | null;
+  /** The host group's name, for a week of a one-week visit that stands; null or absent otherwise. */
+  visitHost?: string | null;
   now: Date;
 };
 
@@ -129,7 +146,10 @@ export function wasEmailed(piece: FeedbackFact): boolean {
  * called emailed. `firstName` is the person's, as the reading view names them.
  */
 export function feedbackLineOf(piece: FeedbackFact, firstName: string): string {
-  return `${feedbackByWords(piece.byName, piece.createdAt)} · ${emailStateWords(firstName, emailedOf(piece), piece.sending)}`;
+  const state = emailStateWords(firstName, emailedOf(piece), piece.sending);
+  // Who sent the batch, only on an email that went and only where it is on record.
+  const batch = piece.sentBy && !piece.legacy && !piece.sending && wasEmailed(piece) ? ` ${batchSentByWords(piece.sentBy)}` : "";
+  return `${feedbackByWords(piece.byName, piece.createdAt)} · ${state}${batch}`;
 }
 
 const byWhen = (a: FeedbackFact, b: FeedbackFact) =>
@@ -167,6 +187,7 @@ export function weekRowOf(input: CourseworkRowInput): PersonWeekRow {
     readings: cell.ticks && cell.ticks.of > 0 ? readingsWords(cell.ticks.ticked, cell.ticks.of) : null,
     reflection,
     answer,
+    visit: input.visitHost ? visitDueWords(input.visitHost, cell.due.at ? new Date(cell.due.at) : null) : null,
     feedback: input.feedback
       .filter((piece) => piece.weekNumber === n)
       .sort(byWhen)
@@ -209,6 +230,16 @@ export type AttendanceWeekFact = {
   dateLabel: string | null;
   /** The session has happened: it counts towards what they came to. */
   happened: boolean;
+  /** "Today" or "Tomorrow" for a session on one of those days, in London; null otherwise. */
+  dayWord?: string | null;
+  /** The name of the group whose session it is that week, where the reader is told it; null otherwise. */
+  groupName?: string | null;
+  /**
+   * A one-week visit that stands, to a session that is happening: the
+   * session is the host's. A visit called off, or whose session was called
+   * off, is no visit here.
+   */
+  visit?: boolean;
 };
 
 /**
@@ -217,20 +248,23 @@ export type AttendanceWeekFact = {
  * exists) without anything else changing. Never an allowance, never a number
  * of sessions anybody may still miss, never anything read as a threshold.
  */
-export type AttendanceCount = { key: "room" | "online"; label: string; value: number };
+export type AttendanceCount = { key: "room" | "online" | "visits"; label: string; value: number };
 
 export type AttendanceView = {
   counts: AttendanceCount[];
-  /** "Week 1 · Thu 5 Nov" and what the register says, one per week that has anything to say. */
-  lines: Array<{ weekNumber: number; when: string; said: string }>;
+  /**
+   * "Week 1 · Thu 5 Nov" and what the register says, one per week that has
+   * anything to say, with its chips ("Visit", "Coming").
+   */
+  lines: Array<{ weekNumber: number; when: string; said: string; chips: string[] }>;
   /** No register has marked them yet. */
   empty: boolean;
 };
 
 const CAME: ReadonlySet<AttendanceStatus> = new Set(["present", "late", "left-early"]);
 
-/** What one week's line says, in words, or null for a week with nothing to say. */
-function attendanceSaid(fact: AttendanceWeekFact): string | null {
+/** What one week's line says from the register alone, in words, or null for a week with nothing to say. */
+function registerSaid(fact: AttendanceWeekFact): string | null {
   switch (fact.state) {
     case "mark": {
       if (!fact.mark) return null;
@@ -248,6 +282,27 @@ function attendanceSaid(fact: AttendanceWeekFact): string | null {
   }
 }
 
+/** "In the room" as it reads after a comma: "in the room". */
+function lowerFirst(words: string): string {
+  return words ? words.charAt(0).toLowerCase() + words.slice(1) : words;
+}
+
+/**
+ * One week's line and its chips. `coming`: a session still to come reads
+ * "Tomorrow, with Group C" with the chip "Coming" (the team's page); without
+ * it, "Still to come". A visit's week names the host's session.
+ */
+function attendanceLine(fact: AttendanceWeekFact, toCome: boolean, coming: boolean): { said: string; chips: string[] } | null {
+  const visit = fact.visit === true && !!fact.groupName;
+  if (toCome) {
+    if (coming && fact.groupName) return { said: comingWords(fact.dayWord ?? null, fact.groupName), chips: visit ? [COMING_CHIP, VISIT_CHIP] : [COMING_CHIP] };
+    return visit ? { said: atSessionWords(fact.groupName as string, lowerFirst(STILL_TO_COME)), chips: [VISIT_CHIP] } : { said: STILL_TO_COME, chips: [] };
+  }
+  const said = registerSaid(fact);
+  if (!said) return null;
+  return visit ? { said: atSessionWords(fact.groupName as string, lowerFirst(said)), chips: [VISIT_CHIP] } : { said, chips: [] };
+}
+
 /**
  * The attendance card. `counted`, when handed, is the one record's own two
  * counts (`came` less `online`, and `online`): the team's page passes them
@@ -256,13 +311,20 @@ function attendanceSaid(fact: AttendanceWeekFact): string | null {
  * the weeks it is handed, by the record's own rule (a mark that says they
  * came, on a session that has happened).
  */
-export function attendanceViewOf(weeks: readonly AttendanceWeekFact[], counted?: { came: number; online: number }): AttendanceView {
+export function attendanceViewOf(
+  weeks: readonly AttendanceWeekFact[],
+  counted?: { came: number; online: number },
+  options: { coming?: boolean } = {},
+): AttendanceView {
   let came = 0;
   let online = 0;
+  // Visits to another group: the visits' sessions they came to, off the host's register. Counted inside the two counts too.
+  let visits = 0;
   for (const fact of weeks) {
     if (fact.state !== "mark" || !fact.mark || !fact.happened || !CAME.has(fact.mark)) continue;
     came += 1;
     if (fact.online) online += 1;
+    if (fact.visit) visits += 1;
   }
   const totals = counted ?? { came, online };
   // Of the sessions still to come, only the next is said: nothing reads as a count of what is left.
@@ -270,13 +332,14 @@ export function attendanceViewOf(weeks: readonly AttendanceWeekFact[], counted?:
   const next = weeks.find(toCome)?.weekNumber ?? null;
   const lines = weeks.flatMap((fact) => {
     if (toCome(fact) && fact.weekNumber !== next) return [];
-    const said = attendanceSaid(fact);
-    return said ? [{ weekNumber: fact.weekNumber, when: weekLineWords(fact.weekNumber, fact.dateLabel), said }] : [];
+    const line = attendanceLine(fact, toCome(fact), options.coming === true);
+    return line ? [{ weekNumber: fact.weekNumber, when: weekLineWords(fact.weekNumber, fact.dateLabel), ...line }] : [];
   });
   return {
     counts: [
       { key: "room", label: IN_THE_ROOM, value: Math.max(0, totals.came - totals.online) },
       { key: "online", label: ONLINE, value: totals.online },
+      { key: "visits", label: VISITS_TO_ANOTHER_GROUP, value: visits },
     ],
     lines,
     empty: !weeks.some((fact) => fact.state === "mark"),
@@ -297,7 +360,11 @@ export function feedbackLinesOf(pieces: readonly FeedbackFact[], firstName: stri
 /** How many activity lines are drawn. */
 export const ACTIVITY_SHOWN = 12;
 
-export type ActivityLine = { at: string; when: string; said: string };
+/** One line of Activity: when, what, and for a History row, who did it as the row kept their name. */
+export type ActivityLine = { at: string; when: string; said: string; who?: string };
+
+/** A History row a one-week visit wrote about the person, as the row says it. */
+export type VisitHistoryFact = { at: Date; who: string; said: string };
 
 /**
  * ACTIVITY, made only of records that already exist and that the page has
@@ -312,8 +379,10 @@ export function activityOf(input: {
   work: PersonWork;
   weeks: ReadonlyArray<{ weekNumber: number; week: CourseworkWeek | null }>;
   feedback: readonly FeedbackFact[];
+  /** The History rows one-week visits wrote about them (arranged, called off), in their own words. */
+  history?: readonly VisitHistoryFact[];
 }): ActivityLine[] {
-  const out: Array<{ at: Date; said: string }> = [];
+  const out: Array<{ at: Date; said: string; who?: string }> = [];
   // Never a group's name: a move keeps the day Publish first told them, so the group they are in now may not be the one it named.
   if (input.toldAt) out.push({ at: input.toldAt, said: TOLD_THEIR_GROUP });
   for (const { weekNumber, week } of input.weeks) {
@@ -336,10 +405,11 @@ export function activityOf(input: {
     emailed.set(`${piece.weekNumber} ${piece.emailedAt.getTime()}`, { at: piece.emailedAt, weekNumber: piece.weekNumber });
   }
   for (const { at, weekNumber } of emailed.values()) out.push({ at, said: feedbackEmailedWords(weekNumber) });
+  for (const row of input.history ?? []) out.push({ at: row.at, said: row.said, ...(row.who ? { who: row.who } : {}) });
   return out
     .sort((a, b) => b.at.getTime() - a.at.getTime() || a.said.localeCompare(b.said))
     .slice(0, ACTIVITY_SHOWN)
-    .map(({ at, said }) => ({ at: at.toISOString(), when: activityWhenWords(at), said }));
+    .map(({ at, said, who }) => ({ at: at.toISOString(), when: activityWhenWords(at), said, ...(who ? { who } : {}) }));
 }
 
 /** The facilitator's line about the weeks spent elsewhere, or null. */
@@ -362,6 +432,14 @@ export type PersonHeader = {
   notTold: boolean;
 };
 
+/** "Goes by Kwame" and "Joined Sep 2026", for the team. */
+export type PersonAbout = {
+  /** The name they go by, or null with none on their account. */
+  goesBy: string | null;
+  /** "Sep 2026": the month their account was approved as a member, or made where no approval is on record; null with neither. */
+  joined: string | null;
+};
+
 /**
  * THE TEAM'S PAGE. Every optional key is ABSENT for a reader who may not see
  * that section (and every one but the head and attendance for somebody the
@@ -375,6 +453,10 @@ export type TeamPersonView = {
   reader: "admin" | "lead";
   uid: string;
   header: PersonHeader;
+  /** The name they go by and when they joined. */
+  about?: PersonAbout;
+  /** Their account's address: an admin's alone, absent for anybody else. */
+  email?: string;
   back: { label: string; href: string };
   /** Absent, with `feedback`, for somebody the Coursework tab has no row for (somebody who left): the reading view refuses them. */
   weeks?: PersonWeekRow[];
@@ -382,9 +464,14 @@ export type TeamPersonView = {
   attendance: AttendanceView;
   feedback?: FeedbackLine[];
   notes?: { runId: string; firstName: string; lead: { roundId: string; programmeId: string } | null };
-  application?: { href: string; label: string };
+  /** Their application, for whoever may open it: the link, and its line ("Ranked AGI Strategy first. Accepted Wed 28 Oct."), or null with nothing to say. */
+  application?: { href: string; label: string; line: string | null };
   move?: { href: string; label: string };
+  /** A one-week visit to another group's session, offered exactly where Move is. */
+  visit?: { href: string; label: string };
   events?: PersonEventsView;
+  /** "Signed up to 2 this term.": an admin's alone, beside the events. */
+  signedUp?: string;
   activity?: ActivityLine[];
 };
 

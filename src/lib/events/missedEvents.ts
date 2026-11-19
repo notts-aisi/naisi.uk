@@ -261,6 +261,33 @@ export function personEventsView(person: Attendance, now: Date): PersonEventsVie
   };
 }
 
+/** A stretch of time by its two ends: `to` null for one with no end known yet. */
+export type TermWindow = { from: Date; to: Date | null };
+
+/**
+ * HOW MANY EVENTS THEY SIGNED UP TO IN A STRETCH OF TIME, for an admin's page
+ * about them: the events that start inside `term` for which their newest own
+ * sign-up (a test one never) still stands: a place, a request not decided
+ * yet, or the waiting list. A place given back, a request turned down, an
+ * event cancelled, an event with no date and anything they came to with no
+ * sign-up are not counted. A count of sign-ups and nothing about whether
+ * they came. Null for somebody who has not agreed to privacy version 15, for
+ * whom the page lists none of their events (`personEventRows`).
+ */
+export function signedUpWithin(person: Attendance, term: TermWindow): number | null {
+  if (!person.agreedFrom) return null;
+  let count = 0;
+  for (const [eventId, signups] of signupsByEvent(person)) {
+    const event = person.events.get(eventId);
+    if (!event || event.id !== eventId || event.status !== "published" || !event.startAt) continue;
+    const at = event.startAt.getTime();
+    if (at < term.from.getTime() || (term.to !== null && at > term.to.getTime())) continue;
+    const newest = newestOf(signups);
+    if (newest.status === "confirmed" || newest.status === "pending" || newest.status === "waitlisted") count += 1;
+  }
+  return count;
+}
+
 // ---------------------------------------------------------------------------
 // Reading
 // ---------------------------------------------------------------------------
@@ -369,4 +396,18 @@ export async function missedEventsOf(db: Firestore, uids: readonly string[], now
 export async function eventsOfPerson(db: Firestore, uid: string, now: Date): Promise<PersonEventsView | null> {
   const person = (await readAttendance(db, [uid])).get(uid);
   return person ? personEventsView(person, now) : null;
+}
+
+/**
+ * The same card, and the count of events they signed up to in `term`
+ * (`signedUpWithin`), from the one read. Null when there is no account here.
+ */
+export async function eventsOfPersonInTerm(
+  db: Firestore,
+  uid: string,
+  now: Date,
+  term: TermWindow | null,
+): Promise<{ view: PersonEventsView; signedUp: number | null } | null> {
+  const person = (await readAttendance(db, [uid])).get(uid);
+  return person ? { view: personEventsView(person, now), signedUp: term ? signedUpWithin(person, term) : null } : null;
 }

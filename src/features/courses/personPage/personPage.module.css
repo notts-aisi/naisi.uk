@@ -96,6 +96,62 @@
   gap: var(--space-2) var(--space-5);
 }
 
+/* "Goes by", "Joined" and, for an admin, the address. */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-5);
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: 14px;
+}
+
+.fact {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.fact dt {
+  color: var(--color-text-muted);
+}
+
+.fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ── The strip of section links ───────────────────────────────────────── */
+
+.sections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.sectionLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-body);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.sectionLink:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.sectionLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
 /* ── Cards ────────────────────────────────────────────────────────────── */
 
 .card {
@@ -251,6 +307,20 @@
   font-size: 14px;
 }
 
+/* A week's attendance line, then its chips ("Visit", "Coming"). */
+.lineWithChips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+/* Who did it, before a History row's own sentence. */
+.activityWho {
+  margin-right: var(--space-2);
+  color: var(--color-text-muted);
+}
+
 @media (max-width: 48rem) {
   .card {
     padding: var(--space-4);
@@ -267,5 +337,9 @@
 
   .weekCards {
     display: block;
+  }
+
+  .facts {
+    flex-direction: column;
   }
 }
