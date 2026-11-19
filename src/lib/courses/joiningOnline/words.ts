@@ -206,6 +206,9 @@ export const ONLINE_WORD = "Online";
 /** Said after a cell's mark to a screen reader, for somebody who joined online. */
 export const JOINED_ONLINE = "Joined online.";
 
+/** Under a register's line not marked yet, for somebody who said they are joining online. */
+export const SAID_JOINING_ONLINE = "Said joining online";
+
 /** Said to a screen reader for somebody who said in advance they are joining online. */
 export const SAID_ONLINE_IN_ADVANCE = "They said they’re joining online.";
 

@@ -14,7 +14,7 @@ import Skeleton from "@/components/ui/Skeleton";
 import { TOLD_IN_ADVANCE, registerCantMakeItLine } from "@/lib/courses/cantMakeIt/words";
 import { EXCUSED_WHO_CAN, MARK_CYCLE, cellMarks, cycleWords, nextMark } from "@/lib/courses/excused/marking";
 import * as S from "@/lib/courses/excused/staffWords";
-import { JOINED_ONLINE, ONLINE_WORD, SAID_ONLINE_IN_ADVANCE, whereChoiceLabel } from "@/lib/courses/joiningOnline/words";
+import { JOINED_ONLINE, ONLINE_WORD, SAID_JOINING_ONLINE, SAID_ONLINE_IN_ADVANCE, whereChoiceLabel } from "@/lib/courses/joiningOnline/words";
 import { londonClockLabel } from "@/lib/courses/londonLabels";
 import {
   ATTENDANCE_LIMITS,
@@ -1354,6 +1354,11 @@ export default function AttendanceGrid({
                   const came = cameBy(status);
                   const isOnline = onlineOf(session.sessionKey, member.uid);
                   const said = saidOnline(session.sessionKey, member.uid);
+                  // Somebody who said they are joining online, on a draft
+                  // line nobody has marked yet: the register opens with their
+                  // word in (online), and one tap records it with the mark.
+                  // Nothing is written until that tap.
+                  const saidFirst = said && status === null && !finished;
                   // Who set this line and when, beside it: a register written
                   // before lines were stamped says nothing here.
                   const stamp = setBy[session.sessionKey]?.[member.uid] ?? null;
@@ -1457,6 +1462,12 @@ export default function AttendanceGrid({
                           <span className={`${styles.where} ${styles.whereOnline} ${styles.whereStatic}`} aria-hidden="true">
                             <ScreenIcon />
                           </span>
+                        ) : saidFirst ? (
+                          /* Their own word, already in: online, which the
+                             first tap records with the mark it sets. */
+                          <span className={`${styles.where} ${styles.whereOnline} ${styles.whereStatic}`} aria-hidden="true">
+                            <ScreenIcon />
+                          </span>
                         ) : (
                           <span className={styles.whereSlot} aria-hidden="true" />
                         )}
@@ -1487,6 +1498,11 @@ export default function AttendanceGrid({
                       {chip && (
                         <span className={`${styles.lineChip} ${chip === P.ASKED ? styles.lineChipWaiting : ""}`} data-testid="attendance-line-chip">
                           {chip}
+                        </span>
+                      )}
+                      {saidFirst && !excuse && (
+                        <span className={styles.lineChip} data-testid="attendance-said-online">
+                          {SAID_JOINING_ONLINE}
                         </span>
                       )}
                       {excuse && (
