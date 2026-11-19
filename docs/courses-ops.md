@@ -2137,8 +2137,10 @@ line on the Requests page.
 **A move on the board, mid-term** (People in groups, Circles and the run's
 own board, all through `POST /api/courses/runs/[runId]/allocate`;
 `src/lib/courses/staffMove/board.ts`). A move to another group of a place
-Publish has told, once a session of a group it belongs to has started (or a
-place that already has a record), goes through `moveFromWeek` from the week
+Publish has told, once it has met (a session of a group it belongs to has
+started and was neither called off nor marked as not held on its register,
+the week rule's own test of a week met), or a place that already has a
+record, goes through `moveFromWeek` from the week
 this page's rule gives (`moveWeekFor`, the one function both ask): every
 week before it stays with the old group, the record is extended, or folded
 back when the person returns to a group before an earlier move took effect,
@@ -2160,7 +2162,10 @@ Between the weeks and the last sentence it says what stays behind on the old
 group from week N on, in this page's own sentence for it (`leftBehindOf` and
 `leftBehindWords`, shared): a line excusing them, a "Most weeks, not all"
 tick, a request still waiting. Several moves in one press are asked in one
-confirmation. The press sends the week back (`fromWeek`); a
+confirmation. A move the preview already knows will be refused (no week by
+the rule, or out of every group once the person has met) is said by each of
+the three boards before the press, in its sentence, and is never pressed;
+the rest of the press goes ahead. The press sends the week back (`fromWeek`); a
 week that no longer holds is refused ("The move is now from week 4. Move Leo
 again to see what it does."), nothing written. When the rule offers no week
 the move is refused in this page's sentence for it, prefixed "Leo Park
@@ -2172,11 +2177,16 @@ moves they came in, so one refusal never loses another's move.
 reads the count its own transaction read, so no group is ever over its
 capacity at any commit, and a move made mid-term frees its seat only once it
 is written. So a press goes in rounds: the plain placements in their chunks,
-then the moves made mid-term one by one, then each placement refused because
-its group was full, into a group a move made mid-term has just left, is tried
-again the same way, until a round frees nothing. Moving a told person out of
-a full group mid-term and placing somebody else into it in one press works,
-in either order. A move that is refused frees nothing, so nobody is placed
+then the moves made mid-term one by one, then every placement of the press
+still refused because its group was full (in that round or an earlier one),
+into a group a move made mid-term has just left, is tried again the same
+way, until a round makes no such move. It always ends: a round follows only
+one in which a move made mid-term was written, and nobody's move is written
+twice, so there is at most one round more than there are such moves. Moving
+a told person out of a full group mid-term and placing somebody else into
+it in one press works, in either order, and so does a chain (Amara from A to
+full B, Chloe from B to C, Una from C to full A) in whatever order the board
+sends it. A move that is refused frees nothing, so nobody is placed
 into its seat. A press with no move made mid-term is one round, exactly as
 before. Two people swapped between two full groups are refused, before the
 term and after, as the board always has: neither can go first. What one move
@@ -2184,7 +2194,9 @@ made mid-term costs: outside a transaction, the place, the run's groups (one
 equality), the person's account and the registers of their own sessions that
 have started; then one transaction reading the place, the run, the run's
 groups and those registers again, and writing the place, two counts and two
-History rows. Each is its own commit, so a press cut off part way (a
+History rows. And the chunk the move came in reads, for each told place
+moved out of its group, the registers of its sessions that have started, to
+know whether it has met. Each move is its own commit, so a press cut off part way (a
 request that runs out of time) keeps every move written before it stopped,
 the board shows the error and, once reloaded, where everybody is; pressing
 again makes the rest, and a move already made is "already exactly where they
@@ -2192,13 +2204,15 @@ are", nothing to do.
 
 *Never into no group mid-term.* A place in no group keeps no record of the
 weeks it met: every week reads its group, and it has none. So a told person
-whose group has met (or who has a record) is never taken out of every group
+who has met (a session of their own started and was neither called off nor
+marked as not held), or who has a record, is never taken out of every group
 by the board, on any of its three views: the move is refused, before the
 press and at it, with nothing written ("Amara has already met with Group A,
 so Amara can’t be taken out of every group: the weeks met with Group A
 would be lost. Move Amara straight to the new group instead, or take Amara
-off the run."). Before the term, and for somebody nobody has told, the pool
-works as always. Somebody ALREADY in that state (told, in no group, mid-term,
+off the run."). Before the term, for somebody nobody has told, and for
+somebody whose only past sessions were called off or not held (they met
+nobody), the pool works as always. Somebody ALREADY in that state (told, in no group, mid-term,
 taken out before this was refused) has no weeks left to keep: placing them in
 a group is the board's plain move, for every week, as it always was.
 

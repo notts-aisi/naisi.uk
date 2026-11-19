@@ -13,13 +13,15 @@ import type { Placement, PreviewResult } from "./useAllocation";
  * met). Every question is asked in one confirmation. Declined, nothing is
  * pressed. Agreed, the press carries each move's week (`fromWeek`), so a
  * move whose week has changed since is refused rather than made from another
- * week. A move the preview refused is still sent, and refused by the press in
- * the same sentence; the refusals come back for a board that says them first.
+ * week. A move the preview refused is NOT sent: it comes back in `refused`,
+ * with its sentence, for the board to say before the press (each of the
+ * three boards does), and the rest are pressed.
  *
  * Somebody nobody has told is never asked about: their moves are the board's
  * working copy, as always.
  */
 export type MidTermAsked =
+  /** `placements`: the moves to press, with their weeks; `refused`: the moves not to press, each with why. */
   | { go: true; placements: Placement[]; refused: { uid: string; reason: string; words?: string }[] }
   /** Declined (`error` null), or the preview failed. */
   | { go: false; error: string | null };
@@ -42,12 +44,16 @@ export async function askMidTermMoves(
   const questions = said.preview.flatMap((entry) => (entry.fromWeek !== null && entry.words ? [entry.words] : []));
   if (questions.length > 0 && !input.confirm(questions.join("\n\n"))) return { go: false, error: null };
   const weekOf = new Map(said.preview.flatMap((entry) => (entry.fromWeek !== null ? [[entry.uid, entry.fromWeek] as const] : [])));
+  const refused = said.preview.flatMap((entry) => (entry.refusal ? [{ uid: entry.uid, ...entry.refusal }] : []));
+  const refusedUids = new Set(refused.map((each) => each.uid));
   return {
     go: true,
-    placements: placements.map((each) => {
-      const fromWeek = weekOf.get(each.uid);
-      return fromWeek !== undefined ? { ...each, fromWeek } : { ...each };
-    }),
-    refused: said.preview.flatMap((entry) => (entry.refusal ? [{ uid: entry.uid, ...entry.refusal }] : [])),
+    placements: placements
+      .filter((each) => !refusedUids.has(each.uid))
+      .map((each) => {
+        const fromWeek = weekOf.get(each.uid);
+        return fromWeek !== undefined ? { ...each, fromWeek } : { ...each };
+      }),
+    refused,
   };
 }

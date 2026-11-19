@@ -963,6 +963,31 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
    * board has to be able to say WHICH group refused WHICH person, and a
    * rejected promise flattens that.
    */
+  /**
+   * The sentence for moves refused, before the press or by it: "2 moves were
+   * refused: Amara → Group B (...); ...". Names the GROUP that refused, not
+   * just the person: "full" is only actionable if you know which room ran
+   * out of chairs. A refusal with its own sentence (a move made mid-term, or
+   * out of every group mid-term) carries it.
+   */
+  const refusedSentence = useCallback(
+    (rejected: { uid: string; reason: string; words?: string }[], targets: Map<string, string | null>): string => {
+      const named = rejected.slice(0, MAX_NAMED_REJECTIONS).map((r) => {
+        const groupId = targets.get(r.uid) ?? null;
+        const where = groupId
+          ? (groupsById.get(groupId)?.name ?? "that group")
+          : "the unallocated pool";
+        return `${nameOf(r.uid)} → ${where} (${r.words ?? r.reason})`;
+      });
+      const extra = rejected.length - named.length;
+      return (
+        `${rejected.length} ${plural(rejected.length, "move was", "moves were")} refused: ` +
+        `${named.join("; ")}${extra > 0 ? `, and ${extra} more` : ""}.`
+      );
+    },
+    [groupsById, nameOf],
+  );
+
   const runPlacements = useCallback(
     async (placements: Placement[]): Promise<string | null> => {
       const targets = new Map(placements.map((p) => [p.uid, p.groupId]));
@@ -973,23 +998,9 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
       }
       if (result.rejected.length === 0) return null;
       revert(result.rejected.map((r) => r.uid));
-      // Name the GROUP that refused, not just the person: "full" is only
-      // actionable if you know which room ran out of chairs.
-      const named = result.rejected.slice(0, MAX_NAMED_REJECTIONS).map((r) => {
-        const groupId = targets.get(r.uid) ?? null;
-        const where = groupId
-          ? (groupsById.get(groupId)?.name ?? "that group")
-          : "the unallocated pool";
-        // A move made mid-term refused by its own save carries the sentence.
-        return `${nameOf(r.uid)} → ${where} (${r.words ?? r.reason})`;
-      });
-      const extra = result.rejected.length - named.length;
-      return (
-        `${result.rejected.length} ${plural(result.rejected.length, "move was", "moves were")} refused: ` +
-        `${named.join("; ")}${extra > 0 ? `, and ${extra} more` : ""}.`
-      );
+      return refusedSentence(result.rejected, targets);
     },
-    [place, revert, groupsById, nameOf],
+    [place, revert, refusedSentence],
   );
 
   /**
@@ -1014,7 +1025,8 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
       // (`askMidTermMoves`). For a move made mid-term, the week it is from,
       // that the earlier weeks stay and what is left behind, asked before
       // anything is written; the press carries the week. Declined, nothing
-      // moves and the note about the move goes.
+      // moves and the note about the move goes. A move it already knows will
+      // be refused is said now, before the press, and not pressed.
       const asked = await askMidTermMoves(asking, {
         told: (uid) => peopleByUid.get(uid)?.told !== undefined,
         preview: previewPlace,
@@ -1025,23 +1037,38 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
         if (asked.error) await raiseError(asked.error);
         return;
       }
+      const targets = new Map(asking.map((p) => [p.uid, p.groupId]));
+      const before = asked.refused.length > 0 ? refusedSentence(asked.refused, targets) : null;
       const placements = asked.placements;
+      // A note saying what a move did is never left beside a refusal of it.
+      if (before) setMoveNote(null);
+      if (placements.length === 0) {
+        if (before) await raiseError(before);
+        return;
+      }
       setPending((prev) => {
         const next = { ...prev };
         for (const p of placements) next[p.uid] = p.groupId;
         return next;
       });
+      const said = (problem: string | null) => [before, problem].filter(Boolean).join(" ") || null;
       if (!modal) {
-        const problem = await runPlacements(placements);
-        if (problem) await raiseError(problem);
+        const problem = said(await runPlacements(placements));
+        if (problem) {
+          setMoveNote(null);
+          await raiseError(problem);
+        }
         return;
       }
       setBusy(true);
       try {
         await runAction(
           async () => {
-            const problem = await runPlacements(placements);
-            if (problem) throw new Error(problem);
+            const problem = said(await runPlacements(placements));
+            if (problem) {
+              setMoveNote(null);
+              throw new Error(problem);
+            }
           },
           { savingMessage: modal.saving, successMessage: modal.success },
         );
@@ -1049,7 +1076,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
         setBusy(false);
       }
     },
-    [runPlacements, raiseError, runAction, peopleByUid, previewPlace],
+    [runPlacements, refusedSentence, raiseError, runAction, peopleByUid, previewPlace],
   );
 
   /**

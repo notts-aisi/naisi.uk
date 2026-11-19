@@ -183,13 +183,14 @@ export default function Circles({ initial }: { initial: CirclesView }) {
   /**
    * Before moving anybody Publish has told about a group: the one question
    * every board asks (`askMidTermMoves`), through the allocate route's
-   * preview. The placements with the weeks shown, to send with the press;
-   * null when the question is declined or the preview failed (its sentence
-   * in `lines`).
+   * preview. The placements with the weeks shown, to send with the press,
+   * and the moves it already knows will be refused, each said before the
+   * press and never pressed; null when the question is declined or the
+   * preview failed (its sentence in `lines`).
    */
   const askMidTerm = async (
     placements: Placement[],
-  ): Promise<{ placements: Placement[] } | { placements: null; lines: string[] }> => {
+  ): Promise<{ placements: Placement[]; refused: { uid: string; reason: string; words?: string }[] } | { placements: null; lines: string[] }> => {
     const asked = await askMidTermMoves(placements, {
       told: (uid) => Boolean(own(live.people, uid)?.toldGroupId),
       preview: async (asking): Promise<PreviewResult> => {
@@ -199,7 +200,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
       confirm: (question) => window.confirm(question),
     });
     if (!asked.go) return { placements: null, lines: asked.error ? [asked.error] : [] };
-    return { placements: asked.placements };
+    return { placements: asked.placements, refused: asked.refused };
   };
 
   const liveName = (groupId: string | null) => live.groups.find((group) => group.id === groupId)?.name ?? W.A_GROUP;
@@ -225,6 +226,11 @@ export default function Circles({ initial }: { initial: CirclesView }) {
     save(async () => {
       const asked = await askMidTerm([{ uid, groupId }]);
       if (!asked.placements) return { ok: false, lines: asked.lines };
+      if (asked.refused.length > 0) {
+        // Said before the press, which is never made.
+        const where = groupId ? liveName(groupId) : liveName(own(live.people, uid)?.groupId ?? null);
+        return { ok: false, lines: asked.refused.map((r) => notMovedWords(nameOf(r.uid), where, r.reason, r.words)) };
+      }
       const answer = await allocate(asked.placements);
       if (!answer.ok) return { ok: false, lines: [answer.error] };
       const refused = rejectedOf(answer.data);
@@ -480,7 +486,19 @@ export default function Circles({ initial }: { initial: CirclesView }) {
         const ordered = placementOrder(changes.places);
         const asked = await askMidTerm(ordered.map((place) => ({ uid: place.uid, groupId: place.to ? (idOf.get(place.to) ?? null) : null })));
         const body = asked.placements ?? [];
-        const answer = asked.placements ? await allocate(body) : { ok: false as const, error: asked.lines.join(" ") || W.RESULT.notConfirmed, data: {} };
+        // A move the question already knows will be refused is said now, before the press, and never pressed.
+        const before = asked.placements ? asked.refused : [];
+        for (const no of before) {
+          const place = ordered.find((each) => each.uid === no.uid);
+          const to = place?.to ? (nameOfKey.get(place.to) ?? W.A_GROUP) : null;
+          say(false, notMovedWords(nameOf(no.uid), to ?? liveName(place?.from ?? null), no.reason, no.words));
+        }
+        if (before.length > 0) stopped = true;
+        const answer = !asked.placements
+          ? { ok: false as const, error: asked.lines.join(" ") || W.RESULT.notConfirmed, data: {} }
+          : body.length > 0
+            ? await allocate(body)
+            : { ok: true as const, error: "", data: {} };
         if (!answer.ok) {
           say(false, W.RESULT.placesFailed(answer.error));
           stopped = true;
@@ -493,6 +511,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
             if (again.ok) refused = [...refused.filter((r) => !full.has(r.uid)), ...rejectedOf(again.data)];
           }
           for (const place of ordered) {
+            if (before.some((no) => no.uid === place.uid)) continue;
             const to = place.to ? (nameOfKey.get(place.to) ?? W.A_GROUP) : null;
             const toId = place.to ? (idOf.get(place.to) ?? null) : null;
             const no = refused.find((r) => r.uid === place.uid);
