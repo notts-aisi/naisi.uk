@@ -628,9 +628,11 @@ describe("8. somebody moved from a week is reminded by the session they are due 
   });
 
   test("the rule is what the programme page shows: the group the place is in now", () => {
-    assert.equal(programmePageShowsSession({ groupId: GROUP.a }, GROUP.a), true);
-    assert.equal(programmePageShowsSession({ groupId: GROUP.a }, GROUP.b), false);
-    assert.equal(programmePageShowsSession(null, GROUP.b), false);
+    const both = { cantMakeIt: true, joinOnline: true };
+    const neither = { cantMakeIt: false, joinOnline: false };
+    assert.deepEqual(programmePageShowsSession({ groupId: GROUP.a }, GROUP.a), both);
+    assert.deepEqual(programmePageShowsSession({ groupId: GROUP.a }, GROUP.b), neither);
+    assert.deepEqual(programmePageShowsSession(null, GROUP.b), neither);
   });
 
   /** Group A's week 2 called off, so its week 3 session covers weeks 2 and 3; its own copy of week 2 asks one reading more. */
@@ -1079,14 +1081,19 @@ describe("14. somebody visiting another group's session for one week", () => {
     for (const uid of ["amara", "farah"]) assert.equal(mailTo(uid).length, 1, `${uid} is reminded as ever`);
   });
 
-  test("judged on her own group's copy: a week finished on it is not reminded about, though the host's copy asks one reading more", async () => {
+  test("judged on her own group's copy: a week finished on it lists nothing, though the host's copy asks one reading more", async () => {
     groupACopy(2);
     visitA(2);
     await finishWeek("chloe", 2);
     await runJob(A_DUE.a2three);
-    assert.equal(mailTo("chloe").length, 0);
-    assert.equal(marker("chloe", 3, "w02", GROUP.a).skippedReason, "done");
+    // Done no longer stops the reminder of the session: it stops the list.
+    assert.equal(mailTo("chloe").length, 1);
+    assert.ok(marker("chloe", 3, "w02", GROUP.a).sentAt, "sent");
+    const text = await textOf(mailTo("chloe")[0]);
+    assert.doesNotMatch(text, /isn’t finished yet/, "her week is done on her own copy");
+    assert.doesNotMatch(text, /Only Group A reads this/);
     assert.equal(mailTo("ana").length, 1, "Group A's own people are judged on Group A's copy");
+    assert.match(await textOf(mailTo("ana")[0]), /Week 2 isn’t finished yet/);
   });
 
   test("not finished: what is left is her own copy's, never the host's extra reading", async () => {

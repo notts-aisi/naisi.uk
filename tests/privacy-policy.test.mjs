@@ -11355,7 +11355,10 @@ describe("v21 says the reminders before a session go to everybody due at it, wit
     assert.match(words, /export const SESSION_REMINDER_CANT_MAKE_IT =\s+"Can’t make it\? Tell us on your programme page as early as you can: press Can’t make it on this session’s card\.";/);
     // Said whenever their programme page shows the session's card, where Can't make it is.
     assert.match(words, /const paragraphs = facts\.sessionOnTheirPage \? \[lead, SESSION_REMINDER_CANT_MAKE_IT\] : \[lead\];/);
-    assert.match(job, /sessionOnTheirPage: programmePageShowsSession\(runFacts\?\.seats\.get\(person\.uid\) \?\? null, group\.id\),/);
+    assert.match(job, /\.\.\.\(await shownOnTheirPage\(db, runState, runFacts, group, due\.session, person\.uid\)\),/);
+    assert.match(job, /const shows = programmePageShowsSession\(seat, group\.id, visit\);\s+return \{ sessionOnTheirPage: shows\.cantMakeIt, linkOnTheirPage: shows\.joinOnline \};/);
+    // Their place in the group: both, as the page's own card offers them.
+    assert.match(job, /if \(place\.groupId === groupId\) return \{ cantMakeIt: true, joinOnline: true \};/);
   });
 
   test("what's left of that week's work if anything is: the check's own lines, a written answer not sent yet, only for a week not done", () => {
@@ -11514,8 +11517,14 @@ describe("v15 says you may tell us in advance that you can't make a session, whi
     assert.deepEqual(callersOf("writeTakenBack"), [
       ["src/lib/courses/regularTime/apply.ts", 1],
       ["src/lib/courses/timeAnswer/seat.ts", 1],
+      ["src/lib/courses/visit/hostOff.ts", 1],
       ["src/lib/courses/visit/save.ts", 1],
     ]);
+    // A visit that ends because its session was called off takes back the
+    // same word the same way, on the host's register while it is not finished.
+    const hostOff = withoutComments(read("src/lib/courses/visit/hostOff.ts"));
+    assert.match(hostOff, /if \(registerRef && registerSnap && hostSession && hostRegister && hostRegister\.pushedAt === null\) \{/);
+    assert.match(hostOff, /if \(Object\.hasOwn\(hostRegister\.excusedInAdvance, visit\.uid\)\) \{[\s\S]*?writeTakenBack\(tx, \{ session: hostSession, ref: registerRef, data, state: \{ kind: "told" \} \} as unknown as SessionLine, visit\.uid\)/);
     const visitSave = withoutComments(read("src/lib/courses/visit/save.ts"));
     assert.match(visitSave, /if \(register\.pushedAt === null\) \{/);
     assert.match(visitSave, /if \(Object\.hasOwn\(register\.excusedInAdvance, input\.uid\)\) \{\s*writeTakenBack\(tx, \{ session: plan\.hostSession, ref, data, state: \{ kind: "told" \} \} as unknown as SessionLine, input\.uid\);/);
@@ -11617,12 +11626,15 @@ describe("v16 says a register records the room or online, and you may tell us in
         ["src/lib/courses/joiningOnline/seat.ts", "Joining online: the caller's own word on their own line of the session's register, and taking it back"],
         ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own word, key by key, and nobody else's"],
         ["src/lib/courses/visit/save.ts", "a one-week visit called off takes the person's own word off the session they no longer go to, and writes none"],
+        ["src/lib/courses/visit/hostOff.ts", "a one-week visit that ends with its session called off takes the person's own word off that session, and writes none"],
       ]),
       "writing that somebody is joining a session online",
       "The policy says you tell us in advance. Nobody may say it for anybody else.",
     );
     assert.match(withoutComments(read("src/lib/courses/visit/save.ts")), /tx\.set\(ref, \{ \[ONLINE_SAID\]: \{ \[input\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\);/);
     assert.doesNotMatch(withoutComments(read("src/lib/courses/visit/save.ts")), /\[ONLINE_SAID\]: \{ \[[^\]]+\]: FieldValue\.serverTimestamp/, "a visit writes somebody's word");
+    assert.match(withoutComments(read("src/lib/courses/visit/hostOff.ts")), /tx\.set\(registerRef, \{ \[ONLINE_SAID\]: \{ \[visit\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\)/);
+    assert.doesNotMatch(withoutComments(read("src/lib/courses/visit/hostOff.ts")), /\[ONLINE_SAID\]: \{ \[[^\]]+\]: FieldValue\.serverTimestamp/, "a visit ending writes somebody's word");
     assert.match(seat, /if \(seat\.uid !== user\.uid \|\| seat\.runId !== runId\) return false;/);
     assert.match(seat, /tx\.get\(db\.collection\("courseEnrolments"\)\.doc\(courseEnrolmentId\(group\.runId, user\.uid\)\)\)/);
     assert.match(seat, /\[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.serverTimestamp\(\) \},/);

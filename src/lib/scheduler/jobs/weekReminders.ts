@@ -10,7 +10,7 @@ import type { FinishRule } from "@/lib/courses/finishing/model";
 import { certificateNeedsFor } from "@/lib/courses/finishing/needs";
 import { readFinishRule } from "@/lib/courses/finishing/record";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
-import { groupsOfWeeks, hasGroupsByWeek, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, groupsOfWeeks, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { sessionsFromJoinWeek } from "@/lib/courses/ownAttendance";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { firstNameOfUser, readNamingProgramme, standingUserOf } from "@/lib/courses/programmeLead";
@@ -47,7 +47,14 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
-import { normalizeCourseEnrolment, placementIsTold, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import {
+  groupForWeek,
+  normalizeCourseEnrolment,
+  ownGroupForWeek,
+  placementIsTold,
+  visitInWeek,
+  type CourseEnrolmentDoc,
+} from "@/lib/firestore/courseEnrolments";
 import {
   GROUP_FIELD_LIMITS,
   campusForWeek,
@@ -294,8 +301,9 @@ export type SessionVerdict =
  * WHO OF THE PEOPLE DUE AT A SESSION IS SENT WHAT: the one place the
  * reminders decide it, for one person, at the moment the email would go.
  *
- * Their weeks of the session: each week it covers that was this group's for
- * them (`belongs`) and still takes their work. A week the programme has
+ * Their weeks of the session: each week it covers whose session is this
+ * group's for them (`belongs`: the group's own weeks, and a one-week visit's
+ * week at the host) and still takes their work. A week the programme has
  * closed is nobody's to be reminded of (`locked`), and a covered week whose
  * session started before they were told their group is not theirs
  * (`joined-late`). With no week left theirs, nothing, and the first of those
@@ -310,7 +318,11 @@ export function sessionReminderVerdict(input: {
   uid: string;
   /** The weeks the session covers, oldest first (`coveredWeeks`). */
   covered: readonly number[];
-  /** Whether a covered week was this group's for them (`RunWeekStates.belongsTo`). */
+  /**
+   * Whether their work for a covered week is due at this group's session
+   * (`RunWeekStates.dueWith`): the week was this group's for them, or a
+   * one-week visit's to it.
+   */
   belongs: (weekNumber: number) => boolean;
   /** The covered weeks written as blocks and published, with their facts. */
   weeks: readonly ReminderWeekInfo[];
@@ -355,21 +367,51 @@ export function sessionReminderVerdict(input: {
 }
 
 /**
- * WHETHER THE PERSON'S PROGRAMME PAGE SHOWS THIS GROUP'S SESSION, its card
- * with "Can't make it" and its link: the reminder says those two only when it
- * does. The page draws its card from the group their place is in now
- * (`groupId`): the overview builds the card on that group, offers "Can't make
- * it" only on its own next session (`ticketEntryOf`), and shows a link only
- * to somebody whose place is in the group (`seesSessionLink`). So somebody
- * moved to another group from a later week, still reminded by the group they
- * are leaving for the weeks before, has no card for its session.
+ * WHAT THE PERSON'S PROGRAMME PAGE SHOWS FOR THIS GROUP'S SESSION: its card's
+ * "Can't make it" (`cantMakeIt`) and its link to join online (`joinOnline`). The reminder says
+ * "Can’t make it? ..." and "The link is on your programme page." only where
+ * the page does; where it does not, the sentence is left out and nothing is
+ * said instead.
  *
- * The rule is about what their page shows, not about another group as such:
- * somebody on a one-week visit has a card for the host's session, so this is
- * where a visit, once recorded, makes it true for the host.
+ *  - Their place is in the group (`groupId`): the page draws its card from
+ *    that group, offers "Can't make it" on its next session (`ticketEntryOf`)
+ *    and shows a link to somebody whose place is in the group
+ *    (`seesSessionLink`): both. So somebody moved to another group from a
+ *    later week, still reminded by the group they are leaving for the weeks
+ *    before, has no card for its session: neither.
+ *  - A ONE-WEEK VISIT to the group for the session's week (`visit`): the page
+ *    shows the visit's card for the host's session (`ownVisitsOf`), unless
+ *    the group their place belongs to that week no longer meets, the session
+ *    is not the week's first, or its register already says it was not held,
+ *    when it draws none. The card shows the host's link for that one session
+ *    (`seesSessionLink`, by the session's key), and offers "Can't make it"
+ *    as their own card does, asking to be excused from the host's session,
+ *    except to somebody who facilitates the group their place is in (their
+ *    own card's is the instant one, and the visit's card offers none).
+ *  - Anybody else: neither.
  */
-export function programmePageShowsSession(place: Pick<CourseEnrolmentDoc, "groupId"> | null, groupId: string): boolean {
-  return place?.groupId === groupId;
+export function programmePageShowsSession(
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek" | "visits"> | null,
+  groupId: string,
+  visit?: {
+    weekNumber: number;
+    occurrence: number;
+    /** The run's groups that still meet. */
+    liveGroupIds: readonly string[];
+    /** The session's register says it was not held. */
+    notHeld: boolean;
+    /** They facilitate the group their place is in, with standing. */
+    facilitatesOwnGroup: boolean;
+  },
+): { cantMakeIt: boolean; joinOnline: boolean } {
+  if (!place) return { cantMakeIt: false, joinOnline: false };
+  if (place.groupId === groupId) return { cantMakeIt: true, joinOnline: true };
+  if (!visit || visitInWeek(place, visit.weekNumber)?.groupId !== groupId || groupForWeek(place, visit.weekNumber) !== groupId) {
+    return { cantMakeIt: false, joinOnline: false };
+  }
+  const home = ownGroupForWeek(place, visit.weekNumber);
+  const card = visit.occurrence === 1 && !visit.notHeld && home !== null && visit.liveGroupIds.includes(home) && visit.liveGroupIds.includes(groupId);
+  return card ? { cantMakeIt: !visit.facilitatesOwnGroup, joinOnline: true } : { cantMakeIt: false, joinOnline: false };
 }
 
 /**
@@ -511,7 +553,7 @@ async function notComingTo(
   const [requests] = await Promise.all([groupExcusedRequests(db, run.id, group.id), readRegisters(db, runState, [id])]);
   const data = runState.registers.get(id);
   const register = data ? normalizeCourseAttendance(id, data) : null;
-  const approved = excuseFactsFrom(requests, { uids: new Set(uids), sessionKeys: [session.sessionKey] })[session.sessionKey] ?? {};
+  const approved = excuseFactsFrom(requests, { groupId: group.id, uids: new Set(uids), sessionKeys: [session.sessionKey] })[session.sessionKey] ?? {};
   const out = new Set<string>();
   for (const uid of uids) {
     const stands = excusalStandsFor({
@@ -559,7 +601,7 @@ async function certificateFor(db: Firestore, runState: RunState, people: RunPeop
   };
   const own: Array<{ groupId: string; session: ResolvedSession }> = !group
     ? []
-    : hasGroupsByWeek(seat)
+    : differsByWeek(seat)
       ? (() => {
           const paired = sessionsWithGroup(seat, sessionsOf);
           const kept = new Set(sessionsFromJoinWeek(paired.map((each) => each.session), seat.joinedWeekNumber).slice(0, MAX_OWN_REGISTERS));
@@ -587,8 +629,47 @@ async function certificateFor(db: Firestore, runState: RunState, people: RunPeop
     incubator: people.incubator,
     registers,
     liveGroups,
-    archivedGroups: hasGroupsByWeek(seat) ? groupsOfWeeks(seat).map(archivedOfRecord).filter((each) => each !== null) : [],
+    archivedGroups: differsByWeek(seat) ? groupsOfWeeks(seat).map(archivedOfRecord).filter((each) => each !== null) : [],
   });
+}
+
+/**
+ * What the person's programme page shows for this session, as the reminder
+ * of it may say it (`programmePageShowsSession`): for somebody visiting the
+ * group for the session's week, from the session's register (already read for
+ * who is not coming) and, only for them, whether they facilitate the group
+ * their place is in.
+ */
+async function shownOnTheirPage(
+  db: Firestore,
+  runState: RunState,
+  people: RunPeople | null,
+  group: CourseGroupDoc,
+  session: ResolvedSession,
+  uid: string,
+): Promise<{ sessionOnTheirPage: boolean; linkOnTheirPage: boolean }> {
+  const seat = people?.seats.get(uid) ?? null;
+  let visit: Parameters<typeof programmePageShowsSession>[2] = undefined;
+  if (seat && seat.groupId !== group.id && visitInWeek(seat, session.weekNumber)?.groupId === group.id) {
+    const id = attendanceDocId(runState.run.id, group.id, session.weekNumber, session.occurrence);
+    const data = runState.registers.get(id);
+    const own = runState.liveGroups.find((each) => each.id === seat.groupId) ?? null;
+    let facilitatesOwnGroup = false;
+    if (own && own.facilitatorUids.includes(uid)) {
+      const snap = await db.collection("users").doc(uid).get();
+      facilitatesOwnGroup =
+        snap.exists && isNamedWithStanding(standingUserOf(uid, (snap.data() ?? {}) as Record<string, unknown>), "courseGroups.facilitatorUids", own.facilitatorUids);
+    }
+    visit = {
+      weekNumber: session.weekNumber,
+      occurrence: session.occurrence,
+      liveGroupIds: runState.liveGroups.map((each) => each.id),
+      notHeld: data ? normalizeCourseAttendance(id, data).held === false : false,
+      facilitatesOwnGroup,
+    };
+  }
+  const shows = programmePageShowsSession(seat, group.id, visit);
+  return { sessionOnTheirPage: shows.cantMakeIt, linkOnTheirPage: shows.joinOnline };
 }
 
 /** One reminder of one session: each person in the group claimed once, then sent or stamped with why not. */
@@ -667,7 +748,7 @@ async function remindForSession(
       const verdict = sessionReminderVerdict({
         uid: person.uid,
         covered,
-        belongs: (weekNumber) => weekStates.belongsTo(person.uid, group.id, weekNumber),
+        belongs: (weekNumber) => weekStates.dueWith(person.uid, group.id, weekNumber),
         weeks,
         weekStates,
         notComing: notComing.has(person.uid),
@@ -705,7 +786,7 @@ async function remindForSession(
                 weeks: verdict.weeks,
                 left: verdict.left,
                 programmeUrl: courseProgrammeUrl(state.appUrl, run.id),
-                sessionOnTheirPage: programmePageShowsSession(runFacts?.seats.get(person.uid) ?? null, group.id),
+                ...(await shownOnTheirPage(db, runState, runFacts, group, due.session, person.uid)),
               },
               firstName,
             );

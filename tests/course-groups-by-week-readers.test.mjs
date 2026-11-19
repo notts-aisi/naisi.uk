@@ -199,7 +199,7 @@ const WEEK_READER =
  * `takesPartInWeek`, `stillBelongs` with a week.
  */
 const ASKS_SESSION =
-  /\b(?:groupForWeek|differsByWeek|sessionsByWeekGroup|sessionsWithGroup|groupsOfWeeks|everInGroup|isRowForWeek|stretchesIn|groupStretchesOf|inGroupForWeek|takesPartInWeek|peopleInWeek|placesLeftInWeek|sessionSourceFor)\((?!belonging\()|\bresolveNoticeAudience\([^;)]*\bweekNumber\b|\bupdateEmailAudience\([^;)]*\bweekNumber\b|\btoldFacts\([^;)]*\bweekNumber\b|\bstillBelongs\([^;)]*\bweekNumber\b/;
+  /\b(?:groupForWeek|differsByWeek|sessionsByWeekGroup|sessionsWithGroup|groupsOfWeeks|everInGroup|isRowForWeek|stretchesIn|groupStretchesOf|inGroupForWeek|takesPartInWeek|peopleInWeek|placesLeftInWeek|sessionSourceFor)\((?!belonging\()|\.dueWith\(|\bresolveNoticeAudience\([^;)]*\bweekNumber\b|\bupdateEmailAudience\([^;)]*\bweekNumber\b|\btoldFacts\([^;)]*\bweekNumber\b|\bstillBelongs\([^;)]*\bweekNumber\b/;
 /**
  * THE GROUP A PLACE BELONGS TO THAT WEEK, never a visit's host: whose member
  * they are, the copy of the week they work in and are read on, who gives the
@@ -427,8 +427,7 @@ const READERS = {
   },
   "lib/scheduler/jobs/weekReminders.ts": {
     kinds: ["week", "own"],
-    why: "the reminders before a session reach the people whose session that week is its group's, a visitor in included, through the notice audience asked for the week; they remind each about a week the session covers only when their work for that week is due at this group's session (dueWith, the session's group that week: a visitor about the visit's week alone), and judge it on the copy of the group their place belongs to that week (copyGroupOf), never the host's; the certificate sentence reads each week's group, and its registers, as the programme page does",
-  },
+    why: "the reminders before a session reach the people whose session that week is its group's, a visitor in included, through the notice audience asked for the week; they remind each about a week the session covers only when their work for that week is due at this group's session (dueWith, the session's group that week: a visitor about the visit's week alone), and judge it on the copy of the group their place belongs to that week (copyGroupOf), never the host's. Who is not coming is read off this session's register and this group's requests, so a visitor's off the host's, where their own word and a request about the visit are, and an excusal at home never stops the host's reminder. The facilitators named are this session's group's, the host's for a visitor. The run's people are every told place, read once. The certificate sentence reads each week's session's group and its registers (differsByWeek, as the programme page does, a visit's week off the host's register). Whether the page shows the session's card asks the visit of the session's week (visitInWeek, groupForWeek) and the group the place belongs to that week (ownGroupForWeek), which must still meet for the visit's card to be drawn"},
   "app/api/courses/groups/[groupId]/session/change/route.ts": {
     kinds: ["week"],
     why: "changing ONE session (moved, online, off, put right): the notice and the count on its button reach the people whose session that week is the group's, a visitor in included (updateEmailAudience and toldFacts handed the week)",
@@ -515,6 +514,10 @@ describe("the tree: every reader of a week's group says which group it means", (
     assert.equal(ASKS_SESSION.test("sessionsByWeekGroup(place, sessionsOf)"), true);
     assert.equal(ASKS_OWN.test("ownGroupForWeek(place, 3)"), true);
     assert.equal(ASKS_SESSION.test("ownGroupForWeek(place, 3)"), false);
+    // The week states' `dueWith` is the session's group (a visit's host), never the group they belong to.
+    assert.equal(ASKS_SESSION.test("belongs: (weekNumber) => weekStates.dueWith(person.uid, group.id, weekNumber),"), true);
+    assert.equal(ASKS_OWN.test("belongs: (weekNumber) => weekStates.dueWith(person.uid, group.id, weekNumber),"), false);
+    assert.equal(ASKS_SESSION.test("type T = { dueWith: (uid: string) => boolean };"), false);
   });
 
   test("each entry asks what it says it means, and nothing it does not: the session's group (`week`), the group they belong to (`own`); every reason is written down", () => {

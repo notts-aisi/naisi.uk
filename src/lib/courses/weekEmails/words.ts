@@ -403,6 +403,14 @@ export type SessionReminderFacts = {
    * programme page." are left out, and nothing is said instead.
    */
   sessionOnTheirPage: boolean;
+  /**
+   * Their programme page shows this session's link, where one is set: as
+   * `sessionOnTheirPage` unless said. Somebody visiting the group for one
+   * week has the visit's card, with the host's link for that session, and its
+   * "Can't make it" only where the card offers one, so the two can differ for
+   * them alone.
+   */
+  linkOnTheirPage?: boolean;
 };
 
 /** The reminder of a session's button, for everybody: it opens their programme page. */
@@ -481,8 +489,8 @@ export function sessionReminderLead(
  * `sessionReminderReason`).
  */
 export function sessionReminderEmailWords(facts: SessionReminderFacts, firstName: string): WeekEmailWords {
-  // Their page shows no card for this session: no link there to point to.
-  const place = facts.place.kind === "online" && !facts.sessionOnTheirPage ? { kind: "online" as const, link: false } : facts.place;
+  // Their page shows no link for this session: no link there to point to.
+  const place = facts.place.kind === "online" && !(facts.linkOnTheirPage ?? facts.sessionOnTheirPage) ? { kind: "online" as const, link: false } : facts.place;
   const lead = sessionReminderLead({ ...facts, place });
   const paragraphs = facts.sessionOnTheirPage ? [lead, SESSION_REMINDER_CANT_MAKE_IT] : [lead];
   const certificate = oneLine(facts.certificate ?? "");

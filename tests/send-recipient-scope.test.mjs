@@ -593,6 +593,18 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/lib/scheduler/jobs/weekReminders.ts#own.facilitatorUids",
+    {
+      reads: 2,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "Whether somebody visiting the reminder's group for one week facilitates the group their place is in, held " +
+        "to the role's standing: their visit's card then offers no Can't make it, so their email leaves that " +
+        "sentence out. It names no recipient.",
+    },
+  ],
+  [
     "src/lib/courses/excused/decide.ts#group.facilitatorUids",
     {
       reads: 3,

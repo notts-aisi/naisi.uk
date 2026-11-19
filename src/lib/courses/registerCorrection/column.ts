@@ -1000,6 +1000,10 @@ function changePressOf(press: ColumnPress): ChangePress {
     reason: press.reason,
     tell: press.tell,
     emailCount: press.emailCount,
+    // The column's press is checked by the session's rules (`checkPress`),
+    // which never read the count of visit emails: only Change a session's
+    // own route compares it, at its press.
+    visitEmails: 0,
   };
 }
 
