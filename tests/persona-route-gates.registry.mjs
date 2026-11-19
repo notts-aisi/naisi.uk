@@ -7408,7 +7408,7 @@ export const REAL_ROUTES = {
   "/api/courses/runs/[runId]/enrolments/[uid]/remove": {
     POST: runStaff(
       "Taking somebody off the run",
-      c(ACTS, "Admitted, and it takes no body: it would take the participant off the run."),
+      c(ACTS, "Admitted, and its body is optional (none is a press that sends no email about a visit): it would take the participant off the run."),
     ),
   },
   "/api/courses/runs/[runId]/enrolments/[uid]/time-answer": {

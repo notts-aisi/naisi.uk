@@ -182,4 +182,21 @@ describe("every reason the allocate route refuses a placement for has words", ()
       assert.notEqual(notMovedWords("Pat Doe", "Group A", reason), fallback, `${reason} has no words of its own`);
     }
   });
+
+  // A move made mid-term is refused by its own save (`saveBoardMove`): each of
+  // its refusals carries the server's sentence, or is one of the board's own
+  // codes, which have words above.
+  test("a move made mid-term: every refusal of its save carries its sentence, or is a code with words", () => {
+    const board = readFileSync(join(REPO_ROOT, "src", "lib", "courses", "staffMove", "board.ts"), "utf8");
+    const refusals = [...board.matchAll(/reason:\s*"([a-z-]+)"(,\s*words:)?/g)];
+    assert.ok(refusals.length >= 6, `only ${refusals.length} refusals found`);
+    for (const [, reason, worded] of refusals) {
+      if (worded) continue;
+      assert.notEqual(notMovedWords("Pat Doe", "Group A", reason), fallback, `${reason} reaches the board with no words`);
+    }
+    for (const passed of ["group-full", "group-not-found", "group-archived", "facilitates-another-group"]) {
+      assert.ok(board.includes(`result.refusal === "${passed}"`), `${passed} is passed to the board as its own code`);
+    }
+    assert.equal(notMovedWords("Pat Doe", "Group A", "no-week", "Group A has no session for week 5."), "Pat Doe wasn’t moved. Group A has no session for week 5.");
+  });
 });

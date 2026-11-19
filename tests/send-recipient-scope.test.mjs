@@ -409,6 +409,31 @@ const RECIPIENT_SOURCES = new Map([
       why: "The emails of each visit that ends with the session, counted to compare with the number the press was shown.",
     },
   ],
+  // Taking somebody off the run: the hosts of their visits still to come are told.
+  [
+    "src/lib/courses/visit/removed.ts#host.facilitatorUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The facilitators named on the host group's own document, read to address their accounts in one read; who is " +
+        "emailed is `visitRecipients`' answer from those accounts (standing behind the role, an address, never the person " +
+        "removed or the presser). The host is the group a visit already on the person's place names.",
+    },
+  ],
+  [
+    "src/lib/courses/visit/removed.ts#each.recipients",
+    {
+      reads: 2,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by visitRecipients (src/lib/courses/visit/plan.ts) from the facilitators named on the host group's document, " +
+        "each held to the standing the role is appointed behind, with an address, never the person removed and never the " +
+        "presser. The host is the group of a visit already on the place; nothing in the request names anybody.",
+      why: "Who a removal emails about a visit it ends: the host's facilitators, counted for the press and sent one by one by `sendAll`.",
+    },
+  ],
   [
     "src/lib/courses/visit/hostOff.ts#local:recipients",
     {

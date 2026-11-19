@@ -274,6 +274,11 @@ export type TestResult =
 
 export type RemoveResult = { ok: true } | { ok: false; error: string };
 
+/** What taking somebody off the run would do about their visits: the emails to the hosts' facilitators, and which visits. */
+export type RemovePreview =
+  | { ok: true; emails: number; visits: { hostName: string; weekNumber: number }[] }
+  | { ok: false; error: string };
+
 export type UseAllocation = {
   data: AllocationPayload | null;
   /** True on the first load AND on a manual refresh (`data` stays put). */
@@ -292,8 +297,10 @@ export type UseAllocation = {
   publishAllocation: (emails: number) => Promise<PublishResult>;
   /** "Send a test to me": the first person's and the first facilitator's real emails, to the caller. */
   sendPublishTest: () => Promise<TestResult>;
-  /** Take one person off the run entirely (their enrolment, not their application). */
-  removeEnrolment: (uid: string) => Promise<RemoveResult>;
+  /** Take one person off the run entirely (their enrolment, not their application), with the count of emails the confirmation showed. */
+  removeEnrolment: (uid: string, emails?: number) => Promise<RemoveResult>;
+  /** What that would do about their visits, before the press: writes nothing. */
+  previewRemove: (uid: string) => Promise<RemovePreview>;
 };
 
 // ---------------------------------------------------------------------------
@@ -492,11 +499,11 @@ export function useAllocation(runId: string): UseAllocation {
    * untouched, which is why they stay on the board afterwards.
    */
   const removeEnrolment = useCallback(
-    async (uid: string): Promise<RemoveResult> => {
+    async (uid: string, emails?: number): Promise<RemoveResult> => {
       try {
         const res = await fetch(
           `${base}/enrolments/${encodeURIComponent(uid)}/remove`,
-          { method: "POST", headers: JSON_HEADERS },
+          { method: "POST", headers: JSON_HEADERS, ...(emails !== undefined ? { body: JSON.stringify({ emails }) } : {}) },
         );
         const body = await readBody<Record<string, never>>(res);
         if (!res.ok || !body?.ok) {
@@ -514,6 +521,26 @@ export function useAllocation(runId: string): UseAllocation {
     [base, reload],
   );
 
+  const previewRemove = useCallback(
+    async (uid: string): Promise<RemovePreview> => {
+      try {
+        const res = await fetch(`${base}/enrolments/${encodeURIComponent(uid)}/remove`, {
+          method: "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ preview: true }),
+        });
+        const body = await readBody<{ preview: { emails: number; visits: { hostName: string; weekNumber: number }[] } }>(res);
+        if (!res.ok || !body?.ok || !body.preview) {
+          return { ok: false, error: body?.error ?? `That didn't go through (${res.status}).` };
+        }
+        return { ok: true, emails: body.preview.emails, visits: body.preview.visits };
+      } catch (e: unknown) {
+        return { ok: false, error: messageFrom(e) };
+      }
+    },
+    [base],
+  );
+
   return {
     data,
     loading: settledNonce !== nonce,
@@ -524,6 +551,7 @@ export function useAllocation(runId: string): UseAllocation {
     publishAllocation,
     sendPublishTest,
     removeEnrolment,
+    previewRemove,
   };
 }
 

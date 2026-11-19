@@ -45,6 +45,7 @@ import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupRe
 import { MOVED_CARD_WHY, movedBatchSentence, movedCardWords, movedSentence } from "@/lib/courses/moveWords";
 import { sessionLabelWords } from "@/lib/courses/outsideTheirTimes";
 import { emailsLabel, publishConfirmText, publishResultLines } from "@/lib/courses/publishWords";
+import { visitsOffSentence } from "@/features/applications/groups/peopleInGroupsWords";
 import AllocationPublish from "./AllocationPublish";
 import {
   useAllocation,
@@ -714,6 +715,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
     publishAllocation,
     sendPublishTest,
     removeEnrolment,
+    previewRemove,
   } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
   const reducedMotion = useReducedMotion();
@@ -1101,21 +1103,29 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
   const handleRemove = useCallback(
     (row: AllocRow) => {
       const name = row.displayName || "this applicant";
-      if (
-        !window.confirm(
-          `Take ${name} off this run?\n\n` +
-            `Their enrolment ends and their place in ${columnNameOf(columnIdOf(row.uid))} is freed up. ` +
-            `Their application and its decision are not changed, so they stay on this board and can be placed again.`,
-        )
-      ) {
-        return;
-      }
-      setBusy(true);
       void (async () => {
+        // Their visits still to come, asked first: a host's facilitators are emailed that one is off.
+        const said = await previewRemove(row.uid);
+        if (!said.ok) {
+          await raiseError(said.error);
+          return;
+        }
+        const off = visitsOffSentence(said.visits, said.emails);
+        if (
+          !window.confirm(
+            `Take ${name} off this run?\n\n` +
+              `Their enrolment ends and their place in ${columnNameOf(columnIdOf(row.uid))} is freed up. ` +
+              `Their application and its decision are not changed, so they stay on this board and can be placed again.` +
+              (off ? `\n\n${off}` : ""),
+          )
+        ) {
+          return;
+        }
+        setBusy(true);
         try {
           await runAction(
             async () => {
-              const result = await removeEnrolment(row.uid);
+              const result = await removeEnrolment(row.uid, said.emails);
               if (!result.ok) throw new Error(result.error);
             },
             {
@@ -1128,7 +1138,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
         }
       })();
     },
-    [columnIdOf, columnNameOf, removeEnrolment, runAction],
+    [columnIdOf, columnNameOf, removeEnrolment, previewRemove, raiseError, runAction],
   );
 
   /**

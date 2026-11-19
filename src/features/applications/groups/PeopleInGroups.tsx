@@ -291,7 +291,7 @@ function Column({
 
 export default function PeopleInGroups({ view, views }: Props) {
   const runId = view.run.id;
-  const { data, loading, error, reload, place, previewPlace, removeEnrolment } = useAllocation(runId);
+  const { data, loading, error, reload, place, previewPlace, removeEnrolment, previewRemove } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
   // "They meant some weeks" saved on a card: the board is read again, and says so.
   const onAnswerChanged = useCallback(
@@ -458,13 +458,21 @@ export default function PeopleInGroups({ view, views }: Props) {
   const takeOff = useCallback(
     (row: AllocRow) => {
       const name = nameOf(row.uid);
-      if (!window.confirm(words.takeOffConfirm(name, columnName(columnOf(row)), view.programmeName))) return;
-      setBusy(true);
       void (async () => {
+        // What it does about their visits still to come, asked first: the
+        // confirmation counts the emails to the hosts' facilitators, and the
+        // press sends the count back.
+        const said = await previewRemove(row.uid);
+        if (!said.ok) {
+          await raise(said.error);
+          return;
+        }
+        if (!window.confirm(words.takeOffConfirm(name, columnName(columnOf(row)), view.programmeName, said.visits, said.emails))) return;
+        setBusy(true);
         try {
           await runAction(
             async () => {
-              const result = await removeEnrolment(row.uid);
+              const result = await removeEnrolment(row.uid, said.emails);
               if (!result.ok) throw new Error(result.error);
             },
             {
@@ -477,7 +485,7 @@ export default function PeopleInGroups({ view, views }: Props) {
         }
       })();
     },
-    [nameOf, columnName, columnOf, view.programmeName, runAction, removeEnrolment],
+    [nameOf, columnName, columnOf, view.programmeName, runAction, removeEnrolment, previewRemove, raise],
   );
 
   const onMenu = useCallback(

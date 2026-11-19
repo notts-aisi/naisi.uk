@@ -309,6 +309,10 @@ const READERS = {
     kinds: ["week", "own", "now"],
     why: "the week a staff move is from goes by the sessions of the groups the place BELONGS to (sessionsByWeekGroup of belonging(place)), never a visit's host; the weeks that stay name the group each week's session was in (groupForWeek), where they met; the group they leave is the group they are in now",
   },
+  "lib/courses/visit/removed.ts": {
+    kinds: ["now"],
+    why: "taking somebody off the run reads the visits on their place, each a week's session of its host, and tells the host's facilitators of one still to come; it asks nobody's group for a week, and every visit goes with the removal",
+  },
   "lib/courses/staffMove/board.ts": {
     kinds: ["own", "now"],
     why: "whether a move on the board is made mid-term goes by whether a session of the groups the place BELONGS to has started (sessionsByWeekGroup of belonging(place)), never a visit's host; the week and the weeks that stay are the move page's own (`moveWeekFor`, `stayNamesFor`); the group they leave is the group they are in now",
