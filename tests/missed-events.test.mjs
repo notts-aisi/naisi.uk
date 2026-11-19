@@ -859,7 +859,9 @@ describe("the walk: an admin's alone, and no survey", () => {
     const personPage = withoutComments(read("src/lib/courses/personPage/load.ts"));
     assert.match(personPage, /const isAdmin = gate\.view\.viewer === "admin";/);
     const leadReturns = personPage.indexOf("if (!isAdmin) return");
-    assert.ok(leadReturns !== -1 && leadReturns < personPage.indexOf("await eventsOfPerson(db, uid, now)"), "the person's page asks before it reads");
+    const eventsRead = personPage.indexOf("eventsOfPersonInTerm(db, uid, now, termOf(run, liveGroups, now))");
+    assert.ok(eventsRead !== -1, "the person's page reads the events through the module's one reader of a person");
+    assert.ok(leadReturns !== -1 && leadReturns < eventsRead, "the person's page asks before it reads");
 
     // The requests' card: one call, in requestFacts, made only when the session is an admin's.
     const card = withoutComments(read("src/lib/events/requestCard.ts"));

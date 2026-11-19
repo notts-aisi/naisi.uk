@@ -67,9 +67,9 @@ export const EMAIL_ADDRESS = "Email address";
 export const APPLICATION_WHO = "Admins and leads";
 export const READ_THE_APPLICATION = "Read the application";
 
-/** "Sep 2026": the month an account joined, in London. */
+/** "Sep 2026": the month an account joined, in London, its name cut to three letters as the house dates cut it ("Sept" never). */
 export function joinedMonthWords(at: Date): string {
-  return formatSiteDate(at, { month: "short", year: "numeric" });
+  return `${formatSiteDate(at, { month: "short" }).slice(0, 3)} ${formatSiteDate(at, { year: "numeric" })}`;
 }
 
 const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];

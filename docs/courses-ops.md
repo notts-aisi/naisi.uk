@@ -2151,14 +2151,27 @@ not read for them, and its key is absent from what the page is handed.
 - *The head*: the name as the Coursework tab names them to this reader, their
   group and its weekly time (a placement Publish has not told shows to admins
   alone, marked "Not told yet", as the Coursework tab shows it), and where
-  their place stands in the People tab's words. Move, as the People tab offers
-  it (`moveHref`); a visit goes beside it once visits exist.
+  their place stands in the People tab's words. "Goes by" (the name on their
+  account they go by) and "Joined" (the month their account was approved as
+  a member, `users.approvedAt`; where none is on record, the month it was
+  made, `createdAt`; with neither, nothing), for an admin and the lead. Their
+  account's address (`users.email`) with "(admins only)" beside it, for an
+  ADMIN ALONE: it is put in the view only for an admin, never sent to a lead
+  or a facilitator. "Visit another group for one week" and "Move to another
+  group", drawn exactly where the People tab offers them: one decision on the
+  server (`movingLinks` in `src/lib/applications/people/model.ts`, which sets
+  `visitHref` and `moveHref` together), drawn by the tab's More menu and here.
+- *The strip of section links* at the top: one link to each section this
+  reader is handed, in the page's order, and none for a section that is not
+  there.
 - *Coursework*, week by week: the Coursework tab's own reads and cell
   (`readRunCoursework` with nobody's words, `courseworkRows`), each week on
   the copy the person worked in (`readsGroupIdFor`): its state, readings
   ticked, the last save of its reflections, the written answer's first send
-  and whether it was late, and who gave feedback when, with its email.
-  Nobody's words: "Read week N" opens the reading view of that week. The
+  and whether it was late, and who gave feedback when, with its email. A week
+  of a one-week visit that stands, to a session still happening, says where
+  its work was due: "Due at Group F, Thu 5 Nov, 5pm: a visit" (the cell's own
+  due moment, which is the host's session for that week). Nobody's words: "Read week N" opens the reading view of that week. The
   "Team rating" column is read only for a reader `mayRateWorkOf` admits
   (`readsWorkRatings`: an admin, or the programme's lead while they stand;
   never on their own work), as the number and who gave it, never the comment;
@@ -2169,9 +2182,17 @@ not read for them, and its key is absent from what the page is handed.
   register was finished and says the session was held, dated as that session
   was), and a line per week: what the register says,
   "Not marked" for a session that happened with no mark, "Didn’t happen", and
-  the next session alone as "Still to come". Never an allowance and never how
-  many sessions anybody may still miss. The counts are a list, so a count of
-  visits to another group can be added beside them once visits exist.
+  the next session alone, "Tomorrow, with Group C" (or "Today, ...", or "With
+  Group C" on another day) with the chip "Coming". A third count, "Visits to
+  another group": the visits' sessions they came to, off the host's register
+  (each also counted in the room or online). A visit week's line names the
+  host's session ("At Group F’s session, in the room") with the chip "Visit".
+  A visit is one that stands on the place (`visitInWeek`) to a session that
+  is happening (`held`): a visit called off is gone from the place, and one
+  whose session was called off (Change a session, or a finished register's
+  "It didn't happen") is no visit here; it shows nothing beyond its History
+  rows. Never an allowance and never how many sessions anybody may still
+  miss.
 - *Feedback*: every piece about them on the run (`readOwnFeedback`), and
   feedback given before pieces existed, kept on the written answer's own row
   (its facts, who and when, handed by `readRunCoursework` as `legacy`, on an
@@ -2179,21 +2200,49 @@ not read for them, and its key is absent from what the page is handed.
   it, about which week and when. What became of its email is said in the
   reading view's own words (`emailStateWords`): a piece stopped by the
   do-not-email list, or held by this copy of the site, is "Not emailed", and
-  older feedback was emailed when it was given. Never its words.
+  older feedback was emailed when it was given. On the team's page an email
+  that went adds who pressed Send on its batch ("in a batch sent by Zach",
+  from the piece's `emailedByUid`); older feedback records no batch, so it
+  says none, and neither does the facilitator's cut. Never its words.
 - *Notes*: the notes' own component (`PersonNotes`), through the notes' own
   routes, which decide who reads which note (see "Claude and Pangram on
   coursework, and the notes the team keeps"). Never on the reader's own page.
 - *Application*: the People tab's link (`applicationHref`, the review
-  screens' `canReadApplication`); absent for the reader's own.
+  screens' `canReadApplication`), "Read the application"; absent for the
+  reader's own. Beside it, and only where the link is handed, its line, read
+  from the application itself: "Ranked AGI Strategy first." where what they
+  sent ranks this programme (`choiceNumber`); then "Accepted Wed 28 Oct." where
+  decision day's result put them on it (`result.kind` accepted, its
+  `programmeId` this programme, on the day it was sent, `publishedAt`), or
+  "Said yes to an invitation Tue 27 Oct." where they accepted an invitation to
+  it (decision day's or a freed place's, on the day they answered). A part the
+  records cannot say is left out: somebody who joined by invitation never
+  ranked the programme, so their line has no ranking.
 - *Events* and *Activity*: an admin's alone (`if (!isAdmin) return` comes
   before either is read). Events are the events tree's own reader
-  (`eventsOfPerson`, privacy v15's "Attendance"), drawn by the admin profile's
-  own card body. Activity is made only of records the page has already read:
+  (`eventsOfPersonInTerm`, privacy v15's "Attendance"), drawn by the admin
+  profile's own card body, with one line above it: "Signed up to 2 this
+  term." THIS TERM is the run's own dates: from its first day
+  (`courseRuns.startDate`, midnight in London) to the end of its last session
+  (`runEndOf`), with no end while none is dated. Counted: each published
+  event starting inside them for which their newest own sign-up (never a test
+  one) is a place, a request not decided or the waiting list (`signedUpWithin`
+  in `src/lib/events/missedEvents.ts`); not a place given back, a request
+  turned down, a cancelled event, an undated one or a drop-in with no sign-up.
+  A count of sign-ups, never of who came; nothing for somebody who has not
+  accepted privacy v15, as the card lists nothing for them. It comes from the
+  card's own read. Activity is made only of records the page has already read,
+  and the History rows one-week visits wrote about them:
   when Publish told them their group ("Publish told them their group", never
   a group's name, because a move keeps the day Publish first told them; and
   nothing when that email was held or stopped), the last save of each week's
   reflections, each written answer's first send and each email of feedback
-  that went (never one held or stopped), newest first, the first twelve.
+  that went (never one held or stopped), and the History rows a one-week visit
+  wrote about them, in their own words with who did it as the row kept the
+  name ("Amara Okafor visits Group C for week 4.", "...’s visit to Group C for
+  week 4 is off."; `visitHistoryOf`: `courseAudit` by `subjectUid`, `runId`
+  and the two kinds, at most 240 rows, the arranging row kept from their own
+  group's side and a calling off once), newest first, the first twelve.
   Nothing is recorded for it.
 
 **The facilitator's cut**, `/learn/[runId]/group/[groupId]/people/[uid]`,
@@ -2207,7 +2256,11 @@ placed in the group now and told, whose work the one gate lets them read
 else is sent to the run's home. It holds the name they go by, the weeks they
 spent in this group (`inGroupForWeek`) with their coursework as above,
 "Weeks 1 and 2 were with another group." for the rest (never which), their
-attendance at this group's sessions counted from those weeks alone, and the
+attendance at this group's sessions counted from those weeks alone (and a week
+they spent at another group's session on a one-week visit, which stays this
+group's week: its line names the host's session with the chip "Visit", it is
+counted among visits, and its coursework row says where its work was due, as
+the group's facilitators are emailed when the visit is arranged), and the
 feedback this facilitator wrote, pieces and older feedback alike. No
 application, notes, ratings, contact details, events or activity. Somebody
 moved out of the group, who left, in an archived group or on another run is
@@ -2226,8 +2279,10 @@ registers, the scheduler's switches and the accounts of its learners and
 facilitators), the person's account, their feedback (one query) and its
 writers' accounts; for an admin or the lead, their ratings (one query for
 the person on the run, split by week) and the raters' accounts; for a lead,
-the forms (`reviewerFactsOf`); for an admin, their sign-ups, check-ins and
-the events those name. About thirty queries and addressed reads.
+the forms (`reviewerFactsOf`); for whoever is handed the application's link,
+the form and the one application by address; for an admin, their sign-ups,
+check-ins and the events those name, and the History rows about their visits
+(one query, at most 240 rows). About thirty-five queries and addressed reads.
 
 IN DOCUMENTS that is a lot more: the Coursework tab's reads are the whole
 run's, so one view reads every reflection, box, written answer and tick on

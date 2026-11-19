@@ -4737,6 +4737,10 @@ describe("the course hub passage", () => {
           "Claude and Pangram on coursework (v13): the form's applications and decisions, read only through placeHoldersOn to answer WHO holds a place on the programme, by the name on record, behind the Coursework tab's door (an admin or the programme's lead). Nothing an application says is sent or shown, and a facilitator never reaches it",
         ],
         [
+          "src/lib/courses/personPage/load.ts",
+          "A person's page for the team: the one application by address, read only where the People tab hands the reader its link (an admin, or the programme's lead whose review screens may open it; canReadApplication), for the line beside that link: where they ranked the programme, and the day decision day accepted them or they said yes to an invitation. The facilitator's cut never reads it",
+        ],
+        [
           "src/lib/courses/weekNotes/store.ts",
           "End-of-week notes (v15): the form's sent applications, read for an ADMIN's Notes page alone, to say beside a person's draft whether they offered to facilitate on their application. Never sent to Claude, never in the programme's lead's view, and a facilitator never reaches it",
         ],
@@ -8143,12 +8147,14 @@ describe("the check-in passage", () => {
     // tests/missed-events.test.mjs walks every import of the module and runs
     // both routes as every caller.
     assert.deepEqual(
-      sourceFilesNaming(/\bmissedEventsOf\(|\beventsOfPerson\(/).filter((file) => file !== "src/lib/events/missedEvents.ts"),
+      sourceFilesNaming(/\bmissedEventsOf\(|\beventsOfPerson\(|\beventsOfPersonInTerm\(/).filter((file) => file !== "src/lib/events/missedEvents.ts"),
       ["src/app/api/admin/members/[uid]/events/route.ts", "src/lib/courses/personPage/load.ts", "src/lib/events/requestCard.ts"],
     );
     // A person's page on a programme reads them only once the programme's gate has answered an admin.
     const personPage = withoutComments(read("src/lib/courses/personPage/load.ts"));
-    assert.ok(personPage.indexOf("if (!isAdmin) return") !== -1 && personPage.indexOf("if (!isAdmin) return") < personPage.indexOf("await eventsOfPerson(db, uid, now)"));
+    const personEvents = personPage.indexOf("eventsOfPersonInTerm(db, uid, now, termOf(run, liveGroups, now))");
+    assert.ok(personEvents !== -1, "the person's page reads the events through the module's one reader of a person");
+    assert.ok(personPage.indexOf("if (!isAdmin) return") !== -1 && personPage.indexOf("if (!isAdmin) return") < personEvents);
     const route = withoutComments(read("src/app/api/admin/members/[uid]/events/route.ts"));
     assert.ok(route.indexOf('if (viewer.role !== "admin") {') < route.indexOf("await eventsOfPerson(db, uid, new Date())"));
     assert.match(

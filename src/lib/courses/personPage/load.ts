@@ -107,13 +107,28 @@ import {
  *  - NOTES: drawn by the notes' own component through their own routes,
  *    which ask again who reads which note. Never on the reader's own page.
  *  - EVENTS AND ACTIVITY: an admin's alone (the owner's decision). Events are
- *    the events tree's own reader (`eventsOfPerson`); activity is made from
- *    records this page has already read. Neither is read for anybody else.
+ *    the events tree's own reader (`eventsOfPersonInTerm`), with a count of
+ *    the events they signed up to in the run's dates (`termOf`) and nothing
+ *    about whether they came; activity is made from records this page has
+ *    already read, and the History rows one-week visits wrote about them
+ *    (`visitHistoryOf`). Neither is read for anybody else.
+ *  - THE HEAD'S DETAILS: the name they go by and the month they joined (their
+ *    account's approval, or its making where none is on record), for an admin
+ *    and the lead; their account's address for an admin ALONE, never put in
+ *    the view for anybody else. Visit and Move are the People tab's one
+ *    decision (`movingLinks`).
+ *  - VISITS: a one-week visit that stands, to a session still happening, is
+ *    named on its week's attendance line and coursework row and counted;
+ *    one called off, or whose session was called off, is no visit here.
+ *  - THE APPLICATION'S LINE: read only where the People tab hands the link
+ *    (`applicationLineOf`): where they ranked the programme, and what
+ *    decision day or an invitation made of it.
  *
  * THE FACILITATOR'S CUT (`loadFacilitatorPersonPage`), behind their group's
  * door: a facilitator with standing of a live group, about somebody in that
  * group now whose work the one gate lets them read (`writtenReviewRole`).
- * The weeks the person spent in that group, their attendance for those weeks,
+ * The weeks the person spent in that group, their attendance for those weeks
+ * (a week they visited another group's session among them, named as such),
  * and the feedback that facilitator wrote. Nothing else.
  *
  * Nothing here writes.
