@@ -681,6 +681,43 @@ const RECIPIENT_SOURCES = new Map([
       why: "The same audience, kept for the notice once every refusal has passed and the change is written.",
     },
   ],
+  // A group's rooms for the rest of term, emailed by hand from the term's
+  // rooms: everybody it reaches is read on the server, and the request
+  // carries only the count it was shown and the press's key.
+  [
+    "src/lib/courses/termRoomsEmail/send.ts#facilitators.recipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "updateEmailAudience (src/lib/courses/updates/audience.ts) to the facilitators of the one group: its " +
+        "facilitatorUids (written by src/lib/courses/groupFacilitators.ts) each held to their bar, at their own " +
+        "address, never the presser, the do-not-email list applied. Nothing in the request names a recipient.",
+      why: "The group's facilitators, who get every line of the group's rooms email.",
+    },
+  ],
+  [
+    "src/lib/courses/termRoomsEmail/send.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by planTermRoomsEmail from resolveNoticeAudience (src/lib/email/courseFacilitatorEmails.ts) for the " +
+        "one group with `belongingInWeeks`: the run's own active, told learner rows whose place belongs to the group " +
+        "in a week of a session still to come, never somebody only visiting it, each with the lines of their own " +
+        "weeks, never the presser; then the group's facilitators above, each once by account and by address.",
+      why: "Who one group's rooms email reaches, worked out again at the press and held to the count the button showed.",
+    },
+  ],
+  [
+    "src/lib/courses/termRoomsEmail/send.ts#plan.recipients",
+    {
+      reads: 9,
+      origin: "derived",
+      derivedFrom: ["src/lib/courses/termRoomsEmail/send.ts#local:recipients"],
+      why: "The same people, counted for the preview and the press, sampled for the preview and sent one message each.",
+    },
+  ],
   [
     "src/lib/courses/sessionChange/roomNotice.ts#input.recipients",
     {

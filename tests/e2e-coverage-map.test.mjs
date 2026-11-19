@@ -1010,6 +1010,11 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec seats a facilitator in the group they run, or the route goes once the instant button has settled.",
   },
+  "/api/courses/groups/[groupId]/rooms-email": {
+    reason:
+      "Emailing a group its rooms for the rest of term, by hand from the term's rooms: pressed as every caller against the real route, its audience, caps, notice door and templates by tests/course-term-rooms-email.test.mjs, words checked over the rendered email. The term's rooms has no verified browser spec to extend: course-hub-week-rooms has not had its first green run.",
+    coverWhen: "When course-hub-week-rooms is verified: a step that presses one group's button and reads the email in Mailpit then goes into it, in the same diff as this entry goes.",
+  },
   "/api/courses/groups/[groupId]/session": {
     reason:
       "Courses: /api/courses/groups/[groupId]/session is staff-facing, taken deliberately, and answered on the screen that called it.",
@@ -1794,7 +1799,7 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/rooms/term": {
     reason:
-      "The term's rooms: the last step of the spec course-hub-week-rooms, which has not had its first green run yet; the grid is rendered as every caller by tests/course-week-rooms.test.mjs, and it writes nothing.",
+      "The term's rooms: the last step of the spec course-hub-week-rooms, which has not had its first green run yet; the grid is rendered as every caller by tests/course-week-rooms.test.mjs, and its panel that emails a group its rooms by tests/course-term-rooms-email.test.mjs.",
     coverWhen: "When course-hub-week-rooms first passes locally with a teardown manifest of zero and its status becomes verified, in the same diff as this entry goes.",
   },
   "/(app)/admin/admissions/forms/[roundId]/send": {
