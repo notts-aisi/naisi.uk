@@ -78,6 +78,8 @@ export type PersonRow = {
   coming: PersonComing;
   free: PersonFree;
   status: PersonStatus;
+  /** Their page on the programme (`.../people/[uid]`), which their name opens. */
+  personHref: string;
   /** Their application on this programme's review screen. Null for the viewer's own. */
   applicationHref: string | null;
   /** People in groups, where somebody holding a place is put in a group or moved. Null otherwise. */

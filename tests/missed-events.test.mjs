@@ -850,9 +850,16 @@ function importsOf(file) {
 }
 
 describe("the walk: an admin's alone, and no survey", () => {
-  test("two files reach the module, and each is behind an admin check", () => {
+  test("three files reach the module, and each is behind an admin check", () => {
     const reaching = [...walkSource(SRC)].filter((file) => file !== MODULE && importsOf(file).includes(MODULE)).map(rel).sort();
-    assert.deepEqual(reaching, ["src/app/api/admin/members/[uid]/events/route.ts", "src/lib/events/requestCard.ts"]);
+    assert.deepEqual(reaching, ["src/app/api/admin/members/[uid]/events/route.ts", "src/lib/courses/personPage/load.ts", "src/lib/events/requestCard.ts"]);
+
+    // A person's page on a programme: the events read only once the programme's gate has answered an admin,
+    // which `roleOnProgramme` answers only for a session whose role is admin.
+    const personPage = withoutComments(read("src/lib/courses/personPage/load.ts"));
+    assert.match(personPage, /const isAdmin = gate\.view\.viewer === "admin";/);
+    const leadReturns = personPage.indexOf("if (!isAdmin) return");
+    assert.ok(leadReturns !== -1 && leadReturns < personPage.indexOf("await eventsOfPerson(db, uid, now)"), "the person's page asks before it reads");
 
     // The requests' card: one call, in requestFacts, made only when the session is an admin's.
     const card = withoutComments(read("src/lib/events/requestCard.ts"));

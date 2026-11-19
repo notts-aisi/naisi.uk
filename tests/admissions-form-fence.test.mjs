@@ -443,6 +443,12 @@ const ROUND_SURFACES = {
       "one person's coursework on the programme, for its lead and admins. It reaches the round only through " +
       "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]": {
+    kind: "form",
+    why:
+      "one person's page on the programme, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
     kind: "form",
     why:

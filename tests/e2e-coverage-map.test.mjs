@@ -1506,6 +1506,11 @@ const NOT_COVERED = {
     coverWhen:
       "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
   },
+  "/(app)/learn/[runId]/group/[groupId]/people/[uid]": {
+    reason:
+      "Course hub: one person as their group's facilitator sees them. tests/course-person-page.test.mjs draws it as the group's facilitator, another group's, the lead, an admin and the person, and for somebody moved in from another group.",
+    coverWhen: "When an end-to-end spec signs in as a group's facilitator after the group's first week, so the cut can be opened from the group's page.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
     reason:
       "Course hub: the page for moving one person to another group for good, mid-term. tests/course-staff-move.test.mjs executes what it draws through its route's preview; the browser spec scripts/e2e-fixtures/course-hub-staff-move.mjs drives it end to end and is written but has not run yet.",
@@ -1831,12 +1836,6 @@ const NOT_COVERED = {
       "Course hub: Copy weeks from the course, a page of the Weeks tab; its every caller and the copy it sends (never an overwrite) are executed by tests/course-hub-weeks-tab.test.mjs.",
     coverWhen:
       "When a course has two runs on dev and a browser spec copies one's weeks into the other as its programme's lead.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": {
-    reason:
-      "Course hub: the People tab lists everyone who holds a place on a programme or gave it back, for its lead and admins; its every caller, its counts, its rows and what it never sends are executed by tests/course-hub-people-tab.test.mjs, and it was checked by hand at 1440 and 390.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a term whose decisions have been sent, with a programme naming a run and its lead signed in.",
   },
   "/(app)/admin/courses": {
     reason:

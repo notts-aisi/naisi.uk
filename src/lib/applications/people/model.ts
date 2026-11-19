@@ -203,6 +203,7 @@ export function programmePeople(input: PeopleInput): PeopleModel {
             : { kind: "not-yet" },
       free: freeOf(form, application, groups),
       status,
+      personHref: `${programmePath}/people/${encodeURIComponent(application.uid)}`,
       applicationHref: isOwn ? null : `${programmePath}/applications/${encodeURIComponent(application.uid)}`,
       groupsHref: category === "holding" && input.runNamed ? `${programmePath}/groups` : null,
       moveHref:

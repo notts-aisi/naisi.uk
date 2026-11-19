@@ -202,9 +202,12 @@ describe("2. nothing a lead may not read", () => {
         "groupsHref",
         "moveHref",
         "name",
+        // The person's page on the programme, which the name opens: an address made of ids.
+        "personHref",
         "status",
         "uid",
       ]);
+      assert.equal(row.personHref, `/admin/admissions/forms/${ROUND}/programmes/${AGI}/people/${encodeURIComponent(row.uid)}`);
     }
   });
 

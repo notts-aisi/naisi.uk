@@ -839,6 +839,7 @@ const COPY_READERS = {
     kind: "person",
     why: "the page of one question reads the group's copy of the week, and asks which copy each person listed read that week: a row carries their answer only when it is the same week document, else it says which group they did the week with",
   },
+  "lib/courses/personPage/load.ts": { kind: "person", why: "a person's page and a facilitator's cut of it read each of the person's weeks on the copy they worked in (readsGroupIdFor)" },
   "lib/courses/coursework/readingLoad.ts": { kind: "person", why: "the reading view, behind both doors, reads one person's weeks each on the copy they worked in" },
   "lib/courses/feedback/access.ts": { kind: "person", why: "feedback is given on the copy of the week the person worked in, by whoever reads them now" },
   "lib/courses/leftView.ts": { kind: "person", why: "somebody who left is shown the titles of their own weeks, each from the copy they worked in" },

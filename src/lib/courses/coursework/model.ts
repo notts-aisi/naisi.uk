@@ -218,6 +218,13 @@ export type AnswerFacts = {
   pieces: number;
   /** Changed since the newest feedback on it (`changedSinceFeedback`), while it may be read. */
   changed: boolean;
+  /**
+   * Feedback given before pieces existed, on the answer's own row, as who
+   * gave it and when it was emailed (it was emailed when it was given), never
+   * its words; null with none, or while the answer may not be read, as the
+   * reading view shows it. Left out by readers that do not say.
+   */
+  legacy?: { byUid: string; sentAt: Date | null } | null;
 };
 
 export const NO_WORK: PersonWork = { reflections: new Set(), boxes: new Set(), answers: new Map(), ticked: new Set() };
