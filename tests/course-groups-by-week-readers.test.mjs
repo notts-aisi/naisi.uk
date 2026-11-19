@@ -442,8 +442,8 @@ const READERS = {
     why: "a corrected column's tell (a session that did not happen, held online, moved or cleared) reaches the people whose session that week is the group's (updateEmailAudience and toldFacts handed the week); its rows are the register's, read for the week",
   },
   "lib/courses/excused/ask.ts": {
-    kinds: ["week"],
-    why: "asking to be excused: the person takes part in the group for a week of theirs (takesPartInWeek), and each session asked about is held to its own week's session's group, so a visit's week is asked of the host and somebody moved asks the group they were in that week",
+    kinds: ["week", "own"],
+    why: "asking to be excused: the person takes part in the group for a week of theirs (takesPartInWeek), and each session asked about is held to its own week's session's group, so a visit's week is asked of the host and somebody moved asks the group they were in that week; whether a week is a visit's (visitInWeek) decides that the request records it was asked about a visit, and that requests about that week pair with a session by group as well as key (weeksAbout)",
   },
   "lib/courses/meetingLink/audience.ts": {
     kinds: ["week", "now"],
