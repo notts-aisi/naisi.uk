@@ -293,6 +293,44 @@ function attendance({ events, signups, checkIns = [], agreedFrom = AGREED }) {
 const three = { "ev-b": EVENTS["ev-b"], "ev-c": EVENTS["ev-c"], "ev-d": EVENTS["ev-d"] };
 const placesAt = (...ids) => ids.map((eventId) => ({ eventId }));
 
+describe("the sign-ups in a stretch of time, and how many of those the card shows as came", () => {
+  const term = { from: new Date("2026-10-01T00:00:00Z"), to: null };
+  const SEASON = { "ev-c": EVENTS["ev-c"], "ev-d": EVENTS["ev-d"], "ev-f": EVENTS["ev-f"], "ev-g": EVENTS["ev-g"], "ev-req": EVENTS["ev-req"], "ev-sep": EVENTS["ev-sep"] };
+
+  test("came is counted among the same events, by the card's own rule, and never what they did not come to", () => {
+    const person = attendance({
+      events: SEASON,
+      signups: [
+        { eventId: "ev-c" },
+        { id: "sd", eventId: "ev-d" },
+        { eventId: "ev-f", status: "cancelled" },
+        { eventId: "ev-g", status: "waitlisted" },
+        { eventId: "ev-req", status: "pending" },
+        { eventId: "ev-sep" },
+      ],
+      checkIns: [
+        { eventId: "ev-d", uid: "priya", rsvpId: "sd" },
+        // Came after giving the place back, and to an event before the stretch: neither is counted.
+        { eventId: "ev-f" },
+        { eventId: "ev-sep" },
+      ],
+    });
+    // Film night (no check-in), Policy social (came), Speaker evening and Winter social (still to come).
+    assert.deepEqual(rules.signedUpWithin(person, term), { signedUp: 4, came: 1 });
+    const rows = rules.personEventRows(person, NOW);
+    assert.equal(rows.find((row) => row.eventId === "ev-d").state, "came", "the card says the same of the same event");
+    assert.notEqual(rows.find((row) => row.eventId === "ev-c").state, "came");
+  });
+
+  test("a drop-in come to with no sign-up is in neither number; nobody who has not agreed is counted", () => {
+    const drop = { "ev-drop": { ...EVENTS["ev-e"], noSignup: true } };
+    const person = attendance({ events: drop, signups: [], checkIns: [{ eventId: "ev-drop" }] });
+    assert.deepEqual(rules.signedUpWithin(person, term), { signedUp: 0, came: 0 });
+    assert.equal(rules.personEventRows(person, NOW)[0].state, "came", "the card lists it");
+    assert.equal(rules.signedUpWithin(attendance({ events: SEASON, signups: placesAt("ev-d"), agreedFrom: null }), term), null);
+  });
+});
+
 describe("the rules: two in a row that count", () => {
   test("the two most recent events that count both went by without them", () => {
     assert.equal(rules.missedTwoInARow(attendance({ events: three, signups: placesAt("ev-c", "ev-d") }), NOW), true);

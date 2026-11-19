@@ -755,7 +755,7 @@ describe("events this term, for an admin alone", () => {
   });
   const agreed = { ...peopleSeed()["users/amara"], policyVersion: "terms.1+privacy.15", policyAgreedAt: AGREED_AT };
 
-  test("a count of sign-ups inside the run's dates; nothing said of who came; absent for the lead and the cut", async () => {
+  test("a count of sign-ups inside the run's dates, with no check-in anywhere: no second sentence; absent for the lead and the cut", async () => {
     w.reset(
       seed({
         "users/amara": agreed,
@@ -774,11 +774,77 @@ describe("events this term, for an admin alone", () => {
     const admin = await team("zach");
     assert.equal(viewOf(admin).signedUp, "Signed up to 2 this term.");
     assert.match(admin.text, /Signed up to 2 this term\./);
-    assert.doesNotMatch(admin.text, /Came to/);
+    assert.doesNotMatch(admin.text, /Came to|missed/i, "a nought come to is never said, nor what they missed");
     const lead = await team("claudia");
     assert.ok(!("signedUp" in viewOf(lead)) && !("events" in viewOf(lead)));
     assert.doesNotMatch(lead.text, /Signed up/);
     assert.doesNotMatch(JSON.stringify(viewOf(await cut("rahul"))), /Signed up/);
+  });
+
+  const checkIn = (eventId, extra = {}) => ({
+    eventId,
+    kind: "signup",
+    rsvpId: null,
+    uid: "amara",
+    name: null,
+    email: null,
+    emailGoesAt: null,
+    how: "door",
+    byUid: "zach",
+    at: new Date("2026-11-05T19:05:00Z"),
+    namesOffAt: new Date("2027-12-01T00:00:00Z"),
+    namesOff: false,
+    ...extra,
+  });
+  const cameWorld = (over = {}) =>
+    seed({
+      "users/amara": agreed,
+      "events/ev-in": event("Film night", "2026-11-05T19:00:00Z", { doorOpenedAt: new Date("2026-11-05T18:30:00Z"), doorOpenedBy: "zach" }),
+      "events/ev-in2": event("Board games", "2026-11-12T19:00:00Z", { doorOpenedAt: new Date("2026-11-12T18:30:00Z"), doorOpenedBy: "zach" }),
+      "events/ev-ahead": event("Speaker evening", "2026-11-26T19:00:00Z"),
+      "events/ev-drop": event("Coffee drop-in", "2026-11-10T12:00:00Z", { noSignup: true, doorOpenedAt: new Date("2026-11-10T11:30:00Z"), doorOpenedBy: "zach" }),
+      "events/ev-before": event("Welcome drinks", "2026-10-08T18:00:00Z", { doorOpenedAt: new Date("2026-10-08T17:30:00Z"), doorOpenedBy: "zach" }),
+      "eventRsvps/ev-in__amara": signup("ev-in", "confirmed"),
+      "eventRsvps/ev-in2__amara": signup("ev-in2", "confirmed"),
+      "eventRsvps/ev-ahead__amara": signup("ev-ahead", "confirmed"),
+      "eventRsvps/ev-before__amara": signup("ev-before", "confirmed"),
+      // Checked in at Film night by the account, and at Board games through the sign-up (as the door's list does it).
+      "eventCheckIns/ci-in": checkIn("ev-in"),
+      "eventCheckIns/ci-in2": checkIn("ev-in2", { rsvpId: "ev-in2__amara", at: new Date("2026-11-12T19:05:00Z") }),
+      // Came to a drop-in with no sign-up, and to an event before the term: in neither number.
+      "eventCheckIns/ci-drop": checkIn("ev-drop", { kind: "walk-in", at: new Date("2026-11-10T12:05:00Z") }),
+      "eventCheckIns/ci-before": checkIn("ev-before", { at: new Date("2026-10-08T18:05:00Z") }),
+      ...over,
+    });
+
+  test("Came to counts, of the same events, those the Events card shows as came: by the account or by the sign-up", async () => {
+    w.reset(cameWorld());
+    const admin = await team("zach");
+    const view = viewOf(admin);
+    assert.equal(view.signedUp, "Signed up to 3 this term. Came to 2.", "the event still to come is signed up to and not come to");
+    // The card's own rows say the same of the same events: one decision.
+    const came = view.events.events.filter((row) => row.state === "came").map((row) => row.eventId).sort();
+    assert.ok(came.includes("ev-in") && came.includes("ev-in2"), "the card shows both as came");
+    assert.ok(came.includes("ev-drop"), "the card lists the drop-in they came to");
+    assert.equal(view.events.events.find((row) => row.eventId === "ev-ahead").state, "place", "the card shows the event still to come as a place");
+    assert.match(admin.text, /Signed up to 3 this term\. Came to 2\./);
+    assert.doesNotMatch(admin.text, /missed \d|Missed \d/);
+    for (const who of ["claudia", "rahul"]) {
+      const drawn = who === "rahul" ? await cut(who) : await team(who);
+      assert.doesNotMatch(JSON.stringify(viewOf(drawn)), /Came to|Signed up/, `${who} is sent the line`);
+      assert.doesNotMatch(drawn.text, /Came to|Signed up/, `${who} is shown the line`);
+    }
+    for (const who of ["tess", "lloyd", "amara", null]) assert.doesNotMatch((await team(who)).text, /Came to|Signed up/, `${who}`);
+  });
+
+  test("a place given back is in neither number, even with a check-in; with none come to, no second sentence", async () => {
+    w.reset(cameWorld({ "eventRsvps/ev-in2__amara": signup("ev-in2", "cancelled") }));
+    assert.equal(viewOf(await team("zach")).signedUp, "Signed up to 2 this term. Came to 1.");
+    const none = cameWorld();
+    delete none["eventCheckIns/ci-in"];
+    delete none["eventCheckIns/ci-in2"];
+    w.reset(none);
+    assert.equal(viewOf(await team("zach")).signedUp, "Signed up to 3 this term.", "a nought come to is left unsaid");
   });
 
   test("no sign-ups says so; somebody who has not accepted the policy is sent no count at all", async () => {
@@ -951,8 +1017,9 @@ describe("this piece's model, pure", () => {
     assert.equal(words.rankedWords("AGI Strategy", 3), "Ranked AGI Strategy third.");
     assert.equal(words.acceptedWords(null), "Accepted.");
     assert.equal(words.invitationTakenWords(null), "Said yes to an invitation.");
-    assert.equal(words.signedUpWords(1), "Signed up to 1 this term.");
-    assert.equal(words.signedUpWords(0), "Not signed up to any this term.");
+    assert.equal(words.signedUpWords(1, 0), "Signed up to 1 this term.");
+    assert.equal(words.signedUpWords(2, 2), "Signed up to 2 this term. Came to 2.");
+    assert.equal(words.signedUpWords(0, 0), "Not signed up to any this term.", "no second sentence with no sign-ups");
     assert.equal(words.visitDueWords("Group F", null), "Due at Group F: a visit");
   });
 });

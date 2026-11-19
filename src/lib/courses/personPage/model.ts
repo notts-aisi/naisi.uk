@@ -470,7 +470,7 @@ export type TeamPersonView = {
   /** A one-week visit to another group's session, offered exactly where Move is. */
   visit?: { href: string; label: string };
   events?: PersonEventsView;
-  /** "Signed up to 2 this term.": an admin's alone, beside the events. */
+  /** "Signed up to 2 this term. Came to 2.": an admin's alone, beside the events. */
   signedUp?: string;
   activity?: ActivityLine[];
 };
