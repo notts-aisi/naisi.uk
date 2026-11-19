@@ -316,8 +316,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
               ? await didNotHappenFacts(db, { run, group: found, session: first.session, register })
               : null,
           notice: oneWeekNoticeFor(run, first, press, { groupName, incubator }),
-          // Visits that end with it, and their emails, whatever the tick says.
-          visitsOff: visitsOffPreview(ending),
+          // Visits that end with it, and their emails, whatever the tick says: present only where one does.
+          ...(ending.length ? { visitsOff: visitsOffPreview(ending) } : {}),
           at: iso(now),
         },
       });

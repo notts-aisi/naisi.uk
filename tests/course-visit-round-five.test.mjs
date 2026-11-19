@@ -148,7 +148,7 @@ describe("1. Group A's week 4 called off while her own Tuesday is still to come"
 
   test("with no visit: the preview says nothing of visits and the answer carries none", async () => {
     const preview = await change("sofia", A, { tell: false, preview: true });
-    assert.equal(preview.body.preview.visitsOff, null);
+    assert.equal("visitsOff" in preview.body.preview, false, "no visit ends with it: the preview says nothing of visits");
     const pressed = await change("sofia", A, { tell: false });
     assert.equal(pressed.status, 200);
     assert.equal("visitsOff" in pressed.body, false);
@@ -165,7 +165,7 @@ describe("2. Group C's week 4 called off after her own Tuesday has started", () 
     at("2026-11-24T19:00:00Z");
     const preview = await change("tom", C, { tell: false, preview: true });
     assert.equal(preview.status, 200, JSON.stringify(preview.body));
-    assert.equal(preview.body.preview.visitsOff, null);
+    assert.equal("visitsOff" in preview.body.preview, false, "no visit ends with it: the preview says nothing of visits");
     world.mail.length = 0;
     const pressed = await change("tom", C, { tell: false });
     assert.equal(pressed.status, 200);
