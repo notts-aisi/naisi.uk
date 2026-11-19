@@ -1037,12 +1037,14 @@ describe("13. the verdict reads each week on the entry that holds the person", (
     assert.deepEqual(two, verdict([entry(["amara"])]), "the same answer as her one entry alone");
   });
 
-  test("today the job builds one entry for each covered week, so nothing reads differently", () => {
+  test("the job builds one entry for each covered week and each copy of it its people work in, so the verdict reads the one holding the person", () => {
     const job = readFileSync(new URL("../src/lib/scheduler/jobs/weekReminders.ts", import.meta.url), "utf8");
     assert.match(job, /for \(const weekNumber of coveredWeeks\(sessions, session\)\) \{/);
     const body = job.slice(job.indexOf("async function reminderWeeks("), job.indexOf("const MAX_OWN_REGISTERS"));
     assert.match(body, /for \(const weekNumber of coveredWeeks\(sessions, session\)\) \{/);
-    assert.equal(body.split("out.push({").length, 2, "reminderWeeks pushes one entry each time round, one week at a time");
+    assert.equal(body.split("out.push({").length, 2, "reminderWeeks pushes one entry each time round, one week and copy at a time");
+    assert.match(body, /const copy = weekStates\.copyGroupOf\(uid, weekNumber, group\.id\);/);
+    assert.match(body, /const facts = await loadPeopleWeekFacts\(db, \{ runId: run\.id, weekNumber, blocks: week\.blocks, uids: people \}\);/, "each entry holds the facts of its own people only");
     assert.match(job, /input\.weeks\.find\(\(each\) => each\.weekNumber === weekNumber && each\.facts\.has\(uid\)\)/);
   });
 });
