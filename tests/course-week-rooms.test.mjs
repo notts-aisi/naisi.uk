@@ -581,6 +581,27 @@ describe("1. a campus held online, and what counts as not booked", () => {
   });
 });
 
+describe("2. what a paste box puts into the fields", () => {
+  test("a room typed into the table survives more typing in the box and the refresh after a Save; Cancel takes back only what the box put", () => {
+    const before = { k1: "Typed before" };
+    // The box matches two rows.
+    let state = paste.mergePasted(before, { k2: "Room 2", k3: "Room 3" }, before, new Map());
+    assert.deepEqual(state.drafts, { k1: "Typed before", k2: "Room 2", k3: "Room 3" });
+    // The person types over row 2 in the table, then keeps typing in the box (row 3 changes, row 2 does not).
+    let drafts = { ...state.drafts, k2: "Typed in the table" };
+    state = paste.mergePasted(drafts, { k2: "Room 2", k3: "Room 3b" }, before, state.pasted);
+    assert.deepEqual(state.drafts, { k1: "Typed before", k2: "Typed in the table", k3: "Room 3b" });
+    // A Save saves row 3, whose field goes; after the refresh its line reads unchanged and is no longer put.
+    drafts = { ...state.drafts };
+    delete drafts.k3;
+    state = paste.mergePasted(drafts, { k2: "Room 2" }, before, state.pasted);
+    assert.deepEqual(state.drafts, { k1: "Typed before", k2: "Typed in the table" });
+    // Cancel: what the box still holds as put goes back; what was typed stays.
+    state = paste.mergePasted({ ...state.drafts, k4: "Room 4" }, null, before, new Map([["k4", "Room 4"], ["k2", "Room 2"]]));
+    assert.deepEqual(state.drafts, { k1: "Typed before", k2: "Typed in the table" });
+  });
+});
+
 describe("2. the term grid's paste box reads a block", () => {
   const sections = () => model.termRoomsView({ roundId: ROUND, programmes: [recordsOf(AGI, RUN.agi)], now: NOW });
 
@@ -1101,6 +1122,29 @@ describe("4. a room saved here is the room-only change of that week, and nothing
     world.db.poke(`courseGroups/${A}`, { session: { ...read(`courseGroups/${A}`).session, location: "Portland A13" } });
     const again = await rowOfA();
     assert.deepEqual([again.room, again.roomSource], ["", "none"]);
+  });
+
+  test("a send that fails keeps the room, tells the person pressing, and History says what was really sent", async () => {
+    const row = await rowOfA();
+    const preview = await press.askPreview(postAs("claudia"), row, "George Green B06");
+    assert.ok(preview.emails > 1);
+    // Every message refused at the door except the first.
+    let seen = 0;
+    world.mailFate = () => (seen++ === 0 ? "sent" : "fail");
+    try {
+      const outcome = await press.saveRoom(postAs("claudia"), row, "George Green B06", preview, "", true);
+      const failed = preview.emails - 1;
+      assert.deepEqual([outcome.saved, outcome.tone, outcome.notTold, outcome.text], [true, "problem", true, words.roomSavedNotToldWords(failed)]);
+      assert.deepEqual(read(`courseGroups/${A}`).sessionOverrides.w05, { location: "George Green B06" });
+      const [history] = auditRows("session-room");
+      assert.equal(history.emailed, 1);
+      assert.ok(history.detail.endsWith("Emailed 1."), history.detail);
+      const [update] = updatesWritten();
+      assert.deepEqual([update.email.planned, update.email.sent, update.email.failed, update.email.settled], [preview.emails, 1, failed, true]);
+      assert.equal(words.notToldSummaryWords(["AGI Strategy, Group A"]), "Saved but not told: AGI Strategy, Group A.");
+    } finally {
+      world.mailFate = null;
+    }
   });
 
   test("the body: one week to tell or preview, each week once, a room of one line and no link", async () => {

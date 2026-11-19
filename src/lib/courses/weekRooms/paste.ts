@@ -324,3 +324,30 @@ export function pasteCounts(outcomes: readonly LineOutcome[]): { lines: number; 
   const unchanged = outcomes.filter((each) => each.kind === "same").length;
   return { lines: outcomes.length, changes, unchanged, needYou: outcomes.length - changes - unchanged };
 }
+
+/**
+ * WHAT A PASTE BOX PUTS INTO THE FIELDS, laid over what they hold now: the
+ * rooms it matches (`wanted`, or null to take back everything it put), the
+ * fields as they stood when the box opened (`before`), and what it put last
+ * time (`pasted`). Only what it newly matched, or matched differently, is
+ * written; a field it put that it no longer matches goes back to what it held
+ * when the box opened, but only while it still holds what the box put there.
+ * So a room typed into the table survives more typing in the box, and a row
+ * saved meanwhile (its field gone after the refresh) is left alone.
+ */
+export function mergePasted(
+  now: Readonly<Record<string, string>>,
+  wanted: Readonly<Record<string, string>> | null,
+  before: Readonly<Record<string, string>>,
+  pasted: ReadonlyMap<string, string>,
+): { drafts: Record<string, string>; pasted: Map<string, string> } {
+  const drafts = { ...now };
+  const asked = wanted ?? {};
+  for (const [key, put] of pasted) {
+    if (Object.hasOwn(asked, key) || drafts[key] !== put) continue;
+    if (Object.hasOwn(before, key)) drafts[key] = before[key];
+    else delete drafts[key];
+  }
+  for (const [key, room] of Object.entries(asked)) if (pasted.get(key) !== room) drafts[key] = room;
+  return { drafts, pasted: new Map(Object.entries(asked)) };
+}

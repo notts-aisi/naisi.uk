@@ -8,6 +8,7 @@ import { useHydrated } from "@/hooks/useHydrated";
 import { roomAsStored } from "@/lib/courses/sessionChange/room";
 import { GROUP_ROOM_LIMIT } from "@/lib/courses/weekRooms/limits";
 import type { TermCell, TermSection } from "@/lib/courses/weekRooms/model";
+import { mergePasted } from "@/lib/courses/weekRooms/paste";
 import { saveGroupWeeks, type GridWeek, type Post } from "@/lib/courses/weekRooms/press";
 import * as W from "@/lib/courses/weekRooms/words";
 import GridPaste from "./GridPaste";
@@ -84,16 +85,9 @@ export default function TermRoomsGrid({ sections }: { sections: TermSection[] })
   /** What the paste box puts in the fields, as the week's paste box does: a field typed over since stays. */
   const fromPaste = useCallback((rooms: Record<string, string> | null, before: Record<string, string>) => {
     setDrafts((now) => {
-      const next = { ...now };
-      const wanted = rooms ?? {};
-      for (const [key, put] of pasted.current) {
-        if (Object.hasOwn(wanted, key) || next[key] !== put) continue;
-        if (Object.hasOwn(before, key)) next[key] = before[key];
-        else delete next[key];
-      }
-      for (const [key, room] of Object.entries(wanted)) if (pasted.current.get(key) !== room) next[key] = room;
-      pasted.current = new Map(Object.entries(wanted));
-      return next;
+      const merged = mergePasted(now, rooms, before, pasted.current);
+      pasted.current = merged.pasted;
+      return merged.drafts;
     });
     setSaid(null);
   }, []);
