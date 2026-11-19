@@ -798,7 +798,8 @@ describe("8. a notice about ONE session goes to the people of that session's wee
   test("the one-week change, the cover notice and a corrected column's tell hand the session's week; a regular time does not", () => {
     const source = (...parts) => readFileSync(join(SRC_ROOT, ...parts), "utf8");
     const change = source("app", "api", "courses", "groups", "[groupId]", "session", "change", "route.ts");
-    assert.match(change, /toldFacts\(db, run, found, actor\.uid, press\.weekNumber\)/);
+    // Its week, leaving out the visitors whose visit ends with a session called off (`except`).
+    assert.match(change, /toldFacts\(db, run, found, actor\.uid, press\.weekNumber, except\)/);
     assert.match(change, /withFacilitators: true,\s*\/\/[^\n]*\n\s*weekNumber: press\.weekNumber,/);
     const cover = source("app", "api", "courses", "groups", "[groupId]", "attendance", "cover", "route.ts");
     assert.match(cover, /updateEmailAudience\(db, run, \[group\], "group", group\.id, actor\.uid, \{ weekNumber: session\.weekNumber \}\)/);

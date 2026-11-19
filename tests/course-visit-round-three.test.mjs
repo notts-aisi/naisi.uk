@@ -31,7 +31,6 @@ const visitRoute = await w.formRoute("programmes", "[programmeId]", "people", "[
 const cancelRoute = await w.courseRoute("runs", "[runId]", "visit", "cancel");
 const changeRoute = await w.courseRoute("groups", "[groupId]", "session", "change");
 const askRoute = await w.courseRoute("groups", "[groupId]", "excused");
-const approveRoute = await w.courseRoute("requests", "[requestId]", "excused", "approve");
 const enrolments = await w.loadTs(join("lib", "firestore", "courseEnrolments.ts"));
 const { normalizeCourseRun } = await w.loadTs(join("lib", "firestore", "courses.ts"));
 const { normalizeCourseGroup } = await w.loadTs(join("lib", "firestore", "courseGroups.ts"));
@@ -117,17 +116,14 @@ describe("1. a request about the host's session, once the visit is off, says not
     ["staff call the visit off", () => staffCallOff(4)],
     ["she cancels it herself", () => cancel(4)],
   ]) {
-    test(`${who}: her own week 4 shows nothing waiting and can be asked about; another visit can be arranged; the request is left for the admins to close`, async () => {
+    test(`${who}: her own week 4 shows nothing waiting and can be asked about; another visit can be arranged; the request about the host's session is withdrawn with the visit`, async () => {
       const requestId = await askAboutTheHostThenEnd(end);
       assert.deepEqual(await weekFour(), [{ excuse: null, open: true, visit: null }]);
       // Another visit for that week is not held up by a request about a session she is no longer due at.
       const again = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: D, preview: true });
       assert.equal(again.status, 200, JSON.stringify(again.body));
-      // The request stays where the admins' Requests page finds it, closed there with the existing sentence.
-      assert.equal(read(`courseRequests/${requestId}`).status, "waiting");
-      const approve = await call("zach", approveRoute.POST, { requestId }, { body: { sessionKey: "w04" }, course: true });
-      assert.equal(approve.status, 409);
-      assert.match(approve.body.error, /Decline it, with a reply, to close it\.$/);
+      // The visit ended: the request about its session was withdrawn with it, quietly (round five).
+      assert.equal(read(`courseRequests/${requestId}`).status, "withdrawn");
       // Asking about her own group's week 4 goes through.
       assert.equal((await ask(B)).status, 200);
       assert.equal(requestIds().length, 2);

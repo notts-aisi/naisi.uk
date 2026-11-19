@@ -659,6 +659,13 @@ const READERS = {
       "group they were never told, and the visitor's name reaches no facilitator. The ways in ask the same of a seat " +
       "(placeTakesMove) before they offer a visit",
   },
+  "lib/courses/visit/hostOff.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "a session called off ends the visits to it of people whose own session that week is still to come, and emails them " +
+      "and their own group's facilitators: only a seat Publish has told is one, as only such a seat can hold a visit",
+  },
   "lib/courses/visit/save.ts": {
     kind: "writer",
     proof: ["visits: storedVisits(visits),", "tx.set(write.ref, { attendance: write.rollup }, { merge: true });"],

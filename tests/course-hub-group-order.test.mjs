@@ -53,6 +53,15 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  * the groups are handed on to, which must ask the comparator.
  */
 const READS_WITHOUT_A_LIST = new Map([
+  // A session called off: the visits to it that end with it.
+  [
+    "src/lib/courses/visit/hostOff.ts",
+    {
+      why:
+        "Ending the visits to a session called off reads the run's groups only to find each visitor's own group that week " +
+        "and its session: never a list of groups on a page.",
+    },
+  ],
   // A one-week visit: whether a facilitator of the host group reads a visitor's week.
   [
     "src/lib/courses/visit/reading.ts",
