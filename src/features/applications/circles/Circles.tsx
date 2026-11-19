@@ -9,6 +9,8 @@ import type { SessionSlot } from "@/lib/admissions/availability";
 import { changesBetween, freeGroupName, placementOrder } from "@/lib/applications/arrange/changes";
 import type { ArrangementOptionsView, CirclesView, RingOption, RingPerson } from "@/lib/applications/arrange/view";
 import { own } from "@/lib/applications/keys";
+import { askMidTermMoves } from "@/features/courses/askMidTermMoves";
+import type { PlacePreview, Placement, PreviewResult } from "@/features/courses/useAllocation";
 import { movedSentence } from "@/lib/courses/moveWords";
 import { lengthWords } from "@/lib/courses/sessionLength";
 import { clockWords } from "@/lib/courses/sessionChange/words";
@@ -74,10 +76,6 @@ async function send(url: string, method: string, body: unknown) {
 
 const rejectedOf = (data: Record<string, unknown>) =>
   Array.isArray(data.rejected) ? (data.rejected as { uid: string; reason: string; words?: string }[]) : [];
-
-/** The allocate route's preview: for a move made mid-term, its week and the board's question, or why no week can be offered. */
-type PlacePreview = { uid: string; fromWeek: number | null; words: string | null; refusal: { reason: string; words?: string } | null };
-const previewOf = (data: Record<string, unknown>) => (Array.isArray(data.preview) ? (data.preview as PlacePreview[]) : []);
 
 const DAYS = [1, 2, 3, 4, 5, 6, 0];
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -179,32 +177,29 @@ export default function Circles({ initial }: { initial: CirclesView }) {
     }
   };
 
-  const allocate = (placements: { uid: string; groupId: string | null; fromWeek?: number }[]) =>
+  const allocate = (placements: Placement[]) =>
     send(`/api/courses/runs/${encodeURIComponent(live.runId ?? "")}/allocate`, "POST", { placements });
 
   /**
-   * Before moving anybody Publish has told about a group: the route says which
-   * moves are made mid-term, and each such move's week and question are asked
-   * in one confirmation. The placements with the weeks shown, to send with the
-   * press; null when the confirmation is declined or the preview failed (its
-   * sentence in `lines`).
+   * Before moving anybody Publish has told about a group: the one question
+   * every board asks (`askMidTermMoves`), through the allocate route's
+   * preview. The placements with the weeks shown, to send with the press;
+   * null when the question is declined or the preview failed (its sentence
+   * in `lines`).
    */
   const askMidTerm = async (
-    placements: { uid: string; groupId: string | null }[],
-  ): Promise<{ placements: { uid: string; groupId: string | null; fromWeek?: number }[] } | { placements: null; lines: string[] }> => {
-    const told = placements.filter((each) => each.groupId !== null && own(live.people, each.uid)?.toldGroupId);
-    if (told.length === 0) return { placements };
-    const asked = await send(`/api/courses/runs/${encodeURIComponent(live.runId ?? "")}/allocate`, "POST", { placements: told, preview: true });
-    if (!asked.ok) return { placements: null, lines: [asked.error] };
-    const said = previewOf(asked.data);
-    const questions = said.filter((each) => each.fromWeek !== null && each.words).map((each) => each.words as string);
-    if (questions.length > 0 && !window.confirm(questions.join("\n\n"))) return { placements: null, lines: [] };
-    return {
-      placements: placements.map((each) => {
-        const week = said.find((entry) => entry.uid === each.uid)?.fromWeek ?? null;
-        return week !== null ? { ...each, fromWeek: week } : each;
-      }),
-    };
+    placements: Placement[],
+  ): Promise<{ placements: Placement[] } | { placements: null; lines: string[] }> => {
+    const asked = await askMidTermMoves(placements, {
+      told: (uid) => Boolean(own(live.people, uid)?.toldGroupId),
+      preview: async (asking): Promise<PreviewResult> => {
+        const said = await send(`/api/courses/runs/${encodeURIComponent(live.runId ?? "")}/allocate`, "POST", { placements: asking, preview: true });
+        return said.ok && Array.isArray(said.data.preview) ? { ok: true, preview: said.data.preview as PlacePreview[] } : { ok: false, error: said.error };
+      },
+      confirm: (question) => window.confirm(question),
+    });
+    if (!asked.go) return { placements: null, lines: asked.error ? [asked.error] : [] };
+    return { placements: asked.placements };
   };
 
   const liveName = (groupId: string | null) => live.groups.find((group) => group.id === groupId)?.name ?? W.A_GROUP;

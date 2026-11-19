@@ -47,6 +47,7 @@ import { sessionLabelWords } from "@/lib/courses/outsideTheirTimes";
 import { emailsLabel, publishConfirmText, publishResultLines } from "@/lib/courses/publishWords";
 import { visitsOffSentence } from "@/features/applications/groups/peopleInGroupsWords";
 import AllocationPublish from "./AllocationPublish";
+import { askMidTermMoves } from "./askMidTermMoves";
 import {
   useAllocation,
   type AllocGroup,
@@ -712,6 +713,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
     error,
     reload,
     place,
+    previewPlace,
     publishAllocation,
     sendPublishTest,
     removeEnrolment,
@@ -1004,10 +1006,26 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
    */
   const commit = useCallback(
     async (
-      placements: Placement[],
+      asking: Placement[],
       modal: { saving: string; success: string } | null,
     ) => {
-      if (placements.length === 0) return;
+      if (asking.length === 0) return;
+      // SOMEBODY TOLD THEIR GROUP, moved: the one question every board asks
+      // (`askMidTermMoves`). For a move made mid-term, the week it is from,
+      // that the earlier weeks stay and what is left behind, asked before
+      // anything is written; the press carries the week. Declined, nothing
+      // moves and the note about the move goes.
+      const asked = await askMidTermMoves(asking, {
+        told: (uid) => peopleByUid.get(uid)?.told !== undefined,
+        preview: previewPlace,
+        confirm: (question) => window.confirm(question),
+      });
+      if (!asked.go) {
+        setMoveNote(null);
+        if (asked.error) await raiseError(asked.error);
+        return;
+      }
+      const placements = asked.placements;
       setPending((prev) => {
         const next = { ...prev };
         for (const p of placements) next[p.uid] = p.groupId;
@@ -1031,7 +1049,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
         setBusy(false);
       }
     },
-    [runPlacements, raiseError, runAction],
+    [runPlacements, raiseError, runAction, peopleByUid, previewPlace],
   );
 
   /**

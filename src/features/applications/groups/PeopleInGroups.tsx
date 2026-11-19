@@ -27,6 +27,7 @@ import InitialsChip from "@/components/ui/InitialsChip";
 import { ChevronDownIcon, GripIcon, InfoIcon, MoreIcon } from "@/features/applications/editor/Icons";
 import shared from "@/features/applications/editor/editor.module.css";
 import { placingCounts, poolRowIsToPlace, rowHasLeft } from "@/features/courses/allocationTally";
+import { askMidTermMoves } from "@/features/courses/askMidTermMoves";
 import { useAllocation, type AllocGroup, type AllocRow, type Placement } from "@/features/courses/useAllocation";
 import type { PeopleInGroupsView } from "@/lib/applications/handover/peopleInGroups";
 import { own } from "@/lib/applications/keys";
@@ -398,25 +399,24 @@ export default function PeopleInGroups({ view, views }: Props) {
       if (!row) return;
       const from = columnOf(row);
       if (from === columnId) return;
-      // SOMEBODY TOLD THEIR GROUP, moved to another: the server says whether
-      // the move is made mid-term, and if it is, the week it is from and that
-      // the earlier weeks stay, asked before anything is written.
-      let fromWeek: number | undefined;
-      if (row.told && columnId !== POOL) {
-        const asked = await previewPlace([{ uid, groupId: columnId }]);
-        if (!asked.ok) {
-          await raise(asked.error);
-          return;
-        }
-        const said = asked.preview.find((entry) => entry.uid === uid) ?? null;
-        if (said?.refusal) {
-          await raise(words.notMovedWords(nameOf(uid), columnName(columnId), said.refusal.reason, said.refusal.words));
-          return;
-        }
-        if (said?.fromWeek != null) {
-          if (!window.confirm(said.words ?? "")) return;
-          fromWeek = said.fromWeek;
-        }
+      // SOMEBODY TOLD THEIR GROUP, moved: the server says whether the move is
+      // made mid-term, and if it is, the week it is from, that the earlier
+      // weeks stay and what is left behind, asked before anything is written
+      // (`askMidTermMoves`, the one question every board asks); or why it
+      // cannot be made, said at once.
+      const asked = await askMidTermMoves([{ uid, groupId: columnId === POOL ? null : columnId }], {
+        told: () => Boolean(row.told),
+        preview: previewPlace,
+        confirm: (question) => window.confirm(question),
+      });
+      if (!asked.go) {
+        if (asked.error) await raise(asked.error);
+        return;
+      }
+      const refusal = asked.refused[0];
+      if (refusal) {
+        await raise(words.notMovedWords(nameOf(uid), columnName(columnId), refusal.reason, refusal.words));
+        return;
       }
       // What the move did, for somebody who already knew their group: they
       // see the group they are in now at once, and the next Publish emails
@@ -435,11 +435,7 @@ export default function PeopleInGroups({ view, views }: Props) {
         who: nameOf(uid),
       });
       setMoveNote([told, note].filter(Boolean).join(" ") || null);
-      const placement: Placement = {
-        uid,
-        groupId: columnId === POOL ? null : columnId,
-        ...(fromWeek !== undefined ? { fromWeek } : {}),
-      };
+      const placement: Placement = asked.placements[0];
       setPending((was) => ({ ...was, [uid]: placement.groupId }));
       const result = await place([placement]);
       if (!result.ok) {
