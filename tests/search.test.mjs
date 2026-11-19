@@ -580,7 +580,15 @@ describe("the pages", () => {
     const tab = await peopleLoad.loadProgrammePeople(w.world.db, sessionFor("claudia"), ROUND, AGI);
     const [base] = tab.view.rows;
     const path = `${programmePath(AGI)}/applications/`;
-    const row = (uid, name, over) => ({ ...base, uid, name, firstName: name.split(" ")[0], applicationHref: `${path}${uid}`, ...over });
+    const row = (uid, name, over) => ({
+      ...base,
+      uid,
+      name,
+      firstName: name.split(" ")[0],
+      personHref: `${programmePath(AGI)}/people/${uid}`,
+      applicationHref: `${path}${uid}`,
+      ...over,
+    });
     const kinds = {
       // Holding a place, in a group, said they are coming: under Everyone.
       holdingInGroup: row("k-holding", "Kit Holding", { category: "holding", group: "Group C", coming: { kind: "yes", on: "Mon 26 Oct" }, status: { kind: "holding" } }),
@@ -598,8 +606,8 @@ describe("the pages", () => {
     const rows = [...Object.values(kinds), ...twins];
     const view = { ...tab.view, rows };
     const drawn = (person) => renderToStaticMarkup(createElement(ProgrammePeople, { view, person }));
-    /** How many rows of the table carry this name: the name cell of a drawn row. */
-    const rowsNamed = (html, name) => html.split(`class="name">${name}</div>`).length - 1;
+    /** How many rows of the table carry this name: the name cell of a drawn row, its link to the person's page. */
+    const rowsNamed = (html, name) => html.split(`class="nameLink">${name}</a>`).length - 1;
     // Opened on nobody: Everyone and one page of twelve, so the invited row is not drawn, nor every twin.
     assert.equal(rowsNamed(drawn(null), "Ivo Invited"), 0);
     assert.ok(rowsNamed(drawn(null), "Sam Sample") < 14);
