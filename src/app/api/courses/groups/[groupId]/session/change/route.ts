@@ -13,7 +13,7 @@ import {
   startOf,
   toldFacts,
 } from "@/lib/courses/groupChange/facts";
-import { readNamingProgramme } from "@/lib/courses/programmeLead";
+import { programmeLedBy, readNamingProgramme } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { CHANGE_FIELDS, ChangeRefusal, checkPress, putBackSetsChangeFields, type CheckedPress } from "@/lib/courses/sessionChange/check";
@@ -31,6 +31,9 @@ import { coverHolderNames, coversEndLines, coversOffOf, coversOffWords, startMov
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
 import { parseChangePress, type ChangePress } from "@/lib/courses/sessionChange/parse";
+import { isRoomPressBody, parseRoomPress } from "@/lib/courses/sessionChange/room";
+import { answerRoomPress } from "@/lib/courses/sessionChange/roomWrite";
+import { ROOM_REFUSAL } from "@/lib/courses/sessionChange/roomWords";
 import { REFUSAL, countChangedWords, movesMetWords } from "@/lib/courses/sessionChange/words";
 import { updateEmailAudience } from "@/lib/courses/updates/audience";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -84,6 +87,16 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
  * and its email go through, with its own gate, caps, count and receipts.
  * Nothing here can put a meeting link in a message: the reason and a room are
  * refused when they hold one, and the online update says where the link is.
+ *
+ * ── A ROOM AND NOTHING ELSE (`kind: "room"`) ────────────────────────────────
+ * One week's room, or several weeks' of the group in one transaction, set,
+ * changed or taken off, its day and time untouched and the week not marked
+ * moved (`src/lib/courses/sessionChange/room.ts`). Behind the same gate, in
+ * its own body (`parseRoomPress`), and then for an admin or the programme's
+ * own lead alone: a facilitator or a track lead is refused in one sentence
+ * that sends them to the group's page. Unlike every other kind, it tells the group
+ * itself, after the commit, in the same request, through the same lane, limits
+ * and people as a move's update (`src/lib/courses/sessionChange/roomWrite.ts`).
  */
 
 /** What the press changed, for the dialog's sentence. */
@@ -97,6 +110,8 @@ type Answer = {
     emailCount: number;
     /** Post it with the group's facilitators in its email too. */
     withFacilitators: true;
+    /** Its week: the update reaches the people in the group that week (`updateEmailAudience`), as the count above did. */
+    weekNumber: number;
   } | null;
 };
 
@@ -191,9 +206,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
   } catch {
     return NextResponse.json({ error: REFUSAL.body }, { status: 400 });
   }
-  const parsed = parseChangePress(raw);
-  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-  const press = parsed.value;
+  // A room and nothing else has a body of its own; every other kind, the press's.
+  const roomParsed = isRoomPressBody(raw) ? parseRoomPress(raw) : null;
+  if (roomParsed && !roomParsed.ok) return NextResponse.json({ error: roomParsed.error }, { status: 400 });
+  const parsed = roomParsed ? null : parseChangePress(raw);
+  if (parsed && !parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
@@ -213,6 +230,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
   }
   if (!found || !run) return NextResponse.json({ error: "Group not found" }, { status: 404 });
   if (found.archived) return NextResponse.json({ error: REFUSAL.gone }, { status: 400 });
+
+  if (roomParsed?.ok) {
+    // A room and nothing else, for one week or sixty: the people the week's
+    // rooms and the term's rooms are for, an admin and the programme's own
+    // lead. A facilitator and a track lead change a week's room on the group's
+    // page, as a move, as before.
+    if (!isAdmin && (await programmeLedBy(db, actor, run.id)) === null) {
+      return NextResponse.json({ error: ROOM_REFUSAL.notYours }, { status: 403 });
+    }
+    const answer = await answerRoomPress(db, { actor, run, group: found, groupRef, press: roomParsed.value, now: new Date() });
+    return NextResponse.json(answer.body, { status: answer.status, headers: answer.headers });
+  }
+  if (!parsed?.ok) return NextResponse.json({ error: REFUSAL.body }, { status: 400 });
+  const press = parsed.value;
 
   // ── The session, as the dialog showed it ─────────────────────────────────
   const now = new Date();
@@ -477,6 +508,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
             ...oneWeekNoticeFor(run, outcome.checked, press, { groupName, incubator }),
             emailCount: press.emailCount,
             withFacilitators: true,
+            weekNumber: press.weekNumber,
           }
         : null,
     };

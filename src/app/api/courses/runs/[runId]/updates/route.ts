@@ -240,6 +240,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string 
     // Counted for this writer, as the composer counted it: never to themselves.
     const audience = await updateEmailAudience(db, run, groups, post.to, group?.id ?? null, actor.uid, {
       withFacilitators: post.withFacilitators,
+      // About one week's session: the people in the group that week.
+      weekNumber: post.weekNumber,
     });
     if (audience.refused) return NextResponse.json({ error: REFUSAL.overCap }, { status: 400 });
     if (audience.recipients.length === 0) {

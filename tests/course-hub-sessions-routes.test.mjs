@@ -203,6 +203,7 @@ describe("2. cancel it, and keep pace", () => {
         "Group B won’t meet for week 4. Week 5 is still Tue 1 Dec, and week 4’s work is still on your programme page.\n\nWhy: Rahul and Sofia are both away.",
       emailCount: 4,
       withFacilitators: true,
+      weekNumber: 4,
     });
 
     const after = world.db.read(`courseGroups/${B}`);
@@ -313,6 +314,7 @@ describe("2. hold it online", () => {
         "Group B’s week 6 session is online, at the usual time. The link to join is on your programme page.\n\nWhy: Rahul and Sofia are both away.",
       emailCount: 3,
       withFacilitators: true,
+      weekNumber: 6,
     });
     const stored = world.db.read(`courseGroups/${B}`);
     assert.equal(stored.sessionModes.w06, "virtual");
@@ -408,6 +410,7 @@ describe("2. hold it as usual", () => {
       message: "Group B’s week 4 session is back to Tue 24 Nov, 6pm, Hallward B12, as usual.\n\nWhy: Sofia can make it after all.",
       emailCount: 3,
       withFacilitators: true,
+      weekNumber: 4,
     });
     const stored = world.db.read(`courseGroups/${B}`);
     assert.deepEqual(stored.sessionChanges, {});
@@ -535,7 +538,7 @@ describe("4. every refusal comes before the write", () => {
     const response = await ask.change("claudia", B, { ...CANCEL, reason: AWAY, tell: true, emailCount: 4 });
     assert.deepEqual(Object.keys(response.body).sort(), ["change", "ok", "update"]);
     assert.deepEqual(Object.keys(response.body.change).sort(), ["dateKey", "kind", "newDateKey", "weekNumber"]);
-    assert.deepEqual(Object.keys(response.body.update).sort(), ["emailCount", "groupId", "message", "title", "withFacilitators"]);
+    assert.deepEqual(Object.keys(response.body.update).sort(), ["emailCount", "groupId", "message", "title", "weekNumber", "withFacilitators"]);
   });
 });
 

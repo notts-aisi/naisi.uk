@@ -1255,8 +1255,42 @@ const BUILT = new Map([
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions/page.tsx",
     {
-      built: ["`${here}?week=${n}`"],
-      from: "the Sessions view's own path (groupsViewPath, from the form's and the programme's ids) and a taught week's number from the run's plan. Nothing anybody typed",
+      built: [
+        "`${here}?week=${n}`",
+        "termRoomsPath(view.roundId, view.programmeId)",
+        "weekRoomsPath(view.roundId, { programme: view.programmeId })",
+      ],
+      from: "the Sessions view's own path (groupsViewPath, from the form's and the programme's ids) and a taught week's number from the run's plan; and the week's rooms and the term's rooms (src/lib/courses/weekRooms/paths.ts), from the form's and the programme's ids, encoded. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/rooms/page.tsx",
+    {
+      built: [
+        "applicationFormPath(reader.roundId)",
+        "applicationFormPath(reader.roundId)",
+        "here(view.elsewhere.monday)",
+        "here(view.monday, null)",
+        "here(view.monday, programme.programmeId)",
+        "here(view.next)",
+        "here(view.previous)",
+        "here(week.monday)",
+        "termRoomsPath(reader.roundId, only)",
+      ],
+      from: "the week's rooms and the term's rooms (src/lib/courses/weekRooms/paths.ts) and the form's own page, from the form's id, a programme's id on the form and a Monday the page worked out from the runs' dates, each encoded. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/rooms/term/page.tsx",
+    {
+      built: [
+        "applicationFormPath(reader.roundId)",
+        "applicationFormPath(reader.roundId)",
+        "termRoomsPath(reader.roundId)",
+        "termRoomsPath(reader.roundId, programme.programmeId)",
+        "weekRoomsPath(reader.roundId, { programme: only })",
+      ],
+      from: "the term's rooms and the week's rooms (src/lib/courses/weekRooms/paths.ts) and the form's own page, from the form's id and a programme's id on the form, encoded. Nothing anybody typed",
     },
   ],
   [

@@ -1293,7 +1293,7 @@ test("GUARD — a placed member is NEVER mailed another group's session time", (
   assert.match(WEEK_EMAIL, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id, weekNumber: session\.weekNumber \}\)/);
   assert.match(WEEK_EMAIL, /const sessions = resolveSessions\(run, group\);/);
   assert.match(WEEK_EMAIL, /sessionAt: sessionInstants\(session\)\.startsAt,/);
-  assert.match(WEEK_EMAIL, /where: courseNudgeSessionWhere\(session\.session, sessionModeForWeek\(group, session\.weekId\)\),/);
+  assert.match(WEEK_EMAIL, /where: courseNudgeSessionWhere\(session\.session, sessionModeForWeek\(group, session\.weekId\), campusForWeek\(group, session\.weekId\)\),/);
   assert.match(WEEK_EMAIL_JOB, /if \(group\.archived\) continue;/);
   // The reminders: that group's people for the session's week (with no
   // record of groups by week, the people in it now), from its own sessions.
@@ -2483,24 +2483,30 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
   // ── THE EMAIL LANE ────────────────────────────────────────────────────────
   const session = sessionForWeek(group, "w03");
   // Legacy (no mode): the room, exactly as before.
-  assert.equal(courseNudgeSessionWhere(session), "Hallward B12");
-  assert.equal(courseNudgeSessionWhere(session, null), "Hallward B12");
+  assert.equal(courseNudgeSessionWhere(session, undefined, null), "Hallward B12");
+  assert.equal(courseNudgeSessionWhere(session, null, null), "Hallward B12");
+  assert.equal(courseNudgeSessionWhere(session, null, "university-park"), "Hallward B12");
   // Virtual: "online", NOT the room. That is the whole point, in one assertion.
-  assert.equal(courseNudgeSessionWhere(session, "virtual"), "Online");
-  assert.equal(courseNudgeSessionWhere(session, "in-person"), "Hallward B12");
+  assert.equal(courseNudgeSessionWhere(session, "virtual", null), "Online");
+  assert.equal(courseNudgeSessionWhere(session, "in-person", null), "Hallward B12");
   // A group with a STANDING meet link and no room: the legacy fallback says
   // "Online", but an explicit in-person week must not — that group's
   // facilitator has said people are meeting somewhere, and naming the video
   // call would send them to it.
   const linkOnly = { ...session, location: "" };
-  assert.equal(courseNudgeSessionWhere(linkOnly), "Online");
-  assert.equal(courseNudgeSessionWhere(linkOnly, "in-person"), "");
+  assert.equal(courseNudgeSessionWhere(linkOnly, undefined, null), "Online");
+  assert.equal(courseNudgeSessionWhere(linkOnly, null, "online"), "Online");
+  assert.equal(courseNudgeSessionWhere(linkOnly, "in-person", null), "");
+  // On a campus a blank room is a room still to book, whatever link the
+  // group keeps: the same "" as a week with no room and no link.
+  assert.equal(courseNudgeSessionWhere(linkOnly, null, "university-park"), "");
+  assert.equal(courseNudgeSessionWhere(linkOnly, null, "jubilee"), "");
   // Neither → "", which drops the whole sentence rather than dangling it.
-  assert.equal(courseNudgeSessionWhere({ ...linkOnly, meetingUrl: null }), "");
+  assert.equal(courseNudgeSessionWhere({ ...linkOnly, meetingUrl: null }, null, null), "");
   // NEVER the URL, mode or no mode — email is the most forwardable surface we
   // have, and this is the assertion that keeps it that way.
   for (const mode of [undefined, null, "virtual", "in-person"]) {
-    assert.doesNotMatch(courseNudgeSessionWhere(session, mode), /meet\.example/);
+    assert.doesNotMatch(courseNudgeSessionWhere(session, mode, null), /meet\.example/);
   }
   // WHERE takes the mode; WHEN deliberately does NOT — a week that moves online
   // happens at the same hour on the same evening, so threading it through would
@@ -2508,12 +2514,12 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
   // "fixes" into one that has one. Pinned so the asymmetry reads as a decision.
   assert.match(
     NUDGE_EMAIL,
-    /export function courseNudgeSessionWhere\(\s*session: GroupSession \| null \| undefined,\s*mode\?: GroupSessionMode \| null,\s*\): string \{/,
+    /export function courseNudgeSessionWhere\(\s*session: GroupSession \| null \| undefined,\s*mode: GroupSessionMode \| null \| undefined,\s*\/\*\*[^*]*\*\/\s*campus: GroupCampus \| null,\s*\): string \{/,
   );
   // The week's email reads WHEN off the session's own instant, which no mode
   // touches, and WHERE through the mode of that session's week.
   assert.match(WEEK_EMAIL, /sessionAt: sessionInstants\(session\)\.startsAt,/);
-  assert.match(WEEK_EMAIL, /where: courseNudgeSessionWhere\(session\.session, sessionModeForWeek\(group, session\.weekId\)\),/);
+  assert.match(WEEK_EMAIL, /where: courseNudgeSessionWhere\(session\.session, sessionModeForWeek\(group, session\.weekId\), campusForWeek\(group, session\.weekId\)\),/);
 
   // ── THE WIRING ────────────────────────────────────────────────────────────
   // The payload carries the WHOLE MAP, not one resolved answer — see the
@@ -2549,10 +2555,10 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
   assert.match(GROUP_PAGE, /sessionModes: sessionModesOf\(group\),/);
   assert.match(GROUP_PAGE, /const facts = ticketFacts\(sessionGroup\);/);
   // The week's emails resolve it for the group's OWN week address, not the run's.
-  assert.match(WEEK_EMAIL, /where: courseNudgeSessionWhere\(session\.session, sessionModeForWeek\(group, session\.weekId\)\),/);
+  assert.match(WEEK_EMAIL, /where: courseNudgeSessionWhere\(session\.session, sessionModeForWeek\(group, session\.weekId\), campusForWeek\(group, session\.weekId\)\),/);
   assert.match(
     REMINDERS_JOB,
-    /const where = courseNudgeSessionWhere\(due\.session\.session, sessionModeForWeek\(group, due\.session\.weekId\)\);/,
+    /const where = courseNudgeSessionWhere\(due\.session\.session, sessionModeForWeek\(group, due\.session\.weekId\), campusForWeek\(group, due\.session\.weekId\)\);/,
   );
 
   // THE CARD: the point is the SUPPRESSION, both directions.
@@ -2677,7 +2683,7 @@ test("GUARD — the week page shows the VIEWED week's mode, not the current week
   // assumed: they resolve per week from the group DOC (they have no payload to
   // read), and must keep doing so rather than being pointed at this map.
   for (const source of [WEEK_EMAIL, REMINDERS_JOB]) {
-    assert.match(source, /courseNudgeSessionWhere\((due\.)?session\.session, sessionModeForWeek\(group, (due\.)?session\.weekId\)\)/);
+    assert.match(source, /courseNudgeSessionWhere\((due\.)?session\.session, sessionModeForWeek\(group, (due\.)?session\.weekId\), campusForWeek\(group, (due\.)?session\.weekId\)\)/);
     assert.doesNotMatch(source, /sessionModesOf/);
   }
 });

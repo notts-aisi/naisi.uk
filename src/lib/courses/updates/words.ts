@@ -216,6 +216,7 @@ export const REFUSAL = {
   emailCount: "Say how many people the button said it would email.",
   test: "Choose whether this is a test.",
   withFacilitators: "Only an update to one group can be emailed to its facilitators too.",
+  weekNumber: "Only an update to one group can be about one week, from week 1 to 60.",
   ownGroupOnly: "You can write to your own group only.",
   groupGone: "That group isn’t on this programme any more. Choose another.",
   nobodyToEmail: "Nobody it’s to can be emailed yet. Turn off Also email it to post it.",

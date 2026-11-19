@@ -323,6 +323,14 @@ const READERS = {
     kind: "week",
     why: "the calendar somebody subscribes to holds each week's session from the group they were in that week, past and future; the dialog's line counts the group they are in now",
   },
+  "lib/courses/weekRooms/load.ts": {
+    kind: "week",
+    why: "the week's rooms count away and online on a session's register only for the people whose group that week is the row's, so a line left by somebody since moved is not counted",
+  },
+  "lib/courses/sessionChange/roomWrite.ts": {
+    kind: "week",
+    why: "a room-only change of one week tells the people in the group that week (`updateEmailAudience` with the week), as a one-week move's notice does",
+  },
   "lib/courses/cantMakeIt/seat.ts": {
     kind: "week",
     why: "Can't make it goes on the register of the group a session's week was spent in, and the ticket's next session is the one they are due at",

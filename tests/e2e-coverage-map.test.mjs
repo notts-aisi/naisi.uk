@@ -1787,6 +1787,16 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/rooms": {
+    reason:
+      "The week's rooms: the journey is written as the spec course-hub-week-rooms (a room set in its row, one pasted, the term's rooms), which has not had its first green run yet; the page is rendered as every caller, and its every press made against the real routes, by tests/course-week-rooms.test.mjs.",
+    coverWhen: "When course-hub-week-rooms first passes locally with a teardown manifest of zero and its status becomes verified, in the same diff as this entry goes.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/rooms/term": {
+    reason:
+      "The term's rooms: the last step of the spec course-hub-week-rooms, which has not had its first green run yet; the grid is rendered as every caller by tests/course-week-rooms.test.mjs, and it writes nothing.",
+    coverWhen: "When course-hub-week-rooms first passes locally with a teardown manifest of zero and its status becomes verified, in the same diff as this entry goes.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/send": {
     reason:
       "Application system: /(app)/admin/admissions/forms/[roundId]/send is an admin's page whose every number is worked out by modules the unit suite executes; nobody has applied through the new form yet, so there is no term to drive it against.",

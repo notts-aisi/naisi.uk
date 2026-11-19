@@ -27,7 +27,7 @@ import { weekIsReady } from "@/lib/courses/weekReady";
 import { courseNudgeSessionWhere } from "@/lib/email/courseNudgeEmail";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
 import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
-import { sessionModeForWeek } from "@/lib/firestore/courseGroups";
+import { campusForWeek, sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { weekDocId } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 
@@ -482,7 +482,7 @@ export async function buildProgrammeOverview(
         when: clock ? `${day} · ${clock}` : day,
         dateKey: facts.session.dateKey ?? "",
         today: isToday,
-        where: courseNudgeSessionWhere(facts.session.session, sessionModeForWeek(group, facts.session.weekId)),
+        where: courseNudgeSessionWhere(facts.session.session, sessionModeForWeek(group, facts.session.weekId), campusForWeek(group, facts.session.weekId)),
         facilitators: entry.facilitators.map((person) => ({ uid: person.uid, name: person.name })),
         seeIt: null,
         remind: null,

@@ -152,12 +152,15 @@ function eventOf(
   const slot = session.session;
   const mode = session.occurrence === 1 ? sessionModeForWeek(group, session.weekId) : null;
   const hasLink = typeof slot.meetingUrl === "string" && validateSubmissionUrl(slot.meetingUrl, GROUP_FIELD_LIMITS.meetingUrl) === null;
-  const online = mode === "virtual" || (mode === null && hasLink);
   // The week's own room; while there is none, and the week is not online,
   // the week's campus stands in for it (its own, else the group's). A room a
   // reader could follow (`couldBeFollowed`) is a room not booked.
   const campus = session.occurrence === 1 ? campusForWeek(group, session.weekId) : group.campus;
   const typed = couldBeFollowed(slot.location) ? "" : slot.location.trim();
+  // A link makes a week with no room online only on the Online campus or
+  // none, as the ticket asks it (`heldOnline`): on a campus, a blank room is a
+  // room still to book, whatever link the group keeps.
+  const online = mode === "virtual" || (mode === null && hasLink && (slot.location.trim() !== "" || campus === null || campus === "online"));
   const room =
     mode !== "virtual" && typed
       ? typed

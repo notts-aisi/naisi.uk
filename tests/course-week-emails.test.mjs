@@ -576,13 +576,20 @@ describe("6. the group's claim, where a session is, and the week's page", () => 
 
   test("where a session is: the room, Online, or nothing, and never the group's video link", () => {
     const slot = { weekday: 3, startTimeLocal: "15:00", durationMinutes: 90, location: "Portland A21", meetingUrl: "https://meet.example.com/abc", notes: "" };
-    assert.equal(parts.courseNudgeSessionWhere(slot, null), "Portland A21");
-    assert.equal(parts.courseNudgeSessionWhere(slot, "virtual"), "Online");
-    assert.equal(parts.courseNudgeSessionWhere({ ...slot, location: "" }, null), "Online");
-    assert.equal(parts.courseNudgeSessionWhere({ ...slot, location: "" }, "in-person"), "");
-    assert.equal(parts.courseNudgeSessionWhere({ ...slot, location: "https://zoom.example.com/j/1" }, null), "");
+    for (const campus of [null, "university-park", "jubilee", "online"]) {
+      assert.equal(parts.courseNudgeSessionWhere(slot, null, campus), "Portland A21");
+      assert.equal(parts.courseNudgeSessionWhere(slot, "virtual", campus), "Online");
+      assert.equal(parts.courseNudgeSessionWhere({ ...slot, location: "" }, "in-person", campus), "");
+      assert.equal(parts.courseNudgeSessionWhere({ ...slot, location: "https://zoom.example.com/j/1" }, null, campus), "");
+      assert.equal(parts.courseNudgeSessionWhere({ ...slot, location: "", meetingUrl: null }, null, campus), "");
+    }
+    // A blank room with a link is online only on the Online campus or none, as the ticket asks it.
+    assert.equal(parts.courseNudgeSessionWhere({ ...slot, location: "" }, null, null), "Online");
+    assert.equal(parts.courseNudgeSessionWhere({ ...slot, location: "" }, null, "online"), "Online");
+    assert.equal(parts.courseNudgeSessionWhere({ ...slot, location: "" }, null, "university-park"), "");
+    assert.equal(parts.courseNudgeSessionWhere({ ...slot, location: "" }, null, "jubilee"), "");
     for (const mode of [null, "virtual", "in-person"]) {
-      assert.doesNotMatch(parts.courseNudgeSessionWhere(slot, mode), /meet\.example/);
+      assert.doesNotMatch(parts.courseNudgeSessionWhere(slot, mode, null), /meet\.example/);
     }
   });
 
@@ -699,5 +706,38 @@ describe("8. the weekly nudge, its template and its page are gone", () => {
 
   test("its last line said nobody was keeping score, which privacy v15 took back, and no week's email says it", () => {
     assert.doesNotMatch(codeOf("src/lib/courses/weekEmails/words.ts"), /keeping score/i);
+  });
+});
+
+describe("every email that says where a session is asks the week's campus", () => {
+  test("each call of courseNudgeSessionWhere hands it the campus of the same week as its mode", async () => {
+    const { walkSource } = await import("./lib/functionScan.mjs");
+    const { readFileSync: read } = await import("node:fs");
+    const { join: joinPath, relative: rel, dirname: dir } = await import("node:path");
+    const { fileURLToPath: toPath } = await import("node:url");
+    const src = joinPath(dir(toPath(import.meta.url)), "..", "src");
+    const calls = [];
+    for (const file of walkSource(src)) {
+      const code = read(file, "utf8");
+      for (const match of code.matchAll(/courseNudgeSessionWhere\(([^;]*?)\)(?=[,;)\s]*$|,\s*$|\)\s*:|;)/gm)) calls.push([rel(src, file), match[0]]);
+    }
+    const outside = calls.filter(([file]) => file !== "lib/email/courseNudgeEmail.ts");
+    // The five readers that print a session's place: the reminders, Week N is open, the register's end, the programme overview and the explainers.
+    assert.deepEqual(outside.map(([file]) => file).sort(), [
+      "lib/courses/explainers/schedule.ts",
+      "lib/courses/nextWeekEmail.ts",
+      "lib/courses/programmeOverview.ts",
+      "lib/courses/registerEnding.ts",
+      "lib/scheduler/jobs/weekReminders.ts",
+    ]);
+    for (const [file, call] of outside) {
+      const mode = /sessionModeForWeek\(([^,]+), ([^)]+)\)/.exec(call);
+      const campus = /campusForWeek\(([^,]+), ([^)]+)\)/.exec(call);
+      assert.ok(mode && campus, `${file}: ${call}`);
+      assert.deepEqual([campus[1], campus[2]], [mode[1], mode[2]], `${file} asks another week's campus`);
+    }
+    // Inside the module, the Week N is open place hands its own campus on.
+    const own = read(joinPath(src, "lib", "email", "courseNudgeEmail.ts"), "utf8");
+    assert.match(own, /const where = courseNudgeSessionWhere\(session, mode, campus\);/);
   });
 });

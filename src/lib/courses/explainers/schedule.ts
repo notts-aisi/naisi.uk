@@ -23,7 +23,7 @@ import {
   type CourseExplainerDoc,
   type ExplainerMinutes,
 } from "@/lib/firestore/courseExplainers";
-import { sessionModeForWeek } from "@/lib/firestore/courseGroups";
+import { campusForWeek, sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { isTaskEmailEnabled } from "@/lib/firestore/taskEmailConfig";
 import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 import { mirrorTaskEmailToPush } from "@/lib/push/taskNotifications";
@@ -195,7 +195,7 @@ export async function scheduleExplainer(
     return {
       choice,
       taskId: explainerTaskId(ref.id, choice.groupId, choice.sessionKey),
-      where: session ? courseNudgeSessionWhere(session.session, sessionModeForWeek(group.group, session.weekId)) : "",
+      where: session ? courseNudgeSessionWhere(session.session, sessionModeForWeek(group.group, session.weekId), campusForWeek(group.group, session.weekId)) : "",
     };
   });
   const record = {

@@ -11,6 +11,10 @@ import { REFUSAL, tooLongWords } from "./words";
  * group's facilitators too (`updateEmailAudience`). A change to a group's
  * sessions posts its update this way. Refused with any other `to`.
  *
+ * `weekNumber`, for an update to one group about ONE week's session: its
+ * email reaches the people in the group THAT WEEK (`updateEmailAudience`'s
+ * week), as the change route counted them. Refused with any other `to`.
+ *
  * `to` is "everyone", "group" (with `groupId`) or "facilitators". `email` is
  * the "Also email it" switch, and `emailCount` the number its button showed:
  * the press is refused when that is no longer who the email would reach.
@@ -37,6 +41,8 @@ export type UpdatePost = {
   test: boolean;
   /** For an update to one group: email its facilitators too. */
   withFacilitators: boolean;
+  /** For an update to one group about one week's session: that week; null for none. */
+  weekNumber: number | null;
 };
 
 export type ParsedUpdatePost = { ok: true; value: UpdatePost } | { ok: false; error: string };
@@ -58,6 +64,14 @@ export function parseUpdatePost(raw: unknown): ParsedUpdatePost {
   }
   const withFacilitators = b.withFacilitators === true;
   if (withFacilitators && audience !== "group") return { ok: false, error: REFUSAL.withFacilitators };
+  let weekNumber: number | null = null;
+  if (b.weekNumber !== undefined) {
+    const n = b.weekNumber;
+    if (audience !== "group" || typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > 60) {
+      return { ok: false, error: REFUSAL.weekNumber };
+    }
+    weekNumber = n;
+  }
   let groupId: string | null = null;
   if (audience === "group") {
     if (typeof b.groupId !== "string" || !isAddressableId(b.groupId)) return { ok: false, error: REFUSAL.group };
@@ -78,7 +92,7 @@ export function parseUpdatePost(raw: unknown): ParsedUpdatePost {
   }
 
   if (test) {
-    return { ok: true, value: { to: audience, groupId, title, message, email: false, emailCount: 0, test, withFacilitators } };
+    return { ok: true, value: { to: audience, groupId, title, message, email: false, emailCount: 0, test, withFacilitators, weekNumber } };
   }
 
   if (typeof b.email !== "boolean") return { ok: false, error: REFUSAL.email };
@@ -90,6 +104,6 @@ export function parseUpdatePost(raw: unknown): ParsedUpdatePost {
   }
   return {
     ok: true,
-    value: { to: audience, groupId, title, message, email: b.email, emailCount, test, withFacilitators },
+    value: { to: audience, groupId, title, message, email: b.email, emailCount, test, withFacilitators, weekNumber },
   };
 }

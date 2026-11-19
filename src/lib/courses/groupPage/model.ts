@@ -521,7 +521,7 @@ export type RegularPreview = {
   };
   moves: { weekNumber: number; before: PreviewMoment | null; after: PreviewMoment | null; lateFrom: { before: string | null; after: string | null } }[];
   kept: { weekNumber: number; pinned: boolean; session: PreviewMoment | null }[];
-  ownTimes: { weekNumber: number; kind: "online" | "moved" | "cancelled" | "pushed" | "set"; session: PreviewMoment | null; campus: GroupCampus | null }[];
+  ownTimes: { weekNumber: number; kind: "online" | "moved" | "cancelled" | "pushed" | "set" | "room"; session: PreviewMoment | null; campus: GroupCampus | null }[];
   reminders: ({ weekNumber: number } & PreviewReminders)[];
   told: PreviewTold;
   /** One line for each cover the press would take off (`coversEndLines`); absent from an older answer. */
@@ -747,6 +747,7 @@ const OWN_TIME_WORDS: Record<RegularPreview["ownTimes"][number]["kind"], string>
   cancelled: "cancelled",
   pushed: "pushed back",
   set: "set on its own",
+  room: "its own room for that week",
 };
 
 /** Every line of "What will happen" for a new regular time from a week onwards. */
