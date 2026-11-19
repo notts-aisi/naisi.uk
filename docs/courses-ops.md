@@ -609,37 +609,74 @@ stops anybody getting a second email about the same session.
 #### `courses-week-reminders`
 
 "Reminders before a session": 3 days and 1 day before each of a group's
-sessions, at 9am in London, one email to each person holding a place in the
-group whose week is not done, listing what is left of it (the lines the check
-before Submit names, and "Week 3 isn't submitted."). **Ships switched off.**
-A notice (docs/notifications.md, surface `course-week-reminder`): it reaches
-them whatever they unsubscribed from, and says why above its words.
+sessions, at 9am in London, one email to each person due at it: that week's
+day, time and place, how to say they can't make it, what a certificate needs
+where the run has a rule, and what is left of their week if anything is (the
+lines the check before Submit names). **Ships switched off.** A notice
+(docs/notifications.md, surface `course-week-reminder`): it reaches them
+whatever they unsubscribed from, and says why above its words.
 
 | | |
 | --- | --- |
 | Marker | `schedulerMarkers/weekremind__{groupId}__{sessionKey}__{uid}__{3\|1}`, one per person per reminder |
 | Due | from 9am on its day for 12 hours (`maxLateHours`), and never once the session has started |
-| Weeks | each week the session covers (two, for the session after a cancelled one), written as blocks and published |
+| Who | every active learner whose group for the session's week is the session's group and who has been told their group; never a facilitator |
+| Weeks | each week the session covers (two, for the session after a cancelled one); a session none of whose weeks is written as blocks and published is reminded about by nobody |
 | Runs scanned | status `applications-open`, `applications-closed` or `running`; archived groups skipped |
 | `maxPerTick` | 100 |
 
+**Who is sent what** is decided in one place, `sessionReminderVerdict` in
+`src/lib/scheduler/jobs/weekReminders.ts`:
+
+- Everybody due at the session gets the reminder of the session. Its first
+  sentence is that week's, from the resolver every reader of a session uses:
+  "Group C's week 5 session is on Thu 26 Nov, 6pm to 8pm, in Portland A21
+  (University Park), with Rahul." A week with its own room says that room; a
+  moved week its new day, time and room; a week with no room, or whose room
+  was cleared for that week on a group with a usual room, says the room is
+  still to be confirmed and never the usual room; a week held online (its own
+  mode, or the Online campus, the rule the rooms pages use) says "online" and
+  that the link is on their programme page. Never a meeting link. The
+  facilitators named are the group's who still stand behind the role, by first
+  name; an incubator's people are told of no group and no facilitator ("Your
+  week 5 session is ..."). Then "Can't make it?", then the certificate
+  sentence (`certificateNeedsFor`, worked out from the same facts the
+  programme page uses, so the two say the same; never a count of what they
+  missed), then what is left of each week the session covers for them that is
+  not done, each with its own list. A week that is done has no list; the
+  reminder still goes.
+- Somebody who will not be at the session is never told to come to it: an
+  excusal for the session that stands (an approved request, or their line
+  marked excused, as the register reads it with `excusalStandsFor`), or a word
+  in advance that they can't make it (the programme page's `cantMakeItState`:
+  "Most weeks, not all", or a word said before requests). With something of
+  the week left they are sent the reminder about what is left, in its own
+  words ("Your AGI Strategy session is on ..."); with nothing left, nothing. A
+  request still waiting for an admin, or declined, is no excusal: they are
+  reminded of the session.
+
 **Done is the one meaning** (`weekDone`, "The week stays open"): every
 reading and step its tasks count ticked, and either the old Submit pressed or
-everything written it counts written and sent. It is asked as each reminder goes, so somebody who finishes
-after the 3-day reminder is not sent the 1-day one. A session that is
-cancelled has no reminders; the session after it reminds about both weeks,
-each with its own list. A moved session is reminded about on its new date.
+everything written it counts written and sent. It is asked as each reminder
+goes, so somebody who finishes after the 3-day reminder is sent the 1-day one
+with no list. A session that is cancelled has no reminders; the session after
+it reminds about both weeks. A moved session is reminded about on its new date.
 
-Somebody claimed and not mailed is stamped on their marker with why: `done`;
-`locked` (the programme has closed, so nothing listed could be done in it now;
-`submitted` on a marker written while weeks locked at Submit); `joined-late`
-(the session started before they were told their group, or they have none); `stale`
-(the reminder is more than 12 hours late; stamped once, within a day of going
-stale, and then left alone); and the notice audience's own reasons,
-`no-account`, `no-address`, `same-inbox` and `suppressed`. Somebody who left
-the programme holds no place and is not considered at all.
+Somebody claimed and not mailed is stamped on their marker with why:
+`excused` (not coming, and nothing of the week left); `locked` (the programme
+has closed, so nothing could be done in it now; `submitted` on a marker
+written while weeks locked at Submit); `joined-late` (the session started
+before they were told their group, or they have none); `stale` (the reminder
+is more than 12 hours late; stamped once, within a day of going stale, and
+then left alone); and the notice audience's own reasons, `no-account`,
+`no-address`, `same-inbox` and `suppressed`. `done` is no longer a reason; it
+is on markers written before everybody due at a session was reminded.
+Somebody who left the programme holds no place and is not considered at all.
 
-Prove it on dev with **Run now** on a run with a session 1 or 3 days away.
+**Proving it on dev.** Run now emails REAL people: every person due at a
+session 1 or 3 days away on every live run of the dev project. Prove it only
+on a run the test harness made, whose people are the harness's own
+addresses.
 
 #### `courses-register-reminders`
 
@@ -1161,7 +1198,7 @@ the transport itself.
 | --- | --- | --- |
 | "Week N is open", while the schedule is off | the group's facilitator, by pushing the register | after every session, about the next one |
 | "Week N is open", while the schedule is on | the `courses-next-week-email` job | 6 days before each session at 9am, the first included |
-| The reminders before a session | the `courses-week-reminders` job | 3 days and 1 day before each session at 9am, to the people whose week is not done |
+| The reminders before a session | the `courses-week-reminders` job | 3 days and 1 day before each session at 9am, to everybody due at it, with what is left of their week if anything is |
 | Remind, by hand | the group's facilitators, the programme's lead, admins, on the group's page | any week whose work is open, before its session or after it, to the people whose week is not done |
 | Resend the week's email | an admin, on a finished register | recovery |
 
@@ -5782,7 +5819,7 @@ certificate was sent in error, and tell its owner.
 
 Privacy policy version 13 took back version 12's promise that nothing
 written in a course is used outside its programme, from its own agreement on,
-and the current policy (`src/content/legal/privacy/v20.tsx`) keeps those
+and the current policy (`src/content/legal/privacy/v21.tsx`) keeps those
 words. Three features rest on that, each an admin's press and never
 automatic, all built like the applications' second reader
 (`docs/applications.md`, "Claude and Pangram"): labels to Claude, names put
