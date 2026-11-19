@@ -340,8 +340,8 @@ export function registerReminderMarker(
 
 /**
  * `weekremind__{groupId}__{sessionKey}__{uid}__{daysBefore}`, ONE PERSON'S
- * reminder, 3 days or 1 day before one of their group's sessions, that their
- * week is not done (`courses-week-reminders`).
+ * reminder, 3 days or 1 day before a session they are due at
+ * (`courses-week-reminders`).
  *
  * Per person and per reminder, like every other reminder here: each person's
  * email is the unit of work that can fail on its own, so each gets its own

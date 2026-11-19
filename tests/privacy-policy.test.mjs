@@ -4,14 +4,24 @@
  *
  * Run with `npm test`.
  *
- * The current version is v20: v19 with the AI at Nottingham survey named in
+ * The current version is v21: v20 with the paragraph "Reminders." in "Your
+ * work, progress and reminders" saying that three days and one day before
+ * each of somebody's sessions we email them its day, time and place, how to
+ * tell us they can't make it, and what is left of that week's work if
+ * anything is (it no longer says they stop once the week is done), and
+ * "What's changed in version 21" at the top with version 20's, 19's, 18's
+ * and 17's lines kept under it, dated. Told on Home, not asked. Every other
+ * word is v20's, so the sections below that name v15 to v20 hold v21's text,
+ * and the describe for version 21 holds its change to the code.
+ *
+ * v20 is v19 with the AI at Nottingham survey named in
  * three places (a paragraph under "Surveys and check-ins" saying it is
  * anonymous and has a privacy notice of its own, the email step among the
  * forms Google reCAPTCHA runs on, and the key to an unfinished survey among
  * what the browser keeps), and "What's changed in version 20" at the top with
  * version 19's, 18's and 17's lines kept under it, dated. reCAPTCHA's line on
  * /privacy/services names the survey too. Told on Home, not asked. Every
- * other word is v19's, so the sections below that name v15 to v19 hold v20's
+ * other word is v19's, so the sections below that name v15 to v19 held v20's
  * text, and the describe for version 20 holds its changes to the code.
  *
  * v19 is v18 with a fifth small preference named under
@@ -199,15 +209,20 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v20.tsx");
+const CURRENT = read("src/content/legal/privacy/v21.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v20 is the text the site
+ * content check below runs against this, because v21 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v20, frozen: read by the version 20 describe, which proves v20 is v19 with its changes, and by the version 21 describe, which proves v21 is v20 with its one. */
+const V20_FLAT = read("src/content/legal/privacy/v20.tsx").replace(/\s+/g, " ");
+/** "What's changed in version 21", as the page carries it (an apostrophe is `&apos;` in the source). */
+const CHANGED_21 =
+  "We now email everybody a reminder of each session&apos;s day, time and place three days and one day before it, where before we only emailed people with work left to do.";
 /** v19, frozen: read by the version 19 describe, which proves v19 is v18 with its one change, and by the version 20 describe, which proves v20 is v19 with its changes. */
 const V19_FLAT = read("src/content/legal/privacy/v19.tsx").replace(/\s+/g, " ");
 /** v18, frozen: read by the version 18 describe, which proves v18 is v17 with its changes, and by the version 19 describe, which proves v19 is v18 with its one. */
@@ -265,13 +280,16 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v20 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 20);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.20");
+  test("privacy v21 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 21);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.21");
   });
 
-  test("privacy v20 is dated the day its words last changed", () => {
-    // Provisional: set again to the day v20 goes live, as v19's, v18's, v17's, v16's and v15's were.
+  test("privacy v21 is dated the day its words last changed", () => {
+    // Provisional: set again to the day v21 goes live, as v20's, v19's, v18's, v17's, v16's and v15's were.
+    const twentyOne = POLICIES.privacy.versions.find((v) => v.version === 21);
+    assert.equal(twentyOne?.lastUpdated, "19 November 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 21).length, 1);
     const twenty = POLICIES.privacy.versions.find((v) => v.version === 20);
     assert.equal(twenty?.lastUpdated, "17 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 20).length, 1);
@@ -433,6 +451,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v20",
+    {
+      sha256: "02d3f88a3b93c92661c6af48506f6b258b16ff40e6bca20a55f40124a1bf482b",
+      why: "the AI at Nottingham survey named under surveys, Google reCAPTCHA and what the browser keeps, current from 17 November 2026 until v21 replaced it; told on Home, not asked, and the wording that said the reminders before a session are about what is left and stop once the week is done, frozen when v21 reminded everybody due at a session rather than editing it in place",
+    },
+  ],
   [
     "privacy/v19",
     {
@@ -4545,6 +4570,10 @@ describe("the course hub passage", () => {
           "src/app/api/courses/runs/[runId]/overview/route.ts",
           "the run home's route, which reads the rule alone, never the list, to tell a learner what a certificate needs before the end (November 2026: v19 says only the lead and admins see the list; since v15 it says nothing of who sees the number)",
         ],
+        [
+          "src/lib/scheduler/jobs/weekReminders.ts",
+          "the reminders before a session, which read the rule alone, never the list, to tell each learner due at a session what a certificate needs in the sentence their programme page says (v21: the reminders before a session say it too)",
+        ],
       ]),
       "reading the rule or the list of who finished",
       "The policy says only the programme's lead and admins see the list (and " +
@@ -4575,6 +4604,15 @@ describe("the course hub passage", () => {
       assert.match(read(route), /\bfinished: boolean;/);
     }
     assert.match(read("src/app/api/courses/runs/[runId]/overview/route.ts"), /\bcertificateNeeds: string \| null;/, "the run home is sent more than one sentence about the rule");
+    // The reminders before a session read the rule alone and say one sentence
+    // of it, the programme page's own: never the list, never a count.
+    const reminders = read("src/lib/scheduler/jobs/weekReminders.ts");
+    assert.deepEqual(
+      [...reminders.matchAll(/import \{([^}]*)\} from "@\/lib\/courses\/finishing\/[A-Za-z]+";/g)].map((match) => match[1].trim()),
+      ["certificateNeedsFor", "readFinishRule"],
+      "the reminders read more of who finished than the rule and the sentence it makes",
+    );
+    assert.match(read("src/lib/courses/weekEmails/words.ts"), /certificate: string \| null;/);
   });
 
   test("a deletion takes somebody off pitching week, out of their team and out of who finished, and a partner keeps a shared pitch", () => {
@@ -9559,12 +9597,12 @@ describe("the re-consent gate", () => {
 
   test("the accept page says nothing of version 19, which changes nothing about how information is used", () => {
     // A line on the accept page is for a version that changed how
-    // information is used: 15 to 18 and 20, oldest first. Version 19 names
-    // one more small preference kept in the browser, and its own first
-    // paragraph on the policy said so; version 20 keeps that line, dated.
+    // information is used: 15 to 18, 20 and 21, oldest first. Version 19
+    // names one more small preference kept in the browser, and its own first
+    // paragraph on the policy said so; versions 20 and 21 keep that line, dated.
     const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
     const lines = [...accept.matchAll(/What changed in version (\d+)\.<\/strong>/g)].map((match) => Number(match[1]));
-    assert.deepEqual(lines, [15, 16, 17, 18, 20]);
+    assert.deepEqual(lines, [15, 16, 17, 18, 20, 21]);
     const NINETEEN = "the site keeps one more small preference in your browser: that you dismissed the line saying this policy changed. Nothing about how we use your information has changed.";
     assert.ok(V19_FLAT.includes(`<strong>What&apos;s changed in version 19:</strong> ${NINETEEN}`));
     assert.ok(PAGE_FLAT.includes(`<strong>What changed in version 19, on 13 November 2026:</strong> ${NINETEEN}`));
@@ -9582,8 +9620,24 @@ describe("the re-consent gate", () => {
     const CHANGED =
       "This version adds the AI at Nottingham survey, an anonymous survey with a privacy notice of its own. It is now named where the policy describes surveys, Google reCAPTCHA and what your browser keeps.";
     assert.ok(said.includes(CHANGED), "the accept page's line for version 20 is no longer the policy's own words");
-    assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED} </p>`), "the policy no longer says what changed in version 20, in those words");
+    // Version 20's own "What's changed", and version 21 keeping it under its own, dated.
+    assert.ok(V20_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED} </p>`), "v20 no longer says what changed in version 20, in those words");
+    assert.ok(PAGE_FLAT.includes(`<strong>What changed in version 20, on 17 November 2026:</strong> ${CHANGED}`), "the policy no longer keeps what changed in version 20, with its date, in those words");
     assert.ok(!V19_FLAT.includes("What&apos;s changed in version 20"));
+  });
+
+  test("the accept page says what version 21 changes, last, after version 20's line, in version 21's own words", () => {
+    // Version 21 emails everybody due at a session a reminder of it, a change
+    // to how information is used, so the accept page says it last, before
+    // the links. Its line is version 21's own "What's changed in version 21".
+    const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
+    const twenty = accept.indexOf("What changed in version 20.</strong>");
+    const twentyOne = accept.indexOf("What changed in version 21.</strong>");
+    assert.ok(twenty !== -1 && twentyOne > twenty && accept.indexOf("Read the full", twentyOne) > twentyOne, "the accept page no longer says what version 21 changed, after version 20");
+    const said = accept.slice(twentyOne, accept.indexOf("Read the full", twentyOne));
+    assert.ok(said.includes(CHANGED_21), "the accept page's line for version 21 is no longer the policy's own words");
+    assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 21:</strong> ${CHANGED_21} </p>`), "the policy no longer says what changed in version 21, in those words");
+    assert.ok(!V20_FLAT.includes("What&apos;s changed in version 21"));
   });
 
   test("is not left behind on the dashboard layout alone", () => {
@@ -11250,29 +11304,31 @@ describe("v14 made survey questions required unless marked optional and named th
  * list, and every service on the list is one the code calls. A new service is
  * a new entry in both maps below, and a notice, before it receives anything.
  */
-describe("v15 says reminders before a session are about what is left, are part of running the programme, and stop once the week is done; the code agrees", () => {
-  // "Before your group's session we may email you about what is left of that
-  // week's work. These reminders are part of running the programme, so your
-  // notification settings don't switch them off, and they stop once the week
-  // is done." Each clause, held to the one job that sends them
+describe("v21 says the reminders before a session go to everybody due at it, with its day, time and place, and what is left; they are part of running the programme; the code agrees", () => {
+  // "Three days and one day before each of your sessions we email you its
+  // day, time and place, how to tell us if you can't make it, and what's
+  // left of that week's work if anything is. [...] These reminders are part
+  // of running the programme, so your notification settings don't switch
+  // them off." Each clause, held to the one job that sends them
   // (`courses-week-reminders`); the job is run end to end in
   // tests/course-week-reminders.test.mjs.
   const job = withoutComments(read("src/lib/scheduler/jobs/weekReminders.ts"));
   const model = withoutComments(read("src/lib/courses/weekEmails/model.ts"));
   const words = withoutComments(read("src/lib/courses/weekEmails/words.ts"));
+  /** "Reminders." as v21 says it, approved word for word. */
+  const REMINDERS_21 =
+    "<strong>Reminders.</strong> Three days and one day before each of your sessions we email you its day, time and place, how to tell us if you can&apos;t make it, and what&apos;s left of that week&apos;s work if anything is. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off.";
+  /** "Reminders." as v17 to v20 said it. */
+  const REMINDERS_20 =
+    "<strong>Reminders.</strong> Before the session a week&apos;s work is due at, we may email you about what&apos;s left of it. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off, and they stop once the week is done.";
 
   test("the policy says it, in those words", () => {
-    // CHANGED ON PURPOSE (v17): before the session a week's work is due at,
-    // and after it the people running the group may remind somebody of a
-    // week that is not done, and later weeks' emails may mention it. Nothing
-    // sends after the session yet: the job below still stops once a session
-    // has started. v16's words are held in frozen v16.
-    assert.ok(
-      PAGE_FLAT.includes(
-        "<strong>Reminders.</strong> Before the session a week&apos;s work is due at, we may email you about what&apos;s left of it. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off, and they stop once the week is done.",
-      ),
-      "the policy no longer says what the reminders before and after a session are",
-    );
+    // CHANGED ON PURPOSE (v21): everybody due at a session is reminded of
+    // it, and the reminders no longer stop once the week is done. v20's
+    // words, and v16's before them, are held in the frozen files.
+    assert.ok(PAGE_FLAT.includes(REMINDERS_21), "the policy no longer says what the reminders before and after a session are");
+    assert.ok(!PAGE_FLAT.includes("they stop once the week is done"), "the policy still says the reminders stop once the week is done");
+    assert.ok(V20_FLAT.includes(REMINDERS_20));
     assert.ok(
       V16_FLAT.includes(
         "<strong>Reminders.</strong> Before your group&apos;s session we may email you about what is left of that week&apos;s work. These reminders are part of running the programme, so your notification settings don&apos;t switch them off, and they stop once the week is done.",
@@ -11280,17 +11336,40 @@ describe("v15 says reminders before a session are about what is left, are part o
     );
   });
 
-  test("before your group's session: 3 days and 1 day before it, and never once it has started", () => {
+  test("three days and one day before each of your sessions, and never once it has started", () => {
     assert.match(model, /export const WEEK_REMINDER_DAYS = \[3, 1\] as const;/);
     assert.match(job, /if \(!startsAt \|\| now\.getTime\(\) >= startsAt\.getTime\(\)\) continue;/);
     assert.match(job, /const sessions = resolveSessions\(runState\.run, group\);/, "the group's own sessions");
   });
 
-  test("about what is left of that week's work: the check's own lines, a written answer not sent yet, and nothing else", () => {
+  test("its day, time and place: that week's, from the session the resolver hands every reader", () => {
+    assert.match(job, /sessionAt: due\.startsAt,\s+endsAt,/);
+    assert.match(job, /const place = reminderPlaceOf\(group, due\.session, typeof link === "string" && validateSubmissionUrl\(link, GROUP_FIELD_LIMITS\.meetingUrl\) === null\);/);
+    assert.match(words, /\$\{whose\} week \$\{facts\.weekNumber\} session is on \$\{londonDayLabel\(facts\.sessionAt\)\}/);
+  });
+
+  test("how to tell us if you can't make it", () => {
+    assert.match(words, /export const SESSION_REMINDER_CANT_MAKE_IT =\s+"Can’t make it\? Tell us on your programme page as early as you can: press Can’t make it on this session’s card\.";/);
+    // Said whenever their programme page shows the session's card, where Can't make it is.
+    assert.match(words, /const paragraphs = facts\.sessionOnTheirPage \? \[lead, SESSION_REMINDER_CANT_MAKE_IT\] : \[lead\];/);
+    assert.match(job, /sessionOnTheirPage: programmePageShowsSession\(runFacts\?\.seats\.get\(person\.uid\) \?\? null, group\.id\),/);
+  });
+
+  test("what's left of that week's work if anything is: the check's own lines, a written answer not sent yet, only for a week not done", () => {
     assert.match(job, /left: weekLeft\(\{ blocks: week\.blocks, tasks: week\.tasks, state: own\.state \}\),/);
     assert.match(words, /const lines = left\.items\.map\(notDoneWords\);/);
     assert.match(words, /if \(left\.notSent\) lines\.push\(ANSWER_NOT_SENT_YET\);/);
     assert.match(words, /export const ANSWER_NOT_SENT_YET = "Your written answer isn’t sent yet\.";/);
+    const done = job.indexOf("if (weekDone({ tasks: week.tasks, state: own.state, submitted: state.submittedAt !== null, asks: week.asks })) continue;");
+    const listed = job.indexOf("remind.push({");
+    assert.ok(done > 0 && listed > done, "a week that is done is listed");
+  });
+
+  test("they no longer stop once the week is done: done takes the list off, and never the reminder", () => {
+    assert.match(job, /return \{ send: "session", weeks: theirs, left: remind \};/);
+    assert.match(job, /\| \{ send: false; why: "excused" \| "locked" \| "joined-late" \};/, "a reason not to remind somebody due at the session that is not one of these");
+    assert.doesNotMatch(job, /why: "done"|why \?\?= "done"|stampSkipped\(db, marker\.id, "done"/, "done is a reason not to remind again");
+    assert.match(job, /await stampSkipped\(db, marker\.id, verdict\.why, ctx\.now\);/);
   });
 
   test("part of running the programme, so the settings don't switch them off: a notice, to everybody holding a place", () => {
@@ -11299,13 +11378,6 @@ describe("v15 says reminders before a session are about what is left, are part o
     // record of groups by week anywhere, the people in it now).
     assert.match(job, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id, weekNumber \}\)/);
     assert.doesNotMatch(job, /resolveCohortAudience|wantsEmailForProfile|hasOptedOut|listUnsubscribe/, "a reminder reads somebody's settings, or offers to switch itself off");
-  });
-
-  test("they stop once the week is done: a week done is asked about before anything is sent", () => {
-    const done = job.indexOf("if (weekDone({ tasks: week.tasks, state: own.state, submitted: state.submittedAt !== null, asks: week.asks })) continue;");
-    const remind = job.indexOf("remind.push({");
-    assert.ok(done > 0 && remind > done, "a reminder can go to somebody whose week is done");
-    assert.match(job, /await stampSkipped\(db, marker\.id, verdict\.why, ctx\.now\);/);
   });
 });
 
@@ -12103,13 +12175,15 @@ describe("v20 names the AI at Nottingham survey under surveys, Google reCAPTCHA 
   ];
 
   test("v20 is v19 with these changes and no others", () => {
+    // Read from frozen v20 since v21 replaced it; v21 is v20 with its own
+    // change, held by the version 21 describe.
     let text = bodyOf(V19_FLAT);
     for (const [what, before, after] of V20_CHANGES) {
       assert.equal(text.split(before).length, 2, `v19 does not say, exactly once, what v20 changes (${what}): ${before}`);
-      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v20 still says what it was meant to replace (${what})`);
+      assert.ok(!bodyOf(V20_FLAT).includes(before) || after.includes(before), `v20 still says what it was meant to replace (${what})`);
       text = text.replace(before, after);
     }
-    assert.equal(text, bodyOf(CURRENT_FLAT), "v20 differs from v19 somewhere outside the changes listed here");
+    assert.equal(text, bodyOf(V20_FLAT), "v20 differs from v19 somewhere outside the changes listed here");
   });
 
   test("the three new passages, word for word, and none in v19", () => {
@@ -12138,11 +12212,11 @@ describe("v20 names the AI at Nottingham survey under surveys, Google reCAPTCHA 
   });
 
   test("what changed is at the top, newest first, each earlier version's line under it with its date", () => {
-    const twenty = PAGE_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED} </p>`);
-    const nineteen = PAGE_FLAT.indexOf(`<strong>What changed in version 19, on 13 November 2026:</strong> ${CHANGED_19}`);
-    const eighteen = PAGE_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
-    const seventeen = PAGE_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
-    assert.ok(twenty !== -1 && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < PAGE_FLAT.indexOf('<h2 id="in-short">'));
+    const twenty = V20_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED} </p>`);
+    const nineteen = V20_FLAT.indexOf(`<strong>What changed in version 19, on 13 November 2026:</strong> ${CHANGED_19}`);
+    const eighteen = V20_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
+    const seventeen = V20_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
+    assert.ok(twenty !== -1 && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < V20_FLAT.indexOf('<h2 id="in-short">'));
     // Each date is the day that version went live, as the policy list has it.
     assert.equal(POLICIES.privacy.versions.find((v) => v.version === 19)?.lastUpdated, "13 November 2026");
     assert.ok(!V19_FLAT.includes("What&apos;s changed in version 20"));
@@ -12156,6 +12230,82 @@ describe("v20 names the AI at Nottingham survey under surveys, Google reCAPTCHA 
     }
     // It adds a use of information, so Home's one short line says the policy changed, for a week from its date.
     assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 20), { version: 20, lastUpdated: "17 November 2026", toldOnHome: true });
+    // The week, the words and the dismissal are run in tests/policy-update-line.test.mjs.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
+  });
+});
+
+describe("v21 says the reminders before a session go to everybody due at it, and keeps v20's, v19's, v18's and v17's What's changed under its own; every other word is v20's", () => {
+  /**
+   * A version's file from the end of its notes on: its imports, its contents
+   * list, the address of the services page and its words as served. The
+   * header comment is notes, not policy.
+   */
+  const FIRST_IMPORT = 'import type { ReactNode } from "react";';
+  const bodyOf = (flat) => {
+    assert.equal(flat.split(FIRST_IMPORT).length, 2, "a version file does not open, after its notes, with the import this check starts from");
+    return flat.slice(flat.indexOf(FIRST_IMPORT));
+  };
+  /** What version 20 changed, in version 20's own words. */
+  const CHANGED_20 =
+    "This version adds the AI at Nottingham survey, an anonymous survey with a privacy notice of its own. It is now named where the policy describes surveys, Google reCAPTCHA and what your browser keeps.";
+  /** "Reminders." in "Your work, progress and reminders": v20's, and v21's as the owner approved it. */
+  const REMINDERS_20 =
+    "<strong>Reminders.</strong> Before the session a week&apos;s work is due at, we may email you about what&apos;s left of it. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off, and they stop once the week is done.";
+  const REMINDERS_21 =
+    "<strong>Reminders.</strong> Three days and one day before each of your sessions we email you its day, time and place, how to tell us if you can&apos;t make it, and what&apos;s left of that week&apos;s work if anything is. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off.";
+  /**
+   * EVERY CHANGE v21 MAKES TO v20, as [what, v20's words, v21's words], each
+   * a run of the flattened text. Applied to frozen v20 in turn, each found
+   * exactly once, they give v21 exactly: so nothing else in v20 changed.
+   */
+  const V21_CHANGES = [
+    ["the component's name", "export default function PrivacyContentV20(", "export default function PrivacyContentV21("],
+    [
+      "what changed, at the top, with version 20's line kept under it and dated",
+      `<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED_20} </p>`,
+      `<p id="whats-changed"> <strong>What&apos;s changed in version 21:</strong> ${CHANGED_21} </p> <p> <strong>What changed in version 20, on 17 November 2026:</strong> ${CHANGED_20} </p>`,
+    ],
+    ["the reminders before a session go to everybody due at it, and no longer stop once the week is done", REMINDERS_20, REMINDERS_21],
+  ];
+
+  test("v21 is v20 with these changes and no others", () => {
+    let text = bodyOf(V20_FLAT);
+    for (const [what, before, after] of V21_CHANGES) {
+      assert.equal(text.split(before).length, 2, `v20 does not say, exactly once, what v21 changes (${what}): ${before}`);
+      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v21 still says what it was meant to replace (${what})`);
+      text = text.replace(before, after);
+    }
+    assert.equal(text, bodyOf(CURRENT_FLAT), "v21 differs from v20 somewhere outside the changes listed here");
+  });
+
+  test("the new paragraph, word for word, under Your work, progress and reminders, and not in v20", () => {
+    const section = PAGE_FLAT.slice(PAGE_FLAT.indexOf("<h2>Your work, progress and reminders</h2>"), PAGE_FLAT.indexOf('<section id="feedback-and-notes"'));
+    assert.ok(section.includes(REMINDERS_21), "Reminders. is not in Your work, progress and reminders, in those words");
+    assert.ok(!V20_FLAT.includes(REMINDERS_21));
+    assert.ok(!V20_FLAT.includes("Three days and one day before each of your sessions"));
+  });
+
+  test("what changed is at the top, newest first, each earlier version's line under it with its date", () => {
+    const twentyOne = PAGE_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 21:</strong> ${CHANGED_21} </p>`);
+    const twenty = PAGE_FLAT.indexOf(`<strong>What changed in version 20, on 17 November 2026:</strong> ${CHANGED_20}`);
+    const nineteen = PAGE_FLAT.indexOf("<strong>What changed in version 19, on 13 November 2026:</strong>");
+    const eighteen = PAGE_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
+    const seventeen = PAGE_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
+    assert.ok(twentyOne !== -1 && twentyOne < twenty && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < PAGE_FLAT.indexOf('<h2 id="in-short">'));
+    // Each date is the day that version went live, as the policy list has it.
+    assert.equal(POLICIES.privacy.versions.find((v) => v.version === 20)?.lastUpdated, "17 November 2026");
+    assert.ok(!V20_FLAT.includes("What&apos;s changed in version 21"));
+  });
+
+  test("told on Home, not asked: nobody is asked to accept it", async () => {
+    const acceptance = await loadTs("lib/legal/acceptance.ts");
+    assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
+    for (const stored of ["terms.1+privacy.15", "terms.1+privacy.16", "terms.1+privacy.17", "terms.1+privacy.18", "terms.1+privacy.19", "terms.1+privacy.20", "terms.1+privacy.21"]) {
+      assert.equal(acceptance.needsPolicyAcceptance(stored), false, stored);
+    }
+    // It changes how information is used, so Home's one short line says the policy changed, for a week from its date.
+    assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 21), { version: 21, lastUpdated: "19 November 2026", toldOnHome: true });
     // The week, the words and the dismissal are run in tests/policy-update-line.test.mjs.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
   });

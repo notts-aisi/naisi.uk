@@ -1,7 +1,13 @@
+import { campusLabel } from "../campus";
+import { couldBeFollowed } from "../followable";
+import { onlineForRooms } from "../sessionChange/room";
+import type { ResolvedSession } from "../sessions";
 import { allBlocks, type WeekBlock } from "../weekBlocks/model";
 import { isCounted, type TaskNeeds } from "../weekBlocks/progress";
 import { packNameOf, weekCheck, type CheckState, type NotDone } from "../weekWork/model";
 import { addDaysToKey, isValidDateKey, londonWallClockToInstant } from "../weekPlan";
+import type { ReminderPlace } from "./words";
+import { campusForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 
 /**
  * THE WEEK'S THREE EMAILS, AS ARITHMETIC: when each goes, what a week asks
@@ -11,8 +17,9 @@ import { addDaysToKey, isValidDateKey, londonWallClockToInstant } from "../weekP
  *    everybody holding a place in the group (`src/lib/courses/nextWeekEmail.ts`,
  *    sent by the `courses-next-week-email` job, or by finishing the register
  *    before it while that job is off).
- *  - THE REMINDERS go 3 days and 1 day before, only to the people whose week
- *    is not done, listing what is left (`courses-week-reminders`).
+ *  - THE REMINDERS go 3 days and 1 day before, to everybody due at the
+ *    session, with its day, time and place, and what is left of their week
+ *    if anything is (`courses-week-reminders`).
  *
  * All three at 9am in London, on the civil date that many days before the
  * session's own date: counted on the calendar and read off the wall, so a
@@ -150,4 +157,41 @@ export function weekLeft(input: { blocks: readonly WeekBlock[]; tasks: readonly 
     items: weekCheck(input.blocks, input.tasks, input.state),
     notSent: answers.some((block) => input.state.answerOf(block.id).words > 0 && !input.state.isSent(block.id)),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Where a session is, as the reminder says it
+// ---------------------------------------------------------------------------
+
+/**
+ * WHERE ONE SESSION IS, FOR THE REMINDER BEFORE IT: that week's, from the
+ * session the resolver hands every reader (`resolveSessions`, which lays the
+ * week's own room, a moved week's room, and a room cleared for the week over
+ * the group's), never the group's usual room for a week that has its own.
+ *
+ *  - ONLINE only when the week is held online: its own mode is online, or its
+ *    campus is Online, the rule the rooms pages use (`onlineForRooms`), with
+ *    whether a link is set for that week (`hasLink`: what the programme page's
+ *    session card would show, `cardChangeFacts`). A
+ *    group's standing link with no room does not make a week online. A
+ *    week's second session (a group meeting twice) carries the group's own
+ *    campus and no mode, as the week's changes are its first session's.
+ *  - A ROOM, with the week's campus beside it when that is a place.
+ *  - TO BE CONFIRMED with no room: none was ever set, it was cleared for that
+ *    week ("to be confirmed" on a group with a usual room), or what was typed
+ *    as the room holds a link, which an email never prints (`couldBeFollowed`).
+ */
+export function reminderPlaceOf(
+  group: CourseGroupDoc,
+  session: Pick<ResolvedSession, "weekId" | "occurrence" | "session">,
+  hasLink: boolean,
+): ReminderPlace {
+  const first = session.occurrence <= 1;
+  const campus = first ? campusForWeek(group, session.weekId) : (group.campus ?? null);
+  const online = first ? onlineForRooms(group, session.weekId) : campus === "online";
+  if (online) return { kind: "online", link: hasLink };
+  const { location: typed } = session.session;
+  const room = couldBeFollowed(typed) ? "" : typed.replace(/\s+/g, " ").trim();
+  if (!room) return { kind: "to-be-confirmed" };
+  return { kind: "room", room, campus: campus === "online" ? "" : campusLabel(campus) };
 }

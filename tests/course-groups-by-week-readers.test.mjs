@@ -369,7 +369,7 @@ const READERS = {
   },
   "lib/scheduler/jobs/weekReminders.ts": {
     kind: "week",
-    why: "the reminders before a session reach the people whose group for the session's week is its group, through the notice audience asked for the week, and remind each about a week the session covers only when that week was the group's for them (belongsTo)",
+    why: "the reminders before a session reach the people whose group for the session's week is its group, through the notice audience asked for the week, and remind each about a week the session covers only when that week was the group's for them (belongsTo); the certificate sentence reads each week's group, and its registers, as the programme page does",
   },
   "app/api/courses/groups/[groupId]/session/change/route.ts": {
     kind: "week",

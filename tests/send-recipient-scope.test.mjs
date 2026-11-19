@@ -492,6 +492,30 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/lib/scheduler/jobs/weekReminders.ts#group.facilitatorUids",
+    {
+      reads: 2,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "Who the reminder before a session says the session is with: the first names of the group's facilitators " +
+        "who still stand behind the role, as words in the email. It names no recipient: the reminders go to the " +
+        "group's notice audience for the session's week, and no facilitator is emailed.",
+    },
+  ],
+  [
+    "src/lib/scheduler/jobs/weekReminders.ts#each.facilitatorUids",
+    {
+      reads: 2,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "Whether the person being reminded facilitates a group of the run, held to the role's standing, which " +
+        "leaves the certificate sentence out of their email as their programme page leaves it out. It names no " +
+        "recipient.",
+    },
+  ],
+  [
     "src/lib/courses/excused/decide.ts#group.facilitatorUids",
     {
       reads: 3,

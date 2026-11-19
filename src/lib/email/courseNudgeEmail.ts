@@ -17,7 +17,9 @@ import type { GroupSession, GroupSessionMode } from "@/lib/firestore/courseGroup
  *    nudge's, kept so every claim already written keeps meaning what it
  *    meant: a group mailed about a session is never mailed about it again.
  *  - `courseNudgeSessionWhere`: where a session is, as an email may print it.
- *  - `courseWeekUrl`: the week's page, as a link in an email.
+ *  - `courseWeekUrl`: the week's page, as a link in an email, and
+ *    `courseProgrammeUrl`, the run's own page, which the reminder of a
+ *    session opens.
  */
 
 /**
@@ -123,6 +125,13 @@ export function weekOpenPlace(
     roomHoldsLink: roomToBeConfirmed && location !== "" && couldBeFollowed(location),
     onlineNoLink: where === "" && online,
   };
+}
+
+/** The run's own page in the member area (their programme page), or "" when a part of it is missing. */
+export function courseProgrammeUrl(appUrl: string, runId: string): string {
+  const base = appUrl.replace(/\/+$/, "");
+  if (!base || !runId) return "";
+  return `${base}/learn/${encodeURIComponent(runId)}`;
 }
 
 /** The week's page on the site for this run, or "" when a part of it is missing. */

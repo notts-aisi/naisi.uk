@@ -196,7 +196,17 @@ export const POLICIES: Record<
     // "What's changed" keeps v19's, v18's and v17's lines under v20's, each
     // with its date. It adds a use of information, so it is told on Home
     // (`toldOnHome`). Told, not asked: `LAST_PRIVACY_VERSION_ASKED` stays 15.
-    // Its date is the day it goes live, set when it is promoted.
+    // Its date is the day it went live.
+    //
+    // v21 is the reminders before a session for everybody due at it: three
+    // days and one day before each of somebody's sessions, its day, time and
+    // place, how to say they can't make it, and what is left of that week's
+    // work if anything is (`courses-week-reminders`). They no longer stop
+    // once the week is done, so "Reminders." loses that clause. "What's
+    // changed" keeps v20's, v19's, v18's and v17's lines under v21's, each
+    // with its date. It changes how information is used, so it is told on
+    // Home (`toldOnHome`). Told, not asked: `LAST_PRIVACY_VERSION_ASKED`
+    // stays 15. Its date is the day it goes live, set when it is promoted.
     //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
@@ -204,6 +214,7 @@ export const POLICIES: Record<
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 21, lastUpdated: "19 November 2026", toldOnHome: true },
       { version: 20, lastUpdated: "17 November 2026", toldOnHome: true },
       { version: 19, lastUpdated: "13 November 2026" },
       { version: 18, lastUpdated: "13 November 2026", toldOnHome: true },

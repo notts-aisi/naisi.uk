@@ -543,7 +543,7 @@ describe("8b. the card, drawn", () => {
     assert.match(text, /Done means every reading ticked, the reflection written and the written answer sent\./);
     assert.match(text, /Everyone 4 .*Week not done 2 .*Readings not done 2 .*Reflection not done 2 .*Written answer not done 2 .*Late 1/);
     assert.match(text, /Ines .*2 of 2 .*Written Wed 18 Nov .*Late: 1 day after the session .*Sent Wed 18 Nov, 6pm .*Done late/);
-    assert.match(text, /Omar .*Not started .*Mon 16 Nov, 9am · 1-day, automatic/);
+    assert.match(text, /Omar .*Not started .*Mon 16 Nov, 9am · 1-day reminder before the session/);
     assert.match(text, /Late in week 3 Ines Readings, reflection and written answer done Wed 18 Nov, 6pm Late: 1 day after the session/);
     assert.match(text, /Facilitators’ own work/);
     // Dev is not told: no Remind of his own, and said by name under the button. Nobody done has one either. Omar's

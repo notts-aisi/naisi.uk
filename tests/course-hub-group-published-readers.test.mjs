@@ -315,6 +315,11 @@ const READERS = {
     asks: 1,
     why: "who takes part in their own week, for Submit: an untold seat does not open the run (a group's facilitator takes part as its facilitator, which is no seat)",
   },
+  "lib/scheduler/jobs/weekReminders.ts": {
+    kind: "told",
+    asks: 1,
+    why: "the reminders before a session read the run's places for the certificate sentence of each person they email, keeping only a place Publish has told its owner, as the notice audience they go to does",
+  },
   "lib/courses/weekWork/readers.ts": {
     kind: "told",
     asks: 1,

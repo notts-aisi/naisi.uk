@@ -153,6 +153,10 @@ const READERS = {
     does: "asks",
     why: "the placement email asks whether an online group has a link, to say it is on the programme page; it never prints it",
   },
+  "lib/scheduler/jobs/weekReminders.ts": {
+    does: "asks",
+    why: "the reminder of a session asks whether a link is set for that week, as the programme page's session card reads it, to say the link is on the programme page; it never prints it",
+  },
   "lib/email/courseNudgeEmail.ts": {
     does: "asks",
     why: "next week's email asks whether there is a link, to say Online; it never prints it",
@@ -220,6 +224,21 @@ describe("3. no message is made beside the link", () => {
       // Asked only whether there is one, and only on the Online campus or none (a blank room on a campus is a room to book).
       'return session.meetingUrl && (campus === null || campus === "online") ? "Online" : "";',
     ]);
+  });
+
+  test("the reminders before a session only ask whether a week has a link, and hand the words a yes or no", () => {
+    const job = read("lib/scheduler/jobs/weekReminders.ts");
+    const uses = [...job.matchAll(/^.*\bmeetingUrl\b.*$/gm)].map((m) => m[0].trim());
+    assert.deepEqual(uses, [
+      "const link = cardChangeFacts(sessions, group, due.session, londonDateKey(ctx.now)).next?.meetingUrl ?? null;",
+      'const place = reminderPlaceOf(group, due.session, typeof link === "string" && validateSubmissionUrl(link, GROUP_FIELD_LIMITS.meetingUrl) === null);',
+    ]);
+    // Asked as the card asks it: a yes only for an address that passes the card's own check.
+    const asked =
+      'const place = reminderPlaceOf(group, due.session, typeof link === "string" && validateSubmissionUrl(link, GROUP_FIELD_LIMITS.meetingUrl) === null);';
+    assert.ok(job.includes(asked));
+    assert.equal((job.match(/\blink\b/g) ?? []).length - (job.match(/"[^"\n]*\blink\b[^"\n]*"/g) ?? []).length, 3, "the link is read once and asked once, and goes nowhere else");
+    assert.doesNotMatch(job.replace(asked, ""), /[(,{[]\s*link\s*[,)}\]]|\blink\s*[,})]/, "the link is handed on somewhere");
   });
 
   test("no message composer names it: the room notice, the group email, updates and the change dialog", () => {

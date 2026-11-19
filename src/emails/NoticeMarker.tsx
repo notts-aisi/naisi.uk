@@ -54,8 +54,12 @@ const NOTICE_REASON: Record<EmailSendSurface, string | ((facts: NoticeFacts) => 
   "course-check-in-reminder": "you were at this session of your course group and haven’t sent its check-in",
   // "Week N is open": everybody holding a place in the group.
   "course-week": "you are in this course group",
-  // A reminder goes only to somebody whose week is not done, and says so.
-  "course-week-reminder": "our records show this week’s work isn’t finished",
+  // The reminders before a session (`courses-week-reminders`): the reminder
+  // of the session, to everybody due at it, says its own reason
+  // (`sessionReminderReason`); the reminder about what is left, to somebody
+  // who will not be at the session, says this week's work isn't finished.
+  "course-week-reminder": ({ sessionProgramme }) =>
+    typeof sessionProgramme === "string" ? sessionReminderReason(sessionProgramme) : "our records show this week’s work isn’t finished",
   // Remind, by hand: pressed about any week, before its session or after it,
   // only for somebody whose week that is and who hasn't done it. It names the
   // week, which need not be this one.
@@ -68,19 +72,34 @@ const NOTICE_REASON: Record<EmailSendSurface, string | ((facts: NoticeFacts) => 
   "event-invitation": "you are on the programme this event is part of",
 };
 
+/**
+ * WHY THE REMINDER OF A SESSION REACHED SOMEBODY: they are due at a session
+ * of their programme, which it names. The one place these words live.
+ */
+export function sessionReminderReason(programmeName: string): string {
+  const name = programmeName.replace(/\s+/g, " ").trim();
+  return name ? `you have a session coming up on ${name}` : "you have a session coming up";
+}
+
 /** The facts a surface's reason may name. */
 export type NoticeFacts = {
   /** The week a reminder by hand is about. */
   weekNumber?: number | null;
+  /**
+   * The reminder of a session: the name of the programme the session is of.
+   * Given, the reminders' surface says `sessionReminderReason`; not given, it
+   * says what it always has.
+   */
+  sessionProgramme?: string | null;
 };
 
 type Props = {
   surface: EmailSendSurface;
 } & NoticeFacts;
 
-export default function NoticeMarker({ surface, weekNumber = null }: Props) {
+export default function NoticeMarker({ surface, weekNumber = null, sessionProgramme = null }: Props) {
   const said = NOTICE_REASON[surface];
-  const reason = typeof said === "function" ? said({ weekNumber }) : (said ?? "you signed up for the thing it is about");
+  const reason = typeof said === "function" ? said({ weekNumber, sessionProgramme }) : (said ?? "you signed up for the thing it is about");
   return (
     <Section style={style.wrap}>
       <Text style={style.eyebrow}>Sent as an important notice</Text>
