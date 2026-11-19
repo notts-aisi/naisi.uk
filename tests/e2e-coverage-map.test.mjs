@@ -1506,11 +1506,6 @@ const NOT_COVERED = {
     coverWhen:
       "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]": {
-    reason:
-      "Course hub: one person's page on a programme, for the team. tests/course-person-page.test.mjs draws it as every reader and reads what each is handed; the browser spec scripts/e2e-fixtures/course-hub-person-page.mjs drives it as an admin and is written but has not run yet.",
-    coverWhen: "When the course-hub-person-page spec has passed once with a teardown of zero rows and is marked verified.",
-  },
   "/(app)/learn/[runId]/group/[groupId]/people/[uid]": {
     reason:
       "Course hub: one person as their group's facilitator sees them. tests/course-person-page.test.mjs draws it as the group's facilitator, another group's, the lead, an admin and the person, and for somebody moved in from another group.",
@@ -1841,12 +1836,6 @@ const NOT_COVERED = {
       "Course hub: Copy weeks from the course, a page of the Weeks tab; its every caller and the copy it sends (never an overwrite) are executed by tests/course-hub-weeks-tab.test.mjs.",
     coverWhen:
       "When a course has two runs on dev and a browser spec copies one's weeks into the other as its programme's lead.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": {
-    reason:
-      "Course hub: the People tab lists everyone who holds a place on a programme or gave it back, for its lead and admins; its every caller, its counts, its rows and what it never sends are executed by tests/course-hub-people-tab.test.mjs, and it was checked by hand at 1440 and 390.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a term whose decisions have been sent, with a programme naming a run and its lead signed in.",
   },
   "/(app)/admin/courses": {
     reason:

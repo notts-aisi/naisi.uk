@@ -47,8 +47,8 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]",
     ],
   },
-  /** Written 18 Nov 2026 and not yet run in a browser. */
-  status: "unverified",
+  /** Passed locally on 19 Nov 2026, every step, with a teardown of zero rows. */
+  status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "coursework" }),
   countRows: countTerm,
   teardown: teardownTerm,
