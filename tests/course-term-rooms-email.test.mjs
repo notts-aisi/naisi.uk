@@ -45,7 +45,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { render } from "@react-email/render";
 import { walkSource } from "./lib/functionScan.mjs";
 import { A, AGI, B, C, NOW, ROUND, RUN, makeSessionsWorld, updatesSeed } from "./lib/sessionsWorld.mjs";
-import { TAIS, formPath } from "./lib/leadWorld.mjs";
+import { formPath } from "./lib/leadWorld.mjs";
 
 const ui = { h: createElement };
 globalThis.__termRoomsEmailUi = ui;
@@ -78,6 +78,8 @@ const model = await loadTs(join("lib", "courses", "termRoomsEmail", "model.ts"))
 const limits = await loadTs(join("lib", "courses", "termRoomsEmail", "limits.ts"));
 const { normalizeCourseGroup } = await loadTs(join("lib", "firestore", "courseGroups.ts"));
 const { normalizeCourseRun } = await loadTs(join("lib", "firestore", "courses.ts"));
+const groupOf = (groupId) => normalizeCourseGroup(groupId, read(`courseGroups/${groupId}`));
+const runOf = () => normalizeCourseRun(RUN.agi, read(`courseRuns/${RUN.agi}`));
 const FORM = join("app", "(app)", "admin", "admissions", "forms", "[roundId]");
 const { default: TermRoomsPage } = await loadTs(join(FORM, "rooms", "term", "page.tsx"));
 
@@ -260,6 +262,39 @@ describe("1. each kind of week, read through the one session resolver", () => {
       words.termRoomsLine({ weekNumber: 5, dateKey: "2026-12-02", hhmm: "15:00", minutes: 120, place: { kind: "to-be-confirmed" } }),
       "Week 5 · Wed 2 Dec, 3pm to 5pm · room to be confirmed",
     );
+  });
+});
+
+describe("1. the model, pure", () => {
+  test("the sessions still to come, in the order the group meets, each with its line", () => {
+    const sessions = model.sessionsStillToCome(runOf(), groupOf(C), NOW);
+    assert.deepEqual(
+      sessions.map((each) => [each.weekNumber, each.occurrence, each.dateKey]),
+      [
+        [4, 1, "2026-11-25"],
+        [5, 1, "2026-12-02"],
+        [6, 1, "2026-12-09"],
+      ],
+    );
+    assert.equal(sessions[0].line, "Week 4 · Wed 25 Nov, 3pm to 5pm · Portland A21 (University Park)");
+    assert.deepEqual(model.weeksOf(sessions), [4, 5, 6]);
+  });
+
+  test("a learner's lines are the weeks their place belongs to the group, never a visit's host", () => {
+    const sessions = model.sessionsStillToCome(runOf(), groupOf(C), NOW);
+    const lines = (place) => model.linesForPlace(place, C, sessions).map((line) => line.slice(0, 6));
+    assert.deepEqual(lines({ groupId: C }), ["Week 4", "Week 5", "Week 6"]);
+    assert.deepEqual(lines({ groupId: A, groupsByWeek: [{ groupId: C, fromWeek: 1 }, { groupId: A, fromWeek: 6 }] }), ["Week 4", "Week 5"]);
+    assert.deepEqual(lines({ groupId: C, groupsByWeek: [{ groupId: A, fromWeek: 1 }, { groupId: C, fromWeek: 5 }] }), ["Week 5", "Week 6"]);
+    assert.deepEqual(lines({ groupId: A, visits: [{ weekNumber: 5, groupId: C, arrangedByUid: null, arrangedAt: null }] }), []);
+  });
+
+  test("why no email goes: an incubator, a group with no name, no session still to come; else none", () => {
+    const sessions = model.sessionsStillToCome(runOf(), groupOf(C), NOW);
+    assert.equal(model.noEmailWhy({ incubator: false, group: { name: "Group C" }, sessions }), null);
+    assert.equal(model.noEmailWhy({ incubator: true, group: { name: "Group C" }, sessions }), "incubator");
+    assert.equal(model.noEmailWhy({ incubator: false, group: { name: " " }, sessions }), "unnamed");
+    assert.equal(model.noEmailWhy({ incubator: false, group: { name: "Group C" }, sessions: [] }), "noSessions");
   });
 });
 
