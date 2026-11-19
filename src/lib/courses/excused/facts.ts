@@ -37,13 +37,13 @@ export async function groupExcusedRequests(db: Firestore, runId: string, groupId
 /** The facts for these people on these sessions, from requests already read. Pure. */
 export function excuseFactsFrom(
   requests: readonly ExcusedRequestDoc[],
-  input: { uids: ReadonlySet<string>; sessionKeys: readonly string[] },
+  input: { groupId: string; uids: ReadonlySet<string>; sessionKeys: readonly string[] },
 ): ExcuseFacts {
   const out: ExcuseFacts = {};
   const subjects = new Set(requests.map((request) => request.subjectUid).filter((uid) => input.uids.has(uid)));
   for (const sessionKey of input.sessionKeys) {
     for (const uid of subjects) {
-      const fact = factOf(weeksAbout(requests, uid, sessionKey));
+      const fact = factOf(weeksAbout(requests, uid, input.groupId, sessionKey));
       if (fact) (out[sessionKey] ??= {})[uid] = fact;
     }
   }

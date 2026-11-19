@@ -493,7 +493,7 @@ export async function recordCantMakeIt(
       // A request to be excused from it, waiting or declined, is not undone
       // on the person's own word.
       if (state.kind === "open") {
-        const hold = (await excuseHoldsIn(tx, db, user.uid, run.id))(session.sessionKey);
+        const hold = (await excuseHoldsIn(tx, db, user.uid, run.id, group.id))(session.sessionKey);
         if (hold) return refuse(409, hold === "waiting" ? CANT_MAKE_IT_REFUSAL.askedWaiting : CANT_MAKE_IT_REFUSAL.askedDeclined);
       }
       if (state.kind === "open") {

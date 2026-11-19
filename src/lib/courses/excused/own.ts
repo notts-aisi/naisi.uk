@@ -232,7 +232,7 @@ export async function excusedFor(
     const snap = snaps[at];
     const line = excuseLineOf(snap?.exists ? snap.data() : undefined, refs[at].id, user.uid);
     const { startsAt, endsAt } = sessionInstants(session);
-    const weeks = weeksAbout(requests, user.uid, session.sessionKey);
+    const weeks = weeksAbout(requests, user.uid, paired[at].groupId, session.sessionKey);
     const standing = standingWeek(weeks);
     // The group whose session this is: theirs now, or, for a week their
     // place records them in another group, that group. The answer to "Can

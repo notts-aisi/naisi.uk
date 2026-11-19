@@ -213,7 +213,7 @@ export async function recordTimeAnswer(
     // declined, is never excused here on the person's own word.
     const answered = currentTimeAnswer(seat, timeQuestionSinceOf(group)) !== null;
     const adds = lines.some((line) => ticked.has(line.session.sessionKey) && line.state.kind === "open");
-    const holdOf = adds ? await excuseHoldsIn(tx, db, user.uid, run.id) : () => null;
+    const holdOf = adds ? await excuseHoldsIn(tx, db, user.uid, run.id, group.id) : () => null;
 
     // Everything decided before anything is written: a ticked session that
     // can no longer be told about refuses the whole answer, naming its day.

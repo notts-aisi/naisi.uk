@@ -213,7 +213,7 @@ export async function askToBeExcused(
         startsAt,
         cancelled: session.cancelled,
         line,
-        standing: requestStandingOf(weeksAbout(own, user.uid, session.sessionKey)),
+        standing: requestStandingOf(weeksAbout(own, user.uid, group.id, session.sessionKey)),
         now,
       });
       if (!state.open) return refuse(409, askClosedWords(state.why, session.weekNumber, session.occurrence));

@@ -173,7 +173,7 @@ export async function recordSomeWeeks(
     if (!input.sessionKeys.every((key) => known.has(key))) return refuse(400, SOME_WEEKS_REFUSAL.noSession);
     const lines = await readSessionLines(tx, db, { run, group, uid: seat.uid, sessions, now: input.now });
     const chosen = new Set(input.sessionKeys);
-    const holdOf = chosen.size > 0 ? await excuseHoldsIn(tx, db, seat.uid, run.id) : () => null;
+    const holdOf = chosen.size > 0 ? await excuseHoldsIn(tx, db, seat.uid, run.id, group.id) : () => null;
 
     // Everything decided before anything is written.
     for (const line of lines) {

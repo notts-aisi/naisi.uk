@@ -48,21 +48,22 @@ export async function standingRequestsIn(tx: Transaction | null, db: Firestore, 
     .filter((each): each is ExcusedRequestDoc => each !== null && each.runId === runId && each.subjectUid === uid);
 }
 
-/** Where a person's requests stand on one session: one waiting, else one declined (and none approved), else nothing. Pure. */
-export function excuseHoldOf(requests: readonly ExcusedRequestDoc[], uid: string, sessionKey: string): ExcuseHold {
-  const weeks = weeksAbout(requests, uid, sessionKey);
+/** Where a person's requests stand on one group's session: one waiting, else one declined (and none approved), else nothing. Pure. */
+export function excuseHoldOf(requests: readonly ExcusedRequestDoc[], uid: string, groupId: string, sessionKey: string): ExcuseHold {
+  const weeks = weeksAbout(requests, uid, groupId, sessionKey);
   if (weeks.some((each) => each.week.status === "waiting")) return "waiting";
   if (weeks.some((each) => each.week.status === "approved")) return null;
   return weeks.some((each) => each.week.status === "declined") ? "declined" : null;
 }
 
-/** The person's own requests on this run, read in `tx`, as a question per session. */
+/** The person's own requests on this run, read in `tx`, as a question per session of `groupId`. */
 export async function excuseHoldsIn(
   tx: Transaction,
   db: Firestore,
   uid: string,
   runId: string,
+  groupId: string,
 ): Promise<(sessionKey: string) => ExcuseHold> {
   const requests = await standingRequestsIn(tx, db, uid, runId);
-  return (sessionKey) => excuseHoldOf(requests, uid, sessionKey);
+  return (sessionKey) => excuseHoldOf(requests, uid, groupId, sessionKey);
 }
