@@ -100,7 +100,12 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  * ── WHO IS DUE AT THE SESSION ───────────────────────────────────────────────
  * Every active learner whose group FOR THE SESSION'S WEEK is this group (the
  * notice audience asked for the week) and who has been told their group.
- * Never a facilitator. Who of them is sent what is decided in ONE place,
+ * Never a facilitator. Somebody on a ONE-WEEK VISIT is due at the host's
+ * session that week and not at their own group's: one reminder at each of
+ * the two moments, the host's, its day, time, place and facilitators, about
+ * the visit's week alone, with "Can't make it?" and the link sentence only as
+ * the visit's card on their programme page offers them
+ * (`programmePageShowsSession`). Who of them is sent what is decided in ONE place,
  * `sessionReminderVerdict`, for each person at the moment the email would go:
  *
  *  - due at the session: the reminder of the session

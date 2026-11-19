@@ -54,7 +54,7 @@ import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { render } from "@react-email/render";
-import { AGI, GROUP, ROUND, RUN, jobContext, makeWorld, seedWorld } from "./lib/registerWorld.mjs";
+import { AGI, GROUP, ROUND, RUN, jobContext, makeWorld, registerPath, seedWorld } from "./lib/registerWorld.mjs";
 import { pressedBefore } from "./lib/saidBefore.mjs";
 
 const made = makeWorld("__weekReminders");
@@ -1054,9 +1054,14 @@ describe("13. the verdict reads each week on the entry that holds the person", (
 describe("14. somebody visiting another group's session for one week", () => {
   const A_DUE = {
     a2three: new Date("2026-10-23T08:00:00Z"),
+    a2one: new Date("2026-10-25T09:00:00Z"),
+    a3three: new Date("2026-10-30T09:00:00Z"),
     a3one: new Date("2026-11-01T09:00:00Z"),
   };
   const chloe = `courseEnrolments/${RUN}__chloe`;
+  /** Group A's week 2 session as the reminder says it. */
+  const A2 = (place = ", in Room A13", after = "") => `Group A’s week 2 session is on Mon 26 Oct, 6pm to 8pm${place}, with Amelia.${after}`;
+  const B3 = "Group B’s week 3 session is on Tue 3 Nov, 6pm to 8pm, in Room C20, with Rahul and Sofia.";
 
   /** Staff send Chloe (Group B) to Group A's session for week `week`. */
   function visitA(week) {
@@ -1124,5 +1129,167 @@ describe("14. somebody visiting another group's session for one week", () => {
     await runJob(A_DUE.a2three);
     assert.equal(mailTo("chloe").length, 0);
     assert.equal(marker("chloe", 3, "w02", GROUP.a), undefined);
+  });
+
+  test("ONE reminder at each of the two moments, the host's session's, in the reminder's own sentences; none of her own group's that week", async () => {
+    visitA(2);
+    const others = {};
+    for (const [moment, instant] of [["a3", A_DUE.a2three], ["b3", DUE.b2three], ["a1", A_DUE.a2one], ["b1", DUE.b2one]]) {
+      await runJob(instant);
+      others[moment] = mailTo("amara").length;
+    }
+    const mine = mailTo("chloe");
+    assert.deepEqual(mine.map((message) => message.subject), ["Week 2: your session is on Mon 26 Oct", "Week 2: your session is tomorrow"]);
+    for (const message of mine) {
+      const text = await textOf(message);
+      assert.ok(text.includes(NOTICE_LINE), text);
+      // The host's day, time, room and facilitator; Can't make it, which her visit's card offers.
+      assert.ok(text.includes(`${A2()} ${CANT_MAKE_IT}`), text);
+      assert.doesNotMatch(text, /Group B|Rahul|Sofia|Tue 27 Oct/, "nothing of her own group's session that week");
+      assert.match(text, new RegExp(BUTTON));
+    }
+    // Her markers: the host's, sent; her own group's, never written (she is not in its audience that week).
+    assert.ok(marker("chloe", 3, "w02", GROUP.a).sentAt);
+    assert.ok(marker("chloe", 1, "w02", GROUP.a).sentAt);
+    assert.equal(marker("chloe", 3, "w02", GROUP.b), undefined);
+    assert.equal(marker("chloe", 1, "w02", GROUP.b), undefined);
+    // Everybody else as ever: Group B's two, Group A's own two.
+    assert.deepEqual(others, { a3: 0, b3: 1, a1: 1, b1: 2 });
+    for (const uid of ["amara", "farah"]) {
+      const texts = await Promise.all(mailTo(uid).map(textOf));
+      assert.equal(texts.length, 2);
+      for (const text of texts) assert.ok(text.includes(`${B2()} ${CANT_MAKE_IT}`), text);
+    }
+    assert.equal(mailTo("ana").length, 2);
+    assert.ok((await textOf(mailTo("ana")[0])).includes(`${A2()} ${CANT_MAKE_IT}`));
+  });
+
+  test("the week after the visit: her own group's reminder, as for everybody in it, and none of the host's", async () => {
+    visitA(2);
+    await runJob(A_DUE.a3three);
+    await runJob(A_DUE.a3one);
+    assert.equal(mailTo("chloe").length, 0, "Group A's week 3 is not hers");
+    assert.equal(marker("chloe", 1, "w03", GROUP.a), undefined);
+    await runJob(DUE.b3one);
+    assert.equal(mailTo("chloe").length, 1);
+    assert.equal(mailTo("chloe")[0].subject, "Week 3: your session is tomorrow");
+    const text = await textOf(mailTo("chloe")[0]);
+    assert.ok(text.includes(`${B3} ${CANT_MAKE_IT}`), text);
+    // Word for word what Amara is sent but for the greeting.
+    const amara = await textOf(mailTo("amara").at(-1));
+    assert.equal(text.replace(/Hi Chloe,/, "Hi Amara,"), amara);
+  });
+
+  test("an online host session with a link: the link sentence, as her visit's card shows that link", async () => {
+    const LINK = "https://meet.example.com/abc-defg-hij";
+    world.db.poke(`courseGroups/${GROUP.a}`, { session: { ...read(`courseGroups/${GROUP.a}`).session, meetingUrl: LINK }, sessionModes: { w02: "virtual" } });
+    visitA(2);
+    at(A_DUE.a2three);
+    const page = await call("chloe", overview.GET, { runId: RUN });
+    assert.equal(page.status, 200);
+    assert.equal(page.body.visits?.length, 1, "her page draws the visit's card");
+    assert.equal(page.body.visits[0].meetingUrl, LINK, "with the host's link for that session");
+    await runJob(A_DUE.a2three);
+    const text = await textOf(mailTo("chloe")[0]);
+    assert.ok(text.includes(`${A2(", online", " The link is on your programme page.")} ${CANT_MAKE_IT}`), text);
+  });
+
+  test("excused at home and visiting: due at the host, and reminded of its session", async () => {
+    // An admin approved her request to be excused from her own group's week 2 session.
+    world.db.seed("courseRequests/excused-chloe", {
+      kind: "excused",
+      status: "approved",
+      runId: RUN,
+      groupId: GROUP.b,
+      subjectUid: "chloe",
+      askedByUid: "chloe",
+      reason: "",
+      reasonHeld: false,
+      sessionKey: "w02",
+      weekId: "w02",
+      change: { weeks: [{ sessionKey: "w02", weekId: "w02", status: "approved" }] },
+    });
+    visitA(2);
+    await runJob(A_DUE.a2three);
+    assert.equal(mailTo("chloe").length, 1);
+    assert.ok((await textOf(mailTo("chloe")[0])).includes(`${A2()} ${CANT_MAKE_IT}`));
+    await runJob(DUE.b2three);
+    assert.equal(mailTo("chloe").length, 1, "nothing from her own group, whose session she is excused from and not due at");
+  });
+
+  test("not coming is asked of the host's session: her Can't make it there and she is not told to come", async () => {
+    visitA(2);
+    at("2026-10-21T12:00:00Z");
+    const said = await pressedBefore(world.db, GROUP.a, "chloe", () =>
+      call("chloe", cantMakeIt.POST, { groupId: GROUP.a }, { body: { sessionKey: "w02", cantMakeIt: true } }),
+    );
+    assert.equal(said.status, 200, JSON.stringify(said.body));
+    await runJob(A_DUE.a2three);
+    // Her week 2 is not done: the reminder about what is left, never the session's.
+    assert.equal(mailTo("chloe").length, 1);
+    const text = await textOf(mailTo("chloe")[0]);
+    assert.ok(text.includes(LEFT_NOTICE_LINE), text);
+    assert.doesNotMatch(text, new RegExp(escape(CANT_MAKE_IT)));
+    await finishWeek("chloe", 2);
+    await runJob(A_DUE.a2one);
+    assert.equal(mailTo("chloe").length, 1);
+    assert.equal(marker("chloe", 1, "w02", GROUP.a).skippedReason, "excused");
+  });
+
+  test("the certificate sentence is the one her programme page says", async () => {
+    world.db.seed(`courseFinishing/${RUN}`, { kind: "rule", runId: RUN, atLeast: 4, setAt: new Date("2026-10-01T09:00:00Z") });
+    visitA(2);
+    at(A_DUE.a2three);
+    const page = await call("chloe", overview.GET, { runId: RUN });
+    assert.equal(page.status, 200);
+    assert.ok(page.body.certificateNeeds, "her page says what a certificate needs");
+    await runJob(A_DUE.a2three);
+    const text = await textOf(mailTo("chloe")[0]);
+    assert.ok(text.includes(page.body.certificateNeeds), `${text}\n${page.body.certificateNeeds}`);
+  });
+
+  test("the certificate sentence counts the session she went to: the host's held, never her own group's marked not held", async () => {
+    // A rule of every session, so the sentence says how many are due.
+    world.db.seed(`courseFinishing/${RUN}`, { kind: "rule", runId: RUN, atLeast: 6, setAt: new Date("2026-10-01T09:00:00Z") });
+    visitA(2);
+    const register = (groupId, held, records) => ({
+      runId: RUN,
+      groupId,
+      weekNumber: 2,
+      occurrence: 1,
+      records,
+      held,
+      pushedAt: new Date("2026-10-27T21:00:00Z"),
+      pushedByUid: "zach",
+    });
+    world.db.seed(registerPath(GROUP.a, 2), register(GROUP.a, true, { ana: "present", chloe: "present" }));
+    world.db.seed(registerPath(GROUP.b, 2), register(GROUP.b, false, {}));
+    at(DUE.b3one);
+    const page = await call("chloe", overview.GET, { runId: RUN });
+    assert.equal(page.status, 200);
+    await runJob(DUE.b3one);
+    const text = await textOf(mailTo("chloe").at(-1));
+    assert.ok(page.body.certificateNeeds && text.includes(page.body.certificateNeeds), `${text}\n${page.body.certificateNeeds}`);
+    // Amara, whose week 2 session is the one marked not held, is told one session fewer.
+    const amara = await textOf(mailTo("amara").at(-1));
+    const count = (said) => Number(/you need to come to at least (\d+)/.exec(said)?.[1]);
+    assert.equal(count(text), count(amara) + 1, `${text}\n${amara}`);
+  });
+
+  test("what her page shows, as the rule answers it: her visit's card, but no card at all where the page draws none", () => {
+    const place = { groupId: GROUP.b, groupsByWeek: null, visits: [{ weekNumber: 2, groupId: GROUP.a, arrangedByUid: "zach", arrangedAt: START }] };
+    const visit = { weekNumber: 2, occurrence: 1, liveGroupIds: [GROUP.a, GROUP.b], notHeld: false, facilitatesOwnGroup: false };
+    assert.deepEqual(programmePageShowsSession(place, GROUP.a, visit), { cantMakeIt: true, joinOnline: true });
+    // Her own group's session is still hers on her page: its card is her group's.
+    assert.deepEqual(programmePageShowsSession(place, GROUP.b, visit), { cantMakeIt: true, joinOnline: true });
+    // She facilitates her own group: her own Can't make it is the instant one, and the visit's card offers none.
+    assert.deepEqual(programmePageShowsSession(place, GROUP.a, { ...visit, facilitatesOwnGroup: true }), { cantMakeIt: false, joinOnline: true });
+    // No card: the session's register says it was not held, her own group no longer meets, the week's second session, another week, no visit described.
+    const neither = { cantMakeIt: false, joinOnline: false };
+    assert.deepEqual(programmePageShowsSession(place, GROUP.a, { ...visit, notHeld: true }), neither);
+    assert.deepEqual(programmePageShowsSession(place, GROUP.a, { ...visit, liveGroupIds: [GROUP.a] }), neither);
+    assert.deepEqual(programmePageShowsSession(place, GROUP.a, { ...visit, occurrence: 2 }), neither);
+    assert.deepEqual(programmePageShowsSession(place, GROUP.a, { ...visit, weekNumber: 3 }), neither);
+    assert.deepEqual(programmePageShowsSession(place, GROUP.a), neither);
   });
 });
