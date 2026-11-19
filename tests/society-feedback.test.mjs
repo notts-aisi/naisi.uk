@@ -278,7 +278,9 @@ describe("2. only a member sends, and every refusal writes nothing", () => {
     const ip = "192.0.2.200";
     for (let i = 0; i < 30; i += 1) assert.equal((await sendAs("amara", { words: `Number ${i}` }, { ip })).status, 200);
     const refused = await sendAs("amara", { words: "One more" }, { ip });
+    // The minute's limit keeps its own sentence.
     assert.deepEqual([refused.status, refused.body.error], [429, words.REFUSAL_WORDS.tooMany]);
+    assert.equal(words.REFUSAL_WORDS.tooMany, "Too much feedback has come from here in a minute. Wait a moment and press Send anonymously again.");
     assert.equal((await sendAs("amara", { words: "From elsewhere" })).status, 200);
     assert.equal(waitingPaths().length, 31);
   });
@@ -294,7 +296,10 @@ describe("2. only a member sends, and every refusal writes nothing", () => {
     }
     at(t, new Date(NOW.getTime() + 20 * 60_000).toISOString());
     const refused = await sendAs("amara", { words: "The thirty-first this hour" }, { ip });
-    assert.deepEqual([refused.status, refused.body.error], [429, words.REFUSAL_WORDS.tooMany]);
+    // The hour's limit never answers with the sentence that says "in a minute".
+    assert.deepEqual([refused.status, refused.body.error], [429, words.REFUSAL_WORDS.tooManyOverall]);
+    assert.equal(words.REFUSAL_WORDS.tooManyOverall, "We’ve had a lot of feedback in the last hour. Wait a while and press Send anonymously again.");
+    assert.ok(!refused.body.error.includes("minute"));
     assert.equal((await sendAs("dev", { words: "Another address" })).status, 200, "another address was held back");
     at(t, new Date(NOW.getTime() + 61 * 60_000).toISOString());
     assert.equal((await sendAs("amara", { words: "An hour on" }, { ip })).status, 200);

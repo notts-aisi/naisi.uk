@@ -35,11 +35,21 @@ export async function POST(req: Request) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
 
+  // Each per-address limit answers in words that are true of it: the minute's
+  // says a minute, the hour's says the last hour.
   const limit = rateLimit(`society-feedback:ip:${clientIp(req)}`, 30, 60_000);
-  const hourly = limit.ok ? rateLimit(`society-feedback:ip-hour:${clientIp(req)}`, 30, 3_600_000) : limit;
-  if (!limit.ok || !hourly.ok) {
-    const wait = Math.max(limit.retryAfterSeconds, hourly.retryAfterSeconds);
-    return NextResponse.json({ error: REFUSAL_WORDS.tooMany }, { status: 429, headers: { "Retry-After": String(wait) } });
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: REFUSAL_WORDS.tooMany },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+    );
+  }
+  const hourly = rateLimit(`society-feedback:ip-hour:${clientIp(req)}`, 30, 3_600_000);
+  if (!hourly.ok) {
+    return NextResponse.json(
+      { error: REFUSAL_WORDS.tooManyOverall },
+      { status: 429, headers: { "Retry-After": String(hourly.retryAfterSeconds) } },
+    );
   }
 
   // The one read of the session: a yes or a no. `user` is used on these two

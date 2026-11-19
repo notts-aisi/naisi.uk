@@ -22,6 +22,9 @@
  *     year an admin clears out by hand every entry more than a year old, so
  *     none is older than two years. Version 20 said "two years from the day
  *     it is sent", which a yearly clear-out by hand cannot keep exactly.
+ *     The paragraph about the second form is in the present tense, now that
+ *     the form exists ("We also have", "does not ask", "we keep", "read"),
+ *     where version 20 said what it "may" and "would" do.
  *  3. **What's changed** at the top says both, and keeps version 20's, version
  *     19's, version 18's and version 17's lines under it, each with its date.
  *
@@ -808,13 +811,12 @@ export default function PrivacyContentV21({
                 day, in an order unrelated to when each came in.
               </p>
               <p>
-                We may also open a second form that never records who fills it
-                in: an anonymous feedback form that any member can use at any
-                time. It would not ask who you are, and we would keep what you
-                write, the day, and any programme, session or role you choose
-                to name. Only admins would read it, from the next day. Nobody
-                can reply to it, so if you&apos;d like an answer, ask us
-                directly instead.
+                We also have a second form that never records who fills it in:
+                an anonymous feedback form that any member can use at any time.
+                It does not ask who you are, and we keep what you write, the
+                day, and any programme, session or role you choose to name.
+                Only admins read it, from the next day. Nobody can reply to it,
+                so if you&apos;d like an answer, ask us directly instead.
               </p>
             </section>
 

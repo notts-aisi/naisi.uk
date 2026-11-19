@@ -6299,11 +6299,12 @@ describe("the course hub passage", () => {
     // with the form's paragraph, on the page once, and the promise is gone
     // (the anonymous form's test holds the paragraph to the code). v17 adds
     // one paragraph after it, the second form that may open, and the section
-    // closes with the two.
+    // closes with the two; v21 says that form in the present tense, once it
+    // exists.
     const surveys = PAGE_FLAT.slice(PAGE_FLAT.indexOf('<section id="surveys"'), PAGE_FLAT.indexOf('<section id="ai-review"'));
     assert.match(
       surveys,
-      /<p> <strong>The anonymous form\.<\/strong> One form never records who answers: [^<]* <\/p> <p> We may also open a second form that never records who fills it in: [^<]* <\/p> <\/section> $/,
+      /<p> <strong>The anonymous form\.<\/strong> One form never records who answers: [^<]* <\/p> <p> We also have a second form that never records who fills it in: [^<]* <\/p> <\/section> $/,
       "the surveys section no longer closes with the anonymous form and the second form",
     );
     assert.equal((PAGE_FLAT.match(/We do not currently run anonymous surveys/g) ?? []).length, 0, "the promise is still on the page beside the form that kept it");
@@ -12308,6 +12309,11 @@ describe("v21 says the reminders before a session go to everybody due at it, and
       "anonymous feedback from the second form is kept up to two years and cleared by hand once a year",
       "<li> <strong>Anonymous feedback from the second form:</strong> two years from the day it is sent. </li>",
       `<li> <strong>Anonymous feedback from the second form:</strong> ${RETENTION_21} </li>`,
+    ],
+    [
+      "the second form is described in the present tense, now that it exists",
+      "<p> We may also open a second form that never records who fills it in: an anonymous feedback form that any member can use at any time. It would not ask who you are, and we would keep what you write, the day, and any programme, session or role you choose to name. Only admins would read it, from the next day. Nobody can reply to it, so if you&apos;d like an answer, ask us directly instead. </p>",
+      "<p> We also have a second form that never records who fills it in: an anonymous feedback form that any member can use at any time. It does not ask who you are, and we keep what you write, the day, and any programme, session or role you choose to name. Only admins read it, from the next day. Nobody can reply to it, so if you&apos;d like an answer, ask us directly instead. </p>",
     ],
   ];
 
