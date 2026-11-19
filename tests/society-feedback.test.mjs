@@ -253,7 +253,7 @@ describe("2. only a member sends, and every refusal writes nothing", () => {
     assert.equal(await status({ words: "   " }), 400);
     assert.equal(await status({ words: 12 }), 400);
     assert.equal(await status({ words: "x".repeat(model.WORDS_MAX_CHARS + 1) }), 400);
-    assert.equal(await status({ words: "Hi", about: "Rahul" }), 400, "a name in place of a role");
+    assert.equal(await status({ words: "Hi", about: "Alex" }), 400, "a name in place of a role");
     assert.equal(await status({ words: "Hi", week: 2 }), 400, "a session with no programme");
     assert.equal(await status({ words: "Hi", roundId: ROUND, programmeId: AGI, week: 7 }), 400, "AGI Strategy has six weeks");
     assert.equal(await status({ words: "Hi", roundId: ROUND, programmeId: AGI, week: 1.5 }), 400);
@@ -448,7 +448,7 @@ describe("4. the admins' page: from the next day, by day, by programme, read onl
     }
   });
 
-  test("the members' form, as drawn: this term's programmes, the roles, the board's words, and nothing about the reader", async (t) => {
+  test("the members' form, as drawn: this term's programmes, the roles, the form's own words, and nothing about the reader", async (t) => {
     clock(t);
     reset();
     const before = sessionReads;
