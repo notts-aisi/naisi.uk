@@ -34,7 +34,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { walkSource } from "./lib/functionScan.mjs";
+import { resolveImport, walkSource } from "./lib/functionScan.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -73,8 +73,11 @@ const OWN_FILES = OWN_ROOTS.flatMap((root) => [...filesUnder(root)]).map(rel).so
 // The patterns
 // ---------------------------------------------------------------------------
 
-/** Anything that logs. */
-const LOG = /\bconsole\s*\.|\blogger\b|\bctx\.log\s*\(/;
+/** Anything that logs, the process's own streams included. */
+const LOG = /\bconsole\s*\.|\blogger\b|\bctx\.log\s*\(|\bprocess\s*\.\s*(?:stdout|stderr)\b/;
+/** A throw: allowed only as an error built from a plain string, never from what was sent. */
+const THROW = /\bthrow\b/g;
+const PLAIN_THROW = /^throw new \w*Error\(\s*"[^"]*"\s*\);/;
 /** A cookie, read or named. */
 const COOKIE = /\bcookies\s*\(|\.cookies\b|document\.cookie|__session\b|SESSION_COOKIE/;
 /** A request header, an address or a browser's name for itself. */
@@ -104,8 +107,30 @@ export function breaches(path, source) {
   const store = BROWSER_STORE.exec(code);
   if (store) out.push(`${path} keeps something in the browser: "${store[0]}"`);
   if ((code.match(CLIENT_IP) ?? []).length !== (code.match(LIMIT_KEY) ?? []).length) out.push(`${path} reads the client's address outside a rate limit's key`);
+  // A thrown error is logged by the server: only one built from a plain string may be thrown.
+  for (const match of code.matchAll(THROW)) {
+    const rest = code.slice(match.index);
+    if (!PLAIN_THROW.test(rest)) out.push(`${path} throws something other than a plain sentence: "${rest.slice(0, 60)}"`);
+  }
   return out;
 }
+
+/** A session, the view-as marker, a sign-in or a cookie: anything that can say who is calling. Type imports are not reads. */
+const SESSION_ANY =
+  /["']@\/lib\/firebase\/(?:session|impersonation)["']|["']@\/auth\/[^"']*["']|["']firebase\/auth["']|["']firebase-admin\/auth["']|\b(?:getCurrentUser|getSessionUser|getSessionUid|verifySessionCookie|verifyIdToken|useAuth|onAuthStateChanged|getImpersonator|assertNotImpersonating|markerIsLive|getAdminAuth)\b|\bcookies\s*\(/;
+const withoutTypeImports = (code) => code.replace(/import\s+type\s+[^;]*;/g, "");
+/** Whether a file can say who is calling. */
+export const readsSession = (source) => SESSION_ANY.test(withoutTypeImports(codeOf(source)));
+
+/** The database, touched at all. */
+const DATABASE = /\.collection\(|\bgetAdminDb\b|["']firebase-admin\/firestore["']|\bFirestore\b|\brunTransaction\(|\.batch\(\)/;
+/** A write, in a file that touches the database. */
+const WRITE = /\.(?:add|set|update|create|delete)\(|\brunTransaction\(|\.batch\(\)|\.commit\(/;
+/** Whether a file can write to the database. */
+export const writesDatabase = (source) => {
+  const code = codeOf(source);
+  return DATABASE.test(code) && WRITE.test(code);
+};
 
 // ---------------------------------------------------------------------------
 // 1. The route, and the files of the form
@@ -132,8 +157,9 @@ describe("1. the form's files log nothing and read nothing of the request but wh
     assert.ok(!/\buid\b|\.email\b|displayName/.test(route), "the send route names the sender's account");
     // Its answer is a yes, never an id.
     assert.match(route, /return NextResponse\.json\(\{ ok: true \}\);\s*\}\s*$/);
-    // The two limits, in memory.
+    // The three limits, in memory.
     assert.match(route, /rateLimit\(`society-feedback:ip:\$\{clientIp\(req\)\}`, 30, 60_000\)/);
+    assert.match(route, /rateLimit\(`society-feedback:ip-hour:\$\{clientIp\(req\)\}`, 30, 3_600_000\)/);
     assert.match(route, /rateLimit\("society-feedback:all", 300, 3_600_000\)/);
   });
 
@@ -144,6 +170,90 @@ describe("1. the form's files log nothing and read nothing of the request but wh
     const form = codeOf(read("src/features/societyFeedback/SocietyFeedbackForm.tsx"));
     assert.match(form, /referrerPolicy: "no-referrer"/, "the request says which page it came from");
     assert.match(form, /cache: "no-store"/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1b. Allow-lists: who may read a session, who may write
+// ---------------------------------------------------------------------------
+
+/**
+ * The files of the form that may read who is calling, each with why. The form's
+ * own page is NOT here: it reads nothing about its reader.
+ */
+const SESSION_READERS = new Map([
+  [SEND_ROUTE, "refuses a view-as session, then asks once whether the caller is an approved account, and uses the answer on the two lines that refuse"],
+  ["src/app/api/admin/anonymous-feedback/[entryId]/route.ts", "an admin's alone, and records which admin marked or noted the entry"],
+  ["src/app/api/admin/anonymous-feedback/clear/route.ts", "an admin's alone"],
+  ["src/app/api/admin/anonymous-feedback/download/route.ts", "an admin's alone"],
+  [ADMIN_PAGE, "asks for an admin again before anything is read"],
+]);
+
+/** The files of the form that may write to the database, each with what it writes. */
+const DATABASE_WRITERS = new Map([
+  ["src/lib/societyFeedback/send.ts", "the one entry as it comes in, its seven fields"],
+  ["src/lib/societyFeedback/move.ts", "the night's move: the kept entry, its seven fields, and the waiting copy deleted"],
+  ["src/lib/societyFeedback/admin.ts", "admins acting: Dealt with, the note, and the clear-out by hand"],
+]);
+
+/**
+ * Every file outside the form that the send route or the form's page reaches
+ * and that can say who is calling, each with why. A helper added beside them
+ * that reads the session would have to be named here.
+ */
+const REACHED_SESSION_READERS = new Map([
+  ["src/lib/firebase/session.ts", "the session itself, read by the route's one `getCurrentUser` call"],
+  ["src/lib/firebase/impersonation.ts", "the view-as guard the route calls first, which refuses and keeps nothing"],
+  ["src/lib/firebase/admin.ts", "the Admin SDK's own setup, which names its sign-in module and reads no request"],
+]);
+
+/** Every file inside `src` a door reaches through its imports, the door included. */
+function reachedFrom(door) {
+  const seen = new Set();
+  const unresolved = [];
+  const visit = (file) => {
+    const path = rel(file);
+    if (seen.has(path)) return;
+    seen.add(path);
+    // A type import loads nothing when the code runs, so it is not followed.
+    for (const match of withoutTypeImports(codeOf(readFileSync(file, "utf8"))).matchAll(/\b(?:from|import)\s*\(?\s*"([^"]+)"/g)) {
+      const specifier = match[1];
+      if (/\.css$/.test(specifier) || (!specifier.startsWith("@/") && !specifier.startsWith("."))) continue;
+      const target = resolveImport(file, specifier, SRC);
+      if (!target) unresolved.push(`${path} imports ${specifier}`);
+      else visit(target);
+    }
+  };
+  visit(join(REPO_ROOT, door));
+  return { files: [...seen].sort(), unresolved };
+}
+
+describe("1b. only the files named here read a session or write to the database", () => {
+  test("a session is read only by the send route, the three admin routes and the admins' page", () => {
+    for (const [path, why] of SESSION_READERS) assert.ok(why.length > 10 && existsSync(join(REPO_ROOT, path)), path);
+    const found = OWN_FILES.filter((path) => readsSession(read(path)));
+    assert.deepEqual(found, [...SESSION_READERS.keys()].sort(), "a file of the form reads a session and is not on the list, or a listed one no longer does");
+  });
+
+  test("the database is written only by the writer, the move and the admins' library", () => {
+    const found = OWN_FILES.filter((path) => writesDatabase(read(path)));
+    assert.deepEqual(found, [...DATABASE_WRITERS.keys()].sort(), "a file of the form writes to the database and is not on the list, or a listed one no longer does");
+  });
+
+  for (const door of [SEND_ROUTE, FORM_PAGE]) {
+    test(`everything ${door} reaches outside the form that can say who is calling is named, with why`, () => {
+      const { files, unresolved } = reachedFrom(door);
+      assert.deepEqual(unresolved, [], "an import this guard cannot follow is an import it cannot vouch for");
+      const outside = files.filter((path) => !OWN_FILES.includes(path) && readsSession(read(path)));
+      const allowed = door === FORM_PAGE ? ["src/lib/firebase/admin.ts"] : [...REACHED_SESSION_READERS.keys()];
+      assert.deepEqual(outside.filter((path) => !allowed.includes(path)), [], "a file the door reaches can say who is calling and is not on the list");
+    });
+  }
+
+  test("the rate limiter, which every send passes through, logs nothing", () => {
+    const limiter = read("src/lib/rateLimit.ts");
+    assert.equal(LOG.exec(codeOf(limiter)), null, "the rate limiter logs");
+    assert.equal(LOG.exec(codeOf("process.stderr.write(key);")) !== null, true);
   });
 });
 
@@ -256,6 +366,25 @@ describe("the scanner reads what it says it reads", () => {
   test("the address inside a rate limit's key is allowed, and nowhere else", () => {
     assert.deepEqual(breaches("x.ts", "rateLimit(`k:${clientIp(req)}`, 1, 1);"), []);
     assert.equal(breaches("x.ts", "const ip = clientIp(req);").length, 1);
+  });
+
+  test("the process's own streams and a throw built from anything but a plain string are caught", () => {
+    const one = (snippet) => breaches("x.ts", snippet);
+    assert.equal(one("process.stdout.write(words);").length, 1);
+    assert.equal(one("process.stderr.write(raw);").length, 1);
+    assert.equal(one("throw new Error(words);").length, 1);
+    assert.equal(one("throw new Error(`bad ${raw}`);").length, 1);
+    assert.equal(one("throw err;").length, 1);
+    assert.deepEqual(one('throw new Error("The move found no database.");'), []);
+  });
+
+  test("a session read and a database write are told apart from their look-alikes", () => {
+    assert.equal(readsSession('import { getCurrentUser } from "@/lib/firebase/session";\nconst u = await getCurrentUser();'), true);
+    assert.equal(readsSession('import type { SessionUser } from "@/lib/firebase/session";'), false);
+    assert.equal(readsSession("const store = await cookies();"), true);
+    assert.equal(writesDatabase('db.collection("x").add({ uid });'), true);
+    assert.equal(writesDatabase("const byDay = new Map(); byDay.set(day, list);"), false, "a Map is not the database");
+    assert.equal(writesDatabase("async function f(db: Firestore) { await db.collection(\"x\").get(); }"), false, "a read is not a write");
   });
 
   test("a word in a comment is not a breach", () => {

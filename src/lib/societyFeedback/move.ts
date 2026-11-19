@@ -13,8 +13,9 @@ import { SOCIETY_KEPT_COLLECTION, SOCIETY_WAITING_COLLECTION, dueToMove, normali
  * set beside who was where at that minute. The move writes a finished day's
  * entries together, so the database's own time on each kept entry is the
  * move's, and the entry itself holds only the day. From the move on, nothing
- * kept says more than the day. (The database's recovery copies hold a deleted
- * waiting record for as long as they are kept; the privacy policy says so.)
+ * kept says more than the day. (The database's recovery copies, which exist
+ * for a limited time, still hold a deleted waiting record until they expire.
+ * The privacy policy does not speak of them.)
  *
  * ONLY A DAY THAT IS OVER MOVES (`dueToMove`): an entry sent at 00:20 waits
  * for the next night with the rest of its day.

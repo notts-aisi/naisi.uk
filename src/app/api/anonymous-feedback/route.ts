@@ -26,20 +26,20 @@ import { REFUSAL_WORDS } from "@/lib/societyFeedback/words";
  * View-as is refused first: an admin looking through a member's eyes is not
  * that member, and an entry sent then would read as a member's own.
  *
- * Two limits keep floods out, each a count in this server's memory alone,
- * never stored: one per address, which is read for that key and nothing
- * else, and one for the whole form.
+ * Three limits keep floods out, each a count in this server's memory alone,
+ * never stored: per address, 30 a minute and 30 an hour (the address is read
+ * for those two keys and nothing else), so one address cannot use up the
+ * whole form's allowance; and 300 an hour for the whole form.
  */
 export async function POST(req: Request) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
 
   const limit = rateLimit(`society-feedback:ip:${clientIp(req)}`, 30, 60_000);
-  if (!limit.ok) {
-    return NextResponse.json(
-      { error: REFUSAL_WORDS.tooMany },
-      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
-    );
+  const hourly = limit.ok ? rateLimit(`society-feedback:ip-hour:${clientIp(req)}`, 30, 3_600_000) : limit;
+  if (!limit.ok || !hourly.ok) {
+    const wait = Math.max(limit.retryAfterSeconds, hourly.retryAfterSeconds);
+    return NextResponse.json({ error: REFUSAL_WORDS.tooMany }, { status: 429, headers: { "Retry-After": String(wait) } });
   }
 
   // The one read of the session: a yes or a no. `user` is used on these two

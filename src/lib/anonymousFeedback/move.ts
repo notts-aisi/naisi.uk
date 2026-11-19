@@ -13,8 +13,9 @@ import { ANONYMOUS_ANSWERS_COLLECTION, ANONYMOUS_WAITING_COLLECTION, dueToMove, 
  * The move writes a whole day's answers in one transaction, so the database's
  * own time on each kept answer is the move's, the same for all of them, and
  * the answer itself holds only the day. From the move on, nothing kept says
- * more than the day. (The database's recovery copies hold a deleted waiting
- * record for as long as they are kept; the privacy policy says so.)
+ * more than the day. (The database's recovery copies, which exist
+ * for a limited time, still hold a deleted waiting record until they expire.
+ * The privacy policy does not speak of them.)
  *
  * ONLY A DAY THAT IS OVER MOVES (`dueToMove`): an answer sent at 00:20 waits
  * for the next night with the rest of its day, so the move's time never says

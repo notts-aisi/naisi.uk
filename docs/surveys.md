@@ -1593,8 +1593,9 @@ moves that day's answers in random order, up to 200 to a transaction, into
 `anonymousFeedback`, each under a new id, and deletes what waited. A kept
 answer's own time is then the move's, shared with its day. The database's
 recovery copies (up to 14 days) and the hosting provider's request logs still
-hold a time for a while; the privacy policy says so, and that neither is ever
-matched to the answers.
+hold a time for a while, and neither is ever matched to the answers. The
+privacy policy speaks of the request logs; it does not speak of the recovery
+copies.
 
 **Who reads it.** The programme's lead and admins, on the readers' page,
 decided by `loadProgrammeRun` before any answer is read (a reviewer is told it

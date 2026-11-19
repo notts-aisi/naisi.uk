@@ -50,6 +50,7 @@ const view = await loadTs(join("lib", "societyFeedback", "view.ts"));
 const words = await loadTs(join("lib", "societyFeedback", "words.ts"));
 const move = await loadTs(join("lib", "societyFeedback", "move.ts"));
 const { anonymousFeedbackMoveJob } = await loadTs(join("lib", "scheduler", "jobs", "anonymousFeedbackMove.ts"));
+const lastRoute = await loadTs(join("features", "pwa", "lastRoute.ts"));
 
 const ENTRY_KEYS = ["about", "day", "programmeId", "programmeName", "roundId", "week", "words"];
 
@@ -274,6 +275,23 @@ describe("2. only a member sends, and every refusal writes nothing", () => {
     assert.equal((await sendAs("amara", { words: "From elsewhere" })).status, 200);
     assert.equal(waitingPaths().length, 31);
   });
+
+  test("one address is held to 30 an hour as well, so it cannot use up the whole form's 300 for everybody", async (t) => {
+    clock(t);
+    reset();
+    const ip = "192.0.2.201";
+    for (let i = 0; i < 30; i += 1) {
+      // A minute apart, five at a time, so the per-minute limit never bites.
+      if (i % 5 === 0) at(t, new Date(NOW.getTime() + (i / 5) * 61_000).toISOString());
+      assert.equal((await sendAs("amara", { words: `Hourly ${i}` }, { ip })).status, 200);
+    }
+    at(t, new Date(NOW.getTime() + 20 * 60_000).toISOString());
+    const refused = await sendAs("amara", { words: "The thirty-first this hour" }, { ip });
+    assert.deepEqual([refused.status, refused.body.error], [429, words.REFUSAL_WORDS.tooMany]);
+    assert.equal((await sendAs("dev", { words: "Another address" })).status, 200, "another address was held back");
+    at(t, new Date(NOW.getTime() + 61 * 60_000).toISOString());
+    assert.equal((await sendAs("amara", { words: "An hour on" }, { ip })).status, 200);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -473,7 +491,29 @@ describe("4. the admins' page: from the next day, by day, by programme, read onl
       assert.ok(text.includes(line), `the form does not say: ${line}`);
     }
     assert.ok(!/nothing is kept/i.test(text));
+
     assert.ok(!text.includes("Ask the team") && !text.includes("ask the team"), "the form points to Ask the team, which does not exist");
+  });
+});
+
+describe("4b. the member's own browser keeps nothing of the form", () => {
+  test("the relaunch tracker never records the form's address, and still records every other page", () => {
+    const writes = [];
+    const was = globalThis.window;
+    globalThis.window = { localStorage: { setItem: (key, value) => writes.push([key, value]), getItem: () => null } };
+    try {
+      lastRoute.recordLastRoute("/anonymous-feedback");
+      lastRoute.recordLastRoute("/anonymous-feedback/");
+      assert.deepEqual(writes, [], "the form's address was kept in the browser");
+      lastRoute.recordLastRoute("/dashboard");
+      assert.equal(writes.length, 1);
+      assert.equal(JSON.parse(writes[0][1]).path, "/dashboard");
+      // A page whose name merely starts the same way is recorded as any other.
+      lastRoute.recordLastRoute("/anonymous-feedback-elsewhere");
+      assert.equal(writes.length, 2);
+    } finally {
+      globalThis.window = was;
+    }
   });
 });
 
