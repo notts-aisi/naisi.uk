@@ -19,8 +19,9 @@
  *    and the list of what waits for feedback, oldest first: Ada's and Cleo's
  *    answers;
  *  - opens Dan's week and Ada's in the reading view (one person, one week):
- *    Dan's from his name, on the newest week he wrote in, Ada's from her
- *    week 3 cell; reflections under their questions with when they were
+ *    Dan's from his name, which opens his page on the programme, then its
+ *    "Read week 1" (and with no week named, on the newest week he wrote in),
+ *    Ada's from her week 3 cell; reflections under their questions with when they were
  *    written, the answer as sent, and, because the lead here is an admin,
  *    Ada's private note;
  *  - writes a piece of feedback on Ada's week as a whole there and reads it
@@ -522,14 +523,23 @@ test(
         },
       );
 
-      await step("the lead opens the person in no group: their week 1 reflections under their prompts", async () => {
+      await step("the lead opens the person in no group: their page from their name, then their week 1 reflections under their prompts", async () => {
         activePage = adminPage;
+        // His name opens his page on the programme (he holds a place, so he is a row of the People tab).
+        const personPath = `${programmePathOnSite}/people/${enc(dan.uid)}`;
+        const name = adminPage.getByRole("link", { name: dan.displayName, exact: true });
+        assert.equal(await name.getAttribute("href"), personPath, "Dan's name on the Coursework tab leads somewhere else");
+        await Promise.all([adminPage.waitForURL((url) => url.pathname === personPath, { timeout: WAIT_MS }), name.click()]);
+        await adminPage.getByRole("heading", { name: dan.displayName, level: 1 }).waitFor({ timeout: WAIT_MS });
+        // "Read week 1" on his page opens the reading view of that week, as his week 1 cell on the tab does.
+        const read = adminPage.getByRole("link", { name: "Read week 1", exact: true }).first();
+        await read.waitFor({ timeout: WAIT_MS });
+        assert.equal(await read.getAttribute("href"), `${programmePathOnSite}/coursework/${enc(dan.uid)}?week=1`);
         await Promise.all([
-          adminPage.waitForURL((url) => url.pathname.endsWith(`/coursework/${dan.uid}`), { timeout: WAIT_MS }),
-          adminPage.getByRole("link", { name: dan.displayName, exact: true }).click(),
+          adminPage.waitForURL((url) => url.pathname.endsWith(`/coursework/${dan.uid}`) && url.searchParams.get("week") === "1", { timeout: WAIT_MS }),
+          read.click(),
         ]);
         await adminPage.getByRole("heading", { name: dan.displayName, level: 1 }).waitFor({ timeout: WAIT_MS });
-        // The reading view, opened with no week named on the newest week Dan wrote in: week 1.
         assert.match(await wordsIn(adminPage.locator("header").filter({ hasText: dan.displayName })), /· Not in a group yet · week 1 of \d+/);
         const reflections = await wordsIn(adminPage.locator('section[aria-labelledby="reading-reflections"]'));
         // Each reflection under its question, with when it was last saved.
@@ -543,6 +553,10 @@ test(
           await adminPage.getByRole("link", { name: "Next week: week 2", exact: true }).first().getAttribute("href"),
           `${programmePathOnSite}/coursework/${enc(dan.uid)}?week=2`,
         );
+        // The reading view's own address with no week named still opens on the newest week Dan wrote in: week 1.
+        await adminPage.goto(`${courseworkUrl}/${enc(dan.uid)}`, { waitUntil: "domcontentloaded" });
+        await adminPage.getByRole("heading", { name: dan.displayName, level: 1 }).waitFor({ timeout: WAIT_MS });
+        assert.match(await wordsIn(adminPage.locator("header").filter({ hasText: dan.displayName })), /· Not in a group yet · week 1 of \d+/);
       });
 
       await step(
