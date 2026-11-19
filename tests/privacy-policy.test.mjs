@@ -222,7 +222,7 @@ const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
 const V20_FLAT = read("src/content/legal/privacy/v20.tsx").replace(/\s+/g, " ");
 /** "What's changed in version 21", as the page carries it (an apostrophe is `&apos;` in the source). */
 const CHANGED_21 =
-  "We now email everybody a reminder of each session&apos;s day, time and place three days and one day before it, where before we only emailed people with work left to do. Anonymous feedback from the second form is kept for up to two years and deleted by hand once a year, where before we said two years from the day it is sent.";
+  "We now email everybody a reminder of each session&apos;s day, time and place three days and one day before it, where before we only emailed people with work left to do. Anonymous feedback from the second form is kept for up to two years and deleted by hand once a year, where before we said two years from the day it is sent. We now say that our database&apos;s recovery copies can hold the time at which something sent through an anonymous form arrived, for up to 14 days.";
 /** v19, frozen: read by the version 19 describe, which proves v19 is v18 with its one change, and by the version 20 describe, which proves v20 is v19 with its changes. */
 const V19_FLAT = read("src/content/legal/privacy/v19.tsx").replace(/\s+/g, " ");
 /** v18, frozen: read by the version 18 describe, which proves v18 is v17 with its changes, and by the version 19 describe, which proves v19 is v18 with its one. */
@@ -6300,12 +6300,13 @@ describe("the course hub passage", () => {
     // (the anonymous form's test holds the paragraph to the code). v17 adds
     // one paragraph after it, the second form that may open, and the section
     // closes with the two; v21 says that form in the present tense, once it
-    // exists.
+    // exists, and closes the section with what the database's recovery
+    // copies can hold of either form.
     const surveys = PAGE_FLAT.slice(PAGE_FLAT.indexOf('<section id="surveys"'), PAGE_FLAT.indexOf('<section id="ai-review"'));
     assert.match(
       surveys,
-      /<p> <strong>The anonymous form\.<\/strong> One form never records who answers: [^<]* <\/p> <p> We also have a second form that never records who fills it in: [^<]* <\/p> <\/section> $/,
-      "the surveys section no longer closes with the anonymous form and the second form",
+      /<p> <strong>The anonymous form\.<\/strong> One form never records who answers: [^<]* <\/p> <p> We also have a second form that never records who fills it in: [^<]* <\/p> <p> Our database&apos;s recovery copies, which exist so that data can be restored after a fault, can hold the time at which something sent through either anonymous form arrived, for up to 14 days\. We would only look at them if we had to\. <\/p> <\/section> $/,
+      "the surveys section no longer closes with the anonymous form, the second form and what the recovery copies can hold of both",
     );
     assert.equal((PAGE_FLAT.match(/We do not currently run anonymous surveys/g) ?? []).length, 0, "the promise is still on the page beside the form that kept it");
     assert.equal((PAGE_FLAT.match(/One form never records who answers/g) ?? []).length, 1);
@@ -12311,9 +12312,10 @@ describe("v21 says the reminders before a session go to everybody due at it, and
       `<li> <strong>Anonymous feedback from the second form:</strong> ${RETENTION_21} </li>`,
     ],
     [
-      "the second form is described in the present tense, now that it exists",
+      "the second form is described in the present tense, now that it exists, and what the recovery copies can hold of either form follows it",
       "<p> We may also open a second form that never records who fills it in: an anonymous feedback form that any member can use at any time. It would not ask who you are, and we would keep what you write, the day, and any programme, session or role you choose to name. Only admins would read it, from the next day. Nobody can reply to it, so if you&apos;d like an answer, ask us directly instead. </p>",
-      "<p> We also have a second form that never records who fills it in: an anonymous feedback form that any member can use at any time. It does not ask who you are, and we keep what you write, the day, and any programme, session or role you choose to name. Only admins read it, from the next day. Nobody can reply to it, so if you&apos;d like an answer, ask us directly instead. </p>",
+      "<p> We also have a second form that never records who fills it in: an anonymous feedback form that any member can use at any time. It does not ask who you are, and we keep what you write, the day, and any programme, session or role you choose to name. Only admins read it, from the next day. Nobody can reply to it, so if you&apos;d like an answer, ask us directly instead. </p> " +
+        "<p> Our database&apos;s recovery copies, which exist so that data can be restored after a fault, can hold the time at which something sent through either anonymous form arrived, for up to 14 days. We would only look at them if we had to. </p>",
     ],
   ];
 

@@ -1594,8 +1594,8 @@ moves that day's answers in random order, up to 200 to a transaction, into
 answer's own time is then the move's, shared with its day. The database's
 recovery copies (up to 14 days) and the hosting provider's request logs still
 hold a time for a while, and neither is ever matched to the answers. The
-privacy policy speaks of the request logs; it does not speak of the recovery
-copies.
+privacy policy speaks of the request logs, and from version 21 of the
+recovery copies too (version 20 does not).
 
 **Who reads it.** The programme's lead and admins, on the readers' page,
 decided by `loadProgrammeRun` before any answer is read (a reviewer is told it
@@ -1652,8 +1652,10 @@ send) and no referrer, and keeps nothing: the installed app's relaunch record
 **The day, not the time.** As for the form above: an entry waits in
 `societyFeedbackWaiting`, and once its London day is over the job
 `anonymous-feedback-move` moves that day's entries, shuffled, into
-`societyFeedback` under new random ids and deletes what waited. Nothing that
-shows an entry ever reads the waiting place, so admins read an entry from the
+`societyFeedback` under new random ids and deletes what waited. The database's
+recovery copies (up to 14 days) still hold a waiting record, and when it was
+written, until they expire; version 21 of the privacy policy says so for both
+anonymous forms. Nothing that shows an entry ever reads the waiting place, so admins read an entry from the
 day after it was sent, once the move has run. The job runs each form's half
 whatever the other did; when one fails, the run's report names that half and
 says what the other moved.

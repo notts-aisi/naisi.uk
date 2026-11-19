@@ -25,7 +25,14 @@
  *     The paragraph about the second form is in the present tense, now that
  *     the form exists ("We also have", "does not ask", "we keep", "read"),
  *     where version 20 said what it "may" and "would" do.
- *  3. **What's changed** at the top says both, and keeps version 20's, version
+ *  3. **The recovery copies.** A paragraph closing "Surveys and check-ins",
+ *     after both anonymous forms, says the database's recovery copies can
+ *     hold when something sent through either form arrived, for up to 14
+ *     days: both forms' answers wait in the live database until the night's
+ *     move, which stamps when each was written, and point-in-time recovery
+ *     (7 days, to the minute) and the daily backups (14 days) keep copies of
+ *     it. Version 20 did not speak of them.
+ *  4. **What's changed** at the top says all three, and keeps version 20's, version
  *     19's, version 18's and version 17's lines under it, each with its date.
  *
  * It changes how information is used (an email address and a place in a
@@ -107,7 +114,10 @@ export default function PrivacyContentV21({
               three days and one day before it, where before we only emailed
               people with work left to do. Anonymous feedback from the second
               form is kept for up to two years and deleted by hand once a
-              year, where before we said two years from the day it is sent.
+              year, where before we said two years from the day it is sent. We
+              now say that our database&apos;s recovery copies can hold the
+              time at which something sent through an anonymous form arrived,
+              for up to 14 days.
             </p>
             <p>
               <strong>What changed in version 20, on 17 November 2026:</strong> This
@@ -817,6 +827,12 @@ export default function PrivacyContentV21({
                 day, and any programme, session or role you choose to name.
                 Only admins read it, from the next day. Nobody can reply to it,
                 so if you&apos;d like an answer, ask us directly instead.
+              </p>
+              <p>
+                Our database&apos;s recovery copies, which exist so that data
+                can be restored after a fault, can hold the time at which
+                something sent through either anonymous form arrived, for up to
+                14 days. We would only look at them if we had to.
               </p>
             </section>
 

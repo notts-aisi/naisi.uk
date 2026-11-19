@@ -188,7 +188,10 @@ export default async function ReConsentPage() {
           and place three days and one day before it, where before we only
           emailed people with work left to do. Anonymous feedback from the
           second form is kept for up to two years and deleted by hand once a
-          year, where before we said two years from the day it is sent.
+          year, where before we said two years from the day it is sent. We now
+          say that our database&apos;s recovery copies can hold the time at
+          which something sent through an anonymous form arrived, for up to 14
+          days.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}
