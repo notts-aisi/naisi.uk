@@ -51,7 +51,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { assertTarget, hasAdminCredentials, loadSecrets } from "../../scripts/e2e/lib/env.mjs";
 import { createStepRecorder, openBrowser, signInWithPassword, stubRecaptchaOnLoopback } from "../../scripts/e2e/lib/browser.mjs";
-import { getMessage, messagesTo, waitForMessagesTo } from "../../scripts/e2e/lib/mailpit.mjs";
+import { getMessage, settleMessagesTo, waitForMessagesTo } from "../../scripts/e2e/lib/mailpit.mjs";
 import {
   ARTIFACTS_DIR,
   RECAPTCHA_SKIP_REASON,
@@ -348,10 +348,9 @@ test("course hub: the week's rooms, a room set in its row and one pasted, and th
         assert.equal(await row.getByLabel(new RegExp(`^Room for .*, ${escapeRegExp(groupA.name)}$`)).inputValue(), room, `week ${week}`);
       }
       // Nobody in Group A has a second email: the grid told nobody. A send would follow the save within the
-      // same request, so a fixed wait after it is long enough for one to land, and then every inbox is counted.
-      await page.waitForTimeout(NO_SECOND_EMAIL_MS);
+      // same request, so the harness's settle window (`settleMessagesTo`) lets one land before each inbox is counted.
       for (const person of peopleA) {
-        const seen = await messagesTo(person.email);
+        const seen = await settleMessagesTo(person.email, { settleMs: NO_SECOND_EMAIL_MS });
         assert.equal(seen.length, 1, `${person.first} has ${seen.length} emails`);
       }
     });
