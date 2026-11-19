@@ -17,7 +17,9 @@
  *  - their own attendance on the run home, and what a certificate counts;
  *  - their row of the Attendance tab and its download, and of a group page's
  *    grid;
- *  - who finished (their row, and their own finished record).
+ *  - who finished (their row, and their own finished record);
+ *  - their own excused weeks on the run home: the week, and what was asked
+ *    about it and how it was decided, as history, with nothing offered.
  *
  * What stays as it was: a register of an archived group never finished, or
  * saying the session did not happen, counts for nothing; an archived group is
@@ -49,7 +51,10 @@ const { suggestedBy, finishedForMember } = await lib("courses", "finishing", "re
 const { certificateNeedsFor } = await lib("courses", "finishing", "needs.ts");
 const { loadGroupAttendance } = await lib("courses", "groupAttendance", "load.ts");
 const { countsFromArchivedGroup, rawCountsFromArchivedGroup } = await lib("courses", "archivedWeeks.ts");
+const { excusedFor } = await lib("courses", "excused", "own.ts");
+const { cardStateOf, lastSessionOf } = await lib("courses", "excused", "card.ts");
 const overview = await courseRoute("runs", "[runId]", "overview");
+const withdraw = await courseRoute("requests", "[requestId]", "excused", "withdraw");
 const register = await courseRoute("groups", "[groupId]", "attendance");
 const push = await courseRoute("groups", "[groupId]", "attendance", "push");
 
@@ -213,9 +218,13 @@ describe("Group B archived, its weeks 1 and 2 finished: every reader keeps them"
     assert.deepEqual(cellsOf(row), ["excused", "present", "late (saved)", "not-yet"]);
     assert.deepEqual([row.came, row.of, row.groupHeld, row.online], [2, 3, 3, 0]);
     assert.deepEqual(model.groups.map((each) => each.id), [GROUP.a], "an archived group is no block of the grid");
-    // A group's figures are its own register's, and Group B has none.
+    // A group's figures are its own register's, and Group B has none of its own; the programme's figure for
+    // week 1 counts Group A's register and her line on Group B's, once.
+    const groupA1 = model.groups[0].totals.find((each) => each.weekNumber === 1);
+    assert.equal(`${groupA1.came} of ${groupA1.of}`, "1 of 1");
     const week1 = model.totals.find((each) => each.weekNumber === 1);
-    assert.equal(`${week1.came} of ${week1.of}`, "1 of 1");
+    assert.equal(`${week1.came} of ${week1.of}`, "1 of 2");
+    assert.deepEqual(week1.from, ["Group A", "Group B"]);
   });
 
   test("the Attendance tab's download says the same", async () => {
@@ -358,6 +367,227 @@ describe("an archived group's register that was never finished, or says it did n
     assert.deepEqual(await ownSessions("chloe"), ["w01 excused", "w03 late"]);
     assert.deepEqual(cellsOf((await tabRow("chloe")).row), ["excused", "none", "late", "not-yet"]);
     assert.match(needsWith(9, rawRegisters(1, 2)), /at least 5 sessions/);
+  });
+});
+
+// ===========================================================================
+// The programme's figure for a week
+// ===========================================================================
+
+describe("the programme's figure for a week keeps the marks of people who spent it in a group archived since", () => {
+  /**
+   * Group B closed into Group A from week 3: Chloe and Farah moved by a record, and Amara moved on the board
+   * with no record (the shape of a move until the record existed), whose lines on Group B's registers count
+   * nowhere, before the archive and after it.
+   */
+  function closedB(week2 = {}) {
+    threeWeeks(week2);
+    moveChloe(true);
+    world.db.poke(`courseEnrolments/${RUN}__farah`, { groupId: GROUP.a, groupsByWeek: RECORD });
+    world.db.poke(`courseEnrolments/${RUN}__amara`, { groupId: GROUP.a });
+  }
+  const totalsOf = async () => (await tabFor()).totals.map(({ weekNumber, came, of, online, percent, soFar, from }) => ({ weekNumber, came, of, online, percent, soFar, from }));
+
+  test("every week's figure after the archive is what it was before", async () => {
+    closedB();
+    const before = await totalsOf();
+    archiveB();
+    const after = await totalsOf();
+    assert.deepEqual(after, before);
+    const week1 = after.find((each) => each.weekNumber === 1);
+    // Ana on Group A's register; Chloe (excused) and Farah on Group B's. Amara's line there counts nowhere.
+    assert.deepEqual([week1.came, week1.of, week1.from], [2, 3, ["Group A", "Group B"]]);
+  });
+
+  test("an archived group has no block and no figures of its own", async () => {
+    closedB();
+    archiveB();
+    const model = await tabFor();
+    assert.deepEqual(model.groups.map((group) => group.id), [GROUP.a]);
+    const a1 = model.groups[0].totals.find((each) => each.weekNumber === 1);
+    assert.deepEqual([a1.came, a1.of, a1.from], [1, 1, ["Group A"]], "Group A's own figure is its own register's");
+  });
+
+  for (const [label, week2] of [
+    ["never finished", { draft: true }],
+    ["saying the session did not happen", { held: false }],
+  ]) {
+    test(`a register of the archived group ${label} adds nothing`, async () => {
+      closedB(week2);
+      archiveB();
+      const model = await tabFor();
+      const week2Total = model.totals.find((each) => each.weekNumber === 2);
+      const a2 = model.groups[0].totals.find((each) => each.weekNumber === 2);
+      assert.deepEqual([week2Total.came, week2Total.of, week2Total.from], [a2.came, a2.of, ["Group A"]]);
+    });
+  }
+
+  test("a session of the archived group called off adds nothing", async () => {
+    closedB();
+    world.db.poke(`courseGroups/${GROUP.b}`, {
+      sessionChanges: { w02: { kind: "cancelled", reason: "The room was flooded.", dateKey: "2026-10-27", byUid: "zach", at: new Date("2026-10-27T09:00:00Z") } },
+    });
+    archiveB();
+    const model = await tabFor();
+    const week2Total = model.totals.find((each) => each.weekNumber === 2);
+    assert.deepEqual([week2Total.came, week2Total.of, week2Total.from], [1, 1, ["Group A"]]);
+  });
+
+  test("the download carries no totals of its own; its week columns add up to the page's figure", async () => {
+    closedB();
+    archiveB();
+    const model = await tabFor();
+    const { header, rows } = attendanceCsvTable(model);
+    assert.deepEqual(header.slice(-3), ["Came", "Of", "Left"]);
+    for (const week of model.weeks) {
+      const column = header.indexOf(`Week ${week.weekNumber}`);
+      const cells = rows.map((cells) => String(cells[column])).filter((cell) => cell !== "" && cell !== "Not held");
+      const came = cells.filter((cell) => /^(Present|Late|Left early)/.test(cell)).length;
+      const total = model.totals.find((each) => each.weekNumber === week.weekNumber);
+      assert.deepEqual([came, cells.length], [total.came, total.of], `week ${week.weekNumber}`);
+    }
+  });
+});
+
+// ===========================================================================
+// Their own excused weeks
+// ===========================================================================
+
+/** A request to be excused, as the ask and decide routes leave one. */
+function requestOf(id, uid, groupId, weeks) {
+  world.db.seed(`courseRequests/${id}`, {
+    kind: "excused",
+    runId: RUN,
+    groupId,
+    subjectUid: uid,
+    askedByUid: uid,
+    askedAt: new Date("2026-10-18T09:00:00Z"),
+    status: weeks[0].status,
+    reason: "A hospital appointment.",
+    reasonHeld: true,
+    change: {
+      weeks: weeks.map((week) => ({
+        weekId: week.sessionKey,
+        asked: "before",
+        offered: { online: false },
+        reply: "",
+        decidedByUid: week.status === "waiting" ? null : "zach",
+        decidedAt: week.status === "waiting" ? null : new Date("2026-10-19T09:00:00Z"),
+        withdrawnAt: null,
+        ...week,
+      })),
+    },
+  });
+}
+
+/** Chloe's own excused view, as her programme page reads it: the run's live groups only. */
+async function ownExcused() {
+  const groups = [GROUP.a, GROUP.b].map(groupOf).filter((each) => !each.archived);
+  return excusedFor(world.db, { user: sessionOf("chloe"), run: runOf(), enrolment: seatOf("chloe"), groups, now: new Date() });
+}
+const sessionAbout = (view, key) => view.sessions.find((session) => session.sessionKey === key) ?? null;
+
+/** Week 1 excused on an approved request, week 2 present after a declined one: both asked of Group B. */
+function asked() {
+  requestOf("req-c1", "chloe", GROUP.b, [{ sessionKey: "w01", status: "approved", reply: "Hope it goes well." }]);
+  requestOf("req-c2", "chloe", GROUP.b, [{ sessionKey: "w02", status: "declined", reply: "Please come if you can." }]);
+}
+
+describe("their own excused weeks keep a week spent in a group archived since", () => {
+  test("approved and declined: the same weeks, the same outcomes, before and after Group B is archived", async () => {
+    threeWeeks();
+    moveChloe(true);
+    asked();
+    const before = await ownExcused();
+    archiveB();
+    const after = await ownExcused();
+    for (const key of ["w01", "w02"]) assert.deepEqual(sessionAbout(after, key), sessionAbout(before, key), key);
+    // The whole view, requests list included. When the run's work closes is worked out from the groups that
+    // still meet, so archiving a group can move it; that is as before, and not about her weeks.
+    assert.deepEqual({ ...after, closesAt: null }, { ...before, closesAt: null });
+    assert.deepEqual(cardStateOf(sessionAbout(after, "w01")), { kind: "approved", by: "Zach", at: "2026-10-19T09:00:00.000Z", reply: "Hope it goes well.", came: false });
+    assert.deepEqual(cardStateOf(sessionAbout(after, "w02")), { kind: "declined", by: "Zach", reply: "Please come if you can.", register: "came", again: false });
+    // Nothing offered about it: no request to make, nothing to join online.
+    for (const key of ["w01", "w02"]) {
+      assert.deepEqual(sessionAbout(after, key).ask, { open: false, why: "another-group" });
+      assert.deepEqual(sessionAbout(after, key).first, { online: false });
+    }
+  });
+
+  test("the card of the last session that ended shows the archived group's week, as it did", async () => {
+    // Thursday 29 October: Group B's week 2 (Tuesday) has ended, Group A's week 3 (Monday 2 November) has not.
+    mock.timers.setTime(new Date("2026-10-29T12:00:00Z").getTime());
+    threeWeeks();
+    moveChloe(true);
+    asked();
+    const before = lastSessionOf(await ownExcused(), null);
+    archiveB();
+    const after = lastSessionOf(await ownExcused(), null);
+    assert.equal(after?.sessionKey, "w02");
+    assert.deepEqual(after, before);
+  });
+
+  test("waiting: shown as waiting, as before; its asker can still withdraw it, and nobody is offered anything else", async () => {
+    threeWeeks();
+    moveChloe(true);
+    requestOf("req-w2", "chloe", GROUP.b, [{ sessionKey: "w02", status: "waiting" }]);
+    const before = await ownExcused();
+    archiveB();
+    const after = await ownExcused();
+    assert.deepEqual(sessionAbout(after, "w02"), sessionAbout(before, "w02"));
+    assert.equal(cardStateOf(sessionAbout(after, "w02")).kind, "waiting");
+    assert.deepEqual(sessionAbout(after, "w02").ask, { open: false, why: "another-group" });
+    // Withdrawing is the asker's, by the request alone: it works for such a week, as it did before the archive.
+    const withdrawn = await call("chloe", withdraw.POST, { requestId: "req-w2" }, { body: { sessionKey: "w02" } });
+    assert.equal(withdrawn.status, 200, JSON.stringify(withdrawn.body));
+    assert.deepEqual(cardStateOf(sessionAbout(await ownExcused(), "w02")), { kind: "withdrawn", at: NOW.toISOString(), again: false });
+    assert.deepEqual(world.mail, []);
+  });
+
+  test("a week whose archived register was never finished is not listed, as on their attendance; their requests list still has it", async () => {
+    threeWeeks({ draft: true });
+    moveChloe(true);
+    requestOf("req-w2", "chloe", GROUP.b, [{ sessionKey: "w02", status: "waiting" }]);
+    archiveB();
+    const view = await ownExcused();
+    assert.equal(sessionAbout(view, "w02"), null);
+    assert.ok(sessionAbout(view, "w01"));
+    assert.deepEqual(view.requests.map((request) => [request.id, request.weeks.map((week) => week.state)]), [["req-w2", ["waiting"]]]);
+  });
+
+  test("a week whose archived register says the session did not happen is not listed", async () => {
+    threeWeeks({ held: false });
+    moveChloe(true);
+    asked();
+    archiveB();
+    const view = await ownExcused();
+    assert.equal(sessionAbout(view, "w02"), null);
+    assert.ok(sessionAbout(view, "w01"));
+  });
+
+  test("no record: archiving Group B changes nothing on her card", async () => {
+    threeWeeks();
+    moveChloe(false);
+    asked();
+    // When the run's work closes moves with the groups that still meet, as before; nothing else changes.
+    const before = JSON.stringify({ ...(await ownExcused()), closesAt: null });
+    archiveB();
+    assert.equal(JSON.stringify({ ...(await ownExcused()), closesAt: null }), before);
+  });
+
+  test("a record and nothing archived: weeks 1 and 2 off Group B, as before", async () => {
+    threeWeeks();
+    moveChloe(true);
+    asked();
+    const view = await ownExcused();
+    assert.deepEqual(
+      view.sessions.slice(0, 3).map((session) => [session.sessionKey, session.excuse?.kind ?? null, session.register, session.ask.open]),
+      [
+        ["w01", "approved", "excused", false],
+        ["w02", "declined", "came", false],
+        ["w03", null, null, false],
+      ],
+    );
   });
 });
 

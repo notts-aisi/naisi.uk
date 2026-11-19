@@ -1811,8 +1811,11 @@ where they are a row, who finished and what a certificate counts
 correction of that register still reaches their figures. A register of an
 archived group never finished, or saying the session didn't happen, counts
 for nothing, and an archived group is still no block of the Attendance tab,
-with no figures of its own. Nothing reads an archived group's registers for
-somebody whose record does not name it.
+with no figures of its own; the programme's figure for a week (the tab's
+footer, the Overview's chart, the lead's overview) counts those marks once,
+and a line on that register of somebody whose record does not name it counts
+nowhere. Nothing reads an archived group's registers for somebody whose
+record does not name it.
 
 **Kept true.** The normaliser reads a record whole or not at all: every entry a
 group id and a whole week, weeks rising, and the last group the place's group.
