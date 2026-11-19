@@ -352,6 +352,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/societyFeedback/programmes.ts",
+    {
+      why: "a form's programmes, read by each id in the form's own programmeIds for this term's list, and by the programme id a member's anonymous feedback names in its request, which is checked against programmeIds before the read",
+    },
+  ],
+  [
     "src/features/admissions/",
     {
       why: "the older apply flow keeps its answers by stage and then by question, and reads both by ids taken from the round",
