@@ -199,6 +199,10 @@ const THROUGH = {
     via: "lib/courses/allocationPublish.ts",
     why: "moving somebody to another group for good mid-term forgets Publish's markers for the move by Publish's own marker ids, and reads nothing of the guide",
   },
+  "app/api/courses/runs/[runId]/allocate/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "a move made mid-term on the allocation board goes through the same writer as the move page, which takes Publish's marker ids from its module, and the board's move reads nothing of the guide",
+  },
   "app/api/courses/runs/[runId]/allocation/route.ts": {
     via: "lib/courses/allocationPublish.ts",
     why: "the allocation board's account of what Publish would send, read through Publish's own plan: counts and names of people, never a word of an email or of the guide",

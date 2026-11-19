@@ -152,6 +152,28 @@ const READERS = {
       "register's held is read, a week whose own session is called off is no week to visit from, and a visit that stands " +
       "to a called-off session is said to be no longer happening",
   },
+  "lib/courses/visit/removed.ts": {
+    kind: "asks",
+    proof: [
+      "const startsAt = session && !session.cancelled ? sessionInstants(session).startsAt : null;",
+      ".filter((_, index) => !(snaps[index]?.exists && snaps[index].data()?.held === false))",
+    ],
+    why:
+      "taking somebody off the run with a visit still to come: a host session called off through Change a session is " +
+      "no visit to call off, so it is passed over before any register is read, and one whose register says it did not " +
+      "happen is passed over too, so the host's facilitators are told only of a visit that was still happening",
+  },
+  "lib/courses/staffMove/plan.ts": {
+    kind: "asks",
+    proof: [
+      "if (session.cancelled) return false;",
+      "snaps[index]?.exists && snaps[index].data()?.held === false",
+    ],
+    why:
+      "the week a move made mid-term is from (the move page and the allocation board): only the person's own sessions " +
+      "that have started and were not called off through Change a session are read for a register that says it did " +
+      "not happen; the week rule reads a called-off session as no meeting by its own flag, and a not-held one the same way",
+  },
   "lib/courses/visit/card.ts": {
     kind: "asks",
     proof: [

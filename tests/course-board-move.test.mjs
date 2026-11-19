@@ -196,7 +196,7 @@ describe("1. the week rule's four cases, through both routes", () => {
 // 2. The board's move made mid-term
 // ---------------------------------------------------------------------------
 
-describe("2. a move on the board mid-term goes through the writer", () => {
+describe("2. a mid-term move on the allocation board goes through the writer", () => {
   test("the question before the press says the week and that the earlier weeks stay", async () => {
     const shown = await preview([{ uid: "amara", groupId: B }]);
     assert.equal(shown.status, 200);
