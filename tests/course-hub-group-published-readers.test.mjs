@@ -186,6 +186,14 @@ const READERS = {
       "where the placement may be shown to the person looking, so anybody but an admin reads a seat nobody has told as " +
       "not in a group yet",
   },
+  "lib/courses/termRoomsEmail/send.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "a group's rooms for the rest of term, emailed by hand by an admin or the programme's lead: its people come from the " +
+      "notice audience, which leaves out every seat Publish has not told, and the run's places are read again only to give " +
+      "each of those people the lines of their own weeks, a seat nobody has told given none; nothing is shown to anybody",
+  },
   "lib/courses/weekOne/door.ts": {
     kind: "told",
     asks: 1,

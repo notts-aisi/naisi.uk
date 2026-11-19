@@ -271,7 +271,11 @@ const READERS = {
   },
   "lib/email/courseFacilitatorEmails.ts": {
     kinds: ["week", "own"],
-    why: "a notice about one session reaches the people whose session that week is the group's (groupForWeek): a visitor in included, a member visiting elsewhere not; for Week N is open alone (belongingToo) also the people who belong to the group that week (ownGroupForWeek) while visiting another, so that week's email can reach them in their own group's send when no other send has",
+    why: "a notice about one session reaches the people whose session that week is the group's (groupForWeek): a visitor in included, a member visiting elsewhere not; for Week N is open alone (belongingToo) also the people who belong to the group that week (ownGroupForWeek) while visiting another, so that week's email can reach them in their own group's send when no other send has; and a group's rooms for the rest of term (belongingInWeeks) reaches the people who belong to the group (ownGroupForWeek) in at least one week of a session still to come, a visitor in never",
+  },
+  "lib/courses/termRoomsEmail/model.ts": {
+    kinds: ["week"],
+    why: "a group's rooms for the rest of term lists, for each person, the sessions of the weeks they are due at the group's session (groupForWeek), so a member visiting another group has that week left out; who it goes to is the notice audience's belongingInWeeks (lib/email/courseFacilitatorEmails.ts), the groups they belong to, so a visitor in is never sent it",
   },
   "lib/courses/finishing/needs.ts": {
     kinds: ["week"],

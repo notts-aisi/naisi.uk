@@ -745,6 +745,9 @@ const REGISTRY = {
   "src/lib/courses/sessionChange/roomNotice.ts#sendNotice": N(
     "One week's room set, changed or taken off from the week's rooms page with Tell the group on, told by the room-only change route itself once the room is written: one message to each of the people in the group for that week and its facilitators with standing, never the presser, whatever their settings, with the marker (surface course-group), the count on the button checked and the update lane's windows for the group claimed before anything changes, the update also kept on the programme page. Never a meeting link. Email only: no push leg.",
   ),
+  "src/lib/courses/termRoomsEmail/send.ts#sendNotice": N(
+    "A group's rooms for the rest of term, sent only by a press on the term's rooms page by an admin or the programme's lead: one message to each person whose place belongs to the group in a week of a session still to come (Publish has told them their group, never somebody only visiting it) and to its facilitators with standing, never the presser, whatever their settings, with the marker (surface course-group), the count on the button checked and the group's and the presser's daily limits claimed before anything goes. Saving rooms never sends it. Never a meeting link. Email only: no push leg.",
+  ),
   "src/lib/courses/groupChange/notice.ts#sendNotice": N(
     "A change to a group's regular time or room, told by the person who made it (an admin, the programme's lead, or a run's track lead for the time): one message to each of the group's told people and its facilitators with standing, never the presser, whatever their settings, with the marker (surface course-group), the count on the button checked and a group's ten-a-day counter claimed before anything changes. Never a meeting link. Email only: no push leg.",
   ),

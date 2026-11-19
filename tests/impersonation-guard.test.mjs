@@ -191,6 +191,10 @@ const MUST_GUARD = [
   ],
   ["src/app/api/courses/groups/[groupId]/session/change/route.ts", "changes or cancels one week's session of a group, in the presser's name"],
   [
+    "src/app/api/courses/groups/[groupId]/rooms-email/route.ts",
+    "emails a group where each of its sessions still to come is, claims the presser's limits and writes a History row, in the presser's name",
+  ],
+  [
     "src/app/api/courses/groups/[groupId]/session/regular/route.ts",
     "changes a group's regular day, time, length and room from a week onwards, pins its earlier weeks, takes back people's words on the old time and emails the group, in the presser's name",
   ],

@@ -2474,6 +2474,17 @@ export const ROUTES = {
         "admins) is asked once a valid body arrives.",
     },
   },
+  "/api/courses/groups/[groupId]/rooms-email": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Email a group where each of its sessions still to come is, by hand from the term's rooms: view-as is refused " +
+        "first, then the session, then the body is checked before anything is read, so every signed-in persona meets " +
+        "the same 400 on an empty one. Who may (an admin, the lead of the programme naming its run; never a facilitator " +
+        "or a track lead) is asked once a valid body arrives. Its answer is { ok, preview } for a preview, or " +
+        "{ ok, already, said, emailed } for a press.",
+    },
+  },
   "/api/courses/groups/[groupId]/remind": {
     POST: {
       expect: signedIn(400),
@@ -6938,6 +6949,24 @@ export const REAL_ROUTES = {
         lead: c(ACTS, "Leads the programme that names the run, which staffs it, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
         facilitator: c(ACTS, "A live facilitator of the group, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
         participant: c(403, "Holds a place in the run's other group and staffs nothing: one 403 before any session changes."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/rooms-email": {
+    POST: {
+      realDrive: {
+        body: { preview: true },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin nor the lead of the programme naming the group's run: one 403 before the group's people or sessions are read."),
+        admin: c(ACTS, "An admin emails any group its rooms, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme that names the run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(403, "A live facilitator of the group, who changes a week's room on the group's page: not one who emails a group its rooms for the term, so one 403."),
+        participant: c(403, "Holds a place in the run's other group and runs nothing: one 403 before the group's people or sessions are read."),
       },
     },
   },
