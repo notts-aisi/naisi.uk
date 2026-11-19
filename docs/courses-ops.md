@@ -1581,13 +1581,15 @@ programme names" below).
   facilitators, its register and its check-in. Their card on the board and
   in Circles says they were moved since they were told and will be emailed
   at the next Publish, which sends them "You’ve moved" (their new group,
-  when it next meets counted from the press, where, its facilitators, and
-  that it replaces the group they were told about), tells the new group's
+  the first session of it they are due at counted from the press, where,
+  its facilitators, and that it replaces the group they were told about), tells the new group's
   facilitators who has joined and the old group's who is no longer in it,
   and lists them on its own ("Raj: moved to Group H, was Group D"), with
   "Send a test to me" sending the first "You’ve moved" too. A swap and a
   swap back before the press owes nothing, and Publish never sends somebody
-  told the first email again.
+  told the first email again. A move made once a session of their group has
+  started keeps the weeks already met: see "A move on the board, mid-term"
+  under "Moving somebody to another group mid-term" below.
 - **A run has to start with no applications of its own.** A run that
   already took applications through its own page cannot be named. Make a
   new run for the term.
@@ -1805,7 +1807,11 @@ keeps their record, and no place on the form goes back after the end.
 Their facilitators' register lists them last, read only, with the marks
 they had, "Left" and the day, and refuses a mark for them; the lead's
 Attendance tab, its CSV and the Overview say the same. **Remove** records
-the day too, so both kinds of leaving show it, and it gives a place the
+the day too, so both kinds of leaving show it, deletes every one-week visit
+on their place (for each whose session has not started and is happening,
+the host group's facilitators are sent the visit's called-off email, counted
+in the confirmation before the press; see "A one-week visit to another
+group's session"), and it gives a place the
 application form gave them back, exactly as leaving does and with no
 reason (nothing goes back after the run's last session). Their application
 page then says "Taken off the programme" and the day, and the form's count
@@ -1850,8 +1856,9 @@ Group F's.
 
 **Written by one thing.** The record is written only by `moveFromWeek`
 (`src/lib/courses/moveFromWeek.ts`), which sets the group and the record in one
-transaction, and the one thing that calls it is the staff move made mid-term
-(below; a test fails if anything else does). A place with no record reads
+transaction, and the two things that call it are the staff move made
+mid-term and a move made mid-term on the allocation board (below; a test
+fails if anything else does). A place with no record reads
 exactly as it always has: the group it is in now, for every week. That
 includes everybody moved before the record existed, whose earlier weeks read
 the group they are in now, as they did.
@@ -1887,11 +1894,13 @@ record does not name it.
 group id and a whole week, weeks rising, and the last group the place's group.
 A record that contradicts the place reads as none. The writer keeps it that
 way, and every other writer of a place's group deletes the record whenever it
-changes the group: a move on the allocation board (to another group, or to
-none), Remove, somebody changing the session of a seat they took on an open
+changes the group: a move on the allocation board (to another group before
+the term or of a place nobody has told, or to none), Remove, somebody changing the session of a seat they took on an open
 run, and placing a facilitator who holds a place in the group they facilitate.
 Each of those is a move for every week, so the place then reads the group it
-is in now for every week, as every such move always has. A write that leaves
+is in now for every week, as every such move always has. A move on the board
+to ANOTHER group of a told place, once a session of its group has started,
+is not one of them: it goes through the writer (below). A write that leaves
 the group where it is (a press on the board that changes nothing, reinstate,
 Publish) keeps the record. Deleting an account and destroying a run delete the
 place whole; an account's marks are cleared from every register of the run,
@@ -1996,9 +2005,20 @@ met that week (and when to come back), the old group has no session left, the
 old group has no session set at all, the old group still has a session to
 come in a week before N (its weeks met out of order, or a second session of a
 week whose first has started: move them after that session), or the new
-group has no session that week. When the old group's week N is called off
-and it keeps pace, the move is from the week after, though the new group may
-meet in week N: they have no session that week either way. Likewise a week of
+group has no session that week. A week nobody met with the old group
+counts too: between the last week the old group met and week N, a week whose
+old session is dated and called off (keeping pace) or marked as not held on
+its register is one the person never met, and the move is from the EARLIEST
+such week whose new group's session has not started (`readNotHeld` reads
+the registers). Old group's week 3 called off on Tuesday, new group meets on
+Saturday, moved on Thursday: from week 3, and the page says why in place of
+the session they skip ("Group C’s week 3 session on Tue 17 Nov was called
+off, so Leo is with Group F from week 3."). The new group's week 3 already
+started: from week 4, and week 3 counts for nobody. Held: from week 4. A
+session of the old group still to come is never left behind the move's
+week, so when the new group has met week N and the old group's week N is
+still to come, it is refused as before, never moved from the week after.
+Likewise a week of
 the old group with no time set, between its last week met and the next dated
 one, stays with the old group: it has no session for anybody to go to, and
 the rule is left as it is. The press sends back the week and the
@@ -2108,11 +2128,35 @@ to be excused still waiting about one. The page names each before the press;
 none of them applies once they move, and a waiting request is declined with a
 line on the Requests page.
 
-**The allocation board refuses a place with weeks in two groups**: moving it
-there to another group is refused in one sentence ("Leo was moved mid-term and
-has weeks with two groups. Use Move on Leo’s row, which keeps them."), as a
-full group is reported. Taking it out of every group, Remove, a place with no
-record, and somebody changing their own session on an open run, are as before.
+**A move on the board, mid-term** (People in groups, Circles and the run's
+own board, all through `POST /api/courses/runs/[runId]/allocate`;
+`src/lib/courses/staffMove/board.ts`). A move to another group of a place
+Publish has told, once a session of a group it belongs to has started (or a
+place that already has a record), goes through `moveFromWeek` from the week
+this page's rule gives (`moveWeekFor`, the one function both ask): every
+week before it stays with the old group, the record is extended, or folded
+back when the person returns to a group before an earlier move took effect,
+and a visit to the group moved into from that week on goes in the same
+write. It EMAILS NOBODY and is held to no limit: the next Publish sends
+"You’ve moved", as for any move on the board, so `toldGroupId` and
+Publish's markers are left as the board leaves them. One row on each group's
+History ("Leo Park moved to Group F from week 3 on the Groups tab, to be
+told at the next Publish." and "Leo Park moved here from Group C, from week
+3, on the Groups tab, to be told at the next Publish."), no reason. Before
+the press the board asks (`preview: true` on the route, which writes
+nothing and answers only for people the caller may place): "Move Leo Park to
+Group F from week 3? Weeks 1 and 2 stay with Group C, where Leo met. Nobody
+is emailed now: Leo sees Group F straight away, and the next Publish emails
+them that they have moved." The press sends the week back (`fromWeek`); a
+week that no longer holds is refused ("The move is now from week 4. Move Leo
+again to see what it does."), nothing written. When the rule offers no week
+the move is refused in this page's sentence for it, prefixed "Leo Park
+wasn’t moved."; so is a move out of a group that no longer meets. Several
+people in one press are each decided on their own, after the chunk of plain
+moves they came in, so one refusal never loses another's move. A move
+before the term (nobody told, or no session of the group started), taking a
+place out of every group, Remove, and somebody changing their own session on
+an open run, are as before.
 
 ## A person's page, for the team, and a facilitator's cut of it
 
@@ -2332,8 +2376,15 @@ before they joined, reads as none. A place with no list reads exactly as
 before. Written only by the visit's own saves (`src/lib/courses/visit/save.ts`):
 arranging one, and calling one off by staff or by the person. A move on the
 allocation board and a change of session on an open run keep every visit but
-one to the group they now belong to; Remove and placing a facilitator delete
-the list; a staff move drops a visit from its week on to the group moved into
+one to the group they now belong to (a board move made mid-term, from the
+move's week on, as a staff move does); Remove and placing a facilitator
+delete the list, and Remove tells the host group's facilitators of each
+visit whose session has not started and is happening, with the visit's
+called-off email in its form without "as usual" (the person removed is sent
+nothing), counted in the confirmation before the press, the count sent back
+and worked out again in the removal's transaction (a different one refused,
+409), held to the visit limit claimed in that transaction (429, nothing
+written; `src/lib/courses/visit/removed.ts`); a staff move drops a visit from its week on to the group moved into
 and keeps every other; deleting an account and destroying a run delete the
 place whole.
 
@@ -2412,9 +2463,13 @@ request about a host's session says nothing about the person's own group's
 once the visit is off. When a visit ends, by any path, a request of theirs
 still waiting about its session is withdrawn quietly in the same write
 (`withdrawVisitRequestsIn`): no email, a line in the request's history by
-whoever ended the visit, left off the person's own list of requests (no words
-there say that somebody else withdrew it), and on the admins' Requests page
-"Withdrawn when the visit ended" with when. Every other request pairs by the
+whoever ended the visit, that week left off the person's own list of
+requests (no words there say that somebody else withdrew it), and on the
+admins' Requests page "Withdrawn when the visit ended" with when. It is kept
+on each week it withdrew (`withdrawnWithVisit` on the week), so another week
+of the same request the person withdrew themselves reads as theirs; a
+request stored with the mark on the whole request reads it on each of its
+withdrawn weeks, as before. Every other request pairs by the
 key alone, as it always has, a person moved to another group included.
 
 **A limit on the emails** (`src/lib/courses/visit/limits.ts`): every staff press
