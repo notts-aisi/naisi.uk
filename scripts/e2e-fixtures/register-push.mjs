@@ -614,8 +614,20 @@ async function countRows(state) {
   // marker is queryable; the throttle document beside it is not, and is
   // counted by address below.
   counts.courseNudges = (
-    await fixtureQuery("courseNudges").where("groupId", "==", groupIdValue).get()
+    await fixtureQuery("courseNudges").where("groupId", "==", groupIdValue).where("kind", "==", "group-week-nudge").get()
   ).size;
+  // Each person's own claim on the week's email (`week-open-person`, one per
+  // member mailed), made beside the group's marker. Counted by the run, which
+  // every claim stores, so a claim this run made is counted whichever of its
+  // groups made it.
+  counts.courseNudgePersonClaims = (
+    await fixtureQuery("courseNudges").where("runId", "==", runIdValue).where("kind", "==", "week-open-person").get()
+  ).size;
+  // Anything else of the group's in the collection, which nothing here makes: a zero stated, not assumed.
+  counts.courseNudgesOther =
+    (await fixtureQuery("courseNudges").where("groupId", "==", groupIdValue).get()).size -
+    counts.courseNudges -
+    (await fixtureQuery("courseNudges").where("groupId", "==", groupIdValue).where("kind", "==", "week-open-person").get()).size;
   counts.courseNudgeThrottle = state.throttleId
     ? (await fixtureDoc("courseNudges", state.throttleId).get()).exists
       ? 1
@@ -703,6 +715,8 @@ async function teardown(state) {
   );
   await deleteQuery(fixtureQuery("courseAudit").where("runId", "==", runIdValue));
   await deleteQuery(fixtureQuery("courseNudges").where("groupId", "==", groupIdValue));
+  // The people's own claims on the week's email, by the run they store.
+  await deleteQuery(fixtureQuery("courseNudges").where("runId", "==", runIdValue).where("kind", "==", "week-open-person"));
   if (state.throttleId) await fixtureDoc("courseNudges", state.throttleId).delete();
   await deleteQuery(
     fixtureQuery("tasks")
@@ -797,6 +811,14 @@ export const SPEC = {
    * change was written against this harness and not run here; the pull
    * request's end-to-end job is its first run. With next week's email on its
    * schedule on the target, no marker and no send exist to tear down.
+   *
+   * CHANGED and run again on 2026-11-19 against the harness server on :3100:
+   * "Week N is open" now claims each person's email of a week beside the
+   * group's marker (`week-open-person`, `runId` and `groupId` on each), so the
+   * spec reads the group's marker by its kind and asserts one claim for each
+   * member mailed, and the manifest counts and clears the claims. Every step
+   * passed; 33 rows existed before teardown (1 group marker, 3 claims, 1 send
+   * throttle among them) and the manifest read zero afterwards.
    */
   status: "verified",
   seed,

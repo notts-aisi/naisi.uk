@@ -942,15 +942,40 @@ test(
 
         // The reminder marker: claimed exactly once, whatever the resend did to
         // it. Absent when nothing was sent, because the route deliberately does
-        // not claim a marker for a send it declined to make.
+        // not claim a marker for a send it declined to make. Read by its kind,
+        // so the people's own claims beside it are never counted as it.
         const markers = await fixtureQuery("courseNudges")
           .where("groupId", "==", state.groupId)
+          .where("kind", "==", "group-week-nudge")
           .get();
         assert.equal(
           markers.size,
           mailFlows && !scheduled ? 1 : 0,
           `the group's reminder marker count is wrong: ${markers.size}`,
         );
+        // Each person's own claim on the week's email (`week-open-person`),
+        // made just before their message: exactly one for each member mailed,
+        // for the week the push was about, none for anybody else, and none at
+        // all when nothing was sent. The resend sends again over the same
+        // claims and makes no second one.
+        const claims = await fixtureQuery("courseNudges")
+          .where("groupId", "==", state.groupId)
+          .where("kind", "==", "week-open-person")
+          .get();
+        const mailed = mailFlows && !scheduled ? state.members.map((member) => member.uid).sort() : [];
+        assert.deepEqual(
+          claims.docs.map((doc) => doc.data().uid).sort(),
+          mailed,
+          `the people's claims on the week's email are wrong: ${claims.size}`,
+        );
+        for (const doc of claims.docs) {
+          assert.equal(doc.data().runId, state.runId, "a claim was made against another run");
+          assert.equal(doc.data().weekNumber, NEXT_WEEK, `a claim is for week ${doc.data().weekNumber}, not week ${NEXT_WEEK}`);
+          assert.equal(doc.data().visit, false, "a claim says somebody was on a visit, and nobody is");
+        }
+        // Nothing else of this group's is in the collection.
+        const everything = await fixtureQuery("courseNudges").where("groupId", "==", state.groupId).get();
+        assert.equal(everything.size, markers.size + claims.size, `something else of the group's is in courseNudges: ${everything.size}`);
 
         // The mirrors: every member's rollup was rebuilt from the pushed
         // register, which is the fact a reviewer reads months later.
