@@ -603,6 +603,48 @@ describe("9. a seat a move made mid-term frees is free before it is taken, and n
     assert.deepEqual(watch.over, []);
   });
 
+  test("a chain in the order Circles sends it (Amara A to full B, Chloe B to C, Una C to full A): all three placed, no group ever over", async () => {
+    // Una's placement is refused in the first round (A is full) and Amara's move too (B is full);
+    // Chloe's move frees B, Amara's then frees A, and Una, refused two rounds back, is tried again.
+    world.db.poke(`courseGroups/${A}`, { capacity: 4 });
+    world.db.poke(`courseGroups/${B}`, { capacity: 3 });
+    const watch = watchCapacity();
+    const placed = await place([{ uid: "amara", groupId: B }, { uid: "chloe", groupId: C }, { uid: "una", groupId: A }]);
+    watch.stop();
+    assert.deepEqual([placed.status, placed.body.placed, placed.body.rejected], [200, 3, []]);
+    assert.deepEqual([seat("amara").groupId, seat("chloe").groupId, seat("una").groupId], [B, C, A]);
+    assert.deepEqual([read(`courseGroups/${A}`).memberCount, membersOf(A), read(`courseGroups/${B}`).memberCount, membersOf(B)], [4, 4, 3, 3]);
+    assert.deepEqual(watch.over, []);
+  });
+
+  test("it always ends: a round follows only one in which a move made mid-term was written", async () => {
+    let commits = 0;
+    const real = world.db.runTransaction.bind(world.db);
+    world.db.runTransaction = async (fn) => {
+      commits += 1;
+      return real(fn);
+    };
+    try {
+      // Nothing is ever freed: Amara's move into full B is refused, so Una into full A is not tried again.
+      world.db.poke(`courseGroups/${A}`, { capacity: 4 });
+      world.db.poke(`courseGroups/${B}`, { capacity: 3 });
+      const stuck = await place([{ uid: "amara", groupId: B }, { uid: "una", groupId: A }]);
+      assert.deepEqual(stuck.body.rejected.map((each) => [each.uid, each.reason]).sort(), [["amara", "group-full"], ["una", "group-full"]]);
+      assert.equal(commits, 2, "one round: the placements' chunk and Amara's one attempt");
+      // The chain: two moves written, so at most three rounds, each a chunk and at most one attempt per move made mid-term.
+      w.reset();
+      for (const [groupId, count] of [[A, 4], [B, 3], [C, 2], [D, 2]]) world.db.poke(`courseGroups/${groupId}`, { memberCount: count });
+      world.db.poke(`courseGroups/${A}`, { capacity: 4 });
+      world.db.poke(`courseGroups/${B}`, { capacity: 3 });
+      commits = 0;
+      const chain = await place([{ uid: "amara", groupId: B }, { uid: "chloe", groupId: C }, { uid: "una", groupId: A }]);
+      assert.equal(chain.body.placed, 3);
+      assert.ok(commits <= (2 + 1) * (1 + 2), `${commits} commits for two moves written`);
+    } finally {
+      world.db.runTransaction = real;
+    }
+  });
+
   test("two people swapped between two full groups are refused, as they always were: neither can go first", async () => {
     // Before the term too: the board has never placed a swap between two full groups.
     for (const when of ["2026-10-20T12:00:00Z", "2026-11-18T20:00:00Z"]) {
@@ -652,6 +694,28 @@ describe("10. a told person whose group has met is never taken out of every grou
     assert.deepEqual([seat("amara").groupId, seat("una").groupId], [A, null]);
   });
 
+  test("somebody whose only past session was called off met nobody: the pool takes them as before the term", async () => {
+    // Group D meets on Mondays at 6pm; on Wed 4 Nov only its week 1 (Mon 2 Nov) has started. Called off, keeping pace.
+    at("2026-11-04T12:00:00Z");
+    world.db.poke(`courseGroups/${D}`, {
+      sessionChanges: { w01: { kind: "cancelled", reason: "The room was flooded.", dateKey: "2026-11-02", byUid: "grace", at: new Date() } },
+    });
+    const shown = await preview([{ uid: "freya", groupId: null }]);
+    assert.deepEqual(shown.body.preview[0].refusal, null);
+    const placed = await place([{ uid: "freya", groupId: null }]);
+    assert.deepEqual([placed.body.placed, placed.body.rejected], [1, []]);
+    assert.equal(seat("freya").groupId, null);
+    // And marked as not held on its register, the same.
+    w.reset();
+    at("2026-11-04T12:00:00Z");
+    world.db.seed(registerPath(D, 1), { runId: RUN.agi, groupId: D, weekNumber: 1, occurrence: 1, records: {}, held: false, pushedAt: null, markedByUid: "grace" });
+    assert.deepEqual((await place([{ uid: "freya", groupId: null }])).body.rejected, []);
+    // Held, it is refused.
+    w.reset();
+    at("2026-11-04T12:00:00Z");
+    assert.deepEqual((await place([{ uid: "freya", groupId: null }])).body.rejected.map((each) => each.reason), ["mid-term-to-pool"]);
+  });
+
   test("a told place already in no group mid-term is placed by the plain move, as always", async () => {
     // As a place taken out before the refusal existed: told, in no group.
     world.db.poke(seatPath("amara"), { groupId: null, toldGroupId: A });
@@ -676,6 +740,8 @@ describe("11. the run's own board, People in groups and Circles ask the same que
       const code = readFileSync(join(SRC, file), "utf8");
       assert.match(code, /\baskMidTermMoves\(/, `${file} asks through askMidTermMoves`);
       assert.doesNotMatch(code, /fromWeek\s*!==?\s*null\s*&&/, `${file} reads no preview's week itself`);
+      // Each says a move the question knows will be refused before the press.
+      assert.match(code, /\.refused\b/, `${file} does not say the refusals the question knows before the press`);
     }
   });
 
@@ -698,9 +764,10 @@ describe("11. the run's own board, People in groups and Circles ask the same que
     const yes = await askMidTermMoves(placements, { told, preview, confirm: (question) => (questions.push(question), true) });
     assert.deepEqual(asked, [[{ uid: "amara", groupId: B }, { uid: "chloe", groupId: D }]], "Una, never told, is not asked about");
     assert.deepEqual(questions, ["Move Amara?"]);
+    // Chloe's move is known to be refused: not pressed, and handed back to be said before the press.
     assert.deepEqual(yes, {
       go: true,
-      placements: [{ uid: "amara", groupId: B, fromWeek: 4 }, { uid: "chloe", groupId: D }, { uid: "una", groupId: A }],
+      placements: [{ uid: "amara", groupId: B, fromWeek: 4 }, { uid: "una", groupId: A }],
       refused: [{ uid: "chloe", reason: "no-week", words: "Group D has already met." }],
     });
     assert.deepEqual(await askMidTermMoves(placements, { told, preview, confirm: () => false }), { go: false, error: null }, "declined: nothing pressed");

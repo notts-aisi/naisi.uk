@@ -21,8 +21,9 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import { visitsAfterGroupChange } from "@/lib/courses/groupsByWeek";
 import {
-  isMidTermBoardMove,
+  mayBeMidTerm,
   midTermToPoolRefusal,
+  readIsMidTerm,
   planBoardMove,
   saveBoardMove,
   type BoardRefusal,
@@ -83,9 +84,10 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * while a single drag is still one tiny atomic commit.
  *
  * ── A MOVE MADE MID-TERM KEEPS THE WEEKS ALREADY MET ────────────────────────
- * A seat told its group, moved to another group once a session of the group
- * it belongs to has started (or one that already has a record of groups by
- * week), is not written by the chunk: a move here would be for every week,
+ * A seat told its group, moved to another group once it has met (a session
+ * of the group it belongs to has started, and was neither called off nor
+ * marked as not held), or one that already has a record of groups by week,
+ * is not written by the chunk: a move here would be for every week,
  * and the weeks met with the old group would turn into blanks and absences.
  * Each such move is made on its own, after its chunk, through the one writer
  * of the record (`saveBoardMove` in `src/lib/courses/staffMove/board.ts`,
@@ -108,16 +110,19 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * count its own transaction read, so no group is ever over its capacity at
  * any commit, and a move made mid-term frees its seat only when it is
  * written. So the press goes in rounds: the placements in their chunks, then
- * the moves made mid-term one by one; then each placement refused because
- * its group was full, into a group a move made mid-term has just left, is
- * tried again, in the same way, until a round frees nothing more. A move made
+ * the moves made mid-term one by one; then every placement of the press
+ * still refused because its group was full (in that round or an earlier
+ * one), into a group a move made mid-term has just left, is tried again, in
+ * the same way, until a round makes no such move: at most one round more
+ * than there are moves made mid-term, since nobody's move is written twice. A move made
  * mid-term that is refused frees nothing, so nobody is ever placed into a
  * seat it did not free. A press with no move made mid-term is one round,
  * exactly as it always was. Two people swapped between two full groups are
  * still refused, as they always were: neither can go first.
  *
- * NEVER INTO NO GROUP MID-TERM. A told seat whose group has met (or one with
- * a record) taken out of every group would keep no record of the weeks it
+ * NEVER INTO NO GROUP MID-TERM. A told seat that has met (a session of its
+ * own started, neither called off nor marked as not held), or one with a
+ * record, taken out of every group would keep no record of the weeks it
  * met, so it is refused (`mid-term-to-pool`), in the board's sentence: move
  * the person straight to the new group, or take them off the run. Before the
  * term, and a seat nobody has told, as always. A told seat already in no
@@ -276,7 +281,7 @@ export async function POST(req: Request, ctx: Ctx) {
     if (seat.runId !== runId || seat.uid !== uid || !seat.groupId) return null;
     const groupsSnap = await db.collection("courseGroups").where("runId", "==", runId).get();
     const groups = groupsSnap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})).filter((group) => group.runId === runId);
-    if (!isMidTermBoardMove(run, seat, groups, now)) return null;
+    if (!(await readIsMidTerm((refs) => db.getAll(...refs), db, run, seat, groups, now))) return null;
     return midTermToPoolRefusal(db, uid, groups.find((group) => group.id === seat.groupId)?.name ?? "");
   };
 
@@ -445,6 +450,19 @@ export async function POST(req: Request, ctx: Ctx) {
         }
         const restoring: PlaceToRestore[] = [];
 
+        // Fourth read phase, still before any write: whether each told place
+        // moved out of its group has MET (`readIsMidTerm`: a session of its
+        // own started, neither called off nor marked as not held on its
+        // register), read in this transaction for every place that may be.
+        const midTermByUid = new Map<string, boolean>();
+        for (const { uid, groupId } of chunk) {
+          const seatSnap = enrolmentByUid.get(uid);
+          if (!servedRowByUid.has(uid) || !seatSnap?.exists) continue;
+          const seat = normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {});
+          if (!mayBeMidTerm(seat) || seat.groupId === groupId) continue;
+          midTermByUid.set(uid, await readIsMidTerm((refs) => tx.getAll(...refs), db, run, seat, runGroups, now));
+        }
+
         // ── Decide, then write ────────────────────────────────────────────
         // Counter deltas accumulate per group and are written ONCE per group
         // at the end. `memberCount` counts enrolments that are BOTH active
@@ -545,7 +563,7 @@ export async function POST(req: Request, ctx: Ctx) {
             !facilitatorRow &&
             groupId !== null &&
             groupId !== enrolment.groupId &&
-            isMidTermBoardMove(run, enrolment, runGroups, now)
+            midTermByUid.get(uid) === true
           ) {
             chunkMidTerm.push(placement);
             continue;
@@ -557,7 +575,7 @@ export async function POST(req: Request, ctx: Ctx) {
             !facilitatorRow &&
             groupId === null &&
             enrolment.groupId !== null &&
-            isMidTermBoardMove(run, enrolment, runGroups, now)
+            midTermByUid.get(uid) === true
           ) {
             chunkToPool.push({ uid, fromName: runGroups.find((group) => group.id === enrolment.groupId)?.name ?? "" });
             continue;
@@ -748,11 +766,16 @@ export async function POST(req: Request, ctx: Ctx) {
         rejectedByUid.set(move.uid, { uid: move.uid, reason: "failed" });
       }
     }
-    // The round's last chunk: the next round tries again each placement
-    // refused because its group was full, into a group a move made mid-term
-    // has just left. None when nothing was freed, and the press is over.
+    // The round's last chunk: the next round tries again EVERY placement of
+    // the press still refused because its group was full, from this round or
+    // an earlier one, into a group a move made mid-term left in this round.
+    // None when no such move was made in this round, and the press is over.
+    // So it always ends: a round follows only one in which a move made
+    // mid-term was written, and nobody's move is written twice (once written
+    // they sit where they were sent, and are refused no more), so there are
+    // at most as many rounds as such moves, plus one.
     if (i + CHUNK_SIZE >= pending.length) {
-      const again = pending.filter((each) => each.groupId !== null && freed.has(each.groupId) && rejectedByUid.get(each.uid)?.reason === "group-full");
+      const again = placements.filter((each) => each.groupId !== null && freed.has(each.groupId) && rejectedByUid.get(each.uid)?.reason === "group-full");
       for (const each of again) rejectedByUid.delete(each.uid);
       pending = again;
       freed = new Set<string>();

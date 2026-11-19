@@ -1,7 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { firstNameOfUser, fullNameOfUser } from "@/lib/courses/programmeLead";
-import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
+import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { moveFromWeek } from "@/lib/courses/moveFromWeek";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -11,7 +11,7 @@ import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/cours
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { belonging, hasGroupsByWeek, sessionsByWeekGroup } from "../groupsByWeek";
 import { leftBehindOf, moveWeekFor, readNotHeld, stayNamesFor, weekRefusalWords } from "./plan";
-import { weeksThatCome, type MoveWeek } from "./week";
+import { weeksThatCome } from "./week";
 import {
   MOVE_REFUSAL,
   boardMoveConfirmWords,
@@ -33,9 +33,10 @@ import {
  * A move on the board was always for every week: the place's group changed,
  * and every week read the new group, so the weeks somebody met with the old
  * group turned into blanks, and into absences once a register was finished.
- * Now a move of a place that has been told its group, once a session of the
- * group it belongs to has started (or a place that already has a record of
- * groups by week), goes through the one writer of that record
+ * Now a move of a place that has been told its group, once it has met (a
+ * session of the group it belongs to has started, and was neither called off
+ * nor marked as not held), or a place that already has a record of groups by
+ * week, goes through the one writer of that record
  * (`moveFromWeek`) with the week the move page's rule gives (`moveWeekFor`):
  * every week before it stays with the old group, the new group has that week
  * and every later one, and one History row on each group says it was a move
@@ -72,27 +73,57 @@ import {
 export type BoardRefusal = { reason: string; words?: string };
 
 /**
- * Whether a move of this place to another group is made mid-term: an active
- * learner's place in a group, told its group, which already has a record of
- * groups by week, or one of whose own sessions (each week's from the group it
- * belonged to, never a visit's host) has started, called off or not.
+ * Whether this place is a candidate for a move made mid-term: an active
+ * learner's place in a group, told its group. Only such a place can be one,
+ * so only its registers are worth reading for "not held" (`readNotHeld`).
+ */
+export function mayBeMidTerm(place: CourseEnrolmentDoc): boolean {
+  return place.role === "learner" && place.status === "active" && place.groupId !== null && placementIsTold(place);
+}
+
+/**
+ * Whether a move of this place out of its group is made mid-term: a
+ * candidate (`mayBeMidTerm`) which already has a record of groups by week,
+ * or which has MET: one of its own sessions (each week's from the group it
+ * belonged to, never a visit's host) has started and was neither called off
+ * nor marked as not held on its register, the week rule's own test of a week
+ * met. A place whose only past sessions were called off or not held met
+ * nobody, and is moved as before the term. `notHeld` is read from the
+ * registers (`readNotHeld`); with none, no session is not held.
  */
 export function isMidTermBoardMove(
   run: CourseRunDoc,
   place: CourseEnrolmentDoc,
   groups: readonly CourseGroupDoc[],
   now: Date,
+  notHeld: (session: ResolvedSession) => boolean = () => false,
 ): boolean {
-  if (place.role !== "learner" || place.status !== "active" || !place.groupId || !placementIsTold(place)) return false;
+  if (!mayBeMidTerm(place)) return false;
   if (hasGroupsByWeek(place)) return true;
   const sessionsOf = (groupId: string) => {
     const group = groups.find((each) => each.id === groupId);
     return group && !group.archived ? resolveSessions(run, group) : null;
   };
   return sessionsByWeekGroup(belonging(place), sessionsOf).some((session) => {
+    if (session.cancelled || notHeld(session)) return false;
     const startsAt = sessionInstants(session).startsAt;
     return startsAt !== null && startsAt.getTime() <= now.getTime();
   });
+}
+
+/** `isMidTermBoardMove` with its registers read: a plain read, or a transaction's. */
+export async function readIsMidTerm(
+  readAll: Parameters<typeof readNotHeld>[0],
+  db: Firestore,
+  run: CourseRunDoc,
+  place: CourseEnrolmentDoc,
+  groups: readonly CourseGroupDoc[],
+  now: Date,
+): Promise<boolean> {
+  if (!mayBeMidTerm(place)) return false;
+  if (hasGroupsByWeek(place)) return true;
+  const notHeld = await readNotHeld(readAll, db, run, place, groups, now);
+  return isMidTermBoardMove(run, place, groups, now, notHeld);
 }
 
 /**
@@ -124,12 +155,6 @@ async function groupsOfRun(db: Firestore, runId: string): Promise<CourseGroupDoc
   return snap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})).filter((group) => group.runId === runId);
 }
 
-/** The week by the rule, now, for this place moved to `to`. */
-async function weekNow(db: Firestore, run: CourseRunDoc, place: CourseEnrolmentDoc, groups: readonly CourseGroupDoc[], to: CourseGroupDoc, now: Date): Promise<MoveWeek> {
-  const notHeld = await readNotHeld((refs) => db.getAll(...refs), db, run, place, groups, now);
-  return moveWeekFor(run, place, groups, to, now, notHeld);
-}
-
 /**
  * WHAT A MOVE ON THE BOARD WOULD DO, for one person, read outside any
  * transaction: a move as the board always made it (`plain`), a move made
@@ -145,7 +170,10 @@ export async function planBoardMove(db: Firestore, run: CourseRunDoc, uid: strin
   const place = normalizeCourseEnrolment(placeSnap.id, placeSnap.data() ?? {});
   if (place.runId !== run.id || place.uid !== uid || place.groupId === toGroupId) return { kind: "plain" };
   const groups = await groupsOfRun(db, run.id);
-  if (!isMidTermBoardMove(run, place, groups, now)) return { kind: "plain" };
+  if (!mayBeMidTerm(place)) return { kind: "plain" };
+  // The registers of their own sessions that have started, read once: for "met", and for the week rule.
+  const notHeld = await readNotHeld((refs) => db.getAll(...refs), db, run, place, groups, now);
+  if (!isMidTermBoardMove(run, place, groups, now, notHeld)) return { kind: "plain" };
   const from = groups.find((group) => group.id === place.groupId) ?? null;
   const to = groups.find((group) => group.id === toGroupId) ?? null;
   if (!to || to.archived) return { kind: "plain" };
@@ -153,7 +181,7 @@ export async function planBoardMove(db: Firestore, run: CourseRunDoc, uid: strin
   if (!from || from.archived) {
     return { kind: "refused", refusal: { reason: "old-no-longer-meets", words: oldNoLongerMeetsWords(person.firstName, from?.name ?? "") } };
   }
-  const week = await weekNow(db, run, place, groups, to, now);
+  const week = moveWeekFor(run, place, groups, to, now, notHeld);
   if (!week.ok) return { kind: "refused", refusal: { reason: "no-week", words: weekRefusalWords(week, person.firstName, from.name, to.name) } };
   if (!ask) return { kind: "mid-term", weekNumber: week.weekNumber, words: "", personName: person.name, firstName: person.firstName };
   const weeks = weeksThatCome(place.joinedWeekNumber, week.weekNumber);
