@@ -105,8 +105,13 @@ function weekIsFinished(facts: VisitFacts, groups: readonly CourseGroupDoc[], we
   return false;
 }
 
-/** The person's rollup, rebuilt from the place as it will be written: read inside `tx`, before any write. */
-async function rollupAfter(tx: Transaction, db: Firestore, run: CourseRunDoc, home: CourseGroupDoc, after: CourseEnrolmentDoc, now: Date) {
+/**
+ * The person's rollup, rebuilt from the place as it will be written: read
+ * inside `tx`, before any write. Also asked by a finished register's own
+ * It didn't happen (`../registerCorrection/column.ts`) for each visit that
+ * ends with it.
+ */
+export async function rollupAfter(tx: Transaction, db: Firestore, run: CourseRunDoc, home: CourseGroupDoc, after: CourseEnrolmentDoc, now: Date) {
   const plan = await readMirrorPlan(tx, db, {
     runId: run.id,
     run,

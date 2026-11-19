@@ -21,7 +21,9 @@ import { calledOffDetail, calledOffEmailWords, calledOffPersonEmailWords, visits
 
 /**
  * WHEN THE SESSION SOMEBODY IS VISITING IS CALLED OFF (by Change a session,
- * kept pace or pushed back, before it or after the fact): each visit to it
+ * kept pace or pushed back, before it or after the fact, or by a finished
+ * register's own correction, It didn't happen, which calls it off the same
+ * way: `../registerCorrection/column.ts`): each visit to it
  * whose person's OWN group's session that week is still to come ENDS in the
  * same write. They are back with their own group that week, and they and
  * their own group's facilitators are sent the approved "visit is off" emails
@@ -131,11 +133,14 @@ export async function visitsEndingWith(
   });
 }
 
-/** What the change's preview says of them, staff-facing: null with none. */
-export function visitsOffPreview(ending: readonly EndingVisit[]): { people: number; emails: number; words: string } | null {
+/**
+ * What the change's preview says of them, staff-facing: null with none. The
+ * register's correction (It didn't happen) names its own tick (`tick`).
+ */
+export function visitsOffPreview(ending: readonly EndingVisit[], tick: "tell" | "email" = "tell"): { people: number; emails: number; words: string } | null {
   if (ending.length === 0) return null;
   const emails = ending.reduce((sum, each) => sum + each.recipients.length, 0);
-  return { people: ending.length, emails, words: visitsOffPreviewWords(ending.length, emails) };
+  return { people: ending.length, emails, words: visitsOffPreviewWords(ending.length, emails, tick) };
 }
 
 /**

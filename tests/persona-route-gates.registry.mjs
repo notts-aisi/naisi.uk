@@ -2205,7 +2205,7 @@ export const ROUTES = {
         "collapses missing, archived and not-yours onto one 403 for a non-admin and tells an admin the group is " +
         "missing, then who corrects (admins and the people leading the programme), before the body is read. Its " +
         "answer is { ok, preview } for a preview, or { ok, kind } with what the kind changed; It didn't happen " +
-        "adds { change, update }.",
+        "adds { change, update }, and { visitsOff } when a visit to the session ends with it.",
     },
   },
   "/api/courses/groups/[groupId]/attendance/requests": {

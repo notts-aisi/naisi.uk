@@ -163,6 +163,14 @@ const READERS = {
       "one whose register says it did not happen, so the card never offers a Cancel that the person's own cancel, which " +
       "reads such a visit as none, would then refuse",
   },
+  "lib/scheduler/jobs/weekReminders.ts": {
+    kind: "asks",
+    proof: ["if (session.cancelled) continue;", "notHeld: data ? normalizeCourseAttendance(id, data).held === false : false,"],
+    why:
+      "the reminders before a session: a session called off through Change a session is reminded about by nobody, and " +
+      "for somebody visiting it for one week, a register that says it did not happen means their programme page draws " +
+      "no visit card for it, so the reminder says neither Can't make it nor where its link is",
+  },
   "lib/courses/registerCorrection/column.ts": {
     kind: "asks",
     proof: [

@@ -736,9 +736,11 @@ export function nowFullWords(hostName: string): string {
  * visiting this session is told their visit is off, whatever Tell the group
  * says, and so are their own group's facilitators: 3 emails."
  */
-export function visitsOffPreviewWords(people: number, emails: number): string {
+export function visitsOffPreviewWords(people: number, emails: number, tick: "tell" | "email" = "tell"): string {
   const who = people === 1 ? "1 person visiting this session is" : `${people} people visiting this session are`;
-  return `${who} told their visit is off, whatever Tell the group says, and so are their own group’s facilitators: ${emails === 1 ? "1 email" : `${emails} emails`}.`;
+  // The register's correction ticks "Email Group A", not "Tell the group".
+  const whatever = tick === "tell" ? "whatever Tell the group says" : "whether or not the group is emailed";
+  return `${who} told their visit is off, ${whatever}, and so are their own group’s facilitators: ${emails === 1 ? "1 email" : `${emails} emails`}.`;
 }
 
 /** Staff-facing, after the press: "1 email about a visit that ended could not be sent. Tell them another way." */
