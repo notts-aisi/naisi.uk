@@ -323,7 +323,10 @@ describe("7. a request withdrawn because its visit ended is not on her own list"
     assert.equal((await ownList()).length, 1);
     assert.equal((await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: 3 })).status, 200);
     const stored = world.db.paths().filter((path) => /^courseRequests\/[^/]+$/.test(path)).map(read)[0];
-    assert.equal(stored.withdrawnWithVisit, true);
+    // Kept on the week it withdrew, never on the whole request (a later week
+    // of the same request the person withdraws stays theirs).
+    assert.deepEqual(stored.change.weeks.map((week) => [week.sessionKey, week.status, week.withdrawnWithVisit ?? false]), [["w04", "withdrawn", true]]);
+    assert.equal("withdrawnWithVisit" in stored, false);
     assert.deepEqual(await ownList(), []);
   });
 });

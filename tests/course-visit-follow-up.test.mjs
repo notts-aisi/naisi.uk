@@ -448,10 +448,26 @@ describe("11. a host session called off or archived, the person leaving, and the
     assert.equal((await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: standing[0].emails })).status, 200);
   });
 
-  test("she is removed from the run with a visit ahead: the visit goes, and she is off Group A's register and page for that week", async () => {
+  // Changed on purpose (Remove tells the host's facilitators of a visit still
+  // to come): until then the removal sent nothing and took no count. A press
+  // with no count is now refused while the visit would email, and nothing is
+  // written; the count the preview said goes through, and Group A's
+  // facilitators are sent the visit's called-off email.
+  test("she is removed from the run with a visit ahead: the visit goes, Group A's facilitators are told, and she is off Group A's register and page for that week", async () => {
     await arrange("chloe", 4, A);
-    const removed = await call("zach", removeRoute.POST, { runId: RUN.agi, uid: "chloe" }, { course: true });
+    const shown = await call("zach", removeRoute.POST, { runId: RUN.agi, uid: "chloe" }, { body: { preview: true }, course: true });
+    assert.equal(shown.status, 200, JSON.stringify(shown.body));
+    assert.ok(shown.body.preview.emails >= 1, JSON.stringify(shown.body));
+    assert.deepEqual(shown.body.preview.visits, [{ hostName: "Group A", weekNumber: 4 }]);
+    const unsaid = await call("zach", removeRoute.POST, { runId: RUN.agi, uid: "chloe" }, { course: true });
+    assert.deepEqual([unsaid.status, unsaid.body.emails], [409, shown.body.preview.emails]);
+    assert.equal(read(seatPath("chloe")).status, "active", "a refused removal writes nothing");
+    world.mail.length = 0;
+    const removed = await call("zach", removeRoute.POST, { runId: RUN.agi, uid: "chloe" }, { body: { emails: shown.body.preview.emails }, course: true });
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
+    assert.equal(world.mail.length, shown.body.preview.emails);
+    assert.ok(world.mail.every((message) => /’s visit to Group A for week 4 is off$/.test(message.subject)), JSON.stringify(world.mail.map((m) => m.subject)));
+    assert.ok(!world.mail.some((message) => message.to.startsWith("chloe@")), "the person removed is sent nothing");
     assert.equal(read(seatPath("chloe")).visits, undefined);
     const rows = (await loadRegisterMembers(world.courseDb, RUN.agi, A, { isAdmin: true }, 4)).members.map((row) => row.uid);
     assert.equal(rows.includes("chloe"), false);
@@ -459,13 +475,29 @@ describe("11. a host session called off or archived, the person leaving, and the
     assert.equal(JSON.stringify(page.weeks).includes("chloe"), false);
   });
 
-  test("the allocation board: a move to another group keeps the visit; a move into the host drops it", async () => {
+  // Changed on purpose (a move made mid-term on the board keeps the weeks
+  // met): the board's move is now from the move page's week, so a move into a
+  // group that has already met that week is refused, and the visit stays.
+  test("the allocation board: a move to another group keeps the visit; a move into a host that has met the move's week is refused, and the visit stays", async () => {
     await arrange("chloe", 4, A);
     const toC = await call("zach", allocateRoute.POST, { runId: RUN.agi }, { body: { placements: [{ uid: "chloe", groupId: C }] }, course: true });
     assert.equal(toC.status, 200, JSON.stringify(toC.body));
+    assert.deepEqual(toC.body.rejected, []);
+    assert.deepEqual(seat("chloe").groupsByWeek, [{ groupId: B, fromWeek: 1 }, { groupId: C, fromWeek: 3 }]);
     assert.deepEqual(seat("chloe").visits.map((each) => [each.weekNumber, each.groupId]), [[4, A]]);
     const toA = await call("zach", allocateRoute.POST, { runId: RUN.agi }, { body: { placements: [{ uid: "chloe", groupId: A }] }, course: true });
     assert.equal(toA.status, 200, JSON.stringify(toA.body));
+    assert.deepEqual(toA.body.rejected.map((each) => [each.uid, each.reason]), [["chloe", "no-week"]]);
+    assert.match(toA.body.rejected[0].words, /^Group A has already met for week 3/);
+    assert.deepEqual(seat("chloe").visits.map((each) => [each.weekNumber, each.groupId]), [[4, A]]);
+  });
+
+  test("the allocation board: a move into the host of a visit from the move's week on drops that visit, in the same write", async () => {
+    await arrange("chloe", 4, C);
+    const toC = await call("zach", allocateRoute.POST, { runId: RUN.agi }, { body: { placements: [{ uid: "chloe", groupId: C }] }, course: true });
+    assert.equal(toC.status, 200, JSON.stringify(toC.body));
+    assert.deepEqual(toC.body.rejected, []);
+    assert.deepEqual(seat("chloe").groupsByWeek, [{ groupId: B, fromWeek: 1 }, { groupId: C, fromWeek: 3 }]);
     assert.equal(seat("chloe").visits, undefined);
   });
 });

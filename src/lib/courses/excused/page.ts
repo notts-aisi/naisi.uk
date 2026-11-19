@@ -85,6 +85,8 @@ export type ExcusedPageWeek = {
   decidedAt: string | null;
   reply: string;
   withdrawnAt: string | null;
+  /** Withdrawn because the visit it was about ended, never by the person. Present only then. */
+  withdrawnWithVisit?: true;
   register: ExcusedRegisterOutcome | null;
   /** The person's line as the register says it now. */
   line: {
@@ -349,6 +351,7 @@ export async function loadExcusedRequestPage(
       decidedAt: week.decidedAt ? week.decidedAt.toISOString() : null,
       reply: week.reply,
       withdrawnAt: week.withdrawnAt ? week.withdrawnAt.toISOString() : null,
+      ...(week.withdrawnWithVisit ? { withdrawnWithVisit: true as const } : {}),
       register: week.register,
       line: {
         now: wordsOf(line),

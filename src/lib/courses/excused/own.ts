@@ -13,7 +13,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { attendanceDocId, cameBy } from "@/lib/firestore/courseAttendance";
 import { visitInWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { excuseVisitWeekWords } from "@/lib/courses/visit/words";
-import type { ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
+import { excusedStatusOf, type ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
 import {
   campusForWeek,
   normalizeCourseGroup,
@@ -295,18 +295,21 @@ export async function excusedFor(
     };
   });
 
-  // A request withdrawn because the visit it was about ended was not withdrawn
-  // by them, and no words say so: it is left off their own list (staff read it
-  // in its history on the Requests page).
+  // A week withdrawn because the visit it was about ended was not withdrawn
+  // by them, and no words say so: it is left off their own list, and a
+  // request with no week left goes with it (staff read it in its history on
+  // the Requests page). A week of the same request they withdrew themselves
+  // stays.
   const own: OwnExcusedRequest[] = [...requests]
-    .filter((request) => !(request.withdrawnWithVisit && request.status === "withdrawn"))
-    .sort((a, b) => (b.askedAt?.getTime() ?? 0) - (a.askedAt?.getTime() ?? 0))
+    .map((request) => ({ request, weeks: request.weeks.filter((week) => !week.withdrawnWithVisit) }))
+    .filter(({ weeks }) => weeks.length > 0)
+    .sort((a, b) => (b.request.askedAt?.getTime() ?? 0) - (a.request.askedAt?.getTime() ?? 0))
     .slice(0, OWN_LIST)
-    .map((request: ExcusedRequestDoc) => ({
+    .map(({ request, weeks }: { request: ExcusedRequestDoc; weeks: ExcusedRequestDoc["weeks"] }) => ({
       id: request.id,
       askedAt: iso(request.askedAt),
-      status: request.status,
-      weeks: request.weeks.map((week) => ({
+      status: weeks.length === request.weeks.length ? request.status : excusedStatusOf(weeks),
+      weeks: weeks.map((week) => ({
         sessionKey: week.sessionKey,
         weekNumber: week.weekNumber,
         occurrence: week.occurrence,

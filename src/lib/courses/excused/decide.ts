@@ -113,6 +113,7 @@ function storedWeek(week: ExcusedWeek): Record<string, unknown> {
     decidedAt: week.decidedAt,
     reply: week.reply,
     withdrawnAt: week.withdrawnAt,
+    ...(week.withdrawnWithVisit ? { withdrawnWithVisit: true } : {}),
     register: week.register,
   };
 }
@@ -714,14 +715,17 @@ export async function withdrawVisitRequestsIn(
   return () => {
     for (const request of requests) {
       const keys = request.weeks.filter((week) => week.weekNumber === input.weekNumber && week.status === "waiting").map((week) => week.sessionKey);
-      const weeks = request.weeks.map((week) => (keys.includes(week.sessionKey) ? { ...week, status: "withdrawn" as const, withdrawnAt: input.now } : week));
+      // Marked on each week it withdraws, never on the request: another week of
+      // it the person withdraws themselves stays theirs.
+      const weeks = request.weeks.map((week) =>
+        keys.includes(week.sessionKey) ? { ...week, status: "withdrawn" as const, withdrawnAt: input.now, withdrawnWithVisit: true } : week,
+      );
       let history = request.history;
       for (const key of keys) history = withEvent({ ...request, history }, "withdrawn", input.byUid, input.now, key);
       tx.update(db.collection(COURSE_REQUESTS_COLLECTION).doc(request.id), {
         "change.weeks": weeks.map(storedWeek),
         ...requestFields(weeks, input.now),
         history,
-        withdrawnWithVisit: true,
         updatedAt: input.now,
       });
     }

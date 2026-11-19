@@ -50,6 +50,7 @@ import { lengthWords, SESSION_LENGTH_PRESETS } from "@/lib/courses/sessionLength
 import { changedWords, clockWords, dayWords, notToldWords, UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
 import { weekdaysWords } from "@/lib/courses/regularTime/words";
 import { postedWords } from "@/lib/courses/updates/words";
+import { afterChangeRefused } from "./changeRefused";
 import styles from "./GroupPage.module.css";
 
 /**
@@ -401,9 +402,11 @@ export default function ChangePanel({
       return;
     }
     const said = typeof answer.body?.error === "string" ? answer.body.error : null;
-    if (answer.status === 409 && typeof answer.body?.emails === "number") {
-      // The count on the button no longer holds: show the new one, and ask again. Nothing changed.
-      setEmailsSaid(answer.body.emails);
+    const refused = afterChangeRefused(answer.status, answer.body);
+    if (refused.askAgain) {
+      // The count on the button, or of the emails to the people visiting, no
+      // longer holds: show the new one, and ask again. Nothing changed.
+      if (refused.emailsSaid !== null) setEmailsSaid(refused.emailsSaid);
       setNonce((n) => n + 1);
       setBusy(false);
       setProblem(said ?? UNKNOWN_OUTCOME);

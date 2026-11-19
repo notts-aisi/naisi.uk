@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import WeekEmail from "@/emails/WeekEmail";
 import { rawCountsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
 import { cantMakeItState } from "@/lib/courses/cantMakeIt/model";
-import { lineOf } from "@/lib/courses/cantMakeIt/seat";
+import { cardAsksFor, lineOf } from "@/lib/courses/cantMakeIt/seat";
 import { excuseFactsFrom, groupExcusedRequests } from "@/lib/courses/excused/facts";
 import { excusalStandsFor } from "@/lib/courses/excused/marking";
 import type { FinishRule } from "@/lib/courses/finishing/model";
@@ -661,9 +661,9 @@ async function shownOnTheirPage(
     const own = runState.liveGroups.find((each) => each.id === seat.groupId) ?? null;
     let facilitatesOwnGroup = false;
     if (own && own.facilitatorUids.includes(uid)) {
+      // The page's own rule (`cardAsksFor`), on their stored account.
       const snap = await db.collection("users").doc(uid).get();
-      facilitatesOwnGroup =
-        snap.exists && isNamedWithStanding(standingUserOf(uid, (snap.data() ?? {}) as Record<string, unknown>), "courseGroups.facilitatorUids", own.facilitatorUids);
+      facilitatesOwnGroup = !cardAsksFor(uid, snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : null, own);
     }
     visit = {
       weekNumber: session.weekNumber,
