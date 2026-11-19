@@ -19,7 +19,7 @@ import styles from "./GroupPage.module.css";
  */
 export default function BeforeTheSession({ before }: { before: Before }) {
   return (
-    <section className={`${styles.card} ${styles.facCard}`} aria-labelledby="before-the-session" data-testid="before-the-session">
+    <section className={`${styles.card} ${styles.facCard}`} aria-labelledby="before-the-session">
       <div>
         <h2 id="before-the-session" className={styles.cardTitle}>
           {W.BEFORE_THE_SESSION}

@@ -1501,7 +1501,7 @@ export default function AttendanceGrid({
                         </span>
                       )}
                       {saidFirst && !excuse && (
-                        <span className={styles.lineChip} data-testid="attendance-said-online">
+                        <span className={styles.lineChip}>
                           {SAID_JOINING_ONLINE}
                         </span>
                       )}

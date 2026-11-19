@@ -33,7 +33,7 @@ export default function MeetingLinks({ view, canChange }: { view: GroupPageView;
   if (view.weeks.length === 0) return null;
 
   return (
-    <section className={`${styles.card} ${styles.facCard}`} aria-labelledby="meeting-links" data-testid="meeting-links">
+    <section className={`${styles.card} ${styles.facCard}`} aria-labelledby="meeting-links">
       <h2 id="meeting-links" className={styles.cardTitle}>
         {W.MEETING_LINKS}
       </h2>

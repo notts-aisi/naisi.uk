@@ -289,7 +289,8 @@ describe("2. before the session on Group B's page, as each reader", () => {
     for (const said of ["Before the session", "Week 4 · Tue 24 Nov", "Asked to be excused, waiting", "Waiting", "Can’t make it", "Joining online", "Visiting", "Meeting links", "Week 1 · Tue 3 Nov · no register", "No link"]) {
       assert.ok(drawn.text.includes(said), `missing "${said}"`);
     }
-    const order = ["data-testid=\"joining-online-box\"", "data-testid=\"before-the-session\"", "data-testid=\"meeting-links\""].map((id) => drawn.html.indexOf(id));
+    // In order, as a reader meets them: the box, then each card by its heading.
+    const order = ['aria-label="Joining online"', ">Before the session</h2>", ">Meeting links</h2>"].map((said) => drawn.html.indexOf(said));
     assert.ok(order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1])), `out of order: ${order}`);
     assert.ok(!drawn.text.includes(REASON));
     assert.equal((await draw("tom")).to, `/learn/${RUN.agi}`, "a facilitator of another group");
@@ -586,7 +587,8 @@ describe("4. the register opens with what people said", () => {
     world.db.seed(`courseAttendance/${RUN.agi}__${B}__w04`, { runId: RUN.agi, groupId: B, weekNumber: 4, onlineSaid: { amara: new Date("2026-11-18T09:00:00Z") } });
     w.at("2026-11-24T18:30:00Z");
     const html = drawRegister((await registerAs("rahul")).body);
-    const said = [...html.matchAll(/data-testid="attendance-said-online"/g)];
+    // Found by its words, as a facilitator reads it under the line.
+    const said = [...html.matchAll(/<span class="lineChip">Said joining online<\/span>/g)];
     assert.equal(said.length, 1, "one line said joining online");
     assert.ok(text(html).includes(linkWords.SAID_JOINING_ONLINE));
     assert.match(html, new RegExp(`aria-label="${goesBy("amara")}, week 4: not marked\\. They said they’re joining online\\. Sets Present\\."`));
@@ -598,7 +600,7 @@ describe("4. the register opens with what people said", () => {
   test("a register where nobody said anything draws no such line, and a tap stores what it always stored", async () => {
     w.at("2026-11-24T18:30:00Z");
     const html = drawRegister((await registerAs("rahul")).body);
-    assert.doesNotMatch(html, /attendance-said-online|whereStatic/);
+    assert.doesNotMatch(html, /Said joining online|whereStatic/);
     const marked = await call("rahul", registerRoute.POST, { groupId: B }, { body: { weekNumber: 4, marks: [{ uid: "amara", status: "present" }, { uid: "ines", status: "absent" }] }, course: true });
     assert.equal(marked.status, 200);
     const stored = world.db.read(`courseAttendance/${RUN.agi}__${B}__w04`);
