@@ -1,6 +1,7 @@
 import { addDaysToKey, isValidDateKey } from "../weekPlan";
 import { roomAsStored } from "../sessionChange/room";
-import type { TermCell, TermSection } from "./model";
+import { dayWords } from "../sessionChange/words";
+import { mondayOf, type TermCell, type TermSection } from "./model";
 import { choiceKeyOf, matchGroup, readRecords, roomProblem, type LineMatch, type PasteCandidate } from "./paste";
 import { notThisWeekWords, NO_SESSION, ROW_STATE } from "./words";
 
@@ -15,16 +16,21 @@ import { notThisWeekWords, NO_SESSION, ROW_STATE } from "./words";
  * guess, never across the programmes the grid shows.
  *
  * THE WEEKS. A first line whose columns after the first all name weeks is a
- * header: "Week 3", "Wk 3", "w3", "3", or a date inside that week of the
- * group's run ("2026-11-17", "17/11/2026", "17/11", "17 Nov", "Tue 17 Nov").
- * With no header the columns are the grid's weeks in order from its first
- * week. Either way the box says which week each column was taken as, for
- * each programme, before anything is saved.
+ * header: "Week 3", "Wk 3", "w3", "3", or a date ("2026-11-17",
+ * "17/11/2026", "17/11", "17 Nov", "Tue 17 Nov"). A week's number is that
+ * week of each group. A DATE is, for each group, the session whose own date
+ * falls in that date's calendar week (Monday to Sunday), so a group pushed
+ * back a week gets the room on the session it holds then, and the line says
+ * which day it took where that is not the column's week. With no header the
+ * columns are the grid's weeks in order from its first week. Either way the
+ * box says which week each column was taken as, for each programme, before
+ * anything is saved.
  *
- * A CELL is a room for that week, "" (or "TBC", "to be confirmed", "-") for
- * To be confirmed, held to the writer's rules. A cell for a week that cannot
- * take a room here (no session, called off, held online, started, met) is
- * skipped and says why.
+ * A CELL is a room for that week, "TBC" (or "TBA", "to be confirmed", "-")
+ * for To be confirmed, held to the writer's rules. AN EMPTY CELL LEAVES THAT
+ * WEEK AS IT IS: a sheet that leaves a week blank means "as it is". A cell for
+ * a week that cannot take a room here (no session, called off, held online,
+ * started, met) is skipped and says why.
  */
 
 /** One column after the first: a week by its number, a date, or nothing a header could mean. */
@@ -96,10 +102,15 @@ export function gridCandidatesOf(sections: readonly TermSection[]): GridCandidat
   );
 }
 
+/** Where a date header took a group's session on a day outside the column's week: that session's day, "Tue 1 Dec". */
+type Taken = { day?: string };
+
 export type CellOutcome =
-  | { kind: "change"; weekNumber: number; room: string; was: string }
-  | { kind: "clear"; weekNumber: number; was: string }
-  | { kind: "same"; weekNumber: number }
+  | ({ kind: "change"; weekNumber: number; room: string; was: string } & Taken)
+  | ({ kind: "clear"; weekNumber: number; was: string } & Taken)
+  | ({ kind: "same"; weekNumber: number } & Taken)
+  /** An empty cell: that week stays as it is. */
+  | { kind: "leave"; weekNumber: number | null }
   | { kind: "skip"; weekNumber: number | null; why: string }
   | { kind: "problem"; weekNumber: number; problem: "tooLong" | "roomLink" | "roomLine" };
 
@@ -145,6 +156,19 @@ export function readBlock(
     first.slice(1).every((cell) => cell.trim() === "" || readHead(cell) !== null) &&
     first.slice(1).some((cell) => readHead(cell) !== null);
   const heads = header ? first.slice(1).map((cell) => readHead(cell)) : [];
+  const years = [...new Set(sections.flatMap((section) => section.weeks.map((week) => week.fromKey.slice(0, 4))).filter(Boolean))];
+  /** A date header's date for one group: the session whose own date is in that date's calendar week, or null. */
+  const sessionOnDate = (head: ReturnType<typeof readHead>, cells: readonly TermCell[]): Extract<TermCell, { kind: "session" }> | null => {
+    if (!head || head.kind === "week") return null;
+    const keys =
+      head.kind === "date" ? [head.dateKey] : years.map((year) => `${year}-${pad(head.month)}-${pad(head.day)}`).filter(isValidDateKey);
+    for (const key of keys) {
+      const monday = mondayOf(key);
+      const found = cells.find((cell): cell is Extract<TermCell, { kind: "session" }> => cell.kind === "session" && mondayOf(cell.dateKey) === monday);
+      if (found) return found;
+    }
+    return null;
+  };
 
   const columns = sections.map((section) => ({
     programmeId: section.programmeId,
@@ -170,17 +194,23 @@ export function readBlock(
     const weeks = section ? (columnsOf.get(section.programmeId) ?? []) : [];
     const cells = record.slice(1).map((textOf, column) => {
       if (!row || earlier !== undefined) return { column, text: textOf, outcome: null };
-      const weekNumber = weeks[column] ?? null;
+      const head = header ? (heads[column] ?? null) : null;
+      const isDate = head !== null && head.kind !== "week";
+      const onDate = isDate ? sessionOnDate(head, row.cells) : null;
+      const weekNumber = isDate ? (onDate?.weekNumber ?? null) : (weeks[column] ?? null);
+      // A blank cell leaves the week as it is: only "TBC" and its spellings take a room off.
+      if (textOf.trim() === "") return { column, text: textOf, outcome: { kind: "leave" as const, weekNumber } };
       if (weekNumber === null) return { column, text: textOf, outcome: { kind: "skip" as const, weekNumber: null, why: NO_SESSION } };
+      const taken = onDate && onDate.weekNumber !== weeks[column] ? { day: dayWords(onDate.dateKey) } : {};
       const cell = row.cells.find((each) => each.weekNumber === weekNumber);
       const why = notHereOf(cell);
       if (why || !cell || cell.kind === "none") return { column, text: textOf, outcome: { kind: "skip" as const, weekNumber, why: why ?? NO_SESSION } };
       const problem = roomProblem(textOf);
       if (problem) return { column, text: textOf, outcome: { kind: "problem" as const, weekNumber, problem } };
       const room = roomAsStored(textOf);
-      if (room === cell.room) return { column, text: textOf, outcome: { kind: "same" as const, weekNumber } };
-      if (room === "") return { column, text: textOf, outcome: { kind: "clear" as const, weekNumber, was: cell.room } };
-      return { column, text: textOf, outcome: { kind: "change" as const, weekNumber, room, was: cell.room } };
+      if (room === cell.room) return { column, text: textOf, outcome: { kind: "same" as const, weekNumber, ...taken } };
+      if (room === "") return { column, text: textOf, outcome: { kind: "clear" as const, weekNumber, was: cell.room, ...taken } };
+      return { column, text: textOf, outcome: { kind: "change" as const, weekNumber, room, was: cell.room, ...taken } };
     });
     return { number, group, match, groupId, duplicateOf: earlier ?? null, cells };
   });

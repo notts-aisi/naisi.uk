@@ -312,7 +312,7 @@ export function cellFieldLabel(groupName: string, weekNumber: number, day: strin
 export const GRID_PASTE_OPEN = "Paste a block from a spreadsheet";
 export const GRID_PASTE_TITLE = "Paste a block of rooms";
 export const GRID_PASTE_LEDE =
-  "The first column names the group, then one column a week. A first line of weeks (Week 3, w3, 3, or a date in that week) says which week each column is; without one, the columns are the grid’s weeks from its first. An empty cell, TBC or a dash means to be confirmed.";
+  "The first column names the group, then one column a week. A first line of weeks (Week 3, w3, 3, or a date in that week) says which week each column is; without one, the columns are the grid’s weeks from its first. An empty cell leaves that week as it is; TBC, TBA or a dash means to be confirmed.";
 
 /** Which week each column was taken as, for one programme: "AGI Strategy: week 1, week 2, not a week". */
 export function columnsTakenWords(programmeName: string, weeks: readonly (number | null)[], header: boolean): string {
@@ -326,14 +326,18 @@ export function skippedWords(weekNumber: number | null, why: string): string {
   return weekNumber === null ? "A column with no week, skipped." : `Week ${weekNumber} skipped: ${reason.charAt(0).toLowerCase()}${reason.slice(1)}.`;
 }
 
-/** One cell of a pasted line: "Week 3: George Green B06. Was Portland A21". */
-export function cellLineWords(weekNumber: number, words: string): string {
-  return `Week ${weekNumber}: ${words}`;
+/** One cell of a pasted line: "Week 3: George Green B06. Was Portland A21", or with the day a date took: "Week 6, Tue 8 Dec: ...". */
+export function cellLineWords(weekNumber: number, words: string, day?: string): string {
+  return `Week ${weekNumber}${day ? `, ${day}` : ""}: ${words}`;
 }
 
 /** A block's count line. */
-export function blockSummaryWords(parts: { changes: number; skipped: number; needYou: number }): string {
-  const bits = [count(parts.changes, "room to change", "rooms to change"), `${parts.skipped} skipped`];
+export function blockSummaryWords(parts: { changes: number; skipped: number; left: number; needYou: number }): string {
+  const bits = [
+    count(parts.changes, "room to change", "rooms to change"),
+    `${parts.skipped} skipped`,
+    `${count(parts.left, "empty cell", "empty cells")} left as ${parts.left === 1 ? "it is" : "they are"}`,
+  ];
   const tail = parts.needYou > 0 ? `, and ${count(parts.needYou, "line needs", "lines need")} you` : "";
   return `${bits.join(", ")}${tail}. Nothing is saved until you press Save.`;
 }

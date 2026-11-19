@@ -70,6 +70,8 @@ export default function GridPaste({
         return W.skippedWords(outcome.weekNumber, outcome.why);
       case "problem":
         return outcome.problem === "tooLong" ? W.roomTooLongWords(GROUP_ROOM_LIMIT) : W.PASTE_STATE[outcome.problem];
+      case "leave":
+        return "";
     }
   };
 
@@ -109,6 +111,7 @@ export default function GridPaste({
   const counts = {
     changes: outcomes.filter((each) => each.kind === "change" || each.kind === "clear").length,
     skipped: outcomes.filter((each) => each.kind === "skip" || each.kind === "problem").length,
+    left: outcomes.filter((each) => each.kind === "leave").length,
     needYou: read.lines.filter((line) => !line.groupId || line.duplicateOf !== null).length,
   };
   const titleId = `${ids}-title`;
@@ -159,11 +162,13 @@ export default function GridPaste({
                       <ul className={styles.blockCells}>
                         {line.cells.flatMap((cell) => {
                           const outcome = cell.outcome;
-                          if (!outcome) return [];
+                          if (!outcome || outcome.kind === "leave") return [];
                           const words = cellWords(outcome);
                           return [
                             <li key={cell.column}>
-                              {outcome.kind === "skip" || outcome.weekNumber === null ? words : W.cellLineWords(outcome.weekNumber, words)}
+                              {outcome.kind === "skip" || outcome.weekNumber === null
+                                ? words
+                                : W.cellLineWords(outcome.weekNumber, words, "day" in outcome ? outcome.day : undefined)}
                             </li>,
                           ];
                         })}

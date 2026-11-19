@@ -594,9 +594,43 @@ describe("2. the term grid's paste box reads a block", () => {
     assert.deepEqual([a.groupId, b.groupId], [A, B]);
     assert.deepEqual(a.cells.map((cell) => cell.outcome.kind), ["change", "change", "clear", "skip"]);
     assert.equal(words.skippedWords(3, a.cells[3].outcome.why), "Week 3 skipped: started.");
-    // Group B's usual room is Hallward B12, so week 6 says no change; an empty cell is To be confirmed.
-    assert.deepEqual(b.cells.map((cell) => cell.outcome.kind), ["change", "clear", "same", "skip"]);
-    assert.deepEqual(gridPaste.blockRooms(read), { [`${A}__4`]: "Room 4", [`${A}__5`]: "Room 5", [`${A}__6`]: "", [`${B}__4`]: "Portland A21", [`${B}__5`]: "" });
+    // Group B's usual room is Hallward B12, so week 6 says no change; an EMPTY cell leaves its week as it
+    // is, even where the week cannot take a room; only TBC and its spellings take a room off.
+    assert.deepEqual(b.cells.map((cell) => cell.outcome.kind), ["change", "leave", "same", "leave"]);
+    assert.deepEqual(gridPaste.blockRooms(read), { [`${A}__4`]: "Room 4", [`${A}__5`]: "Room 5", [`${A}__6`]: "", [`${B}__4`]: "Portland A21" });
+    assert.equal(
+      words.blockSummaryWords({ changes: 4, skipped: 1, left: 2, needYou: 0 }),
+      "4 rooms to change, 1 skipped, 2 empty cells left as they are. Nothing is saved until you press Save.",
+    );
+  });
+
+  test("a date header takes, for each group, its session in that date's week: a group pushed back gets the room on that session, and the line says the day", () => {
+    // Group B pushed back from week 4: its week 4 session is Tue 1 Dec, its week 5 Tue 8 Dec.
+    world.db.poke(`courseGroups/${B}`, {
+      paceWeekPlan: [
+        ...[1, 2, 3].map((n) => ({ kind: "week", weekNumber: n, weekId: `w0${n}` })),
+        { kind: "break", label: "No session" },
+        ...[4, 5, 6].map((n) => ({ kind: "week", weekNumber: n, weekId: `w0${n}` })),
+      ],
+    });
+    const [section] = sections();
+    const b = section.rows.find((row) => row.groupId === B);
+    assert.deepEqual(b.cells.filter((cell) => cell.kind === "session" && cell.weekNumber >= 4).map((cell) => [cell.weekNumber, cell.dateKey]).slice(0, 2), [
+      [4, "2026-12-01"],
+      [5, "2026-12-08"],
+    ]);
+    // A column dated Thu 26 Nov is the run's week 5 and Group A's; the week of Mon 30 Nov holds Group A's
+    // week 6 (Thu 3 Dec) and Group B's week 4 (Tue 1 Dec), each said with its day.
+    const read = gridPaste.readBlock("Group\t2026-11-26\t2026-11-30\nAGI A\tRoom X\tRoom Z\nAGI B\t\tRoom Y", [section], new Map());
+    assert.deepEqual(read.columns[0].weeks, [5, 5]);
+    const [a, bLine] = read.lines;
+    assert.deepEqual(a.cells.map((cell) => [cell.outcome.weekNumber, cell.outcome.day]), [[5, undefined], [6, "Thu 3 Dec"]]);
+    assert.deepEqual([bLine.cells[1].outcome.weekNumber, bLine.cells[1].outcome.day], [4, "Tue 1 Dec"]);
+    assert.deepEqual(gridPaste.blockRooms(read), { [`${A}__5`]: "Room X", [`${A}__6`]: "Room Z", [`${B}__4`]: "Room Y" });
+    assert.equal(words.cellLineWords(4, "Room Y", "Tue 1 Dec"), "Week 4, Tue 1 Dec: Room Y");
+    // A date with no year, the same.
+    const yearless = gridPaste.readBlock("Group\tTue 1 Dec\nAGI B\tRoom Y", [section], new Map());
+    assert.equal(yearless.lines[0].cells[0].outcome.weekNumber, 4);
   });
 
   test("with no header the columns are the grid's weeks from its first, said before anything is saved; dates without a year; nothing across programmes", () => {
