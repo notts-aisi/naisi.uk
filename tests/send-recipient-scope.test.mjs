@@ -231,8 +231,9 @@ const RECIPIENT_SOURCES = new Map([
     "src/lib/courses/visit/save.ts#input.uid",
     {
       // Four more since the limit on these emails: each save reads the facts
-      // once before claiming it (so a refused press writes nothing) and claims
-      // it by the person's uid (`claimVisitPress`), arranging and calling off.
+      // once before its transaction (so a refused press reads no counter) and
+      // reads and claims the limit by the person's uid inside it
+      // (`visitLimitsIn`), arranging and calling off.
       reads: 14,
       origin: "caller",
       filteredBy: "if (!read.ok) throw new Stop(read);",
@@ -376,6 +377,34 @@ const RECIPIENT_SOURCES = new Map([
       why:
         "Everybody holding a place in one group, for \"Week N is open\": the push lane and the " +
         "schedule both send through here, and neither takes a recipient from a request.",
+    },
+  ],
+  [
+    "src/lib/courses/nextWeekEmail.ts#out.recipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Filled by `planRecipients` from the members `resolveNoticeAudience` answered for the group's week, " +
+        "one by one, so each uid comes off a place document rather than a recipient-shaped field: there is " +
+        "nothing for the scan to name as its source.",
+      why:
+        "Of the group's people for \"Week N is open\", the ones this send reaches: everybody but whoever had " +
+        "the week's email from another group's send while on a one-week visit, or works in a copy of the week " +
+        "not open yet. It only ever removes people from the audience; nobody comes from a request.",
+    },
+  ],
+  [
+    "src/lib/courses/nextWeekEmail.ts#plan.recipients",
+    {
+      // Twice: whether anybody is left to send to, before the claim; and the send's own list.
+      reads: 2,
+      origin: "assembled",
+      sourceOutsideScan:
+        "The answer of `planRecipients` (above), carried from the decision to the send and the register's preview.",
+      why:
+        "The same people as `out.recipients`: the preview counts them, and the send emails exactly them, so the " +
+        "count on the register's button is the count that goes.",
     },
   ],
   [

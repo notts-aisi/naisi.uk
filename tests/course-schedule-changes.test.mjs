@@ -1292,8 +1292,13 @@ test("GUARD — a placed member is NEVER mailed another group's session time", (
   // people, and an archived group is skipped, so that member is mailed
   // nothing rather than another group's time and room. Its people are that
   // group's for the session's week (with no record of groups by week, the
-  // people in it now).
-  assert.match(WEEK_EMAIL, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id, weekNumber: session\.weekNumber \}\)/);
+  // people in it now), and the people who belong to it that week while on a
+  // one-week visit to another group: they are sent the time and room of the
+  // session they go to that week, the host's, and only while the host still
+  // meets; never a session that is not theirs.
+  assert.match(WEEK_EMAIL, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id, weekNumber: session\.weekNumber, belongingToo: true \}\)/);
+  assert.match(WEEK_EMAIL, /if \(!host\.archived && host\.runId === run\.id\) hosts\.set\(host\.id, host\);/);
+  assert.match(WEEK_EMAIL, /const own = host && hostSession \? await readingFor\(host, hostSession, copy\) : await readingFor\(group, session, copy\);/);
   assert.match(WEEK_EMAIL, /const sessions = resolveSessions\(run, group\);/);
   assert.match(WEEK_EMAIL, /sessionAt: sessionInstants\(session\)\.startsAt,/);
   assert.match(WEEK_EMAIL, /where: courseNudgeSessionWhere\(session\.session, sessionModeForWeek\(group, session\.weekId\), campusForWeek\(group, session\.weekId\)\),/);
@@ -2207,7 +2212,7 @@ test("GUARD — the week's emails read each week as the group sees it, and never
   // half-written week, or one not published, must not go out.
   // A visitor's words are read from the copy of the group they belong to that week (`copyGroupId`); everybody else's from the group's.
   assert.match(WEEK_EMAIL, /const \{ week \} = await resolveWeekDoc\(db, run\.id, args\.copyGroupId \?\? group\.id, session\.weekId\);/);
-  assert.match(WEEK_EMAIL, /copyReadings\.set\(copy, own\.week && own\.published && !\(args\.whole && own\.missing\.length > 0\) \? own : null\);/);
+  assert.match(WEEK_EMAIL, /\.then\(\(own\) => \(own\.week && own\.published && !\(args\.whole && own\.missing\.length > 0\) \? own : null\)\);/);
   assert.match(WEEK_EMAIL, /if \(!reading\.week \|\| !reading\.published\) \{/);
   assert.match(WEEK_EMAIL, /weekUrl: courseWeekUrl\(args\.appUrl, run\.id, session\.weekNumber\),/);
   assert.match(REMINDERS_JOB, /if \(!week \|\| !week\.published \|\| !isBlockWeek\(week\)\) continue;/);

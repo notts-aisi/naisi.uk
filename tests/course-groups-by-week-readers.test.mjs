@@ -270,8 +270,8 @@ const READERS = {
     why: "the facilitator's own page counts who is expected at each week's session as the people whose session that week is the group's (inGroupForWeek), a visitor in included and a member away not; a visitor's line names the group they belong to that week (ownGroupForWeek) and a member's line the group they visit (visitInWeek)",
   },
   "lib/email/courseFacilitatorEmails.ts": {
-    kinds: ["week"],
-    why: "a notice about one session reaches the people whose session that week is the group's (groupForWeek): a visitor in included, a member visiting elsewhere not",
+    kinds: ["week", "own"],
+    why: "a notice about one session reaches the people whose session that week is the group's (groupForWeek): a visitor in included, a member visiting elsewhere not; for Week N is open alone (belongingToo) also the people who belong to the group that week (ownGroupForWeek) while visiting another, so that week's email can reach them in their own group's send when no other send has",
   },
   "lib/courses/finishing/needs.ts": {
     kinds: ["week"],
@@ -419,7 +419,7 @@ const READERS = {
   },
   "lib/courses/nextWeekEmail.ts": {
     kinds: ["week", "own"],
-    why: "the group's Week N is open email about one session reaches the people whose session that week is the group's, a visitor in included and a member visiting elsewhere not, through the notice audience asked for the week, so a visitor gets exactly one, the host's; its words about the week are read, for anybody whose copy is another group's, from the copy of the group their place belongs to that week (copyGroupIdFor), never the host's"
+    why: "the group's Week N is open email about one session reaches the people whose session that week is the group's (a visitor in included) and the people who belong to it that week while visiting another group (belongingToo); a person's email of a week is claimed once across the run's groups (a marker per person and week), so a visitor is sent it by whichever of the two sends reaches them first, never two, and always about the session they go to, the host's while it still meets; its words about the week are read from the copy of the group their place belongs to that week (copyGroupIdFor), never the host's; a visitor whose copy is not published when a send goes is left out of it and of the register's count, and gets the next send that reaches them once it is, or none if no send comes later"
   },
   "lib/courses/pushEmail.ts": {
     kinds: ["week"],

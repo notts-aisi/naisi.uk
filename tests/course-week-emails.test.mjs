@@ -779,8 +779,16 @@ describe("7. the send", () => {
     const dispatch = send.indexOf("await dispatchSends(recipients,");
     assert.ok(claim > 0 && dispatch > claim, "the claim is taken after the send starts");
     const nobody = send.indexOf('heldOutcome(\n        "nobody"');
-    const prepared = send.indexOf("return { ready: true, markerId, reading, members: audience.members");
+    const prepared = send.indexOf("return { ready: true, markerId, reading, plan, skipped");
     assert.ok(nobody > 0 && prepared > nobody, "an empty audience is decided after the claim could be taken");
+    // Nobody this send reaches (all had it from another group's send, or work
+    // in a copy not open yet) is decided before the claim too.
+    const nobodyLeft = send.indexOf("if (plan.recipients.length === 0) {");
+    assert.ok(nobodyLeft > nobody && prepared > nobodyLeft, "an audience this send reaches nobody of is decided after the claim could be taken");
+    // Each person's own claim on the week is taken before their message goes.
+    const personClaim = send.indexOf("const theirs = await claimPersonWeek(");
+    const message = send.indexOf("await sendNotice({");
+    assert.ok(personClaim > dispatch && message > personClaim, "a person's claim on the week is taken after their message goes");
     assert.ok(send.indexOf("async function prepareNextWeekEmail") < claim, "the decision is made before the claim");
   });
 
@@ -793,8 +801,8 @@ describe("7. the send", () => {
   test("both emails are read off the places, through the notice door, with no unsubscribe anywhere", () => {
     // The week's email: the group's people for the session's week, and the
     // register's preview the same, once a week asked about.
-    assert.match(send, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id, weekNumber: session\.weekNumber \}\)/);
-    assert.match(send, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id, weekNumber \}\)/);
+    assert.match(send, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id, weekNumber: session\.weekNumber, belongingToo: true \}\)/);
+    assert.match(send, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id, weekNumber, belongingToo: true \}\)/);
     assert.match(send, /surface: "course-week",/);
     // The reminders: the group's people for the session's week.
     assert.match(job, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id, weekNumber \}\)/);

@@ -12,6 +12,8 @@ import {
   normalizeCourseEnrolment,
   placementIsTold,
   groupForWeek,
+  ownGroupForWeek,
+  type CourseEnrolmentDoc,
   type CourseEnrolmentRole,
 } from "@/lib/firestore/courseEnrolments";
 import {
@@ -412,6 +414,15 @@ export type CohortAudienceScope = {
    * exactly the people in the group now.
    */
   weekNumber?: number | null;
+  /**
+   * With `weekNumber`, for "Week N is open" only: ALSO keep the people who
+   * belong to that group that week (`ownGroupForWeek`) while a one-week visit
+   * takes them to another group's session, so the email of a week can reach
+   * them in their own group's send when no other send has
+   * (`src/lib/courses/nextWeekEmail.ts`). With no visit anywhere these are
+   * nobody, and the audience is exactly the week's.
+   */
+  belongingToo?: boolean;
 };
 
 /** Hard ceiling per request. Beyond this a send FAILS — see below. */
@@ -755,6 +766,10 @@ export async function resolveNoticeAudience(
   // A week's group is read off each place, so the read is not narrowed to the
   // group there: somebody whose week is spent in it may be in another now.
   const forWeek = onlyGroupId && typeof scope.weekNumber === "number" ? scope.weekNumber : null;
+  // In scope for a week: due at the group's session that week, or (for the
+  // week's email alone) belonging to the group that week while visiting another.
+  const inWeekScope = (enrolment: CourseEnrolmentDoc, week: number): boolean =>
+    groupForWeek(enrolment, week) === onlyGroupId || (scope.belongingToo === true && ownGroupForWeek(enrolment, week) === onlyGroupId);
   const gmailOnly = process.env.EMAIL_GMAIL_ONLY_MODE === "true";
 
   // The run's active places, narrowed to the group when there is one. Equality
@@ -773,7 +788,7 @@ export async function resolveNoticeAudience(
   const counted =
     forWeek === null
       ? placeSnap.docs.length
-      : placeSnap.docs.filter((doc) => groupForWeek(normalizeCourseEnrolment(doc.id, doc.data() ?? {}), forWeek) === onlyGroupId).length;
+      : placeSnap.docs.filter((doc) => inWeekScope(normalizeCourseEnrolment(doc.id, doc.data() ?? {}), forWeek)).length;
   if (counted > MAX_NOTICE_ENROLMENT_ROWS) {
     console.error(`[${lane.logTag}] enrolment read exceeds ceiling`, runId, counted);
     return {
@@ -803,7 +818,7 @@ export async function resolveNoticeAudience(
       continue;
     }
     if (!NOTICE_ROLES.includes(enrolment.role)) continue;
-    if (onlyGroupId && (forWeek === null ? enrolment.groupId : groupForWeek(enrolment, forWeek)) !== onlyGroupId) continue;
+    if (onlyGroupId && (forWeek === null ? enrolment.groupId !== onlyGroupId : !inWeekScope(enrolment, forWeek))) continue;
     if (!placementIsTold(enrolment)) {
       notYetTold += 1;
       continue;
