@@ -448,6 +448,13 @@ const READERS = {
       "tab's Group column read each person's group as Publish told it, so a seat Publish has not told them about is " +
       "in no group, and no answer is counted under a group its person has not been told",
   },
+  "lib/courses/weekRooms/load.ts": {
+    kind: "staff",
+    proof: ['if (!visible) return { status: "none" };'],
+    why:
+      "the week's rooms, for an admin or the programme's lead alone: the run's places are read only to ask which group each " +
+      "line on a session's register belonged to that week, so a moved person's old line is not counted; no seat is shown or sent",
+  },
   "lib/courses/excused/page.ts": {
     kind: "staff",
     proof: ['if (actor.role !== "admin") return { status: "none" };'],

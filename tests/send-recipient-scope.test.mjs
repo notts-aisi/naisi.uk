@@ -404,37 +404,19 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
-    "src/lib/courses/sessionChange/roomWrite.ts#audience.recipients",
+    "src/lib/courses/sessionChange/roomNotice.ts#input.recipients",
     {
-      reads: 5,
+      reads: 1,
       origin: "assembled",
       sourceOutsideScan:
-        "Built by updateEmailAudience (src/lib/courses/updates/audience.ts) for the one group with `withFacilitators` " +
-        "and the week of the session: the people whose group that week is the group, from the run's own active, told " +
-        "enrolment rows through the shared cohort-audience helper, and the group's facilitatorUids (written by " +
-        "src/lib/courses/groupFacilitators.ts) each held to their bar, never the presser. Nothing in the request names " +
-        "a recipient.",
+        "Handed over by src/lib/courses/sessionChange/roomWrite.ts as it counted them: updateEmailAudience " +
+        "(src/lib/courses/updates/audience.ts) for the one group with `withFacilitators` and the week of the session, " +
+        "the people whose group that week is the group, from the run's own active, told enrolment rows through the " +
+        "shared cohort-audience helper, and the group's facilitatorUids (written by src/lib/courses/groupFacilitators.ts) " +
+        "each held to their bar, never the presser. Nothing in the request names a recipient.",
       why:
-        "A room-only change's notice: who it reaches, counted by the same function the preview's number comes from; " +
-        "the request carries only that number.",
-    },
-  ],
-  [
-    "src/lib/courses/sessionChange/roomWrite.ts#local:recipients",
-    {
-      reads: 1,
-      origin: "derived",
-      derivedFrom: ["src/lib/courses/sessionChange/roomWrite.ts#audience.recipients"],
-      why: "The same audience, kept for the notice once every refusal has passed and the room is written.",
-    },
-  ],
-  [
-    "src/lib/courses/sessionChange/roomWrite.ts#input.recipients",
-    {
-      reads: 1,
-      origin: "derived",
-      derivedFrom: ["src/lib/courses/sessionChange/roomWrite.ts#audience.recipients"],
-      why: "The same audience handed to the send, as it was counted; each gets one email at their own address.",
+        "A room-only change's notice: who it reaches, counted by the same function the preview's number comes from and " +
+        "checked against the button before the room is written; each gets one email at their own address.",
     },
   ],
   [

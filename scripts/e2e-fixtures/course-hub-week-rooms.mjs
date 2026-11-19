@@ -38,7 +38,8 @@ export const WEEK_ROOMS_STEPS = [
   "the admin sets Group A's week 4 room in its row, the button counts whom it emails, and the group is told",
   "the room's email reaches Group A's people with its subject and the room, and none carries the meeting link",
   "the admin pastes Group B's week 4 room from two columns, the box matches it, and Save tells the group",
-  "the term's rooms marks both weeks moved, and a cell opens its week with the group's row in view",
+  "the term's rooms shows Group A's week 4 as its own room, not moved, and its link opens the week with the row in view",
+  "the admin sets Group A's weeks 5 and 6 in the grid with one Save that emails nobody, and each week's page reads them back",
 ];
 
 /**
