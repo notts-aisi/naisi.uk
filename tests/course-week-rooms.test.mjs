@@ -766,7 +766,9 @@ describe("3. the week's rooms and the term's rooms are an admin's and a programm
     const [grid] = find(admin.element, "TermRoomsGrid");
     assert.deepEqual(grid.props.sections.map((section) => section.programmeName), ["Technical AI Safety", "AGI Strategy"]);
     assert.ok(admin.text.includes("The term’s rooms"));
-    assert.deepEqual([...new Set(admin.reads)].sort(), ["admissionRounds", "courseAttendance", "courseGroups", "courseRuns"]);
+    // And, for each group, the record of its last rooms email, by id: no group here has been emailed, so no
+    // History row is read for who pressed (tests/course-term-rooms-email.test.mjs reads one). Nobody's account.
+    assert.deepEqual([...new Set(admin.reads)].sort(), ["admissionRounds", "courseAttendance", "courseGroups", "courseNudges", "courseRuns"]);
     assert.equal(admin.wrote, false);
     assert.ok(admin.html.includes(`/admin/admissions/forms/${ROUND}/rooms?week=${MON_23}&amp;programme=${AGI}#room-`));
     const lead = await draw(TermRoomsPage, "claudia");

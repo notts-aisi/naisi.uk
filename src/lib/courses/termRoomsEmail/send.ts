@@ -20,6 +20,7 @@ import { normalizeCourseEnrolment, type CourseEnrolmentDoc } from "@/lib/firesto
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { termRoomsWindows } from "./limits";
+import { TERM_ROOMS_RECORD_KIND, termRoomsRecordId } from "./record";
 import { emailGroupName, linesForPlace, noEmailWhy, sessionsStillToCome, weeksOf, type NoEmailWhy, type TermRoomsSession } from "./model";
 import { ALREADY_SENT, NO_EMAIL, REFUSAL, countChangedWords, historyWords, sentWords, termRoomsEmailWords } from "./words";
 
@@ -52,7 +53,7 @@ import { ALREADY_SENT, NO_EMAIL, REFUSAL, countChangedWords, historyWords, sentW
  * ── THE PRESS, ONCE ─────────────────────────────────────────────────────────
  * The count on the button is worked out again first, and a difference is a
  * 409 with the new count and nothing sent. Then ONE transaction reads the
- * group's record of its last rooms email (`courseNudges/termrooms__<group>`)
+ * group's record of its last rooms email (`./record.ts`)
  * and both limits (`./limits.ts`): a press carrying the key of the press the
  * record already holds is the same press again (a double press, a retried
  * request) and sends nothing; a limit met refuses (429) and claims nothing.
@@ -61,14 +62,6 @@ import { ALREADY_SENT, NO_EMAIL, REFUSAL, countChangedWords, historyWords, sentW
  * somebody is counted and reported, the History row and the record are
  * brought to what really went, and nothing is retried by itself.
  */
-
-/** The record of a group's last rooms email: `courseNudges/termrooms__<groupId>`. No uid: who pressed is on its History row. */
-export const TERM_ROOMS_RECORD_KIND = "term-rooms-emailed";
-
-/** The record's document, for a group. */
-export function termRoomsRecordPath(groupId: string): { collection: "courseNudges"; id: string } {
-  return { collection: "courseNudges", id: `termrooms__${groupId}` };
-}
 
 /** The surface the email goes on: the room-change notice's own. */
 const SURFACE = "course-group" as const;
@@ -241,8 +234,7 @@ export async function pressTermRoomsEmail(
     return { status: 409, body: { error: countChangedWords(plan.recipients.length), emails: plan.recipients.length } };
   }
 
-  const where = termRoomsRecordPath(group.id);
-  const recordRef = db.collection(where.collection).doc(where.id);
+  const recordRef = db.collection("courseNudges").doc(termRoomsRecordId(group.id));
   const groupRef = db.collection("courseGroups").doc(group.id);
   const auditRef = db.collection(COURSE_AUDIT_COLLECTION).doc();
   const planned = plan.recipients.length;

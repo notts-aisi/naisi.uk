@@ -7,6 +7,7 @@ import { isId } from "@/lib/applications/normalise";
 import { loadForm } from "@/lib/applications/repo";
 import { requestShownTo } from "@/lib/courses/requests/load";
 import type { SessionUser } from "@/lib/firebase/session";
+import { readLastEmailed, type LastEmailed } from "@/lib/courses/termRoomsEmail/record";
 import { inGroupForWeek, type PlaceByWeek } from "@/lib/courses/groupsByWeek";
 import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -55,9 +56,11 @@ import {
  * the row's (`inGroupForWeek`): a register keeps a line written before its
  * person moved to another group.
  *
- * The term's rooms: the form, each shown programme's run and groups, and one
- * register a group and taught week with a date, by id: 1 + S + G + G x W.
- * No requests.
+ * The term's rooms: the form, each shown programme's run and groups, one
+ * register a group and taught week with a date, by id, and when each group's
+ * rooms were last emailed and by whom (its record and the History row it
+ * names, by id: `../termRoomsEmail/record.ts`): 1 + S + G + G x W + 2 x G at
+ * most. No requests.
  *
  * Both are read by server pages only, for the two who may open them. Nothing
  * here is read by a page a member or a facilitator loads.
@@ -76,7 +79,7 @@ export type RoomsReader = {
   viewer: "admin" | "lead";
 };
 
-type Visible = { programmeId: string; programmeName: string; runId: string | null };
+type Visible = { programmeId: string; programmeName: string; runId: string | null; incubator: boolean };
 
 /** The programmes on the form this reader may see, in the form's order; null for none. */
 async function visibleProgrammes(
@@ -92,7 +95,12 @@ async function visibleProgrammes(
     if (!opensProgrammeGroups(role)) continue;
     const programme = own(form.programmes, programmeId);
     if (!programme) continue;
-    programmes.push({ programmeId, programmeName: programme.shortName.trim() || programme.name, runId: programme.runId });
+    programmes.push({
+      programmeId,
+      programmeName: programme.shortName.trim() || programme.name,
+      runId: programme.runId,
+      incubator: programme.kind === "incubator",
+    });
   }
   if (programmes.length === 0) return null;
   return { roundId: form.round.id, termLabel: form.round.label, viewer: user.role === "admin" ? "admin" : "lead", programmes };
@@ -246,6 +254,8 @@ export type TermRoomsLoad =
       /** Every programme the reader may see, for the way between them. */
       programmes: { programmeId: string; programmeName: string }[];
       sections: TermSection[];
+      /** Emailing each group its rooms: the programmes that are incubators (none is emailed), and when each group last was and by whom. */
+      emailing: { incubators: string[]; last: Record<string, LastEmailed> };
     };
 
 /** THE TERM'S ROOMS for this reader, every programme they may see or `only` one. Reads nothing it does not draw. */
@@ -259,7 +269,10 @@ export async function loadTermRooms(
   if (input.only !== null && !visible.programmes.some((each) => each.programmeId === input.only)) return { status: "none" };
   const wanted = input.only ? visible.programmes.filter((each) => each.programmeId === input.only) : visible.programmes;
   const programmes = await programmesWithRuns(db, wanted);
-  const registers = await readRegisters(db, registerIdsForTerm(programmes));
+  const [registers, last] = await Promise.all([
+    readRegisters(db, registerIdsForTerm(programmes)),
+    readLastEmailed(db, programmes.flatMap((programme) => programme.groups.map((group) => group.id))),
+  ]);
   const records: ProgrammeRecords[] = programmes.map((programme) => ({
     programmeId: programme.programmeId,
     programmeName: programme.programmeName,
@@ -274,5 +287,6 @@ export async function loadTermRooms(
     only: input.only,
     programmes: visible.programmes.map(({ programmeId, programmeName }) => ({ programmeId, programmeName })),
     sections: termRoomsView({ roundId: visible.roundId, programmes: records, now: input.now }),
+    emailing: { incubators: programmes.filter((programme) => programme.incubator).map((programme) => programme.programmeId), last },
   };
 }

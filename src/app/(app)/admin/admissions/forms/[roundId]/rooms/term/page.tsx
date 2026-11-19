@@ -3,6 +3,7 @@ import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import shared from "@/features/applications/editor/editor.module.css";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import TermRoomsDownload from "@/features/courses/weekRooms/TermRoomsDownload";
+import TermRoomsEmail from "@/features/courses/weekRooms/TermRoomsEmail";
 import TermRoomsGrid from "@/features/courses/weekRooms/TermRoomsGrid";
 import styles from "@/features/courses/weekRooms/WeekRooms.module.css";
 import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
@@ -16,8 +17,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * THE TERM'S ROOMS, at `/admin/admissions/forms/[roundId]/rooms/term`: each
  * group's room week by week, a grid a programme, across every programme on
  * the term the reader may see, or one with `?programme=`. Each cell opens
- * that week on the week's rooms with the group's row in view. Nothing on this
- * page writes; Download makes a file of what it shows, in the browser.
+ * that week on the week's rooms with the group's row in view. Saving the grid
+ * emails nobody; Download makes a file of what it shows, in the browser. Under
+ * the grid, each group's own button emails it where each of its sessions
+ * still to come is, and only that press does (`TermRoomsEmail`).
  *
  * FOR AN ADMIN AND A PROGRAMME'S LEAD, by the same gate as the week's rooms
  * (`loadTermRooms`): anybody else, a form that is not there and a programme
@@ -36,7 +39,7 @@ export default async function TermRoomsPage({
   const loaded = db ? await loadTermRooms(db, user, { roundId, only: asked ?? null, now: new Date() }) : null;
   if (!loaded || loaded.status !== "ok") return <NoProgrammeHere roundId={roundId} />;
 
-  const { reader, only, programmes, sections } = loaded;
+  const { reader, only, programmes, sections, emailing } = loaded;
   return (
     <ApplicationsRoot className={shared.page}>
       <nav className={shared.crumb} aria-label="Breadcrumb">
@@ -81,6 +84,7 @@ export default async function TermRoomsPage({
           </nav>
         ) : null}
         <TermRoomsGrid sections={sections} />
+        <TermRoomsEmail sections={sections} emailing={emailing} />
       </div>
     </ApplicationsRoot>
   );

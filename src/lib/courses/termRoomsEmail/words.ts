@@ -124,7 +124,7 @@ export function emailGroupWords(groupName: string): string {
 /** The one button for every group shown. */
 export const EMAIL_EVERY_GROUP = "Email every group shown its rooms";
 
-/** "Last emailed Thu 19 Nov, 2:05pm by Alex Doe." */
+/** "Last emailed Thu 19 Nov at 2:05pm by Alex Doe." */
 export function lastEmailedWords(when: string, byName: string): string {
   const by = byName.trim();
   return by ? `Last emailed ${when} by ${by}.` : `Last emailed ${when}.`;

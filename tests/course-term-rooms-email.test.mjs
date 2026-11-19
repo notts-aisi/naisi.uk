@@ -516,3 +516,105 @@ describe("4. who may press: an admin and the programme's lead, never in a view-a
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// 5. The page
+// ---------------------------------------------------------------------------
+
+/** The term's rooms page as `who` sees it: its element, its text, what it read and whether it wrote. */
+async function draw(who, searchParams = {}) {
+  world.user = who === null ? null : { ...w.sessionOf(who), admissionsReviewer: read(`users/${who}`)?.admissionsReviewer === true };
+  world.course = true;
+  const reads = [];
+  const collection = world.courseDb.collection;
+  world.courseDb.collection = (path) => {
+    reads.push(path);
+    return collection(path);
+  };
+  const before = w.everything();
+  try {
+    const element = await TermRoomsPage({ params: Promise.resolve({ roundId: ROUND }), searchParams: Promise.resolve(searchParams) });
+    const html = renderToStaticMarkup(element);
+    const text = html.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+    return { element, html, text, reads, wrote: w.everything() !== before };
+  } finally {
+    world.courseDb.collection = collection;
+    world.course = false;
+  }
+}
+
+/** Every element below `element` whose component is called `name`. */
+function find(element, name, out = []) {
+  if (!element || typeof element !== "object") return out;
+  if (Array.isArray(element)) {
+    for (const child of element) find(child, name, out);
+    return out;
+  }
+  if (typeof element.type === "function" && element.type.name === name) out.push(element);
+  for (const value of Object.values(element.props ?? {})) find(value, name, out);
+  return out;
+}
+
+describe("5. the term's rooms page: a button a group, and when it was last emailed and by whom", () => {
+  test("each group has its button, never emailed yet; drawing the page sends and writes nothing", async () => {
+    const drawn = await draw("claudia");
+    const [panel] = find(drawn.element, "TermRoomsEmail");
+    assert.ok(panel, "the panel is drawn");
+    assert.deepEqual(panel.props.emailing.incubators, []);
+    for (const group of [A, B, C]) assert.equal(panel.props.emailing.last[group], null);
+    const html = renderToStaticMarkup(createElement(panel.type, panel.props));
+    for (const name of ["Group A", "Group B", "Group C"]) assert.ok(html.includes(`Email ${name} its rooms`), name);
+    assert.ok(html.includes(words.EMAIL_EVERY_GROUP));
+    assert.ok(html.includes(words.NEVER_EMAILED));
+    assert.ok(html.includes(words.EMAIL_HEADING));
+    assert.equal(drawn.wrote, false);
+    assert.equal(world.mail.length, 0);
+  });
+
+  test("after a press: when, in the house clock, and by whom, from the group's History row", async () => {
+    world.db.poke("users/claudia", { displayName: "Claudia Brandt" });
+    w.at(new Date("2026-11-19T14:05:00Z"));
+    assert.equal((await press("claudia")).status, 200);
+    const drawn = await draw("zach");
+    const [panel] = find(drawn.element, "TermRoomsEmail");
+    assert.deepEqual(panel.props.emailing.last[C], { when: "Thu 19 Nov at 2:05pm", byName: auditRows("rooms-emailed")[0].actorName });
+    const html = renderToStaticMarkup(createElement(panel.type, panel.props));
+    assert.ok(html.includes(words.lastEmailedWords("Thu 19 Nov at 2:05pm", auditRows("rooms-emailed")[0].actorName)));
+    assert.equal(panel.props.emailing.last[B], null);
+    // What it read: the grid's own reads, each group's record by id, and the one History row a record names.
+    assert.deepEqual([...new Set(drawn.reads)].sort(), ["admissionRounds", "courseAttendance", "courseAudit", "courseGroups", "courseNudges", "courseRuns"]);
+    assert.equal(drawn.reads.filter((path) => path === "courseAudit").length, 1);
+    assert.equal(drawn.wrote, false);
+  });
+
+  test("an incubator's groups have no button: the page says why", async () => {
+    const form = read(formPath);
+    form.programmes[AGI].kind = "incubator";
+    world.db.seed(formPath, form);
+    const drawn = await draw("claudia");
+    const [panel] = find(drawn.element, "TermRoomsEmail");
+    assert.deepEqual(panel.props.emailing.incubators, [AGI]);
+    const html = renderToStaticMarkup(createElement(panel.type, panel.props));
+    assert.ok(html.includes(words.INCUBATOR_NO_EMAIL));
+    assert.ok(!html.includes("Email Group C its rooms"));
+  });
+
+  test("the lead of another programme is shown nothing of this one's groups", async () => {
+    const drawn = await draw("tess");
+    const [panel] = find(drawn.element, "TermRoomsEmail");
+    assert.deepEqual(Object.keys(panel.props.emailing.last).sort(), [...new Set(panel.props.sections.flatMap((section) => section.rows.map((row) => row.groupId)))].sort());
+    assert.ok(!Object.keys(panel.props.emailing.last).some((id) => [A, B, C].includes(id)));
+    assert.ok(!drawn.text.includes("AGI Strategy"));
+  });
+
+  test("saving the grid still emails nobody, and nothing but the panel's press reaches the route", () => {
+    const grid = readFileSync(join(SRC, "features", "courses", "weekRooms", "TermRoomsGrid.tsx"), "utf8");
+    assert.ok(!grid.includes("rooms-email"));
+    const callers = [...walkSource(SRC)].filter((file) => readFileSync(file, "utf8").includes("/rooms-email"));
+    assert.deepEqual(
+      callers.map((file) => file.slice(SRC.length + 1)).sort(),
+      // The panel, and the send module's own note of the route it serves.
+      [join("features", "courses", "weekRooms", "TermRoomsEmail.tsx"), join("lib", "courses", "termRoomsEmail", "send.ts")].sort(),
+    );
+  });
+});
