@@ -2366,6 +2366,79 @@ tab read before. Everything else comes from the records the tab already
 read. No index, rule or stored field is added, and nothing on these cards
 writes or emails anything.
 
+## Searching for a person or a group
+
+"Search people and groups" sits at the top of the app's sidebar, and in the
+phone's menu, for the people who run things. "/" anywhere opens it, except
+while somebody is typing in a field or an editor, with a modifier held, or
+over another dialog. It finds people and groups and nothing else.
+
+### Who may, and what each finds
+
+Worked out on the server, on every query, by `src/lib/search/load.ts`, from
+the lists each reader can already open, through those lists' own gates:
+
+| Reader | People, from | Groups, from | Each result opens |
+| --- | --- | --- | --- |
+| An admin | every account, by the full name the Members page shows | every live group of every run that is not being destroyed | the person's page under Members; the group's page under the programme that names its run, or the group's own page when no programme names it |
+| A programme's lead | the People tab's rows of each programme they lead (`readProgrammePeople`, after the tab's own gate and the admissions tree's page gate), by the tab's names | the live groups of the run each of those programmes names | the People tab opened on the person's row (`?person=`); the group's page under the programme |
+| A group's facilitator | the people their group's page lists (`listGroups` over `readRunRecords`, as `loadFacilitatorGroup` reads them), by the page's names | the live groups that name them, held to the facilitator's bar | the group's page, for both |
+
+Somebody who is both a lead and a facilitator finds each person once, by the
+People tab. Anybody else (a reviewer, the committee, a member, a waiting or
+refused account, somebody signed out) is drawn no box, and the route answers
+them one 403 with one sentence, whatever they send.
+
+A lead or a facilitator is never answered from a query over `users`. An
+admin's search reads the three name fields of each account (`select`), never
+an address.
+
+### What a result says
+
+A name as the reader is already shown it, one line saying what it is ("AGI
+Strategy · Group C", or for a group its programme, its run and its weekly
+time), and the page. Never an email address, a role or a status. Matching is
+on the name shown, folded for case and accents; a word of one or two letters
+has to start a word of the name; a group also matches on its programme and
+run. Nothing is matched on an address. The same answer comes back for a name
+nobody holds and for a name the reader may not see, after the same reads:
+the reader's whole list is read whatever was typed.
+
+At most six people and four groups, with a line when more matched.
+
+### Limits, and what is kept
+
+- Fewer than two letters asks nothing; more than 80 characters is refused.
+- The box asks after a pause in typing (350 milliseconds) or on Enter, never
+  on every key.
+- Thirty queries a minute and three hundred an hour per account, by the
+  site's per-account throttle (`src/lib/rateLimit.ts`), kept in the server's
+  memory, so nothing is written to count them; over it, a 429 with
+  `Retry-After`.
+- The words typed travel in a POST body, never in an address a request log
+  keeps. Nothing about a query (the words, what was found, that it was asked)
+  is written or logged anywhere, and no index of people is built or stored.
+
+### What one query reads
+
+- An admin: every account (three fields each), every group, each group's run
+  by address, every application form, and for the six people at most in the
+  answer, their places on courses (one `in`).
+- A lead: every form, then per programme they lead the form's sent
+  applications and decisions, the run and its groups and places.
+- A facilitator: the groups that name them (one `array-contains`), then per
+  run those groups are on, the run's records as the group page reads them
+  (the run, its groups, places and registers, the register switches, and the
+  accounts of its people and facilitators by address), and every form for the
+  programme's name.
+
+Every read is an equality, an `in` or an `array-contains` on one field, or a
+whole collection, so nothing needs a declared index. Nothing is written.
+
+### Deploy
+
+Nothing: no rule, no index and no setting changes.
+
 ## Asking people to facilitate
 
 The Facilitators view and the page that asks somebody to facilitate ("Ask, then

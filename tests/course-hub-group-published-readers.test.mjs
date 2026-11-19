@@ -566,6 +566,14 @@ const READERS = {
       "the notes admins keep, an admin's alone: a person's seats are read only for the runs they are on, to offer the " +
       "programme a note is written from. No group or placement is shown",
   },
+  "lib/search/load.ts": {
+    kind: "staff",
+    proof: ['if (searcher.kind === "admin") {', 'const snap = await db.collection("courseEnrolments").where("uid", "in", uids).get();'],
+    why:
+      "search, for an admin alone: the seats of the six people at most in an admin's answer are read for the programme " +
+      "and group to say beside each name, which an admin is shown for everybody placed. A lead's and a facilitator's " +
+      "people are the People tab's and the group page's own rows, read by those pages' own readers",
+  },
   "lib/courses/groupPage/load.ts": {
     kind: "staff",
     proof: [

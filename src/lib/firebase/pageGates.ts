@@ -2,10 +2,11 @@ import "server-only";
 import { redirect } from "next/navigation";
 import {
   canApproveCourse,
+  canAuthorAdmissionRound,
   canDraftCourse,
   canManageMembership,
 } from "@/lib/firestore/users";
-import { opensAdmissionsConsole } from "./admissionsConsole";
+import { holdsStanding } from "./eligibility";
 import { getCurrentUser, type SessionUser } from "./session";
 
 /**
@@ -78,7 +79,10 @@ export async function requireCourseAuthorPage(): Promise<SessionUser> {
  */
 export async function requireAdmissionsPage(): Promise<SessionUser> {
   const user = await getCurrentUser();
-  if (!user || !opensAdmissionsConsole(user)) {
+  const namedReviewer =
+    user?.admissionsReviewer === true &&
+    holdsStanding(user, "admissionRounds.reviewerUids");
+  if (!user || !(canAuthorAdmissionRound(user) || namedReviewer)) {
     redirect("/dashboard");
   }
   return user;

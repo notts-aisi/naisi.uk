@@ -7,12 +7,12 @@ import type { ApplicationForm } from "@/lib/applications/normalise";
 import { readProgrammePeople } from "@/lib/applications/people/load";
 import { listGroups, readRunRecords, slotLine, weeksOf } from "@/lib/courses/programmeAttendance";
 import { namingProgrammeIn } from "@/lib/courses/programmeLead";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
-import { opensAdmissionsConsole } from "@/lib/firebase/admissionsConsole";
+import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { canAuthorAdmissionRound } from "@/lib/firestore/users";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { lineOf, searchWorld, type SearchAnswer, type SearchCandidate, type SearchWorld } from "./model";
 
@@ -108,6 +108,17 @@ export type Searcher =
       facilitates: CourseGroupDoc[];
     };
 
+/**
+ * Whether the admissions pages would render for this person: the predicate
+ * `requireAdmissionsPage` (`src/lib/firebase/pageGates.ts`) applies, asked
+ * here before a link into that tree is offered, as Home's Requests line asks
+ * it (`src/lib/courses/requests/home.ts`). `tests/search.test.mjs` holds the
+ * two to the same words.
+ */
+function opensAdmissionsPages(user: SessionUser): boolean {
+  return canAuthorAdmissionRound(user) || (user.admissionsReviewer === true && holdsStanding(user, "admissionRounds.reviewerUids"));
+}
+
 /** An approved account: the floor under every other question. */
 function isApproved(user: SessionUser): boolean {
   return user.role === "member" || user.role === "committee" || user.role === "admin";
@@ -120,7 +131,7 @@ function isApproved(user: SessionUser): boolean {
  * admissions tree's page gate. Nobody the gate turns away is read for.
  */
 async function ledProgrammesOf(db: Firestore, user: SessionUser): Promise<LedProgramme[]> {
-  if (!opensAdmissionsConsole(user)) return [];
+  if (!opensAdmissionsPages(user)) return [];
   const out: LedProgramme[] = [];
   for (const form of await listForms(db)) {
     for (const programmeId of form.programmeIds) {

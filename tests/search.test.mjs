@@ -291,6 +291,16 @@ describe("who may search, as every persona", () => {
     assert.equal((await call("claudia", route.GET)).status, 403);
   });
 
+  test("a lead is found only where the admissions pages' gate admits them: the same predicate, word for word", () => {
+    const gate = read("src", "lib", "firebase", "pageGates.ts");
+    assert.match(gate, /canAuthorAdmissionRound\(user\) \|\| namedReviewer/, "the tree's gate changed: search's predicate must follow it");
+    assert.match(gate, /user\?\.admissionsReviewer === true &&\s+holdsStanding\(user, "admissionRounds\.reviewerUids"\)/);
+    assert.match(
+      read("src", "lib", "search", "load.ts"),
+      /return canAuthorAdmissionRound\(user\) \|\| \(user\.admissionsReviewer === true && holdsStanding\(user, "admissionRounds\.reviewerUids"\)\);/,
+    );
+  });
+
   test("a facilitator of an archived group, or of a run being destroyed, runs nothing", async (t) => {
     freshTerm(t, { [`courseGroups/${C}`]: { ...seed()[`courseGroups/${C}`], archived: true } });
     assert.equal(await load.searcherOf(w.world.db, sessionFor("tom")), null);
@@ -529,7 +539,7 @@ describe("the pages", () => {
 
   test("the shell draws the box and listens for the key only for somebody the route answers", () => {
     const shell = read("src", "layout", "AppShell.tsx");
-    assert.match(shell, /const searches = useSearches\(\);/);
+    assert.match(shell, /const searches = useSearches\(writesMessages \|\| admissionsReviewer\);/);
     assert.match(shell, /useSlashToSearch\(searches && !searchOpen && !loading,/);
     assert.equal((shell.match(/\{searches && <SearchButton/g) ?? []).length, 1);
     assert.equal((shell.match(/\{searches && \(\s*<SearchButton/g) ?? []).length, 1);
@@ -537,6 +547,8 @@ describe("the pages", () => {
     const hook = read("src", "features", "search", "useSearches.ts");
     assert.match(hook, /fetch\("\/api\/search", \{ cache: "no-store" \}\)/);
     assert.match(hook, /res\.ok && json\?\.searches === true/);
+    // A member who could run nothing on what the shell knows is never asked about: no read for them.
+    assert.match(hook, /const asks = uid !== null && couldRunThings && \(role === "member" \|\| role === "committee"\);/);
   });
 
   test("the key is never taken from a field or an editor, with a modifier, or from another dialog", () => {

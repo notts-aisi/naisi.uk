@@ -164,8 +164,9 @@ export default function AppShell({
   const { user, role, permissions, suRecognised, admissionsReviewer, loading } = useAuth();
   const pendingCount = usePendingCount();
   const writesMessages = useWritesMessages();
-  // Search for a person or a group: drawn only for somebody its route answers.
-  const searches = useSearches();
+  // Search for a person or a group: drawn only for somebody its route answers,
+  // and asked about only for somebody who could run something.
+  const searches = useSearches(writesMessages || admissionsReviewer);
   const [searchOpen, setSearchOpen] = useState(false);
   useSlashToSearch(searches && !searchOpen && !loading, () => setSearchOpen(true));
   const [exiting, setExiting] = useState(false);
