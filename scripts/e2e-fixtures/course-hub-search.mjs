@@ -171,8 +171,8 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people",
     ],
   },
-  /** Written 19 Nov 2026 with the lead's step added; verified once it passes again. */
-  status: "unverified",
+  /** Passed locally on 19 Nov 2026, all six steps, the lead's included, with a teardown manifest of zero. */
+  status: "verified",
   seed,
   countRows: countTerm,
   teardown,
