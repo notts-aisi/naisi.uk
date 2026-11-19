@@ -1806,7 +1806,9 @@ off), the session happened: for the people whose record gives them that week
 it counts as held and their mark on it is their mark, dated as that group's
 session was, on the rollup on their place, their own attendance on the run
 home, their row of the Attendance tab and its download, a group page's grid
-where they are a row, who finished and what a certificate counts
+where they are a row, who finished, what a certificate counts, and their
+own excused weeks (the week, what was asked and how it was decided, with
+nothing offered about it)
 (`countsFromArchivedGroup`, `src/lib/courses/archivedWeeks.ts`). An admin's
 correction of that register still reaches their figures. A register of an
 archived group never finished, or saying the session didn't happen, counts
