@@ -569,6 +569,19 @@ describe("visits, as each kind of reader", () => {
     assert.ok(!rahul.attendance.lines.some((each) => each.weekNumber === 2), "the cut keeps a week whose session was another group's");
   });
 
+  test("a visit standing to a session cancelled through Change a session is no visit here either", async () => {
+    const s = seed({ [AMARA_SEAT]: visiting(3) });
+    s[`courseGroups/${C}`] = {
+      ...s[`courseGroups/${C}`],
+      sessionChanges: { w03: { kind: "cancelled", reason: "Reading week", dateKey: "2026-11-18", byUid: "tom", at: new Date("2026-11-16T09:00:00Z") } },
+    };
+    w.reset(s);
+    const view = viewOf(await team("zach"));
+    assert.ok(!view.attendance.lines.some((each) => each.chips.includes("Visit")), "a cancelled session's visit is drawn as a visit");
+    assert.equal(view.weeks.find((week) => week.weekNumber === 3).visit, null);
+    assert.equal(view.attendance.counts.find((count) => count.key === "visits").value, 0);
+  });
+
   test("a visit that ended: nothing beyond its History rows, which an admin's Activity carries in their own words, once each", async () => {
     w.reset(seed(visitHistory()));
     const admin = viewOf(await team("zach"));
