@@ -1605,6 +1605,80 @@ answers in alphabetical order, from a day that is over only (waiting answers
 included, so it reads the same before and after the move). Nothing it is handed
 holds a day, a time or an id.
 
+## Anonymous feedback for the whole society
+
+One form for the whole society, always open, for any signed-in member, at
+`/anonymous-feedback`, linked from the foot of every signed-in page (the
+member's own and the admins' alike). It is the privacy policy's "second form
+that never records who fills it in". It is not the keep, change and drop form
+above and not a survey: `src/lib/societyFeedback/` (the library),
+`src/features/societyFeedback/` (the form, the admins' list and the clear-out),
+`src/app/(app)/anonymous-feedback/` (the page), `src/app/api/anonymous-feedback/`
+(sending), `src/app/(app)/admin/(admin-only)/surveys/anonymous-feedback/` (the
+admins' page, reached from a button on the head of Surveys) and
+`src/app/api/admin/anonymous-feedback/` (Dealt with and a note, the clear-out,
+the download). It shares the night's move job with the form above, and the
+term's choice (`chooseTerm`), and nothing else.
+
+| Collection | One per | Holds |
+| --- | --- | --- |
+| `societyFeedbackWaiting/{autoId}` | entry, until the night's move | `ENTRY_FIELDS`: `words`, `day`, `roundId`, `programmeId`, `programmeName`, `week`, `about` |
+| `societyFeedback/{autoId}` | entry, kept | the same seven fields, and later `dealtWith` and `note`, each `{ byUid, byName, at }` (the note with its `text`): admins acting |
+
+Both are server-only in both directions (deny-all rules). The admins' page
+reads `societyFeedback` by one range on `day`; the clear-out counts and
+deletes by one range on `day`; the move reads the whole small waiting
+collection. No index is declared for any of them.
+
+**Who may send, and what is kept.** The route asks the session once, for a yes
+or a no: an approved account (member, committee or admin) may send, a stranger
+is told to sign in (401), a waiting or refused account is refused (403), and a
+view-as session is refused first. Nothing else of the session goes further: the
+writer is handed what was sent, the programme the server found for it and the
+time, and writes exactly the seven fields. The programme's name is the form's,
+found again on the server (one form read and one run read); a session is a week
+of that programme's run, never past its last; "who it is about" is a role from a
+fixed list (`ABOUT_KEYS`), never a name. The words are up to 4,000 characters.
+Nothing is logged, and the answer is `{ ok: true }` with no id. Two limits keep
+floods out, both counts in the server's memory alone: 30 a minute per address
+(read for that key and nothing else) and 300 an hour for the whole form. No
+captcha. The browser sends its sign-in (only members may send) and no referrer,
+and keeps nothing.
+
+**The day, not the time.** As for the form above: an entry waits in
+`societyFeedbackWaiting`, and once its London day is over the job
+`anonymous-feedback-move` moves that day's entries, shuffled, into
+`societyFeedback` under new random ids and deletes what waited. Nothing that
+shows an entry ever reads the waiting place, so admins read an entry from the
+day after it was sent, once the move has run.
+
+**The admins' page.** Admins only (`requireAdminPage()`, and the page asks
+again). Reads per view: every application form (one query, for when this term
+began) and this term's kept entries (one range on `day`, at most 2,000). It
+shows only days before today, the newest first, ordered within a day by the
+entry's random id; a tab per programme named, one for "Not about a
+programme", and All, each with its count; a filter by role. Words are shown as
+text, never HTML, and no link in them is made live. Dealt with, and Add a note
+for admins (one note, replaced if written again), each record which admin and
+when on the entry; the page shows the note's line with the admin's name and the
+day. Download is every kept entry as a CSV, naming no admin. Before any term
+has begun the page shows every kept entry and no count line.
+
+**Clearing out, by hand.** Nothing deletes an entry on a timer. At the foot of
+the admins' page an admin chooses a day (it starts a year before today), presses
+Count them, and is asked to confirm that number; the route refuses a count that
+has changed since (409, with the new one) and a day after today, and deletes
+only kept entries sent before the day, never the waiting place. Done once a
+year with the day it starts on, no entry is kept for more than two years,
+which is what the privacy policy (version 21) says.
+
+**Guards.** `tests/society-feedback.test.mjs` runs the routes, the move and
+both pages in the programme surveys' world; `tests/society-feedback-no-trace.test.mjs`
+walks the form's files for a log, a cookie, a header, a second session read,
+a write of anything but the seven fields, and a reader of the waiting place;
+`scripts/rules-tests/tests/society-feedback.test.mjs` holds both collections
+shut to every browser.
+
 ## Surveys after events
 
 The survey an admin sends after one of NAISI's events, made from New survey's

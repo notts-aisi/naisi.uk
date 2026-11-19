@@ -112,6 +112,13 @@ const GUARDED_TREES = [
   // tests/event-view-as.test.mjs asks every handler here the same question
   // through the real code.
   "src/app/api/events",
+
+  // Anonymous feedback for the whole society. Sending one is refused in a
+  // view-as session: an admin looking through a member's eyes is not that
+  // member, and the entry would read as a member's own. The admins' routes
+  // record which admin marked or noted an entry, and clear entries for good.
+  "src/app/api/anonymous-feedback",
+  "src/app/api/admin/anonymous-feedback",
 ];
 
 /**
@@ -779,6 +786,10 @@ const MUST_GUARD = [
   ["src/app/api/events/[id]/archive/route.ts", "archives an event or brings it back"],
   ["src/app/api/events/[id]/delete/route.ts", "deletes an event that never went live, with its sign-ups, check-ins and list"],
   ["src/app/api/events/[id]/collaborators/route.ts", "changes who may edit an event"],
+  // ── Anonymous feedback ──────────────────────────────────────────────────────
+  ["src/app/api/anonymous-feedback/route.ts", "sends anonymous feedback, which would read as the viewed member's own"],
+  ["src/app/api/admin/anonymous-feedback/[entryId]/route.ts", "marks an entry of anonymous feedback dealt with or writes a note on it, in the presser's name"],
+  ["src/app/api/admin/anonymous-feedback/clear/route.ts", "deletes older anonymous feedback for good"],
 ];
 
 /**
