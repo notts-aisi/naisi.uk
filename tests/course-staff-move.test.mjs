@@ -804,8 +804,9 @@ describe("8. a notice about ONE session goes to the people of that session's wee
     const cover = source("app", "api", "courses", "groups", "[groupId]", "attendance", "cover", "route.ts");
     assert.match(cover, /updateEmailAudience\(db, run, \[group\], "group", group\.id, actor\.uid, \{ weekNumber: session\.weekNumber \}\)/);
     const column = source("lib", "courses", "registerCorrection", "column.ts");
-    assert.match(column, /toldFacts\(db, run, group, actor\.uid, session\.weekNumber\)/);
-    assert.match(column, /withFacilitators: true,\s*weekNumber: session\.weekNumber,/);
+    // Its week too, and it leaves out the visitors whose visit ends with It didn't happen (`except`), as the change does.
+    assert.match(column, /toldFacts\(db, run, group, actor\.uid, session\.weekNumber, except\)/);
+    assert.match(column, /withFacilitators: true,\s*weekNumber: session\.weekNumber,\s*except,/);
     const regular = source("app", "api", "courses", "groups", "[groupId]", "session", "regular", "route.ts");
     assert.match(regular, /toldFacts\(db, run, found, actor\.uid\),/);
   });
