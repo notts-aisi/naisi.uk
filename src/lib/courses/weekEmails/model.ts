@@ -184,8 +184,8 @@ export function reminderPlaceOf(group: CourseGroupDoc, session: Pick<ResolvedSes
   const campus = first ? campusForWeek(group, session.weekId) : (group.campus ?? null);
   const online = first ? onlineForRooms(group, session.weekId) : campus === "online";
   if (online) return { kind: "online" };
-  const typed = session.session.location.replace(/\s+/g, " ").trim();
-  const room = couldBeFollowed(typed) ? "" : typed;
+  const { location: typed } = session.session;
+  const room = couldBeFollowed(typed) ? "" : typed.replace(/\s+/g, " ").trim();
   if (!room) return { kind: "to-be-confirmed" };
   return { kind: "room", room, campus: campus === "online" ? "" : campusLabel(campus) };
 }
