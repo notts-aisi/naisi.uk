@@ -228,13 +228,27 @@ const RECIPIENT_SOURCES = new Map([
   // people emailed are that person (only when staff pressed) and the two
   // groups' facilitators, read on the server inside the transaction.
   [
+    "src/lib/courses/excused/decide.ts#input.uid",
+    {
+      reads: 1,
+      origin: "caller",
+      filteredBy: "request.aboutVisit &&",
+      why:
+        "The person whose visit ended, handed in by the visit's own save or by a session called off: only their own requests " +
+        "on the run are read (`standingRequestsIn`), and only one asked about that visit's session and still waiting is " +
+        "withdrawn. Nobody is emailed from it: a visit that ends takes its waiting request with it quietly.",
+    },
+  ],
+  [
     "src/lib/courses/visit/save.ts#input.uid",
     {
       // Four more since the limit on these emails: each save reads the facts
       // once before its transaction (so a refused press reads no counter) and
       // reads and claims the limit by the person's uid inside it
       // (`visitLimitsIn`), arranging and calling off.
-      reads: 14,
+      // Two more: arranging and calling off each hand it to the quiet withdrawal of a
+      // request still waiting about the visit's session (`withdrawVisitRequestsIn`).
+      reads: 16,
       origin: "caller",
       filteredBy: "if (!read.ok) throw new Stop(read);",
       why:

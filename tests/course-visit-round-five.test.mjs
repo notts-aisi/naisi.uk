@@ -27,6 +27,9 @@ const enrolments = await w.loadTs(join("lib", "firestore", "courseEnrolments.ts"
 const { loadRegisterMembers } = await w.loadTs(join("lib", "courses", "registerAccess.ts"));
 const { resolveNoticeAudience } = await w.loadTs(join("lib", "email", "courseFacilitatorEmails.ts"));
 const cancelRoute = await w.courseRoute("runs", "[runId]", "visit", "cancel");
+const askRoute = await w.courseRoute("groups", "[groupId]", "excused");
+const pushRoute = await w.courseRoute("groups", "[groupId]", "attendance", "push");
+const register = await w.courseRoute("groups", "[groupId]", "attendance");
 const { readVisitFacts, dbReader, weekChoices, standingVisits } = await w.loadTs(join("lib", "courses", "visit", "plan.ts"));
 
 const read = (path) => world.db.read(path);
@@ -214,5 +217,68 @@ describe("3. Group D's Monday was called off after the fact, her own Tuesday has
     await arrange("chloe", 4, C);
     const shown = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: D, preview: true });
     assert.deepEqual([shown.status, shown.body.error], [409, "Chloe already has a visit in week 4."]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. A visit that ends takes its waiting request with it, quietly
+// ---------------------------------------------------------------------------
+
+describe("4. a request waiting about the visit's session when the visit ends", () => {
+  const askA = () => call("chloe", askRoute.POST, { groupId: A }, { body: { sessionKeys: ["w04"], reason: "A family wedding that weekend.", inPerson: true, ownOnline: true, otherOnline: true }, course: true });
+  const requestOf = () => world.db.paths().filter((path) => /^courseRequests\/[^/]+$/.test(path)).map(read)[0];
+
+  for (const [how, end] of [
+    ["staff call the visit off", async () => (await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: 3 })).status],
+    ["the session is called off", async () => (await change("sofia", A, { tell: false })).status],
+  ]) {
+    test(`${how}: its week is withdrawn, with a line in its history, and nobody is sent anything about it`, async () => {
+      await arrange("chloe", 4, A);
+      assert.equal((await askA()).status, 200);
+      world.mail.length = 0;
+      assert.equal(await end(), 200);
+      const request = requestOf();
+      assert.equal(request.status, "withdrawn");
+      assert.equal(request.change.weeks[0].status, "withdrawn");
+      assert.equal(request.history.at(-1).what, "withdrawn");
+      assert.ok(!world.mail.some((message) => /excused/i.test(message.subject)), JSON.stringify(world.mail.map((message) => message.subject)));
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 5. Once both sessions have started, staff are given no advice
+// ---------------------------------------------------------------------------
+
+describe("5. a live visit to Group C once both sessions have started", () => {
+  test("staff are told it can no longer be cancelled, and nothing else", async () => {
+    await arrange("chloe", 4, C);
+    at("2026-11-25T15:00:00Z");
+    const shown = await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: 3 });
+    assert.deepEqual(
+      [shown.status, shown.body.error],
+      [409, "Group B’s week 4 session has started, so calling this visit off would count Chloe absent from a session Chloe was told not to go to. The visit can no longer be cancelled."],
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. Excused at home, visiting elsewhere
+// ---------------------------------------------------------------------------
+
+describe("6. excused from her own week 4 by an admin, then a visit to Group A", () => {
+  test("the excusal stays at home, she is a visitor with no excusal at the host, and coming counts as coming", async () => {
+    assert.equal((await call("zach", register.POST, { groupId: B }, { body: { weekNumber: 4, marks: [{ uid: "chloe", status: "excused" }] }, course: true })).status, 200);
+    await arrange("chloe", 4, A);
+    assert.ok((await rowsOf(A, 4)).includes("chloe"), "a row of the host's register");
+    assert.ok(!(await rowsOf(B, 4)).includes("chloe"), "not a row of her own that week");
+    at("2026-11-19T21:00:00Z");
+    assert.equal((await call("sofia", register.POST, { groupId: A }, { body: { weekNumber: 4, marks: [{ uid: "chloe", status: "present" }] }, course: true })).status, 200);
+    assert.equal((await call("sofia", pushRoute.POST, { groupId: A }, { body: { weekNumber: 4 }, course: true })).status, 200);
+    const { attendedInFull, excused, absent } = read(seatPath("chloe")).attendance;
+    assert.deepEqual({ attendedInFull, excused, absent }, { attendedInFull: 3, excused: 0, absent: 0 });
+    const tab = w.lib.attendance.buildRunAttendance(await w.lib.attendance.readRunRecords(world.courseDb, RUN.agi), { isAdmin: true }, new Date());
+    const cell = tab.groups.find((group) => group.id === B).people.find((person) => person.uid === "chloe").cells.find((each) => each.weekNumber === 4);
+    assert.deepEqual([cell.state, cell.mark], ["mark", "present"]);
   });
 });

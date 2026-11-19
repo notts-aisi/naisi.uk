@@ -8,6 +8,7 @@ import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { courseEnrolmentId, normalizeCourseEnrolment, ownGroupForWeek, placementIsTold, visitInWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
+import { withdrawVisitRequestsIn } from "@/lib/courses/excused/decide";
 import { visitLimitsIn } from "./limits";
 import { ownSessionThatWeek, visitRecipients, type VisitRecipient } from "./plan";
 import { sendAll, type VisitSaveAnswer } from "./save";
@@ -137,6 +138,8 @@ export async function endVisitsIn(
     const limits = await visitLimitsIn(tx, db, input.run.id, visit.uid, input.actor.uid);
     if (limits.refusal) return { refusal: limits.refusal, write: () => {} };
     claims.push(limits.write);
+    // A request still waiting about the session goes with the visit, quietly.
+    claims.push(await withdrawVisitRequestsIn(tx, db, { runId: input.run.id, uid: visit.uid, hostGroupId: input.host.id, weekNumber: input.weekNumber, byUid: input.actor.uid, now: new Date() }));
   }
   return {
     refusal: null,

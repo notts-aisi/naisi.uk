@@ -11,6 +11,7 @@ import { courseEnrolmentId, groupForWeek, ownGroupForWeek, type CourseEnrolmentD
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { SessionUser } from "@/lib/firebase/session";
+import { withdrawVisitRequestsIn } from "@/lib/courses/excused/decide";
 import { visitLimitsIn } from "./limits";
 import { MEMBER_NO_VISIT, arrangedEmailFor, dbReader, planCallOff, planVisit, readVisitFacts, txReader, type CallOffPlan, type VisitFacts, type VisitRecipient, type VisitRefusal } from "./plan";
 import {
@@ -193,6 +194,11 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
       // The limit on how often staff's presses email, read here and claimed with the writes.
       const limits = await visitLimitsIn(tx, db, input.runId, input.uid, input.actor.uid);
       if (limits.refusal) throw new Stop({ ok: false, status: 429, error: limits.refusal });
+      // A visit replaced: a request still waiting about its session goes with it, quietly.
+      const replaced = planned.plan.replaces;
+      const withdrawRequests = replaced
+        ? await withdrawVisitRequestsIn(tx, db, { runId: input.runId, uid: input.uid, hostGroupId: replaced.hostGroupId, weekNumber: input.weekNumber, byUid: input.actor.uid, now: input.now })
+        : () => {};
       const visit: OneWeekVisit = { weekNumber: input.weekNumber, groupId: planned.plan.hostGroupId, arrangedByUid: input.actor.uid, arrangedAt: input.now };
       // A visit to a session not happening that this one replaces goes in the same write.
       const visits = [...(facts.place.visits ?? []).filter((each) => !(planned.plan.replaces && each.weekNumber === input.weekNumber)), visit];
@@ -205,6 +211,7 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
 
       // Writes, after every read.
       limits.write();
+      withdrawRequests();
       tx.update(db.collection("courseEnrolments").doc(courseEnrolmentId(input.runId, input.uid)), {
         visits: storedVisits(visits),
         updatedAt: FieldValue.serverTimestamp(),
@@ -312,6 +319,8 @@ export async function callOffVisit(db: Firestore, input: CallOffInput): Promise<
       // Staff's press only: the person's own cancel is never counted.
       const limits = input.byStaff ? await visitLimitsIn(tx, db, input.runId, input.uid, input.actor.uid) : null;
       if (limits?.refusal) throw new Stop({ ok: false, status: 429, error: limits.refusal });
+      // A request still waiting about the visit's session goes with it, quietly.
+      const withdrawRequests = await withdrawVisitRequestsIn(tx, db, { runId: input.runId, uid: input.uid, hostGroupId: plan.host.id, weekNumber: input.weekNumber, byUid: input.actor.uid, now: input.now });
       const visits = (facts.place.visits ?? []).filter((visit) => visit.weekNumber !== input.weekNumber);
       const after: CourseEnrolmentDoc = { ...facts.place, ...(visits.length ? { visits } : {}) };
       if (!visits.length) delete after.visits;
@@ -319,6 +328,7 @@ export async function callOffVisit(db: Firestore, input: CallOffInput): Promise<
 
       // Writes, after every read.
       limits?.write();
+      withdrawRequests();
       tx.update(db.collection("courseEnrolments").doc(courseEnrolmentId(input.runId, input.uid)), {
         visits: visits.length ? storedVisits(visits) : FieldValue.delete(),
         updatedAt: FieldValue.serverTimestamp(),
