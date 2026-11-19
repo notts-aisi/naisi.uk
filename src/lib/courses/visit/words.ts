@@ -431,6 +431,7 @@ export const LINE_LABEL = {
   reading: "Reading",
   link: "Link",
   told: "Told",
+  replaces: "Replaces",
 } as const;
 
 /** The first line's label: "Week 2". */
@@ -712,4 +713,39 @@ export function changedWords(emails: number): string {
 /** 409: the session filled up between the page and the press. */
 export function nowFullWords(hostName: string): string {
   return `${groupName(hostName)} is full that week now. Check the page, then press again.`;
+}
+
+/**
+ * Staff-facing, on Change a session when calling off a session somebody is
+ * visiting whose own group's session that week is still to come: "1 person
+ * visiting this session is told their visit is off, whatever Tell the group
+ * says, and so are their own group's facilitators: 3 emails."
+ */
+export function visitsOffPreviewWords(people: number, emails: number): string {
+  const who = people === 1 ? "1 person visiting this session is" : `${people} people visiting this session are`;
+  return `${who} told their visit is off, whatever Tell the group says, and so are their own group’s facilitators: ${emails === 1 ? "1 email" : `${emails} emails`}.`;
+}
+
+/** Staff-facing, after the press: "1 email about a visit that ended could not be sent. Tell them another way." */
+export function visitsOffFailedWords(failed: number): string {
+  return `${failed === 1 ? "1 email" : `${failed} emails`} about a visit that ended could not be sent. Tell them another way.`;
+}
+
+/** Staff-facing 409: somebody's visit to the session started or stopped ending with it between the page and the press. */
+export const VISITS_CHANGED_WORDS = "Who is visiting this session has changed since the page was opened. Check it, then press again.";
+
+/**
+ * Staff-facing, after calling off a session somebody was visiting: "1 person
+ * visiting it was told their visit is off: 2 emails sent." with, when one
+ * could not be sent, `visitsOffFailedWords`.
+ */
+export function visitsOffDoneWords(people: number, sent: number, failed: number): string {
+  const who = people === 1 ? "1 person visiting it was" : `${people} people visiting it were`;
+  const told = `${who} told their visit is off: ${sent === 1 ? "1 email" : `${sent} emails`} sent.`;
+  return failed > 0 ? `${told} ${visitsOffFailedWords(failed)}` : told;
+}
+
+/** Staff-facing, the preview's first line when a visit replaces one to a session not happening: "This replaces Chloe’s visit to Group A’s session that week, which is not happening." */
+export function replacesLineWords(firstName: string, oldHostName: string): string {
+  return `This replaces ${firstName ? possessive(firstName) : "their"} visit to ${possessive(groupName(oldHostName))} session that week, which is not happening.`;
 }

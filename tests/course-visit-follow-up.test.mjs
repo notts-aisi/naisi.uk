@@ -421,7 +421,7 @@ describe("11. a host session called off or archived, the person leaving, and the
     return read_.facts;
   };
 
-  test("Group A's week 4 session called off: the group's notice audience holds her, her card goes, and staff see it is not happening and can still call the visit off", async () => {
+  test("Group A's week 4 session called off before her own session: the visit ends with it, her card goes, and she is back with her own group", async () => {
     await arrange("chloe", 4, A);
     // The group's notice about its session reaches her through the notice
     // audience for that week (course-visit-readers.test.mjs, section 3).
@@ -432,13 +432,10 @@ describe("11. a host session called off or archived, the person leaving, and the
       course: true,
     });
     assert.equal(off.status, 200, JSON.stringify(off.body));
-    assert.equal((await overview()).visits, undefined, "no card for a session that is not happening");
-    const standing = standingVisits(await facts(), "zach", new Date());
-    assert.equal(standing[0].gone, "Group A’s session that week is no longer happening.");
-    assert.equal(standing[0].open, true);
-    const called = await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: standing[0].emails });
-    assert.equal(called.status, 200, JSON.stringify(called.body));
-    assert.equal(seat("chloe").visits, undefined);
+    assert.deepEqual(off.body.visitsOff, { people: 1, sent: 2, failed: 0, words: null });
+    assert.equal(seat("chloe").visits, undefined, "the visit ended with the session");
+    assert.equal((await overview()).visits, undefined, "no card");
+    assert.deepEqual(standingVisits(await facts(), "zach", new Date()), []);
   });
 
   test("Group A archived: staff see it is not happening and can call the visit off; her own cancel reads it as none", async () => {

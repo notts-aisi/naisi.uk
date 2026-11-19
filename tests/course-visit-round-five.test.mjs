@@ -1,0 +1,218 @@
+/**
+ * A ONE-WEEK VISIT, THE OWNER'S ANSWERS: a session somebody is visiting,
+ * called off, ends the visit where their own group's session that week is
+ * still to come (the approved emails, whatever the tick) and otherwise leaves
+ * a visit that can be replaced; and what dev's newer pages read of a visitor.
+ *
+ * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
+ *
+ * The world is week 3 of AGI Strategy's run (`tests/lib/leavingWorld.mjs`):
+ * the clock is Tue 17 Nov 2026 at noon. Week 4 is Group A's Thu 19 Nov at
+ * 6pm (Sofia), Group D's Mon 23 Nov at 6pm (Grace), Group B's Tue 24 Nov at
+ * 6pm (Rahul and Sofia) and Group C's Wed 25 Nov at 1pm (Tom). Chloe is in
+ * Group B.
+ */
+import { beforeEach, describe, mock, test } from "node:test";
+import assert from "node:assert/strict";
+import { join } from "node:path";
+import { A, AGI, B, C, D, NOW, ROUND, RUN, makeLeavingWorld } from "./lib/leavingWorld.mjs";
+
+mock.timers.enable({ apis: ["Date"], now: NOW });
+
+const w = await makeLeavingWorld("__visitRoundFive");
+const { world, call } = w;
+const visitRoute = await w.formRoute("programmes", "[programmeId]", "people", "[uid]", "visit");
+const changeRoute = await w.courseRoute("groups", "[groupId]", "session", "change");
+const enrolments = await w.loadTs(join("lib", "firestore", "courseEnrolments.ts"));
+const { loadRegisterMembers } = await w.loadTs(join("lib", "courses", "registerAccess.ts"));
+const { resolveNoticeAudience } = await w.loadTs(join("lib", "email", "courseFacilitatorEmails.ts"));
+const cancelRoute = await w.courseRoute("runs", "[runId]", "visit", "cancel");
+const { readVisitFacts, dbReader, weekChoices, standingVisits } = await w.loadTs(join("lib", "courses", "visit", "plan.ts"));
+
+const read = (path) => world.db.read(path);
+const seatPath = (uid) => `courseEnrolments/${RUN.agi}__${uid}`;
+const seat = (uid) => enrolments.normalizeCourseEnrolment(`${RUN.agi}__${uid}`, read(seatPath(uid)));
+const at = (iso) => mock.timers.setTime(new Date(iso).getTime());
+const visit = (who, uid, body) => call(who, visitRoute.POST, { roundId: ROUND, programmeId: AGI, uid }, { body, course: true });
+async function arrange(uid, weekNumber, hostGroupId) {
+  const shown = await visit("zach", uid, { weekNumber, hostGroupId, preview: true });
+  assert.equal(shown.status, 200, JSON.stringify(shown.body));
+  const saved = await visit("zach", uid, { weekNumber, hostGroupId, emailCount: shown.body.preview.emails, overLimit: shown.body.preview.overLimit !== null });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+}
+const DATE = { [A]: "2026-11-19", [C]: "2026-11-25" };
+const change = (who, groupId, body) => call(who, changeRoute.POST, { groupId }, { body: { week: 4, dateKey: DATE[groupId], kind: "cancel", reason: "Away that week.", ...body }, course: true });
+const rowsOf = async (groupId, forWeek) => (await loadRegisterMembers(world.courseDb, RUN.agi, groupId, { isAdmin: true }, forWeek)).members.map((row) => row.uid);
+const mailTo = (uid) => world.mail.filter((message) => message.to.startsWith(`${uid}@`)).map((message) => message.subject);
+const historyOf = (groupId) => world.db.paths().filter((path) => path.startsWith("courseAudit/")).map(read).filter((row) => row.kind === "member-visit-off" && row.groupId === groupId);
+
+beforeEach(() => {
+  mock.timers.setTime(NOW.getTime());
+  w.reset();
+  for (const [groupId, count] of [
+    [A, 4],
+    [B, 3],
+    [C, 2],
+    [D, 2],
+  ]) {
+    world.db.poke(`courseGroups/${groupId}`, { memberCount: count });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 1. Called off with her own session still to come: the visit ends with it
+// ---------------------------------------------------------------------------
+
+describe("1. Group A's week 4 called off while her own Tuesday is still to come", () => {
+  test("not telling the group: the visit ends, she and Rahul are sent the approved emails, a History row on each group, and she is back on Group B's register", async () => {
+    await arrange("chloe", 4, A);
+    const preview = await change("sofia", A, { tell: false, preview: true });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    assert.equal(
+      preview.body.preview.visitsOff.words,
+      "1 person visiting this session is told their visit is off, whatever Tell the group says, and so are their own group’s facilitators: 2 emails.",
+    );
+    world.mail.length = 0;
+    const pressed = await change("sofia", A, { tell: false });
+    assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
+    assert.deepEqual(pressed.body.visitsOff, { people: 1, sent: 2, failed: 0, words: null });
+    assert.equal(seat("chloe").visits, undefined);
+    assert.deepEqual(mailTo("chloe"), ["Your visit to Group A for week 4 is off"]);
+    assert.equal(mailTo("rahul").length, 1, "her own group's facilitator");
+    assert.equal(mailTo("sofia").length, 0, "who pressed is told nothing");
+    assert.equal(historyOf(A).length, 1);
+    assert.equal(historyOf(B).length, 1);
+    assert.ok((await rowsOf(B, 4)).includes("chloe"));
+    assert.ok(!(await rowsOf(A, 4)).includes("chloe"));
+  });
+
+  test("telling the group: the count leaves her out, and the group's notice after the press does not reach her", async () => {
+    await arrange("chloe", 4, A);
+    const before = await resolveNoticeAudience(world.courseDb, RUN.agi, { logTag: "test", overCapAdvice: "" }, { groupId: A, weekNumber: 4 });
+    assert.ok(before.members.some((member) => member.uid === "chloe"));
+    const preview = await change("sofia", A, { tell: true, preview: true });
+    const emails = preview.body.preview.told.emails;
+    const pressed = await change("sofia", A, { tell: true, emailCount: emails });
+    assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
+    assert.equal(pressed.body.update.emailCount, emails);
+    const after = await resolveNoticeAudience(world.courseDb, RUN.agi, { logTag: "test", overCapAdvice: "" }, { groupId: A, weekNumber: 4 });
+    assert.ok(!after.members.some((member) => member.uid === "chloe"), "the visit ended: not the host's for that week");
+    assert.equal(before.members.length - 1, after.members.length);
+  });
+
+  test("the limit on these emails met: the whole change is refused and nothing is written", async () => {
+    await arrange("chloe", 4, A);
+    world.db.seed(`courseNudges/emailrate__visitperson__${RUN.agi}__chloe`, { kind: "staff-email-throttle", key: `visitperson__${RUN.agi}__chloe`, windowStartAt: new Date(), count: 10, updatedAt: new Date() });
+    const groupBefore = JSON.stringify(read(`courseGroups/${A}`));
+    world.mail.length = 0;
+    const pressed = await change("sofia", A, { tell: false });
+    assert.equal(pressed.status, 429);
+    assert.equal(JSON.stringify(read(`courseGroups/${A}`)), groupBefore);
+    assert.equal(seat("chloe").visits.length, 1);
+    assert.equal(world.mail.length, 0);
+  });
+
+  test("a send that fails: the visit has ended and the answer says so, for staff to tell her another way", async () => {
+    await arrange("chloe", 4, A);
+    world.mailFate = (args) => (args.to.startsWith("chloe@") ? "fail" : "sent");
+    try {
+      const pressed = await change("sofia", A, { tell: false });
+      assert.equal(pressed.status, 200);
+      assert.deepEqual(pressed.body.visitsOff, { people: 1, sent: 1, failed: 1, words: "1 email about a visit that ended could not be sent. Tell them another way." });
+      assert.equal(seat("chloe").visits, undefined);
+    } finally {
+      world.mailFate = undefined;
+    }
+  });
+
+  test("the session put back afterwards: the visit stays ended", async () => {
+    await arrange("chloe", 4, A);
+    assert.equal((await change("sofia", A, { tell: false })).status, 200);
+    const back = await change("sofia", A, { kind: "restore", tell: false });
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    assert.equal(seat("chloe").visits, undefined);
+  });
+
+  test("with no visit: the preview says nothing of visits and the answer carries none", async () => {
+    const preview = await change("sofia", A, { tell: false, preview: true });
+    assert.equal(preview.body.preview.visitsOff, null);
+    const pressed = await change("sofia", A, { tell: false });
+    assert.equal(pressed.status, 200);
+    assert.equal("visitsOff" in pressed.body, false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. Called off once her own session has started: the visit stands
+// ---------------------------------------------------------------------------
+
+describe("2. Group C's week 4 called off after her own Tuesday has started", () => {
+  test("the visit stands, she is in the group's notice like the host's people, and nothing else is sent", async () => {
+    await arrange("chloe", 4, C);
+    at("2026-11-24T19:00:00Z");
+    const preview = await change("tom", C, { tell: false, preview: true });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    assert.equal(preview.body.preview.visitsOff, null);
+    world.mail.length = 0;
+    const pressed = await change("tom", C, { tell: false });
+    assert.equal(pressed.status, 200);
+    assert.equal(seat("chloe").visits.length, 1);
+    assert.equal(world.mail.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. A visit to a session that is not happening can be replaced
+// ---------------------------------------------------------------------------
+
+describe("3. Group D's Monday was called off after the fact, her own Tuesday has started: a visit to Group C's Wednesday replaces it", () => {
+  async function standingToDCalledOff() {
+    await arrange("chloe", 4, D);
+    at("2026-11-24T21:00:00Z");
+    const off = await call("grace", changeRoute.POST, { groupId: D }, { body: { week: 4, dateKey: "2026-11-23", kind: "cancel", reason: "The room flooded.", tell: false }, course: true });
+    assert.equal(off.status, 200, JSON.stringify(off.body));
+    assert.equal(seat("chloe").visits.length, 1, "her own session had started: the visit stands");
+  }
+
+  test("the page offers week 4 again, the preview says what it replaces, and the press replaces it with the usual emails and a History row for the visit replaced", async () => {
+    await standingToDCalledOff();
+    const facts = await readVisitFacts(dbReader(world.courseDb), world.courseDb, RUN.agi, "chloe", "ahead", new Date());
+    assert.ok(weekChoices(facts.facts, new Date()).some((week) => week.weekNumber === 4 && week.visiting === false));
+    const shown = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: C, preview: true });
+    assert.equal(shown.status, 200, JSON.stringify(shown.body));
+    assert.deepEqual(shown.body.preview.lines[0], { label: "Replaces", text: "This replaces Chloe’s visit to Group D’s session that week, which is not happening." });
+    world.mail.length = 0;
+    const saved = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: C, emailCount: shown.body.preview.emails, overLimit: shown.body.preview.overLimit !== null });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.deepEqual(seat("chloe").visits.map((each) => [each.weekNumber, each.groupId]), [[4, C]]);
+    assert.equal(world.mail.length, shown.body.preview.emails);
+    assert.equal(historyOf(D).length, 1);
+  });
+
+  test("the new visit can be ended by her until Group C's session starts", async () => {
+    await standingToDCalledOff();
+    await arrange("chloe", 4, C);
+    at("2026-11-25T10:00:00Z");
+    const own = await call("chloe", cancelRoute.POST, { runId: RUN.agi }, { body: { weekNumber: 4 }, course: true });
+    assert.equal(own.status, 200, JSON.stringify(own.body));
+    assert.equal(seat("chloe").visits, undefined);
+    // Ended, she has no session that week, as before the replacement; nothing is left to replace.
+    assert.equal((await visit("zach", "chloe", { weekNumber: 4, hostGroupId: C, preview: true })).status, 409);
+  });
+
+  test("once Group C's session has started, staff can no longer end the new visit", async () => {
+    await standingToDCalledOff();
+    await arrange("chloe", 4, C);
+    at("2026-11-25T13:30:00Z");
+    const facts = await readVisitFacts(dbReader(world.courseDb), world.courseDb, RUN.agi, "chloe", "ahead", new Date());
+    const standing = standingVisits(facts.facts, "zach", new Date())[0];
+    const late = await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: standing.emails });
+    assert.deepEqual([late.status, late.body.error], [409, "The visit can no longer be cancelled: Group C’s session has started."]);
+  });
+
+  test("a visit to a session that IS happening is not replaced", async () => {
+    await arrange("chloe", 4, C);
+    const shown = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: D, preview: true });
+    assert.deepEqual([shown.status, shown.body.error], [409, "Chloe already has a visit in week 4."]);
+  });
+});

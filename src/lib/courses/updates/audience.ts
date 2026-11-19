@@ -131,6 +131,14 @@ export async function updateEmailAudience(
      * record of groups by week, the same people as without it.
      */
     weekNumber?: number | null;
+    /**
+     * People this notice leaves out though they are in its audience now: a
+     * session called off ends the visits to it of people whose own session
+     * is still to come, and they are told by the visit's own emails instead
+     * (`src/lib/courses/visit/hostOff.ts`), so the count said before the press
+     * is the count the notice reaches after it. Empty everywhere else.
+     */
+    except?: ReadonlySet<string>;
   } = {},
 ): Promise<UpdateEmailAudience> {
   if (to === "facilitators") {
@@ -143,7 +151,7 @@ export async function updateEmailAudience(
   });
   if (audience.refusal) return { recipients: [], refused: true };
   const recipients: UpdateRecipient[] = audience.members
-    .filter((member) => member.uid !== writerUid)
+    .filter((member) => member.uid !== writerUid && !options.except?.has(member.uid))
     .map((member) => ({ uid: member.uid, address: member.address }));
   if (to === "group" && options.withFacilitators) {
     const group = groups.filter((each) => each.id === groupId);

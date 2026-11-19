@@ -169,10 +169,16 @@ describe("3. staff call off a visit to a session that is not happening, until he
     ["marked not held after it", () => notHeld(A, new Date("2026-11-19T20:00:00Z"))],
     ["archived", () => world.db.poke(`courseGroups/${A}`, { archived: true })],
   ]) {
-    test(`Group A's session ${kind}: after Group A's start and before her own, staff can still call it off, and she is back on Group B's register`, async () => {
+    test(`Group A's session ${kind}: after Group A's start and before her own, the visit ends (called off through Change a session, with it) or staff can still call it off, and she is back on Group B's register`, async () => {
       await arrange("chloe", 4, A);
       at(AFTER_A);
       await makeIt();
+      if (kind === "called off") {
+        // Called off with her own session still to come: the visit ended in the same press (round five).
+        assert.equal(seat("chloe").visits, undefined);
+        assert.ok((await rowsOf(B, 4)).find((row) => row.uid === "chloe"), "on her own group's register for week 4");
+        return;
+      }
       const standing = await standingOf(4);
       assert.equal(standing.gone, "Group A’s session that week is no longer happening.");
       assert.deepEqual([standing.open, standing.stays], [true, null]);
@@ -283,11 +289,11 @@ describe("6. Group C meets after her own group in week 4: the deadlines, the car
     assert.equal((await staffCallOff(4)).status, 409);
   });
 
-  test("Group C's session called off before Group B's starts: staff call it off, and she is due at Group B's Tuesday", async () => {
+  test("Group C's session called off before Group B's starts: the visit ends with it, and she is due at Group B's Tuesday", async () => {
     await arrange("chloe", 4, C);
     at("2026-11-23T12:00:00Z");
     await callOffSession("tom", C, "2026-11-25");
-    assert.equal((await staffCallOff(4)).status, 200);
+    assert.equal(seat("chloe").visits, undefined);
     assert.ok((await rowsOf(B, 4)).some((row) => row.uid === "chloe"));
   });
 

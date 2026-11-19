@@ -512,6 +512,8 @@ export type OneWeekPreview = {
   /** A session called off after it started: what else follows (attendance, its lines, its check-in and report, the chase); null otherwise. */
   didNotHappen?: DidNotHappenPreview | null;
   notice: { title: string; message: string };
+  /** Visits to it that end with it, told by their own emails whatever the tick (`visit/hostOff.ts`); null with none. */
+  visitsOff?: { people: number; emails: number; words: string } | null;
   at: string | null;
 };
 
@@ -536,6 +538,9 @@ export type RegularPreview = {
 
 /** One line of "What will happen": its label and its sentence. */
 export type PreviewLine = { label: string; text: string };
+
+/** The label of the line saying which visits end with a session called off. */
+export const VISITS_LABEL = "Visits";
 
 /** The label of the line saying which covers end, as the route wrote each. */
 export const COVER_ENDS = "Cover";

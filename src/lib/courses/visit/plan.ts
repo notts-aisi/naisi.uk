@@ -48,6 +48,7 @@ import {
   linkLineWords,
   noLongerHappeningWords,
   overLimitWords,
+  replacesLineWords,
   ownWeekGoneWords,
   personEmailWords,
   readingLineWords,
@@ -399,12 +400,21 @@ export function cancelDeadline(input: {
   hostSession: ResolvedSession | null;
   home: CourseGroupDoc | null;
   ownSession: ResolvedSession | null;
+  /**
+   * When the visit was arranged (now, for one being arranged). A visit
+   * arranged after their own group's session had started (it replaced a
+   * visit to a session that stopped happening) goes by the host's session
+   * alone: their own session is behind them, and by the earlier of the two
+   * nobody could ever end it.
+   */
+  arrangedAt?: Date | null;
 }): { until: Date | null; first: { group: CourseGroupDoc; session: ResolvedSession } | null } {
   const hostStart = input.hostSession ? sessionInstants(input.hostSession).startsAt : null;
   const ownStart = input.ownSession ? sessionInstants(input.ownSession).startsAt : null;
   const hostFirst = input.hostSession ? { group: input.host, session: input.hostSession } : null;
   const ownFirst = input.ownSession && input.home ? { group: input.home, session: input.ownSession } : null;
-  if (ownStart && (!hostStart || ownStart.getTime() < hostStart.getTime())) return { until: ownStart, first: ownFirst };
+  const ownBehind = ownStart !== null && input.arrangedAt != null && ownStart.getTime() <= input.arrangedAt.getTime();
+  if (ownStart && !ownBehind && (!hostStart || ownStart.getTime() < hostStart.getTime())) return { until: ownStart, first: ownFirst };
   return { until: hostStart, first: hostStart ? hostFirst : ownFirst };
 }
 
@@ -435,12 +445,33 @@ function hostSessionRefusal(facts: VisitFacts, host: CourseGroupDoc, weekNumber:
   return { session, error: null };
 }
 
+/**
+ * Whether a host's session that week is happening: dated, not called off, not
+ * marked as not held, and its group still meets, or was archived after it
+ * held the session and finished its register (`countsFromArchivedGroup`).
+ */
+function hostHappeningIn(facts: Pick<VisitFacts, "run" | "registers">, host: CourseGroupDoc, weekNumber: number): { session: ResolvedSession | null; happening: boolean } {
+  const session = resolveSessions(facts.run, host).find((each) => each.weekNumber === weekNumber && each.occurrence === 1 && each.dateKey !== "") ?? null;
+  const register = session ? registerOf(facts, facts.run.id, host.id, session) : null;
+  const happening = session !== null && !session.cancelled && (register?.held ?? true) && (!host.archived || countsFromArchivedGroup(session, register));
+  return { session, happening };
+}
+
+/** A standing visit that week to a session that is not happening, which a visit to another session may replace; null otherwise. */
+export function replaceableVisit(facts: Pick<VisitFacts, "run" | "registers" | "groups">, hostId: string, weekNumber: number): { host: CourseGroupDoc } | null {
+  const host = facts.groups.find((group) => group.id === hostId) ?? null;
+  if (!host) return null;
+  return hostHappeningIn(facts, host, weekNumber).happening ? null : { host };
+}
+
 /** The marks that say somebody came: in the room, online, late, left early. */
 const CAME = new Set(["present", "late", "left-early"]);
 
 /** What arranging a visit would do. */
 export type VisitPlan = {
   weekNumber: number;
+  /** The visit to a session not happening this one replaces, in the same write; null when none stands. */
+  replaces: { hostGroupId: string; hostName: string } | null;
   hostGroupId: string;
   hostName: string;
   homeGroupId: string;
@@ -467,8 +498,17 @@ export type VisitPlan = {
 export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: string, actorUid: string, now: Date): { ok: true; plan: VisitPlan } | VisitRefusal {
   const { run, place, person, accounts } = facts;
   if (facts.oneGroup) return { ok: false, status: 409, error: VISIT_REFUSAL.oneGroup };
-  if (visitInWeek(place, weekNumber)) return { ok: false, status: 409, error: alreadyVisitingWords(person.firstName, weekNumber) };
-  const own = ownWeeksAhead(facts, now).find((week) => week.weekNumber === weekNumber) ?? null;
+  // A visit that stands that week is refused, unless its session is not
+  // happening: then a visit to another session replaces it in the same write.
+  const existing = visitInWeek(place, weekNumber);
+  const replaces = existing ? replaceableVisit(facts, existing.groupId, weekNumber) : null;
+  if (existing && !replaces) return { ok: false, status: 409, error: alreadyVisitingWords(person.firstName, weekNumber) };
+  // Their own group's session that week still to come; or, replacing a visit,
+  // that session whether or not it has started (the visit replaced is why
+  // they were not there).
+  const ownAhead = ownWeeksAhead(facts, now).find((week) => week.weekNumber === weekNumber) ?? null;
+  const ownAny = replaces ? ownSessionIn(facts, weekNumber) : null;
+  const own = ownAhead ?? (ownAny ? { weekNumber, home: ownAny.home, session: ownAny.session } : null);
   const homeId = ownGroupForWeek(place, weekNumber);
   // Their own group's sessions that week, and the requests about each as every reader pairs them.
   const aboutOwn = (sessionKey: string) => weeksAbout(facts.requests, place.uid, sessionKey, { groupId: homeId ?? "", visiting: false });
@@ -486,6 +526,7 @@ export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: st
   if (!host) return { ok: false, status: 404, error: VISIT_REFUSAL.noGroup };
   if (host.archived) return { ok: false, status: 409, error: hostArchivedWords(host.name) };
   if (host.id === own.home.id) return { ok: false, status: 409, error: hostIsOwnWords(person.firstName, host.name) };
+  if (replaces && host.id === replaces.host.id) return { ok: false, status: 409, error: alreadyVisitingWords(person.firstName, weekNumber) };
   const hostCheck = hostSessionRefusal(facts, host, weekNumber, now);
   if (hostCheck.error || !hostCheck.session) return { ok: false, status: 409, error: hostCheck.error ?? hostHasNoneWords(host.name, weekNumber) };
   const hostSession = hostCheck.session;
@@ -508,7 +549,7 @@ export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: st
   const hostFacts = sessionFacts(host, hostSession);
   const back = backDateKeyOf(facts, weekNumber, own.home.id);
   // The person's own cancel line ("Changed your mind? ... until ..."): the one deadline.
-  const earlier = cancelDeadline({ host, hostSession, home: own.home, ownSession: own.session }).first?.session ?? hostSession;
+  const earlier = cancelDeadline({ host, hostSession, home: own.home, ownSession: own.session, arrangedAt: now }).first?.session ?? hostSession;
   const emailFacts: VisitEmailFacts = {
     personName: person.name,
     personFirstName: person.firstName,
@@ -521,6 +562,7 @@ export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: st
     cancelUntil: { dateKey: earlier.dateKey, startTimeLocal: earlier.session.startTimeLocal },
   };
   const lines: VisitLineView[] = [
+    ...(replaces ? [{ label: LINE_LABEL.replaces, text: replacesLineWords(person.firstName, replaces.host.name) }] : []),
     {
       label: weekLabel(weekNumber),
       text: weekLineWords({ firstName: person.firstName, hostName: host.name, homeName: own.home.name, host: hostFacts, hostFacilitatorFirstNames: hostFirst, backDateKey: back }),
@@ -540,6 +582,7 @@ export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: st
     ok: true,
     plan: {
       weekNumber,
+      replaces: replaces ? { hostGroupId: replaces.host.id, hostName: replaces.host.name.trim() || "Untitled group" } : null,
       hostGroupId: host.id,
       hostName: host.name.trim() || "Untitled group",
       homeGroupId: own.home.id,
@@ -569,11 +612,25 @@ export function arrangedEmailFor(plan: Pick<VisitPlan, "emailFacts">, recipient:
 /** The weeks to choose, as the page draws them: each own week still to come, and whether a visit already stands in it. */
 export function weekChoices(facts: VisitFacts, now: Date): VisitWeekChoiceView[] {
   if (facts.oneGroup) return [];
-  return ownWeeksAhead(facts, now).map((week) => ({
-    weekNumber: week.weekNumber,
-    words: weekChoiceWords(week.weekNumber, week.home.name, { dateKey: week.session.dateKey, startTimeLocal: week.session.session.startTimeLocal }),
-    visiting: visitInWeek(facts.place, week.weekNumber) !== null,
-  }));
+  // A week with a visit to a session that is not happening can be chosen again: the new visit replaces it.
+  const replaceable = (weekNumber: number) => {
+    const visit = visitInWeek(facts.place, weekNumber);
+    return visit !== null && replaceableVisit(facts, visit.groupId, weekNumber) !== null;
+  };
+  const ahead = ownWeeksAhead(facts, now).map((week) => ({ weekNumber: week.weekNumber, home: week.home, session: week.session }));
+  const behind = (facts.place.visits ?? [])
+    .filter((visit) => !ahead.some((week) => week.weekNumber === visit.weekNumber) && replaceable(visit.weekNumber))
+    .flatMap((visit) => {
+      const own = ownSessionIn(facts, visit.weekNumber);
+      return own ? [{ weekNumber: visit.weekNumber, home: own.home, session: own.session }] : [];
+    });
+  return [...ahead, ...behind]
+    .sort((a, b) => a.weekNumber - b.weekNumber)
+    .map((week) => ({
+      weekNumber: week.weekNumber,
+      words: weekChoiceWords(week.weekNumber, week.home.name, { dateKey: week.session.dateKey, startTimeLocal: week.session.session.startTimeLocal }),
+      visiting: visitInWeek(facts.place, week.weekNumber) !== null && !replaceable(week.weekNumber),
+    }));
 }
 
 /** The sessions to choose for one week: every other live group's session that week that can be visited, Monday first. */
@@ -650,19 +707,13 @@ export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: bool
   const homeId = ownGroupForWeek(facts.place, weekNumber);
   const home = facts.groups.find((group) => group.id === homeId) ?? null;
   if (!host || !home) return { ok: false, status: 409, error: VISIT_REFUSAL.changed };
-  const hostSession = resolveSessions(facts.run, host).find((each) => each.weekNumber === weekNumber && each.occurrence === 1 && each.dateKey !== "") ?? null;
+  const { session: hostSession, happening } = hostHappeningIn(facts, host, weekNumber);
   const own = ownSessionIn(facts, weekNumber);
-  const hostRegister = hostSession ? registerOf(facts, facts.run.id, host.id, hostSession) : null;
-  const happening =
-    hostSession !== null &&
-    !hostSession.cancelled &&
-    (hostRegister?.held ?? true) &&
-    (!host.archived || countsFromArchivedGroup(hostSession, hostRegister));
   // Until the earlier of the two sessions starts, the host's read from its
   // own schedule even once its group is archived (`cancelDeadline`). Staff
   // calling off a visit to a session that is not happening go by their own
   // group's session alone: until it starts, whatever the clock says of the host's.
-  const deadline = cancelDeadline({ host, hostSession, home, ownSession: own?.session ?? null });
+  const deadline = cancelDeadline({ host, hostSession, home, ownSession: own?.session ?? null, arrangedAt: visit.arrangedAt });
   const ownStart = own ? sessionInstants(own.session).startsAt : null;
   const hostStart = hostSession ? sessionInstants(hostSession).startsAt : null;
   const staffNotHappening = byStaff && !happening;

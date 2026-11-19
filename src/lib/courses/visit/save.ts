@@ -118,7 +118,7 @@ async function rollupAfter(tx: Transaction, db: Firestore, run: CourseRunDoc, ho
   return plan.writes;
 }
 
-async function sendAll(
+export async function sendAll(
   recipients: readonly VisitRecipient[],
   input: { actorUid: string; runId: string; hostGroupId: string; homeGroupId: string; wordsFor: (recipient: VisitRecipient) => VisitEmailWords; greet: (recipient: VisitRecipient) => boolean },
 ): Promise<VisitSaveAnswer["emails"]> {
@@ -194,7 +194,8 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
       const limits = await visitLimitsIn(tx, db, input.runId, input.uid, input.actor.uid);
       if (limits.refusal) throw new Stop({ ok: false, status: 429, error: limits.refusal });
       const visit: OneWeekVisit = { weekNumber: input.weekNumber, groupId: planned.plan.hostGroupId, arrangedByUid: input.actor.uid, arrangedAt: input.now };
-      const visits = [...(facts.place.visits ?? []), visit];
+      // A visit to a session not happening that this one replaces goes in the same write.
+      const visits = [...(facts.place.visits ?? []).filter((each) => !(planned.plan.replaces && each.weekNumber === input.weekNumber)), visit];
       const after: CourseEnrolmentDoc = { ...facts.place, visits };
       // The week's session's group as written (the host), and the group they
       // belong to that week (their own): the two registers of that week.
@@ -219,6 +220,14 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
         db.collection(COURSE_AUDIT_COLLECTION).doc(),
         groupHistoryRow({ ...shared, kind: "member-visits", group: host, detail: visitingDetail(facts.person.name, host.name, input.weekNumber, reason), before: { groupId: home.id, group: home.name.trim() } }),
       );
+      if (planned.plan.replaces) {
+        // The visit replaced: a History row on its host and on their own group, as a visit called off.
+        const oldHost = facts.groups.find((group) => group.id === planned.plan.replaces?.hostGroupId);
+        const detail = calledOffDetail(facts.person.name, planned.plan.replaces.hostName, input.weekNumber);
+        for (const group of [home, oldHost].filter((each): each is CourseGroupDoc => Boolean(each))) {
+          tx.create(db.collection(COURSE_AUDIT_COLLECTION).doc(), groupHistoryRow({ ...shared, reason: null, kind: "member-visit-off", group, detail }));
+        }
+      }
       for (const write of rollup) tx.set(write.ref, { attendance: write.rollup }, { merge: true });
       counted = planned.plan.recipients;
       plan = planned.plan;
