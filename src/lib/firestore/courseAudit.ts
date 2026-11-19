@@ -126,6 +126,8 @@ export type CourseAuditKind =
   | "session-put-right"
   /** One week's room set, changed or taken off, that week only, its day and time untouched (the week's rooms, the term's rooms). */
   | "session-room"
+  /** The group emailed where each of its sessions still to come is, by hand from the term's rooms. */
+  | "rooms-emailed"
   /** The group's regular day, time, length, room or campus changed from one week onwards. */
   | "group-time-changed"
   /** The room the group meets in every week set or changed, from the Groups tab. */
@@ -228,6 +230,7 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "session-restored",
   "session-put-right",
   "session-room",
+  "rooms-emailed",
   "group-time-changed",
   "group-room-changed",
   "group-link-set",
@@ -274,6 +277,7 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "session-restored": "Session put back as usual",
   "session-put-right": "Session put right after it happened",
   "session-room": "Room set or taken off for one week",
+  "rooms-emailed": "Rooms for the rest of term emailed",
   "group-time-changed": "Regular time changed",
   "group-room-changed": "Room changed",
   "group-link-set": "Meeting link set",
@@ -308,6 +312,7 @@ const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory
   "session-restored": "time-and-room",
   "session-put-right": "time-and-room",
   "session-room": "time-and-room",
+  "rooms-emailed": "time-and-room",
   "group-time-changed": "time-and-room",
   "group-room-changed": "time-and-room",
   "group-link-set": "link",
