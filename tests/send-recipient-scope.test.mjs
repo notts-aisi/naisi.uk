@@ -54,6 +54,32 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SEND_DOORS = SEND_DOOR_CALL;
 
 /**
+ * HELPERS THAT SEND ON ANOTHER FILE'S BEHALF, which are not doors: a file that
+ * hands its recipients to one of these sends as surely as one calling a door,
+ * so the scan reads it too. Each is exported from a file that itself sends,
+ * checked below in both directions.
+ */
+const SENDS_THROUGH = new Map([
+  [
+    "sendAll",
+    {
+      file: "src/lib/courses/visit/save.ts",
+      why: "a one-week visit's emails, each recipient through `sendVisitEmail`: called by the visit's own save and by a session called off with a visit to it",
+    },
+  ],
+  [
+    "sendVisitsOff",
+    {
+      file: "src/lib/courses/visit/hostOff.ts",
+      why: "the emails of the visits that end with a session called off, through `sendAll`: called by Change a session and by a finished register's It didn't happen",
+    },
+  ],
+]);
+
+/** A file that sends: through a door, or through a helper that does. */
+const SENDS = new RegExp(`${SEND_DOORS.source}|\\b(?:${[...SENDS_THROUGH.keys()].join("|")})\\s*\\(`);
+
+/**
  * A name that reads as "somebody a message is going to". Not `audience`, which
  * in this tree is mostly the `"user" | "guest"` field on a subscription row and
  * costs a dozen entries that answer nothing.
@@ -120,7 +146,7 @@ function scanRecipientSources(roots, assert) {
       // A file that reads as nothing is a file this scan would silently skip,
       // so it fails here instead.
       assertReadable(raw, source, relative(REPO_ROOT, file), assert);
-      if (!SEND_DOORS.test(source)) continue;
+      if (!SENDS.test(source)) continue;
       const path = relative(REPO_ROOT, file).split("\\").join("/");
       let m;
       MEMBER_READ.lastIndex = 0;
@@ -237,6 +263,181 @@ const RECIPIENT_SOURCES = new Map([
         "The person whose visit ended, handed in by the visit's own save or by a session called off: only their own requests " +
         "on the run are read (`standingRequestsIn`), and only one asked about that visit's session and still waiting is " +
         "withdrawn. Nobody is emailed from it: a visit that ends takes its waiting request with it quietly.",
+    },
+  ],
+  // Calling a session off, by Change a session or by a finished register's own It
+  // didn't happen, ends a visit to it and sends the visit's emails through
+  // `sendVisitsOff` (`src/lib/courses/visit/hostOff.ts`): read as sending files.
+  [
+    "src/app/api/courses/groups/[groupId]/session/change/route.ts#audience.recipients",
+    {
+      reads: 4,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by updateEmailAudience (src/lib/courses/updates/audience.ts) for the one group with `withFacilitators` and the " +
+        "week of the session: the people whose session that week is the group's, from the run's own active, told enrolment " +
+        "rows through the shared cohort-audience helper, but the visitors whose visit ends with the session (`except`), and " +
+        "the group's facilitatorUids (written by src/lib/courses/groupFacilitators.ts) each held to their bar, never the " +
+        "presser. Nothing in the request names a recipient.",
+      why:
+        "The optional notice of a change to one session: who it reaches, counted by the same function the preview's number " +
+        "comes from; the request carries only that number, checked before anything changes.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/session/change/route.ts#found.facilitatorUids",
+    {
+      reads: 1,
+      origin: "gate",
+      why:
+        "Whether the presser facilitates the group, held to the bar they were appointed behind: who may change a session. " +
+        "It names no recipient.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/session/change/route.ts#press.visitEmails",
+    {
+      reads: 1,
+      origin: "caller",
+      filteredBy: "visitEmailsNow !== press.visitEmails",
+      why:
+        "The number of visit emails the preview showed, sent back with the press. Only compared with the number worked out " +
+        "again inside the transaction (a different one refuses, nothing written); it names nobody.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/session/change/route.ts#visit.recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/lib/courses/visit/hostOff.ts#local:recipients"],
+      why: "The emails of each visit that ends with the session, counted to compare with the number the press was shown.",
+    },
+  ],
+  [
+    "src/lib/courses/registerCorrection/column.ts#().uids",
+    {
+      reads: 5,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/attendance/route.ts",
+      why:
+        "The people marked on the session's register, written by the group's facilitators through the register's own route, " +
+        "never by the request: named in the preview, cleared from the register and taken off the figures. Nobody is emailed " +
+        "from them.",
+    },
+  ],
+  [
+    "src/lib/courses/registerCorrection/column.ts#linesCalledOff.uids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/attendance/route.ts",
+      why:
+        "The people marked on the session's register, written by the group's facilitators through the register's own route, " +
+        "never by the request: named in the preview, cleared from the register and taken off the figures. Nobody is emailed " +
+        "from them.",
+    },
+  ],
+  [
+    "src/lib/courses/registerCorrection/column.ts#linesSetForSession.uids",
+    {
+      reads: 2,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/attendance/route.ts",
+      why:
+        "The people marked on the session's register, written by the group's facilitators through the register's own route, " +
+        "never by the request: named in the preview, cleared from the register and taken off the figures. Nobody is emailed " +
+        "from them.",
+    },
+  ],
+  [
+    "src/lib/courses/registerCorrection/column.ts#emailTo.uids",
+    {
+      reads: 2,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by chaseFacts (src/lib/courses/registerCorrection/chase.ts): the people the unfinished register's reminder " +
+        "would go to again, the group's facilitators held to their bar, read on the server. Only their names reach the " +
+        "preview; nothing is sent from it here.",
+      why: "Who a correction's preview says the register's reminder goes to again, named for the reader.",
+    },
+  ],
+  [
+    "src/lib/courses/registerCorrection/column.ts#audience.recipients",
+    {
+      reads: 4,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by updateEmailAudience (src/lib/courses/updates/audience.ts) for the one group with `withFacilitators` and the " +
+        "week of the session: the people whose session that week is the group's, from the run's own active, told enrolment " +
+        "rows through the shared cohort-audience helper, but the visitors whose visit ends with the session (`except`), and " +
+        "the group's facilitatorUids (written by src/lib/courses/groupFacilitators.ts) each held to their bar, never the " +
+        "presser. Nothing in the request names a recipient.",
+      why:
+        "It didn't happen's optional notice: who it reaches, counted by the same function the preview's number comes from; " +
+        "the request carries only that number, checked before anything changes, and the sheet posts the notice itself.",
+    },
+  ],
+  [
+    "src/lib/courses/registerCorrection/column.ts#body.visitEmails",
+    {
+      reads: 6,
+      origin: "caller",
+      filteredBy: "body.visitEmails < 0",
+      why:
+        "The number of visit emails the preview showed, sent back with the press: a whole number or the press is refused. " +
+        "It names nobody.",
+    },
+  ],
+  [
+    "src/lib/courses/registerCorrection/column.ts#press.visitEmails",
+    {
+      reads: 2,
+      origin: "caller",
+      filteredBy: "visitEmailsNow !== press.visitEmails",
+      why:
+        "The same number, handed to the session's own check and compared with the number worked out again inside the " +
+        "transaction (a different one refuses, nothing written). It names nobody.",
+    },
+  ],
+  [
+    "src/lib/courses/registerCorrection/column.ts#visit.recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/lib/courses/visit/hostOff.ts#local:recipients"],
+      why: "The emails of each visit that ends with the session, counted to compare with the number the press was shown.",
+    },
+  ],
+  [
+    "src/lib/courses/visit/hostOff.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by visitRecipients (src/lib/courses/visit/plan.ts) from the account of the person whose visit ends and the " +
+        "facilitators named on their own group's document, each held to the standing the role is appointed behind, with " +
+        "an address, never the presser. The person is a told learner whose visit to that session the run's own places " +
+        "record; nothing in a request names anybody.",
+      why: "Who a visit that ends with its session emails: the person, and their own group's facilitators.",
+    },
+  ],
+  [
+    "src/lib/courses/visit/hostOff.ts#each.recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/lib/courses/visit/hostOff.ts#local:recipients"],
+      why: "The same people, counted for the preview's staff-facing sentence.",
+    },
+  ],
+  [
+    "src/lib/courses/visit/hostOff.ts#visit.recipients",
+    {
+      reads: 2,
+      origin: "derived",
+      derivedFrom: ["src/lib/courses/visit/hostOff.ts#local:recipients"],
+      why: "The same people: the number on the History row, and the list `sendAll` emails one by one after the commit.",
     },
   ],
   [
@@ -2050,6 +2251,27 @@ describe("every uid array in a sending file is registered", () => {
         `${key} is read ${found.get(key)} times, the registry says ${entry.reads}. A second ` +
           "read must be looked at rather than folded into the entry above it.",
       );
+    }
+  });
+
+  test("a helper that sends on another file's behalf is one, both ways: exported from a file that sends, and called from another", () => {
+    for (const [name, { file, why }] of SENDS_THROUGH) {
+      assert.ok(why.length >= 55, `${name}: say why`);
+      const source = codeOf(join(REPO_ROOT, file));
+      assert.match(source, new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}\\s*\\(`), `${name} is not exported from ${file}`);
+      const others = [...SENDS_THROUGH.keys()].filter((other) => other !== name);
+      const sends = SEND_DOORS.test(source) || others.some((other) => new RegExp(`\\b${other}\\s*\\(`).test(source));
+      assert.ok(sends, `${file} defines ${name} and sends through no door: it is no sending helper`);
+      const callers = [];
+      for (const root of ["src/app/api", "src/lib"]) {
+        for (const each of walkTs(join(REPO_ROOT, root))) {
+          const path = relative(REPO_ROOT, each).split("\\").join("/");
+          if (path !== file && new RegExp(`\\b${name}\\s*\\(`).test(codeOf(each))) callers.push(path);
+        }
+      }
+      assert.ok(callers.length > 0, `${name} is called from no other file: take it off the list`);
+      // And every file calling it is read by the scan as a sending file.
+      for (const caller of callers) assert.ok(SENDS.test(codeOf(join(REPO_ROOT, caller))), `${caller} calls ${name} and is not scanned`);
     }
   });
 

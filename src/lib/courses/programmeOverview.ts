@@ -38,7 +38,7 @@ import { OPEN_WEEK_ONE, WEEK_ONE_NOT_READY, weekOneLine } from "@/lib/courses/we
 import { weekIsReady } from "@/lib/courses/weekReady";
 import { courseNudgeSessionWhere } from "@/lib/email/courseNudgeEmail";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
-import { ownGroupForWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { ownGroupForWeek, visitInWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { campusForWeek, sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { weekDocId } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
@@ -300,12 +300,30 @@ function weekCard(
 /** What the week card says of week 1 once it is marked ready, before any group has met. */
 const WEEK_ONE_READY = "Ready: everyone holding a place can open week 1.";
 
-/** The people on a group's register for one week: everybody listed whose cell is not before or after them. */
-function onRegister(listed: ListedGroup, weekNumber: number): { came: number; marked: number; of: number } {
+/**
+ * The people on a group's register for one week: everybody listed whose cell
+ * is not before or after them. Somebody on a ONE-WEEK VISIT is on the host's
+ * register that week, never their own group's: their row is listed under
+ * their own group, and its cell for the visit's week is read off the host's
+ * register (`listGroups`), so it is counted on the host's row and nowhere
+ * else. Everybody else is counted under the group they are listed in, as
+ * always.
+ */
+function onRegister(
+  listed: ListedGroup,
+  weekNumber: number,
+  everyone: readonly ListedGroup[],
+): { came: number; marked: number; of: number } {
   let came = 0;
   let marked = 0;
   let of = 0;
-  for (const { row } of listed.people) {
+  const people = everyone.flatMap((each) =>
+    each.people.filter(({ enrolment }) => {
+      const visit = visitInWeek(enrolment, weekNumber);
+      return visit ? visit.groupId === listed.group.id : each.group.id === listed.group.id;
+    }),
+  );
+  for (const { row } of people) {
     const cell = row.cells.find((c) => c.weekNumber === weekNumber);
     if (!cell || cell.state === "before" || cell.state === "after" || cell.state === "none") continue;
     of += 1;
@@ -484,7 +502,7 @@ export async function buildProgrammeOverview(
       const isTomorrow = facts.session.dateKey === tomorrowKey;
       const clock = facts.startsAt ? londonClockLabel(facts.startsAt) : "";
       const day = isToday ? "Today" : isTomorrow ? "Tomorrow" : facts.startsAt ? londonDayLabel(facts.startsAt) : dayLabel(facts.session.dateKey);
-      const counts = onRegister(entry, facts.session.weekNumber);
+      const counts = onRegister(entry, facts.session.weekNumber, listed);
       const base = {
         groupId: group.id,
         groupName: group.name,

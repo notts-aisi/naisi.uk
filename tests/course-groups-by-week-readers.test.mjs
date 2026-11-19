@@ -462,7 +462,7 @@ const READERS = {
   },
   "lib/courses/programmeOverview.ts": {
     kinds: ["now", "own"],
-    why: "a leaver no register marked is named under the group their place names, the one they were in when they left; every attendance row and figure is the Attendance tab's, which reads each week's session's group (a visitor counted on the host's row that week and once in the whole week); the week's work is counted under the group each place belongs to that week (ownGroupForWeek), as its group page counts it, so a visitor's work stays their own group's",
+    why: "a leaver no register marked is named under the group their place names, the one they were in when they left; every attendance row and figure is the Attendance tab's, which reads each week's session's group (a visitor counted on the host's row that week and once in the whole week), and a session's own count of who came is the people on that session's register, so a visitor's row, listed under their own group, is counted on the host's session for the visit's week (visitInWeek) and on no other; the week's work is counted under the group each place belongs to that week (ownGroupForWeek), as its group page counts it, so a visitor's work stays their own group's",
   },
   "lib/courses/visit/hostOff.ts": {
     kinds: ["own"],
