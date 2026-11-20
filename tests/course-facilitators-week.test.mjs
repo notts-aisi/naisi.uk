@@ -34,6 +34,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { walkSource } from "./lib/functionScan.mjs";
 import { A, B, C, RUN, makeSessionsWorld } from "./lib/sessionsWorld.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
+import { assertNothingReorders, laptopLayout, phoneOrder } from "./lib/groupPageOrder.mjs";
 
 const ui = { h: createElement, attendance: null };
 globalThis.__facWeekUi = ui;
@@ -304,6 +305,44 @@ describe("2. before the session on Group B's page, as each reader", () => {
         assert.ok(!refused.text.includes(said2), `${said} is shown "${said2}"`);
       }
     }
+  });
+
+  test("the page reads in the order of a session, from one order in the markup: top to bottom on a phone, two columns on a laptop", async () => {
+    worldOfWeekFour();
+    const drawn = await draw("rahul");
+    assert.equal(drawn.to, null);
+    const { html } = drawn;
+    // Each card by the attribute that names it, in the order a facilitator uses the page. A week of the summer's
+    // kind: no week's work to count, no review queue's halves, no This week's work (the blocks' suite holds those).
+    const at = phoneOrder(html, [
+      ["the head, with Write and Change a session", '<header class="head"'],
+      ["the session", 'data-testid="session-card"'],
+      ["who is joining online", 'data-testid="joining-online-box"'],
+      ["before the session", 'aria-labelledby="before-the-session"'],
+      ["the updates", 'aria-labelledby="group-updates"'],
+      ["how the group meets", 'aria-labelledby="group-meets-facilitator"'],
+      ["each week's meeting link", 'aria-labelledby="meeting-links"'],
+      ["the exercises to review", 'aria-labelledby="group-to-review"'],
+      ["your group", 'aria-labelledby="group-people"'],
+      ["the registers", 'aria-labelledby="group-registers"'],
+      ["the pace", 'aria-labelledby="group-pace"'],
+      ["the notes", 'aria-labelledby="group-notes"'],
+    ]);
+    assert.ok(drawn.html.indexOf("Write to Group B") > at["the head, with Write and Change a session"] && drawn.html.indexOf("Write to Group B") < at["the session"], "Write is not in the head");
+    assertNothingReorders(html);
+    // A laptop: the session across the page; who is coming on the left, the updates and how the group meets on the
+    // right, the meeting links inside it; the exercises to review across the page; the group on the left, the pace
+    // and the notes on the right.
+    const { rows, blocks, column, inside, card } = laptopLayout(html);
+    assert.equal(blocks.length, 2, "the page is not two blocks of two columns");
+    const [session, group] = blocks;
+    assert.ok(inside(rows, at["the session"]) && at["the session"] < session.from, "the session is not across the page over the columns");
+    for (const name of ["who is joining online", "before the session"]) assert.ok(inside(column(session, "colMain"), at[name]), `${name} is not on the left`);
+    for (const name of ["the updates", "how the group meets"]) assert.ok(inside(column(session, "colSide"), at[name]), `${name} is not on the right`);
+    assert.ok(inside(card(at["how the group meets"]), at["each week's meeting link"]), "the meeting links are not inside how the group meets");
+    assert.ok(at["the exercises to review"] > session.to && at["the exercises to review"] < group.from, "the exercises to review are not between the blocks");
+    for (const name of ["your group", "the registers"]) assert.ok(inside(column(group, "colMain"), at[name]), `${name} is not on the left`);
+    for (const name of ["the pace", "the notes"]) assert.ok(inside(column(group, "colSide"), at[name]), `${name} is not on the right`);
   });
 
   test("in a view-as session the list of links has nothing to press, as the box has nothing to press", async () => {

@@ -55,6 +55,7 @@ import { fileURLToPath } from "node:url";
 import { walkSource } from "./lib/functionScan.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
 import { find } from "./lib/facilitatorPagesWorld.mjs";
+import { assertNothingReorders, laptopLayout, phoneOrder } from "./lib/groupPageOrder.mjs";
 import {
   AGI,
   B,
@@ -555,18 +556,65 @@ describe("4. This week's work and the review queue's counts", () => {
     assert.ok(queueOf(asAdmin));
   });
 
+  test("on a week written as blocks the page reads in the order of a session: top to bottom on a phone, two columns on a laptop", async () => {
+    // Chloe said she is joining tonight's session online, so the box about it draws too.
+    const seed = facilitatorWeekSeed();
+    seed[`courseAttendance/${RUN.agi}__${B}__w03`] = { runId: RUN.agi, groupId: B, weekNumber: 3, onlineSaid: { chloe: new Date(NOW) } };
+    reset(seed);
+    for (const who of ["rahul", "zach"]) {
+      const { html } = await groupPage(who);
+      const at = phoneOrder(html, [
+        ["the head, with Write and Change a session", '<header class="head"'],
+        ["the session", 'data-testid="session-card"'],
+        ["who is joining online", 'data-testid="joining-online-box"'],
+        ["before the session", 'aria-labelledby="before-the-session"'],
+        ["who has done the week", 'data-testid="week-work-count"'],
+        ["the updates", 'aria-labelledby="group-updates"'],
+        ["how the group meets", 'aria-labelledby="group-meets-facilitator"'],
+        ["each week's meeting link", 'aria-labelledby="meeting-links"'],
+        ["the written answers' half of the review queue", 'class="cardTitle">Feedback to write</h2>'],
+        ["the reflections' half of the review queue", 'class="cardTitle">Review queue</h2>'],
+        ["the exercises to review", 'aria-labelledby="group-to-review"'],
+        ["this week's work", 'aria-labelledby="this-weeks-work"'],
+        ["your group", 'aria-labelledby="group-people"'],
+        ["the registers", 'aria-labelledby="group-registers"'],
+        ["the pace", 'aria-labelledby="group-pace"'],
+        ["the notes", 'aria-labelledby="group-notes"'],
+      ]);
+      assertNothingReorders(html);
+      const { rows, blocks, column, inside, card } = laptopLayout(html);
+      assert.equal(blocks.length, 2, `${who}: the page is not two blocks of two columns`);
+      const [session, group] = blocks;
+      assert.ok(inside(rows, at["the session"]) && at["the session"] < session.from, `${who}: the session is not across the page over the columns`);
+      for (const name of ["who is joining online", "before the session"]) assert.ok(inside(column(session, "colMain"), at[name]), `${who}: ${name} is not on the left`);
+      for (const name of ["who has done the week", "the updates", "how the group meets"]) {
+        assert.ok(inside(column(session, "colSide"), at[name]), `${who}: ${name} is not on the right`);
+      }
+      assert.ok(inside(card(at["how the group meets"]), at["each week's meeting link"]), `${who}: the meeting links are not inside how the group meets`);
+      // The review queue and This week's work across the page, between the two blocks.
+      for (const name of ["the written answers' half of the review queue", "the reflections' half of the review queue", "the exercises to review", "this week's work"]) {
+        assert.ok(at[name] > session.to && at[name] < group.from && !blocks.some((block) => inside(block, at[name])), `${who}: ${name} is not across the page between the blocks`);
+      }
+      for (const name of ["your group", "the registers"]) assert.ok(inside(column(group, "colMain"), at[name]), `${who}: ${name} is not on the left`);
+      for (const name of ["the pace", "the notes"]) assert.ok(inside(column(group, "colSide"), at[name]), `${who}: ${name} is not on the right`);
+    }
+  });
+
   test("a week written before blocks draws none of it, and the summer's page stands as it was", async () => {
     reset(facilitatorWeekSeed({ [`courseRuns/${RUN.agi}/weeks/w03`]: { weekNumber: 3, title: "Who decides what AGI means", summary: "", published: true, materials: [], checklist: [], exercises: [] } }));
     const drawn = await groupPage("rahul");
     assert.equal(weekOf(drawn), null);
     assert.equal(queueOf(drawn), null);
-    // The summer's order, as before: the ticket (with the guide's sentence, nothing being loaded in
-    // this world), the group, the registers, then the work to review.
+    // The summer's cards, in the page's one order (the order of a session): the ticket (with the guide's
+    // sentence, nothing being loaded in this world), then who is coming; the updates and how the group meets
+    // with its meeting links; the work to review; then the group, the registers and the pace.
     assert.match(
       drawn.text,
-      /Take the register There’s nothing in this course’s facilitator guide yet\. Claudia or an admin loads it, and it will show here\. Your group Weeks 1 and 2/,
+      /Take the register There’s nothing in this course’s facilitator guide yet\. Claudia or an admin loads it, and it will show here\. Before the session Week 3 · Tue 17 Nov /,
     );
-    assert.match(drawn.text, /Week 3 Tue 17 Nov Tonight To review 3/);
+    assert.match(drawn.text, /Meeting links Week 1 · Tue 3 Nov · met No link .* Week 6 · Tue 8 Dec No link Set the link To review 3 /);
+    assert.match(drawn.text, /Review exercises → Your group Weeks 1 and 2 /);
+    assert.match(drawn.text, /Week 3 Tue 17 Nov Tonight Pace On pace with the programme\./);
   });
 });
 

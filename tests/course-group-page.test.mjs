@@ -723,7 +723,7 @@ describe("3. the group's page, and the facilitator's cut", () => {
     assert.ok(nonsense.text.includes(words.GROUP_NOT_HERE_TITLE));
   });
 
-  test("the facilitator's own group page carries the cut above what was there: words, Change one week, Set the link, the weeks", async () => {
+  test("the facilitator's own group page carries the cut: words, Change one week, Set the link, the weeks, and each week's meeting link inside it", async () => {
     const drawn = await draw(FacilitatorGroupPage, "rahul", { runId: RUN.agi, groupId: B });
     assert.equal(drawn.to, null, drawn.to);
     for (const said of ["Tuesdays, 6pm to 8pm", "Change one week", "or an admin changes the regular time or room.", "Tue 3 Nov · no register"]) {
@@ -734,6 +734,10 @@ describe("3. the group's page, and the facilitator's cut", () => {
     assert.ok(cut);
     assert.equal(cut.props.view.history, null);
     assert.ok(cut.props.view.weeks.every((each) => each.people.length === 0));
+    // Each week's meeting link is drawn inside the cut, from the same view.
+    const links = find(cut.props.children, "MeetingLinks");
+    assert.equal(links.length, 1, "the meeting links are not inside how the group meets");
+    assert.equal(links[0].props.view, cut.props.view);
   });
 
   test("the change panel greys out Cancel and push the rest back once a later week has met, and says why", async () => {
