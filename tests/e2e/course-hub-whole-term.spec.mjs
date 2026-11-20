@@ -291,14 +291,21 @@ async function assertGroupNotForYou(pg, origin, path, group, who) {
   const calm = pg.getByTestId("not-for-you");
   await calm.waitFor({ timeout: WAIT_MS });
   assert.equal(new URL(pg.url()).pathname, path, `${who} was moved off the group's page to ${new URL(pg.url()).pathname}`);
+  // Each piece on its own: `textContent` runs the elements together with no
+  // space between them, so the whole is never compared as one string.
   assert.equal(await textOf(calm.getByRole("heading", { level: 1 })), "This page isn’t for your account");
+  const lines = calm.locator("p");
+  assert.equal(await lines.count(), 2, `${who} reads ${await lines.count()} sentences`);
+  assert.equal(await textOf(lines.nth(0)), "It’s for a group’s facilitators and admins.", `${who} is told the page is for somebody else`);
   assert.equal(
-    await textOf(calm),
-    "This page isn’t for your account It’s for a group’s facilitators and admins. " +
-      "If you facilitate this group and can’t open it, ask the team and we’ll put it right. My programmes",
+    await textOf(lines.nth(1)),
+    "If you facilitate this group and can’t open it, ask the team and we’ll put it right.",
     `${who} reads other words`,
   );
-  assert.equal(await calm.getByRole("link", { name: "My programmes", exact: true }).getAttribute("href"), "/learn");
+  const ways = calm.getByRole("link");
+  assert.equal(await ways.count(), 1, `${who} is offered ${await ways.count()} links`);
+  assert.equal(await textOf(ways.first()), "My programmes");
+  assert.equal(await ways.first().getAttribute("href"), "/learn");
   const main = await textOf(pg.locator("main"));
   assert.ok(!main.includes(group.name), `${who} is shown the group's name`);
   assert.equal(await pg.getByRole("link", { name: "Take the register" }).count(), 0, `${who} is offered the group's register`);
