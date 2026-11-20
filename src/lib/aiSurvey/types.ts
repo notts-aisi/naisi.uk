@@ -201,10 +201,16 @@ export type AiSurveyDefinition = {
     sendButton: string;
     botCheckLine: string;
     codeSent: string;
+    /** "Send my code" again inside the minute: the code step, with the code sent a moment ago. */
+    codeSentRecently: string;
+    /** The page reloaded at the code step: the address is asked for again, beside the code. */
+    comeBackToCode: string;
     codeFieldLabel: string;
     checkButton: string;
     newCodeLink: string;
     differentEmailLink: string;
+    /** On the email step: to the code box, with nothing sent. */
+    haveCodeLink: string;
     noEmailArrived: string;
     afterTheCodeHeading: string;
     afterTheCode: string;

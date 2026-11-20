@@ -12,8 +12,9 @@
  * datastore back:
  *
  *  1. THE EMAIL CHECK: one answer for a used address and a new one; "already
- *     used" only after the right code; one code a minute and five a day; the
- *     hourly ceiling; five wrong tries; fifteen minutes.
+ *     used" only after the right code; one code a minute and ten a day; the
+ *     hourly ceiling; five wrong tries; fifteen minutes; a page that reloaded
+ *     between asking for a code and typing it still gets in with it.
  *  2. WHAT IS KEPT: no address anywhere, no time inside an answer document or
  *     the used-email list, an answer set of four fields, and nothing that is
  *     the pass.
@@ -238,16 +239,85 @@ describe("the email check", () => {
     assert.equal((await checkCode(A, next, newClaim(), T0 + 63_000)).ok, true);
   });
 
-  test("one code a minute and five a day for an address, by London's day", async () => {
+  test("one code a minute and ten a day for an address, by London's day", async () => {
+    assert.equal(store.CODES_PER_DAY, 10);
+    assert.equal(store.CODE_COOLDOWN_SECONDS, 60);
     assert.deepEqual(await requestCode(A, T0), { ok: true });
     assert.deepEqual(await requestCode(A, T0 + 59_000), { ok: false, error: "askedAgainTooSoon" });
-    for (let n = 1; n <= 4; n++) assert.deepEqual(await requestCode(A, T0 + n * 61_000), { ok: true }, `code ${n + 1}`);
-    assert.deepEqual(await requestCode(A, T0 + 5 * 61_000), { ok: false, error: "tooManyCodesToday" });
-    assert.equal(globalThis.__aiSurveyMail.length, 5);
+    for (let n = 1; n <= 9; n++) assert.deepEqual(await requestCode(A, T0 + n * 61_000), { ok: true }, `code ${n + 1}`);
+    // The tenth was sent; the eleventh is refused, and nothing more goes out.
+    assert.equal(globalThis.__aiSurveyMail.length, 10);
+    assert.deepEqual(await requestCode(A, T0 + 10 * 61_000), { ok: false, error: "tooManyCodesToday" });
+    assert.deepEqual(await requestCode(A, T0 + 20 * 61_000), { ok: false, error: "tooManyCodesToday" });
+    assert.equal(globalThis.__aiSurveyMail.length, 10);
+    // The tenth code still works after the eleventh was refused.
+    assert.equal((await checkCode(A, lastCode(), newClaim(), T0 + 20 * 61_000 + 1)).ok, true);
     // Another address is not held up by this one's limit.
-    assert.deepEqual(await requestCode(B, T0 + 5 * 61_000), { ok: true });
+    assert.deepEqual(await requestCode(B, T0 + 10 * 61_000), { ok: true });
     // Tomorrow it may ask again.
     assert.deepEqual(await requestCode(A, T0 + 24 * 60 * MINUTE), { ok: true });
+  });
+
+  test("the day turns at midnight in London, not after twenty-four hours", async () => {
+    // 23:00 GMT on 17 November: ten codes, the last at 23:09.
+    const late = Date.UTC(2026, 10, 17, 23, 0, 0);
+    for (let n = 0; n < 10; n++) assert.deepEqual(await requestCode(A, late + n * 61_000), { ok: true }, `code ${n + 1}`);
+    assert.deepEqual(await requestCode(A, late + 50 * MINUTE), { ok: false, error: "tooManyCodesToday" });
+    // Ten past midnight: a new day, an hour and ten minutes after the first.
+    assert.deepEqual(await requestCode(A, late + 70 * MINUTE), { ok: true });
+  });
+
+  test("a page that reloaded gets in with a code asked for before the reload, on a value it made after", async () => {
+    // The phone reloads the tab while its owner reads the code in their mail
+    // app. The reloaded page never had the first page's value (its claim),
+    // and makes its own when the code is checked. The claim is given at the
+    // check, never when the code is asked for, so the code still works.
+    await requestCode(A, T0);
+    const code = lastCode();
+    const [[, pending]] = world.all(store.CODES_COLLECTION);
+    assert.deepEqual(Object.keys(pending).sort(), ["code", "runsOut", "tries"], "asking for a code now stores something of the browser's");
+    const afterReload = newClaim();
+    const result = await checkCode(A, code, afterReload, T0 + 5 * MINUTE);
+    assert.equal(result.ok, true, JSON.stringify(result));
+    // And it is that page's: a lost reply on it is asked again with its own value.
+    const again = await checkCode(A, code, afterReload, T0 + 5 * MINUTE + 3000);
+    assert.equal(again.ok, true);
+    assert.deepEqual(again.order, result.order);
+    assert.equal((await store.readState(world.db)).accepted, 1);
+  });
+
+  test("a reloaded page with a run-out code, a wrong code or an address that has answered is told so, as any page is", async () => {
+    // A code asked for before the reload that has since run out.
+    await requestCode(A, T0);
+    assert.deepEqual(await checkCode(A, lastCode(), newClaim(), T0 + store.CODE_LIFETIME_MS + 1), { ok: false, error: "codeRunOut" });
+    // A wrong code: one wrong try, and the right one still works.
+    await requestCode(A, T0 + 20 * MINUTE);
+    const code = lastCode();
+    assert.deepEqual(await checkCode(A, wrongFor(code), newClaim(), T0 + 21 * MINUTE), { ok: false, error: "wrongCode" });
+    assert.equal((await checkCode(A, code, newClaim(), T0 + 22 * MINUTE)).ok, true);
+    // An address that answered in another browser: said only after the right code.
+    await requestCode(A, T0 + 30 * MINUTE);
+    const late = lastCode();
+    assert.deepEqual(await checkCode(A, wrongFor(late), newClaim(), T0 + 31 * MINUTE), { ok: false, error: "wrongCode" });
+    assert.deepEqual(await checkCode(A, late, newClaim(), T0 + 31 * MINUTE), { ok: false, error: "alreadyAnswered" });
+  });
+
+  test("asking again inside the minute sends nothing and leaves the code sent a moment ago working", async () => {
+    // From the email step this leads to the code box; from the code step it
+    // stays (src/features/aiSurvey/emailSteps.ts). Either way the server
+    // answers the same, and the code in hand is the one to type.
+    assert.deepEqual(await requestCode(A, T0), { ok: true });
+    const code = lastCode();
+    const [[, before]] = world.all(store.CODES_COLLECTION);
+    assert.deepEqual(await requestCode(A, T0 + 20_000), { ok: false, error: "askedAgainTooSoon" });
+    assert.deepEqual(await requestCode(A, T0 + 59_999), { ok: false, error: "askedAgainTooSoon" });
+    assert.equal(globalThis.__aiSurveyMail.length, 1, "a code was sent inside the minute");
+    const [[, after]] = world.all(store.CODES_COLLECTION);
+    assert.deepEqual(after, before, "a refusal inside the minute changed the code waiting");
+    // Refusals inside the minute do not use up the day's codes.
+    const [[, limit]] = world.all(store.LIMITS_COLLECTION);
+    assert.equal(limit.sent, 1);
+    assert.equal((await checkCode(A, code, newClaim(), T0 + 2 * MINUTE)).ok, true);
   });
 
   test("ten people in one room all get codes: nothing is limited by where a request came from", async () => {

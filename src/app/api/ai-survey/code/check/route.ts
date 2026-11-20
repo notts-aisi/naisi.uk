@@ -9,7 +9,7 @@ import { accept, readSurveyBody, refuse, statusOf } from "@/lib/aiSurvey/request
  *
  * Body `{ email, code, claim }`. The code is the credential: six digits from a
  * cryptographic source, good for fifteen minutes, dead after five wrong
- * tries, and an address can be sent five a day, so guessing is twenty-five
+ * tries, and an address can be sent ten a day, so guessing is fifty
  * tries in a million a day.
  *
  * On the right code the address's keyed hash is looked for in the used-email

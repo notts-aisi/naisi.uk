@@ -486,12 +486,14 @@ export async function countAccepted(db: Firestore, state: SurveyState): Promise<
 
 export type ReserveOutcome = "reserved" | "askedAgainTooSoon" | "tooManyCodesToday";
 
-export const CODES_PER_DAY = 5;
+export const CODES_PER_DAY = 10;
 export const CODE_COOLDOWN_SECONDS = 60;
 
 /**
  * Take one of an address's codes for today, and store the new pending code in
- * place of any old one: one code a minute and five a day for each address.
+ * place of any old one: one code a minute and ten a day for each address.
+ * A refusal inside the minute changes nothing, so the code sent a moment ago
+ * still works.
  * Nothing here is keyed by, or keeps, an IP address: a room of students shares
  * a few.
  */

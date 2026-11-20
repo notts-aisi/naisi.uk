@@ -555,7 +555,7 @@ const PUBLIC_HANDLERS = new Map([
         "\"Send my code\", in front of the anonymous AI at Nottingham survey: a six-digit code, in plain text, to a " +
         "University address the caller types. Nobody is asked who they are, so there is no session to require. " +
         "The address rule and reCAPTCHA come first; then `requestCode` holds a ceiling on codes an hour across " +
-        "the whole survey and, in one transaction, one code a minute and five a day for the address, both kept " +
+        "the whole survey and, in one transaction, one code a minute and ten a day for the address, both kept " +
         "in the datastore under a keyed hash. NOT BY IP, on purpose: a room of students shares a few, and the " +
         "survey keeps nothing against one. It answers the same whether or not the address has answered.",
     },
@@ -569,7 +569,7 @@ const PUBLIC_HANDLERS = new Map([
       credential: "checkCode(",
       why:
         "The code is the credential: six digits from a cryptographic source, good for fifteen minutes, dead " +
-        "after five wrong tries, with five codes a day for an address, so guessing is twenty-five tries in a " +
+        "after five wrong tries, with ten codes a day for an address, so guessing is fifty tries in a " +
         "million. The right code is deleted and the address's keyed hash added to the used-email list in one " +
         "transaction, which is the only place \"already answered\" is ever said.",
     },
