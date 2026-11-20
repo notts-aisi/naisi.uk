@@ -99,6 +99,11 @@ export const SPEC = {
   // of zero rows after.
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three" }),
-  countRows: async (state) => ({ ...(await countTerm(state)), ...(await countOwn(state)) }),
+  // The total is the term's rows plus this fixture's own counter, as teardown's is.
+  countRows: async (state) => {
+    const term = await countTerm(state);
+    const own = await countOwn(state);
+    return { ...term, ...own, total: term.total + own.moveCounters };
+  },
   teardown,
 };
