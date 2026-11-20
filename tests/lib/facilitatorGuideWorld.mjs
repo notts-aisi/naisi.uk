@@ -121,6 +121,7 @@ export async function makeFacilitatorGuideWorld(key = "__facilitatorGuide") {
     words: await loadTs(join("lib", "courses", "facilitatorGuide", "words.ts")),
     links: await loadTs(join("lib", "courses", "facilitatorGuide", "links.ts")),
     registerWeek: await loadTs(join("lib", "courses", "facilitatorGuide", "registerWeek.ts")),
+    nextSession: await loadTs(join("lib", "courses", "facilitatorGuide", "nextSession.ts")),
     hook: await loadTs(join("features", "courses", "facilitatorGuide", "useFacilitatorGuide.ts")),
     paste: await loadTs(join("lib", "courses", "weekBlocks", "paste.ts")),
   };
