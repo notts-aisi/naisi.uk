@@ -332,6 +332,9 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
         // and a page cannot unload a script: a fresh page is the only way the
         // questions are answered with nothing of anybody else's running. The
         // pass is kept, so the fresh page finds it and says "You're in".
+        // The code step's mark comes off first, so the history entry this
+        // page leaves behind does not open the code box if it is gone back to.
+        markAddress(null);
         window.location.hash = JUST_IN;
         window.location.reload();
         return;
