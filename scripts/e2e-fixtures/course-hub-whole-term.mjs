@@ -287,8 +287,11 @@ export const SPEC = {
    * names was retired; not yet run in a browser.
    * The lead's register push counter, one of those 5, has been counted with
    * the term's send counters (`sendCounterIdsOf`) since 20 Nov 2026, not
-   * among this fixture's own: the same rows, split 4 here and one more there;
-   * not yet run in a browser since.
+   * among this fixture's own: the same rows, split 4 here and one more there.
+   * Run in a browser on 20 Nov 2026 against the same loopback server: all
+   * twenty three steps ran, 220 rows existed before teardown (4 of them this
+   * fixture's own counters, 7 the term's send counters), and the manifest
+   * read zero afterwards.
    */
   status: "verified",
   seed,
