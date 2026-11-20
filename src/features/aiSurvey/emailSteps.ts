@@ -18,9 +18,11 @@
  * code or anything about the person. A fragment is never sent to a server.
  *
  * WHAT IT NEVER SKIPS. A page that loads with the mark still opens at the
- * start screen, whose ticks and consent question are held for that screen
- * only and never stored, so they are asked again. Only its button leads on,
- * and it leads to the code box in place of the email step. Nobody reaches the
+ * start screen, and its button has to be pressed again in that page load,
+ * with both boxes ticked and the consent answer given on that screen. (Some
+ * browsers put back what was ticked before a reload; the page never stores
+ * it.) Only that button leads on, and it leads to the code box in place of
+ * the email step. Nobody reaches the
  * code step in a page load without what the start screen requires being given
  * in that page load.
  *
@@ -74,9 +76,17 @@ export const asksForAddress = (step: Step): boolean => step.at === "code" && ste
 // Opening
 // ---------------------------------------------------------------------------
 
+/**
+ * The step the page opens at: the start screen, or the closed screen. NEVER
+ * further, whatever the address carries or the browser keeps: the server
+ * draws it before any of that can be read, and a kept pass or the code
+ * step's mark is acted on only after it is drawn.
+ */
+export function firstStep(closed: boolean): Step {
+  return closed ? { at: "closed" } : { at: "start" };
+}
+
 export type Opening = {
-  /** The step the page opens at. */
-  step: Step;
   /** True when the start screen's button leads to the code box in place of the email step. */
   comeBack: boolean;
   /** True when the mark on the address is to be taken off at once. */
@@ -84,17 +94,17 @@ export type Opening = {
 };
 
 /**
- * What a fresh load of the page does with the mark. A survey that has closed
- * says so whatever the address carries. A pass kept in this browser always
+ * What a fresh load of the page does with the mark, once the first step
+ * (`firstStep`) is drawn. A survey that has closed says so whatever the
+ * address carries. A pass kept in this browser always
  * wins: somebody with one is past the email check, and the page asks the
  * server about it as it always has. Otherwise the mark means the page
  * reloaded at the code step.
  */
 export function opening(load: { closed: boolean; hash: string; passKept: boolean }): Opening {
   const marked = load.hash === CODE_MARK;
-  if (load.closed) return { step: { at: "closed" }, comeBack: false, dropMark: marked };
-  const comeBack = marked && !load.passKept;
-  return { step: { at: "start" }, comeBack, dropMark: marked && !comeBack };
+  const comeBack = marked && !load.closed && !load.passKept;
+  return { comeBack, dropMark: marked && !comeBack };
 }
 
 // ---------------------------------------------------------------------------

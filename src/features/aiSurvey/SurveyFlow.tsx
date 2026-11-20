@@ -14,6 +14,7 @@ import {
   asksForAddress,
   CODE_MARK,
   errorBox,
+  firstStep,
   LEAD_WORDS,
   opening,
   type CodeLead,
@@ -148,7 +149,7 @@ function shuffle<T>(items: readonly T[]): T[] {
 export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; closed: boolean }) {
   const hydrated = useHydrated();
   const words = survey.emailCheck;
-  const [step, setStep] = useState<Step>(closed ? { at: "closed" } : { at: "start" });
+  const [step, setStep] = useState<Step>(() => firstStep(closed));
   const [session, setSession] = useState<Session | null>(null);
   /** Where Back stops: the first page of this sitting. */
   const [floor, setFloor] = useState(0);
@@ -711,7 +712,7 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
                 <button type="button" className={styles.link} disabled={busy} onClick={() => void send(step.lead)}>
                   {words.newCodeLink}
                 </button>
-                <button type="button" className={styles.link} onClick={() => go({ at: "address" })}>
+                <button type="button" className={styles.link} disabled={busy} onClick={() => go({ at: "address" })}>
                   {words.differentEmailLink}
                 </button>
               </div>
