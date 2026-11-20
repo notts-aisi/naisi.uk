@@ -376,6 +376,47 @@ describe("2. a test first", () => {
     assert.ok(realMail().some((mail) => mail.subject === "Your group: Group B"));
   });
 
+  test("a copy saved with a scheme in front of its link tokens sends whole addresses, and the test of it is read as before", async () => {
+    await placed();
+    // The seed's words, saved with a scheme typed in front of each link
+    // token: "https://{groupUrl}" and "http://{guideUrl}".
+    const seed = courseSeeds.courseTemplateDefaults["course-facilitating"];
+    const html = seed.blocks[0].html.replace('href="{groupUrl}"', 'href="https://{groupUrl}"').replace('href="{guideUrl}"', 'href="http://{guideUrl}"');
+    assert.notEqual(html, seed.blocks[0].html);
+    const saved = { templateId: "course-facilitating", subject: seed.subject, blocks: [{ id: "s", type: "richText", html }] };
+    world.db.seed("courseEmailTemplates/course-facilitating", saved);
+    const stored = JSON.stringify(world.db.read("courseEmailTemplates/course-facilitating"));
+    // The comparison reads the saved wording as it is: the fingerprint a test
+    // records is the one of the words saved, scheme and all, as before.
+    const wording = plan.wordingFingerprint({
+      allocated: courseSeeds.courseTemplateDefaults["course-allocated"],
+      facilitating: { subject: saved.subject, blocks: saved.blocks },
+    });
+    assert.notEqual(
+      wording,
+      plan.wordingFingerprint({ allocated: courseSeeds.courseTemplateDefaults["course-allocated"], facilitating: seed }),
+      "the saved words compare as the seed's",
+    );
+    assert.equal((await summary()).test.state, "none");
+    assert.equal((await sendTest()).body.recorded, true);
+    assert.equal(world.db.read(`courseNudges/publishtest__${RUN.agi}`).wording, wording);
+    assert.equal((await summary()).test.state, "fresh");
+    const tested = await opened(world.mail.find((mail) => isTest(mail) && isFacilitating(mail)));
+    const press = await pressNow();
+    assert.equal(press.status, 200, JSON.stringify(press.body));
+    const rahul = await opened(realMail().find((mail) => mail.to === "rahul@example.com"));
+    for (const [who, mail] of [["test", tested], ["press", rahul]]) {
+      assert.deepEqual(
+        [...mail.html.matchAll(/href="(https?:\/\/[^"]*\/learn\/[^"]*)"/g)].map((match) => match[1]),
+        [`https://naisi.invalid/learn/${RUN.agi}/group/${B}`, `https://naisi.invalid/learn/facilitator-guide/${COURSE.agi}`],
+        who,
+      );
+      assert.doesNotMatch(mail.html, /https?:\/\/https?:\/\//, who);
+    }
+    // Nothing was written back to the saved copy.
+    assert.equal(JSON.stringify(world.db.read("courseEmailTemplates/course-facilitating")), stored);
+  });
+
   test("what a test is of is the wording, and not the ids a server gives the seed copy each time it starts", () => {
     const block = (id, html) => ({ id, type: "richText", html });
     const templates = (id, html) => ({

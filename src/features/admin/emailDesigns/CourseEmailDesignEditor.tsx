@@ -487,9 +487,9 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
             <code>{"{groupName}"}</code>, <code>{"{weeklySlot}"}</code> or the two dates. A group with
             no name or no day and time cannot be published at all, and neither can wording that uses a
             token not on this list: publishing says which. To add the guide&rsquo;s button to wording
-            saved before it, press Reset to default, then Save, and make any earlier changes again: the
-            link box puts https:// in front of whatever is typed into it, so a link to{" "}
-            <code>{"{guideUrl}"}</code> cannot be typed there.
+            saved before it, press Reset to default, then Save, or add a paragraph with a link whose
+            address is <code>{"{guideUrl}"}</code> and whose words are <code>{"{guideButton}"}</code>.
+            Either is a change to the wording, so the next Publish asks for a new test.
           </p>
         )}
         {showsIncubatorTokens && (

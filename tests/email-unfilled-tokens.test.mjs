@@ -2510,3 +2510,142 @@ describe("every function that fills tokens is known, and held to what it does wi
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// A link to an address token is the token's own address
+// ---------------------------------------------------------------------------
+
+/**
+ * EVERY EMAIL THE SHARED COMPOSER WRITES, AND EVERY TOKEN OF IT THAT CARRIES
+ * AN ADDRESS. A link whose address in the wording is a scheme and then
+ * exactly one such token (`href="https://{groupUrl}"`, a scheme typed in
+ * front of the token) is sent with the token's value alone,
+ * because that value is a whole address. The list of emails is the tree
+ * (every module that calls `composeWholeEmail`), and the address tokens are
+ * found from the seed copy's links and the sample values, so a new email or a
+ * new address token is covered here without anybody adding it.
+ */
+describe("a link to an address token is the token's own address, in every email the shared composer writes", () => {
+  const SERVED = {
+    "lib/courses/placementEmail.ts": {
+      templateId: "course-allocated",
+      rules: placement.PLACEMENT_TOKEN_RULES,
+      compose: placement.composePlacementEmail,
+      factsFrom: placement.placementFactsFromSample,
+    },
+    "lib/courses/facilitatingEmail.ts": {
+      templateId: "course-facilitating",
+      rules: facilitating.FACILITATING_TOKEN_RULES,
+      compose: facilitating.composeFacilitatingEmail,
+      factsFrom: facilitating.facilitatingFactsFromSample,
+    },
+    "lib/courses/incubatorStartEmail.ts": {
+      templateId: "course-allocated-incubator",
+      rules: incubatorStart.INCUBATOR_START_TOKEN_RULES,
+      compose: incubatorStart.composeIncubatorStartEmail,
+      factsFrom: incubatorStart.incubatorStartFactsFromSample,
+    },
+  };
+  const hrefsOf = (html) => [...html.matchAll(/href=(["'])(.*?)\1/g)].map((match) => match[2].replace(/&amp;/g, "&"));
+  const isWholeAddress = (value) => /^[a-z][a-z0-9+.-]*:\/\//i.test(value ?? "");
+  /** One email's own: its seed, its samples, and the tokens of it that carry an address. */
+  const emailOf = (entry) => {
+    const seed = seeds.courseTemplateDefaults[entry.templateId];
+    const sample = samples.courseSampleTokens(entry.templateId, "Alex Taylor");
+    const linked = new Set(seed.blocks.flatMap((block) => hrefsOf(block.html ?? "")).flatMap((href) => tokensIn(href)));
+    const addresses = Object.keys(entry.rules).filter((token) => isWholeAddress(sample[token]));
+    return { seed, sample, linked, addresses };
+  };
+  /** The seed with each link to `token` written with `scheme` typed in front of it. */
+  const doubled = (seed, token, scheme, quote = '"') => ({
+    ...seed,
+    blocks: seed.blocks.map((block) =>
+      block.type === "richText" ? { ...block, html: block.html.split(`href="{${token}}"`).join(`href=${quote}${scheme}{${token}}${quote}`) } : block,
+    ),
+  });
+
+  test("the list is the tree: every module that calls the shared composer, and nothing else", () => {
+    const callers = [...walkSource(SRC)]
+      .filter((file) => /\bcomposeWholeEmail\(/.test(stripSource(readFileSync(file, "utf8"))))
+      .map((file) => relative(SRC, file).split(sep).join("/"));
+    assert.deepEqual(callers.sort(), Object.keys(SERVED).sort());
+    for (const [path, entry] of Object.entries(SERVED)) {
+      assert.match(stripSource(readFileSync(join(SRC, path), "utf8")), new RegExp(`composeWholeEmail\\(template, valuesOf\\(facts\\), [A-Z_]+_TOKEN_RULES`), path);
+      assert.ok(seeds.COURSE_TEMPLATE_IDS.includes(entry.templateId), path);
+    }
+  });
+
+  test("the address tokens are the ones the seed copy links to, both ways, and there is at least one in every email", () => {
+    let count = 0;
+    for (const [path, entry] of Object.entries(SERVED)) {
+      const { linked, addresses } = emailOf(entry);
+      assert.ok(addresses.length > 0, `${path} has no address token`);
+      assert.deepEqual([...linked].sort(), [...addresses].sort(), `${path}: a seed link and a sample address do not agree`);
+      count += addresses.length;
+    }
+    // Four today: programmeUrl twice, groupUrl and guideUrl.
+    assert.equal(count, 4);
+  });
+
+  for (const [path, entry] of Object.entries(SERVED)) {
+    test(`${entry.templateId}: each address token after https://, http:// or HTTPS://, in either quote, sends and proofs exactly as the seed does`, () => {
+      const { seed, sample, addresses } = emailOf(entry);
+      const facts = entry.factsFrom(sample);
+      for (const proof of [false, true]) {
+        const plain = entry.compose(seed, facts, { proof });
+        assert.equal(plain.ok, true, `${path} ${proof}`);
+        for (const token of addresses) {
+          for (const scheme of ["https://", "http://", "HTTPS://"]) {
+            for (const quote of ['"', "'"]) {
+              const template = doubled(seed, token, scheme, quote);
+              const before = JSON.stringify(template);
+              const written = entry.compose(template, facts, { proof });
+              const label = `${path} ${token} ${scheme} ${quote} proof=${proof}`;
+              assert.equal(written.ok, true, label);
+              const hrefs = hrefsOf(printed(written.blocks));
+              assert.ok(hrefs.includes(sample[token]), `${label}: ${JSON.stringify(hrefs)}`);
+              for (const href of hrefs) assert.doesNotMatch(href, /:\/\/[a-z]+:\/\//i, label);
+              // Written exactly as the seed's own link would be, apart from the quote it was saved with.
+              assert.equal(printed(written.blocks).replace(/href='([^']*)'/g, 'href="$1"'), printed(plain.blocks), label);
+              // The saved wording itself is not changed.
+              assert.equal(JSON.stringify(template), before, label);
+            }
+          }
+        }
+      }
+    });
+  }
+
+  test("only a scheme then one whole address token: a longer address, a token outside a link, and a token that is not an address are filled as ever", () => {
+    const { seed, sample } = emailOf(SERVED["lib/courses/facilitatingEmail.ts"]);
+    const facts = facilitating.facilitatingFactsFromSample(sample);
+    const extra = (html) => ({ ...seed, blocks: [...seed.blocks, { id: "x", type: "richText", html }] });
+    const last = (written) => written.blocks[written.blocks.length - 1].html;
+    // An address that goes on after the token.
+    assert.equal(hrefsOf(last(facilitating.composeFacilitatingEmail(extra('<p><a href="https://example.org/{groupUrl}">Here</a></p>'), facts)))[0], `https://example.org/${sample.groupUrl}`);
+    assert.equal(hrefsOf(last(facilitating.composeFacilitatingEmail(extra('<p><a href="https://{groupUrl}/x">Here</a></p>'), facts)))[0], `https://${sample.groupUrl}/x`);
+    // A token in the words, after a scheme, is words.
+    assert.ok(textOf(last(facilitating.composeFacilitatingEmail(extra("<p>Go to https://{groupUrl} now.</p>"), facts))).includes(`https://${sample.groupUrl}`));
+    // A token whose value is not an address keeps the scheme in front of it.
+    assert.equal(hrefsOf(last(facilitating.composeFacilitatingEmail(extra('<p><a href="https://{firstName}">Here</a></p>'), facts)))[0], "https://Alex");
+    // An address with no closing quote is left as it is.
+    const open = facilitating.composeFacilitatingEmail(extra('<p><a href="https://{groupUrl}>Here</a></p>'), facts);
+    assert.ok(last(open).includes(`href="https://${sample.groupUrl}>Here`), last(open));
+  });
+
+  test("mended in a long wording in step with its length", () => {
+    const { seed, sample } = emailOf(SERVED["lib/courses/facilitatingEmail.ts"]);
+    const facts = facilitating.facilitatingFactsFromSample(sample);
+    // About 300,000 characters each, held to three seconds, run once more before it fails (as above).
+    for (const hostile of ['<a href="https://{groupUrl}">x</a>'.repeat(9000), 'href="'.repeat(50000), "href=://{".repeat(33000), 'href="https://{'.repeat(20000)]) {
+      const template = { ...seed, blocks: [...seed.blocks, { id: "h", type: "richText", html: `<p>${hostile}</p>` }] };
+      let took = Infinity;
+      for (let attempt = 0; attempt < 2 && took > 3_000; attempt += 1) {
+        const from = performance.now();
+        facilitating.composeFacilitatingEmail(template, facts);
+        took = Math.min(took, performance.now() - from);
+      }
+      assert.ok(took <= 3_000, `${hostile.slice(0, 20)}: ${Math.round(took)} ms, which is not in step with its length`);
+    }
+  });
+});

@@ -5,6 +5,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
 import { useEffect, useState } from "react";
+import { linkHrefFrom } from "./linkHref";
 import styles from "./RichTextEditor.module.css";
 
 type Props = {
@@ -105,13 +106,13 @@ function Toolbar({ editor, disabled }: { editor: Editor; disabled?: boolean }) {
   }
 
   function applyLink() {
-    const url = linkHref.trim();
-    if (!url) {
+    // A bare domain gains https://; a link to one {token} is the token alone
+    // (`linkHrefFrom`).
+    const href = linkHrefFrom(linkHref);
+    if (!href) {
       editor.chain().focus().unsetLink().run();
     } else {
-      // Default to https:// if the user typed a bare domain.
-      const safe = /^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `https://${url}`;
-      editor.chain().focus().extendMarkRange("link").setLink({ href: safe }).run();
+      editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
     }
     setLinkOpen(false);
   }

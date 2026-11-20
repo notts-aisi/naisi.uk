@@ -1706,11 +1706,19 @@ programme names" below).
   no course to link to loses the button and nothing else, and Publish is
   never refused for it. Wording saved in Email designs before then has
   neither and sends as saved, without the button. To add it, open "You're
-  facilitating" in Email designs, press Reset to default, then Save, and
-  make any earlier changes again; that is a saved change, compared for the
-  test like any other. Do not build the button by hand: the link box puts
-  `https://` in front of whatever is typed into it, so a link to
-  `{guideUrl}` (or `{groupUrl}`) typed there leads nowhere.
+  facilitating" in Email designs and either press Reset to default, then
+  Save (and make any earlier changes again), or add a paragraph of its own
+  with a link whose address is `{guideUrl}` and whose words are
+  `{guideButton}`. Either is a change to the saved wording, so the next
+  Publish that sends email asks for a new test, as any wording change does.
+- **A link to a token is the token's own address.** In Email designs the
+  link box saves an address that is exactly one token, typed alone or after
+  the `https://` it starts with, as the token alone (`{groupUrl}`), and
+  adds `https://` to a bare domain as before. When a course email is
+  written, a link whose address is a scheme and then exactly one token whose
+  value is a whole address is sent with that value alone, so wording saved
+  as `https://{groupUrl}` links to the group page. The saved wording is not
+  changed, so the test before Publish reads it as it did.
 - **A changed wording needs a fresh test.** Saving either of the two emails
   a run sends in Email designs ("You're facilitating", and "Placed in a
   group" or, on a run an incubator names, "Placed on an incubator") locks

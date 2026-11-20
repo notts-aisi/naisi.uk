@@ -76,7 +76,7 @@ import {
  * page of the guide or at its front page to match (`guideUrl`). Both are optional, so the
  * paragraph goes when there is no guide to link to and Publish is never
  * refused for it. Wording saved before November 2026 has neither, and sends
- * as it was saved, without the button.
+ * as it was saved, without the button, until an admin adds them.
  *
  * ## The dates are the group's own
  *
