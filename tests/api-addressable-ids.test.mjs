@@ -77,10 +77,11 @@ const loadModule = () => loadTs("lib/addressableId.ts");
 
 test("isAddressableId names exactly one document", async () => {
   const { isAddressableId } = await loadModule();
-  for (const ok of ["abc", "task_1", "a.b", "x-y", "%2F"]) {
-    assert.equal(isAddressableId(ok), true, `${JSON.stringify(ok)} should be addressable`);
+  for (const ok of ["abc", "task_1", "a.b", "x-y", "%2F", "run__grp", "__x", "x__", "___", "a".repeat(1500), "é".repeat(750)]) {
+    assert.equal(isAddressableId(ok), true, `${JSON.stringify(ok.slice(0, 40))} should be addressable`);
   }
-  for (const bad of ["", "a/b", "/", "a/b/c", ".", ".."]) {
+  // Firestore throws on a reserved id (two underscores at each end) and on one over 1,500 bytes.
+  for (const bad of ["", "a/b", "/", "a/b/c", ".", "..", "__x__", "____", "__a\nb__", "a".repeat(1501), "é".repeat(751)]) {
     assert.equal(isAddressableId(bad), false, `${JSON.stringify(bad)} must be refused`);
   }
 });

@@ -5774,17 +5774,19 @@ export const PAGES = {
     expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
       "The draw's page, a static segment under /learn so a programme's lead can open it: the " +
-      "battery's group id addresses nothing, so every approved account is drawn the one calm page " +
-      "that says it is not for them, the same page everybody but the group's live facilitators, the " +
-      "programme's lead and admins is given once it exists, never a redirect that says which.",
+      "battery's group id addresses nothing, so every approved account is drawn a calm page, never a " +
+      "redirect that says which: the one that says it is not for them, the same page everybody but the " +
+      "group's live facilitators, the programme's lead and admins is given once it exists, and for an " +
+      "admin, whom the page admits to every group, the fixed one that says it can't be opened.",
   },
   "/(app)/learn/pairs/[groupId]": {
     expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
       "The pairs page, a static segment under /learn so a programme's lead can open it, as the draw's " +
-      "page is: the battery's group id addresses nothing, so every approved account is drawn the one " +
-      "calm page that says it is not for them, the same page everybody but the group's live " +
-      "facilitators, the programme's lead and admins is given once it exists, never a redirect that says which.",
+      "page is: the battery's group id addresses nothing, so every approved account is drawn a calm " +
+      "page, never a redirect that says which: the one that says it is not for them, the same page " +
+      "everybody but the group's live facilitators, the programme's lead and admins is given once it " +
+      "exists, and for an admin, whom the page admits to every group, the fixed one that says it can't be opened.",
   },
   "/(app)/anonymous-feedback": {
     expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),

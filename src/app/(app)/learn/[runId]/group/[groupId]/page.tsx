@@ -5,6 +5,7 @@ import { firstName as firstNameOf } from "@/app/(app)/dashboard/homeWords";
 import GroupNotesCard from "@/features/courses/facilitator/GroupNotesCard";
 import JoiningOnlineBox from "@/features/courses/facilitator/JoiningOnlineBox";
 import NotForYou from "@/features/courses/facilitator/NotForYou";
+import { isAddressableId } from "@/lib/addressableId";
 import {
   FacilitatorTicket,
   GroupPeopleCard,
@@ -177,6 +178,10 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * run and an id that names nothing, so someone guessing group ids learns
  * nothing about which ones exist. It says the page is for a group's
  * facilitators and admins: this page does not admit the programme's lead.
+ * An admin, whom this page admits to every group, is never told it is not
+ * theirs: at an id that names nothing or another run's group they are given
+ * the fixed "can't be opened" answer instead. An archived group's
+ * facilitator is not admitted here, so keeps the first answer.
  * Somebody with no role on the run, and every made-up run id, is still sent
  * to My programmes by the layout before this page runs. And this is a UI
  * gate: the register, the notes and the email ROUTES re-derive the same
@@ -242,18 +247,22 @@ export default async function GroupHomePage({
 
   const runHome = `/learn/${encodeURIComponent(runId)}`;
 
+  // An admin is admitted to every group, so is never told the page is not
+  // theirs: the fixed "can't be opened" answer instead, at every refusal
+  // below. Asked of the access already read, so it costs no read.
+  const admin = access.isAdmin;
+
   // Dynamic segments arrive URL-DECODED, so a `%2F` reaches us as a real path
-  // separator and `doc()` would throw: a 500 out of a gate whose whole job is
-  // to refuse calmly. Same guard `getRunAccess` applies to the run id.
-  if (!groupId || groupId.includes("/") || groupId === "." || groupId === "..") {
-    return <NotForYou page="group" />;
-  }
+  // separator, and an id Firestore reserves or cannot hold makes `doc()`
+  // throw: a 500 out of a gate whose whole job is to refuse calmly. The
+  // shared check every course route asks.
+  if (!isAddressableId(groupId)) return <NotForYou page="group" admitted={admin} />;
 
   const db = getAdminDb();
-  if (!db) return <NotForYou page="group" />;
+  if (!db) return <NotForYou page="group" admitted={admin} />;
 
   const groupSnap = await db.collection("courseGroups").doc(groupId).get();
-  if (!groupSnap.exists) return <NotForYou page="group" />;
+  if (!groupSnap.exists) return <NotForYou page="group" admitted={admin} />;
   const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
 
   // Live group only for a non-admin: the same predicate every route behind
@@ -266,7 +275,7 @@ export default async function GroupHomePage({
       group.facilitatorUids,
     );
   if (group.runId !== runId || !(access.isAdmin || facilitatesThisGroup)) {
-    return <NotForYou page="group" />;
+    return <NotForYou page="group" admitted={admin} />;
   }
 
   /**

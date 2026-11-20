@@ -13,6 +13,13 @@
  * programme's own tabs), so its sentence leaves the lead out; the draw's and
  * the pairs pages admit the lead too, so theirs keep the lead.
  *
+ * SOMEBODY THE PAGE DOES ADMIT is never told it is not for their account. An
+ * admin, or (on the draw's and the pairs pages) somebody that page's gate has
+ * already admitted, who meets an address it cannot open (an archived group, a
+ * programme closing, an id that names nothing) is given a second, fixed
+ * answer instead: one sentence for every such case, naming no fact about the
+ * group, since these people can see every group anyway.
+ *
  * Each sentence is a whole literal, because the persona battery finds the
  * page by its words (`STATES` in tests/persona-route-gates.registry.mjs).
  * Pure, with no imports. No sentence here carries a dash of either kind.
@@ -35,3 +42,9 @@ export const NOT_FOR_YOU_HELP = "If you facilitate this group and can’t open i
 export function notForYouWho(page: NotForYouPage): string {
   return page === "group" ? NOT_FOR_YOU_GROUP_PAGE : NOT_FOR_YOU_WITH_LEAD;
 }
+
+/** For somebody the page admits, at an address it cannot open. */
+export const CANT_OPEN_HEADING = "This page can’t be opened";
+
+/** One fixed sentence for every such address, whatever the truth is. */
+export const CANT_OPEN_LINE = "The group is archived, its programme is closing, or the address isn’t right.";

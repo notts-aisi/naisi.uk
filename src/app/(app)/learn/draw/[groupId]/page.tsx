@@ -44,8 +44,12 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * group that is not theirs, an archived one and an id that names nothing, so
  * it never says whether the group exists: never a redirect, and never
  * `notFound()`, which answers an empty body in a page that matched its route.
- * Its sentence names the lead, because this page admits the lead. Signed out
- * still goes to sign in.
+ * Its sentence names the lead, because this page admits the lead. Somebody
+ * the page does admit (an admin anywhere; the group's facilitator or the lead
+ * once `drawGate` has let them in) at an address it cannot open (an archived
+ * group, a closing run, an id that names nothing) is given its fixed "can't
+ * be opened" answer instead, decided from what the gate already read. Signed
+ * out still goes to sign in.
  *
  * A STATIC SEGMENT UNDER /learn, not `/learn/[runId]/...`, whose layout sends
  * away a programme's lead who holds no role on the run (as the facilitator
@@ -65,19 +69,25 @@ export default async function DrawPage({
   const [{ groupId }, query] = await Promise.all([params, searchParams]);
   const user = await getSessionUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(`/learn/draw/${groupId}`)}`);
-  if (!isAddressableId(groupId)) return <NotForYou page="draw" />;
+  // An admin is admitted to every group, so is never told the page is not
+  // theirs: the fixed "can’t be opened" answer instead. Asked of the session
+  // already read, so it costs no read.
+  const admin = user.role === "admin";
+  if (!isAddressableId(groupId)) return <NotForYou page="draw" admitted={admin} />;
 
   const db = getAdminDb();
-  if (!db) return <NotForYou page="draw" />;
+  if (!db) return <NotForYou page="draw" admitted={admin} />;
 
   const groupSnap = await db.collection("courseGroups").doc(groupId).get();
-  if (!groupSnap.exists) return <NotForYou page="draw" />;
+  if (!groupSnap.exists) return <NotForYou page="draw" admitted={admin} />;
   const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
   const gate = await drawGate(db, user, group);
-  if (!gate.ok || group.archived) return <NotForYou page="draw" />;
+  if (!gate.ok) return <NotForYou page="draw" />;
+  // From here the gate has admitted the caller: never "not for your account".
+  if (group.archived) return <NotForYou page="draw" admitted />;
 
   const runSnap = group.runId ? await db.collection("courseRuns").doc(group.runId).get() : null;
-  if (!runSnap?.exists || (runSnap.data() ?? {}).destroying === true) return <NotForYou page="draw" />;
+  if (!runSnap?.exists || (runSnap.data() ?? {}).destroying === true) return <NotForYou page="draw" admitted />;
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
   // The week: asked for, or the week of the group's next session.
@@ -93,7 +103,7 @@ export default async function DrawPage({
     readDrawPeople(db, run.id, group, { isAdmin: gate.isAdmin }, now),
     readGroupWeek(db, run.id, groupId, weekNumber),
   ]);
-  if (!people) return <NotForYou page="draw" />;
+  if (!people) return <NotForYou page="draw" admitted />;
   const state = week && hasDraw(week.draw) ? await readDrawState(db, run.id, week, people) : new Map();
 
   const groupName = group.name.trim() || "Group";

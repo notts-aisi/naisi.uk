@@ -53,8 +53,10 @@ const RUN_HOME = `/learn/${RUN.agi}`;
 const { default: NotForYou } = await w.loadTs(join("features", "courses", "facilitator", "NotForYou.tsx"));
 /** The group page's one calm page, for somebody signed in it does not admit. */
 const NOT_FOR_YOU = renderToStaticMarkup(createElement(NotForYou, { page: "group" }));
-/** "not for you" when the group page drew its calm page byte for byte, else where it sent them, else "drawn". */
-const outcomeOf = (drawn) => drawn.to ?? (drawn.html === NOT_FOR_YOU ? "not for you" : "drawn");
+/** The second, for an admin (admitted to every group) at an address the page cannot open. */
+const CANT_OPEN = renderToStaticMarkup(createElement(NotForYou, { page: "group", admitted: true }));
+/** "not for you" or "can't open" when the group page drew a calm page byte for byte, else where it sent them, else "drawn". */
+const outcomeOf = (drawn) => drawn.to ?? (drawn.html === NOT_FOR_YOU ? "not for you" : drawn.html === CANT_OPEN ? "can't open" : "drawn");
 const GROUP_PATH = (groupId = B) => `${RUN_HOME}/group/${groupId}`;
 
 /** What the page's ticket, cards and head hand their components, read off the element tree. */
@@ -150,8 +152,8 @@ describe("1. who opens a group's page, its register and its summary", () => {
 
   test("a group of another run, addressed under this run, is nobody's page", async () => {
     world.db.poke(`courseGroups/${B}`, { runId: RUN.tais });
-    for (const who of ["rahul", "zach"]) {
-      assert.equal(outcomeOf(await groupPage(who)), "not for you", who);
+    for (const [who, answer] of [["rahul", "not for you"], ["zach", "can't open"]]) {
+      assert.equal(outcomeOf(await groupPage(who)), answer, who);
       assert.equal((await registerPage(who)).to, RUN_HOME, who);
     }
   });

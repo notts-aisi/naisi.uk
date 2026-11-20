@@ -42,6 +42,12 @@ function assertNotForYou(drawn, page, at) {
   assert.equal(drawn.html, renderToStaticMarkup(createElement(NotForYou, { page })), `${at}: not the calm page`);
 }
 
+/** Somebody the page admits, at an address it cannot open: the second, fixed answer, never "not for your account". */
+function assertCantOpen(drawn, page, at) {
+  assert.equal(drawn.to, null, `${at}: sent to ${drawn.to} instead of the calm page`);
+  assert.equal(drawn.html, renderToStaticMarkup(createElement(NotForYou, { page, admitted: true })), `${at}: not the second calm page`);
+}
+
 before(() => mock.timers.enable({ apis: ["Date"], now: NOW }));
 after(() => mock.timers.reset());
 beforeEach(() => w.reset());
@@ -454,9 +460,11 @@ describe("3. the pairs page and the group page's card", () => {
       assertNotForYou(await w.pairsPage(who), "pairs", who);
     }
     assert.match((await w.pairsPage(null)).to, /^\/login\?next=/);
-    assertNotForYou(await w.pairsPage("zach", "no-such-group"), "pairs", "an admin on a made-up group");
+    assertCantOpen(await w.pairsPage("zach", "no-such-group"), "pairs", "an admin on a made-up group");
     w.world.db.poke(`courseGroups/${B}`, { archived: true });
-    for (const who of ["rahul", "zach"]) assertNotForYou(await w.pairsPage(who), "pairs", `${who} on an archived group`);
+    // The draw's gate admits no facilitator of an archived group; it admits an admin, who is told it can't be opened.
+    assertNotForYou(await w.pairsPage("rahul"), "pairs", "rahul on an archived group");
+    assertCantOpen(await w.pairsPage("zach"), "pairs", "zach on an archived group");
   });
 
   test("the group page's card: the week the group meets next, each pair, the check and the way to the pairs page", async () => {
@@ -841,7 +849,7 @@ describe("6. who sees what, and every file that addresses the record", () => {
     );
     // The gates, as the page and the route ask them, and the shell's reader asked for the session's own person.
     const code = (file) => readFileSync(join(SRC, file), "utf8");
-    assert.match(code("app/(app)/learn/pairs/[groupId]/page.tsx"), /const gate = await drawGate\(db, user, group\);\s*if \(!gate\.ok \|\| group\.archived\) return <NotForYou page="pairs" \/>;/);
+    assert.match(code("app/(app)/learn/pairs/[groupId]/page.tsx"), /const gate = await drawGate\(db, user, group\);\s*if \(!gate\.ok\) return <NotForYou page="pairs" \/>;\s*(?:\/\/[^\n]*\n\s*)*if \(group\.archived\) return <NotForYou page="pairs" admitted \/>;/);
     assert.match(code("app/api/courses/groups/[groupId]/pairs/route.ts"), /const gate = await drawGate\(db, actor, group\);\s*if \(!gate\.ok\) return NextResponse\.json\(\{ error: "Forbidden" \}, \{ status: 403 \}\);/);
     assert.match(code("app/(app)/learn/[runId]/weeks/[n]/page.tsx"), /return await readOwnPairs\(db, access\.user, access\.run\.id, access\.groups, access\.enrolment, weekNumber, new Date\(\)\);/);
     assert.match(
