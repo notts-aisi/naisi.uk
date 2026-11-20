@@ -45,6 +45,8 @@ const { world, reset, seedGuide, load, index, coursePage, docPage, adminPage, ga
 
 const AGI_GUIDE = `/learn/facilitator-guide/${COURSE.agi}`;
 const REFUSED = "Only a course’s facilitators, its programme’s lead and admins can open its facilitator guide.";
+/** The session card's sentence for AGI Strategy with nothing loaded: Claudia leads the programme. */
+const NOTHING_LOADED = "There’s nothing in this course’s facilitator guide yet. Claudia or an admin loads it, and it will show here.";
 
 /** Everybody a suite asks as, and what they are on this term. */
 const EVERYBODY = ["zach", "claudia", "tess", "rahul", "sofia", "tom", "grace", "ola", "lloyd", "yusuf", "amara", "chloe", "una", "nobody", null];
@@ -367,32 +369,46 @@ describe("3. the guide's list of titles: the gate's three, one 403 for everybody
     });
   });
 
-  test("Home's reading of it: the weeks it names for this course, and nothing for any other answer", () => {
-    const { guideWeeksFrom } = guide.hook;
-    assert.deepEqual(guideWeeksFrom({ courseId: "c", weeks: [{ weekNumber: 1 }, { weekNumber: 3 }] }, "c"), { courseId: "c", weeks: [1, 3] });
-    assert.equal(guideWeeksFrom({ courseId: "other", weeks: [{ weekNumber: 1 }] }, "c"), null);
-    assert.equal(guideWeeksFrom({ courseId: "c", weeks: [] }, "c"), null);
-    assert.equal(guideWeeksFrom({ error: REFUSED }, "c"), null);
-    assert.deepEqual(guideWeeksFrom({ courseId: "c", weeks: [{ weekNumber: "2" }, { weekNumber: 0 }, { weekNumber: 4 }, null] }, "c"), { courseId: "c", weeks: [4] });
+  // Home reads the route's answer as one of the session card's three
+  // (`guideReadOfAnswer`): failed, nothing loaded, or the weeks loaded.
+  const FAILED = { kind: "failed" };
+  const EMPTY = { kind: "empty" };
+  const loaded = (...weeks) => ({ kind: "loaded", weeks });
+
+  test("Home's reading of it: the weeks it names for this course, failed for an answer about another course or a refusal, and nothing loaded for none", () => {
+    const { guideReadOfAnswer } = guide.links;
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", weeks: [{ weekNumber: 1 }, { weekNumber: 3 }] }, "c"), loaded(1, 3));
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "other", weeks: [{ weekNumber: 1 }] }, "c"), FAILED);
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", weeks: [] }, "c"), EMPTY);
+    assert.deepEqual(guideReadOfAnswer(false, { error: REFUSED }, "c"), FAILED);
+    assert.deepEqual(guideReadOfAnswer(true, { error: REFUSED }, "c"), FAILED);
+    // A not-ok answer is failed whatever its body says.
+    assert.deepEqual(guideReadOfAnswer(false, { courseId: "c", weeks: [{ weekNumber: 1 }] }, "c"), FAILED);
+    assert.deepEqual(guideReadOfAnswer(true, null, "c"), FAILED);
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", weeks: [{ weekNumber: "2" }, { weekNumber: 0 }, { weekNumber: 4 }, null] }, "c"), loaded(4));
   });
 
   test("Home's reading of it: the course's own documents alone are something loaded, with no week to link; nothing is nothing", async () => {
-    const { guideWeeksFrom } = guide.hook;
+    const { guideReadOfAnswer } = guide.links;
     const handbook = { key: "handbook", label: "Handbook", title: "Weather Fellowship: facilitator guide" };
-    assert.deepEqual(guideWeeksFrom({ courseId: "c", documents: [handbook], weeks: [] }, "c"), { courseId: "c", weeks: [] });
-    assert.equal(guideWeeksFrom({ courseId: "c", documents: [], weeks: [] }, "c"), null);
-    // A document counts only by a key the guide has; another course's answer, or one with no weeks, counts for nothing.
-    assert.equal(guideWeeksFrom({ courseId: "c", documents: [{ key: "preface" }, { label: "Handbook" }, null, "handbook"], weeks: [] }, "c"), null);
-    assert.equal(guideWeeksFrom({ courseId: "other", documents: [handbook], weeks: [] }, "c"), null);
-    assert.equal(guideWeeksFrom({ courseId: "c", documents: [handbook] }, "c"), null);
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", documents: [handbook], weeks: [] }, "c"), loaded());
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", documents: [], weeks: [] }, "c"), EMPTY);
+    // A document counts only by a key the guide has; another course's answer, or one with no weeks, is not this course's guide.
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", documents: [{ key: "preface" }, { label: "Handbook" }, null, "handbook"], weeks: [] }, "c"), EMPTY);
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "other", documents: [handbook], weeks: [] }, "c"), FAILED);
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", documents: [handbook] }, "c"), FAILED);
     // The route's own answers, read the same way.
-    assert.deepEqual(guideWeeksFrom((await index("rahul")).body, COURSE.agi), { courseId: COURSE.agi, weeks: [1, 3] });
+    const read = async (who) => {
+      const answer = await index(who);
+      return guideReadOfAnswer(answer.status === 200, answer.body, COURSE.agi);
+    };
+    assert.deepEqual(await read("rahul"), loaded(1, 3));
     reset();
     await seedGuide(COURSE.agi, [["handbook", HANDBOOK]]);
-    assert.deepEqual(guideWeeksFrom((await index("rahul")).body, COURSE.agi), { courseId: COURSE.agi, weeks: [] });
+    assert.deepEqual(await read("rahul"), loaded());
     reset();
-    assert.equal(guideWeeksFrom((await index("rahul")).body, COURSE.agi), null);
-    assert.equal(guideWeeksFrom((await index("amara")).body, COURSE.agi), null);
+    assert.deepEqual(await read("rahul"), EMPTY);
+    assert.deepEqual(await read("amara"), FAILED);
   });
 });
 
@@ -500,7 +516,8 @@ describe("4. the guide's pages", () => {
   });
 
   test("a week or a document with nothing loaded says so plainly to its readers; a page that is not one, likewise", async () => {
-    assert.match((await docPage("rahul", "week-2")).text, /Facilitator guide for week 2 .*There’s no facilitator guide for week 2 yet\./);
+    assert.match((await docPage("rahul", "week-2")).text, /Facilitator guide for week 2 .*Week 2’s plan isn’t in the guide yet\./);
+    assert.doesNotMatch((await docPage("rahul", "week-2")).text, /There’s no facilitator guide for week/);
     world.db.seed(`courses/${COURSE.tais}`, world.db.read(`courses/${COURSE.tais}`));
     assert.match((await docPage("ola", "handbook", COURSE.tais)).text, /“Handbook” isn’t in this facilitator guide yet\./);
     for (const segment of ["week-0", "week-03", "week-61", "preface", "w03-plan"]) {
@@ -632,17 +649,25 @@ describe("5. the links: the group page's ticket and Home", () => {
     assert.deepEqual(ticket.guideContents, { href: AGI_GUIDE, label: "Facilitator guide" });
     assert.match(drawn.html, new RegExp(`<a href="${AGI_GUIDE}" class="ticketGuide"><span>Facilitator guide</span><svg`));
     assert.equal(drawn.text.match(/Facilitator guide/g)?.length, 1);
+    // In the week's link's place, the sentence saying so and who loads it, before the course page's link.
+    assert.equal(ticket.guideSentence, "Week 3’s plan isn’t in the guide yet. Claudia or an admin loads it.");
+    assert.match(drawn.text, /Take the register Week 3’s plan isn’t in the guide yet\. Claudia or an admin loads it\. Facilitator guide/);
   });
 
-  test("the course's own documents alone are linked by the guide's course page, and nothing loaded links nothing", async () => {
+  test("the course's own documents alone are linked by the guide's course page, and nothing loaded links nothing and says so", async () => {
     reset();
     await seedGuide(COURSE.agi, [["handbook", HANDBOOK]]);
     const documentsOnly = await groupPage("rahul");
     const ticket = find(documentsOnly.element, "FacilitatorTicket")[0]?.props;
     assert.equal(ticket.guide, null);
     assert.deepEqual(ticket.guideContents, { href: AGI_GUIDE, label: "Facilitator guide" });
+    // Week 3 is not loaded, and something is: the sentence where its link would be, then the course page.
+    assert.equal(ticket.guideSentence, "Week 3’s plan isn’t in the guide yet. Claudia or an admin loads it.");
     const home = await homeWithGuide("rahul");
-    assert.match(home.html, new RegExp(`<div class="weekGuide"><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`));
+    assert.match(
+      home.html,
+      new RegExp(`<div class="weekGuide"><p class="guideSentence">Week 3’s plan isn’t in the guide yet\\. Claudia or an admin loads it\\.</p><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`),
+    );
     assert.doesNotMatch(home.text, /Facilitator guide for week/);
 
     reset();
@@ -650,11 +675,15 @@ describe("5. the links: the group page's ticket and Home", () => {
     const bare = find(nothing.element, "FacilitatorTicket")[0]?.props;
     assert.equal(bare.guide, null);
     assert.equal(bare.guideContents, null);
+    // One sentence in place of both links, naming the programme's lead.
+    assert.equal(bare.guideSentence, NOTHING_LOADED);
+    assert.match(nothing.text, new RegExp(`Take the register ${NOTHING_LOADED.replace(/[.]/g, "\\.")}`));
     assert.doesNotMatch(nothing.text, /Facilitator guide/);
     assert.doesNotMatch(nothing.html, /facilitator-guide/);
     const bareHome = await homeWithGuide("rahul");
     assert.doesNotMatch(bareHome.text, /Facilitator guide/);
-    assert.doesNotMatch(bareHome.html, /weekGuide|facilitator-guide/);
+    assert.doesNotMatch(bareHome.html, /facilitator-guide/);
+    assert.match(bareHome.text, new RegExp(`This week Week 3 · Who decides what AGI means ${NOTHING_LOADED.replace(/[.]/g, "\\.")}`));
   });
 
   test("Home, under this week's title: “Facilitator guide for week 3” to the week when it has some, and “Facilitator guide” to the guide's course page whenever the guide has anything", async () => {
@@ -664,14 +693,18 @@ describe("5. the links: the group page's ticket and Home", () => {
       home.html,
       new RegExp(`<div class="weekGuide"><a href="${AGI_GUIDE}/week-3" class="textLink">Facilitator guide for week 3<svg[^>]*><path[^>]*></path></svg></a><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`),
     );
-    // The week has moved on to one with nothing in the guide: its link goes, and the course page's stays.
+    // The week has moved on to one with nothing in the guide: its link goes, a sentence says so and who loads it,
+    // and the course page's stays.
     reset();
     await seedGuide(COURSE.agi, [["w01-plan", PLAN_W1]]);
     const later = await homeWithGuide("rahul");
-    assert.match(later.text, /This week Week 3 · Who decides what AGI means Facilitator guide 3 exercises to review/);
+    assert.match(later.text, /This week Week 3 · Who decides what AGI means Week 3’s plan isn’t in the guide yet\. Claudia or an admin loads it\. Facilitator guide 3 exercises to review/);
     assert.doesNotMatch(later.text, /Facilitator guide for week/);
     assert.doesNotMatch(later.html, new RegExp(`href="${AGI_GUIDE}/`));
-    assert.match(later.html, new RegExp(`<div class="weekGuide"><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`));
+    assert.match(
+      later.html,
+      new RegExp(`<div class="weekGuide"><p class="guideSentence">Week 3’s plan isn’t in the guide yet\\. Claudia or an admin loads it\\.</p><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`),
+    );
   });
 });
 
