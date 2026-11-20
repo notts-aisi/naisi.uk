@@ -64,7 +64,17 @@ const {
   currentEntry,
   barTitleFor,
   roleInWords,
+  FACILITATING_ADDRESSES,
+  FACILITATING_LABEL,
+  BAR_GROUP_LABEL,
+  BAR_GROUPS_LABEL,
+  BAR_GUIDE_LABEL,
+  bottomBarFor,
+  facilitatingPartOf,
+  fillAddress,
+  menuFor,
 } = await loadTs("layout/appNav.ts");
+const { facilitatorGuidePath } = await loadTs("lib/courses/facilitatorGuide/model.ts");
 
 const read = (...parts) => readFileSync(join(SRC, ...parts), "utf8");
 const posix = (path) => path.split(sep).join("/");
@@ -92,6 +102,32 @@ const ROUTES = PAGE_FILES.map(routeOf);
 const ENTRIES = APP_NAV.flatMap((group) => group.entries);
 const ADMIN_PAGES = ADMIN_SECTIONS.flatMap((section) => section.pages);
 
+/**
+ * THE FACILITATING PART, as built for three kinds of facilitator: one group,
+ * two groups of one course, and two groups on two courses. Its entries are
+ * made per person from `GET /api/messages`'s answer, so they are held here
+ * through their address shapes (`FACILITATING_ADDRESSES`).
+ */
+const row = (groupId, runId, courseId, name, slot, room, courseTitle) => ({ groupId, runId, name, slot, room, courseId, courseTitle });
+const C_ROW = row("g-c", "r-agi", "c-agi", "Group C", "Wednesdays 3pm", "Portland A21", "AGI Strategy");
+const D_ROW = row("g-d", "r-agi", "c-agi", "Group D", "Thursdays 6pm", "", "AGI Strategy");
+const B_ROW = row("g-b", "r-tais", "c-tais", "Group B", "Thursdays 6pm", "Room B8", "Technical AI Safety");
+const PARTS = {
+  oneGroup: facilitatingPartOf([C_ROW]),
+  twoGroups: facilitatingPartOf([C_ROW, D_ROW]),
+  twoCourses: facilitatingPartOf([C_ROW, B_ROW]),
+};
+const FACILITATING_ENTRIES = Object.values(PARTS).flatMap((part) => part.entries);
+
+/** The shape of `FACILITATING_ADDRESSES` an address fills, or null. */
+function shapeOf(href) {
+  for (const shape of Object.values(FACILITATING_ADDRESSES)) {
+    const pattern = new RegExp(`^${shape.replace(/\[\w+\]/g, "[^/]+")}$`);
+    if (pattern.test(href)) return shape;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // 1. Every address is a page
 // ---------------------------------------------------------------------------
@@ -115,6 +151,20 @@ describe("every address in the menu is a page", () => {
       "these name an address no page.tsx under src/app/(app) answers at:\n  " +
         missing.map((m) => m.join(" | ")).join("\n  "),
     );
+  });
+
+  test("each address the Facilitating part leads to is a page, and each entry fills one of its shapes", () => {
+    for (const [name, shape] of Object.entries(FACILITATING_ADDRESSES)) {
+      assert.ok(ROUTES.includes(shape), `${name}: no page.tsx under src/app/(app) answers at ${shape}`);
+    }
+    for (const entry of FACILITATING_ENTRIES) {
+      assert.ok(shapeOf(entry.href), `${entry.label} leads to ${entry.href}, which fills no shape`);
+      for (const also of entry.also ?? []) assert.ok(shapeOf(also), `${entry.label} is lit on ${also}, which fills no shape`);
+    }
+    // The guide's address is the guide's own, as its pages and the Home links build it.
+    assert.equal(fillAddress(FACILITATING_ADDRESSES.guide, { courseId: "c-agi" }), facilitatorGuidePath("c-agi"));
+    // A segment is filled as one segment, whatever an id holds.
+    assert.equal(fillAddress(FACILITATING_ADDRESSES.group, { runId: "r 1", groupId: "g/2" }), "/learn/r%201/group/g%2F2");
   });
 
   test("no two entries share an address, and no group is empty", () => {
@@ -277,6 +327,80 @@ describe("every admin page somebody can open is lit in their own menu", () => {
     assert.equal(currentEntry(all, "/credentials"), null);
     assert.equal(currentEntry(ENTRIES.filter((e) => e.rule === "memberAndUp"), "/admin/members"), null);
   });
+
+  test("a facilitator's group is lit on its page, its register, its draw and its pairs; the guide on the guide", () => {
+    const member = ENTRIES.filter((e) => e.rule === "memberAndUp");
+    const label = (entries, path) => currentEntry(entries, path)?.label ?? null;
+    const one = [...member, ...PARTS.oneGroup.entries];
+    for (const path of [
+      "/learn/r-agi/group/g-c",
+      "/learn/r-agi/group/g-c/register",
+      "/learn/r-agi/group/g-c/sessions",
+      "/learn/draw/g-c",
+      "/learn/pairs/g-c",
+    ]) {
+      assert.equal(label(one, path), "Group C", path);
+    }
+    // My programmes keeps the rest of the course area, another group's draw among it.
+    for (const path of ["/learn", "/learn/r-agi", "/learn/r-agi/weeks/2", "/learn/draw/g-other", "/learn/r-agi/group/g-other"]) {
+      assert.equal(label(one, path), "My programmes", path);
+    }
+    // The guide, on every page of the course's guide.
+    for (const path of ["/learn/facilitator-guide/c-agi", "/learn/facilitator-guide/c-agi/week-2"]) {
+      assert.equal(currentEntry(one, path).href, "/learn/facilitator-guide/c-agi", path);
+    }
+    // Two groups: each its own.
+    const two = [...member, ...PARTS.twoGroups.entries];
+    assert.equal(label(two, "/learn/r-agi/group/g-d/register"), "Group D");
+    assert.equal(label(two, "/learn/pairs/g-c"), "Group C");
+    // Two courses: the list of guides, and each course's guide beneath it.
+    const courses = [...member, ...PARTS.twoCourses.entries];
+    for (const path of ["/learn/facilitator-guide", "/learn/facilitator-guide/c-tais", "/learn/facilitator-guide/c-agi/week-1"]) {
+      assert.equal(currentEntry(courses, path).href, "/learn/facilitator-guide", path);
+    }
+    // Somebody who facilitates nothing: the course area is My programmes, as it always was.
+    for (const path of ["/learn/r-agi/group/g-c", "/learn/draw/g-c", "/learn/facilitator-guide/c-agi"]) {
+      assert.equal(label(member, path), "My programmes", path);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3b. The Facilitating part
+// ---------------------------------------------------------------------------
+
+describe("the Facilitating part of the menu", () => {
+  test("nobody who facilitates nothing is drawn anything new", () => {
+    assert.equal(facilitatingPartOf([]), null);
+    assert.equal(menuFor([]), APP_NAV, "the menu for somebody who facilitates nothing is not APP_NAV itself");
+  });
+
+  test("after the first group: each group by name, in the answer's order, then the guide", () => {
+    const menu = menuFor([C_ROW, D_ROW]);
+    assert.equal(menu.length, APP_NAV.length + 1);
+    assert.equal(menu[0], APP_NAV[0]);
+    assert.deepEqual(menu.slice(2), APP_NAV.slice(1), "an entry of the menu moved");
+    assert.equal(menu[1].label, FACILITATING_LABEL);
+    assert.deepEqual(
+      menu[1].entries.map((entry) => [entry.label, entry.href, entry.rule, entry.detail]),
+      [
+        ["Group C", "/learn/r-agi/group/g-c", "facilitating", "Wednesdays 3pm · Portland A21"],
+        ["Group D", "/learn/r-agi/group/g-d", "facilitating", "Thursdays 6pm"],
+        ["Facilitator guide", "/learn/facilitator-guide/c-agi", "facilitating", "AGI Strategy"],
+      ],
+    );
+    assert.deepEqual(menu[1].entries[0].also, ["/learn/draw/g-c", "/learn/pairs/g-c"]);
+    // Two courses: the guide opens the list, and names both.
+    const guide = PARTS.twoCourses.entries.at(-1);
+    assert.deepEqual([guide.label, guide.href, guide.detail], ["Facilitator guide", "/learn/facilitator-guide", "AGI Strategy and Technical AI Safety"]);
+    // Messages is not one of the part's: it keeps its own place and its own rule.
+    assert.ok(!FACILITATING_ENTRIES.some((entry) => entry.href === "/messages"));
+    for (const part of Object.values(PARTS)) {
+      const hrefs = part.entries.map((entry) => entry.href);
+      assert.equal(new Set(hrefs).size, hrefs.length, "two of the part's entries lead to one address");
+      for (const entry of part.entries) assert.ok(!ENTRIES.some((e) => e.href === entry.href), `${entry.href} is also a fixed entry`);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -294,6 +418,57 @@ describe("the phone's bottom bar offers nothing the menu does not", () => {
         `the bar's ${word.label} would be missing for some people, and the bar is the same for everybody`,
       );
     }
+  });
+
+  test("for everybody who facilitates nothing, the bar is the one it was, word for word", () => {
+    for (const { who, rules } of [...AUDIENCES, { who: "a member", rules: ["memberAndUp"] }]) {
+      const entries = ENTRIES.filter((e) => rules.includes(e.rule));
+      assert.deepEqual(
+        bottomBarFor(entries, null),
+        BOTTOM_BAR.filter((word) => entries.some((e) => e.href === word.href)).map((word) => ({ ...word, lights: [word.href] })),
+        who,
+      );
+    }
+    assert.deepEqual(
+      bottomBarFor(ENTRIES.filter((e) => e.rule === "memberAndUp"), null).map((word) => word.label),
+      ["Home", "Programme", "Profile"],
+    );
+  });
+
+  test("a facilitator's bar: Home, Programme, Group, Guide, then Menu, with Profile inside Menu", () => {
+    const member = ENTRIES.filter((e) => e.rule === "memberAndUp");
+    const one = bottomBarFor([...member, ...PARTS.oneGroup.entries], PARTS.oneGroup);
+    assert.deepEqual(
+      one.map((word) => [word.label, word.href, word.lights]),
+      [
+        ["Home", HOME_HREF, [HOME_HREF]],
+        ["Programme", "/learn", ["/learn"]],
+        [BAR_GROUP_LABEL, "/learn/r-agi/group/g-c", ["/learn/r-agi/group/g-c"]],
+        [BAR_GUIDE_LABEL, "/learn/facilitator-guide/c-agi", ["/learn/facilitator-guide/c-agi"]],
+      ],
+    );
+    assert.deepEqual([BAR_GROUP_LABEL, BAR_GROUPS_LABEL, BAR_GUIDE_LABEL], ["Group", "Groups", "Guide"]);
+    // Profile is in Menu: the sidebar's own first group, which the drawer draws.
+    assert.ok(APP_NAV[0].entries.some((entry) => entry.href === "/profile"));
+    // Five places with Menu, the most the bar holds at 360px.
+    assert.ok(one.length + 1 <= 5);
+    // Two groups: Groups opens My programmes, which lists them, and is lit on either.
+    const two = bottomBarFor([...member, ...PARTS.twoGroups.entries], PARTS.twoGroups);
+    assert.deepEqual(two[2], { label: BAR_GROUPS_LABEL, href: "/learn", lights: ["/learn/r-agi/group/g-c", "/learn/r-agi/group/g-d"] });
+    assert.deepEqual(two[3], { label: BAR_GUIDE_LABEL, href: "/learn/facilitator-guide/c-agi", lights: ["/learn/facilitator-guide/c-agi"] });
+    const courses = bottomBarFor([...member, ...PARTS.twoCourses.entries], PARTS.twoCourses);
+    assert.equal(courses[3].href, "/learn/facilitator-guide");
+    // The word lit is the one for the page, and only one is.
+    const lit = (bar, entries, path) => bar.filter((word) => word.lights.includes(currentEntry(entries, path)?.href)).map((word) => word.label);
+    const oneEntries = [...member, ...PARTS.oneGroup.entries];
+    assert.deepEqual(lit(one, oneEntries, "/learn/r-agi/group/g-c/register"), ["Group"]);
+    assert.deepEqual(lit(one, oneEntries, "/learn/draw/g-c"), ["Group"]);
+    assert.deepEqual(lit(one, oneEntries, "/learn/r-agi/weeks/2"), ["Programme"]);
+    assert.deepEqual(lit(one, oneEntries, "/learn/facilitator-guide/c-agi/week-2"), ["Guide"]);
+    assert.deepEqual(lit(one, oneEntries, "/profile"), [], "Profile is not in a facilitator's bar: Menu holds it");
+    const twoEntries = [...member, ...PARTS.twoGroups.entries];
+    assert.deepEqual(lit(two, twoEntries, "/learn/pairs/g-d"), ["Groups"]);
+    assert.deepEqual(lit(two, twoEntries, "/learn"), ["Programme"]);
   });
 
   test("it starts at Home and leaves room for Menu at 360px", () => {
@@ -352,6 +527,19 @@ const ENTRY_RULES = {
   "/admin/surveys": ["adminOnly", "The (admin-only) group admits admins, and only admins make, send and read surveys."],
   "/admin/reports": ["adminOnly", "The (admin-only) group admits admins, and the term's numbers, public numbers and Kairos are admins' alone."],
   "/admin/site-status": ["adminOnly", "The (admin-only) group admits admins."],
+  // The Facilitating part, made per person: held by the shapes its entries fill.
+  [FACILITATING_ADDRESSES.group]: [
+    "facilitating",
+    "A group's page admits the group's live facilitators (and admins); the entry is drawn only for its own facilitators, from the records.",
+  ],
+  [FACILITATING_ADDRESSES.guide]: [
+    "facilitating",
+    "The guide's gate admits a facilitator of a live group on a run of the course, which every group listed is.",
+  ],
+  [FACILITATING_ADDRESSES.guides]: [
+    "facilitating",
+    "The list of guides is drawn for the same people the part is, and gives anybody else the guide's own sentence.",
+  ],
 };
 
 /**
@@ -383,6 +571,9 @@ const RULE_BODIES = {
   // Added with Messages (November 2026): who leads and who facilitates is in
   // the records, not on the session, so the shell asks once (`useWritesMessages`).
   messages: ["MESSAGES_ACCESS", '(v: Viewer) => v.role === "admin" || v.writesMessages'],
+  // Added with the Facilitating part (November 2026): who facilitates a live
+  // group is in the records, so the shell asks once, in the same request.
+  facilitating: ["FACILITATING_ACCESS", "(v: Viewer) => v.facilitatesGroups > 0"],
 };
 
 describe("regrouping the menu did not change who is shown what", () => {
@@ -391,7 +582,7 @@ describe("regrouping the menu did not change who is shown what", () => {
 
   test("every entry is decided by the rule written down for its address", () => {
     assert.deepEqual(
-      Object.fromEntries(ENTRIES.map((e) => [e.href, e.rule])),
+      Object.fromEntries([...ENTRIES.map((e) => [e.href, e.rule]), ...FACILITATING_ENTRIES.map((e) => [shapeOf(e.href), e.rule])]),
       Object.fromEntries(Object.entries(ENTRY_RULES).map(([href, [rule]]) => [href, rule])),
       "APP_NAV and ENTRY_RULES disagree: a new entry needs its rule and its reason here, and a removed one leaves a stale line",
     );
@@ -401,7 +592,7 @@ describe("regrouping the menu did not change who is shown what", () => {
   });
 
   test("every rule is one constant in AppShell.tsx, and each constant reads as written", () => {
-    const used = new Set(ENTRIES.map((e) => e.rule));
+    const used = new Set([...ENTRIES, ...FACILITATING_ENTRIES].map((e) => e.rule));
     assert.deepEqual([...used].sort(), Object.keys(RULE_BODIES).sort(), "a rule is used that is not written down here, or the other way round");
     for (const [rule, [constant, body]] of Object.entries(RULE_BODIES)) {
       assert.match(

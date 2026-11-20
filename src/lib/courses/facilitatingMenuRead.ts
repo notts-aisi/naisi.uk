@@ -20,9 +20,13 @@ import { facilitatingRowOf, runCountsForMenu, type FacilitatingGroup } from "./f
 
 type Data = Record<string, unknown>;
 
-/** The query on the person's own groups: the one shape every caller asks. */
-export function ownGroupsQuery(db: Firestore, uid: string) {
-  return db.collection("courseGroups").where("facilitatorUids", "array-contains", uid);
+/**
+ * The query on the person's own groups: the one shape every caller asks. It
+ * finds which groups name them, and grants nothing: each group is held to the
+ * facilitator's bar (`isNamedWithStanding`) before it is listed.
+ */
+export function ownGroupsQuery(db: Firestore, user: SessionUser) {
+  return db.collection("courseGroups").where("facilitatorUids", "array-contains", user.uid);
 }
 
 /**
@@ -36,7 +40,7 @@ export async function facilitatingGroupsOf(
   user: SessionUser,
   known: { groups?: readonly QueryDocumentSnapshot[]; runs?: ReadonlyMap<string, Data | null> } = {},
 ): Promise<FacilitatingGroup[]> {
-  const docs = known.groups ?? (await ownGroupsQuery(db, user.uid).get()).docs;
+  const docs = known.groups ?? (await ownGroupsQuery(db, user).get()).docs;
   const live: CourseGroupDoc[] = [];
   for (const doc of docs) {
     const group = normalizeCourseGroup(doc.id, doc.data() ?? {});

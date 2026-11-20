@@ -94,7 +94,7 @@ export type MenuAnswer = {
 export async function menuAnswerOf(db: Firestore, user: SessionUser, now: Date): Promise<MenuAnswer> {
   const scope = scopeOf(user);
   if (!scope) return { writes: false, facilitating: [] };
-  const own = await ownGroupsQuery(db, user.uid).get();
+  const own = await ownGroupsQuery(db, user).get();
   const facilitatingFrom = async (runs?: TermRoles["runDocs"]): Promise<FacilitatingGroup[]> => {
     if (own.docs.length === 0) return [];
     try {

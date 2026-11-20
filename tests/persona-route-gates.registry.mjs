@@ -3884,11 +3884,13 @@ export const ROUTES = {
   "/api/messages": {
     GET: {
       expect: approvedOnly(200),
-      fields: ["writes"],
+      fields: ["facilitating", "writes"],
       why:
-        "Whether the menu draws Messages for the caller, from their own records: every approved account is " +
-        "answered, true for an admin, a programme's lead and a group's facilitator and false for anybody else, " +
-        "and a pending or rejected account is refused before anything is read. It writes nothing.",
+        "What the menu draws for the caller, from their own records: every approved account is answered " +
+        "whether it draws Messages (true for an admin, a programme's lead and a group's facilitator, false for " +
+        "anybody else) and the live groups the caller facilitates, each as named fields (no meeting link, no " +
+        "address, nobody's name), empty for anybody who facilitates nothing. A pending or rejected account is " +
+        "refused before anything is read. It writes nothing.",
     },
     POST: {
       expect: approvedOnly(400),
@@ -5747,6 +5749,14 @@ export const PAGES = {
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when " +
       "the run is missing, and the run's own roster decides the rest once it exists.",
+  },
+  "/(app)/learn/facilitator-guide": {
+    expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "The short list of facilitator guides: every approved account is drawn the page. A facilitator of a " +
+      "live group of a live run is listed each course's guide, from their own groups alone; everybody else, " +
+      "an admin who facilitates nothing among them, is given the guide's own one calm sentence, never a " +
+      "redirect and never the not-found screen.",
   },
   "/(app)/learn/facilitator-guide/[courseId]": {
     expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),

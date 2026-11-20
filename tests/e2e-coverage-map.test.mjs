@@ -1926,6 +1926,12 @@ const NOT_COVERED = {
       "Course hub: the page an ask to facilitate opens, rendered to HTML for the person asked, somebody else and every state of an ask by tests/course-hub-facilitator-asks.test.mjs, and checked by hand at 390 and 1440.",
     coverWhen: "With the spec for the ask above.",
   },
+  "/(app)/learn/facilitator-guide": {
+    reason:
+      "Facilitator guide: /(app)/learn/facilitator-guide, the short list of guides for somebody facilitating on two courses or more, is drawn on the server from the caller's own groups; every kind of caller (one course, two, nobody, an admin who facilitates nothing, a course being destroyed, signed out) is rendered to HTML by tests/messages.test.mjs.",
+    coverWhen:
+      "When the end-to-end fixtures seed a facilitator with groups on two courses, with the menu's Facilitating part.",
+  },
   "/(app)/learn/facilitator-guide/[courseId]": {
     reason:
       "Facilitator guide: /(app)/learn/facilitator-guide/[courseId] is drawn on the server behind the guide's own gate; its every caller is executed by tests/course-facilitator-guide.test.mjs, and it was checked by hand at 1440 and 390 with a whole guide loaded.",
