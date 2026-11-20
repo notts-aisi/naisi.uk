@@ -221,8 +221,9 @@ facilitator no read more when the term's form names their run (the runs the
 term's read fetched are handed on) and one run document for any other run, a
 lead the one query on their own groups, and an admin, who is now asked too,
 that query and one run document per run they facilitate. A failed read of the
-groups answers none, and the menu is then the one somebody who facilitates
-nothing has. Nothing of it is kept in the browser.
+caller's groups or their runs answers none, never a refusal, and leaves
+whether Messages is drawn as it would have been without them; the menu is then
+the one somebody who facilitates nothing has. Nothing of it is kept in the browser.
 
 ### How it is sent
 

@@ -1,3 +1,4 @@
+import { isAddressableId } from "@/lib/addressableId";
 import { couldBeFollowed } from "@/lib/courses/followable";
 import { slotWords } from "@/lib/courses/sessionChange/words";
 
@@ -27,7 +28,7 @@ import { slotWords } from "@/lib/courses/sessionChange/words";
 export type FacilitatingGroup = {
   groupId: string;
   runId: string;
-  /** "Group C". */
+  /** "Group C", or "" for a group with no name (the menu says `UNNAMED_GROUP_WORDS`). */
   name: string;
   /** "Wednesdays 3pm", or "" with no day or time. */
   slot: string;
@@ -55,15 +56,21 @@ export type MenuRunFacts = {
 
 /** Does a group of this run count for the menu? The run as normalised, with `destroying` read off the stored document. */
 export function runCountsForMenu(run: MenuRunFacts): boolean {
-  return !run.destroying && !run.archived && !NOT_LIVE_STATUSES.has(run.status) && isPlainId(run.courseId);
+  return !run.destroying && !run.archived && !NOT_LIVE_STATUSES.has(run.status) && isMenuId(run.courseId);
 }
 
-const isPlainId = (value: unknown): value is string =>
-  typeof value === "string" && value.length > 0 && value.length <= 200 && !value.includes("/") && value !== "." && value !== "..";
+/**
+ * An id the menu may build an address from: one document's id
+ * (`isAddressableId`, the guide's gate's own test), and at most 200
+ * characters. The one copy, for the read and the shell alike.
+ */
+export function isMenuId(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 200 && isAddressableId(value);
+}
 
 const oneLine = (value: unknown): string => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");
 
-/** The group's name when it has none. */
+/** The menu's name for a group that has none. */
 export const UNNAMED_GROUP_WORDS = "Your group";
 
 /**
@@ -79,7 +86,7 @@ export function facilitatingRowOf(
   return {
     groupId: group.id,
     runId: group.runId,
-    name: oneLine(group.name) || UNNAMED_GROUP_WORDS,
+    name: oneLine(group.name),
     slot: slotWords(group.session.weekday, group.session.startTimeLocal),
     room: room && !couldBeFollowed(room) ? room : "",
     courseId: run.courseId,
@@ -98,11 +105,11 @@ export function parseFacilitating(raw: unknown): FacilitatingGroup[] {
     if (!row || typeof row !== "object") continue;
     const r = row as Record<string, unknown>;
     if (!FACILITATING_FIELDS.every((field) => typeof r[field] === "string")) continue;
-    if (!isPlainId(r.groupId) || !isPlainId(r.runId) || !isPlainId(r.courseId)) continue;
+    if (!isMenuId(r.groupId) || !isMenuId(r.runId) || !isMenuId(r.courseId)) continue;
     out.push({
       groupId: r.groupId,
       runId: r.runId,
-      name: (r.name as string) || UNNAMED_GROUP_WORDS,
+      name: r.name as string,
       slot: r.slot as string,
       room: r.room as string,
       courseId: r.courseId,
@@ -126,10 +133,19 @@ export function facilitatingCourses(groups: readonly FacilitatingGroup[]): { cou
 /** The list's heading. */
 export const FACILITATOR_GUIDES = "Facilitator guides";
 
-/** "You facilitate Group C", "You facilitate Group A and Group B": under a course's row. */
+/**
+ * Under a course's row: "You facilitate Group C", "You facilitate Group A and
+ * Group B". A group with no name is said as one: "You facilitate a group with
+ * no name", "You facilitate Group A and a group with no name", "You
+ * facilitate 2 groups with no name". "" with no groups.
+ */
 export function youFacilitateWords(groupNames: readonly string[]): string {
   const named = groupNames.map((name) => name.trim()).filter(Boolean);
-  if (named.length === 0) return "";
-  const list = named.length === 1 ? named[0] : `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}`;
+  const unnamed = groupNames.length - named.length;
+  const parts = [...named];
+  if (unnamed === 1) parts.push("a group with no name");
+  if (unnamed > 1) parts.push(`${unnamed} groups with no name`);
+  if (parts.length === 0) return "";
+  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
   return `You facilitate ${list}`;
 }

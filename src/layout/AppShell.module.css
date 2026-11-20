@@ -228,12 +228,20 @@
   justify-content: space-between;
   gap: 10px;
   min-height: 2.5rem;
-  padding: 0 var(--space-3);
+  /* The block padding is room for a name that wraps (a group's name can be
+     80 characters); a one-line row is the min-height whatever it is. */
+  padding: var(--space-1) var(--space-3);
+  /* A long name, or one long word, wraps inside the row rather than running
+     out of the sidebar or the phone's Menu. */
+  overflow-wrap: anywhere;
   border-radius: var(--radius-md);
   font-size: var(--text-ui);
   font-weight: 500;
   color: var(--color-text-muted);
   transition: background var(--transition-fast), color var(--transition-fast);
+}
+.navLink > span:first-child {
+  min-width: 0;
 }
 .navLink:hover {
   background: var(--color-surface);

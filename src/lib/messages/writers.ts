@@ -1,5 +1,5 @@
 import "server-only";
-import type { Firestore } from "firebase-admin/firestore";
+import type { Firestore, QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { loadTermRoles, type TermRoles } from "@/lib/audience/load";
 import { scopeOf } from "@/lib/audience/scope";
 import type { FacilitatingGroup } from "@/lib/courses/facilitatingMenu";
@@ -88,17 +88,29 @@ export type MenuAnswer = {
  *    before, then the term's read, as before;
  *  - an admin: the query, then one run document per run they facilitate.
  *    Whether an admin writes needs no read at all.
- * A failed read of the groups answers none, never a refusal: the menu then
- * draws what it draws for somebody who facilitates nothing.
+ * A failed read of the caller's groups, or of their runs, answers no groups,
+ * never a refusal, and leaves `writes` as it would have been without them: the
+ * menu then draws what it draws for somebody who facilitates nothing.
  */
 export async function menuAnswerOf(db: Firestore, user: SessionUser, now: Date): Promise<MenuAnswer> {
   const scope = scopeOf(user);
   if (!scope) return { writes: false, facilitating: [] };
-  const own = await ownGroupsQuery(db, user).get();
+  // The caller's own groups. A failed read lists none and decides nothing
+  // else: an admin and a lead are answered `writes` as if it had never been
+  // asked (before the Facilitating part, neither asked it), and anybody else
+  // as the menu drew them when it failed then, without Messages.
+  let own: QueryDocumentSnapshot[] | null;
+  try {
+    own = (await ownGroupsQuery(db, user).get()).docs;
+  } catch (err) {
+    console.error("[messages] could not read the caller's groups for the menu", user.uid, err);
+    own = null;
+  }
+  const groups = own ?? [];
   const facilitatingFrom = async (runs?: TermRoles["runDocs"]): Promise<FacilitatingGroup[]> => {
-    if (own.docs.length === 0) return [];
+    if (groups.length === 0) return [];
     try {
-      return await facilitatingGroupsOf(db, user, { groups: own.docs, runs });
+      return await facilitatingGroupsOf(db, user, { groups, runs });
     } catch (err) {
       console.error("[messages] could not read the groups for the menu", user.uid, err);
       return [];
@@ -106,7 +118,7 @@ export async function menuAnswerOf(db: Firestore, user: SessionUser, now: Date):
   };
   if (scope.admin) return { writes: true, facilitating: await facilitatingFrom() };
   const mayLead = user.admissionsReviewer === true;
-  const mayFacilitate = own.docs.length > 0;
+  const mayFacilitate = groups.length > 0;
   if (!mayLead && !mayFacilitate) return { writes: false, facilitating: [] };
   const roles = await loadTermRoles(db, user, now);
   return { writes: writerFrom(false, roles) !== null, facilitating: await facilitatingFrom(roles.runDocs) };

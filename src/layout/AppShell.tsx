@@ -372,7 +372,8 @@ export default function AppShell({
   // none: it sits inside a dialog that is already named, beside the bottom
   // bar, which is the "Main" navigation on a narrow screen.
   // `details` draws an entry's line under its name (the Facilitating part's
-  // "Wednesdays 3pm · Portland A21"): in the phone's Menu, not the sidebar.
+  // "Wednesdays 3pm · Portland A21"): in the phone's Menu, and in the sidebar
+  // only for two groups that share a name (`detailInSidebar`).
   const renderNav = (opts: { label?: string; onLinkClick?: () => void; details?: boolean }): ReactNode => (
     <nav className={styles.nav} aria-label={opts.label}>
       {visibleGroups.map((group, gi) => (
@@ -391,7 +392,7 @@ export default function AppShell({
                 aria-current={active ? "page" : undefined}
                 onClick={opts.onLinkClick}
               >
-                {opts.details && entry.detail ? (
+                {(opts.details || entry.detailInSidebar) && entry.detail ? (
                   <span className={styles.navText}>
                     <span>{entry.label}</span>
                     <span className={styles.navDetail}>{entry.detail}</span>

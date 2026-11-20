@@ -393,6 +393,37 @@ describe("the Facilitating part of the menu", () => {
     // Two courses: the guide opens the list, and names both.
     const guide = PARTS.twoCourses.entries.at(-1);
     assert.deepEqual([guide.label, guide.href, guide.detail], ["Facilitator guide", "/learn/facilitator-guide", "AGI Strategy and Technical AI Safety"]);
+    // Only groups that share a name show their line in the sidebar too.
+    assert.ok(FACILITATING_ENTRIES.every((entry) => entry.detailInSidebar === undefined), "a group with a name of its own shows its line in the sidebar");
+    // Two of a person's groups by one name, on two courses: told apart in the
+    // sidebar by when and where they meet, and by the course when that is the same too.
+    const twins = facilitatingPartOf([C_ROW, { ...B_ROW, name: "Group C" }]).entries;
+    assert.deepEqual(
+      twins.slice(0, 2).map((entry) => [entry.label, entry.detail, entry.detailInSidebar]),
+      [
+        ["Group C", "Wednesdays 3pm · Portland A21", true],
+        ["Group C", "Thursdays 6pm · Room B8", true],
+      ],
+    );
+    assert.equal(twins[2].detailInSidebar, undefined, "the guide's line is the phone Menu's alone");
+    const sameSlot = facilitatingPartOf([C_ROW, { ...C_ROW, groupId: "g-c2", runId: "r-tais", courseId: "c-tais", courseTitle: "Technical AI Safety" }]).entries;
+    assert.deepEqual(sameSlot.slice(0, 2).map((entry) => entry.detail), [
+      "Wednesdays 3pm · Portland A21 · AGI Strategy",
+      "Wednesdays 3pm · Portland A21 · Technical AI Safety",
+    ]);
+    // A group with no name: the menu's own word, and two of them are told apart too.
+    const unnamed = facilitatingPartOf([{ ...C_ROW, name: "" }, { ...D_ROW, name: " " }]).entries;
+    assert.deepEqual(unnamed.slice(0, 2).map((entry) => [entry.label, entry.detailInSidebar]), [
+      ["Your group", true],
+      ["Your group", true],
+    ]);
+    const shell = read("layout", "AppShell.tsx");
+    assert.match(shell, /\{\(opts\.details \|\| entry\.detailInSidebar\) && entry\.detail \? \(/);
+    // A long name wraps inside its row: the sidebar is 15rem and the phone 390px.
+    const css = read("layout", "AppShell.module.css");
+    assert.match(css, /\.navLink \{[^}]*overflow-wrap: anywhere;/);
+    assert.match(css, /\.navLink > span:first-child \{\s*min-width: 0;/);
+    assert.match(css, /\.navDetail \{[^}]*overflow-wrap: anywhere;/);
     // Messages is not one of the part's: it keeps its own place and its own rule.
     assert.ok(!FACILITATING_ENTRIES.some((entry) => entry.href === "/messages"));
     for (const part of Object.values(PARTS)) {

@@ -25,7 +25,7 @@
  */
 
 import { FACILITATOR_GUIDE } from "@/lib/courses/facilitatorGuide/words";
-import { facilitatingCourses, type FacilitatingGroup } from "@/lib/courses/facilitatingMenu";
+import { UNNAMED_GROUP_WORDS, facilitatingCourses, type FacilitatingGroup } from "@/lib/courses/facilitatingMenu";
 
 // ---------------------------------------------------------------------------
 // The menu
@@ -71,6 +71,11 @@ export type NavEntry = {
    * Portland A21"). Only the Facilitating part's entries carry one.
    */
   detail?: string;
+  /**
+   * Draw `detail` in the sidebar too, not only in the phone's Menu: set on
+   * two of a person's groups that share a name, so they can be told apart.
+   */
+  detailInSidebar?: boolean;
   /**
    * Other addresses this entry is the current one on, beside its own and
    * those beneath it: a group's draw and pairs pages, which are not under
@@ -188,15 +193,26 @@ export function titlesWords(titles: readonly string[]): string {
 export function facilitatingPartOf(groups: readonly FacilitatingGroup[]): NavGroup | null {
   if (groups.length === 0) return null;
   const courses = facilitatingCourses(groups);
+  const labelOf = (group: FacilitatingGroup) => group.name.trim() || UNNAMED_GROUP_WORDS;
+  const shared = (group: FacilitatingGroup) => groups.filter((other) => labelOf(other) === labelOf(group));
+  // Two groups by one name are told apart by when and where they meet, and,
+  // when that is the same too, by their course.
+  const detailOf = (group: FacilitatingGroup) => {
+    const own = facilitatingDetailWords(group.slot, group.room);
+    const twins = shared(group);
+    const sameDetail = twins.filter((other) => facilitatingDetailWords(other.slot, other.room) === own).length > 1;
+    return sameDetail ? [own, group.courseTitle.trim()].filter(Boolean).join(" · ") : own;
+  };
   return {
     label: FACILITATING_LABEL,
     entries: [
       ...groups.map(
         (group): NavEntry => ({
-          label: group.name,
+          label: labelOf(group),
           href: fillAddress(FACILITATING_ADDRESSES.group, { runId: group.runId, groupId: group.groupId }),
           rule: "facilitating",
-          detail: facilitatingDetailWords(group.slot, group.room),
+          detail: detailOf(group),
+          ...(shared(group).length > 1 ? { detailInSidebar: true } : {}),
           also: [
             fillAddress(FACILITATING_ADDRESSES.draw, { groupId: group.groupId }),
             fillAddress(FACILITATING_ADDRESSES.pairs, { groupId: group.groupId }),

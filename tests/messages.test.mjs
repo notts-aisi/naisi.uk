@@ -412,6 +412,7 @@ describe("the menu's Facilitating part: who is listed, what is said, and what it
       const db = w.world.db;
       const realCollection = db.collection.bind(db);
       const realGetAll = db.getAll.bind(db);
+      const had = { doc: Object.hasOwn(db, "doc") ? db.doc : undefined, collectionGroup: Object.hasOwn(db, "collectionGroup") ? db.collectionGroup : undefined };
       db.collection = (name) => {
         tally.collections.push(name);
         return realCollection(name);
@@ -420,11 +421,27 @@ describe("the menu's Facilitating part: who is listed, what is said, and what it
         tally.fetched += refs.length;
         return realGetAll(...refs);
       };
+      // A read addressed from the root (`db.doc("courseRuns/x")`) or across
+      // every collection of a name (`db.collectionGroup("courseGroups")`) is a
+      // read too: each is counted, so one added either way fails the count.
+      db.doc = (path) => {
+        tally.collections.push(`doc:${path.split("/")[0]}`);
+        const at = path.lastIndexOf("/");
+        return realCollection(path.slice(0, at)).doc(path.slice(at + 1));
+      };
+      db.collectionGroup = (name) => {
+        tally.collections.push(`group:${name}`);
+        return realCollection(name);
+      };
       return {
         tally,
         restore: () => {
           db.collection = realCollection;
           db.getAll = realGetAll;
+          for (const [key, value] of Object.entries(had)) {
+            if (value === undefined) delete db[key];
+            else db[key] = value;
+          }
         },
       };
     };
@@ -467,6 +484,57 @@ describe("the menu's Facilitating part: who is listed, what is said, and what it
     assert.deepEqual(zach.collections.filter((name) => name !== "courseRuns"), ["courseGroups"]);
     assert.equal(zach.fetched, 2, "an admin's two runs are not one document each");
     assert.deepEqual(await groupIdsOf("zach"), [C, TAIS_GROUP]);
+    // The counter sees a read made from the root or across a collection group.
+    const seen = await readsOf(async () => {
+      await w.world.db.doc(`courseRuns/${RUN.agi}`).get();
+      w.world.db.collectionGroup("courseGroups");
+    });
+    assert.deepEqual(seen.collections, ["doc:courseRuns", "group:courseGroups"]);
+  });
+
+  test("a failed read of the caller's own groups lists none, and Messages is decided as it was", async (t) => {
+    freshTerm(t);
+    const writesBefore = {};
+    for (const who of ["claudia", "tess", "tom", "amara", "zach"]) writesBefore[who] = (await call(who, route.GET)).body.writes;
+    const realCollection = w.world.db.collection.bind(w.world.db);
+    w.world.db.collection = (name) => {
+      const ref = realCollection(name);
+      if (name !== "courseGroups") return ref;
+      return new Proxy(ref, {
+        get(target, key) {
+          if (key !== "where") return Reflect.get(target, key);
+          return (field, op, value) => {
+            if (field === "facilitatorUids" && op === "array-contains") {
+              return { get: async () => Promise.reject(new Error("unavailable")) };
+            }
+            return target.where(field, op, value);
+          };
+        },
+      });
+    };
+    t.after(() => {
+      w.world.db.collection = realCollection;
+    });
+    const quiet = mock.method(console, "error", () => {});
+    t.after(() => quiet.mock.restore());
+    // A lead (and a lead who facilitates): Messages exactly as before the
+    // Facilitating part, which never asked them this query; no groups.
+    for (const who of ["claudia", "tess"]) {
+      const response = await call(who, route.GET);
+      assert.equal(response.status, 200, who);
+      assert.deepEqual(response.body, { writes: writesBefore[who], facilitating: [] }, who);
+      assert.equal(writesBefore[who], true, who);
+    }
+    // A member, who facilitates or not: no groups, and no Messages, as the
+    // menu drew them when this same query failed before (a refusal the shell
+    // read as no).
+    for (const who of ["tom", "amara"]) {
+      const response = await call(who, route.GET);
+      assert.equal(response.status, 200, who);
+      assert.deepEqual(response.body, { writes: false, facilitating: [] }, who);
+    }
+    // An admin: Messages whatever happens.
+    assert.deepEqual((await call("zach", route.GET)).body, { writes: true, facilitating: [] });
   });
 
   test("a failed read of the groups' runs answers none, and leaves Messages as it was", async (t) => {
@@ -495,6 +563,22 @@ describe("the menu's Facilitating part: who is listed, what is said, and what it
     assert.deepEqual(facilitatingMenu.parseFacilitating([{ ...row, meetingUrl: "https://meet.example/x" }]), [row]);
     assert.equal(facilitatingMenu.runCountsForMenu({ status: "running", archived: false, destroying: false, courseId: "c1" }), true);
     assert.equal(facilitatingMenu.runCountsForMenu({ status: "running", archived: false, destroying: false, courseId: "" }), false);
+    // A group with no name is carried as one, for the menu and the list to say so.
+    assert.deepEqual(facilitatingMenu.parseFacilitating([{ ...row, name: "" }]), [{ ...row, name: "" }]);
+    // The one id test: one document's id (`isAddressableId`), at most 200 characters.
+    for (const bad of ["", ".", "..", "a/b", "x".repeat(201), 7, null]) assert.equal(facilitatingMenu.isMenuId(bad), false, String(bad));
+    for (const good of ["g1", "agi-autumn-2026-tbc__grp00003", "x".repeat(200)]) assert.equal(facilitatingMenu.isMenuId(good), true);
+  });
+
+  test("a group with no name is listed as one, and said in plain words", async (t) => {
+    freshTerm(t, { [`courseGroups/${C}`]: doc(`courseGroups/${C}`, { name: "  " }) });
+    const [row] = (await call("tom", route.GET)).body.facilitating;
+    assert.equal(row.name, "");
+    assert.equal(facilitatingMenu.youFacilitateWords([""]), "You facilitate a group with no name");
+    assert.equal(facilitatingMenu.youFacilitateWords(["Group A", ""]), "You facilitate Group A and a group with no name");
+    assert.equal(facilitatingMenu.youFacilitateWords(["", ""]), "You facilitate 2 groups with no name");
+    assert.equal(facilitatingMenu.youFacilitateWords(["Group B", "Group A"]), "You facilitate Group B and Group A");
+    assert.equal(facilitatingMenu.youFacilitateWords([]), "");
   });
 });
 
@@ -520,6 +604,7 @@ describe("the short list of facilitator guides (/learn/facilitator-guide)", () =
     assert.ok(html.includes('href="/learn/facilitator-guide/agi-strategy-fellowship__c0urse01"'), html);
     assert.ok(html.includes('href="/learn/facilitator-guide/technical-ai-safety__c0urse02"'), html);
     assert.ok(!text.includes(REFUSED));
+    assert.ok(!text.includes("Your group"), text);
     // Nothing of a group but its name: no room, no time, no link.
     assert.ok(!text.includes("Hallward") && !text.includes("Tuesdays"), text);
   });
@@ -533,6 +618,11 @@ describe("the short list of facilitator guides (/learn/facilitator-guide)", () =
     }
     const page = read("src", "app", "(app)", "learn", "facilitator-guide", "page.tsx");
     assert.doesNotMatch(page, /notFound\(/);
+    // A group with no name is said as one.
+    termAgain({ [`courseGroups/${C}`]: doc(`courseGroups/${C}`, { name: "" }) });
+    const unnamed = textOf((await render("tom")).html);
+    assert.ok(unnamed.includes("You facilitate a group with no name"), unnamed);
+    assert.ok(!unnamed.includes("Your group"), unnamed);
     // A course being destroyed is left out, and with nothing left the sentence stands.
     termAgain({ "courses/agi-strategy-fellowship__c0urse01": doc("courses/agi-strategy-fellowship__c0urse01", { destroying: true }) });
     assert.ok(textOf((await render("tom")).html).includes(REFUSED));

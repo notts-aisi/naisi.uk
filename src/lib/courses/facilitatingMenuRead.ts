@@ -4,7 +4,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
-import { facilitatingRowOf, runCountsForMenu, type FacilitatingGroup } from "./facilitatingMenu";
+import { facilitatingRowOf, isMenuId, runCountsForMenu, type FacilitatingGroup } from "./facilitatingMenu";
 
 /**
  * WHICH GROUPS THE MENU'S FACILITATING PART LISTS, read for one person on the
@@ -44,7 +44,7 @@ export async function facilitatingGroupsOf(
   const live: CourseGroupDoc[] = [];
   for (const doc of docs) {
     const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
-    if (group.archived || !isPlainId(group.runId)) continue;
+    if (group.archived || !isMenuId(group.id) || !isMenuId(group.runId)) continue;
     if (!isNamedWithStanding(user, "courseGroups.facilitatorUids", group.facilitatorUids)) continue;
     live.push(group);
   }
@@ -71,6 +71,3 @@ export async function facilitatingGroupsOf(
   }
   return rows.sort((a, b) => compareGroupsByMeeting(a.group, b.group)).map(({ row }) => row);
 }
-
-const isPlainId = (value: unknown): value is string =>
-  typeof value === "string" && value.length > 0 && value.length <= 200 && !value.includes("/") && value !== "." && value !== "..";
