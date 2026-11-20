@@ -18,6 +18,9 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseRunChannel, normalizeCourseRun } from "@/lib/firestore/courses";
 import { unsubscribe } from "@/lib/firestore/subscriptions";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { visitLimitsIn } from "@/lib/courses/visit/limits";
+import { NO_VISITS_ENDED, sendRemovalVisitEmails, visitsEndedByRemoval, type RemovalVisits } from "@/lib/courses/visit/removed";
+import { removalChangedWords } from "@/lib/courses/visit/words";
 
 /**
  * Remove one learner from a run: their enrolment flips to `status:"removed"`
@@ -62,6 +65,19 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * cleared `groupId`). That route needs an accepted application, so a member
  * who signed themselves up comes back through the reinstate route instead.
  *
+ * A VISIT STILL TO COME IS CALLED OFF WITH ITS HOST TOLD. Every one-week
+ * visit on the place goes with the removal; for each whose session has not
+ * started and is happening, the host's facilitators are sent the visit's
+ * approved called-off email after the commit (`visitsEndedByRemoval` and
+ * `sendRemovalVisitEmails` in `src/lib/courses/visit/removed.ts`). The person
+ * removed is sent nothing. `preview: true` writes nothing and answers how
+ * many emails a press sends and about which visits, for the board's
+ * confirmation; the press sends that count back (`emails`, none meaning 0),
+ * and the transaction works it out again and refuses a different one (409,
+ * with the count as it is now). A press that emails is held to the limit on a
+ * visit called off by hand (`visitLimitsIn`), claimed in the removal's own
+ * write: at the limit it is refused (429) with nothing written.
+ *
  * FACILITATOR ROWS ARE OUT OF SCOPE: a `role:"facilitator"` enrolment is
  * managed by the group facilitators route (which retires it when the person
  * is unassigned). Refused here so the board can't quietly strip someone's
@@ -104,12 +120,30 @@ class RemoveError extends Error {
   constructor(
     message: string,
     public status: number,
+    public emails: number | null = null,
   ) {
     super(message);
   }
 }
 
-export async function POST(_req: Request, ctx: Ctx) {
+/** The body: none, `{ preview: true }`, or the count of emails the confirmation showed. Null when it is malformed. */
+async function readBody(req: Request): Promise<{ preview: boolean; emails: number } | null> {
+  const text = await req.text().catch(() => "");
+  if (!text.trim()) return { preview: false, emails: 0 };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const { preview, emails } = raw as { preview?: unknown; emails?: unknown };
+  if (preview !== undefined && typeof preview !== "boolean") return null;
+  if (emails !== undefined && !(typeof emails === "number" && Number.isInteger(emails) && emails >= 0)) return null;
+  return { preview: preview === true, emails: typeof emails === "number" ? emails : 0 };
+}
+
+export async function POST(req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
 
@@ -140,6 +174,32 @@ export async function POST(_req: Request, ctx: Ctx) {
     .collection("courseEnrolments")
     .doc(courseEnrolmentId(runId, uid));
 
+  const body = await readBody(req);
+  if (!body) return NextResponse.json({ error: "Expected no body, or a JSON object." }, { status: 400 });
+
+  if (body.preview) {
+    // What a press would do about their visits, read now: writes nothing.
+    const [snap, runGroups] = await Promise.all([enrolmentRef.get(), db.collection("courseGroups").where("runId", "==", runId).get()]);
+    if (!snap.exists || snap.data()?.uid !== uid || snap.data()?.runId !== runId) {
+      return NextResponse.json({ error: "Enrolment not found" }, { status: 404 });
+    }
+    const place = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
+    const visits =
+      place.status === "active"
+        ? await visitsEndedByRemoval((refs) => db.getAll(...refs), db, {
+            run,
+            place,
+            groups: runGroups.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})),
+            actorUid: actor.uid,
+            now: new Date(),
+          })
+        : NO_VISITS_ENDED;
+    return NextResponse.json({
+      ok: true,
+      preview: { emails: visits.emails, visits: visits.ended.map((each) => ({ hostName: each.host.name.trim() || "Untitled group", weekNumber: each.weekNumber })) },
+    });
+  }
+
   // Where the seat's place on the form came from, as leaving reads it, and
   // the form it goes back to, read before the transaction (see the note at
   // the top). A round that is no longer a form has no place on it to give
@@ -149,8 +209,11 @@ export async function POST(_req: Request, ctx: Ctx) {
   const fromForm = "path" in leaving && leaving.path.kind === "form" ? leaving.path : null;
   const form = fromForm ? await loadForm(db, fromForm.roundId) : null;
 
+  // The visits the removal ends with an email, as the transaction read them: sent after the commit.
+  let visitsOff: RemovalVisits = NO_VISITS_ENDED;
   try {
     await db.runTransaction(async (tx) => {
+      visitsOff = NO_VISITS_ENDED;
       const [snap, runGroups] = await Promise.all([
         tx.get(enrolmentRef),
         // One equality on one field: who facilitates the run's groups.
@@ -197,6 +260,21 @@ export async function POST(_req: Request, ctx: Ctx) {
         form && fromForm && status === "active"
           ? await readPlaceToGiveBack(tx, db, form, uid, fromForm.programmeId, now)
           : null;
+
+      // The visits still to come it ends, and the emails to their hosts'
+      // facilitators: the count the confirmation showed, or nothing is written.
+      const visits = await visitsEndedByRemoval((refs) => tx.getAll(...refs), db, {
+        run,
+        place: normalizeCourseEnrolment(snap.id, existing),
+        groups: runGroups.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})),
+        actorUid: actor.uid,
+        now,
+      });
+      if (visits.emails !== body.emails) throw new RemoveError(removalChangedWords(visits.emails), 409, visits.emails);
+      // Held to the limit on a visit called off by hand, claimed with the removal's own writes.
+      const limits = visits.emails > 0 ? await visitLimitsIn(tx, db, runId, uid, actor.uid) : null;
+      if (limits?.refusal) throw new RemoveError(limits.refusal, 429);
+      limits?.write();
 
       const groupId =
         typeof existing.groupId === "string" && existing.groupId
@@ -255,10 +333,11 @@ export async function POST(_req: Request, ctx: Ctx) {
           updatedAt: FieldValue.serverTimestamp(),
         });
       }
+      visitsOff = visits;
     });
   } catch (err) {
     if (err instanceof RemoveError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      return NextResponse.json({ error: err.message, ...(err.emails !== null ? { emails: err.emails } : {}) }, { status: err.status });
     }
     console.error("[courses remove] transaction failed", runId, uid, err);
     return NextResponse.json({ error: "Couldn't remove that enrolment." }, { status: 500 });
@@ -300,5 +379,9 @@ export async function POST(_req: Request, ctx: Ctx) {
     console.warn("[courses remove] cohort unsubscribe failed", runId, uid, err);
   }
 
-  return NextResponse.json({ ok: true });
+  // The hosts' facilitators of each visit it ended, told after the commit.
+  const ended: RemovalVisits = visitsOff;
+  const emails = ended.emails > 0 ? await sendRemovalVisitEmails(ended, { actorUid: actor.uid, runId }) : null;
+
+  return NextResponse.json(emails ? { ok: true, emails } : { ok: true });
 }

@@ -137,7 +137,7 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
         ) : week.status !== "waiting" ? (
           <>
             <p className={styles.line}>
-              {week.status === "withdrawn" && view.withdrawnWithVisit
+              {week.status === "withdrawn" && week.withdrawnWithVisit
                 ? R.withdrawnWithVisitWords(week.withdrawnAt, now)
                 : R.decidedWeekWords({
                     status: week.status === "approved" || week.status === "declined" ? week.status : "withdrawn",
@@ -361,8 +361,9 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
                         by: entry.by.name,
                         weekNumber: view.weeks.length > 1 && week ? week.weekNumber : null,
                         occurrence: week?.occurrence ?? 1,
-                        // A withdrawal with the visit is whoever ended the visit's, never the person's.
-                        personFirstName: entry.what === "asked" || (entry.what === "withdrawn" && !view.withdrawnWithVisit) ? first : "",
+                        // A withdrawal with the visit is whoever ended the visit's, never the person's:
+                        // read on the week it was about (a line with no week, on the request).
+                        personFirstName: entry.what === "asked" || (entry.what === "withdrawn" && !(week ? week.withdrawnWithVisit : view.withdrawnWithVisit)) ? first : "",
                       })}
                     </span>
                   </li>

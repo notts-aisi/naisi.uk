@@ -7,7 +7,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { weekDocId } from "@/lib/firestore/courses";
 import { moveLimitsIn } from "./limits";
-import { accountsIn, emailFor, moveRecipients, moveWeekFor, planMove, readMoveFacts, runMoveRefusal, type MovePlan, type MoveRecipient, type MoveRefusal } from "./plan";
+import { accountsIn, emailFor, moveRecipients, moveWeekFor, planMove, readMoveFacts, readNotHeld, runMoveRefusal, type MovePlan, type MoveRecipient, type MoveRefusal } from "./plan";
 import { MOVE_REFUSAL, changedWords, moveReasonForm, movedInDetail, movedOutDetail, movedWords } from "./words";
 
 /**
@@ -100,7 +100,8 @@ export async function saveMove(db: Firestore, input: MoveSaveInput): Promise<Mov
         if (limits.refusal) return { kind: "limit", error: limits.refusal };
         claimLimits = limits.write;
         // The week, by the rule, from the documents this transaction read.
-        const week = moveWeekFor(seen.run, seen.place, seen.groups, seen.to, input.now);
+        const notHeld = await readNotHeld((refs) => tx.getAll(...refs), db, seen.run, seen.place, seen.groups, input.now);
+        const week = moveWeekFor(seen.run, seen.place, seen.groups, seen.to, input.now, notHeld);
         const weekNumber = week.ok ? week.weekNumber : null;
         const accounts = await accountsIn(tx, db, [input.uid, ...seen.from.facilitatorUids, ...seen.to.facilitatorUids]);
         const data = accounts.get(input.uid);

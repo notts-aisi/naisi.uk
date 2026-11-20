@@ -74,6 +74,15 @@ export type ExcusedWeek = {
   /** The reply that came with the decision; "" with none. */
   reply: string;
   withdrawnAt: Date | null;
+  /**
+   * This week was withdrawn, not by the person, because the visit it was
+   * about ended (`withdrawVisitRequestsIn`). Kept per week, so a week of the
+   * same request the person withdrew themselves never reads as one. A
+   * request stored with the flag on the whole request (before it was kept
+   * per week) reads it on each of its withdrawn weeks, as it was read then.
+   * Always set by the normaliser; a week being asked for leaves it out.
+   */
+  withdrawnWithVisit?: boolean;
   /** What approving it did to the register; null until approved. */
   register: ExcusedRegisterOutcome | null;
 };
@@ -153,9 +162,10 @@ export type ExcusedRequestDoc = {
    */
   aboutVisit: boolean;
   /**
-   * Withdrawn, not by the person, because the visit it was about ended
-   * (`withdrawVisitRequestsIn`): left off the person's own list, where no
-   * approved words say who withdrew it; staff read it in its history.
+   * Some week of it was withdrawn, not by the person, because the visit it
+   * was about ended (each week's own `withdrawnWithVisit` says which): such a
+   * week is left off the person's own list, where no approved words say who
+   * withdrew it; staff read it in its history.
    */
   withdrawnWithVisit: boolean;
   status: CourseRequestStatus;
@@ -220,6 +230,7 @@ function weekOf(v: unknown): ExcusedWeek | null {
     decidedAt: tsToDate(raw.decidedAt),
     reply: str(raw.reply, EXCUSED_LIMITS.reply),
     withdrawnAt: tsToDate(raw.withdrawnAt),
+    withdrawnWithVisit: raw.status === "withdrawn" && raw.withdrawnWithVisit === true,
     register: EXCUSED_REGISTER_OUTCOMES.includes(raw.register as ExcusedRegisterOutcome) ? (raw.register as ExcusedRegisterOutcome) : null,
   };
 }
@@ -285,6 +296,10 @@ export function normalizeExcusedRequest(id: string, data: Raw): ExcusedRequestDo
     weeks.push(week);
   }
   if (weeks.length === 0) return null;
+  // Stored before the flag was kept per week: on the request, so each of its withdrawn weeks.
+  if (data.withdrawnWithVisit === true) {
+    for (const week of weeks) if (week.status === "withdrawn") week.withdrawnWithVisit = true;
+  }
   const reason = str(data.reason, EXCUSED_LIMITS.reason);
   return {
     id,
@@ -305,7 +320,7 @@ export function normalizeExcusedRequest(id: string, data: Raw): ExcusedRequestDo
     reasonGoneAt: tsToDate(data.reasonGoneAt),
     confirmed: confirmedOf(data.confirmed),
     aboutVisit: data.aboutVisit === true,
-    withdrawnWithVisit: data.withdrawnWithVisit === true,
+    withdrawnWithVisit: weeks.some((week) => week.withdrawnWithVisit === true),
     // The weeks are the truth; the stored status is what one equality finds.
     status: excusedStatusOf(weeks),
     decidedByUid: uidOrNull(data.decidedByUid),

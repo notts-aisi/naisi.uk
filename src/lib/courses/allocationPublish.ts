@@ -7,6 +7,7 @@ import {
   courseEnrolmentId,
   enrolmentHasLeft,
   enrolmentIsPutBack,
+  groupForWeek,
   movedSinceTold,
   normalizeCourseEnrolment,
   placementIsTold,
@@ -1492,7 +1493,13 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   const moved: PlannedMoved[] = movedOwed.map(({ row, group, from }) => {
     const data = users.get(row.uid);
     const name = data ? displayNameOf(data) : row.displayName || "NAISI member";
-    const next = sessionRange(resolveSessions(run, group), now).next;
+    // Their next session in the group is the first they are due at there: a
+    // move made mid-term leaves its earlier weeks with the group they left,
+    // and a week visiting another group's session is that session's. With no
+    // record and no visit, every week is the group's, as it always was.
+    const seat = enrolmentByUid.get(row.uid);
+    const theirs = resolveSessions(run, group).filter((session) => !seat || groupForWeek(seat, session.weekNumber) === group.id);
+    const next = sessionRange(theirs, now).next;
     return {
       uid: row.uid,
       name,

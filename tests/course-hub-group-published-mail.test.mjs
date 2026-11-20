@@ -29,12 +29,29 @@
  * The list is the one Publish writes, read back through the real resolver.
  * `tests/lib/groupPublishedWorld.mjs` says what is real and what is stubbed.
  */
+import { join } from "node:path";
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { GROUP, OPEN_GROUP, RUN, makeGroupWorld } from "./lib/groupPublishedWorld.mjs";
 
 const made = await makeGroupWorld("__groupPublishedMail");
-const { world, reset, call, routes, steps, audience } = made;
+const { world, reset, call, routes, steps, audience, loadTs, enrolmentPath } = made;
+const enrolments = await loadTs(join("lib", "firestore", "courseEnrolments.ts"));
+
+/**
+ * The run's two weeks start on Mon 26 Oct 2026: Monday's group meets at 6pm
+ * (weeks 1 and 2 on 26 Oct and 2 Nov), Thursday's at 10am (29 Oct and 5 Nov).
+ * BEFORE_TERM is before any session, when a move on the board is for every
+ * week. MID_TERM, Fri 30 Oct at noon, is after both groups met week 1: a move
+ * then keeps the week already met, from week 2 (`tests/course-board-move.test.mjs`).
+ * These moves are made on one of the two, never on the day the suite runs.
+ */
+const BEFORE_TERM = new Date("2026-10-20T12:00:00Z");
+const MID_TERM = new Date("2026-10-30T12:00:00Z");
+const groupsByWeekOf = (uid) => {
+  const seat = enrolments.normalizeCourseEnrolment(`${RUN.agi}__${uid}`, world.db.read(enrolmentPath(uid)));
+  return [1, 2].map((week) => enrolments.groupForWeek(seat, week));
+};
 
 beforeEach(() => {
   reset();
@@ -69,9 +86,12 @@ describe("the cohort lanes reach the people Publish has told, and nobody it has 
     assert.deepEqual(await reachRun(), ["amara", "bea", "dev", "tariq"]);
   });
 
-  test("somebody told their group and moved after Publish is reached in the group they are in now at once, and never the one they left", async () => {
+  test("somebody told their group and moved after Publish is reached in the group they are in now at once, and never the one they left", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_TERM });
     await steps.published();
-    await steps.place([{ uid: "amara", groupId: GROUP.monday }]);
+    const moved = await steps.place([{ uid: "amara", groupId: GROUP.monday }]);
+    assert.deepEqual([moved.body.placed, moved.body.rejected], [1, []]);
+    assert.deepEqual(groupsByWeekOf("amara"), [GROUP.monday, GROUP.monday], "before the term: Monday's group for every week");
     // Still on the run's list: Publish put them there and a move takes nobody off.
     const rows = world.db
       .paths()
@@ -88,6 +108,31 @@ describe("the cohort lanes reach the people Publish has told, and nobody it has 
 
     // The next press tells her she moved, and changes nobody's reach.
     await steps.publishes();
+    assert.deepEqual(await reach(GROUP.monday), { uids: ["amara", "bea", "dev"], skipped: 0 });
+    assert.deepEqual(await reachRun(), ["amara", "bea", "dev", "tariq"]);
+  });
+
+  test("moved mid-term, she keeps the week met with the group she left and is reached in the group she is in now at once, and never the one she left", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_TERM });
+    await steps.published();
+    t.mock.timers.setTime(MID_TERM.getTime());
+    const moved = await steps.place([{ uid: "amara", groupId: GROUP.monday }]);
+    assert.deepEqual([moved.body.placed, moved.body.rejected], [1, []]);
+    // Week 1, met on Thursday 29 Oct, stays Thursday's; Monday's from week 2.
+    assert.deepEqual(groupsByWeekOf("amara"), [GROUP.thursday, GROUP.monday]);
+    const rows = world.db
+      .paths()
+      .filter((path) => path.startsWith("subscriptions/"))
+      .map((path) => world.db.read(path))
+      .filter((row) => row.channel === `cohort:${RUN.agi}` && row.audienceId === "amara");
+    assert.deepEqual(rows.map((row) => row.subscribed), [true]);
+    assert.deepEqual(await reach(GROUP.monday), { uids: ["amara", "bea", "dev"], skipped: 0 });
+    assert.deepEqual(await reach(GROUP.thursday), { uids: ["tariq"], skipped: 0 });
+    assert.deepEqual(await reachRun(), ["amara", "bea", "dev", "tariq"]);
+    // The next press tells her once that she moved, and changes nobody's reach.
+    world.mail.length = 0;
+    await steps.publishes();
+    assert.deepEqual(world.mail.filter((mail) => mail.subject.startsWith("You’ve moved to ")).map((mail) => mail.to), [world.db.read("users/amara").email]);
     assert.deepEqual(await reach(GROUP.monday), { uids: ["amara", "bea", "dev"], skipped: 0 });
     assert.deepEqual(await reachRun(), ["amara", "bea", "dev", "tariq"]);
   });
@@ -139,7 +184,8 @@ const sentTo = (what) =>
 const addressOf = (uid) => world.db.read(`users/${uid}`).email;
 
 describe("Publish itself is the one email before which nothing reaches them", () => {
-  test("placing everybody emails nobody; Publish emails each person once; a move emails nobody until the next press", async () => {
+  test("placing everybody emails nobody; Publish emails each person once; a move emails nobody until the next press", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_TERM });
     await steps.placed();
     assert.equal(world.mail.length, 0);
     await steps.publishes();
@@ -185,5 +231,29 @@ describe("Publish itself is the one email before which nothing reaches them", ()
     assert.deepEqual(sentTo("moved"), [addressOf("dev")]);
     // Never the first email to somebody told.
     assert.deepEqual(sentTo("placement"), []);
+  });
+
+  test("a move made mid-term emails nobody either, and the next press tells him once that he moved", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_TERM });
+    await steps.published();
+    t.mock.timers.setTime(MID_TERM.getTime());
+    world.mail.length = 0;
+    const moved = await steps.place([{ uid: "dev", groupId: GROUP.thursday }]);
+    assert.deepEqual([moved.body.placed, moved.body.rejected], [1, []]);
+    assert.equal(world.mail.length, 0, "a move after Publish emailed somebody");
+    // Week 1, met on Monday 26 Oct, stays Monday's; Thursday's from week 2.
+    assert.deepEqual(groupsByWeekOf("dev"), [GROUP.monday, GROUP.thursday]);
+    const tested = await steps.sendTest();
+    assert.equal(tested.status, 200, JSON.stringify(tested.body));
+    assert.deepEqual(world.mail.map(whatItIs), ["test of moved", "test of joined"]);
+    world.mail.length = 0;
+    await steps.publishes();
+    assert.deepEqual(world.mail.map(whatItIs), ["moved", "joined"]);
+    assert.deepEqual(sentTo("joined"), [addressOf("tess")]);
+    assert.deepEqual(sentTo("moved"), [addressOf("dev")]);
+    assert.deepEqual(sentTo("placement"), []);
+    world.mail.length = 0;
+    await steps.publishes();
+    assert.deepEqual(world.mail.map(whatItIs).filter((what) => !what.startsWith("test of")), [], "told once");
   });
 });

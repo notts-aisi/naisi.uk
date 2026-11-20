@@ -720,6 +720,12 @@ export const VISIT_LIMIT_WORDS = {
   unread: "The limit on these emails couldn’t be checked, so nothing was changed or sent. Try again.",
 } as const;
 
+/** 409: taking somebody off the run, the count of emails about the visits it ends changed between the question and the press. */
+export function removalChangedWords(emails: number): string {
+  const who = emails === 0 ? "nobody" : emails === 1 ? "1 person" : `${emails} people`;
+  return `Taking them off the run now emails ${who} about their visits, so nothing was changed. Check it, then press again.`;
+}
+
 /** 409: the count changed between the page and the press. */
 export function changedWords(emails: number): string {
   return `The visit now emails ${emails === 1 ? "1 person" : `${emails} people`}. Check the page, then press again.`;

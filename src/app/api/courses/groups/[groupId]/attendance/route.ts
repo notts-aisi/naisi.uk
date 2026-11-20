@@ -1016,12 +1016,16 @@ export async function GET(
     .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.uid.localeCompare(b.uid));
 
   // Somebody told us in advance, and the register still has them excused:
-  // the rows only, in their order, soonest session first.
+  // the rows of that session's week only (somebody moved from a week is a row
+  // of this group for the weeks they were in it, `isRowForWeek`; a line left
+  // on a later week by a move names nobody here), in their order, soonest
+  // session first.
   const cantMakeIt: AttendanceCantMakeIt[] = [];
   for (const session of [...columns, ...ahead]) {
     const register = registerBySessionKey.get(session.sessionKey);
     if (!register) continue;
     const uids = members
+      .filter((m) => isRowForWeek(m, session.weekNumber))
       .map((m) => m.uid)
       .filter((uid) => register.excusedInAdvance[uid] && register.records[uid] === "excused");
     if (uids.length === 0) continue;

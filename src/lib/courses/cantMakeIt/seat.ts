@@ -8,6 +8,7 @@ import {
 } from "firebase-admin/firestore";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
+import { standingUserOf } from "@/lib/courses/programmeLead";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
@@ -175,6 +176,21 @@ export function nextSessionByWeek(
  */
 export function facilitatesGroup(user: SessionUser, group: CourseGroupDoc): boolean {
   return isNamedWithStanding(user, "courseGroups.facilitatorUids", group.facilitatorUids);
+}
+
+/**
+ * WHETHER THE PERSON'S CARD OFFERS "CAN'T MAKE IT" AS A REQUEST, the page's
+ * own rule (`asks` in `excusedFor`, `../excused/own.ts`): unless they
+ * facilitate, with standing, the group their place is in NOW (`groupNow`),
+ * whose card's "Can't make it" is then the instant one, and a visit's card
+ * offers none. Asked by the staff call-off's sentence (`../visit/plan.ts`)
+ * and the reminders before a session (`shownOnTheirPage`), so the three never
+ * answer differently. `account` is the person's stored account, read by the
+ * caller; with none, or no group, they facilitate nothing and the card asks.
+ */
+export function cardAsksFor(uid: string, account: Record<string, unknown> | null | undefined, groupNow: CourseGroupDoc | null): boolean {
+  if (!account || !groupNow) return true;
+  return !facilitatesGroup(standingUserOf(uid, account), groupNow);
 }
 
 /**

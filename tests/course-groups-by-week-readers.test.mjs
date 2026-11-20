@@ -309,6 +309,14 @@ const READERS = {
     kinds: ["week", "own", "now"],
     why: "the week a staff move is from goes by the sessions of the groups the place BELONGS to (sessionsByWeekGroup of belonging(place)), never a visit's host; the weeks that stay name the group each week's session was in (groupForWeek), where they met; the group they leave is the group they are in now",
   },
+  "lib/courses/visit/removed.ts": {
+    kinds: ["now"],
+    why: "taking somebody off the run reads the visits on their place, each a week's session of its host, and tells the host's facilitators of one still to come; it asks nobody's group for a week, and every visit goes with the removal",
+  },
+  "lib/courses/staffMove/board.ts": {
+    kinds: ["own", "now"],
+    why: "whether a move on the board is made mid-term goes by whether a session of the groups the place BELONGS to has started (sessionsByWeekGroup of belonging(place)), never a visit's host; the week and the weeks that stay are the move page's own (`moveWeekFor`, `stayNamesFor`); the group they leave is the group they are in now",
+  },
   "app/api/courses/groups/[groupId]/pace/route.ts": {
     kinds: ["now"],
     why: "a group's own pacing re-dates that group's sessions and resets the task mark of the people in it now; it reads nobody's mark",
@@ -318,8 +326,8 @@ const READERS = {
     why: "who holds a seat in a group now, for places given back: a count of the group as it is, never a week of anybody's",
   },
   "lib/courses/allocationPublish.ts": {
-    kinds: ["now"],
-    why: "Publish tells people the group they are in now, and its facilitators who is in it now",
+    kinds: ["week", "now"],
+    why: "Publish tells people the group they are in now, and its facilitators who is in it now; \"You’ve moved\" names the next session of that group they are due at (`groupForWeek`), so a move made mid-term on the board never names a week still spent in the old group, nor a week visiting another group",
   },
   "lib/courses/coursework/questionLoad.ts": {
     kinds: ["own", "now"],
@@ -542,16 +550,21 @@ describe("the tree: every reader of a week's group says which group it means", (
     assert.deepEqual(defining, ["lib/firestore/courseEnrolments.ts"]);
   });
 
-  test("one thing calls the writer: the staff move's save, behind its route; no page, no job, nothing else", () => {
+  test("two things call the writer: the staff move's save and a move made mid-term on the board, each behind its one route; no page, no job, nothing else", () => {
     const calling = files
       .filter(([file, code]) => file !== "lib/courses/moveFromWeek.ts" && /\bmoveFromWeek\s*(?:<[^>]*>)?\s*\(/.test(code))
-      .map(([file]) => file);
-    assert.deepEqual(calling, ["lib/courses/staffMove/save.ts"]);
-    // And the save is reached from one route alone.
+      .map(([file]) => file)
+      .sort();
+    assert.deepEqual(calling, ["lib/courses/staffMove/board.ts", "lib/courses/staffMove/save.ts"]);
+    // And each save is reached from one route alone.
     const reaching = files
       .filter(([file, code]) => file !== "lib/courses/staffMove/save.ts" && /\bsaveMove\s*\(/.test(code))
       .map(([file]) => file);
     assert.deepEqual(reaching, ["app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move/route.ts"]);
+    const boardReaching = files
+      .filter(([file, code]) => file !== "lib/courses/staffMove/board.ts" && /\bsaveBoardMove\s*\(/.test(code))
+      .map(([file]) => file);
+    assert.deepEqual(boardReaching, ["app/api/courses/runs/[runId]/allocate/route.ts"]);
   });
 });
 

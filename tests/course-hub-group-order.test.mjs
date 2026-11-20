@@ -53,6 +53,23 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  * the groups are handed on to, which must ask the comparator.
  */
 const READS_WITHOUT_A_LIST = new Map([
+  // A move made mid-term on the board, reached from the allocate route.
+  [
+    "src/lib/courses/moveFromWeek.ts",
+    {
+      why:
+        "The writer of a move from a week reads the run's groups to find the group moved into, the group left and any " +
+        "group the person facilitates: never a list of groups on a page.",
+    },
+  ],
+  [
+    "src/lib/courses/staffMove/board.ts",
+    {
+      why:
+        "A move made mid-term on the board reads the run's groups to work out the move's week from the sessions of the " +
+        "groups the place belongs to: never a list of groups on a page.",
+    },
+  ],
   // A session called off: the visits to it that end with it.
   [
     "src/lib/courses/visit/hostOff.ts",

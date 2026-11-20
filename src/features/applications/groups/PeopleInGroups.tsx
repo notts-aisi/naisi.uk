@@ -27,6 +27,7 @@ import InitialsChip from "@/components/ui/InitialsChip";
 import { ChevronDownIcon, GripIcon, InfoIcon, MoreIcon } from "@/features/applications/editor/Icons";
 import shared from "@/features/applications/editor/editor.module.css";
 import { placingCounts, poolRowIsToPlace, rowHasLeft } from "@/features/courses/allocationTally";
+import { askMidTermMoves } from "@/features/courses/askMidTermMoves";
 import { useAllocation, type AllocGroup, type AllocRow, type Placement } from "@/features/courses/useAllocation";
 import type { PeopleInGroupsView } from "@/lib/applications/handover/peopleInGroups";
 import { own } from "@/lib/applications/keys";
@@ -291,7 +292,7 @@ function Column({
 
 export default function PeopleInGroups({ view, views }: Props) {
   const runId = view.run.id;
-  const { data, loading, error, reload, place, removeEnrolment } = useAllocation(runId);
+  const { data, loading, error, reload, place, previewPlace, removeEnrolment, previewRemove } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
   // "They meant some weeks" saved on a card: the board is read again, and says so.
   const onAnswerChanged = useCallback(
@@ -398,6 +399,25 @@ export default function PeopleInGroups({ view, views }: Props) {
       if (!row) return;
       const from = columnOf(row);
       if (from === columnId) return;
+      // SOMEBODY TOLD THEIR GROUP, moved: the server says whether the move is
+      // made mid-term, and if it is, the week it is from, that the earlier
+      // weeks stay and what is left behind, asked before anything is written
+      // (`askMidTermMoves`, the one question every board asks); or why it
+      // cannot be made, said at once.
+      const asked = await askMidTermMoves([{ uid, groupId: columnId === POOL ? null : columnId }], {
+        told: () => Boolean(row.told),
+        preview: previewPlace,
+        confirm: (question) => window.confirm(question),
+      });
+      if (!asked.go) {
+        if (asked.error) await raise(asked.error);
+        return;
+      }
+      const refusal = asked.refused[0];
+      if (refusal) {
+        await raise(words.notMovedWords(nameOf(uid), columnName(columnId), refusal.reason, refusal.words));
+        return;
+      }
       // What the move did, for somebody who already knew their group: they
       // see the group they are in now at once, and the next Publish emails
       // them. Beside any note about the group's weeks.
@@ -415,10 +435,7 @@ export default function PeopleInGroups({ view, views }: Props) {
         who: nameOf(uid),
       });
       setMoveNote([told, note].filter(Boolean).join(" ") || null);
-      const placement: Placement = {
-        uid,
-        groupId: columnId === POOL ? null : columnId,
-      };
+      const placement: Placement = asked.placements[0];
       setPending((was) => ({ ...was, [uid]: placement.groupId }));
       const result = await place([placement]);
       if (!result.ok) {
@@ -428,22 +445,30 @@ export default function PeopleInGroups({ view, views }: Props) {
       }
       if (result.rejected.length > 0) {
         revert([uid]);
-        await raise(words.notMovedWords(nameOf(uid), columnName(columnId), result.rejected[0].reason));
+        await raise(words.notMovedWords(nameOf(uid), columnName(columnId), result.rejected[0].reason, result.rejected[0].words));
       }
     },
-    [rowsByUid, columnOf, groupsById, columnName, nameOf, place, revert, raise],
+    [rowsByUid, columnOf, groupsById, columnName, nameOf, place, previewPlace, revert, raise],
   );
 
   const takeOff = useCallback(
     (row: AllocRow) => {
       const name = nameOf(row.uid);
-      if (!window.confirm(words.takeOffConfirm(name, columnName(columnOf(row)), view.programmeName))) return;
-      setBusy(true);
       void (async () => {
+        // What it does about their visits still to come, asked first: the
+        // confirmation counts the emails to the hosts' facilitators, and the
+        // press sends the count back.
+        const said = await previewRemove(row.uid);
+        if (!said.ok) {
+          await raise(said.error);
+          return;
+        }
+        if (!window.confirm(words.takeOffConfirm(name, columnName(columnOf(row)), view.programmeName, said.visits, said.emails))) return;
+        setBusy(true);
         try {
           await runAction(
             async () => {
-              const result = await removeEnrolment(row.uid);
+              const result = await removeEnrolment(row.uid, said.emails);
               if (!result.ok) throw new Error(result.error);
             },
             {
@@ -456,7 +481,7 @@ export default function PeopleInGroups({ view, views }: Props) {
         }
       })();
     },
-    [nameOf, columnName, columnOf, view.programmeName, runAction, removeEnrolment],
+    [nameOf, columnName, columnOf, view.programmeName, runAction, removeEnrolment, previewRemove, raise],
   );
 
   const onMenu = useCallback(

@@ -5,6 +5,7 @@ import { excusalStandsFor } from "@/lib/courses/excused/marking";
 import { factOf, requestStandingOf, weeksAbout } from "@/lib/courses/excused/model";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
 import type { DocumentReference, DocumentSnapshot, Firestore, Query, QuerySnapshot, Transaction } from "firebase-admin/firestore";
+import { cardAsksFor } from "@/lib/courses/cantMakeIt/seat";
 import { firstNameOfUser, fullNameOfUser, readNamingProgramme, standingUserOf } from "@/lib/courses/programmeLead";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { campusLabel } from "@/lib/courses/campus";
@@ -739,8 +740,8 @@ export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: bool
           weekNumber,
           hostHappening: happening,
           hostClosed: host.archived || hostStart === null || now.getTime() >= hostStart.getTime(),
-          // Their card asks to be excused unless they facilitate their own group (`ticketEntryOf`'s instant).
-          cardAsks: !home.facilitatorUids.includes(facts.place.uid),
+          // The page's own rule: their card asks unless they facilitate, with standing, the group their place is in now.
+          cardAsks: cardAsksFor(facts.place.uid, facts.accounts.get(facts.place.uid), facts.groups.find((group) => group.id === facts.place.groupId) ?? null),
         })
       : tooLateToCancelWords(closedBy.name);
   const recipients = visitRecipients({

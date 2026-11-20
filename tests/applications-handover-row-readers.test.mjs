@@ -83,11 +83,12 @@ const READERS = {
   },
   "app/api/courses/runs/[runId]/allocate/route.ts": {
     kind: "staff",
-    asks: 1,
+    asks: 2,
     why:
       "a placement reads each person's row to see that they were accepted, and answers by uid; for a seat " +
       "that has left and is put back, it reads where the row came from (fromForm) to give that place on the " +
-      "form back to them, only once the row is served to the caller",
+      "form back to them, only once the row is served to the caller. The preview asks the same before it answers " +
+      "a move made mid-term with its week; a row not served to the caller is answered as a move with nothing to say",
   },
   "app/api/courses/runs/[runId]/allocation/publish/route.ts": {
     kind: "staff",
