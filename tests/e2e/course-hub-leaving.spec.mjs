@@ -67,6 +67,8 @@ import {
   createStepRecorder,
   newIdentityPage,
   openBrowser,
+  pageOwnText,
+  shellFoot,
   signInWithPassword,
   stubRecaptchaOnLoopback,
 } from "../../scripts/e2e/lib/browser.mjs";
@@ -168,6 +170,9 @@ const LEAVING = Object.freeze({
   changedYourMind: "Changed your mind?",
   changedLine: `Email ${SOCIETY} and we’ll see what we can do.`,
   myProgrammes: "My programmes",
+  // The foot of every signed-in page (`FOOTER_LINK` in src/lib/societyFeedback/words.ts):
+  // somebody who left is still a member of the society, so it stays.
+  feedbackFoot: "Anonymous feedback",
 });
 
 /**
@@ -606,8 +611,12 @@ test(
 
     // ---- Pages ----------------------------------------------------------------------
 
-    /** The main column's words, the page's own and nothing of the shell around it. */
-    const mainText = async (pg) => textOf(pg.locator("main"));
+    /**
+     * The main column's words, the page's own and nothing of the shell around
+     * it: `<main>` without the shell's foot, which `readLeftPage` states on
+     * its own.
+     */
+    const mainText = async (pg) => flat(await pageOwnText(pg));
 
     /**
      * The page that says somebody left, read whole at `path`: the bar (back
@@ -633,6 +642,25 @@ test(
         "the page that says they left says more, or less, than that they left and when",
       );
       for (const words of KEPT_NOTHING) assert.ok(!said.includes(words), `the page that says they left shows ${JSON.stringify(words)}: ${said}`);
+      // The rest of the main column is the foot every signed-in page carries,
+      // and the foot is its one link and nothing else: they are still a member
+      // of the society, so they may still send anonymous feedback.
+      const foot = shellFoot(pg);
+      assert.equal(await foot.count(), 1, "the page that says they left has no foot, or more than one");
+      assert.equal(await textOf(foot), LEAVING.feedbackFoot, "the foot of the page that says they left says more, or less, than its one link");
+      const footLinks = foot.getByRole("link");
+      assert.equal(await footLinks.count(), 1, "the foot of the page that says they left has more, or fewer, than one link");
+      assert.equal(await textOf(footLinks), LEAVING.feedbackFoot, "the foot's one link is not Anonymous feedback");
+      assert.equal(
+        await foot.getByRole("link", { name: LEAVING.feedbackFoot, exact: true }).getAttribute("href"),
+        "/anonymous-feedback",
+        "Anonymous feedback at the foot does not lead to the members' form",
+      );
+      assert.equal(
+        await textOf(pg.locator("main")),
+        `${said}${LEAVING.feedbackFoot}`,
+        "the main column of the page that says they left is more than the page and its foot",
+      );
       assert.equal(await pg.getByRole("region", { name: "Your sessions" }).count(), 0, "the page that says they left lists their sessions");
       for (const suffix of ["/notes", "/reading"]) {
         assert.equal(await pg.locator(`main a[href$="${suffix}"]`).count(), 0, `the page that says they left links to ${suffix}`);

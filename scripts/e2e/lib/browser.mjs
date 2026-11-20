@@ -811,3 +811,40 @@ export async function readPointerProbe(page, { target }) {
     `the element is ${probe.sameNode ? "the same" : "a DIFFERENT"} node than before`
   );
 }
+
+/**
+ * THE FOOT OF A SIGNED-IN PAGE, and the page's own words without it.
+ *
+ * `AppShell` closes `<main>` with a `<footer>` of its own after the page
+ * (one link, "Anonymous feedback"), so every signed-in page's `<main>` ends
+ * with the same words whatever the page is. A spec that reads what a page
+ * says "and nothing else" reads it through `pageOwnText`, which is the text
+ * content of `<main>` with that last `<footer>` taken out and nothing else
+ * taken out, and states the foot separately through `shellFoot`.
+ *
+ * Found as a reader finds it: the footer that is the last thing in the main
+ * column, never a test id. Inside `<main>` a `<footer>` is not a landmark (it
+ * has no role, so it takes no accessible name), which is why this is the
+ * element and its place rather than a role and a name. Only the LAST child is
+ * taken, so a page's own footer, wherever it sits, stays in the page's text.
+ */
+export const SHELL_FOOT_SELECTOR = "main > footer:last-child";
+
+/** The shell's foot on this page, as a locator. */
+export function shellFoot(page) {
+  return page.locator(SHELL_FOOT_SELECTOR);
+}
+
+/**
+ * The text content of `<main>` without the shell's foot, as written (text
+ * content, never `innerText`), with its spacing untouched: a spec flattens
+ * it the way it flattens every other read.
+ */
+export async function pageOwnText(page) {
+  return page.locator("main").evaluate((main) => {
+    const copy = main.cloneNode(true);
+    const foot = copy.querySelector(":scope > footer:last-child");
+    if (foot) foot.remove();
+    return copy.textContent ?? "";
+  });
+}
