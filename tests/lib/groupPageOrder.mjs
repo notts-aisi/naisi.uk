@@ -67,8 +67,9 @@ export function assertNothingReorders(html) {
  * The laptop's layout: the rows under the head, and its blocks of two
  * columns, each as `{ from, to }` in `html`; `column(block, "colMain" |
  * "colSide")` one column of a block, or null when the block draws none; and
- * `inside(range, at)` whether a card named at `at` is in it; and `card(at)`
- * the whole element of the card named at `at`.
+ * `inside(range, at)` whether a card named at `at` is in it; `card(at)`
+ * the whole element of the card named at `at`; and `where(at)` where a
+ * laptop draws that card ("across", or "block 1 left" and so on).
  */
 export function laptopLayout(html) {
   const elementAt = (from) => {
@@ -93,5 +94,19 @@ export function laptopLayout(html) {
   const inside = (range, at) => Boolean(range) && at > range.from && at < range.to;
   /** The whole element of the card whose naming attribute is at `at`. */
   const card = (at) => elementAt(html.lastIndexOf("<", at));
-  return { rows, blocks, column, inside, card };
+  /**
+   * Where a laptop draws the card named at `at`: "across" the page (under the
+   * head, outside every block), or "block N left" / "block N right".
+   */
+  const where = (at) => {
+    assert.ok(inside(rows, at), "the card is not under the head");
+    for (const [index, block] of blocks.entries()) {
+      if (!inside(block, at)) continue;
+      if (inside(column(block, "colMain"), at)) return `block ${index + 1} left`;
+      if (inside(column(block, "colSide"), at)) return `block ${index + 1} right`;
+      return `block ${index + 1}, in no column`;
+    }
+    return "across";
+  };
+  return { rows, blocks, column, inside, card, where };
 }

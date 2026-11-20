@@ -41,6 +41,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { walkSource } from "./lib/functionScan.mjs";
 import { AGI, AWAY, B, C, LINK, ROUND, RUN, TUE_24, makeSessionsWorld } from "./lib/sessionsWorld.mjs";
+import { laptopLayout, phoneOrder } from "./lib/groupPageOrder.mjs";
 import { blockWeekDoc, weekBlocksFor } from "./lib/packsAndCasesWorld.mjs";
 import { PAIRS_ONLY, PAIRS_WITH_LAPTOPS, withBeforeYouCome } from "./lib/pairsWorld.mjs";
 
@@ -484,6 +485,17 @@ describe("3. a group's facilitators change its sessions from its own page", () =
       drawn.text,
       /No session on Tue 24 Nov Tue 24 Nov is cancelled\. Rahul and Sofia are both away\. Do week 4’s reading anyway\. On Tue 1 Dec you’ll talk about weeks 4 and 5 together\./,
     );
+    // In the order of a session: the notice straight under the head, over the ticket, both across the page.
+    const order = [
+      ["the head", '<header class="head"'],
+      ["the notice", ">No session on Tue 24 Nov</h3>"],
+      ["the session", 'data-testid="session-card"'],
+      ["the updates", 'aria-labelledby="group-updates"'],
+    ];
+    const at = phoneOrder(drawn.html, order);
+    const { where } = laptopLayout(drawn.html);
+    assert.equal(where(at["the notice"]), "across");
+    assert.equal(where(at["the session"]), "across");
   });
 });
 
