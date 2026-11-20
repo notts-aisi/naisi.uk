@@ -12,10 +12,12 @@ import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
-import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { normalizeCourse, normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { canAuthorAdmissionRound } from "@/lib/firestore/users";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
-import { lineOf, searchWorld, type SearchAnswer, type SearchCandidate, type SearchWorld } from "./model";
+import { isAddressableId } from "@/lib/addressableId";
+import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
+import { guideCandidate, lineOf, searchWorld, withoutGuides, type SearchAnswer, type SearchCandidate, type SearchWorld } from "./model";
 
 /**
  * SEARCH FOR A PERSON OR A GROUP: who may, and the lists each kind of reader
@@ -44,6 +46,22 @@ import { lineOf, searchWorld, type SearchAnswer, type SearchCandidate, type Sear
  *    those groups.
  *  - ANYBODY ELSE: nothing, and the route answers them as it answers a
  *    stranger.
+ *
+ *  - AND, FOR ANYBODY WHO FACILITATES (an admin, a lead or a group's
+ *    facilitator alike): the facilitator guide of each course they
+ *    facilitate a live group on, as its own short list (`guides`), to the
+ *    guide's page. Offered only where the guide's own gate
+ *    (`facilitatorGuideReader`, its facilitators' door) would admit them:
+ *    a group that names them, not archived, held to the facilitator's bar,
+ *    on a run that is there and not being destroyed, the group's own course
+ *    being the run's (`guideFor`, from what this file has already read); and
+ *    the course itself there and not being destroyed, which is the one read
+ *    added, and only when a guide matched (`confirmGuides`: one `getAll` of
+ *    the matched guides' courses, which also gives the guide page's own
+ *    title). `tests/search.test.mjs` runs the gate and search over the same
+ *    world in every state where the two could part. A lead or an admin who
+ *    facilitates nothing is offered no guide here: their own pages lead to
+ *    it.
  *
  * A lead or a facilitator is never answered from a query over `users`: their
  * people come from the People tab's applications and the group's own seats.
@@ -222,6 +240,43 @@ function groupCandidate(
   };
 }
 
+/**
+ * The facilitator guide a group's facilitator is offered for that group, or
+ * null: the guide's facilitators' door, asked of what is already read. The
+ * group is one that names them, live and held to the facilitator's bar, on
+ * `run`, which is there and not being destroyed (every caller's own reads
+ * hold that); the gate also wants the group's course to be the run's.
+ */
+function guideFor(group: CourseGroupDoc, run: CourseRunDoc): SearchCandidate | null {
+  const courseId = run.courseId;
+  if (!courseId || group.courseId !== courseId || group.runId !== run.id || !isAddressableId(courseId)) return null;
+  return guideCandidate(courseId, run.courseTitle, facilitatorGuidePath(courseId));
+}
+
+/**
+ * The gate's last question, asked only of the guides that matched: is each
+ * one's course there and not being destroyed? One `getAll` of those courses,
+ * none when nothing matched. A guide whose course is not is dropped, and each
+ * one kept carries the course's own title, as the guide's page names it.
+ */
+async function confirmGuides(db: Firestore, answer: SearchAnswer, world: SearchWorld): Promise<SearchAnswer> {
+  if (!answer.guides || answer.guides.length === 0) return answer;
+  const courseOf = new Map((world.guides ?? []).map((candidate) => [candidate.href, candidate.key?.slice("guide:".length) ?? ""]));
+  const courseIds = [...new Set(answer.guides.map((hit) => courseOf.get(hit.href) ?? ""))].filter((id) => isAddressableId(id));
+  const snaps = courseIds.length > 0 ? await db.getAll(...courseIds.map((id) => db.collection("courses").doc(id))) : [];
+  const titles = new Map<string, string>();
+  for (const snap of snaps) {
+    const raw = snap.exists ? (snap.data() ?? {}) : null;
+    if (!raw || raw.destroying === true) continue;
+    titles.set(snap.id, normalizeCourse(snap.id, raw).title.trim());
+  }
+  const guides = answer.guides.flatMap((hit) => {
+    const courseId = courseOf.get(hit.href) ?? "";
+    return titles.has(courseId) ? [{ ...hit, line: titles.get(courseId) || hit.line }] : [];
+  });
+  return guides.length > 0 ? { ...answer, guides } : withoutGuides(answer);
+}
+
 // ---------------------------------------------------------------------------
 // An admin's world
 // ---------------------------------------------------------------------------
@@ -259,18 +314,24 @@ async function adminWorld(db: Firestore, viewer: SessionUser): Promise<AdminWorl
     runs.set(snap.id, normalizeCourseRun(snap.id, snap.data() ?? {}));
   }
   const groups: SearchCandidate[] = [];
+  const guides: SearchCandidate[] = [];
   const groupById = new Map<string, CourseGroupDoc>();
   for (const group of liveGroups) {
     const run = runs.get(group.runId);
     if (!run) continue;
     groupById.set(group.id, group);
+    // The guide of a course this admin facilitates on, from the groups and runs already read.
+    if (isNamedWithStanding(viewer, "courseGroups.facilitatorUids", group.facilitatorUids)) {
+      const guide = guideFor(group, run);
+      if (guide) guides.push(guide);
+    }
     const naming = namingProgrammeIn(forms, run.id);
     const href = naming
       ? `${programmePathOf(naming.roundId, naming.programmeId)}/groups/${enc(group.id)}`
       : facilitatorGroupPathOf(run.id, group.id);
     groups.push(groupCandidate(group, programmeNameFor(forms, run), run.label, href));
   }
-  return { world: { people, groups }, uidOf, runs, groups: groupById, forms };
+  return { world: guides.length > 0 ? { people, groups, guides } : { people, groups }, uidOf, runs, groups: groupById, forms };
 }
 
 /**
@@ -381,7 +442,8 @@ async function leadWorld(db: Firestore, actor: SessionUser, leads: readonly LedP
 async function facilitatorWorld(db: Firestore, actor: SessionUser, facilitates: readonly CourseGroupDoc[], now: Date): Promise<SearchWorld> {
   const people: SearchCandidate[] = [];
   const groups: SearchCandidate[] = [];
-  if (facilitates.length === 0) return { people, groups };
+  const guides: SearchCandidate[] = [];
+  if (facilitates.length === 0) return { people, groups, guides };
   const forms = await listForms(db);
   const byRun = new Map<string, CourseGroupDoc[]>();
   for (const group of facilitates) byRun.set(group.runId, [...(byRun.get(group.runId) ?? []), group]);
@@ -392,6 +454,8 @@ async function facilitatorWorld(db: Firestore, actor: SessionUser, facilitates: 
     const programmeName = programmeNameFor(forms, records.run);
     const listed = listGroups(records, { isAdmin: false, role: actor.role }, now, weeksOf(records));
     for (const group of theirs) {
+      const guide = guideFor(group, records.run);
+      if (guide) guides.push(guide);
       const href = facilitatorGroupPathOf(runId, group.id);
       groups.push({ ...groupCandidate(group, programmeName, records.run.label, href), key: `group:${group.id}` });
       const entry = listed.find((candidate) => candidate.group.id === group.id);
@@ -400,7 +464,7 @@ async function facilitatorWorld(db: Firestore, actor: SessionUser, facilitates: 
       }
     }
   }
-  return { people, groups };
+  return { people, groups, guides };
 }
 
 // ---------------------------------------------------------------------------
@@ -422,11 +486,16 @@ export async function answerSearch(
 ): Promise<SearchAnswer> {
   if (searcher.kind === "admin") {
     const read = await adminWorld(db, actor);
-    return adminPeopleLines(db, read, searchWorld(read.world, query));
+    return confirmGuides(db, await adminPeopleLines(db, read, searchWorld(read.world, query)), read.world);
   }
   const [led, facilitated] = await Promise.all([
     leadWorld(db, actor, searcher.leads),
     facilitatorWorld(db, actor, searcher.facilitates, now),
   ]);
-  return searchWorld({ people: [...led.people, ...facilitated.people], groups: [...led.groups, ...facilitated.groups] }, query);
+  const world: SearchWorld = {
+    people: [...led.people, ...facilitated.people],
+    groups: [...led.groups, ...facilitated.groups],
+    guides: facilitated.guides,
+  };
+  return confirmGuides(db, searchWorld(world, query), world);
 }

@@ -24,6 +24,12 @@
  *     limits and their numbers.
  *  6. THE PAGES: the People tab opened on one row, and the shell drawing the
  *     box only for somebody the route answers.
+ *  7. THE FACILITATOR GUIDE: a third short list for somebody who
+ *     facilitates, offered for exactly the courses the guide's own gate
+ *     admits them to as a facilitator, found by "guide", "facilitator guide"
+ *     and the course's title, at no read more, and absent from every other
+ *     answer, so the people and groups lists and everybody else's answers
+ *     are as they were.
  *
  * The term is `tests/lib/termWorld.mjs`'s on Thu 10 Dec 2026: Claudia leads
  * AGI Strategy (Groups A, B and C, Sofia facilitating A and B and Tom C),
@@ -75,6 +81,8 @@ const peopleLoad = await w.loadTs(join("lib", "applications", "people", "load.ts
 const facilitatorGroup = await w.loadTs(join("lib", "courses", "facilitatorGroup.ts"));
 const ProgrammePeople = (await w.loadTs(join("features", "applications", "people", "ProgrammePeople.tsx"))).default;
 const filters = await w.loadTs(join("lib", "applications", "people", "filters.ts"));
+const guideAccess = await w.loadTs(join("lib", "courses", "facilitatorGuide", "access.ts"));
+const { COURSE } = await import("./lib/handoverWorld.mjs");
 
 // ---------------------------------------------------------------------------
 // The term
@@ -664,5 +672,226 @@ describe("the pages", () => {
     assert.match(box, /const PAUSE_MS = \d{3};/);
     assert.match(box, /method: "POST"/);
     assert.ok(!/\/api\/search\?/.test(box));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. The facilitator guide
+// ---------------------------------------------------------------------------
+
+describe("the facilitator guide", () => {
+  const guidePath = (courseId) => `/learn/facilitator-guide/${courseId}`;
+  const guideHrefs = (answer) => (answer.guides ?? []).map((hit) => hit.href).sort();
+  /** The answer's people and groups, the lists that were there before guides. */
+  const listsOf = (answer) => ({ people: answer.people, groups: answer.groups, morePeople: answer.morePeople, moreGroups: answer.moreGroups });
+
+  test("a facilitator finds their course's guide by \"guide\", \"facilitator guide\" and the course's title, as its own list", async (t) => {
+    freshTerm(t);
+    for (const query of ["guide", "facilitator guide", "Facilitator Guide", "agi strategy", "facilitator agi"]) {
+      const answer = await search("tom", query);
+      assert.deepEqual(answer.guides, [{ name: "Facilitator guide", line: "AGI Strategy Fellowship", href: guidePath(COURSE.agi) }], query);
+    }
+    // Sofia facilitates two groups of the one course: its guide once.
+    assert.deepEqual(guideHrefs(await search("sofia", "guide")), [guidePath(COURSE.agi)]);
+    // The answer's other lists are what they were: "guide" names no person and no group.
+    assert.deepEqual(listsOf(await search("tom", "guide")), listsOf(await search("tom", "zzqx")));
+  });
+
+  test("a lead finds the guide of a course they facilitate on, and none of a course they only lead", async (t) => {
+    freshTerm(t);
+    // Tess leads Technical AI Safety and facilitates its group.
+    assert.deepEqual(guideHrefs(await search("tess", "guide")), [guidePath(COURSE.tais)]);
+    // Claudia leads AGI Strategy and facilitates nothing: the answer every query without a guide gets, no `guides` in it.
+    const claudia = await search("claudia", "guide");
+    assert.ok(!Object.hasOwn(claudia, "guides"), JSON.stringify(claudia));
+    assert.deepEqual(claudia, await search("claudia", "zzqx"));
+  });
+
+  test("an admin finds the guide of a course they facilitate on, and none while they facilitate nothing", async (t) => {
+    freshTerm(t);
+    const before = await search("zach", "guide");
+    assert.ok(!Object.hasOwn(before, "guides"), JSON.stringify(before));
+    w.world.db.poke(`courseGroups/${C}`, { facilitatorUids: ["tom", "zach"] });
+    assert.deepEqual(guideHrefs(await search("zach", "guide")), [guidePath(COURSE.agi)]);
+    assert.deepEqual(listsOf(await search("zach", "guide")), listsOf(before));
+  });
+
+  test("a learner and somebody who runs nothing are refused as before, whatever they type", async (t) => {
+    freshTerm(t);
+    for (const uid of ["amara", "dev", "iris", "sue", "lloyd"]) {
+      const response = await call(uid, route.POST, { body: { query: "facilitator guide" } });
+      assert.deepEqual([response.status, response.body], [403, { error: words.SEARCH_REFUSAL.notYours }], uid);
+    }
+  });
+
+  test("offered for exactly the courses the guide's own gate admits the searcher to as a facilitator", async (t) => {
+    freshTerm(t);
+    const gateAdmits = async (uid) => {
+      const out = [];
+      for (const courseId of Object.values(COURSE)) {
+        const reader = await guideAccess.facilitatorGuideReader(w.world.db, sessionFor(uid), courseId);
+        if (reader?.as === "facilitator") out.push(guidePath(courseId));
+      }
+      return out.sort();
+    };
+    for (const uid of ["tom", "sofia", "tess", "claudia", "rahul"]) {
+      const response = await call(uid, route.POST, { body: { query: "guide" } });
+      const offered = response.status === 200 ? guideHrefs(response.body) : [];
+      assert.deepEqual(offered, await gateAdmits(uid), uid);
+    }
+    // A group whose own course is not its run's: the gate refuses it, and search offers nothing.
+    w.world.db.poke(`courseGroups/${C}`, { courseId: COURSE.other });
+    assert.deepEqual(await gateAdmits("tom"), []);
+    assert.deepEqual(guideHrefs(await search("tom", "guide")), []);
+    // An admin is admitted to every guide as an admin: offered only where the admin facilitates.
+    for (const courseId of Object.values(COURSE)) {
+      assert.equal((await guideAccess.facilitatorGuideReader(w.world.db, sessionFor("zach"), courseId))?.as, "admin");
+    }
+  });
+
+  test("a group archived, or a run being destroyed, takes its guide off the list with the group", async (t) => {
+    freshTerm(t, { [`courseGroups/${A}`]: { ...seed()[`courseGroups/${A}`], archived: true }, [`courseGroups/${B}`]: { ...seed()[`courseGroups/${B}`], archived: true } });
+    assert.equal(await load.searcherOf(w.world.db, sessionFor("sofia")), null);
+    w.reset(seed({ [`courseRuns/${RUN.tais}`]: { ...seed()[`courseRuns/${RUN.tais}`], destroying: true } }), { now: () => new Date() });
+    assert.deepEqual(guideHrefs(await search("tess", "guide")), []);
+  });
+
+  /**
+   * What one query reads, as the route answers it (who may search, then the
+   * answer): every document and query the store answered (`reads`), how many
+   * `getAll`s, `doc`s and `collectionGroup`s were asked, and each collection
+   * by name. The numbers without a guide are the reads search made before the
+   * guide was offered; a matched guide adds one `getAll` of its course.
+   */
+  async function counted(t, who, query) {
+    const db = w.world.db;
+    const out = { reads: 0, getAll: 0, doc: 0, collectionGroup: 0, collections: {} };
+    const collection = db.collection.bind(db);
+    const getAll = db.getAll.bind(db);
+    const spies = [
+      t.mock.method(db, "collection", (path) => {
+        out.collections[path] = (out.collections[path] ?? 0) + 1;
+        return collection(path);
+      }),
+      t.mock.method(db, "getAll", (...refs) => {
+        out.getAll += 1;
+        return getAll(...refs);
+      }),
+    ];
+    // The test store has neither: a call to either is counted, and then fails the search loudly.
+    for (const name of ["doc", "collectionGroup"]) {
+      const had = db[name];
+      db[name] = (...args) => {
+        out[name] += 1;
+        if (typeof had !== "function") throw new Error(`search called db.${name}`);
+        return had.apply(db, args);
+      };
+      t.after(() => {
+        if (had === undefined) delete db[name];
+        else db[name] = had;
+      });
+    }
+    const before = db.stats.reads;
+    await search(who, query);
+    out.reads = db.stats.reads - before;
+    for (const spy of spies) spy.mock.restore();
+    return out;
+  }
+
+  test("what each searcher reads, pinned: nothing more without a guide, and one course read when a guide matched", async (t) => {
+    freshTerm(t);
+    // A facilitator (Tom): his groups and their run's records, and the forms.
+    const tom = { courseGroups: 2, courseRuns: 2, admissionRounds: 1, courseEnrolments: 1, courseAttendance: 1, config: 1, users: 7 };
+    assert.deepEqual(await counted(t, "tom", "zzqx"), { reads: 15, getAll: 2, doc: 0, collectionGroup: 0, collections: tom });
+    assert.deepEqual(await counted(t, "tom", "guide"), { reads: 16, getAll: 3, doc: 0, collectionGroup: 0, collections: { ...tom, courses: 1 } });
+    // A lead who facilitates (Tess).
+    const tess = { admissionRounds: 2, courseGroups: 3, courseRuns: 3, admissionApplications: 1, admissionDecisions: 1, courseEnrolments: 2, courseAttendance: 1, config: 1, users: 3 };
+    assert.deepEqual(await counted(t, "tess", "zzqx"), { reads: 17, getAll: 2, doc: 0, collectionGroup: 0, collections: tess });
+    assert.deepEqual(await counted(t, "tess", "guide"), { reads: 18, getAll: 3, doc: 0, collectionGroup: 0, collections: { ...tess, courses: 1 } });
+    // A lead who facilitates nothing (Claudia), and an admin who facilitates nothing: no guide, nothing more, whatever is typed.
+    const claudia = { reads: 7, getAll: 0, doc: 0, collectionGroup: 0, collections: { admissionRounds: 1, courseGroups: 2, admissionApplications: 1, admissionDecisions: 1, courseRuns: 1, courseEnrolments: 1 } };
+    assert.deepEqual(await counted(t, "claudia", "zzqx"), claudia);
+    assert.deepEqual(await counted(t, "claudia", "guide"), claudia);
+    const zach = { reads: 5, getAll: 1, doc: 0, collectionGroup: 0, collections: { users: 1, courseGroups: 1, admissionRounds: 1, courseRuns: 2 } };
+    assert.deepEqual(await counted(t, "zach", "zzqx"), zach);
+    assert.deepEqual(await counted(t, "zach", "guide"), zach);
+  });
+
+  test("search and the guide's own gate give the same answer in every state where the two could part", async (t) => {
+    freshTerm(t);
+    const gateAdmits = async (uid) => {
+      const out = [];
+      for (const courseId of Object.values(COURSE)) {
+        const reader = await guideAccess.facilitatorGuideReader(w.world.db, sessionFor(uid), courseId);
+        if (reader?.as === "facilitator") out.push(guidePath(courseId));
+      }
+      return out.sort();
+    };
+    const run = `courseRuns/${RUN.agi}`;
+    const STATES = {
+      "Tom's group archived": (docs) => ({ ...docs, [`courseGroups/${C}`]: { ...docs[`courseGroups/${C}`], archived: true } }),
+      "the run being destroyed": (docs) => ({ ...docs, [run]: { ...docs[run], destroying: true } }),
+      "the course being destroyed": (docs) => ({ ...docs, [`courses/${COURSE.agi}`]: { ...docs[`courses/${COURSE.agi}`], destroying: true } }),
+      "the course's document gone": (docs) => {
+        const out = { ...docs };
+        delete out[`courses/${COURSE.agi}`];
+        return out;
+      },
+      "Tom no longer approved": (docs) => ({ ...docs, "users/tom": { ...docs["users/tom"], role: "pending" } }),
+      "the run a draft": (docs) => ({ ...docs, [run]: { ...docs[run], status: "draft" } }),
+      "the run completed": (docs) => ({ ...docs, [run]: { ...docs[run], status: "completed" } }),
+      "the run cancelled": (docs) => ({ ...docs, [run]: { ...docs[run], status: "cancelled" } }),
+      "the run archived": (docs) => ({ ...docs, [run]: { ...docs[run], archived: true } }),
+      "Tom's group naming no course": (docs) => {
+        const group = { ...docs[`courseGroups/${C}`] };
+        delete group.courseId;
+        return { ...docs, [`courseGroups/${C}`]: group };
+      },
+    };
+    assert.equal(Object.keys(STATES).length, 10);
+    for (const [state, change] of Object.entries(STATES)) {
+      w.reset(change(seed()), { now: () => new Date() });
+      for (const uid of ["tom", "sofia", "tess", "rahul"]) {
+        const response = await call(uid, route.POST, { body: { query: "guide" } });
+        const offered = response.status === 200 ? guideHrefs(response.body) : [];
+        assert.deepEqual(offered, await gateAdmits(uid), `${state}: ${uid}`);
+      }
+    }
+  });
+
+  test("a guide's line is its course's own title, as the guide's page names it", async (t) => {
+    freshTerm(t, { [`courses/${COURSE.agi}`]: { ...seed()[`courses/${COURSE.agi}`], title: "AGI Strategy" } });
+    assert.deepEqual((await search("tom", "guide")).guides, [{ name: "Facilitator guide", line: "AGI Strategy", href: guidePath(COURSE.agi) }]);
+  });
+
+  test("a guide carries a name, a line and an address, like every hit, and only when it matched", async (t) => {
+    freshTerm(t);
+    const answer = await search("tom", "guide");
+    assert.deepEqual(Object.keys(answer).sort(), ["groups", "guides", "moreGroups", "morePeople", "people"]);
+    for (const hit of answer.guides) assert.deepEqual(Object.keys(hit).sort(), ["href", "line", "name"]);
+    // A query that finds no guide answers the shape it always had.
+    assert.deepEqual(Object.keys(await search("tom", "amara")).sort(), ["groups", "moreGroups", "morePeople", "people"]);
+    // The pure half: no guides in the world, no `guides` in the answer; never capped.
+    const world = { people: [], groups: [] };
+    assert.ok(!Object.hasOwn(model.searchWorld(world, "guide"), "guides"));
+    const many = Array.from({ length: 9 }, (_, at) => model.guideCandidate(`c${at}`, `Course ${at}`, `/g/${at}`));
+    assert.equal(model.searchWorld({ ...world, guides: many }, "guide").guides.length, 9);
+    // One per course, however many groups lead to it.
+    assert.equal(model.searchWorld({ ...world, guides: [many[0], many[0]] }, "guide").guides.length, 1);
+  });
+
+  test("the box draws Guides only when the answer has one, after the two lists, and moves through it with them", () => {
+    const box = read("src", "features", "search", "PeopleSearch.tsx");
+    assert.match(box, /function guidesOf\(answer: SearchAnswer\): SearchHit\[\] \{\s+return Array\.isArray\(answer\.guides\) \? answer\.guides : \[\];\s+\}/);
+    assert.match(box, /\[\.\.\.state\.answer\.people, \.\.\.state\.answer\.groups, \.\.\.guidesOf\(state\.answer\)\]/);
+    assert.match(box, /\{guides\.length > 0 \? \(\s+<section/);
+    assert.match(box, /renderList\(guides, answered\.answer\.people\.length \+ answered\.answer\.groups\.length\)/);
+    assert.equal(words.SEARCH_HEADINGS.guides, "Guides");
+    // When only a guide matched, the two empty lists are not drawn above it.
+    assert.match(box, /const onlyGuides = guides\.length > 0 && answered !== null && answered\.answer\.people\.length === 0 && answered\.answer\.groups\.length === 0;/);
+    assert.match(box, /\{onlyGuides \? null : \(/);
+    // The two lists every other answer draws are drawn as before, with their empty states.
+    assert.match(box, /answered\.answer\.people\.length === 0 \? <p className=\{styles\.empty\}>\{noPeopleWords\(answered\.query\)\}/);
+    assert.match(box, /answered\.answer\.groups\.length === 0 \? <p className=\{styles\.empty\}>\{noGroupsWords\(answered\.query\)\}/);
   });
 });
