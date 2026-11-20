@@ -181,7 +181,7 @@ const FACILITATING_TOKENS: TokenHelp[] = [
   {
     token: "guideUrl",
     description:
-      "The address of the course's facilitator guide, for a second button. Nothing for a run with no course to link to, and then its paragraph is left out.",
+      "The address of the course's facilitator guide, for a second button: week 1's page when guideButton names week 1, the guide's front page otherwise. Nothing for a run with no course to link to, and then its paragraph is left out.",
   },
   {
     token: "guideButton",
@@ -486,7 +486,10 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
             when there is nothing to put in it, and the rest of the email goes. None can go in the subject, or in a paragraph with{" "}
             <code>{"{groupName}"}</code>, <code>{"{weeklySlot}"}</code> or the two dates. A group with
             no name or no day and time cannot be published at all, and neither can wording that uses a
-            token not on this list: publishing says which.
+            token not on this list: publishing says which. To add the guide&rsquo;s button to wording
+            saved before it, press Reset to default, then Save, and make any earlier changes again: the
+            link box puts https:// in front of whatever is typed into it, so a link to{" "}
+            <code>{"{guideUrl}"}</code> cannot be typed there.
           </p>
         )}
         {showsIncubatorTokens && (

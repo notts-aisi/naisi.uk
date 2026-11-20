@@ -72,7 +72,8 @@ import {
  * from the moment they are named on a group (the guide's own gate). Its words
  * are "Facilitator guide for week 1" when `{namesOnPage}` says week 1's guide
  * is on the group page (`weekOneGuide`), and "Facilitator guide" otherwise,
- * the words the group page's own links use. Both are optional, so the
+ * the words the group page's own links use; Publish points it at week 1's
+ * page of the guide or at its front page to match (`guideUrl`). Both are optional, so the
  * paragraph goes when there is no guide to link to and Publish is never
  * refused for it. Wording saved before November 2026 has neither, and sends
  * as it was saved, without the button.
@@ -172,7 +173,7 @@ export type FacilitatingFacts = {
   weekOneGuide: boolean;
   /**
    * The course's facilitator guide, as a whole address, for the second
-   * button. Null when the site does not know its own address or the run has
+   * button: week 1's page when `weekOneGuide`, its front page otherwise. Null when the site does not know its own address or the run has
    * no course to link to: the button's paragraph is then left out.
    */
   guideUrl: string | null;

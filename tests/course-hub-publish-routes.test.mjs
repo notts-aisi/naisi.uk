@@ -391,6 +391,13 @@ describe("2. a test first", () => {
     );
   });
 
+  test("the guide's button opens week 1's page when it names week 1, the guide's front page otherwise, and nothing for a run with no course", () => {
+    assert.equal(plan.facilitatorGuideUrl(COURSE.agi), `https://naisi.invalid/learn/facilitator-guide/${COURSE.agi}`);
+    assert.equal(plan.facilitatorGuideUrl(COURSE.agi, false), `https://naisi.invalid/learn/facilitator-guide/${COURSE.agi}`);
+    assert.equal(plan.facilitatorGuideUrl(COURSE.agi, true), `https://naisi.invalid/learn/facilitator-guide/${COURSE.agi}/week-1`);
+    for (const none of ["", "a/b"]) assert.equal(plan.facilitatorGuideUrl(none, true), null, JSON.stringify(none));
+  });
+
   test("the guide's button, added to the seed in November 2026, asks nobody for a test again, and any other change still does", () => {
     const seeds = courseSeeds.courseTemplateDefaults;
     const BUTTON = courseSeeds.FACILITATING_GUIDE_BUTTON_HTML;
@@ -405,8 +412,21 @@ describe("2. a test first", () => {
     assert.equal(fingerprint(now), fingerprint(before), "the button made every run's test stale");
     // A test of the seed before the button still counts against the seed with it.
     assert.equal(plan.testStandingOf({ wording: fingerprint(before), byUid: "zach" }, fingerprint(now)).state, "fresh");
-    // Only that very paragraph: the button in other words, or anything else changed, is compared as ever.
+    // Only that very paragraph, once, where the seed has it: the button in
+    // other words, or anything else changed, is compared as ever.
     const changed = (html) => fingerprint({ ...now, blocks: [{ ...now.blocks[0], html }] });
+    const GROUP = courseSeeds.FACILITATING_GROUP_BUTTON_HTML;
+    assert.ok(now.blocks[0].html.includes(GROUP + BUTTON), "the seed's button no longer follows Open your group");
+    const without = now.blocks[0].html.replace(BUTTON, "");
+    // Moved: to the top, or to the end.
+    assert.notEqual(changed(BUTTON + without), fingerprint(now), "a moved copy at the top passed without a test");
+    assert.notEqual(changed(without + BUTTON), fingerprint(now), "a moved copy at the end passed without a test");
+    // Repeated: once more where the seed has it, or once more anywhere.
+    assert.notEqual(changed(now.blocks[0].html.replace(BUTTON, BUTTON + BUTTON)), fingerprint(now), "a repeated copy passed without a test");
+    assert.notEqual(changed(now.blocks[0].html + BUTTON), fingerprint(now), "a second copy at the end passed without a test");
+    // Spliced into another sentence, with or without the seed's own copy.
+    assert.notEqual(changed(without.replace("Take the register", `Take the${BUTTON} register`)), fingerprint(now), "a spliced copy passed without a test");
+    assert.notEqual(changed(now.blocks[0].html.replace("Take the register", `Take the${BUTTON} register`)), fingerprint(now), "a spliced second copy passed without a test");
     assert.notEqual(changed(now.blocks[0].html.replace(BUTTON, BUTTON.replace("{guideButton}", "Your guide"))), fingerprint(now));
     assert.notEqual(changed(now.blocks[0].html.replace("Take the register", "Take the roll")), fingerprint(now));
     assert.notEqual(fingerprint({ ...now, subject: "You’re running {groupName}" }), fingerprint(now));
@@ -735,6 +755,8 @@ describe("6. the emails", () => {
     // The second button leads to the run's course's guide, with the course id
     // Publish read off the run, and to nothing else.
     assert.ok(rahul.html.includes(`href="https://naisi.invalid/learn/facilitator-guide/${COURSE.agi}"`), "the guide's button leads to the course's guide");
+    // No week 1 in the guide here, so it is the guide's front page, never a week's.
+    assert.ok(!rahul.html.includes("/week-1"), "Facilitator guide opened a week's page");
     assert.deepEqual(
       [...rahul.html.matchAll(/href="(https:\/\/naisi\.invalid\/learn\/[^"]*)"/g)].map((match) => match[1]),
       [`https://naisi.invalid/learn/${RUN.agi}/group/${B}`, `https://naisi.invalid/learn/facilitator-guide/${COURSE.agi}`],
@@ -1104,9 +1126,12 @@ describe("8. the facilitators' email promises week 1's guide only while their gr
     const tested = await opened(world.mail.find((mail) => isTest(mail) && isFacilitating(mail)));
     assert.ok(tested.text.includes(`There are 2 people in the group. ${BOARD_WORDS} Open your group Facilitator guide for week 1 Take`), tested.text);
     assert.equal((await pressNow()).status, 200);
-    // The guide's button names week 1 exactly where the sentence does.
+    // The guide's button names week 1 exactly where the sentence does, and
+    // opens week 1's page of the guide, as those words do on the site.
     for (const mail of realMail().filter(isFacilitating)) {
-      assert.ok((await opened(mail)).text.includes(`${BOARD_WORDS} Open your group Facilitator guide for week 1 Take`), mail.to);
+      const read = await opened(mail);
+      assert.ok(read.text.includes(`${BOARD_WORDS} Open your group Facilitator guide for week 1 Take`), mail.to);
+      assert.ok(read.html.includes(`href="https://naisi.invalid/learn/facilitator-guide/${COURSE.agi}/week-1"`), mail.to);
     }
     assert.deepEqual(await namesSentences(), [
       `rahul@example.com: Group B: ${BOARD_WORDS}`,

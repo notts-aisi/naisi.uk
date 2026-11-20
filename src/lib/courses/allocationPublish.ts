@@ -24,7 +24,7 @@ import {
 import type { ProgrammeKind } from "@/lib/applications/model";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
-import { FACILITATING_GUIDE_BUTTON_HTML } from "@/lib/firestore/courseEmails";
+import { FACILITATING_GROUP_BUTTON_HTML, FACILITATING_GUIDE_BUTTON_HTML } from "@/lib/firestore/courseEmails";
 import { loadCourseEmailTemplate, type CourseEmailTemplate } from "@/lib/email/courseApplicationEmails";
 // The three composers by their `@/` paths, as every caller of a token filler
 // imports one, so the tree walk in tests/email-unfilled-tokens.test.mjs
@@ -510,11 +510,17 @@ export function groupPageUrl(runId: string, groupId: string): string | null {
  * "You’re facilitating", or null when the site does not know its own address
  * or the run names no course. The id is the run's own `courseId`: Publish
  * reads the run already, so the button costs no read.
+ *
+ * With `weekOne` (the email says week 1's guide is on the group page, and
+ * the button says "Facilitator guide for week 1") it is week 1's page of the
+ * guide, where those words lead everywhere else on the site
+ * (`src/lib/courses/facilitatorGuide/links.ts`); otherwise the guide's front
+ * page, which "Facilitator guide" opens.
  */
-export function facilitatorGuideUrl(courseId: string): string | null {
+export function facilitatorGuideUrl(courseId: string, weekOne = false): string | null {
   const base = appUrl();
   if (!base || !isAddressableId(courseId)) return null;
-  return `${base}${facilitatorGuidePath(courseId)}`;
+  return `${base}${facilitatorGuidePath(courseId, weekOne ? { kind: "week", weekNumber: 1 } : undefined)}`;
 }
 
 /** The run's own page in the member area, where its weeks are, or null when the site does not know its own address. */
@@ -737,13 +743,20 @@ function blockWords(block: Block): unknown[] {
  * through two optional tokens (`FACILITATING_GUIDE_BUTTON_HTML`). Compared,
  * it would have made the test of every run on a site with no saved copy
  * stale at the deploy, and held the next press, a re-publish to tell one new
- * facilitator included, until somebody sent a test again. Only that exact
- * paragraph is left out: wording that says anything else, the same button in
- * other words included, is compared as before.
+ * facilitator included, until somebody sent a test again. So ONE copy of that
+ * exact paragraph is left out, and only where the seed has it: straight
+ * after the seed's "Open your group" paragraph, the first time that pair
+ * appears. A copy moved elsewhere, a second copy, a copy inside another
+ * sentence, the same button in other words, and everything else are
+ * compared as before.
  */
 function facilitatingBlockWords(block: Block): unknown[] {
+  // `replace` with a string replaces the first match only.
   return block.type === "richText"
-    ? blockWords({ ...block, html: block.html.split(FACILITATING_GUIDE_BUTTON_HTML).join("") })
+    ? blockWords({
+        ...block,
+        html: block.html.replace(FACILITATING_GROUP_BUTTON_HTML + FACILITATING_GUIDE_BUTTON_HTML, FACILITATING_GROUP_BUTTON_HTML),
+      })
     : blockWords(block);
 }
 
@@ -752,7 +765,7 @@ function facilitatingBlockWords(block: Block): unknown[] {
  * equal exactly when each template's subject, blocks and sender name are. A
  * block's id is left out: the seed copy is given new ids every time a server
  * starts, and an id is not wording. So is the facilitators' button to their
- * guide, exactly as the seed words it (`facilitatingBlockWords`).
+ * guide, once, exactly as and where the seed has it (`facilitatingBlockWords`).
  */
 export function wordingFingerprint(templates: PublishPlan["templates"]): string {
   const lines = (["allocated", "facilitating"] as const).map((kind) => {
@@ -1647,7 +1660,8 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       weekOneGuide: weekOneGuide.get(group.id) ?? false,
       // The course's guide, which the guide's gate opens to a facilitator of
       // a live group on a live run of the course: every one written to here.
-      guideUrl: facilitatorGuideUrl(run.courseId),
+      // Week 1's page when the button names week 1, its front page otherwise.
+      guideUrl: facilitatorGuideUrl(run.courseId, weekOneGuide.get(group.id) === true),
     };
     const written = writeFacilitating(facts);
     if (!written.ok && !refusedFacilitators.has(group.id)) {

@@ -1684,16 +1684,7 @@ programme names" below).
   the default). The board's "and week 1’s guide" is said only while the
   facilitator's group page shows it: the group's next session is its week
   1 and week 1 of the course's facilitator guide has its session plan or
-  its notes (load it before Publish to have it said). A second button,
-  after "Open your group", opens the course's facilitator guide (since
-  November 2026): "Facilitator guide for week 1" when the email says week
-  1's guide is on the group page, "Facilitator guide" otherwise. It is the
-  optional pair `{guideUrl}` and `{guideButton}` in a paragraph of its own,
-  so a run with no course to link to loses the button and nothing else, and
-  Publish is never refused for it. Wording saved in Email designs before
-  then has neither and sends as saved, without the button, until the pair
-  is added in a paragraph of its own or the wording is reset to the default
-  (a saved change, compared for the test like any other). That number counts only the people
+  its notes (load it before Publish to have it said). That number counts only the people
   told by the end of the press, so it is the number of names on their
   roster: somebody with no address on file, or whose email failed, is
   counted once a later press tells them. Never a meeting link: an online
@@ -1706,6 +1697,20 @@ programme names" below).
   facilitates its one group), and the button's count leaves them out. Its
   wording is in Email designs as "You're facilitating", beside "Placed in a
   group".
+- **The facilitators' email links their guide (since November 2026).** A
+  second button, after "Open your group", opens the course's facilitator
+  guide: "Facilitator guide for week 1", to week 1's page of the guide,
+  when the email says week 1's guide is on the group page, and "Facilitator
+  guide", to the guide's front page, otherwise. It is the optional pair
+  `{guideUrl}` and `{guideButton}` in a paragraph of its own, so a run with
+  no course to link to loses the button and nothing else, and Publish is
+  never refused for it. Wording saved in Email designs before then has
+  neither and sends as saved, without the button. To add it, open "You're
+  facilitating" in Email designs, press Reset to default, then Save, and
+  make any earlier changes again; that is a saved change, compared for the
+  test like any other. Do not build the button by hand: the link box puts
+  `https://` in front of whatever is typed into it, so a link to
+  `{guideUrl}` (or `{groupUrl}`) typed there leads nowhere.
 - **A changed wording needs a fresh test.** Saving either of the two emails
   a run sends in Email designs ("You're facilitating", and "Placed in a
   group" or, on a run an incubator names, "Placed on an incubator") locks
