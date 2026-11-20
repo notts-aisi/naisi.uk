@@ -851,6 +851,9 @@ describe("the email check's steps", () => {
     assert.match(flow, /function markAddress\(mark: typeof CODE_MARK \| null\) \{\s*const bare = window\.location\.href\.split\("#"\)\[0\];\s*const wanted = mark \? `\$\{bare\}\$\{mark\}` : bare;/);
     const marks = [...flow.matchAll(/markAddress\(([^)]*)\)/g)].map((m) => m[1]).filter((arg) => !arg.startsWith("mark:"));
     assert.deepEqual([...new Set(marks)].sort(), ["arrival.mark", "null"]);
+    // Past the right code the mark comes off before the one reload, so going
+    // back to the entry the page leaves behind does not open the code box.
+    assert.match(flow, /markAddress\(null\);\s*window\.location\.hash = JUST_IN;\s*window\.location\.reload\(\);/);
   });
 
   test("Send my code on the email step: a code leads to the code box, and asking again inside the minute does too", () => {
