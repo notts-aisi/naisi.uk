@@ -1693,7 +1693,7 @@ programme names" below).
   Publish is never refused for it. Wording saved in Email designs before
   then has neither and sends as saved, without the button, until the pair
   is added in a paragraph of its own or the wording is reset to the default
-  (a saved change, so it needs a fresh test like any other). That number counts only the people
+  (a saved change, compared for the test like any other). That number counts only the people
   told by the end of the press, so it is the number of names on their
   roster: somebody with no address on file, or whose email failed, is
   counted once a later press tells them. Never a meeting link: an online
