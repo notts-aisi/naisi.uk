@@ -33,9 +33,35 @@ export const GUIDE_REFUSED = "Only a course’s facilitators, its programme’s 
 /** The course page with nothing loaded yet. */
 export const GUIDE_EMPTY = "There’s nothing in this course’s facilitator guide yet.";
 
-/** A week page with neither of its documents loaded. */
+/**
+ * A week with neither of its documents loaded: the week page's sentence, and
+ * the first half of the session card's where the week's own link would be.
+ */
 export function guideWeekEmptyWords(weekNumber: number): string {
-  return `There’s no facilitator guide for week ${weekNumber} yet.`;
+  return `Week ${weekNumber}’s plan isn’t in the guide yet.`;
+}
+
+/**
+ * Who loads the guide, said where a group is known: the programme's lead by
+ * first name, as the group page already names them, or admins alone when no
+ * lead stands.
+ */
+export function whoLoadsItWords(leadFirstName: string | null): string {
+  const lead = leadFirstName?.trim() ?? "";
+  return lead ? `${lead} or an admin loads it.` : "An admin loads it.";
+}
+
+/** The session card's sentence for a week that is not loaded while something else is. */
+export function guideWeekNotLoadedWords(weekNumber: number, leadFirstName: string | null): string {
+  return `${guideWeekEmptyWords(weekNumber)} ${whoLoadsItWords(leadFirstName)}`;
+}
+
+/** The session card's sentence, in place of both links, for a course with nothing loaded at all. */
+export function guideNothingLoadedWords(leadFirstName: string | null): string {
+  const lead = leadFirstName?.trim() ?? "";
+  return lead
+    ? `${GUIDE_EMPTY} ${lead} or an admin loads it, and it will show here.`
+    : `${GUIDE_EMPTY} An admin loads it, and it will show here.`;
 }
 
 /** One of the course's own documents, not loaded yet. */

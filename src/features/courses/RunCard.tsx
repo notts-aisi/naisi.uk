@@ -7,6 +7,8 @@ import Chip, { type ChipTone } from "@/components/ui/Chip";
 import ProgressRing from "@/components/ui/ProgressRing";
 import type { MyRunEntry, MyRunMembership } from "@/app/api/courses/me/route";
 import { endedWord } from "@/lib/courses/finishing/words";
+import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
+import { FACILITATOR_GUIDE, GUIDE_READERS_LINE } from "@/lib/courses/facilitatorGuide/words";
 import { COURSE_RUN_STATUS_LABEL } from "@/lib/firestore/courses";
 import styles from "./RunCard.module.css";
 
@@ -33,6 +35,15 @@ import styles from "./RunCard.module.css";
  * link test is `roles.length > 0`, which is the same predicate the layout
  * gates on (see MyRunEntry.roles); a card that opens onto a redirect is worse
  * than no card, because it reads as the software being broken.
+ *
+ * ── A FACILITATOR'S CARD HAS THREE DOORS ────────────────────────────────────
+ * On a live run where the row names groups the caller facilitates
+ * (`facilitates`, which the route sends for that row alone), the card is no
+ * longer one big link: "Open the programme" is its own button, and under it
+ * each group by name, its day and room, to the group's page, and
+ * "Facilitator guide", to the course's guide, with who sees it. The route
+ * names a group there only while the caller facilitates it live, which is
+ * when the guide admits them. Every other card is as it was.
  */
 
 type RunRole = MyRunEntry["roles"][number];
@@ -183,6 +194,8 @@ export default function RunCard({ entry }: Props) {
     week?.phase !== "after";
 
   const className = [styles.card, offer ? styles.offer : ""].filter(Boolean).join(" ");
+  // The groups the caller facilitates on a live run, for the card's own links.
+  const facilitates = linked && !entry.archived ? (entry.facilitates ?? []) : [];
   const body = (
     <>
       {/* The run's crest (or the emblem in its place), decorative beside its
@@ -232,6 +245,49 @@ export default function RunCard({ entry }: Props) {
       {offer && showOfferNote && <p className={styles.note}>{offer.note}</p>}
     </>
   );
+
+  // A facilitator's card: the programme, each group and the guide, each its
+  // own link, inside a card that is not one (see the module comment).
+  if (facilitates.length > 0) {
+    const runHref = `/learn/${encodeURIComponent(entry.runId)}`;
+    return (
+      <Card as="article" padding="md" className={className}>
+        {body}
+        <Link href={runHref} className={styles.openProgramme}>
+          Open the programme
+        </Link>
+        <ul className={styles.doors} role="list">
+          {facilitates.map((group) => {
+            const line = [group.slot, group.room].filter(Boolean).join(" · ");
+            return (
+              <li key={group.groupId}>
+                <Link className={styles.door} href={`${runHref}/group/${encodeURIComponent(group.groupId)}`}>
+                  <span className={styles.doorWords}>
+                    <span className={styles.doorName}>{group.name || "Your group"}</span>
+                    {line && <span className={styles.doorLine}>{line}</span>}
+                  </span>
+                  <span className={styles.doorArrow} aria-hidden="true">
+                    →
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+          <li>
+            <Link className={styles.door} href={facilitatorGuidePath(entry.courseId)}>
+              <span className={styles.doorWords}>
+                <span className={styles.doorName}>{FACILITATOR_GUIDE}</span>
+                <span className={styles.doorLine}>{GUIDE_READERS_LINE}</span>
+              </span>
+              <span className={styles.doorArrow} aria-hidden="true">
+                →
+              </span>
+            </Link>
+          </li>
+        </ul>
+      </Card>
+    );
+  }
 
   // An offer opens onto nothing (see the module comment), so it is rendered as
   // the bare card, an article, rather than wrapped in an anchor to a route

@@ -5,6 +5,8 @@ import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import { registerTitle } from "@/lib/courses/facilitatorPageWords";
+import { NO_GUIDE_LINKS, type GuideLinksView } from "@/lib/courses/facilitatorGuide/links";
+import { ArrowRight } from "@/app/(app)/dashboard/icons";
 import { loadRegisterMembers, type RegisterGate } from "@/lib/courses/registerAccess";
 import { joiningOnlineBox } from "@/lib/courses/meetingLink/box";
 import { givenSessionLink } from "@/lib/courses/meetingLink/givenSession";
@@ -44,6 +46,7 @@ export default async function RegisterPageBody({
   reportHref,
   didntHappen,
   requestsBase = null,
+  guide = null,
 }: {
   gated: Extract<RegisterGate, { ok: true }>;
   user: SessionUser;
@@ -58,6 +61,12 @@ export default async function RegisterPageBody({
   didntHappen: { href: string; words: string } | null;
   /** The Requests page, for a reader who decides requests and can open it; null elsewhere. */
   requestsBase?: string | null;
+  /**
+   * The facilitator guide above the table, worked out by the page from the
+   * guide's own gate and never the register's (the facilitator's door only),
+   * read beside the register's own reads; null draws nothing.
+   */
+  guide?: Promise<GuideLinksView> | null;
 }) {
   const db = getAdminDb();
   const groupName = gated.group.name || "Group";
@@ -77,7 +86,7 @@ export default async function RegisterPageBody({
   // The box at the top, named as the register names its rows for this
   // reader: never for somebody given one session. Nothing is offered to press
   // in a view-as session, where nothing is written.
-  const [joiningOnline, viewAs] = await Promise.all([
+  const [joiningOnline, viewAs, guideView] = await Promise.all([
     db && !onlyGiven
       ? joiningOnlineBox(db, {
           run,
@@ -87,6 +96,7 @@ export default async function RegisterPageBody({
         }).catch(() => [])
       : Promise.resolve([]),
     getImpersonator().then((marker) => markerIsLive(marker, user.uid)),
+    guide ?? Promise.resolve(NO_GUIDE_LINKS),
   ]);
 
   return (
@@ -131,6 +141,25 @@ export default async function RegisterPageBody({
       )}
 
       {namesToCome && <p className={weekly.cardLine}>{NAMES_WHEN_GROUPS_GO_OUT}</p>}
+
+      {/* The facilitator guide for the register's week, above the table. */}
+      {(guideView.week || guideView.sentence || guideView.standing) && (
+        <div className={facilitator.registerGuide}>
+          {guideView.week && (
+            <Link href={guideView.week.href} className={facilitator.ticketGuide}>
+              <span>{guideView.week.label}</span>
+              <ArrowRight />
+            </Link>
+          )}
+          {guideView.sentence && <p className={facilitator.guideSentence}>{guideView.sentence}</p>}
+          {guideView.standing && (
+            <Link href={guideView.standing.href} className={facilitator.ticketGuide}>
+              <span>{guideView.standing.label}</span>
+              <ArrowRight />
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* The register owns its own week controls and its own horizontal
           overflow: a wide table handles its own responsiveness rather than

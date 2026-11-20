@@ -163,6 +163,14 @@ const READERS = {
     gate: "facilitatorGuideReader(",
     why: "a facilitator's group page: which weeks have something, by title, for the ticket's link to this week, and whether anything is loaded at all, for its link to the guide's course page; the page itself is its live facilitators' and admins'",
   },
+  "app/(app)/learn/[runId]/group/[groupId]/register/page.tsx": {
+    gate: "facilitatorGuideReader(",
+    why: "a group's register: which weeks have something, by title, for the link to the register's week above its table, asked of the guide's own gate and never the register's, so somebody given one session or a run's track lead, whom the guide refuses, is drawn nothing",
+  },
+  "app/(app)/learn/[runId]/page.tsx": {
+    gate: "facilitatorGuideReader(",
+    why: "the programme page: which weeks have something, by title, for About this course's guide row and each group card's week, asked only for a facilitator, a lead or an admin and handed to the client component only for somebody the guide admits, so a member's page asks nothing and carries nothing of it",
+  },
   "lib/courses/allocationPublish.ts": {
     gate: "facilitatorGuideReaderForGroup(",
     why: "Publish's plan: which weeks of the course's guide have something, by title, asked through the facilitators' door for each group it tells, so their email says week 1's guide is on their group page only while that page shows it; nothing a document says leaves the plan",

@@ -50,6 +50,8 @@ import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { STARTS_WITH_AN_EXPLAINER, facilitatorLineWords, scheduledByWords } from "@/lib/courses/explainers/words";
+import { NO_GUIDE_LINKS, type GuideLinksView } from "@/lib/courses/facilitatorGuide/links";
+import { FACILITATOR_GUIDE } from "@/lib/courses/facilitatorGuide/words";
 import { PeopleIcon } from "./icons";
 import styles from "./facilitator.module.css";
 
@@ -95,6 +97,7 @@ export function FacilitatorTicket({
   registerHref,
   guide = null,
   guideContents = null,
+  guideSentence = null,
   explainer = null,
 }: {
   facts: TicketFacts;
@@ -114,6 +117,12 @@ export function FacilitatorTicket({
    * course's own documents, or null when the guide has nothing loaded.
    */
   guideContents?: { href: string; label: string } | null;
+  /**
+   * The sentence in place of the week's link ("Week 3’s plan isn’t in the
+   * guide yet. Maya or an admin loads it."), or in place of both links when
+   * nothing is loaded for the course; null with none.
+   */
+  guideSentence?: string | null;
   /**
    * The explainer the session starts with, named as this reader sees people
    * (`by` and `scheduledBy`, null once an account is gone), or null.
@@ -176,6 +185,7 @@ export function FacilitatorTicket({
                 <ArrowRight />
               </Link>
             )}
+            {guideSentence && <p className={styles.guideSentence}>{guideSentence}</p>}
             {guideContents && (
               <Link href={guideContents.href} className={styles.ticketGuide}>
                 <span>{guideContents.label}</span>
@@ -203,14 +213,52 @@ export function FacilitatorTicket({
   );
 }
 
+/** The guide under a card with no ticket: the sentence, then the guide's course page, as the ticket draws them. */
+function GuideRow({ guide }: { guide: GuideLinksView }) {
+  if (!guide.standing && !guide.sentence && !guide.week) return null;
+  return (
+    <div className={styles.ticketButtons}>
+      {guide.week && (
+        <Link href={guide.week.href} className={styles.ticketGuide}>
+          <span>{guide.week.label}</span>
+          <ArrowRight />
+        </Link>
+      )}
+      {guide.sentence && <p className={styles.guideSentence}>{guide.sentence}</p>}
+      {guide.standing && (
+        <Link href={guide.standing.href} className={styles.ticketGuide}>
+          <span>{guide.standing.label}</span>
+          <ArrowRight />
+        </Link>
+      )}
+    </div>
+  );
+}
+
 /**
  * Where the ticket would be once the group's last session is over: the
- * sentence Home says, so the page never just stops above "Your group".
+ * sentence Home says, so the page never just stops above "Your group", and
+ * the facilitator guide still a tap away.
  */
-export function NoMoreSessionsCard() {
+export function NoMoreSessionsCard({ guide = NO_GUIDE_LINKS }: { guide?: GuideLinksView }) {
   return (
     <section className={weekly.card} aria-label="Your next session" data-testid="session-card">
       <p className={weekly.cardLine}>{NO_MORE_SESSIONS}</p>
+      <GuideRow guide={guide} />
+    </section>
+  );
+}
+
+/**
+ * Where the ticket would be for a group with no dates yet: the facilitator
+ * guide alone, so it is a tap away before anything is planned. Nothing when
+ * the guide's rule draws nothing.
+ */
+export function GuideOnlyCard({ guide }: { guide: GuideLinksView }) {
+  if (!guide.standing && !guide.sentence && !guide.week) return null;
+  return (
+    <section className={weekly.card} aria-label={FACILITATOR_GUIDE}>
+      <GuideRow guide={guide} />
     </section>
   );
 }

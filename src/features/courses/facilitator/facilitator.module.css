@@ -920,6 +920,16 @@
   min-width: 0;
 }
 
+/* The facilitator guide above the register's table: the week's link, or the
+   sentence in its place, and the guide's course page. */
+.registerGuide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 18px;
+  min-width: 0;
+}
+
 /* === Home === */
 
 /* Home's ticket heading, "Group B, 6pm", at the board's 24px: two classes
@@ -1015,6 +1025,25 @@
   align-items: center;
   gap: 0 18px;
   margin: -6px 0 4px;
+}
+
+/* The guide's sentence where a link would be ("Week 3’s plan isn’t in the
+   guide yet. Maya or an admin loads it."), on Home's This week card, on the
+   group page's ticket and on the register: a line of its own in the row of
+   links. */
+.guideSentence {
+  flex: 1 1 100%;
+  margin: 0;
+  padding: 4px 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+/* "Open Group C" under Home's register button. */
+.homeOpenGroup {
+  display: flex;
+  justify-content: center;
 }
 
 .weekRow {

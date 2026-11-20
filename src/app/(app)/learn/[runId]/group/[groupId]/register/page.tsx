@@ -10,6 +10,12 @@ import {
   REGISTER_NOT_YOURS_TITLE,
 } from "@/lib/courses/registerCover/pageWords";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
+import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
+import { GUIDE_READ_FAILED, guideLinksView, guideReadOfIndex, type GuideLinksView } from "@/lib/courses/facilitatorGuide/links";
+import { registerGuideWeek } from "@/lib/courses/facilitatorGuide/registerWeek";
+import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
+import { resolveSessions } from "@/lib/courses/sessions";
 
 /**
  * A GROUP'S REGISTER, on a page of its own (the register
@@ -34,6 +40,18 @@ import { getAdminDb } from "@/lib/firebase/admin";
  * answer: everybody else is sent to the run's home, never told whether the
  * group exists. The register's routes re-derive the same access from the
  * same documents and are the real boundary.
+ *
+ * THE FACILITATOR GUIDE, above the table: the week's link ("Facilitator
+ * guide for week 3", the week this register is about: `registerGuideWeek`)
+ * and the guide's course page, by the session card's one rule
+ * (`src/lib/courses/facilitatorGuide/links.ts`). Asked of the guide's own
+ * gate (`facilitatorGuideReader`), NEVER of the register's: the register
+ * admits somebody given one session and a run's track lead, whom the guide
+ * refuses, and they are drawn no link and no sentence. The read runs beside
+ * the register's own; one that fails draws the course page's link for the
+ * group's facilitators and admins, whom the guide admits, and nothing for
+ * anybody else. The programme's lead's first name, for the sentence about
+ * who loads a week, is read only when a sentence is drawn.
  */
 
 export const dynamic = "force-dynamic";
@@ -93,6 +111,26 @@ export default async function GroupRegisterPage({
   const groupPath = `${runHome}/group/${encodeURIComponent(groupId)}`;
   const opensGroupPage = gated.isAdmin || gated.facilitates;
 
+  // The facilitator guide above the table, read beside the register's own
+  // reads and never through the register's gate (see the note at the top).
+  const knownReader = gated.isAdmin || gated.facilitates;
+  const now = new Date();
+  const guide: Promise<GuideLinksView> = (async () => {
+    const reader = await facilitatorGuideReader(db, access.user, access.run.courseId);
+    const read = guideReadOfIndex(reader ? await readGuideIndex(db, reader) : null);
+    const weekNumber = registerGuideWeek(resolveSessions(access.run, gated.group), session, now);
+    const draw = (leadFirstName: string | null) =>
+      guideLinksView({ read, courseId: access.run.courseId, weekNumber, knownReader, leadFirstName });
+    // Who loads the guide is said only in a sentence: the lead is read only for one.
+    const first = draw(null);
+    if (!first.sentence) return first;
+    const programme = await runProgrammeOf(db, runId).catch(() => null);
+    return draw(programme?.leadFirstName ?? null);
+  })().catch((err: unknown) => {
+    console.error("[register page] the facilitator guide's read failed", groupId, err);
+    return guideLinksView({ read: GUIDE_READ_FAILED, courseId: access.run.courseId, weekNumber: null, knownReader, leadFirstName: null });
+  });
+
   // Called, not mounted: the page answers with the tree the body draws.
   return RegisterPageBody({
     gated,
@@ -102,5 +140,6 @@ export default async function GroupRegisterPage({
     session,
     reportHref: `${groupPath}/report`,
     didntHappen: opensGroupPage ? { href: groupPath, words: DIDNT_HAPPEN_MOVED_FACILITATOR } : null,
+    guide,
   });
 }

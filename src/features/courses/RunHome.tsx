@@ -34,6 +34,7 @@ import type { JoiningOnlineView } from "@/lib/courses/joiningOnline/model";
 import { ONLINE_WORD } from "@/lib/courses/joiningOnline/words";
 import type { CertificateCardView } from "@/lib/courses/certificates/card";
 import type { GuideLinks } from "@/lib/courses/guide/model";
+import type { FacilitatorGuideProp } from "@/lib/courses/facilitatorGuide/links";
 import type { TeamCardView } from "@/lib/courses/teamPage/views";
 import type { TimeQuestionView } from "@/lib/courses/timeAnswer/model";
 import type { MessagesEntries } from "@/lib/messages/handover";
@@ -211,6 +212,16 @@ type Props = {
    * when it has neither.
    */
   guide?: GuideLinks | null;
+  /**
+   * The course's facilitator guide, from the server page, for somebody the
+   * guide admits and nobody else (it is asked only for a facilitator, a lead
+   * or an admin, and handed on only when the guide's gate let them in or the
+   * page knows it would): the course and the weeks that have something
+   * loaded. "About this course" gains its "Facilitator guide" row, and each
+   * group's card "Facilitator guide for week 2" when that week is loaded.
+   * Absent for everybody else, so nothing about the guide reaches their page.
+   */
+  facilitatorGuide?: FacilitatorGuideProp | null;
   /**
    * The caller's own certificates on this run, from the server page
    * (`readOwnCertificates`): "Your certificate" under the
@@ -522,6 +533,7 @@ export default function RunHome({
   excused = null,
   viewAs = false,
   guide = null,
+  facilitatorGuide = null,
   uid = null,
   certificates = [],
   endSurvey = null,
@@ -884,6 +896,7 @@ export default function RunHome({
             publishedWeekNumbers={publishedWeekNumbers}
             canEmailCohort={canEmailCohort}
             messages={messages}
+            facilitatorGuide={facilitatorGuide}
           />
         </AfterTheEnd>
       </PageEnter>
@@ -1008,7 +1021,7 @@ export default function RunHome({
           {beforeStart && weekList}
 
           {/* Start here and the Glossary, after the group. */}
-          <AboutThisCourse runId={runId} links={guide} className={weekly.order7} />
+          <AboutThisCourse runId={runId} links={guide} facilitatorGuide={facilitatorGuide} className={weekly.order7} />
 
           {/* One card per group they facilitate. The cohort-wide links ride on
               the FIRST card only, because they address the run and not a room. */}
@@ -1021,6 +1034,7 @@ export default function RunHome({
                 showCohortLinks={canEmailCohort && index === 0}
                 emailGroupHref={messages.groups[facilitated.id] ?? null}
                 emailCohortHref={messages.cohort}
+                facilitatorGuide={facilitatorGuide}
               />
             </div>
           ))}
@@ -1106,12 +1120,14 @@ function FacilitatedPanels({
   publishedWeekNumbers,
   canEmailCohort,
   messages,
+  facilitatorGuide,
 }: {
   runId: string;
   groups: OverviewPayload["groups"];
   publishedWeekNumbers: number[];
   canEmailCohort: boolean;
   messages: MessagesEntries;
+  facilitatorGuide: FacilitatorGuideProp | null;
 }) {
   return (
     <>
@@ -1124,6 +1140,7 @@ function FacilitatedPanels({
           showCohortLinks={canEmailCohort && index === 0}
           emailGroupHref={messages.groups[facilitated.id] ?? null}
           emailCohortHref={messages.cohort}
+          facilitatorGuide={facilitatorGuide}
         />
       ))}
     </>

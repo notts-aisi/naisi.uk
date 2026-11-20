@@ -9,6 +9,7 @@ import { isAddressableId } from "@/lib/addressableId";
 import {
   FacilitatorTicket,
   GroupPeopleCard,
+  GuideOnlyCard,
   GroupRegistersCard,
   NoMoreSessionsCard,
   PaceCard,
@@ -36,9 +37,8 @@ import { StaffUpdatesSection } from "@/features/courses/updates/UpdatesList";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
-import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
+import { GUIDE_READ_FAILED, guideLinksView, guideReadOfIndex, type GuideRead } from "@/lib/courses/facilitatorGuide/links";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
-import { FACILITATOR_GUIDE, guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
 import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
 import { loadGroupPage } from "@/lib/courses/groupPage/load";
 import { seesSessionLink } from "@/lib/courses/meetingLink/audience";
@@ -145,13 +145,17 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * then each week's meeting link as words, with the way to change one for
  * that week only or from it on. None of them carries a link or an address.
  *
- * THE FACILITATOR GUIDE, on the ticket: "Facilitator guide for week 3" is
- * drawn when that week of the course's facilitator guide has its session
- * plan or its notes loaded, and "Facilitator guide", to the guide's course
- * page with every week, whenever the guide has anything loaded, so last
- * week's is still a tap away once the ticket has moved on. Both are asked of
- * the guide's own gate (`src/lib/courses/facilitatorGuide/access.ts`), which
- * admits this page's readers: the group's live facilitators and admins.
+ * THE FACILITATOR GUIDE, on the ticket, by the session card's one rule
+ * (`src/lib/courses/facilitatorGuide/links.ts`): "Facilitator guide for week
+ * 3" when that week of the course's facilitator guide has its session plan
+ * or its notes loaded, or else the sentence saying it is not in the guide yet
+ * and who loads it; and "Facilitator guide", to the guide's course page with
+ * every week, so last week's is still a tap away once the ticket has moved
+ * on. After the last session, and for a group with no dates yet, the course
+ * page's link stays. Asked of the guide's own gate
+ * (`src/lib/courses/facilitatorGuide/access.ts`), which admits this page's
+ * readers: the group's live facilitators and admins. A read that fails
+ * draws the course page's link and never takes the page down.
  *
  * ── THE GATE IS TWO CHECKS, NOT ONE ─────────────────────────────────────────
  * `[runId]/layout.tsx` has already established that the caller holds SOME role
@@ -518,24 +522,29 @@ export default async function GroupHomePage({
   const facts = ticketFacts(sessionGroup);
   const todayKey = londonDateKey(now);
 
-  // The course's facilitator guide on the ticket, through the guide's own
-  // gate and its list of titles: "Facilitator guide for week 3" when the guide
-  // has that week, and "Facilitator guide", its course page with every week,
-  // whenever it has anything loaded, so last week's is still a tap away.
-  const guideReader = facts ? await facilitatorGuideReader(db, access.user, access.run.courseId) : null;
-  const guideIndex = guideReader ? await readGuideIndex(db, guideReader) : null;
-  const guideWeeks = guideIndex ? guideIndex.weeks.map((week) => week.weekNumber) : [];
-  const guide =
-    facts && facts.weekNumber >= 1 && guideWeeks.includes(facts.weekNumber)
-      ? {
-          href: facilitatorGuidePath(access.run.courseId, { kind: "week", weekNumber: facts.weekNumber }),
-          label: guideForWeekWords(facts.weekNumber),
-        }
-      : null;
-  const guideContents =
-    guideIndex && (guideIndex.documents.length > 0 || guideIndex.weeks.length > 0)
-      ? { href: facilitatorGuidePath(access.run.courseId), label: FACILITATOR_GUIDE }
-      : null;
+  // The course's facilitator guide, through the guide's own gate and its list
+  // of titles, drawn by the session card's one rule (`guideLinksView`): on
+  // the ticket, "Facilitator guide for week 3" or the sentence saying week 3
+  // is not loaded yet and who loads it, and "Facilitator guide", its course
+  // page with every week; after the last session, and for a group with no
+  // dates yet, the course page's link alone. Asked in every state. A read
+  // that throws never takes the page down: it reads as failed, and the
+  // course page's link is still drawn, for this page admits only the
+  // group's facilitators and admins, whom the guide admits too.
+  let guideRead: GuideRead = GUIDE_READ_FAILED;
+  try {
+    const guideReader = await facilitatorGuideReader(db, access.user, access.run.courseId);
+    guideRead = guideReadOfIndex(guideReader ? await readGuideIndex(db, guideReader) : null);
+  } catch (err) {
+    console.error("[facilitator group page] the facilitator guide's read failed", groupId, err);
+  }
+  const guideView = guideLinksView({
+    read: guideRead,
+    courseId: access.run.courseId,
+    weekNumber: facts && facts.weekNumber >= 1 ? facts.weekNumber : null,
+    knownReader: access.isAdmin || facilitatesThisGroup,
+    leadFirstName: programme?.leadFirstName ?? null,
+  });
 
   // The page's cards, drawn once, and placed below by the shape of the week.
   const ticketCards = (
@@ -560,14 +569,17 @@ export default async function GroupHomePage({
             return expected > 0 ? expected : null;
           })()}
           registerHref={registerHref}
-          guide={guide}
-          guideContents={guideContents}
+          guide={guideView.week}
+          guideContents={guideView.standing}
+          guideSentence={guideView.sentence}
           explainer={explainer}
         />
       )}
       {/* Every session the group holds is over: Home's sentence where the
-          ticket was. A group with no dates yet draws nothing here. */}
-      {!facts && range.lastDateKey && <NoMoreSessionsCard />}
+          ticket was, and the guide's course page still a tap away. A group
+          with no dates yet has a small card with the guide alone. */}
+      {!facts && range.lastDateKey && <NoMoreSessionsCard guide={guideView} />}
+      {!facts && !range.lastDateKey && <GuideOnlyCard guide={guideView} />}
       {drawWeek && spread && (
         <PathwaySpread
           title={spreadTitleWords(drawWeek.draw, groupName)}
