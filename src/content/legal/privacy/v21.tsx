@@ -1,7 +1,8 @@
 /**
  * Version 21 of the Privacy Policy: version 20 with the paragraph
  * "Reminders." in "Your work, progress and reminders" saying the reminders
- * before a session now go to everybody due at it, and "What's changed in
+ * before a session now go to everybody due at it, how long anonymous
+ * feedback from the second form is kept, and "What's changed in
  * version 21" at the top, with version 20's, version 19's, version 18's and
  * version 17's own lines kept under it and dated. Every other word is
  * version 20's.
@@ -16,7 +17,22 @@
  *     the reminders stop once the week is done; they no longer do, so that
  *     clause is gone. The sentence about reminders after a session, from the
  *     people running a group and in later weeks' emails, is version 20's.
- *  2. **What's changed** at the top says so, and keeps version 20's, version
+ *  2. **Anonymous feedback from the second form** (`src/lib/societyFeedback/`)
+ *     is kept for up to two years: nothing deletes it on a timer, and once a
+ *     year an admin clears out by hand every entry more than a year old, so
+ *     none is older than two years. Version 20 said "two years from the day
+ *     it is sent", which a yearly clear-out by hand cannot keep exactly.
+ *     The paragraph about the second form is in the present tense, now that
+ *     the form exists ("We also have", "does not ask", "we keep", "read"),
+ *     where version 20 said what it "may" and "would" do.
+ *  3. **The recovery copies.** A paragraph closing "Surveys and check-ins",
+ *     after both anonymous forms, says the database's recovery copies can
+ *     hold when something sent through either form arrived, for up to 14
+ *     days: both forms' answers wait in the live database until the night's
+ *     move, which stamps when each was written, and point-in-time recovery
+ *     (7 days, to the minute) and the daily backups (14 days) keep copies of
+ *     it. Version 20 did not speak of them.
+ *  4. **What's changed** at the top says all three, and keeps version 20's, version
  *     19's, version 18's and version 17's lines under it, each with its date.
  *
  * It changes how information is used (an email address and a place in a
@@ -96,7 +112,12 @@ export default function PrivacyContentV21({
               <strong>What&apos;s changed in version 21:</strong> We now email
               everybody a reminder of each session&apos;s day, time and place
               three days and one day before it, where before we only emailed
-              people with work left to do.
+              people with work left to do. Anonymous feedback from the second
+              form is kept for up to two years and deleted by hand once a
+              year, where before we said two years from the day it is sent. We
+              now say that our database&apos;s recovery copies can hold the
+              time at which something sent through an anonymous form arrived,
+              for up to 14 days.
             </p>
             <p>
               <strong>What changed in version 20, on 17 November 2026:</strong> This
@@ -800,13 +821,18 @@ export default function PrivacyContentV21({
                 day, in an order unrelated to when each came in.
               </p>
               <p>
-                We may also open a second form that never records who fills it
-                in: an anonymous feedback form that any member can use at any
-                time. It would not ask who you are, and we would keep what you
-                write, the day, and any programme, session or role you choose
-                to name. Only admins would read it, from the next day. Nobody
-                can reply to it, so if you&apos;d like an answer, ask us
-                directly instead.
+                We also have a second form that never records who fills it in:
+                an anonymous feedback form that any member can use at any time.
+                It does not ask who you are, and we keep what you write, the
+                day, and any programme, session or role you choose to name.
+                Only admins read it, from the next day. Nobody can reply to it,
+                so if you&apos;d like an answer, ask us directly instead.
+              </p>
+              <p>
+                Our database&apos;s recovery copies, which exist so that data
+                can be restored after a fault, can hold the time at which
+                something sent through either anonymous form arrived, for up to
+                14 days. We would only look at them if we had to.
               </p>
             </section>
 
@@ -1167,8 +1193,9 @@ export default function PrivacyContentV21({
                   exists, like your other records, with our replies.
                 </li>
                 <li>
-                  <strong>Anonymous feedback from the second form:</strong> two
-                  years from the day it is sent.
+                  <strong>Anonymous feedback from the second form:</strong> up
+                  to two years. Once a year an admin deletes by hand every entry
+                  more than a year old, so none is kept longer than two years.
                 </li>
                 <li>
                   <strong>Your choice about Kairos:</strong> while your account

@@ -1576,6 +1576,30 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
   },
+  "/api/anonymous-feedback": {
+    reason:
+      "Sending anonymous feedback; tests/society-feedback.test.mjs sends it as a member, committee and an admin, keeps exactly the seven fields and nothing of the sender, reads the session once, and refuses signed out, waiting, refused, view-as, a bad body, an unknown programme, a session past the last week and a flood past the limit.",
+    coverWhen:
+      "When a fixture can find the entry its member sent without anything naming the sender (a marker in the words, deleted by teardown from the waiting place), so a spec can sign a member in, open the form from the foot of Home, send it and read the thanks.",
+  },
+  "/api/admin/anonymous-feedback/[entryId]": {
+    reason:
+      "Dealt with, a note for admins, and deleting one kept entry; tests/society-feedback.test.mjs records which admin and when, leaves the entry's seven fields as they were, deletes the one entry and nothing else with a record that holds none of its content, and refuses everybody but an admin, a view-as session, a missing entry and an empty body.",
+    coverWhen:
+      "When a spec can run the night's move against the entry it sent (it reaches admins only from the next day), so it can open the admins' page, mark the entry dealt with, add a note and clear it out by hand.",
+  },
+  "/api/admin/anonymous-feedback/clear": {
+    reason:
+      "Counting and clearing out older anonymous feedback by hand; tests/society-feedback.test.mjs counts, refuses a day after today and a stale count, deletes only what is older and never reaches the waiting place, and refuses everybody but an admin.",
+    coverWhen:
+      "When a spec can run the night's move against the entry it sent (it reaches admins only from the next day), so it can open the admins' page, mark the entry dealt with, add a note and clear it out by hand.",
+  },
+  "/api/admin/anonymous-feedback/download": {
+    reason:
+      "The download of every kept entry; tests/society-feedback.test.mjs reads its header and row, its formula guard and that it names no admin, and refuses everybody but an admin.",
+    coverWhen:
+      "When a spec can run the night's move against the entry it sent (it reaches admins only from the next day), so it can open the admins' page, mark the entry dealt with, add a note and clear it out by hand.",
+  },
   "/api/feedback": {
     reason:
       "The anonymous keep, change and drop form: answering by the programme's one link; tests/anonymous-feedback.test.mjs answers signed out, signed in and in a view-as session, keeps only the three answers, the programme and the day, and refuses a wrong, malformed, closed or destroyed form's link and a flood past either limit.",
@@ -2262,6 +2286,18 @@ const NOT_COVERED = {
       "Where the survey's totals will be published: one static sentence saying when, until the results page is designed.",
     coverWhen:
       "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/(app)/anonymous-feedback": {
+    reason:
+      "The members' form; tests/society-feedback.test.mjs renders it with this term's programmes, the roles and its words, without asking who is reading, and without the pointer to Ask the team.",
+    coverWhen:
+      "When a fixture can find the entry its member sent without anything naming the sender (a marker in the words, deleted by teardown from the waiting place), so a spec can sign a member in, open the form from the foot of Home, send it and read the thanks.",
+  },
+  "/(app)/admin/(admin-only)/surveys/anonymous-feedback": {
+    reason:
+      "The admins' page; tests/society-feedback.test.mjs renders it as an admin from what the night's move kept, never the waiting place, in at most three reads, shows the words as text, and sends every other reader to the dashboard.",
+    coverWhen:
+      "When a spec can run the night's move against the entry it sent (it reaches admins only from the next day), so it can open the admins' page, mark the entry dealt with, add a note and clear it out by hand.",
   },
   "/feedback/[token]": {
     reason:

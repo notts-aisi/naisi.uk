@@ -2371,7 +2371,9 @@ async function sendRowsOf(state, surveyIds = [], messageIds = []) {
  * (`reserveSendSlot` and `reserveNoticeSlots` keep them in `courseNudges` as
  * `emailrate__<key>`, with no run on the row to query by):
  *  - the updates route's: each audience's daily counter, and each presser's
- *    own hourly ones, the test's and the post's;
+ *    own hourly ones, the test's and the post's (a session's new room claims
+ *    the same group's two, `answerRoomPress` in
+ *    src/lib/courses/sessionChange/roomWrite.ts);
  *  - a register's push throttle, one per group and presser
  *    (`push__<groupId>__<uid>` in src/app/api/courses/groups/[groupId]/attendance/push/route.ts);
  *  - the notice a group's new regular time or room sends, one daily counter
@@ -2384,10 +2386,23 @@ async function sendRowsOf(state, surveyIds = [], messageIds = []) {
  *  - moving somebody to another group for good, mid-term
  *    (src/lib/courses/staffMove/limits.ts): one counter per person moved a
  *    day on the run (`staffmoved__<runId>__<uid>`), for every account of the term, and one per
- *    presser a day (`staffmover__<uid>`), for the admin and the lead.
+ *    presser a day (`staffmover__<uid>`), for the lead a fixture makes.
  * The pressers are the admin, while the ledger holds the admin's uid, the
  * term's facilitator, who writes to their group and finishes its register,
- * and, for giving a session, the programme's lead a fixture makes.
+ * and the programme's lead a fixture makes, who may do everything either of
+ * them does here (the updates route lets a lead write to any audience, test
+ * or post, and a lead finishes a register in a facilitator's place) and
+ * gives a session.
+ *
+ * Every id here carries a run, a group or an account this term made, so no
+ * other fixture's press can write one. A counter keyed on the admin's uid
+ * ALONE does not belong here: the admin is one account shared by every
+ * fixture on every machine of a run, so such a counter counted by every term
+ * reads another machine's press as this term's residue, and every term's
+ * teardown deletes it from under that machine's spec. The admin's
+ * `staffmover__<uid>` is counted and deleted by the one fixture whose spec
+ * moves somebody (`course-hub-staff-move.mjs`), as the visit's presser
+ * counter is by `course-hub-visit.mjs`.
  */
 function sendCounterIdsOf(state) {
   const audiences = [
@@ -2397,7 +2412,7 @@ function sendCounterIdsOf(state) {
   ];
   const ids = audiences.map((key) => `emailrate__updateday__${key}`);
   for (const group of state.groups ?? []) ids.push(`emailrate__groupchangeday__${group.id}`);
-  for (const uid of [state.adminUid, state.facilitator?.uid].filter(Boolean)) {
+  for (const uid of [state.adminUid, state.facilitator?.uid, state.lead?.uid].filter(Boolean)) {
     ids.push(`emailrate__updatetest__${state.runId}__${uid}`);
     ids.push(`emailrate__updatepost__${state.runId}__${uid}`);
     for (const key of audiences) ids.push(`emailrate__update__${key}__${uid}`);
@@ -2409,7 +2424,7 @@ function sendCounterIdsOf(state) {
   }
   for (const account of accountsOf(state)) ids.push(`emailrate__covergiven__${account.uid}`);
   for (const account of accountsOf(state)) ids.push(`emailrate__staffmoved__${state.runId}__${account.uid}`);
-  for (const uid of [state.adminUid, state.lead?.uid].filter(Boolean)) ids.push(`emailrate__staffmover__${uid}`);
+  if (state.lead?.uid) ids.push(`emailrate__staffmover__${state.lead.uid}`);
   return ids;
 }
 

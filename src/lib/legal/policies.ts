@@ -202,8 +202,12 @@ export const POLICIES: Record<
     // days and one day before each of somebody's sessions, its day, time and
     // place, how to say they can't make it, and what is left of that week's
     // work if anything is (`courses-week-reminders`). They no longer stop
-    // once the week is done, so "Reminders." loses that clause. "What's
-    // changed" keeps v20's, v19's, v18's and v17's lines under v21's, each
+    // once the week is done, so "Reminders." loses that clause. It also says
+    // anonymous feedback from the second form (`src/lib/societyFeedback/`) is
+    // kept for up to two years and cleared by hand once a year, every entry
+    // more than a year old, where v20 said "two years from the day it is
+    // sent". "What's changed" says both, and keeps v20's, v19's, v18's and
+    // v17's lines under v21's, each
     // with its date. It changes how information is used, so it is told on
     // Home (`toldOnHome`). Told, not asked: `LAST_PRIVACY_VERSION_ASKED`
     // stays 15. Its date is the day it goes live, set when it is promoted.

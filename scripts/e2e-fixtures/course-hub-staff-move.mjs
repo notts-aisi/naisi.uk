@@ -24,7 +24,9 @@
  *
  * ## It reads its own mail, so it runs only where the mail is caught
  */
-import { countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs";
+import { isHarnessAccount } from "../e2e/lib/admin.mjs";
+import { fixtureDoc } from "./core.mjs";
+import { accountsOf, countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs";
 
 export const STAFF_MOVE_STEPS = [
   "the admin names the running course run on the programme's Settings tab and hands its people over",
@@ -37,6 +39,38 @@ export const STAFF_MOVE_STEPS = [
 
 /** NOTHING ON THIS JOURNEY IS reCAPTCHA-GATED. */
 export const RECAPTCHA_DEPENDENT_STEPS = [];
+
+/**
+ * The counter the press leaves that the term does not count
+ * (`src/lib/courses/staffMove/limits.ts` keeps it in `courseNudges` as
+ * `emailrate__<key>`): one a day for the presser, the harness's admin. It
+ * carries the admin's uid alone, and the admin is shared by every fixture on
+ * every machine of a run, so only this fixture, whose spec is the one that
+ * moves anybody, counts and deletes it. The person's own counter carries the
+ * run and is the term's (`sendCounterIdsOf` in worlds/course-hub-term.mjs).
+ */
+function moveCounterIdsOf(state) {
+  return state.adminUid ? [`emailrate__staffmover__${state.adminUid}`] : [];
+}
+
+async function countOwn(state) {
+  let moveCounters = 0;
+  for (const id of moveCounterIdsOf(state)) if ((await fixtureDoc("courseNudges", id).get()).exists) moveCounters += 1;
+  return { moveCounters };
+}
+
+async function teardown(state) {
+  // The namespace check FIRST, before a single delete, as every fixture's teardown makes it.
+  for (const account of accountsOf(state)) {
+    if (!isHarnessAccount(account.email)) {
+      throw new Error(`REFUSING to tear down ${account.email}: not a harness account. The state file is not one this harness wrote.`);
+    }
+  }
+  for (const id of moveCounterIdsOf(state)) await fixtureDoc("courseNudges", id).delete();
+  const term = await teardownTerm(state);
+  const left = await countOwn(state);
+  return { ...term, ...left, total: term.total + left.moveCounters };
+}
 
 export const SPEC = {
   name: "course-hub-staff-move",
@@ -65,6 +99,11 @@ export const SPEC = {
   // of zero rows after.
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three" }),
-  countRows: countTerm,
-  teardown: teardownTerm,
+  // The total is the term's rows plus this fixture's own counter, as teardown's is.
+  countRows: async (state) => {
+    const term = await countTerm(state);
+    const own = await countOwn(state);
+    return { ...term, ...own, total: term.total + own.moveCounters };
+  },
+  teardown,
 };

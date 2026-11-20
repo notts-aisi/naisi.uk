@@ -6751,6 +6751,20 @@ which period, how many people were in it, and the filename. If that record
 cannot be written the export is refused, so a file never leaves without a log
 line behind it. Say so if anybody asks why the button failed.
 
+## Anonymous feedback, the admins' page
+
+Run NAISI › Surveys › Anonymous feedback (`/admin/surveys/anonymous-feedback`),
+admins only. It reads every application form (one query, for when this term
+began), this term's kept entries (one range on `day`, at most 2,000) and the
+oldest kept entry (one), never the waiting place. Dealt with and a note write
+`dealtWith` and `note` on the entry, with the admin's uid, name and the time;
+Download writes nothing; Delete this entry deletes that one kept entry, after a
+confirm; the clear-out deletes kept entries sent before a chosen day no later
+than a year before today, after a confirm that counts them. Each deletion
+writes one record to `societyFeedbackDeletions`: who, when, one entry or a
+clear-out, and how many, never what was in an entry. The whole of it is in docs/surveys.md, "Anonymous feedback for the
+whole society".
+
 ## Destroying an admission round
 
 Cancelling is the normal way to end a round, and it is the one to reach for

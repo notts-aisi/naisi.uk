@@ -19,6 +19,7 @@ import { mark, warn } from "@/lib/devMonitor";
 import { hardNavigate } from "@/lib/navigation/hardNavigate";
 import { clearSelfHealAttempt } from "@/lib/navigation/selfHealGuard";
 import { InstallLink } from "@/features/pwa/InstallLink";
+import { FOOTER_LINK } from "@/lib/societyFeedback/words";
 import {
   APP_NAV,
   BOTTOM_BAR,
@@ -568,6 +569,14 @@ export default function AppShell({
               </div>
             )}
             {children}
+            {/* The foot of every signed-in page: anonymous feedback, which any
+                member can send (docs/surveys.md). A plain link: no read, no
+                count, nothing about whether anybody has sent any. */}
+            <footer className={styles.appFooter}>
+              <Link href="/anonymous-feedback" className={styles.appFooterLink}>
+                {FOOTER_LINK}
+              </Link>
+            </footer>
           </main>
         </div>
         {/* Always rendered so the slide-in/out transition has an interpolation

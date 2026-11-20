@@ -369,6 +369,44 @@ export const ROUTES = {
         "their own to give.",
     },
   },
+  "/api/admin/anonymous-feedback/[entryId]": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Dealt with, or a note for admins, on one entry of anonymous feedback is an admin's alone, decided on the " +
+        "session before anything is read; an admin meets the 400 for a body that names neither.",
+    },
+    DELETE: {
+      expect: adminOnly(404),
+      why:
+        "Deleting one entry of anonymous feedback is an admin's alone, refused in a view-as session and decided on " +
+        "the session before anything is read; an admin is told the made-up entry is not there, and nothing is deleted " +
+        "or recorded.",
+    },
+  },
+  "/api/admin/anonymous-feedback/clear": {
+    GET: {
+      expect: adminOnly(400),
+      why:
+        "Counting the anonymous feedback sent before a day is an admin's alone, decided on the session before " +
+        "anything is read; an admin meets the 400 for a request that names no day.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Clearing out older anonymous feedback by hand is an admin's alone, decided on the session before anything " +
+        "is read; an admin meets the 400 for a body that names no day and no confirmed count, so nothing is deleted.",
+    },
+  },
+  "/api/admin/anonymous-feedback/download": {
+    GET: {
+      expect: adminOnly(200),
+      why:
+        "Every kept entry of anonymous feedback as a file is an admin's alone, decided on the session before anything " +
+        "is read; an admin is handed the file, empty or not. A GET that writes nothing and names nobody, and a file, " +
+        "not JSON, so no fields.",
+    },
+  },
   "/api/admin/application-emails/[templateId]/send-test": {
     POST: {
       expect: everyone(403, { admin: 404 }),
@@ -3786,6 +3824,15 @@ export const ROUTES = {
         "anything is read, and an admin is told the empty body names no programme. A file, not JSON, so no fields.",
     },
   },
+  "/api/anonymous-feedback": {
+    POST: {
+      expect: everyone(400, { anonymous: 401, pending: 403, rejected: 403 }),
+      why:
+        "Anonymous feedback for the whole society, for any approved account: the session is read once, for a yes " +
+        "or a no, so a stranger is refused, a waiting or refused account too, and everybody else meets the 400 for " +
+        "an empty body. Nothing of the caller is kept.",
+    },
+  },
   "/api/feedback": {
     POST: {
       expect: everyone(400),
@@ -4668,6 +4715,13 @@ export const PAGES = {
       "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The survey id changes " +
       "nothing about the gate: an id that opens no survey is answered on the page in a sentence, never " +
       "notFound.",
+  },
+  "/(app)/admin/(admin-only)/surveys/anonymous-feedback": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, and the page asks for an " +
+      "admin again itself before anything is read, so a programme's lead or a facilitator learns nothing of whether " +
+      "an entry exists. It reads only what the night's move has kept.",
   },
   "/(app)/admin/(admin-only)/surveys/kairos": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
@@ -5717,6 +5771,13 @@ export const PAGES = {
       "The pairs page, a static segment under /learn so a programme's lead can open it, as the draw's " +
       "page is: the battery's group id addresses nothing, so every approved account is sent back to " +
       "/learn, as everybody but the group's live facilitators, the programme's lead and admins is once it exists.",
+  },
+  "/(app)/anonymous-feedback": {
+    expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "The authed shell: a stranger is sent to sign in, a pending account to the waiting page and a rejected one " +
+      "home by the layout. Every approved account is drawn the form, the same for everybody: the page reads this " +
+      "term's programmes and nothing about its reader.",
   },
   "/(app)/messages": {
     expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
