@@ -51,6 +51,7 @@ const email = await loadTs(join("lib", "courses", "facilitatingEmail.ts"));
 const seeds = await loadTs(join("lib", "firestore", "courseEmails.ts"));
 const words = await loadTs(join("lib", "courses", "publishWords.ts"));
 const placement = await loadTs(join("lib", "courses", "placementEmail.ts"));
+const guideWords = await loadTs(join("lib", "courses", "facilitatorGuide", "words.ts"));
 
 const SEED = seeds.courseTemplateDefaults["course-facilitating"];
 const TOKEN = /\{([a-zA-Z][a-zA-Z0-9_]*)\}/g;
@@ -645,6 +646,9 @@ describe("9. the button to the guide", () => {
   test("the button's words go with its address, and only a yes names week 1", () => {
     assert.equal(email.guideButtonWords(true), "Facilitator guide for week 1");
     assert.equal(email.guideButtonWords(false), "Facilitator guide");
+    // The group page's own words for the same two links.
+    assert.equal(email.guideButtonWords(true), guideWords.guideForWeekWords(1));
+    assert.equal(email.guideButtonWords(false), guideWords.FACILITATOR_GUIDE);
     for (const notAYes of ["yes", 1, null, {}]) assert.equal(email.guideButtonWords(notAYes), "Facilitator guide", String(notAYes));
     // Wording with the words in a paragraph of their own, and no address to give them: they go too.
     const template = { subject: SEED.subject, blocks: [rich("<p>{groupName} meets on {weeklySlot}.</p><p>Also see the {guideButton}.</p>")] };

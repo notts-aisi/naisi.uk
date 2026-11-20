@@ -1,6 +1,5 @@
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import { couldBeFollowed } from "@/lib/courses/followable";
-import { FACILITATOR_GUIDE, guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
 // By its `@/` path, as every caller of a token filler imports one, so the
 // tree walk in tests/email-unfilled-tokens.test.mjs finds the call.
 import {
@@ -234,9 +233,15 @@ export function namesOnPageSentence(count: number, weekOneGuide = false): string
  * The `{guideButton}` words: the guide for week 1 while the group page shows
  * it (`FacilitatingFacts.weekOneGuide`), the guide itself otherwise. Only a
  * strict `true` names the week, as for `{namesOnPage}`.
+ *
+ * The same words as the group page's own links to the guide
+ * (`src/lib/courses/facilitatorGuide/words.ts`), written here rather than
+ * imported: this module is reached by pages that write a week, and those may
+ * reach nothing of the guide's (`tests/course-facilitator-guide-guard.test.mjs`).
+ * `tests/course-hub-publish-facilitating-email.test.mjs` holds the two equal.
  */
 export function guideButtonWords(weekOneGuide: boolean): string {
-  return weekOneGuide === true ? guideForWeekWords(1) : FACILITATOR_GUIDE;
+  return weekOneGuide === true ? "Facilitator guide for week 1" : "Facilitator guide";
 }
 
 /** "You’re facilitating with Sofia.": the `{facilitatingWith}` sentence. Null for somebody facilitating alone. */
