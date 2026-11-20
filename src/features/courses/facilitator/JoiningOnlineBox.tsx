@@ -6,11 +6,11 @@ import { useHydrated } from "@/hooks/useHydrated";
 import {
   ADD_LINK,
   BOX_NOTE,
-  EVERY_WEEK,
   LINK_ADDED,
   MEETING_LINK_REFUSAL,
   SAVING,
   addLinkWords,
+  fromWeekOnWords,
   joiningCountWords,
   joiningNamesWords,
   linkFieldLabel,
@@ -26,7 +26,8 @@ import styles from "./JoiningOnlineBox.module.css";
  * session still to end where somebody has said they are joining online, who,
  * and while the session has no meeting link, the field to add one ("2 people
  * are joining online on Tue 10 Nov. Add a meeting link for week 2."), for
- * that week or kept for every week. Once the session has a link the box says
+ * that week, or, ticked, for every later week without a link of its own too
+ * (a press from that week on: the weeks before it keep the link they had). Once the session has a link the box says
  * who is joining online and asks nothing.
  *
  * Worked out on the server by the page that draws it, after its own gate
@@ -132,7 +133,7 @@ function LinkForm({ groupId, session }: { groupId: string; session: JoiningOnlin
       />
       <label className={styles.everyWeek}>
         <input ref={everyWeek} type="checkbox" name="everyWeek" />
-        <span>{EVERY_WEEK}</span>
+        <span>{fromWeekOnWords(session.weekNumber)}</span>
       </label>
       <div className={styles.foot}>
         <button type="submit" className={facilitator.buttonPrimary} disabled={!hydrated || saving}>

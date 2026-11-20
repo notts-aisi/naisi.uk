@@ -77,6 +77,10 @@ const READERS = {
     does: "saves",
     why: "the facilitators' box saves the link they typed for one week (the week's own) or for every week (the group's standing link), behind its route's gate; it emails nobody",
   },
+  "lib/courses/meetingLink/plan.ts": {
+    does: "saves",
+    why: "the arithmetic of a link saved for one week or from a week on: the field paths the writer sets, every earlier week keeping the link it had, marked; and which kind of link a week reads (its own, every week, kept, none) as a word, never the link, the one decision the facilitator's list and the week's rooms page (which no longer names the link itself) both ask",
+  },
   "features/courses/facilitator/JoiningOnlineBox.tsx": {
     does: "saves",
     why: "the facilitators' box at the top of the group page and the register: the field a facilitator types a week's link into, held to the group's own cap, which it sends to its route and never shows back",
@@ -152,10 +156,6 @@ const READERS = {
   "lib/courses/sessionChange/view.ts": {
     does: "asks",
     why: "whether a session can be held online: the change dialog offers it only to a group that has a link",
-  },
-  "lib/courses/weekRooms/model.ts": {
-    does: "asks",
-    why: "the week's rooms says whether a group's link is set for every week, for that week only or not at all; the row carries those words and never the link",
   },
   "app/api/courses/runs/[runId]/weeks/[weekId]/mode/route.ts": {
     does: "asks",

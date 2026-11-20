@@ -24,7 +24,8 @@ import {
 } from "@/lib/firestore/courseAttendance";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { normalizeCourseEnrolment, ownGroupForWeek, placementIsTold, visitInWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
-import { visitingLineWords } from "@/lib/courses/visit/words";
+import { awayAtWords, visitingLineWords } from "@/lib/courses/visit/words";
+import { weekLinkKind } from "@/lib/courses/meetingLink/plan";
 import {
   campusForWeek,
   normalizeCourseGroup,
@@ -34,6 +35,7 @@ import {
 } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import {
+  beforeTheSessionOf,
   historyLines,
   openingWeek,
   termChipOf,
@@ -147,6 +149,14 @@ export async function loadGroupPage(
   );
   const workWeek =
     input.week !== undefined && input.week !== null && sessions.some((session) => session.weekNumber === input.week) ? input.week : openWeek;
+  // "Before the session", on the facilitator's page: the group's next
+  // session still to end, not cancelled and dated, whichever week is chosen.
+  const beforeSession = staff
+    ? null
+    : (sessions.find((session) => {
+        const { endsAt } = sessionInstants(session);
+        return !session.cancelled && session.dateKey && !(endsAt && endsAt.getTime() <= now.getTime());
+      }) ?? null);
 
   // EVERY READ AT ONCE, each waiting only for what it needs: the group's
   // places for the names and the week's work, the programme for its lead and
@@ -259,18 +269,20 @@ export async function loadGroupPage(
       return null;
     });
 
-  // Requests to be excused: one of two facts per person per session, for
-  // the page's staff only (the facilitator's cut lists no people).
-  const excuseRead: Promise<ExcuseFacts> = staff
-    ? seatsRead.then((placed) =>
-        excuseFactsForGroup(db, {
-          runId: run.id,
-          groupId: group.id,
-          uids: new Set(placed.filter((seat) => !facilitatorSet.has(seat.uid)).map((seat) => seat.uid)),
-          sessionKeys: sessions.map((session) => session.sessionKey),
-        }),
-      )
-    : Promise.resolve<ExcuseFacts>({});
+  // Requests to be excused: one of two facts per person per session (what
+  // the register is sent), for the page's staff about every session, and
+  // for the facilitator's "Before the session" about that one session alone.
+  const excuseRead: Promise<ExcuseFacts> =
+    staff || beforeSession
+      ? seatsRead.then((placed) =>
+          excuseFactsForGroup(db, {
+            runId: run.id,
+            groupId: group.id,
+            uids: new Set(placed.filter((seat) => !facilitatorSet.has(seat.uid)).map((seat) => seat.uid)),
+            sessionKeys: staff ? sessions.map((session) => session.sessionKey) : beforeSession ? [beforeSession.sessionKey] : [],
+          }),
+        )
+      : Promise.resolve<ExcuseFacts>({});
 
   const [naming, registerSnaps, weekSnaps, seats, audience, history, withRecords, lead, names, worked, excuseFacts, visitors] = await Promise.all([
     namingRead,
@@ -307,6 +319,48 @@ export async function loadGroupPage(
   const nameOf = (uid: string) => names.get(uid)?.goesBy ?? "";
   const anyName = (uid: string) => names.get(uid)?.full || "NAISI member";
 
+  /**
+   * One week's people and what each has said, from its register as stored:
+   * the staff page's week card lists them for every week, and the
+   * facilitator's "Before the session" is drawn from them for one.
+   */
+  const peopleOf = (session: (typeof sessions)[number], register: Record<string, unknown> | undefined): GroupPageWeek["people"] => {
+    const records = (register?.records ?? {}) as Record<string, unknown>;
+    const onlineUids = new Set(keysOf(register?.[ONLINE_SAID]));
+    // A word in advance still stands while the line is still theirs: excused, on their word.
+    const cantUids = new Set(keysOf(register?.[EXCUSED_IN_ADVANCE]).filter((uid) => records[uid] === "excused"));
+    const saidOf = (uid: string): WeekSaid => (cantUids.has(uid) ? "cant" : onlineUids.has(uid) ? "online" : "coming");
+    // Somebody moved into the group mid-term is one of a week's people only
+    // from the week they joined it: before it they are listed as joining
+    // later (`joinsLaterOf`), with no word said, in no count of who said what.
+    const inWeek = (seat: CourseEnrolmentDoc) => inGroupForWeek(seat, group.id, session.weekNumber);
+    // Somebody from another group at this session for one week: one of its people that week.
+    const visitingIn = visitors.seats.filter((seat) => visitInWeek(seat, session.weekNumber)?.groupId === group.id);
+    const visitingLine = (seat: CourseEnrolmentDoc) => {
+      const home = visitors.homes.get(ownGroupForWeek(seat, session.weekNumber) ?? "") ?? null;
+      return visitingLineWords({
+        firstName: names.get(seat.uid)?.first || nameOf(seat.uid),
+        homeName: home?.name ?? "",
+        weekNumber: session.weekNumber,
+        homeFacilitatorFirstNames: (home?.facilitatorUids ?? []).map((uid) => names.get(uid)?.first ?? "").filter(Boolean),
+      });
+    };
+    return [
+      ...fellows.map((seat) => {
+        const joins = inWeek(seat) ? null : joinsLaterOf(seat, group.id, session.weekNumber);
+        if (joins) return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: "coming" as const, joins };
+        // At another group's session that week: listed, with no word said, in no count.
+        const away = visitInWeek(seat, session.weekNumber);
+        if (away && away.groupId !== group.id) {
+          return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: "coming" as const, awayAt: awayNameOf(away.groupId) };
+        }
+        const excuse = excuseFacts[session.sessionKey]?.[seat.uid];
+        return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid), ...(excuse ? { excuse } : {}) };
+      }),
+      ...visitingIn.map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid), visiting: { line: visitingLine(seat) } })),
+    ].sort((a, b) => a.name.localeCompare(b.name));
+  };
+
   const weeks: GroupPageWeek[] = sessions.map((session, index) => {
     const register = registerSnaps[index]?.exists ? (registerSnaps[index].data() ?? {}) : undefined;
     const stored = register ? normalizeCourseAttendance(registerSnaps[index].id, register) : null;
@@ -325,23 +379,9 @@ export async function loadGroupPage(
     const onlineUids = new Set(keysOf(register?.[ONLINE_SAID]));
     // A word in advance still stands while the line is still theirs: excused, on their word.
     const cantUids = new Set(keysOf(register?.[EXCUSED_IN_ADVANCE]).filter((uid) => records[uid] === "excused"));
-    const saidOf = (uid: string): WeekSaid => (cantUids.has(uid) ? "cant" : onlineUids.has(uid) ? "online" : "coming");
-    // Somebody moved into the group mid-term is one of a week's people only
-    // from the week they joined it: before it they are listed as joining
-    // later (`joinsLaterOf`), with no word said, in no count of who said what.
     const inWeek = (seat: CourseEnrolmentDoc) => inGroupForWeek(seat, group.id, session.weekNumber);
-    // Somebody from another group at this session for one week: one of its people that week.
     const visitingIn = visitors.seats.filter((seat) => visitInWeek(seat, session.weekNumber)?.groupId === group.id);
     const everyone = [...seats.filter(inWeek).map((seat) => seat.uid), ...visitingIn.map((seat) => seat.uid)];
-    const visitingLine = (seat: CourseEnrolmentDoc) => {
-      const home = visitors.homes.get(ownGroupForWeek(seat, session.weekNumber) ?? "") ?? null;
-      return visitingLineWords({
-        firstName: names.get(seat.uid)?.first || nameOf(seat.uid),
-        homeName: home?.name ?? "",
-        weekNumber: session.weekNumber,
-        homeFacilitatorFirstNames: (home?.facilitatorUids ?? []).map((uid) => names.get(uid)?.first ?? "").filter(Boolean),
-      });
-    };
     return {
       weekNumber: session.weekNumber,
       weekId: session.weekId,
@@ -370,26 +410,12 @@ export async function loadGroupPage(
       ended,
       taken,
       hasLink: Boolean(session.session.meetingUrl),
+      link: weekLinkKind(group, session.weekId),
       slotDays: slotDays(session.slotStartKey),
       // Names for the pages that draw them; the facilitator's cut draws none.
       joiningOnline: staff ? everyone.filter((uid) => onlineUids.has(uid) && !cantUids.has(uid)).map(nameOf).filter(Boolean) : [],
       cantMakeIt: staff ? everyone.filter((uid) => cantUids.has(uid)).map(nameOf).filter(Boolean) : [],
-      people: staff
-        ? [
-            ...fellows.map((seat) => {
-              const joins = inWeek(seat) ? null : joinsLaterOf(seat, group.id, session.weekNumber);
-              if (joins) return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: "coming" as const, joins };
-              // At another group's session that week: listed, with no word said, in no count.
-              const away = visitInWeek(seat, session.weekNumber);
-              if (away && away.groupId !== group.id) {
-                return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: "coming" as const, awayAt: awayNameOf(away.groupId) };
-              }
-              const excuse = excuseFacts[session.sessionKey]?.[seat.uid];
-              return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid), ...(excuse ? { excuse } : {}) };
-            }),
-            ...visitingIn.map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid), visiting: { line: visitingLine(seat) } })),
-          ].sort((a, b) => a.name.localeCompare(b.name))
-        : [],
+      people: staff ? peopleOf(session, register) : [],
       finished: Boolean(stored?.pushedAt),
       heldFalse: register?.held === false,
       facilitatorStarted: startedByFacilitator(stored, group.facilitatorUids),
@@ -436,6 +462,19 @@ export async function loadGroupPage(
         now,
       })
     : null;
+  // "Before the session", for the facilitator: that session's people, said
+  // the way the staff page's week card says them, never handed as people.
+  const beforeIndex = beforeSession ? sessions.indexOf(beforeSession) : -1;
+  const before =
+    beforeSession && beforeIndex >= 0
+      ? beforeTheSessionOf({
+          weekNumber: beforeSession.weekNumber,
+          dateKey: beforeSession.dateKey,
+          online: sessionModeForWeek(group, beforeSession.weekId) === "virtual",
+          people: peopleOf(beforeSession, registerSnaps[beforeIndex]?.exists ? (registerSnaps[beforeIndex].data() ?? {}) : undefined),
+          awayWords: awayAtWords,
+        })
+      : null;
   // "Set the link" for every week saves on the next session still to end, as the link route asks.
   const linkWeek = weeks.find((week) => !week.ended && !week.cancelled && week.dateKey) ?? null;
 
@@ -470,6 +509,7 @@ export async function loadGroupPage(
     linkSessionKey: linkWeek?.sessionKey ?? null,
     linkWeekNumber: linkWeek?.weekNumber ?? null,
     // The people leading the programme, for who a session may be given to: staff only.
+    before,
     coverLeadUids: staff ? [...new Set([...(lead ? [lead.uid] : []), ...run.trackLeadUids])] : [],
     history: history
       ? {

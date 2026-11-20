@@ -124,6 +124,14 @@ export type GroupSessionOverride = Partial<GroupSession> & {
   mode?: GroupSessionMode;
   /** The week's own campus; missing means the group's (`campusForWeek`). */
   campus?: GroupCampus;
+  /**
+   * The week's `meetingUrl` is the link it had before a press from a later
+   * week on changed the group's standing link, kept for it, not one set for
+   * it on purpose (`src/lib/courses/meetingLink/plan.ts`). Missing, which is
+   * every entry stored before the mark existed, means on purpose. Written
+   * only by the meeting link route.
+   */
+  linkPinned?: true;
 };
 
 /**
@@ -491,6 +499,8 @@ function normalizeSessionOverride(v: unknown): GroupSessionOverride {
         : null;
   }
   if (raw.notes !== undefined) out.notes = str(raw.notes, GROUP_FIELD_LIMITS.notes);
+  // A kept link's mark, only beside a link of the week's own.
+  if (raw.linkPinned === true && raw.meetingUrl !== undefined) out.linkPinned = true;
   // Only one of the three campuses is a campus. Anything else (a garbled
   // value, a null) is left out, so the week reads the group's own.
   const campus = campusOf(raw.campus);
@@ -543,10 +553,10 @@ function foldSessionModes(
 export function sessionForWeek(group: CourseGroupDoc, weekId: string): GroupSession {
   const override = group.sessionOverrides[weekId];
   if (!override) return group.session;
-  // `mode` and `campus` are deliberately not part of GroupSession: strip them
+  // `mode`, `campus` and a kept link's mark are deliberately not part of GroupSession: strip them
   // so the merged slot stays the shape every existing consumer expects; each
   // has its own reader below.
-  const { mode: _mode, campus: _campus, ...sessionFields } = override;
+  const { mode: _mode, campus: _campus, linkPinned: _kept, ...sessionFields } = override;
   return { ...group.session, ...sessionFields };
 }
 

@@ -3200,8 +3200,69 @@ reviewed, a row per person per week, each "Review" opening the review queue
 on that week), the updates, the pace against the programme, and the notes.
 Once every session is over, the ticket's place says there are no more.
 
-Not drawn, though the board draws them: who can't make it tonight (2.4 is
-not built) and a facilitator guide (no record holds one).
+Under how the group meets, in the order a facilitator needs them before a
+session: the box about who is joining online (unchanged); **Before the
+session**; who has done the week, with Remind; and **Meeting links**.
+
+### Before the session
+
+The group's next session still to end (not cancelled, dated), whichever week
+the row of weeks has chosen, and who has said what about it, one row each, a
+person in the first row that fits them: asked to be excused and waiting
+("Waiting"); excused by an approved request or on their own word that they
+can't make it ("Excused"); joining online ("Online", only for a session held
+in a room); visiting from another group that week, with their line
+("Visiting"); one of the group's own people at another group's session that
+week, with where; and everybody else ("Coming", in the room). Somebody moved
+in from a later week is left out. Worked out by `beforeTheSessionOf`
+(`src/lib/courses/groupPage/model.ts`) from the same facts the staff page's
+week card and the register read (`loadGroupPage`, the facilitator's view):
+the name each person goes by, one of two facts about a request to be excused,
+and nothing else. Never a reason, never when anybody asked, never an address,
+never a place Publish has not told. The only read it adds is the group's
+requests to be excused (one equality on `groupId`), for that one session.
+Admins and the programme's lead are given none: their week card lists the
+week's people already.
+
+### Each week's meeting link
+
+**Meeting links** lists every week of the plan with its date and state and
+which link it reads, in words ("Set: every week", "Set: week 3 only", "Kept
+the link it had before", "No link"), never the link (`weekLinkKind`, the rooms page's reading). A week
+still to come has Change (or Set the link); the panel offers **Week 3 only**,
+the default, and **Week 3 onwards**. Admins and the lead have the same panel
+on each week of the programme's group page. Both save through
+`POST .../groups/[groupId]/meeting-link` (`everyWeek` is "onwards"), which
+works it out with `planLinkSave` (`src/lib/courses/meetingLink/plan.ts`):
+
+- **Week 3 only**: week 3's own link, set on purpose. Every other week stays
+  as it is.
+- **Week 3 onwards**: the every-week link becomes this one and week 3's own
+  link goes. A later week still to come with a link set for it on purpose
+  keeps it; the panel names each such week before the press ("Week 5 keeps
+  the link set for it, and won’t get this one."), and so do the saved line
+  and the history line. Every week before week 3, and any week that has
+  ended, keeps what it read: one that read the every-week link is given it
+  as its own, MARKED as kept (`linkPinned: true` beside `meetingUrl` on the
+  week's entry), where it had none, none. A later press from an earlier week
+  replaces kept links from its week on, and keeps links set on purpose. An
+  entry with no mark is set on purpose, which is every entry stored before
+  the mark, so stored data reads as it did. The list says "Kept the link it
+  had before" of a kept week, never that it was set for that week. "Week 3
+  only" on a kept week makes it set on purpose. An entry left holding only a
+  link and its mark is deleted whole. Nothing is kept when the every-week
+  link does not change. The box's tick, "Also use it for every week after
+  week 3 that has no link of its own", is the same press from its week.
+- A week that has ended is refused, as before. A press that would set apart
+  more weeks than a group keeps (20) is refused with nothing written, and the
+  refusal says whether the other choice can still be saved.
+- In a view-as session the list has nothing to press, as the box has none.
+- The week's rooms page reads a week's link by the same decision
+  (`weekLinkKind`) and the same words (`weekLinkWords`), so it says "Kept the
+  link it had before" of a kept week too.
+
+Nobody is emailed, and the history row says which weeks and whether there
+was a link before, never the link.
 
 ### Who has done the week, and Remind
 
@@ -3292,6 +3353,15 @@ The register is a page of its own, behind the register's
 own gate. "Take the register" and each register's "See it" lead there. The
 grid is the one the group page used to hold. Before Publish has told anybody
 their group the page says when the names come.
+
+The register opens with what people said already in: an excused line is
+excused as the write that excused it left it; somebody whose request is
+waiting carries "Asked to be excused, waiting"; a visitor carries "Visiting
+from Group K"; and somebody who said they are joining online, on a line not
+marked yet, carries "Said joining online" with their place drawn online, so
+the one tap that marks them records them as present and online. Nothing is
+written until that tap: everybody else is set by a tap, so a register is
+never finished with people present by default.
 
 ### The check-in, on the register
 

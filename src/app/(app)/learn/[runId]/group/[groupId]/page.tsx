@@ -19,6 +19,8 @@ import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import ThisWeeksWork, { ReflectionsQueueCard, workColumnsOf } from "@/features/courses/facilitatorWeek/ThisWeeksWork";
 import FacilitatorMeets from "@/features/courses/groupPage/FacilitatorMeets";
 import FacilitatorWeekWork from "@/features/courses/groupPage/FacilitatorWeekWork";
+import BeforeTheSession from "@/features/courses/groupPage/BeforeTheSession";
+import MeetingLinks from "@/features/courses/groupPage/MeetingLinks";
 import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
 import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
@@ -115,8 +117,9 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * pair, who is bringing a laptop and the check that every pair has one, and
  * the way to the pairs page (`/learn/pairs/[groupId]`), where they are typed.
  *
- * NOT DRAWN HERE: who can't make it tonight. The register says it, from the
- * moment somebody tells us, and the ticket's Take the register leads there.
+ * WHO CAN'T MAKE IT: "Before the session" says it for the next session, and
+ * the register says it for every session, from the moment somebody tells
+ * us; the ticket's Take the register leads there.
  *
  * WHO HAS DONE THE WEEK, under how the group meets: "4 of 6 have done week
  * 1", its bar and Remind as a sheet, for the week the row of weeks chose
@@ -131,6 +134,14 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * has said they are joining online, who, and while the session has no
  * meeting link, the field to add one for that week or for every week
  * (`joiningOnlineBox`, the register page's box too). Nobody is emailed.
+ *
+ * IN THE ORDER A FACILITATOR NEEDS IT BEFORE A SESSION, under how the group
+ * meets: that box; "Before the session" (who has asked to be excused and is
+ * waiting, who is excused, joining online, visiting from another group that
+ * week, away at another group's session, and coming: `beforeTheSessionOf`,
+ * from the group's page's own reader); who has done the week, with Remind;
+ * then each week's meeting link as words, with the way to change one for
+ * that week only or from it on. None of them carries a link or an address.
  *
  * THE FACILITATOR GUIDE, on the ticket: "Facilitator guide for week 3" is
  * drawn when that week of the course's facilitator guide has its session
@@ -711,12 +722,18 @@ export default async function GroupHomePage({
         />
       )}
 
-      {/* Who has done the week the row above chose, and Remind: added under it. An
+      {/* Who is joining a session online, and the field for its link. */}
+      <JoiningOnlineBox groupId={groupId} sessions={joiningOnline} canAdd={!viewAs} />
+
+      {/* Before the session: who has said what about the next one. */}
+      {meets?.before && <BeforeTheSession before={meets.before} />}
+
+      {/* Who has done the week the row above chose, and Remind. An
           incubator's group has no week card, as on the programme's page. */}
       {meets?.work && !meets.incubator && <FacilitatorWeekWork groupId={groupId} work={meets.work} />}
 
-      {/* Who is joining a session online, and the field for its link. */}
-      <JoiningOnlineBox groupId={groupId} sessions={joiningOnline} canAdd={!viewAs} />
+      {/* Each week's meeting link, in words, and the way to change one. */}
+      {meets && <MeetingLinks view={meets} canChange={!viewAs} />}
 
       {groupWeek ? (
         /* A week written as blocks, in the board's rows: the ticket and the

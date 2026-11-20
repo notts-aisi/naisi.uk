@@ -282,7 +282,15 @@ describe("1. who opens a group's week", () => {
     try {
       const viewed = await groupPage("rahul");
       const viewedReadOut = await reflectionsPage("rahul");
-      assert.equal(viewed.html, own.html);
+      // CHANGED ON PURPOSE (November 2026): the list of each week's meeting
+      // link offers nothing to press in a view-as session, as the box about
+      // joining online offers nothing. Everything else is exactly the
+      // facilitator's page: the same HTML once the list's buttons are taken
+      // out of the facilitator's own.
+      const linkButtons = () => /<button type="button" class="button"[^>]*aria-label="(?:Change|Set the link): Week \d+"[^>]*>[^<]*<\/button>/g;
+      assert.ok((own.html.match(linkButtons()) ?? []).length > 0, "the facilitator is offered a way to change a week's link");
+      assert.equal((viewed.html.match(linkButtons()) ?? []).length, 0, "a week's link can be changed in a view-as session");
+      assert.equal(viewed.html, own.html.replace(linkButtons(), ""));
       assert.equal(viewedReadOut.html, ownReadOut.html);
       assert.equal(viewed.wrote || viewedReadOut.wrote, false);
     } finally {

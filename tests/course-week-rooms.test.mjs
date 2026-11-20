@@ -302,7 +302,7 @@ describe("1. the week's rows, from records", () => {
     );
   });
 
-  test("a room not booked, the link for every week or one week, a week called off and a week held online", () => {
+  test("a room not booked, the link for every week or one week, a week called off and a week held online", async () => {
     w.reset(
       seed({
         [`courseGroups/${A}`]: { ...read(`courseGroups/${A}`), session: { ...read(`courseGroups/${A}`).session, location: "" } },
@@ -323,6 +323,19 @@ describe("1. the week's rows, from records", () => {
     assert.equal(row("Group A").state, null);
     // A called-off week is no room to book.
     assert.deepEqual(view.counts, { notBooked: 1, linksSet: 2, away: 0, online: 0, requests: 0 });
+
+    // A week given the link it had when a later week's press changed every week's link: kept, never "Set: week 4 only",
+    // in the facilitator's list's words, by the same decision.
+    world.db.poke(`courseGroups/${C}`, { sessionChanges: {}, sessionOverrides: { w04: { meetingUrl: "https://meet.example/c4", linkPinned: true } } });
+    world.db.poke(`courseGroups/${A}`, { sessionOverrides: { w04: { meetingUrl: null, linkPinned: true } } });
+    const kept = model.weekRoomsView({ programmes: [recordsOf(AGI, RUN.agi)], monday: MON_23, only: null, now: NOW });
+    const keptRow = (name) => kept.rows.find((each) => each.groupName === name);
+    assert.deepEqual(keptRow("Group C").link, { kind: "kept", words: "Kept the link it had before" });
+    assert.deepEqual(keptRow("Group A").link, { kind: "none", words: "No link" }, "a week kept with no link has none");
+    assert.equal(kept.counts.linksSet, 2, "a kept link is a link set");
+    const groupWords = await loadTs("lib/courses/groupPage/words.ts");
+    assert.equal(groupWords.weekLinkWords, words.weekLinkWords, "the facilitator's list and this page say a week's link with one function");
+    world.db.poke(`courseGroups/${A}`, { sessionOverrides: {} });
 
     world.db.poke(`courseGroups/${B}`, { sessionModes: { w04: "virtual" } });
     const online = model.weekRoomsView({ programmes: [recordsOf(AGI, RUN.agi)], monday: MON_23, only: null, now: NOW });
