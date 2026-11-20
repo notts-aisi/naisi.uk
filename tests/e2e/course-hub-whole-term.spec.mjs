@@ -277,6 +277,32 @@ async function waitFor(what, predicate, { timeout = WAIT_MS } = {}) {
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const flat = (text) => text.replace(/\s+/g, " ").trim();
 const textOf = async (locator) => flat((await locator.textContent()) ?? "");
+
+/**
+ * The group page's one calm page, as somebody signed in whom it does not
+ * admit reads it: a 200 at the address asked, never a redirect, with the
+ * heading, who the page is for (its facilitators and admins: the group page
+ * admits no lead), what to do if that is wrong, the one way on to My
+ * programmes, and nothing of the group.
+ */
+async function assertGroupNotForYou(pg, origin, path, group, who) {
+  const response = await pg.goto(`${origin}${path}`, { waitUntil: "domcontentloaded" });
+  assert.equal(response?.status(), 200, `${who} opened ${path} and was answered ${response?.status()}`);
+  const calm = pg.getByTestId("not-for-you");
+  await calm.waitFor({ timeout: WAIT_MS });
+  assert.equal(new URL(pg.url()).pathname, path, `${who} was moved off the group's page to ${new URL(pg.url()).pathname}`);
+  assert.equal(await textOf(calm.getByRole("heading", { level: 1 })), "This page isn’t for your account");
+  assert.equal(
+    await textOf(calm),
+    "This page isn’t for your account It’s for a group’s facilitators and admins. " +
+      "If you facilitate this group and can’t open it, ask the team and we’ll put it right. My programmes",
+    `${who} reads other words`,
+  );
+  assert.equal(await calm.getByRole("link", { name: "My programmes", exact: true }).getAttribute("href"), "/learn");
+  const main = await textOf(pg.locator("main"));
+  assert.ok(!main.includes(group.name), `${who} is shown the group's name`);
+  assert.equal(await pg.getByRole("link", { name: "Take the register" }).count(), 0, `${who} is offered the group's register`);
+}
 /** A person's cell on the Coursework tab, by the start of its label: "Ada Fixture ..., week 3: ", after which come its state and its flags. */
 const tabCell = (page, person, week) => page.getByRole("link", { name: new RegExp(`^${escapeRegExp(person.displayName)}, week ${week}: `) });
 /** What an element says, as written: every text node in it, a space between each. */
@@ -1085,7 +1111,10 @@ test(
         await kitPage.getByTestId("attendance-grid").waitFor({ timeout: WAIT_MS });
         assert.equal(await kitPage.getByTestId("attendance-session").count(), 1, "somebody given one session sees another week");
         assert.ok((await textOf(kitPage.getByTestId("attendance-session").first())).startsWith(`Week ${GIVEN_WEEK}`));
-        for (const path of [learnGroupPath(groupB), `${learnRegisterPath(groupB)}?session=${weekDocId(1)}`, learnRegisterPath(groupA)]) {
+        // The group's page is not Kit's: its one calm page, where it used to send Kit to My programmes without a word.
+        await assertGroupNotForYou(kitPage, origin, learnGroupPath(groupB), groupB, "Kit, given one session,");
+        // Another week's register, and another group's, still send Kit to My programmes.
+        for (const path of [`${learnRegisterPath(groupB)}?session=${weekDocId(1)}`, learnRegisterPath(groupA)]) {
           await kitPage.goto(`${origin}${path}`, { waitUntil: "domcontentloaded" });
           await kitPage.waitForURL((url) => url.pathname === "/learn", { timeout: WAIT_MS });
         }
