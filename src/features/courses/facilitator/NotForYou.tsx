@@ -35,20 +35,26 @@ import styles from "./notForYou.module.css";
  * (tests/printed-code-landing-pages.test.mjs).
  */
 export default function NotForYou({ page, admitted = false }: { page: NotForYouPage; admitted?: boolean }) {
-  return (
-    <div className={styles.page} data-testid={admitted ? "cant-open" : "not-for-you"}>
-      <h1 className={styles.heading}>{admitted ? CANT_OPEN_HEADING : NOT_FOR_YOU_HEADING}</h1>
-      {admitted ? (
+  const way = (
+    <Link href="/learn" className={`${facilitator.buttonPrimary} ${styles.way}`}>
+      {MY_PROGRAMMES}
+    </Link>
+  );
+  if (admitted) {
+    return (
+      <div className={styles.page}>
+        <h1 className={styles.heading}>{CANT_OPEN_HEADING}</h1>
         <p className={styles.who}>{CANT_OPEN_LINE}</p>
-      ) : (
-        <>
-          <p className={styles.who}>{notForYouWho(page)}</p>
-          <p className={styles.help}>{NOT_FOR_YOU_HELP}</p>
-        </>
-      )}
-      <Link href="/learn" className={`${facilitator.buttonPrimary} ${styles.way}`}>
-        {MY_PROGRAMMES}
-      </Link>
+        {way}
+      </div>
+    );
+  }
+  return (
+    <div className={styles.page} data-testid="not-for-you">
+      <h1 className={styles.heading}>{NOT_FOR_YOU_HEADING}</h1>
+      <p className={styles.who}>{notForYouWho(page)}</p>
+      <p className={styles.help}>{NOT_FOR_YOU_HELP}</p>
+      {way}
     </div>
   );
 }

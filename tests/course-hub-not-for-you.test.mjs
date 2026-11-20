@@ -100,7 +100,8 @@ function assertCantOpen(drawn, page, at) {
 function assertAdmitted(drawn, at) {
   assert.equal(drawn.to, null, `${at}: sent to ${drawn.to}`);
   assert.ok(drawn.html.length > 0, `${at}: drew nothing`);
-  for (const id of ["not-for-you", "cant-open"]) assert.ok(!drawn.html.includes(`data-testid="${id}"`), `${at}: given a calm page`);
+  assert.ok(!drawn.html.includes('data-testid="not-for-you"'), `${at}: given the first calm page`);
+  for (const heading of [words.NOT_FOR_YOU_HEADING, words.CANT_OPEN_HEADING]) assert.ok(!drawn.html.includes(heading), `${at}: given a calm page`);
 }
 
 /** The visible pieces of a calm page's markup, in order, as the browser specs read them one by one. */
@@ -157,7 +158,7 @@ describe("the words", () => {
       const all = calm(page).replace(/<[^>]+>/g, "");
       assert.equal(all, `${words.NOT_FOR_YOU_HEADING}${words.notForYouWho(page)}${words.NOT_FOR_YOU_HELP}My programmes`);
       assert.match(calm(page), /^<div [^>]*data-testid="not-for-you">/);
-      assert.match(cantOpen(page), /^<div [^>]*data-testid="cant-open">/);
+      assert.match(cantOpen(page), /^<div class="[^"]*">/, "the second answer carries an id no spec asks for");
     }
   });
 });
