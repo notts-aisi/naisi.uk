@@ -52,7 +52,7 @@ import { walkSource } from "./lib/functionScan.mjs";
 import { makeWorld } from "./lib/handoverWorld.mjs";
 import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
 import { A, B, C, TOLD, textOf } from "./lib/surveyWorld.mjs";
-import { AFTER, AGI, EV, ROUND, RUN, TAIS, termSeed } from "./lib/termWorld.mjs";
+import { AFTER, AGI, EV, ROUND, RUN, TAIS, TAIS_GROUP, termSeed } from "./lib/termWorld.mjs";
 import { PERSONA_NAMES } from "./persona-route-gates.registry.mjs";
 
 // The unsubscribe links are signed: a copy of the site that sends by their settings holds a secret.
@@ -101,6 +101,8 @@ const words = await lib("messages", "words.ts");
 const route = await w.loadTs(join("app", "api", "messages", "route.ts"));
 const testRoute = await w.loadTs(join("app", "api", "messages", "test", "route.ts"));
 const audienceRoute = await w.loadTs(join("app", "api", "audience", "route.ts"));
+const facilitatingMenu = await lib("courses", "facilitatingMenu.ts");
+const guidesPage = await w.loadTs(join("app", "(app)", "learn", "facilitator-guide", "page.tsx"));
 
 // ---------------------------------------------------------------------------
 // The term
@@ -260,7 +262,12 @@ describe("who writes, as every persona and as the term's records say", () => {
     ]) {
       const response = await call(who, route.GET);
       assert.equal(response.status, status, `${who}`);
-      if (writes !== null) assert.deepEqual(response.body, { writes }, `${who}`);
+      if (writes !== null) {
+        // `writes` as it always was; beside it only the Facilitating part's list.
+        assert.deepEqual(Object.keys(response.body).sort(), ["facilitating", "writes"], `${who}`);
+        assert.equal(response.body.writes, writes, `${who}`);
+        assert.ok(Array.isArray(response.body.facilitating), `${who}`);
+      }
     }
   });
 
@@ -275,12 +282,263 @@ describe("who writes, as every persona and as the term's records say", () => {
     t.after(() => {
       w.world.db.collection = realCollection;
     });
-    assert.deepEqual((await call("amara", route.GET)).body, { writes: false });
+    assert.deepEqual((await call("amara", route.GET)).body, { writes: false, facilitating: [] });
     assert.equal(formsRead, 0, "the term was read for somebody who leads and facilitates nothing");
-    assert.deepEqual((await call("tom", route.GET)).body, { writes: true });
+    assert.equal((await call("tom", route.GET)).body.writes, true);
     assert.ok(formsRead > 0, "the term was not read for somebody a group names");
   });
 
+});
+
+// ---------------------------------------------------------------------------
+// 1b. The menu's Facilitating part, in the same answer
+// ---------------------------------------------------------------------------
+
+/** The term again, with these documents replaced, inside a test that has already called `freshTerm`. */
+const termAgain = (over = {}) => w.reset(seed(over), { now: () => new Date() });
+
+describe("the menu's Facilitating part: who is listed, what is said, and what it costs", () => {
+  const groupIdsOf = async (who) => (await call(who, route.GET)).body.facilitating.map((row) => row.groupId);
+  const doc = (path, over) => ({ ...seed()[path], ...over });
+
+  test("each live group a person facilitates, in the order they meet, with named fields only", async (t) => {
+    freshTerm(t);
+    const tom = (await call("tom", route.GET)).body;
+    assert.deepEqual(tom.facilitating, [
+      {
+        groupId: C,
+        runId: RUN.agi,
+        name: "Group C",
+        slot: "Wednesdays 1pm",
+        room: "Room B8",
+        courseId: "agi-strategy-fellowship__c0urse01",
+        courseTitle: "AGI Strategy Fellowship",
+      },
+    ]);
+    // Two groups: Tuesdays before Thursdays, as `compareGroupsByMeeting` orders them.
+    assert.deepEqual(await groupIdsOf("sofia"), [B, A]);
+    // Nobody else's groups, and nothing for somebody who facilitates nothing.
+    for (const who of ["zach", "claudia", "amara", "lloyd", "sue", "iris", "dev", "bea"]) {
+      assert.deepEqual(await groupIdsOf(who), [], who);
+    }
+  });
+
+  test("from the day somebody is made a facilitator, before Publish, while Messages waits for Publish", async (t) => {
+    freshTerm(t, { [`courseRuns/${RUN.agi}`]: doc(`courseRuns/${RUN.agi}`, { allocationPublishedAt: null }) });
+    const tom = (await call("tom", route.GET)).body;
+    assert.equal(tom.writes, false, "Messages is drawn before Publish");
+    assert.deepEqual(tom.facilitating.map((row) => row.groupId), [C]);
+    // Technical AI Safety's run is not published in the term at all: Tess, its lead, is listed on its group.
+    assert.deepEqual(await groupIdsOf("tess"), [TAIS_GROUP]);
+  });
+
+  test("a group that is archived, or a run that is a draft, completed, cancelled, archived or being destroyed, is not listed", async (t) => {
+    freshTerm(t);
+    const run = `courseRuns/${RUN.agi}`;
+    for (const [what, over] of [
+      ["an archived group", { [`courseGroups/${C}`]: doc(`courseGroups/${C}`, { archived: true }) }],
+      ["a draft run", { [run]: doc(run, { status: "draft" }) }],
+      ["a run with no status", { [run]: doc(run, { status: undefined }) }],
+      ["a completed run", { [run]: doc(run, { status: "completed" }) }],
+      ["a cancelled run", { [run]: doc(run, { status: "cancelled" }) }],
+      ["an archived run", { [run]: doc(run, { archived: true }) }],
+      ["a run being destroyed", { [run]: doc(run, { destroying: true }) }],
+    ]) {
+      termAgain(over);
+      assert.deepEqual(await groupIdsOf("tom"), [], what);
+    }
+    // Running and still open for applications: listed.
+    for (const status of ["applications-open", "applications-closed", "running"]) {
+      termAgain({ [run]: doc(run, { status }) });
+      assert.deepEqual(await groupIdsOf("tom"), [C], status);
+    }
+    // A run that is not there: nothing, and no refusal.
+    termAgain({ [`courseGroups/${C}`]: doc(`courseGroups/${C}`, { runId: "no-such-run" }) });
+    const response = await call("tom", route.GET);
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body.facilitating, []);
+  });
+
+  test("two groups on two courses: each group, in meeting order, each with its own course", async (t) => {
+    freshTerm(t, { [`courseGroups/${TAIS_GROUP}`]: doc(`courseGroups/${TAIS_GROUP}`, { facilitatorUids: ["tess", "tom"] }) });
+    const rows = (await call("tom", route.GET)).body.facilitating;
+    // Wednesdays 1pm before Thursdays 6pm.
+    assert.deepEqual(rows.map((row) => [row.groupId, row.courseId]), [
+      [C, "agi-strategy-fellowship__c0urse01"],
+      [TAIS_GROUP, "technical-ai-safety__c0urse02"],
+    ]);
+    assert.deepEqual(facilitatingMenu.facilitatingCourses(rows), [
+      { courseId: "agi-strategy-fellowship__c0urse01", courseTitle: "AGI Strategy Fellowship" },
+      { courseId: "technical-ai-safety__c0urse02", courseTitle: "Technical AI Safety Fellowship" },
+    ]);
+  });
+
+  test("never a meeting link, a link, an address or anybody's name, as every persona", async (t) => {
+    const LINK = "https://meet.example/abc-defg-hij";
+    const over = {};
+    for (const id of [A, B, C, TAIS_GROUP]) {
+      const path = `courseGroups/${id}`;
+      const stored = seed()[path];
+      over[path] = { ...stored, session: { ...stored.session, meetingUrl: LINK, notes: "Code 4321, ask Sofia at sofia@example.com" } };
+    }
+    // A room with a link typed into it, and one with an address: neither is said.
+    over[`courseGroups/${A}`].session.location = "zoom.example/j/123456789";
+    over[`courseGroups/${B}`].session.location = "ask rahul@example.com";
+    freshTerm(t, over);
+    const AS = { anonymous: null, pending: "penny", rejected: "refused", member: "amara", committee: "iris", suCommittee: "sue", admin: "zach", lead: "claudia", facilitator: "tom", participant: "dev" };
+    const people = [...new Set([...PERSONA_NAMES.map((persona) => (Object.hasOwn(AS, persona) ? AS[persona] : "nobody")), "sofia", "rahul", "tess"])];
+    for (const who of people) {
+      const response = await call(who, route.GET);
+      const text = JSON.stringify(response.body);
+      for (const never of ["meet.example", "zoom.example", "@", "http", "Code 4321", "Sofia", "Rahul", "Tom", "Tess", "rahul", "sofia"]) {
+        assert.ok(!text.includes(never), `${who}: the answer carries ${never}: ${text}`);
+      }
+      for (const row of response.body.facilitating ?? []) {
+        assert.deepEqual(Object.keys(row), [...facilitatingMenu.FACILITATING_FIELDS], `${who}: a row is not the named fields`);
+      }
+    }
+    // The rooms that could be followed are left out; the rest of each row stays.
+    const sofia = (await call("sofia", route.GET)).body.facilitating;
+    assert.deepEqual(sofia.map((row) => [row.name, row.slot, row.room]), [
+      ["Group B", "Tuesdays 6pm", ""],
+      ["Group A", "Thursdays 6pm", ""],
+    ]);
+  });
+
+  test("the reads: none more for a member who facilitates, one query more for a lead, one query and a run for an admin", async (t) => {
+    freshTerm(t);
+    const counted = () => {
+      const tally = { collections: [], fetched: 0 };
+      const db = w.world.db;
+      const realCollection = db.collection.bind(db);
+      const realGetAll = db.getAll.bind(db);
+      db.collection = (name) => {
+        tally.collections.push(name);
+        return realCollection(name);
+      };
+      db.getAll = async (...refs) => {
+        tally.fetched += refs.length;
+        return realGetAll(...refs);
+      };
+      return {
+        tally,
+        restore: () => {
+          db.collection = realCollection;
+          db.getAll = realGetAll;
+        },
+      };
+    };
+    const readsOf = async (fn) => {
+      const { tally, restore } = counted();
+      try {
+        await fn();
+      } finally {
+        restore();
+      }
+      return { collections: tally.collections.slice().sort(), fetched: tally.fetched };
+    };
+    // What the route read for the same people before the Facilitating part: the
+    // query on their groups (not for a lead), then the term's read (not for an admin).
+    const before = async (who) =>
+      readsOf(async () => {
+        const user = sessionFor(who);
+        if (user.role === "admin") return;
+        const mayLead = user.admissionsReviewer === true;
+        const mayFacilitate = mayLead ? false : (await w.world.db.collection("courseGroups").where("facilitatorUids", "array-contains", who).get()).docs.length > 0;
+        if (!mayLead && !mayFacilitate) return;
+        await writers.messageWriterOf(w.world.db, user, AFTER);
+      });
+    for (const who of ["tom", "sofia", "rahul", "amara"]) {
+      assert.deepEqual(await readsOf(() => call(who, route.GET)), await before(who), `${who} costs a read more`);
+    }
+    // A lead: the one query on their own groups more.
+    for (const who of ["claudia", "tess"]) {
+      const was = await before(who);
+      const now = await readsOf(() => call(who, route.GET));
+      assert.deepEqual(now, { collections: [...was.collections, "courseGroups"].sort(), fetched: was.fetched }, who);
+    }
+    // An admin: the query, and one run document per run they facilitate.
+    assert.deepEqual(await readsOf(() => call("zach", route.GET)), { collections: ["courseGroups"], fetched: 0 });
+    termAgain({
+      [`courseGroups/${C}`]: doc(`courseGroups/${C}`, { facilitatorUids: ["tom", "zach"] }),
+      [`courseGroups/${TAIS_GROUP}`]: doc(`courseGroups/${TAIS_GROUP}`, { facilitatorUids: ["tess", "zach"] }),
+    });
+    const zach = await readsOf(() => call("zach", route.GET));
+    assert.deepEqual(zach.collections.filter((name) => name !== "courseRuns"), ["courseGroups"]);
+    assert.equal(zach.fetched, 2, "an admin's two runs are not one document each");
+    assert.deepEqual(await groupIdsOf("zach"), [C, TAIS_GROUP]);
+  });
+
+  test("a failed read of the groups' runs answers none, and leaves Messages as it was", async (t) => {
+    freshTerm(t, { [`courseGroups/${C}`]: doc(`courseGroups/${C}`, { facilitatorUids: ["tom", "zach"] }) });
+    const realGetAll = w.world.db.getAll.bind(w.world.db);
+    w.world.db.getAll = async () => {
+      throw new Error("unavailable");
+    };
+    t.after(() => {
+      w.world.db.getAll = realGetAll;
+    });
+    const quiet = mock.method(console, "error", () => {});
+    t.after(() => quiet.mock.restore());
+    assert.deepEqual((await call("zach", route.GET)).body, { writes: true, facilitating: [] });
+    // Tom's run is the term's, already read: no read of its own to fail.
+    assert.deepEqual((await call("tom", route.GET)).body.facilitating.map((row) => row.groupId), [C]);
+  });
+
+  test("the answer's list as the shell reads it: rows of strings with plain ids, anything else dropped", () => {
+    const row = { groupId: "g1", runId: "r1", name: "Group C", slot: "Wednesdays 3pm", room: "Portland A21", courseId: "c1", courseTitle: "AGI Strategy" };
+    assert.deepEqual(facilitatingMenu.parseFacilitating([row]), [row]);
+    for (const bad of [null, "x", {}, [null], [{ ...row, groupId: "a/b" }], [{ ...row, room: null }], [{ ...row, courseId: "" }]]) {
+      assert.deepEqual(facilitatingMenu.parseFacilitating(bad), [], JSON.stringify(bad));
+    }
+    // A field the route never writes is not carried on.
+    assert.deepEqual(facilitatingMenu.parseFacilitating([{ ...row, meetingUrl: "https://meet.example/x" }]), [row]);
+    assert.equal(facilitatingMenu.runCountsForMenu({ status: "running", archived: false, destroying: false, courseId: "c1" }), true);
+    assert.equal(facilitatingMenu.runCountsForMenu({ status: "running", archived: false, destroying: false, courseId: "" }), false);
+  });
+});
+
+describe("the short list of facilitator guides (/learn/facilitator-guide)", () => {
+  const render = async (who) => {
+    w.world.user = who === null ? null : sessionFor(who);
+    try {
+      return { html: renderToStaticMarkup(await guidesPage.default()) };
+    } catch (err) {
+      return { redirect: err.to ?? String(err) };
+    }
+  };
+  const REFUSED = "Only a course’s facilitators, its programme’s lead and admins can open its facilitator guide.";
+  const doc = (path, over) => ({ ...seed()[path], ...over });
+
+  test("one row per course, each the way to its guide, with the caller's groups under it", async (t) => {
+    freshTerm(t, { [`courseGroups/${TAIS_GROUP}`]: doc(`courseGroups/${TAIS_GROUP}`, { facilitatorUids: ["tess", "sofia"] }) });
+    const { html } = await render("sofia");
+    const text = textOf(html);
+    assert.ok(text.includes("Facilitator guides"), text);
+    assert.ok(text.includes("AGI Strategy Fellowship") && text.includes("You facilitate Group B and Group A"), text);
+    assert.ok(text.includes("Technical AI Safety Fellowship") && text.includes("You facilitate Group A"), text);
+    assert.ok(html.includes('href="/learn/facilitator-guide/agi-strategy-fellowship__c0urse01"'), html);
+    assert.ok(html.includes('href="/learn/facilitator-guide/technical-ai-safety__c0urse02"'), html);
+    assert.ok(!text.includes(REFUSED));
+    // Nothing of a group but its name: no room, no time, no link.
+    assert.ok(!text.includes("Hallward") && !text.includes("Tuesdays"), text);
+  });
+
+  test("everybody the menu lists nothing for is given the guide's own sentence, never the not-found screen", async (t) => {
+    freshTerm(t);
+    for (const who of ["zach", "claudia", "amara", "sue", "dev"]) {
+      const { html } = await render(who);
+      assert.ok(textOf(html).includes(REFUSED), who);
+      assert.ok(!html.includes("/learn/facilitator-guide/"), who);
+    }
+    const page = read("src", "app", "(app)", "learn", "facilitator-guide", "page.tsx");
+    assert.doesNotMatch(page, /notFound\(/);
+    // A course being destroyed is left out, and with nothing left the sentence stands.
+    termAgain({ "courses/agi-strategy-fellowship__c0urse01": doc("courses/agi-strategy-fellowship__c0urse01", { destroying: true }) });
+    assert.ok(textOf((await render("tom")).html).includes(REFUSED));
+    // Signed out: the way to sign in.
+    assert.equal((await render(null)).redirect, `/login?next=${encodeURIComponent("/learn/facilitator-guide")}`);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -959,8 +1217,16 @@ describe("the page, the composer and the menu", () => {
     assert.deepEqual(entry, { label: "Messages", href: "/messages", rule: "messages" });
     const hook = read("src", "features", "messages", "useWritesMessages.ts");
     assert.match(hook, /fetch\("\/api\/messages", \{ cache: "no-store" \}\)/);
-    assert.match(hook, /if \(role === "admin"\) return true;/);
-    assert.match(hook, /return asks && answer\?\.uid === uid && answer\.writes;/);
+    // An admin: drawn without waiting. Anybody else: the answer, and only an answer given for them.
+    assert.match(hook, /if \(role === "admin"\) return \{ writes: true, facilitating \};/);
+    assert.match(hook, /const ours = asks && answer\?\.uid === uid \? answer : null;/);
+    assert.match(hook, /return \{ writes: ours !== null && ours\.writes, facilitating \};/);
+    // Asked of every approved account, admins now among them (for the groups they facilitate).
+    assert.match(hook, /const asks = uid !== null && \(role === "member" \|\| role === "committee" \|\| role === "admin"\);/);
+    // A failed request draws what somebody who writes nothing and facilitates nothing is drawn.
+    assert.match(hook, /\.catch\(\(\) => \{\n\s+if \(!cancelled\) setAnswer\(\{ uid, writes: false, facilitating: NONE \}\);/);
+    // Nothing of the answer is kept in the browser: the privacy policy names every key the site keeps there.
+    assert.doesNotMatch(hook, /localStorage|sessionStorage|indexedDB|document\.cookie/);
   });
 });
 
@@ -978,6 +1244,10 @@ describe("the words", () => {
       join("src", "lib", "messages", "writers.ts"),
       join("src", "features", "messages", "MessageComposer.tsx"),
       join("src", "features", "messages", "useWritesMessages.ts"),
+      join("src", "lib", "courses", "facilitatingMenu.ts"),
+      join("src", "lib", "courses", "facilitatingMenuRead.ts"),
+      join("src", "app", "(app)", "learn", "facilitator-guide", "page.tsx"),
+      join("src", "layout", "appNav.ts"),
       join("src", "emails", "MessageEmail.tsx"),
       join("src", "app", "api", "messages", "route.ts"),
       join("src", "app", "api", "messages", "test", "route.ts"),

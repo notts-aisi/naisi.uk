@@ -240,6 +240,25 @@
   color: var(--color-text);
 }
 
+/* An entry with a line under its name, in the phone's Menu: the Facilitating
+   part's groups ("Wednesdays 3pm · Portland A21") and its guide (the course).
+   The row grows to hold both lines, and the line wraps rather than run under
+   anything. */
+.navText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-block: 6px;
+}
+.navDetail {
+  font-size: var(--text-caption);
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
 /* The current page: a lighter ground and a 2px accent line inside the left
    edge. The line is an inset shadow, so the focus ring (also a shadow) has to
    be listed with it or one would replace the other. */
