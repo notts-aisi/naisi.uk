@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
@@ -20,6 +20,10 @@ import styles from "./GroupPage.module.css";
  * "Set the link", and the row of weeks with each week's date and state. Each
  * week leads to the same page on that week (`?week=3`), whose work the card
  * under this one counts and Remind is about; the week shown is marked.
+ * Under the weeks, whatever the page hands it as `children`: on the group
+ * page, each week's meeting link (`MeetingLinks`), a card of its own drawn
+ * inside this one, so how the group meets and where it meets online read as
+ * one card.
  *
  * Drawn from `loadGroupPage` with the facilitator's view: no people and no
  * history, no address and no link. The routes behind both buttons admit the
@@ -31,12 +35,15 @@ export default function FacilitatorMeets({
   view,
   eyebrow,
   path,
+  children,
 }: {
   view: GroupPageView;
   /** "AGI Strategy · Group C". */
   eyebrow: string;
   /** This page's own address, without a query: each week leads to it with `?week=`. */
   path: string;
+  /** Drawn under the row of weeks, inside this card: the group page's meeting links. */
+  children?: ReactNode;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -105,6 +112,7 @@ export default function FacilitatorMeets({
           ))}
         </ul>
       )}
+      {children}
       <Modal open={panel !== null} onClose={() => setPanel(null)} ariaLabel={panel === "link" ? W.SET_THE_LINK : W.CHANGE_ONE_WEEK} side>
         {(dismiss) =>
           panel === "change" ? (
