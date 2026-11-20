@@ -2249,13 +2249,21 @@
     text-align: left;
   }
 
+  /* One column, never two: a child that asks for a whole row (the guide's
+     sentence) would otherwise start a second column beside the buttons,
+     where the card cuts it off with every button after it. */
   .ticketButtons {
     flex-direction: column;
+    flex-wrap: nowrap;
     align-items: stretch;
   }
 
   .ticketButtons > * {
     justify-content: center;
+  }
+
+  .ticketButtons > .guideSentence {
+    flex: 0 0 auto;
   }
 }
 

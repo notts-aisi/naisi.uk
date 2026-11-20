@@ -48,8 +48,11 @@ import { readFileSync } from "node:fs";
 import { assertTarget, hasAdminCredentials, loadSecrets } from "../../scripts/e2e/lib/env.mjs";
 import { readUserDoc } from "../../scripts/e2e/lib/firestore.mjs";
 import {
+  DEFAULT_VIEWPORT,
+  PHONE_VIEWPORT,
   approvePendingApplicant,
   createStepRecorder,
+  cutOffBy,
   newIdentityPage,
   openBrowser,
   signInWithPassword,
@@ -1054,6 +1057,26 @@ test(
           `${groupPagePath}/register`,
           "Take the register does not lead to the group's register",
         );
+
+        // On a phone, nothing in the ticket is cut off by its card: each
+        // button and the guide's line sits inside it, one under another.
+        // Every other step here runs at 1280px, where one row has room for
+        // them all, so the phone's layout is asked for at its own width, on a
+        // fresh load, as somebody opening the page on a phone gets it.
+        try {
+          await facilitatorPage.setViewportSize(PHONE_VIEWPORT);
+          await facilitatorPage.reload({ waitUntil: "domcontentloaded" });
+          const phoneCard = facilitatorPage.getByTestId("session-card");
+          await phoneCard.waitFor({ timeout: WAIT_MS });
+          await phoneCard.getByRole("link", { name: "Join online", exact: true }).waitFor({ timeout: WAIT_MS });
+          const cutOff = await cutOffBy(phoneCard);
+          assert.deepEqual(cutOff, [], `on a phone the ticket cuts off ${cutOff.join(", ")}`);
+        } finally {
+          // Whatever happened above, the rest of this file gets the viewport it assumes.
+          await facilitatorPage.setViewportSize(DEFAULT_VIEWPORT);
+          await facilitatorPage.reload({ waitUntil: "domcontentloaded" });
+          await facilitatorPage.getByTestId("session-card").waitFor({ timeout: WAIT_MS });
+        }
 
         // Your group: the group's two people by the names they go by
         // (`fullNameOfUser`, the fixture's `first`; a facilitator is shown

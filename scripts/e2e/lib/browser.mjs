@@ -64,6 +64,38 @@ const RE_CONSENT_PATH = "/re-consent";
  */
 export const DEFAULT_VIEWPORT = { width: 1280, height: 900 };
 
+/** A phone's viewport, for a step that asks a page for its narrow layout. */
+export const PHONE_VIEWPORT = { width: 390, height: 844 };
+
+/**
+ * WHAT A CARD CUTS OFF. Every link, button and paragraph inside `card` whose
+ * box runs past the card's left or right edge, as the first words of each
+ * with how far over it is, or an empty list when everything sits inside.
+ *
+ * For a layout that only goes wrong at one width: a row that turns into a
+ * column on a phone can push a child into a second column beside the first,
+ * where the card's own clipping hides it and the page's width never grows,
+ * so neither a desktop step nor a check for sideways scrolling sees it. It
+ * only ASSERTS: a spec compares the answer with an empty list, and nothing
+ * acts on a measurement.
+ *
+ * @param {import('playwright').Locator} card
+ * @returns {Promise<string[]>}
+ */
+export async function cutOffBy(card) {
+  return card.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const out = [];
+    for (const child of element.querySelectorAll("a, button, p")) {
+      const inner = child.getBoundingClientRect();
+      if (inner.width === 0 || inner.height === 0) continue;
+      const over = Math.max(inner.right - box.right, box.left - inner.left);
+      if (over > 1) out.push(`${JSON.stringify((child.textContent ?? "").trim().slice(0, 60))} by ${Math.round(over)}px`);
+    }
+    return out;
+  });
+}
+
 /** The URL the widget loads. Pinned to what `RecaptchaInvisible` appends. */
 export const RECAPTCHA_SCRIPT_URL = "https://www.google.com/recaptcha/api.js";
 

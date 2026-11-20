@@ -260,6 +260,11 @@ describe("2. a facilitator's Home, in every state", () => {
     const rule = /\.homeOpenGroup > a,\s*\.groupLinkWraps > a \{([^}]*)\}/.exec(css)?.[1] ?? "";
     assert.match(rule, /white-space: normal;/);
     assert.match(rule, /overflow-wrap: anywhere;/);
+    // On a phone the ticket's buttons stack in ONE column: a child that asks
+    // for a whole row (the guide's sentence) must not start a second column
+    // beside them, where the card would cut it off with every button after it.
+    assert.match(css, /\.ticketButtons \{\s*flex-direction: column;\s*flex-wrap: nowrap;\s*align-items: stretch;\s*\}/);
+    assert.match(css, /\.ticketButtons > \.guideSentence \{\s*flex: 0 0 auto;\s*\}/);
     assert.match(rule, /max-width: 100%;/);
     // Both of Home's links that carry the group's name sit in a wrapper the rule reaches.
     const home = await homeWithGuide("rahul");
