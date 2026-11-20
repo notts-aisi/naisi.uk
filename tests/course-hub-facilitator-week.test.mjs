@@ -560,8 +560,12 @@ describe("4. This week's work and the review queue's counts", () => {
     const drawn = await groupPage("rahul");
     assert.equal(weekOf(drawn), null);
     assert.equal(queueOf(drawn), null);
-    // The summer's order, as before: the ticket, the group, the registers, then the work to review.
-    assert.match(drawn.text, /Take the register Your group Weeks 1 and 2/);
+    // The summer's order, as before: the ticket (with the guide's sentence, nothing being loaded in
+    // this world), the group, the registers, then the work to review.
+    assert.match(
+      drawn.text,
+      /Take the register There’s nothing in this course’s facilitator guide yet\. Claudia or an admin loads it, and it will show here\. Your group Weeks 1 and 2/,
+    );
     assert.match(drawn.text, /Week 3 Tue 17 Nov Tonight To review 3/);
   });
 });

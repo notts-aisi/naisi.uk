@@ -135,3 +135,79 @@
   /* `.note` stays full size: it is the one thing on this card that has to be
      read rather than scanned, and the card is already one column here. */
 }
+
+/* === A facilitator's card: three doors, not one ===
+   "Open the programme" as its own button, then each group they facilitate
+   and the facilitator guide as rows. Each row is at least 44px tall. */
+.openProgramme {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-ui);
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+}
+
+.openProgramme:hover {
+  border-color: var(--color-accent-line);
+}
+
+.openProgramme:focus-visible,
+.door:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.doors {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.door {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.doorWords {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.doorName {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.doorLine {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.doorArrow {
+  color: var(--color-text-muted);
+}
+
+/* On a phone the button takes the card's width, as the card's rows do. */
+@media (max-width: 36rem) { /* --bp-sm */
+  .openProgramme {
+    width: 100%;
+  }
+}

@@ -18,9 +18,11 @@ import {
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import {
+  compareGroupsByMeeting,
   normalizeCourseGroup,
   type CourseGroupDoc,
 } from "@/lib/firestore/courseGroups";
+import { slotWords } from "@/lib/courses/sessionChange/words";
 import {
   normalizeCourseRun,
   type CourseRunDoc,
@@ -226,6 +228,28 @@ export type MyRunEntry = {
    * NAISI emblem. Only the key travels, never the form or the course.
    */
   shownCrest: ShownCrest;
+  /**
+   * THE GROUPS THE CALLER FACILITATES ON THIS RUN, for the card's links on
+   * My programmes: each live group whose facilitators name them, standing,
+   * in meeting order, as named fields only: its id, its name, its usual day
+   * and time in words ("Wednesdays 3pm") and its usual room. Never the
+   * group's document, so never a meeting link or anybody's address.
+   *
+   * ABSENT on every other row: a member's row is what it always was, byte
+   * for byte. Read from the query of the caller's own groups this route
+   * already makes; nothing more is read for it.
+   */
+  facilitates?: MyFacilitatedGroup[];
+};
+
+/** One group the caller facilitates, as My programmes links it. */
+export type MyFacilitatedGroup = {
+  groupId: string;
+  name: string;
+  /** "Wednesdays 3pm", or "" while the group has no day or time. */
+  slot: string;
+  /** The usual room, or "". */
+  room: string;
 };
 
 export type MePayload = { runs: MyRunEntry[] };
@@ -391,11 +415,14 @@ export async function GET() {
   // facilitator who holds a place (a learner's row) and to nobody else.
   const rowRunIds = new Set(standing.map((e) => e.runId));
   const facilitatedRunIds = new Set<string>();
+  // The same groups, by run, for the card's links: named fields only.
+  const facilitatedGroupsByRun = new Map<string, CourseGroupDoc[]>();
   for (const doc of facilitatedSnap.docs) {
     const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
     if (group.archived || !group.runId || !rowRunIds.has(group.runId)) continue;
     if (!isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids)) continue;
     facilitatedRunIds.add(group.runId);
+    facilitatedGroupsByRun.set(group.runId, [...(facilitatedGroupsByRun.get(group.runId) ?? []), group]);
   }
   // A placement Publish has not told its owner about is passed over here,
   // whatever else is true of it: see the note at the top. Its run is
@@ -609,6 +636,7 @@ export async function GET() {
         ? (groupById.get(enrolment.groupId) ?? null)
         : null;
       const calendar = resolveCalendar(run, group);
+      const facilitated = facilitatedGroupsByRun.get(run.id) ?? [];
       return {
         runId: run.id,
         courseId: run.courseId,
@@ -630,6 +658,19 @@ export async function GET() {
         groupName: group?.name ?? null,
         finished: finishedRunIds.has(run.id),
         shownCrest: shownCrests.get(run.id) ?? null,
+        // Only on a row the caller facilitates on, so every other row is unchanged.
+        ...(facilitated.length > 0
+          ? {
+              facilitates: [...facilitated].sort(compareGroupsByMeeting).map(
+                (each): MyFacilitatedGroup => ({
+                  groupId: each.id,
+                  name: each.name,
+                  slot: slotWords(each.session.weekday, each.session.startTimeLocal),
+                  room: each.session.location.trim(),
+                }),
+              ),
+            }
+          : {}),
       };
     })
     // A row has to be SOMETHING to be worth a card: a role to open, or a

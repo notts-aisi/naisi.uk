@@ -367,12 +367,16 @@ test(
         // Every session of this fixture is over, so where the next session's
         // ticket would be, the page says there are no more
         // (on the group page, since the register moved to its own page).
+        // The fixture's course is a new one with nothing in its facilitator
+        // guide and no programme naming its run, so the card then says so,
+        // with nobody but an admin to load it. Any other ending (the guide's
+        // course page alone is what a failed read draws) is wrong here.
         const sessionCard = page.getByTestId("session-card").first();
         await sessionCard.waitFor({ timeout: WAIT_MS });
         assert.equal(
           (await sessionCard.innerText()).replace(/\s+/g, " ").trim(),
-          "No more sessions are planned for your group.",
-          "the group page does not say its sessions are over",
+          "No more sessions are planned for your group. There’s nothing in this course’s facilitator guide yet. An admin loads it, and it will show here.",
+          "the group page does not say its sessions are over, and that the course's facilitator guide has nothing in it",
         );
 
         // The register is a page of its own beside the group's.

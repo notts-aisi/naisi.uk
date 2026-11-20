@@ -119,6 +119,8 @@ export async function makeFacilitatorGuideWorld(key = "__facilitatorGuide") {
     store: await loadTs(join("lib", "courses", "facilitatorGuide", "store.ts")),
     record: await loadTs(join("lib", "firestore", "courseFacilitatorGuide.ts")),
     words: await loadTs(join("lib", "courses", "facilitatorGuide", "words.ts")),
+    links: await loadTs(join("lib", "courses", "facilitatorGuide", "links.ts")),
+    registerWeek: await loadTs(join("lib", "courses", "facilitatorGuide", "registerWeek.ts")),
     hook: await loadTs(join("features", "courses", "facilitatorGuide", "useFacilitatorGuide.ts")),
     paste: await loadTs(join("lib", "courses", "weekBlocks", "paste.ts")),
   };
@@ -160,12 +162,18 @@ export async function makeFacilitatorGuideWorld(key = "__facilitatorGuide") {
   }
 
   /**
-   * Home as `who` sees it, with the guide's weeks handed to Home's hook from
-   * the real route's answer (`guideWeeksFrom`, the hook's own reading of it).
+   * Home as `who` sees it, with the guide's answer handed to Home's hook from
+   * the real route's answer (`guideReadOfAnswer`, the hook's own reading of
+   * it). `read` hands the hook an answer of the suite's own instead: a
+   * failed read, or null for one still on its way.
    */
-  async function homeWithGuide(who, given = "Rahul") {
-    const answer = await index(who);
-    ui.guide = answer.status === 200 ? guide.hook.guideWeeksFrom(answer.body, COURSE.agi) : null;
+  async function homeWithGuide(who, given = "Rahul", read) {
+    if (read !== undefined) {
+      ui.guide = read;
+    } else {
+      const answer = await index(who);
+      ui.guide = guide.links.guideReadOfAnswer(answer.status === 200, answer.body, COURSE.agi);
+    }
     return base.home(who, given);
   }
 
