@@ -32,6 +32,8 @@
  * HTML. Faked: see `tests/lib/facilitatorPagesWorld.mjs`.
  */
 import { beforeEach, describe, mock, test } from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -48,6 +50,11 @@ const w = await makeFacilitatorPagesWorld("__facilitatorPagesSuite");
 const { world, at, reset, groupPage, registerPage, attendanceTab, summary, note, home, words } = w;
 
 const RUN_HOME = `/learn/${RUN.agi}`;
+const { default: NotForYou } = await w.loadTs(join("features", "courses", "facilitator", "NotForYou.tsx"));
+/** The group page's one calm page, for somebody signed in it does not admit. */
+const NOT_FOR_YOU = renderToStaticMarkup(createElement(NotForYou, { page: "group" }));
+/** "not for you" when the group page drew its calm page byte for byte, else where it sent them, else "drawn". */
+const outcomeOf = (drawn) => drawn.to ?? (drawn.html === NOT_FOR_YOU ? "not for you" : "drawn");
 const GROUP_PATH = (groupId = B) => `${RUN_HOME}/group/${groupId}`;
 
 /** What the page's ticket, cards and head hand their components, read off the element tree. */
@@ -83,25 +90,25 @@ beforeEach(() => reset());
 // ---------------------------------------------------------------------------
 
 describe("1. who opens a group's page, its register and its summary", () => {
-  test("the group page: its two facilitators and an admin; everybody else is sent away", async () => {
+  test("the group page: its two facilitators and an admin; everybody else signed in is told the page is not theirs", async () => {
     const said = {};
     for (const who of ["rahul", "sofia", "zach", "claudia", "tess", "lloyd", "yusuf", "tom", "chloe", "amara", "nobody", null]) {
       const drawn = await groupPage(who);
-      said[who ?? "signed out"] = drawn.to ?? "drawn";
+      said[who ?? "signed out"] = outcomeOf(drawn);
       assert.equal(drawn.wrote, false, `${who}'s page wrote something`);
     }
     assert.deepEqual(said, {
       rahul: "drawn",
       sofia: "drawn",
       zach: "drawn",
-      claudia: RUN_HOME,
-      tess: RUN_HOME,
-      lloyd: RUN_HOME,
-      yusuf: RUN_HOME,
-      tom: RUN_HOME,
-      chloe: RUN_HOME,
-      amara: RUN_HOME,
-      nobody: RUN_HOME,
+      claudia: "not for you",
+      tess: "not for you",
+      lloyd: "not for you",
+      yusuf: "not for you",
+      tom: "not for you",
+      chloe: "not for you",
+      amara: "not for you",
+      nobody: "not for you",
       "signed out": "/login",
     });
   });
@@ -132,9 +139,9 @@ describe("1. who opens a group's page, its register and its summary", () => {
     assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH()}" class="crumb crumbDesk">Group B</a>`));
   });
 
-  test("an archived group: its facilitators are sent away from both pages; an admin reads them with nothing to press", async () => {
+  test("an archived group: its facilitators are kept out of both pages; an admin reads them with nothing to press", async () => {
     world.db.poke(`courseGroups/${B}`, { archived: true });
-    assert.equal((await groupPage("rahul")).to, RUN_HOME);
+    assert.equal(outcomeOf(await groupPage("rahul")), "not for you");
     assert.equal((await registerPage("rahul")).to, RUN_HOME);
     const asAdmin = await groupPage("zach");
     assert.equal(asAdmin.to, null);
@@ -144,7 +151,7 @@ describe("1. who opens a group's page, its register and its summary", () => {
   test("a group of another run, addressed under this run, is nobody's page", async () => {
     world.db.poke(`courseGroups/${B}`, { runId: RUN.tais });
     for (const who of ["rahul", "zach"]) {
-      assert.equal((await groupPage(who)).to, RUN_HOME, who);
+      assert.equal(outcomeOf(await groupPage(who)), "not for you", who);
       assert.equal((await registerPage(who)).to, RUN_HOME, who);
     }
   });
@@ -441,8 +448,8 @@ describe("3. the notes a group's facilitators share", () => {
       const drawn = await attendanceTab(who);
       assert.equal(drawn.to, "/dashboard", who);
     }
-    // A facilitator of another group of the run, and a member of the group, are sent away from its page.
-    for (const who of ["tom", "chloe"]) assert.equal((await groupPage(who)).to, RUN_HOME, who);
+    // A facilitator of another group of the run, and a member of the group, are given its calm page, with no note.
+    for (const who of ["tom", "chloe"]) assert.equal(outcomeOf(await groupPage(who)), "not for you", who);
   });
 
   test("the lead's tab shows no register note: those stay the group's facilitators' and admins'", async () => {
