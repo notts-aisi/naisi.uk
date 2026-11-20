@@ -729,7 +729,7 @@ export default async function GroupHomePage({
   /*
    * ONE ORDER, read top to bottom on a phone and as two columns on a laptop
    * (the `.columns` blocks fold into one column, the left first, on a page
-   * narrower than the boards' 820px):
+   * narrower than 820px):
    *
    *   the head, with Write and Change a session;
    *   the session (the notice and the ticket, or the cards in its place);

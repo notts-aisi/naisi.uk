@@ -14,7 +14,7 @@
  *     page or its cards moves a card away from its place in the markup
  *     (`order`, a reversed flex direction, a grid row or area), the page
  *     takes none of the run home's `orderN` classes, and on a page narrower
- *     than the boards' 820px each block folds into one column.
+ *     than 820px each block folds into one column.
  *  3. LAPTOP: which cards sit in which column of which block, and which sit
  *     across the page between them.
  *
