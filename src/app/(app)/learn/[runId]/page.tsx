@@ -13,7 +13,7 @@ import { pitchingCard } from "@/lib/courses/pitching/load";
 import { teamCardFor } from "@/lib/courses/teamPage/load";
 import { timeQuestionFor } from "@/lib/courses/timeAnswer/seat";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { NO_ENTRIES, messagesEntriesFor } from "@/lib/messages/handover";
 import LeftProgramme from "@/features/courses/leaving/LeftProgramme";
@@ -21,6 +21,7 @@ import { leftPageSurvey } from "@/features/courses/leaving/leftSurvey";
 import RunHome from "@/features/courses/RunHome";
 import { getRunAccess } from "@/features/courses/runAccess";
 import { guideLinksOf } from "@/lib/courses/guide/load";
+import { meetsLeadBar } from "@/lib/courses/programmeLead";
 import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
 import { GUIDE_READ_FAILED, facilitatorGuideProp, guideReadOfIndex, type GuideRead } from "@/lib/courses/facilitatorGuide/links";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
@@ -211,7 +212,7 @@ export default async function RunHomePage({
     access.isFacilitator ||
     access.isTrackLead ||
     access.isAdmin ||
-    holdsStanding(access.user, "admissionRounds.leadUid");
+    meetsLeadBar(access.user);
   const knownGuideReader =
     access.isAdmin ||
     access.groups.some((group) => !group.archived && isNamedWithStanding(access.user, "courseGroups.facilitatorUids", group.facilitatorUids));
