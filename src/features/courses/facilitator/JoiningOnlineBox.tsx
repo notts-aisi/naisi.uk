@@ -22,7 +22,8 @@ import facilitator from "./facilitator.module.css";
 import styles from "./JoiningOnlineBox.module.css";
 
 /**
- * THE BOX AT THE TOP OF A FACILITATOR'S GROUP PAGE AND REGISTER: for each
+ * THE BOX ABOUT JOINING ONLINE, under the next session on a facilitator's
+ * group page and at the top of the register: for each
  * session still to end where somebody has said they are joining online, who,
  * and while the session has no meeting link, the field to add one ("2 people
  * are joining online on Tue 10 Nov. Add a meeting link for week 2."), for

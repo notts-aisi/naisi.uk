@@ -738,6 +738,8 @@ describe("3. the group's page, and the facilitator's cut", () => {
     const links = find(cut.props.children, "MeetingLinks");
     assert.equal(links.length, 1, "the meeting links are not inside how the group meets");
     assert.equal(links[0].props.view, cut.props.view);
+    // A part of the card, so its heading is a level under the card's own h2.
+    assert.equal(links[0].props.headingLevel, 3);
   });
 
   test("the change panel greys out Cancel and push the rest back once a later week has met, and says why", async () => {

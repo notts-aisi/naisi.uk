@@ -19,7 +19,9 @@ import styles from "./GroupPage.module.css";
  * week" with the one-week choices alone and the same preview and button,
  * "Set the link", and the row of weeks with each week's date and state. Each
  * week leads to the same page on that week (`?week=3`), whose work the card
- * under this one counts and Remind is about; the week shown is marked.
+ * about who has done the week counts and Remind is about (on the group page
+ * that card sits above this one, with the updates between them); the week
+ * shown is marked.
  * Under the weeks, whatever the page hands it as `children`: on the group
  * page, each week's meeting link (`MeetingLinks`), a card of its own drawn
  * inside this one, so how the group meets and where it meets online read as

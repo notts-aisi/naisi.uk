@@ -292,7 +292,9 @@ describe("2. before the session on Group B's page, as each reader", () => {
       assert.ok(drawn.text.includes(said), `missing "${said}"`);
     }
     // In order, as a reader meets them: the box, then each card by its heading.
-    const order = ['aria-label="Joining online"', ">Before the session</h2>", ">Meeting links</h2>"].map((said) => drawn.html.indexOf(said));
+    // Meeting links is a part of how the group meets, so its heading is an h3 under that card's h2.
+    const order = ['aria-label="Joining online"', ">Before the session</h2>", ">Meeting links</h3>"].map((said) => drawn.html.indexOf(said));
+    assert.ok(!drawn.html.includes(">Meeting links</h2>"), "Meeting links is a heading of the same level as the card it sits in");
     assert.ok(order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1])), `out of order: ${order}`);
     assert.ok(!drawn.text.includes(REASON));
     // Everybody else is given the one calm page in place of the group's, and nothing of the group.
@@ -354,6 +356,11 @@ describe("2. before the session on Group B's page, as each reader", () => {
     assert.match(live, /aria-label="Set the link: Week 4"/);
     assert.doesNotMatch(viewAs, /<button/);
     assert.ok(text(viewAs).includes("Week 4 · Tue 24 Nov No link"), text(viewAs));
+    // Its heading is an h2 unless its caller asks for an h3, and nothing else about it changes with the level.
+    assert.match(live, /<h2 id="meeting-links" class="cardTitle">Meeting links<\/h2>/);
+    const nested = renderToStaticMarkup(createElement(MeetingLinks, { view, canChange: true, headingLevel: 3 }));
+    assert.match(nested, /<h3 id="meeting-links" class="cardTitle">Meeting links<\/h3>/);
+    assert.equal(nested.replace(/<(\/?)h3\b/g, "<$1h2"), live);
   });
 
   test("nobody in the group: no card", async () => {

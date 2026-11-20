@@ -426,7 +426,7 @@ export default async function GroupHomePage({
     loadWrittenQueueAndReadable(db, access.user, access.run, group),
   ]);
   const writtenQueue = queueRead?.rows ?? null;
-  // The box at the top: who is joining a session online, named as this
+  // The box under the session: who is joining a session online, named as this
   // reader is shown the group's people, and where a link is still wanted.
   // Nothing is offered to press in a view-as session, where nothing is written.
   const [joiningOnline, viewAs, meets] = await Promise.all([
@@ -642,7 +642,7 @@ export default async function GroupHomePage({
           eyebrow={[programme?.shortName ?? access.run.courseTitle, groupName].filter(Boolean).join(" · ")}
           path={groupPath}
         >
-          <MeetingLinks view={meets} canChange={!viewAs} />
+          <MeetingLinks view={meets} canChange={!viewAs} headingLevel={3} />
         </FacilitatorMeets>
       )}
     </>
