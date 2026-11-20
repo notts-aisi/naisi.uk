@@ -127,7 +127,7 @@ describe("the words", () => {
         assert.deepEqual([...html.matchAll(/<a\b[^>]*href="([^"]*)"/g)].map((m) => m[1]), ["/learn"], page);
         assert.equal((html.match(/<h1\b/g) ?? []).length, 1, page);
         assert.doesNotMatch(html, /<(button|form|input|select)\b/, page);
-        assert.doesNotMatch(html, /[–—]/, `${page}: a dash`);
+        assert.doesNotMatch(html, /[\u2013\u2014]/, `${page}: a dash`);
       }
     }
     assert.ok(!calm("group").includes("lead"), "the group page's version names the lead, whom the group page does not admit");
