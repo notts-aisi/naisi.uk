@@ -66,6 +66,8 @@ const STYLESHEETS = [
   "@/features/courses/facilitator/facilitator.module.css",
   // The box at the top of the group page and the register: who is joining a session online.
   "./JoiningOnlineBox.module.css",
+  // The calm page a group's own pages draw for somebody they do not admit.
+  "./notForYou.module.css",
   // This week's work's Reopen (the week you submit): its button's sheet and the confirm's.
   "./written.module.css",
   "./Modal.module.css",
@@ -99,6 +101,7 @@ const TABS = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "
 const GROUP = join("app", "(app)", "learn", "[runId]", "group", "[groupId]");
 const { default: MessagesPage } = await loadTs(join(TABS, "messages", "page.tsx"));
 const { default: GroupPage } = await loadTs(join(GROUP, "page.tsx"));
+const { default: NotForYou } = await loadTs(join("features", "courses", "facilitator", "NotForYou.tsx"));
 const { default: UpdatePage } = await loadTs(join(GROUP, "update", "page.tsx"));
 const { default: ProgrammeTabs } = await loadTs(join("features", "applications", "editor", "ProgrammeTabs.tsx"));
 const { default: UpdateComposer } = await loadTs(join("features", "courses", "updates", "UpdateComposer.tsx"));
@@ -336,9 +339,12 @@ describe("2. a facilitator's group page", () => {
     assert.equal(find(drawn.element, "StaffUpdatesSection").length, 1);
   });
 
-  test("another group's facilitator and a member are sent to the run's home", async () => {
+  test("another group's facilitator and a member are told the page is not theirs, and shown nothing of the group", async () => {
+    const calm = renderToStaticMarkup(createElement(NotForYou, { page: "group" }));
     for (const who of ["tom", "amara"]) {
-      assert.equal((await groupPage(who, B)).to, `/learn/${RUN.agi}`, who);
+      const drawn = await groupPage(who, B);
+      assert.equal(drawn.to, null, `${who} was sent to ${drawn.to}`);
+      assert.equal(drawn.html, calm, `${who} is not given the group page's calm page`);
     }
   });
 });

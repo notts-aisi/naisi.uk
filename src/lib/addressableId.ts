@@ -17,8 +17,24 @@
  * slash is the only way a separator can enter a segment.
  */
 
+/**
+ * Firestore refuses a document id over 1,500 bytes, and one that begins and
+ * ends with two underscores (reserved), by THROWING from `doc()` or `get()`.
+ * No real document can carry either, so refusing them here turns that throw
+ * into the caller's own calm refusal.
+ */
+const MAX_ID_BYTES = 1500;
+const RESERVED_ID = /^__[\s\S]*__$/;
+
 export function isAddressableId(value: string): boolean {
-  return Boolean(value) && !value.includes("/") && value !== "." && value !== "..";
+  return (
+    Boolean(value) &&
+    !value.includes("/") &&
+    value !== "." &&
+    value !== ".." &&
+    !RESERVED_ID.test(value) &&
+    new TextEncoder().encode(value).length <= MAX_ID_BYTES
+  );
 }
 
 export function hasEncodedPathSeparator(pathname: string): boolean {

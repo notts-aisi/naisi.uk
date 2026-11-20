@@ -23,11 +23,26 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, mock, test } from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { A, B, C, D, NOW, RUN, W2, W3, makePacksAndCasesWorld, textOf } from "./lib/packsAndCasesWorld.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 const w = await makePacksAndCasesWorld();
+const { default: NotForYou } = await w.loadTs(join("features", "courses", "facilitator", "NotForYou.tsx"));
+
+/** Somebody signed in whom the draw's page does not admit: its one calm page, byte for byte, with no redirect. */
+function assertNotForYou(drawn, at) {
+  assert.equal(drawn.to, null, `${at}: sent to ${drawn.to} instead of the calm page`);
+  assert.equal(drawn.html, renderToStaticMarkup(createElement(NotForYou, { page: "draw" })), `${at}: not the calm page`);
+}
+
+/** Somebody the draw's page admits, at an address it cannot open: the second, fixed answer, never "not for your account". */
+function assertCantOpen(drawn, at) {
+  assert.equal(drawn.to, null, `${at}: sent to ${drawn.to} instead of the calm page`);
+  assert.equal(drawn.html, renderToStaticMarkup(createElement(NotForYou, { page: "draw", admitted: true })), `${at}: not the second calm page`);
+}
 
 before(() => mock.timers.enable({ apis: ["Date"], now: NOW }));
 after(() => mock.timers.reset());
@@ -533,10 +548,10 @@ describe("3. the draw", () => {
     assert.match(page.text, /Hamza Qureshi/);
   });
 
-  test("an archived group's draw is closed: its page sends its facilitators away, and nothing on it changes", async () => {
+  test("an archived group's draw is closed: its page tells its facilitators it is not theirs, and nothing on it changes", async () => {
     w.world.db.poke(`courseGroups/${B}`, { archived: true });
-    assert.equal((await w.drawPage("rahul")).to, "/learn");
-    assert.equal((await w.drawPage("zach")).to, "/learn");
+    assertNotForYou(await w.drawPage("rahul"), "a facilitator of an archived group");
+    assertCantOpen(await w.drawPage("zach"), "an admin on an archived group");
     let answer = await w.saveDraw("rahul", "w03", [["kofi", W3.given, W3.markets]]);
     assert.equal(answer.status, 403);
     answer = await w.saveDraw("zach", "w03", [["kofi", W3.given, W3.markets]]);
@@ -571,7 +586,7 @@ describe("3. the draw", () => {
     assert.match(page.text, /Week 1 Nothing is given out in week 1\./);
   });
 
-  test("who reaches the draw page: the group's facilitators, the lead by its address, and admins; everybody else is sent away", async () => {
+  test("who reaches the draw page: the group's facilitators, the lead by its address, and admins; everybody else signed in is told the page is not theirs", async () => {
     for (const who of ["rahul", "sofia", "farah", "zach"]) {
       const page = await w.drawPage(who);
       assert.equal(page.to, null, who);
@@ -582,11 +597,10 @@ describe("3. the draw", () => {
     assert.equal(lead.to, null);
     assert.match(lead.html, /href="\/admin\/admissions\/forms\/[^"]+\/programmes\/[^"]+\/groups" class="back"><svg[^>]*>.*?<\/svg><span>Groups<\/span>/);
     for (const who of ["grace", "tom", "chloe", "amara", "sam", "tess", "yusuf", "lloyd", "nobody"]) {
-      const page = await w.drawPage(who);
-      assert.equal(page.to, "/learn", who);
+      assertNotForYou(await w.drawPage(who), who);
     }
     assert.match((await w.drawPage(null)).to, /^\/login\?next=/);
-    assert.equal((await w.drawPage("zach", "no-such-group")).to, "/learn");
+    assertCantOpen(await w.drawPage("zach", "no-such-group"), "an admin on a made-up group");
   });
 
   test("the group page's spread: each pack with who has it, who has nothing yet, and the way to the draw", async () => {

@@ -2073,13 +2073,13 @@ const NOT_COVERED = {
   },
   "/(app)/learn/draw/[groupId]": {
     reason:
-      "Course hub: the draw's page, drawn as each kind of caller and with its lists held word for word by tests/course-hub-packs-and-cases.test.mjs; photographed on the preview kit at 390 and 1440.",
+      "Course hub: the draw's page, drawn as each kind of caller and with its lists held word for word by tests/course-hub-packs-and-cases.test.mjs, and its one calm page for everybody else held byte for byte, for a real, an archived and a made-up group, by tests/course-hub-not-for-you.test.mjs; photographed on the preview kit at 390 and 1440.",
     coverWhen:
       "When the browser spec that copies the slips in drives the page.",
   },
   "/(app)/learn/pairs/[groupId]": {
     reason:
-      "Course hub: the pairs page for a session in pairs, drawn as each kind of caller and with its pairs, checks and rows held word for word by tests/course-hub-pairs.test.mjs; photographed on the preview kit at 390 and 1440.",
+      "Course hub: the pairs page for a session in pairs, drawn as each kind of caller and with its pairs, checks and rows held word for word by tests/course-hub-pairs.test.mjs, and its one calm page for everybody else held byte for byte, for a real, an archived and a made-up group, by tests/course-hub-not-for-you.test.mjs; photographed on the preview kit at 390 and 1440.",
     coverWhen:
       "When the browser spec that pairs a group drives the page.",
   },

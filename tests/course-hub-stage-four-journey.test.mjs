@@ -60,6 +60,7 @@
 import { describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { A, AGI, B, ROUND, RUN, leadSeed } from "./lib/leadWorld.mjs";
 import { COURSE } from "./lib/handoverWorld.mjs";
@@ -298,6 +299,18 @@ function questionViewOf(page) {
   };
   walk(page.element);
   return found[0]?.props.view ?? null;
+}
+
+/** The group page's one calm page, for somebody signed in it does not admit. */
+async function groupNotForYou() {
+  const { default: NotForYou } = await loadTs(join("features", "courses", "facilitator", "NotForYou.tsx"));
+  return renderToStaticMarkup(createElement(NotForYou, { page: "group" }));
+}
+
+/** Asserts a fellow on the group page is given its calm page, byte for byte, and nothing of the group. */
+async function assertFellowNotForYou(drawn) {
+  assert.equal(drawn.to, null, `a fellow was sent to ${drawn.to}`);
+  assert.equal(drawn.html, await groupNotForYou(), "a fellow is not given the group page's calm page");
 }
 
 async function serverPage(file, params, who, searchParams = {}) {
@@ -1107,8 +1120,8 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     assert.match(admin.text, /SR Sofia Rossi Facilitator Not yet Not yet Not started Not given yet Not started Not given yet /);
     assert.doesNotMatch(admin.text, /Reopen week/);
     assert.ok(admin.html.includes(review("bea")), "an admin has no way to Bea's answer");
-    // A fellow never reaches the group page.
-    assert.equal((await groupPage("amara")).to, `/learn/${encodeURIComponent(RUN.agi)}`);
+    // A fellow never reaches the group page: its calm page, with nothing of the group.
+    await assertFellowNotForYou(await groupPage("amara"));
     // The lead's view of the group's week asks the same loader as the lead: Bea's own pick and answer are the
     // lead's to see, and "To give feedback" leads to the lead's own review page.
     const run = w.lib.courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
@@ -1325,8 +1338,8 @@ describe("7. week 6 (Group B meets on Tue 8 Dec, its last session)", () => {
     const beaRow = { uid: "bea", name: "Bea Lindqvist", firstName: "Bea", own: true, written: rahulWeek.parts.map(() => false) };
     const handed = await lib.groupWeek.loadGroupWeekBoxes(world.courseDb, { run, actor: rahul, week: { ...rahulWeek, rows: [...rahulWeek.rows, beaRow] } });
     assert.deepEqual(handed.map((entry) => entry.person.uid), ["amara"]);
-    // A fellow never reaches the group page, so never anybody's plan there.
-    assert.equal((await groupPage("amara")).to, `/learn/${encodeURIComponent(RUN.agi)}`);
+    // A fellow never reaches the group page, so never anybody's plan there: its calm page instead.
+    await assertFellowNotForYou(await groupPage("amara"));
   });
 
   test("a pack each picks herself: Amara and Bea pick one and change it before the session", async () => {

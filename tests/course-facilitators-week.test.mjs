@@ -64,6 +64,7 @@ const words = await loadTs("lib/courses/groupPage/words.ts");
 const plan = await loadTs("lib/courses/meetingLink/plan.ts");
 const visitWords = await loadTs("lib/courses/visit/words.ts");
 const linkWords = await loadTs("lib/courses/joiningOnline/words.ts");
+const notForYou = await loadTs("lib/courses/notForYouWords.ts");
 const { loadGroupPage } = await loadTs("lib/courses/groupPage/load.ts");
 const { normalizeCourseRun } = await loadTs("lib/firestore/courses.ts");
 const { normalizeCourseGroup, sessionForWeek, GROUP_FIELD_LIMITS } = await loadTs("lib/firestore/courseGroups.ts");
@@ -282,7 +283,7 @@ describe("2. before the session on Group B's page, as each reader", () => {
     }
   });
 
-  test("the page draws it under the box and over who has done the week, then each week's link; another group's facilitator is sent away", async () => {
+  test("the page draws it under the box and over who has done the week, then each week's link; another group's facilitator is told the page is not theirs", async () => {
     worldOfWeekFour();
     const drawn = await draw("rahul");
     assert.equal(drawn.to, null);
@@ -293,8 +294,16 @@ describe("2. before the session on Group B's page, as each reader", () => {
     const order = ['aria-label="Joining online"', ">Before the session</h2>", ">Meeting links</h2>"].map((said) => drawn.html.indexOf(said));
     assert.ok(order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1])), `out of order: ${order}`);
     assert.ok(!drawn.text.includes(REASON));
-    assert.equal((await draw("tom")).to, `/learn/${RUN.agi}`, "a facilitator of another group");
-    assert.equal((await draw("amara")).to, `/learn/${RUN.agi}`, "a member of the group");
+    // Everybody else is given the one calm page in place of the group's, and nothing of the group.
+    for (const [who, said] of [["tom", "a facilitator of another group"], ["amara", "a member of the group"]]) {
+      const refused = await draw(who);
+      assert.equal(refused.to, null, `${said} was sent to ${refused.to}`);
+      assert.ok(refused.text.includes(notForYou.NOT_FOR_YOU_HEADING), `${said} is not told the page is not theirs`);
+      assert.ok(refused.text.includes(notForYou.NOT_FOR_YOU_GROUP_PAGE), `${said} is not told who the page is for`);
+      for (const said2 of ["Before the session", "Meeting links", "Joining online", "Group B", REASON]) {
+        assert.ok(!refused.text.includes(said2), `${said} is shown "${said2}"`);
+      }
+    }
   });
 
   test("in a view-as session the list of links has nothing to press, as the box has nothing to press", async () => {

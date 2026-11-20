@@ -178,6 +178,18 @@ export const STATES = {
   askNotYours: "This page is for the person we asked.",
   /** A week's review, to the programme's lead (`LEAD_REVIEW_WORDS.title` in src/lib/courses/weekReview/words.ts). */
   reviewAdminsOnly: "A week’s review is for admins",
+  /**
+   * The facilitator's group page, to somebody the run admits and the page
+   * does not (`NOT_FOR_YOU_GROUP_PAGE` in src/lib/courses/notForYouWords.ts):
+   * no lead in it, because the page admits none.
+   */
+  notForYouGroup: "It’s for a group’s facilitators and admins.",
+  /**
+   * The draw's page and the pairs page, to somebody signed in they do not
+   * admit (`NOT_FOR_YOU_WITH_LEAD` in src/lib/courses/notForYouWords.ts):
+   * the lead named, because both pages admit the lead.
+   */
+  notForYou: "It’s for a group’s facilitators, the programme’s lead and admins.",
 };
 
 /**
@@ -5759,18 +5771,22 @@ export const PAGES = {
       "which keeps its own gate. Both redirects can be in the stream, so either is accepted.",
   },
   "/(app)/learn/draw/[groupId]": {
-    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
       "The draw's page, a static segment under /learn so a programme's lead can open it: the " +
-      "battery's group id addresses nothing, so every approved account is sent back to /learn, as " +
-      "everybody but the group's live facilitators, the programme's lead and admins is once it exists.",
+      "battery's group id addresses nothing, so every approved account is drawn a calm page, never a " +
+      "redirect that says which: the one that says it is not for them, the same page everybody but the " +
+      "group's live facilitators, the programme's lead and admins is given once it exists, and for an " +
+      "admin, whom the page admits to every group, the fixed one that says it can't be opened.",
   },
   "/(app)/learn/pairs/[groupId]": {
-    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
       "The pairs page, a static segment under /learn so a programme's lead can open it, as the draw's " +
-      "page is: the battery's group id addresses nothing, so every approved account is sent back to " +
-      "/learn, as everybody but the group's live facilitators, the programme's lead and admins is once it exists.",
+      "page is: the battery's group id addresses nothing, so every approved account is drawn a calm " +
+      "page, never a redirect that says which: the one that says it is not for them, the same page " +
+      "everybody but the group's live facilitators, the programme's lead and admins is given once it " +
+      "exists, and for an admin, whom the page admits to every group, the fixed one that says it can't be opened.",
   },
   "/(app)/anonymous-feedback": {
     expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
@@ -8356,7 +8372,7 @@ export const REAL_PAGES = {
     why: LEARN_ONLY_WHY,
     leadWhy: LEAD_LEARN_ONLY_WHY,
   }),
-  "/(app)/learn/[runId]/group/[groupId]": groupLearnPage("the group's page"),
+  "/(app)/learn/[runId]/group/[groupId]": groupPageItself(),
   "/(app)/learn/[runId]/group/[groupId]/edit": groupLearnPage("the list of the group's weeks to change"),
   "/(app)/learn/[runId]/group/[groupId]/edit/[weekId]": groupLearnPage("changing week 1 for the group"),
   "/(app)/learn/[runId]/group/[groupId]/email": groupLearnPage("emailing the group"),
@@ -8531,6 +8547,26 @@ function groupLearnPage(what) {
   });
 }
 
+/**
+ * The facilitator's group page itself: the group's live facilitators and
+ * admins. The participant is admitted to the run by the layout and given the
+ * page's one calm page (`notForYouGroup`), which names no lead because the
+ * page admits none. Everybody the layout refuses is sent to /learn by it, and
+ * the page beneath, rendering beside it, never redirects anybody signed in,
+ * so /learn is the only target.
+ */
+function groupPageItself() {
+  const what = "the group's page";
+  return learnPage({
+    admin: c(200, `An admin: ${what}.`),
+    facilitator: c(200, `A live facilitator of the group: ${what}.`),
+    participant: c("notForYouGroup", `Admitted to the run, but facilitates no group and this group is not theirs: the calm page that says ${what} is for its facilitators and admins.`),
+    refused: "learn",
+    why: `Holds no role on this run, so the run layout sends them to /learn; ${what}, rendering beside it, draws its calm page and redirects nobody signed in, so /learn is the only target.`,
+    leadWhy: `The run layout does not admit a programme's lead, who works from the programme's own tabs, so it sends the lead to /learn; ${what}, rendering beside it, draws its calm page and redirects nobody signed in.`,
+  });
+}
+
 /** The facilitator guide's pages: drawn for everybody approved, with the guide's one calm refusal in place of the guide. */
 function facilitatorGuidePage(what) {
   const refused = c("guideRefused", `Neither facilitates on a run of the course nor leads a programme naming one: one calm sentence in place of ${what}.`);
@@ -8544,18 +8580,18 @@ function facilitatorGuidePage(what) {
   };
 }
 
-/** The draw's and the pairs' pages: a static segment under /learn so a programme's lead can open them. */
+/** The draw's and the pairs' pages: a static segment under /learn so a programme's lead can open them, with one calm page for everybody else signed in. */
 function drawPage(what) {
   return {
     another: {
       ...PAGE_BASE,
-      "*": c("learn", `Not the group's live facilitator, the lead of the programme naming its run, or an admin: sent to /learn instead of ${what}.`),
+      "*": c("notForYou", `Not the group's live facilitator, the lead of the programme naming its run, or an admin: the one calm page that says ${what} is not for them, in place of ${what}.`),
       admin: c(200, `An admin opens any group's page: ${what}.`),
     },
     theirs: {
       lead: c(200, `Leads the programme naming the group's run: ${what}.`),
       facilitator: c(200, `A live facilitator of the group: ${what}.`),
-      participant: c("learn", `In the run's other group, and facilitates none: sent to /learn instead of ${what}.`),
+      participant: c("notForYou", `In the run's other group, and facilitates none: the one calm page that says ${what} is not for them, in place of ${what}.`),
     },
   };
 }

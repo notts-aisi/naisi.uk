@@ -80,6 +80,10 @@ const w = await makeFacilitatorWeekWorld("__facilitatorWeekSuite");
 const { world, at, reset, groupPage, reflectionsPage, namedReflectionsPage, leadWeekPage, leadReflectionsPage, groupQuestionPage, leadQuestionPage, attendanceTab, lib, call, routes } = w;
 
 const RUN_HOME = `/learn/${RUN.agi}`;
+const notForYou = await w.loadTs(join("lib", "courses", "notForYouWords.ts"));
+/** The group page's one calm page in place of itself: its heading and who it is for, and no week. */
+const isNotForYou = (drawn) =>
+  drawn.text.includes(notForYou.NOT_FOR_YOU_HEADING) && drawn.text.includes(notForYou.NOT_FOR_YOU_GROUP_PAGE) && !weekOf(drawn);
 const PROGRAMME = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
 
 /** What the page handed This week's work, or null. */
@@ -160,26 +164,26 @@ beforeEach(() => reset());
 describe("1. who opens a group's week", () => {
   const EVERYBODY = ["rahul", "sofia", "zach", "claudia", "tess", "lloyd", "yusuf", "tom", "chloe", "amara", "isaac", "nobody", null];
 
-  test("the group page draws the week for its two facilitators and an admin; everybody else is sent away; nothing writes", async () => {
+  test("the group page draws the week for its two facilitators and an admin; everybody else signed in is told the page is not theirs; nothing writes", async () => {
     const seen = {};
     for (const who of EVERYBODY) {
       const drawn = await groupPage(who);
-      seen[who ?? "signed out"] = drawn.to ?? (weekOf(drawn) ? "week" : "no week");
+      seen[who ?? "signed out"] = drawn.to ?? (weekOf(drawn) ? "week" : isNotForYou(drawn) ? "not for you" : "no week");
       assert.equal(drawn.wrote, false, `${who}'s page wrote something`);
     }
     assert.deepEqual(seen, {
       rahul: "week",
       sofia: "week",
       zach: "week",
-      claudia: RUN_HOME,
-      tess: RUN_HOME,
-      lloyd: RUN_HOME,
-      yusuf: RUN_HOME,
-      tom: RUN_HOME,
-      chloe: RUN_HOME,
-      amara: RUN_HOME,
-      isaac: RUN_HOME,
-      nobody: RUN_HOME,
+      claudia: "not for you",
+      tess: "not for you",
+      lloyd: "not for you",
+      yusuf: "not for you",
+      tom: "not for you",
+      chloe: "not for you",
+      amara: "not for you",
+      isaac: "not for you",
+      nobody: "not for you",
       "signed out": "/login",
     });
   });

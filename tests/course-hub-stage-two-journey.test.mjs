@@ -142,6 +142,8 @@ const STYLESHEETS = [
   "@/features/courses/facilitator/facilitator.module.css",
   // The box at the top of the group page and the register: who is joining a session online.
   "./JoiningOnlineBox.module.css",
+  // The calm page a group's own pages draw for somebody they do not admit.
+  "./notForYou.module.css",
   // This week's work's Reopen (the week you submit): its button's sheet and the confirm's.
   "./written.module.css",
   "./Modal.module.css",
