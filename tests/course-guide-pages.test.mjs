@@ -582,6 +582,117 @@ describe("5. the ways to the two pages, each only when its document exists", () 
 });
 
 // ---------------------------------------------------------------------------
+// 5b. The facilitator guide's row, for the people it is for and nobody else
+// ---------------------------------------------------------------------------
+
+/**
+ * The programme page's server half as `who`: the element it hands its client
+ * component, and the collections it asked the Admin SDK for.
+ */
+async function programmeAs(who) {
+  const real = w.world.courseDb;
+  const asked = new Set();
+  w.world.user = w.sessionOf(who);
+  w.world.course = true;
+  w.world.courseDb = new Proxy(real, {
+    get(target, key) {
+      if (key === "collection") {
+        return (name) => {
+          asked.add(name);
+          return target.collection(name);
+        };
+      }
+      const value = target[key];
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  try {
+    const element = await pages.programme({ params: Promise.resolve({ runId: RUN.agi }) });
+    return { element, asked };
+  } finally {
+    w.world.course = false;
+    w.world.courseDb = real;
+  }
+}
+
+/** One document of AGI Strategy's facilitator guide, stored as the loader stores it. */
+function guideDoc(slot, title) {
+  w.world.db.seed(`courseFacilitatorGuide/${COURSE.agi}__${slot}`, {
+    courseId: COURSE.agi,
+    slot,
+    weekNumber: Number(slot.slice(1, 3)),
+    title,
+    blocks: [{ type: "p", runs: [{ text: "The plan." }] }],
+  });
+}
+
+describe("5b. the facilitator guide on the programme page, for the people it is for and nobody else", () => {
+  test("somebody taking part: the page asks nothing of the guide and hands its client component nothing about it", async () => {
+    guideDoc("w01-plan", "Session 1: First look");
+    guideDoc("w03-plan", "Session 3: Reading the sky");
+    await loadBoth();
+    const { element, asked } = await programmeAs("chloe");
+    assert.equal(asked.has("courseFacilitatorGuide"), false, "a member's page read the guide");
+    assert.equal("facilitatorGuide" in element.props, false);
+    assert.doesNotMatch(JSON.stringify(element.props), /facilitator-guide|facilitatorGuide|Facilitator guide|Reading the sky|First look/);
+    await w.asBrowser("chloe", 3);
+    const text = textOf(renderToStaticMarkup(createElement(w.components.RunHome, element.props)));
+    assert.match(text, /About this course/);
+    assert.doesNotMatch(text, /Facilitator guide|Only facilitators/);
+  });
+
+  test("a facilitator and an admin: About this course gains the guide's row, and draws for it alone on a run with neither of its others", async () => {
+    guideDoc("w03-plan", "Session 3: Reading the sky");
+    for (const who of ["rahul", "zach"]) {
+      const { element, asked } = await programmeAs(who);
+      assert.ok(asked.has("courseFacilitatorGuide"), who);
+      assert.deepEqual(element.props.facilitatorGuide, { courseId: COURSE.agi, weeks: [3] }, who);
+      assert.equal("guide" in element.props, false, `${who}: the run has neither Start here nor a Glossary`);
+      await w.asBrowser(who, 3);
+      const text = textOf(renderToStaticMarkup(createElement(w.components.RunHome, element.props)));
+      inOrder(text, ["About this course", "Facilitator guide", "Only facilitators, the programme’s lead and admins see this."]);
+      assert.doesNotMatch(text, /Start here|Glossary/, who);
+    }
+  });
+
+  test("nothing loaded: the row is still there for a facilitator, and no week is linked", async () => {
+    const { element } = await programmeAs("rahul");
+    assert.deepEqual(element.props.facilitatorGuide, { courseId: COURSE.agi, weeks: [] });
+    await w.asBrowser("rahul", 3);
+    const text = textOf(renderToStaticMarkup(createElement(w.components.RunHome, element.props)));
+    // The group cards are drawn by the panel this world stubs; they are drawn in full in
+    // tests/course-facilitator-guide-links.test.mjs, section 5.
+    inOrder(text, ["About this course", "Facilitator guide", "Only facilitators, the programme’s lead and admins see this."]);
+    assert.doesNotMatch(text, /Facilitator guide for week/);
+  });
+
+  test("a read of the guide that throws never takes the page down: a facilitator keeps the row", async (t) => {
+    t.mock.method(console, "error", () => {});
+    const { element } = await (async () => {
+      const broken = w.world.courseDb;
+      w.world.courseDb = new Proxy(broken, {
+        get(target, key) {
+          if (key === "collection") {
+            return (name) => {
+              if (name === "courseFacilitatorGuide") throw new Error("the guide's read failed");
+              return target.collection(name);
+            };
+          }
+          const value = target[key];
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+      try {
+        return await programmeAs("rahul");
+      } finally {
+        w.world.courseDb = broken;
+      }
+    })();
+    assert.deepEqual(element.props.facilitatorGuide, { courseId: COURSE.agi, weeks: [] });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 6. Copies
 // ---------------------------------------------------------------------------
 
