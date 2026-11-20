@@ -76,13 +76,13 @@ export async function readUnloadedWeeks(
   if (groups.length > 0 && themeRunId && groups.some((group) => group.runId === themeRunId)) {
     const weeks = await db.collection("courseRuns").doc(themeRunId).collection("weeks").select("weekNumber", "title", "published").get();
     themes = new Map(
-      weeks.docs.flatMap((doc) => {
+      weeks.docs.flatMap((doc): [number, string][] => {
         const data = doc.data() ?? {};
         const weekNumber = data.weekNumber;
         // A title its members read: a published week's alone.
         if (data.published !== true || typeof weekNumber !== "number" || typeof data.title !== "string") return [];
         const theme = memberWeekTheme(data.title, weekNumber);
-        return theme ? [[weekNumber, theme] as [number, string]] : [];
+        return theme ? [[weekNumber, theme]] : [];
       }),
     );
   }
@@ -108,7 +108,7 @@ export async function aLeadLoadsGuide(db: Firestore, reader: GuideReader): Promi
     const forms = await listForms(db);
     for (const runId of live) {
       const naming = namingProgrammeIn(forms, runId);
-      if (naming?.leadUid && (await readRunLead(db, runId, naming))) return true;
+      if (naming && (await readRunLead(db, runId, naming))) return true;
     }
     return false;
   } catch {
