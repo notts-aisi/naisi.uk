@@ -228,16 +228,43 @@
   justify-content: space-between;
   gap: 10px;
   min-height: 2.5rem;
-  padding: 0 var(--space-3);
+  /* The block padding is room for a name that wraps (a group's name can be
+     80 characters); a one-line row is the min-height whatever it is. */
+  padding: var(--space-1) var(--space-3);
+  /* A long name, or one long word, wraps inside the row rather than running
+     out of the sidebar or the phone's Menu. */
+  overflow-wrap: anywhere;
   border-radius: var(--radius-md);
   font-size: var(--text-ui);
   font-weight: 500;
   color: var(--color-text-muted);
   transition: background var(--transition-fast), color var(--transition-fast);
 }
+.navLink > span:first-child {
+  min-width: 0;
+}
 .navLink:hover {
   background: var(--color-surface);
   color: var(--color-text);
+}
+
+/* An entry with a line under its name, in the phone's Menu: the Facilitating
+   part's groups ("Wednesdays 3pm · Portland A21") and its guide (the course).
+   The row grows to hold both lines, and the line wraps rather than run under
+   anything. */
+.navText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-block: 6px;
+}
+.navDetail {
+  font-size: var(--text-caption);
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
 /* The current page: a lighter ground and a 2px accent line inside the left

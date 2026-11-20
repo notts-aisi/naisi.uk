@@ -195,8 +195,13 @@ export type TermRun = {
   groups: CourseGroupDoc[];
 };
 
-/** Each of the term's programmes that names a run that is there, with the run's live groups. */
-async function readRuns(db: Firestore, programmes: readonly TermProgramme[]): Promise<TermRun[]> {
+/**
+ * Each of the term's programmes that names a run that is there, with the run's
+ * live groups. `docs` is given every run document read, by id (null for one
+ * that is not there), so a later reader in the same request need not read it
+ * again (the menu's Facilitating part, `GET /api/messages`).
+ */
+async function readRuns(db: Firestore, programmes: readonly TermProgramme[], docs: Map<string, Data | null>): Promise<TermRun[]> {
   const read = await Promise.all(
     programmes.map(async ({ programmeId, settings }): Promise<TermRun | null> => {
       const runId = settings.runId;
@@ -205,6 +210,7 @@ async function readRuns(db: Firestore, programmes: readonly TermProgramme[]): Pr
         db.collection("courseRuns").doc(runId).get(),
         db.collection("courseGroups").where("runId", "==", runId).get(),
       ]);
+      docs.set(runId, run.exists ? ((run.data() ?? {}) as Data) : null);
       if (!run.exists) return null;
       const data = run.data() ?? {};
       if (data.destroying === true) return null;
@@ -341,6 +347,8 @@ export type TermRoles = {
   facilitates: string[];
   /** Each group whose tag this person may use: the groups they facilitate, and every group of a programme they lead. */
   tagGroups: string[];
+  /** Every run document the read fetched, by id, as stored (null for one that is not there). Read again by nobody. */
+  runDocs: ReadonlyMap<string, Record<string, unknown> | null>;
 };
 
 /** What this person runs of the term: the forms, the term's programmes' runs and their groups, and nothing about anybody else. */
@@ -354,7 +362,8 @@ export async function loadTermRoles(db: Firestore, viewer: SessionUser, now: Dat
         return [{ programmeId, key: programmeKey(form.round.id, programmeId), settings, name }];
       })
     : [];
-  const runs = form ? await readRuns(db, programmes) : [];
+  const runDocs = new Map<string, Data | null>();
+  const runs = form ? await readRuns(db, programmes, runDocs) : [];
   const leads = programmes
     .filter((programme) => isNamedWithStanding(viewer, "admissionRounds.leadUid", programme.settings.leadUid))
     .map((programme) => programme.key);
@@ -369,7 +378,7 @@ export async function loadTermRoles(db: Firestore, viewer: SessionUser, now: Dat
       if (led || facilitating) tagGroups.add(group.id);
     }
   }
-  return { form, programmes, runs, leads, facilitates: [...facilitates], tagGroups: [...tagGroups] };
+  return { form, programmes, runs, leads, facilitates: [...facilitates], tagGroups: [...tagGroups], runDocs };
 }
 
 // ---------------------------------------------------------------------------

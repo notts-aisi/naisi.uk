@@ -210,6 +210,21 @@ The flag and the query draw a link and decide nothing; the page and the routes
 ask the records again. Anybody else who opens `/messages` by its address reads
 one line saying who it is for.
 
+The same answer carries the menu's Facilitating part: `facilitating`, the live
+groups of live runs the caller is named to facilitate (from the day they are
+appointed, before Publish), in the order they meet, each as named fields only
+(its id, its run's id, its name, when it meets, its room unless a link or an
+address was typed into it, and its course's id and title for the guide), never
+a meeting link, an address or anybody's name
+(`src/lib/courses/facilitatingMenu.ts`). It costs a member or committee
+facilitator no read more when the term's form names their run (the runs the
+term's read fetched are handed on) and one run document for any other run, a
+lead the one query on their own groups, and an admin, who is now asked too,
+that query and one run document per run they facilitate. A failed read of the
+caller's groups or their runs answers none, never a refusal, and leaves
+whether Messages is drawn as it would have been without them; the menu is then
+the one somebody who facilitates nothing has. Nothing of it is kept in the browser.
+
 ### How it is sent
 
 The picker's rule, for the whole send, never a mix: a **programme notice**

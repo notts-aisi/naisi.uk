@@ -27,7 +27,7 @@ import {
   unsubscribeUrlFor,
   wordingOf,
 } from "@/lib/messages/sending";
-import { isApprovedAccount, messageWriterOf, writesMessages } from "@/lib/messages/writers";
+import { isApprovedAccount, menuAnswerOf, messageWriterOf } from "@/lib/messages/writers";
 import { MESSAGE_REFUSAL, becauseWords, countChangedWords, overCeilingWords } from "@/lib/messages/words";
 import { sendNoticePush } from "@/lib/push/noticeNotifications";
 
@@ -35,12 +35,17 @@ import { sendNoticePush } from "@/lib/push/noticeNotifications";
  * MESSAGES (docs/messages.md): one composer for writing to people, on the
  * picker ("Who is this for?").
  *
- * ## GET: does the menu draw Messages for the caller?
+ * ## GET: what the menu draws for the caller
  *
- * `{ writes }`, for every approved account: true for an admin, a programme's
- * lead and a group's facilitator (`writesMessages`), false for anybody else.
- * The menu asks it once when it opens, because who leads and who facilitates
- * is in the records and not on the session. It reads, and writes nothing.
+ * `{ writes, facilitating }`, for every approved account (`menuAnswerOf`).
+ * `writes`: true for an admin, a programme's lead and a group's facilitator
+ * of a published run, false for anybody else. `facilitating`: the live groups
+ * the caller facilitates, in the order they meet, each as named fields only
+ * (its id, its run's id, its name, when it meets, its room, and its course's
+ * id and title for the guide), never a meeting link, an address or anybody's
+ * name (`src/lib/courses/facilitatingMenu.ts`). The menu asks it once when it
+ * opens, because who leads and who facilitates is in the records and not on
+ * the session. It reads, and writes nothing.
  *
  * ## POST: the send
  *
@@ -91,7 +96,7 @@ export async function GET() {
   if (!isApprovedAccount(user)) return NextResponse.json({ error: MESSAGE_REFUSAL.notApproved }, { status: 403 });
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: MESSAGE_REFUSAL.notConfigured }, { status: 500 });
-  return NextResponse.json({ writes: await writesMessages(db, user, new Date()) });
+  return NextResponse.json(await menuAnswerOf(db, user, new Date()));
 }
 
 /** What one `sendEmail` or `sendNotice` did with its one address. */

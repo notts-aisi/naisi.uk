@@ -16,7 +16,16 @@
  *
  * To add an entry: one line in `APP_NAV` naming an address and a rule. To put
  * it in the phone's bottom bar as well: one more line in `BOTTOM_BAR`.
+ *
+ * One part of the menu is not a fixed list: Facilitating, whose entries are
+ * the groups the person facilitates and the guide to their courses, made
+ * from what `GET /api/messages` answers (`menuFor`). Its addresses are
+ * written here as shapes (`FACILITATING_ADDRESSES`), which the same test
+ * holds to page files.
  */
+
+import { FACILITATOR_GUIDE } from "@/lib/courses/facilitatorGuide/words";
+import { UNNAMED_GROUP_WORDS, facilitatingCourses, type FacilitatingGroup } from "@/lib/courses/facilitatingMenu";
 
 // ---------------------------------------------------------------------------
 // The menu
@@ -40,7 +49,8 @@ export type NavRule =
   | "admissions"
   | "courseAdmin"
   | "membershipAdmin"
-  | "messages";
+  | "messages"
+  | "facilitating";
 
 export type AdminSectionId = "people" | "programmes" | "publicity" | "surveys" | "reports" | "site";
 
@@ -56,6 +66,22 @@ export type NavEntry = {
   section?: AdminSectionId;
   /** The count drawn on the entry. Today there is one: people waiting to join. */
   count?: "joinRequests";
+  /**
+   * A line under the entry's name in the phone's Menu ("Wednesdays 3pm ·
+   * Portland A21"). Only the Facilitating part's entries carry one.
+   */
+  detail?: string;
+  /**
+   * Draw `detail` in the sidebar too, not only in the phone's Menu: set on
+   * two of a person's groups that share a name, so they can be told apart.
+   */
+  detailInSidebar?: boolean;
+  /**
+   * Other addresses this entry is the current one on, beside its own and
+   * those beneath it: a group's draw and pairs pages, which are not under
+   * the group's address.
+   */
+  also?: string[];
 };
 
 export type NavGroup = {
@@ -115,6 +141,108 @@ export const APP_NAV: NavGroup[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Facilitating: the part of the menu made for one person
+// ---------------------------------------------------------------------------
+
+/** The part's heading, in the sidebar and in the phone's Menu. */
+export const FACILITATING_LABEL = "Facilitating";
+
+/**
+ * The addresses the Facilitating part leads to, as shapes, each segment in
+ * brackets filled from the answer. `tests/app-frame.test.mjs` holds each to
+ * a page file and to the rule written down for it.
+ *
+ *  - `group`: a group's page, which the group's facilitators open;
+ *  - `guide`: one course's facilitator guide;
+ *  - `guides`: the short list of guides, for somebody facilitating on two
+ *    courses or more;
+ *  - `draw`, `pairs`: a group's draw and pairs pages, which light the
+ *    group's entry although they are not under its address.
+ */
+export const FACILITATING_ADDRESSES = {
+  group: "/learn/[runId]/group/[groupId]",
+  guide: "/learn/facilitator-guide/[courseId]",
+  guides: "/learn/facilitator-guide",
+  draw: "/learn/draw/[groupId]",
+  pairs: "/learn/pairs/[groupId]",
+} as const;
+
+/** A shape with its bracketed segments filled, each encoded as one segment. */
+export function fillAddress(shape: string, values: Record<string, string>): string {
+  return shape.replace(/\[(\w+)\]/g, (_, key: string) => encodeURIComponent(values[key] ?? ""));
+}
+
+/** "Wednesdays 3pm · Portland A21": when a group meets and where, each that is known. */
+export function facilitatingDetailWords(slot: string, room: string): string {
+  return [slot.trim(), room.trim()].filter(Boolean).join(" · ");
+}
+
+/** "AGI Strategy", "AGI Strategy and Technical AI Safety", "A, B and C". */
+export function titlesWords(titles: readonly string[]): string {
+  const named = titles.map((title) => title.trim()).filter(Boolean);
+  if (named.length <= 1) return named[0] ?? "";
+  return `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}`;
+}
+
+/**
+ * The Facilitating part for these groups, or null with none: each group by
+ * its name, in the order the answer lists them (the order they meet), then
+ * the facilitator guide. With one course the guide's entry opens that
+ * course's guide; with two or more, the short list of each one's.
+ */
+export function facilitatingPartOf(groups: readonly FacilitatingGroup[]): NavGroup | null {
+  if (groups.length === 0) return null;
+  const courses = facilitatingCourses(groups);
+  const labelOf = (group: FacilitatingGroup) => group.name.trim() || UNNAMED_GROUP_WORDS;
+  const shared = (group: FacilitatingGroup) => groups.filter((other) => labelOf(other) === labelOf(group));
+  // Two groups by one name are told apart by when and where they meet, and,
+  // when that is the same too, by their course.
+  const detailOf = (group: FacilitatingGroup) => {
+    const own = facilitatingDetailWords(group.slot, group.room);
+    const twins = shared(group);
+    const sameDetail = twins.filter((other) => facilitatingDetailWords(other.slot, other.room) === own).length > 1;
+    return sameDetail ? [own, group.courseTitle.trim()].filter(Boolean).join(" · ") : own;
+  };
+  return {
+    label: FACILITATING_LABEL,
+    entries: [
+      ...groups.map(
+        (group): NavEntry => ({
+          label: labelOf(group),
+          href: fillAddress(FACILITATING_ADDRESSES.group, { runId: group.runId, groupId: group.groupId }),
+          rule: "facilitating",
+          detail: detailOf(group),
+          ...(shared(group).length > 1 ? { detailInSidebar: true } : {}),
+          also: [
+            fillAddress(FACILITATING_ADDRESSES.draw, { groupId: group.groupId }),
+            fillAddress(FACILITATING_ADDRESSES.pairs, { groupId: group.groupId }),
+          ],
+        }),
+      ),
+      {
+        label: FACILITATOR_GUIDE,
+        href:
+          courses.length === 1
+            ? fillAddress(FACILITATING_ADDRESSES.guide, { courseId: courses[0].courseId })
+            : FACILITATING_ADDRESSES.guides,
+        rule: "facilitating",
+        detail: titlesWords(courses.map((course) => course.courseTitle)),
+      },
+    ],
+  };
+}
+
+/**
+ * The whole menu for somebody facilitating these groups: `APP_NAV` with the
+ * Facilitating part after the first group. With no groups, `APP_NAV` itself,
+ * so somebody who facilitates nothing is drawn exactly the menu they had.
+ */
+export function menuFor(groups: readonly FacilitatingGroup[]): NavGroup[] {
+  const part = facilitatingPartOf(groups);
+  return part ? [APP_NAV[0], part, ...APP_NAV.slice(1)] : APP_NAV;
+}
+
+// ---------------------------------------------------------------------------
 // The phone's bottom bar
 // ---------------------------------------------------------------------------
 
@@ -131,6 +259,46 @@ export const BOTTOM_BAR: { label: string; href: string }[] = [
 ];
 
 export const BOTTOM_BAR_MENU_LABEL = "Menu";
+
+/** A facilitator's bar: their group (or groups) and the guide, after Home and Programme. */
+export const BAR_GROUP_LABEL = "Group";
+export const BAR_GROUPS_LABEL = "Groups";
+export const BAR_GUIDE_LABEL = "Guide";
+
+/** The words of `BOTTOM_BAR` a facilitator's bar keeps. Profile is one press away, in Menu. */
+const FACILITATOR_BAR_KEEPS = [HOME_HREF, "/learn"];
+
+/** One word in the bar: where it goes, and the entries it is lit for. */
+export type BarWord = { label: string; href: string; lights: string[] };
+
+/**
+ * The words in the phone's bottom bar for one person, left to right, before
+ * Menu, which the shell always draws last.
+ *
+ * Everybody but a facilitator: `BOTTOM_BAR`'s words for the entries they
+ * have, each lit on its own entry, as the bar always was. A facilitator
+ * (`facilitating`, the menu's Facilitating part): Home, Programme, then
+ * Group, to their group's page, lit there and on its draw and pairs pages
+ * (with two groups or more, Groups, to My programmes, which lists them, lit
+ * on any of their groups), then Guide, to the guide's entry.
+ */
+export function bottomBarFor(entries: readonly NavEntry[], facilitating: NavGroup | null): BarWord[] {
+  const has = (href: string) => entries.some((entry) => entry.href === href);
+  if (!facilitating) {
+    return BOTTOM_BAR.filter((word) => has(word.href)).map((word) => ({ ...word, lights: [word.href] }));
+  }
+  const guide = facilitating.entries[facilitating.entries.length - 1];
+  const groups = facilitating.entries.slice(0, -1);
+  const kept = BOTTOM_BAR.filter((word) => FACILITATOR_BAR_KEEPS.includes(word.href) && has(word.href)).map((word) => ({
+    ...word,
+    lights: [word.href],
+  }));
+  const group: BarWord =
+    groups.length === 1
+      ? { label: BAR_GROUP_LABEL, href: groups[0].href, lights: [groups[0].href] }
+      : { label: BAR_GROUPS_LABEL, href: "/learn", lights: groups.map((entry) => entry.href) };
+  return [...kept, group, { label: BAR_GUIDE_LABEL, href: guide.href, lights: [guide.href] }];
+}
 
 // ---------------------------------------------------------------------------
 // The admin area
@@ -334,13 +502,21 @@ export function isAtOrUnder(pathname: string, href: string): boolean {
  * "Settings" on Email delivery and "Reports" on This term in numbers. Null
  * when nothing the person is shown leads here.
  */
-export function currentEntry(entries: NavEntry[], pathname: string): NavEntry | null {
+export function currentEntry(entries: readonly NavEntry[], pathname: string): NavEntry | null {
   const section = adminSectionFor(pathname);
   let best: NavEntry | null = null;
+  let bestLength = -1;
   for (const entry of entries) {
-    if (!isAtOrUnder(pathname, entry.href)) continue;
+    // The longest of the entry's addresses that holds the page: its own, or
+    // one of `also` (a group's draw and pairs pages).
+    const held = [entry.href, ...(entry.also ?? [])].filter((href) => isAtOrUnder(pathname, href));
+    if (held.length === 0) continue;
     if (entry.section && section && entry.section !== section.id) continue;
-    if (!best || entry.href.length > best.href.length) best = entry;
+    const length = Math.max(...held.map((href) => href.length));
+    if (!best || length > bestLength) {
+      best = entry;
+      bestLength = length;
+    }
   }
   if (best) return best;
   if (!section) return null;
