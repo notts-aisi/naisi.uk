@@ -4,6 +4,7 @@ import PairsEditor from "@/features/courses/pairs/PairsEditor";
 import draw from "@/features/courses/packsAndCases/packsAndCases.module.css";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import weekly from "@/features/courses/weekly/weekly.module.css";
+import NotForYou from "@/features/courses/facilitator/NotForYou";
 import { getSessionUser } from "@/features/courses/runAccess";
 import { isAddressableId } from "@/lib/addressableId";
 import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
@@ -38,7 +39,12 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * WHO (`drawGate`, the route's own gate, restated because a page's only
  * protection must not be a level above it): the group's live facilitators,
  * the lead of the programme that names the run, and admins. Everybody else
- * is sent to /learn, never told whether the group exists.
+ * signed in is given one calm page (`NotForYou`), the same bytes for a real
+ * group that is not theirs, an archived one and an id that names nothing, so
+ * it never says whether the group exists: never a redirect, and never
+ * `notFound()`, which answers an empty body in a page that matched its route.
+ * Its sentence names the lead, because this page admits the lead. Signed out
+ * still goes to sign in.
  *
  * A STATIC SEGMENT UNDER /learn, not `/learn/[runId]/...`, whose layout sends
  * away a programme's lead who holds no role on the run, as the draw's page
@@ -59,19 +65,19 @@ export default async function PairsPage({
   const [{ groupId }, query] = await Promise.all([params, searchParams]);
   const user = await getSessionUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(`/learn/pairs/${groupId}`)}`);
-  if (!isAddressableId(groupId)) redirect("/learn");
+  if (!isAddressableId(groupId)) return <NotForYou page="pairs" />;
 
   const db = getAdminDb();
-  if (!db) redirect("/learn");
+  if (!db) return <NotForYou page="pairs" />;
 
   const groupSnap = await db.collection("courseGroups").doc(groupId).get();
-  if (!groupSnap.exists) redirect("/learn");
+  if (!groupSnap.exists) return <NotForYou page="pairs" />;
   const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
   const gate = await drawGate(db, user, group);
-  if (!gate.ok || group.archived) redirect("/learn");
+  if (!gate.ok || group.archived) return <NotForYou page="pairs" />;
 
   const runSnap = group.runId ? await db.collection("courseRuns").doc(group.runId).get() : null;
-  if (!runSnap?.exists || (runSnap.data() ?? {}).destroying === true) redirect("/learn");
+  if (!runSnap?.exists || (runSnap.data() ?? {}).destroying === true) return <NotForYou page="pairs" />;
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
   // The week: asked for, or the week of the group's next session.
@@ -87,7 +93,7 @@ export default async function PairsPage({
     readDrawPeople(db, run.id, group, { isAdmin: gate.isAdmin }, now),
     readGroupWeek(db, run.id, groupId, weekNumber),
   ]);
-  if (!people) redirect("/learn");
+  if (!people) return <NotForYou page="pairs" />;
   const pairs = week ? await readGroupPairs(db, run.id, groupId, week, people) : null;
 
   const groupName = group.name.trim() || "Group";

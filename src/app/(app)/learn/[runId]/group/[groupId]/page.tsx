@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { firstName as firstNameOf } from "@/app/(app)/dashboard/homeWords";
 import GroupNotesCard from "@/features/courses/facilitator/GroupNotesCard";
 import JoiningOnlineBox from "@/features/courses/facilitator/JoiningOnlineBox";
+import NotForYou from "@/features/courses/facilitator/NotForYou";
 import {
   FacilitatorTicket,
   GroupPeopleCard,
@@ -170,10 +171,16 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * facilitate only while it is LIVE. Admins bypass it: an archived cohort is
  * exactly the thing an admin is asked to go back and look at.
  *
- * Redirects, never 403s: someone guessing group ids learns nothing about which
- * ones exist. And this is a UI gate: the register, the notes and the email
- * ROUTES re-derive the same access from the same documents and are the real
- * boundary.
+ * ONE CALM PAGE, never a 403, a redirect or `notFound()`: everybody the run
+ * layout admits and this gate does not is given `NotForYou`, the same bytes
+ * for a real group that is not theirs, an archived one, a group of another
+ * run and an id that names nothing, so someone guessing group ids learns
+ * nothing about which ones exist. It says the page is for a group's
+ * facilitators and admins: this page does not admit the programme's lead.
+ * Somebody with no role on the run, and every made-up run id, is still sent
+ * to My programmes by the layout before this page runs. And this is a UI
+ * gate: the register, the notes and the email ROUTES re-derive the same
+ * access from the same documents and are the real boundary.
  *
  * ── THE NOTES ───────────────────────────────────────────────────────────────
  * Read here, on the server, after this gate: the group's facilitators and
@@ -237,16 +244,16 @@ export default async function GroupHomePage({
 
   // Dynamic segments arrive URL-DECODED, so a `%2F` reaches us as a real path
   // separator and `doc()` would throw: a 500 out of a gate whose whole job is
-  // to redirect. Same guard `getRunAccess` applies to the run id.
+  // to refuse calmly. Same guard `getRunAccess` applies to the run id.
   if (!groupId || groupId.includes("/") || groupId === "." || groupId === "..") {
-    redirect(runHome);
+    return <NotForYou page="group" />;
   }
 
   const db = getAdminDb();
-  if (!db) redirect(runHome);
+  if (!db) return <NotForYou page="group" />;
 
   const groupSnap = await db.collection("courseGroups").doc(groupId).get();
-  if (!groupSnap.exists) redirect(runHome);
+  if (!groupSnap.exists) return <NotForYou page="group" />;
   const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
 
   // Live group only for a non-admin: the same predicate every route behind
@@ -259,7 +266,7 @@ export default async function GroupHomePage({
       group.facilitatorUids,
     );
   if (group.runId !== runId || !(access.isAdmin || facilitatesThisGroup)) {
-    redirect(runHome);
+    return <NotForYou page="group" />;
   }
 
   /**
