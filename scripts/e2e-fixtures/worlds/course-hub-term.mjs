@@ -2384,10 +2384,20 @@ async function sendRowsOf(state, surveyIds = [], messageIds = []) {
  *  - moving somebody to another group for good, mid-term
  *    (src/lib/courses/staffMove/limits.ts): one counter per person moved a
  *    day on the run (`staffmoved__<runId>__<uid>`), for every account of the term, and one per
- *    presser a day (`staffmover__<uid>`), for the admin and the lead.
+ *    presser a day (`staffmover__<uid>`), for the lead a fixture makes.
  * The pressers are the admin, while the ledger holds the admin's uid, the
  * term's facilitator, who writes to their group and finishes its register,
  * and, for giving a session, the programme's lead a fixture makes.
+ *
+ * Every id here carries a run, a group or an account this term made, so no
+ * other fixture's press can write one. A counter keyed on the admin's uid
+ * ALONE does not belong here: the admin is one account shared by every
+ * fixture on every machine of a run, so such a counter counted by every term
+ * reads another machine's press as this term's residue, and every term's
+ * teardown deletes it from under that machine's spec. The admin's
+ * `staffmover__<uid>` is counted and deleted by the one fixture whose spec
+ * moves somebody (`course-hub-staff-move.mjs`), as the visit's presser
+ * counter is by `course-hub-visit.mjs`.
  */
 function sendCounterIdsOf(state) {
   const audiences = [
@@ -2409,7 +2419,7 @@ function sendCounterIdsOf(state) {
   }
   for (const account of accountsOf(state)) ids.push(`emailrate__covergiven__${account.uid}`);
   for (const account of accountsOf(state)) ids.push(`emailrate__staffmoved__${state.runId}__${account.uid}`);
-  for (const uid of [state.adminUid, state.lead?.uid].filter(Boolean)) ids.push(`emailrate__staffmover__${uid}`);
+  if (state.lead?.uid) ids.push(`emailrate__staffmover__${state.lead.uid}`);
   return ids;
 }
 
