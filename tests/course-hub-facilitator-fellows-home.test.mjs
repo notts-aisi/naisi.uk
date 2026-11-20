@@ -90,7 +90,15 @@ describe("a facilitator who holds a place, on the hub, Home and their group's pa
     world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { allocatedEmailAt: null });
     const entry = await hubEntry("amara");
     assert.deepEqual(entry?.roles, ["facilitator"]);
-    assert.equal(JSON.stringify(entry).includes("Group A"), false, "the hub named the group of a place nobody has told them about");
+    // The place nobody has told them about is not named anywhere on the row. The group they
+    // facilitate is, as the group they facilitate and nothing more (My programmes' link to
+    // its page, which they open as its facilitator): it is the same group here, so it is
+    // checked apart from the rest of the row.
+    const { facilitates, ...rest } = entry;
+    assert.equal(rest.groupName, null);
+    assert.equal(JSON.stringify(rest).includes("Group A"), false, "the hub named the group of a place nobody has told them about");
+    assert.deepEqual(facilitates, [{ groupId: A, name: "Group A", slot: facilitates[0].slot, room: facilitates[0].room }]);
+    assert.deepEqual(Object.keys(facilitates[0]), ["groupId", "name", "slot", "room"]);
   });
 
   test("Home is the facilitator's Home, with one line to their own week", async () => {
