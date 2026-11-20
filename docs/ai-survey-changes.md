@@ -64,9 +64,9 @@ be sent ten codes a day where it could be sent five.
 
 What the page does: while the code step is shown, the page's address ends
 `#code`, one fixed word and nothing about the person, so a page that reloads
-there comes back to the code box after the start screen, whose ticks and
-consent question are asked again ([ai-survey.md](ai-survey.md), "Coming back
-to the code step"). "Send a new code" inside the minute still says "We've just
+there comes back to the code box once the start screen's button has been
+pressed again, with both boxes ticked and the consent answer given on that
+screen ([ai-survey.md](ai-survey.md), "Coming back to the code step"). "Send a new code" inside the minute still says "We've just
 sent you a code. Wait a minute before asking for another." One code a minute,
 five wrong tries for a code, fifteen minutes for a code and the ceiling an
 hour across the survey are as they were, and "You've asked for several codes

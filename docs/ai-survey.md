@@ -169,9 +169,10 @@ the address, the code or anything about the person, and a fragment is never
 sent to a server.
 
 A page that loads with it, with no pass kept in the browser and the survey
-taking new people, opens at the start screen as always: its ticks and consent
-question are asked again, because they are never stored. Its button then
-opens the code step with the address box beside the code box, under "This page
+taking new people, opens at the start screen as always, and its button has to
+be pressed again in that page load, with both boxes ticked and the consent
+answer given on that screen. Some browsers put back what was ticked before a
+reload; the page never stores it. The button then opens the code step with the address box beside the code box, under "This page
 reloaded, so type your University email again, then the code we sent you."
 The server allows it: the browser's own value is given when the code is
 checked, never when it is asked for, so a page that made its value after the

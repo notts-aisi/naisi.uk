@@ -756,7 +756,7 @@ describe("stages and storage", () => {
 // ---------------------------------------------------------------------------
 
 describe("the email check's steps", () => {
-  const { afterSend, alreadyHaveCode, arrive, asksForAddress, CODE_MARK, errorBox, LEAD_WORDS, opening } = steps;
+  const { afterSend, alreadyHaveCode, arrive, asksForAddress, CODE_MARK, errorBox, firstStep, LEAD_WORDS, opening } = steps;
   const errors = AI_SURVEY.emailCheck.errors;
   const flow = stripSource(
     readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "src/features/aiSurvey/SurveyFlow.tsx"), "utf8"),
@@ -784,31 +784,39 @@ describe("the email check's steps", () => {
   });
 
   test("a fresh load opens at the start screen, and comes back to the code box only with the mark, no kept pass and a survey taking people", () => {
-    assert.deepEqual(opening({ closed: false, hash: "", passKept: false }), { step: { at: "start" }, comeBack: false, dropMark: false });
-    assert.deepEqual(opening({ closed: false, hash: "#code", passKept: false }), { step: { at: "start" }, comeBack: true, dropMark: false });
+    assert.deepEqual(opening({ closed: false, hash: "", passKept: false }), { comeBack: false, dropMark: false });
+    assert.deepEqual(opening({ closed: false, hash: "#code", passKept: false }), { comeBack: true, dropMark: false });
     // A kept pass always wins, and the mark comes off.
-    assert.deepEqual(opening({ closed: false, hash: "#code", passKept: true }), { step: { at: "start" }, comeBack: false, dropMark: true });
-    assert.deepEqual(opening({ closed: false, hash: "", passKept: true }), { step: { at: "start" }, comeBack: false, dropMark: false });
+    assert.deepEqual(opening({ closed: false, hash: "#code", passKept: true }), { comeBack: false, dropMark: true });
+    assert.deepEqual(opening({ closed: false, hash: "", passKept: true }), { comeBack: false, dropMark: false });
     // A closed survey says so, with or without the mark, and the mark comes off.
-    assert.deepEqual(opening({ closed: true, hash: "#code", passKept: false }), { step: { at: "closed" }, comeBack: false, dropMark: true });
-    assert.deepEqual(opening({ closed: true, hash: "", passKept: false }), { step: { at: "closed" }, comeBack: false, dropMark: false });
+    assert.deepEqual(opening({ closed: true, hash: "#code", passKept: false }), { comeBack: false, dropMark: true });
+    assert.deepEqual(opening({ closed: true, hash: "", passKept: false }), { comeBack: false, dropMark: false });
     // The reload after the right code is its own mark, and is not this one.
-    assert.deepEqual(opening({ closed: false, hash: "#in", passKept: true }), { step: { at: "start" }, comeBack: false, dropMark: false });
+    assert.deepEqual(opening({ closed: false, hash: "#in", passKept: true }), { comeBack: false, dropMark: false });
     // Only the one word, exactly.
     for (const hash of ["#Code", "#code2", "#codes", "#code?x=1", "#/code", "code", "#"]) {
       assert.equal(opening({ closed: false, hash, passKept: false }).comeBack, false, hash);
     }
+    // The page's load acts on exactly this: the fragment as it is, the kept
+    // pass when the survey is open, the come-back held in memory, and the
+    // mark taken off when it is not acted on. Before anything else it does.
+    assert.match(
+      flow,
+      /useEffect\(\(\) => \{\s*const pass = closed \? null : keptPass\(\);\s*const opened = opening\(\{ closed, hash: window\.location\.hash, passKept: pass !== null \}\);\s*comeBack\.current = opened\.comeBack;\s*if \(opened\.dropMark\) markAddress\(null\);\s*if \(closed\) return;/,
+    );
+    // The kept pass read there is the one the page asks the server about.
+    assert.match(flow, /if \(!pass\) \{\s*clearMark\(\);\s*return;\s*\}[\s\S]{0,200}callSurvey<[^>]*>\("session", \{ pass \}\)/);
   });
 
   test("the start screen asks everything again: no load opens past it, and its button alone leads to the code box", () => {
-    for (const closed of [false, true]) {
-      for (const hash of ["", "#code", "#in"]) {
-        for (const passKept of [false, true]) {
-          const { step } = opening({ closed, hash, passKept });
-          assert.ok(step.at === "start" || step.at === "closed", `${closed} ${hash} ${passKept} opens at ${step.at}`);
-        }
-      }
-    }
+    // The first screen is the start screen, or the closed screen, and the
+    // page draws its first screen from this and nothing else: the address and
+    // the browser's storage are read only after it is drawn.
+    assert.deepEqual(firstStep(false), { at: "start" });
+    assert.deepEqual(firstStep(true), { at: "closed" });
+    assert.match(flow, /const \[step, setStep\] = useState<Step>\(\(\) => firstStep\(closed\)\);/);
+    assert.equal([...flow.matchAll(/useState<Step>/g)].length, 1);
     // The button asks for the email step and is given the code box, once.
     const first = arrive({ at: "address" }, true);
     assert.deepEqual(first, { step: codeStep("comeBack"), comeBack: false, mark: "#code" });
@@ -852,7 +860,7 @@ describe("the email check's steps", () => {
     assert.deepEqual(writes, ['""', "JUST_IN"]);
     const replaces = [...flow.matchAll(/replaceState\((.*?)\);/g)].map((m) => m[1]).sort();
     assert.deepEqual(replaces, ['null, "", wanted', 'null, "", window.location.href.split("#")[0]']);
-    assert.match(flow, /function markAddress\(mark: typeof CODE_MARK \| null\) \{\s*const bare = window\.location\.href\.split\("#"\)\[0\];\s*const wanted = mark \? `\$\{bare\}\$\{mark\}` : bare;/);
+    assert.match(flow, /function markAddress\(mark: typeof CODE_MARK \| null\) \{\s*const bare = window\.location\.href\.split\("#"\)\[0\];\s*const wanted = mark \? `\$\{bare\}\$\{mark\}` : bare;\s*if \(window\.location\.href !== wanted\) window\.history\.replaceState\(null, "", wanted\);\s*\}/);
     const marks = [...flow.matchAll(/markAddress\(([^)]*)\)/g)].map((m) => m[1]).filter((arg) => !arg.startsWith("mark:"));
     assert.deepEqual([...new Set(marks)].sort(), ["arrival.mark", "null"]);
     // Past the right code the mark comes off before the one reload, so going
@@ -915,5 +923,30 @@ describe("the email check's steps", () => {
     assert.equal(errorBox(codeStep("sent"), null, notUni), null);
     // Check my code sends the two together, as it always has, with this page's own value.
     assert.match(flow, /const body = \{ email: typed, code: digits, claim: claim\.current \};/);
+    // On the page: the code step draws the line its lead names, then the
+    // address box when the form asks for it, then the code box; each sentence
+    // under the box `errorBox` names; and the address box is the email step's own.
+    const codeForm = flow.slice(flow.indexOf('{step.at === "code" && ('), flow.indexOf('{step.at === "already" && ('));
+    assert.match(codeForm, /<form className=\{styles\.form\} onSubmit=\{onCode\} noValidate>\s*<p className=\{styles\.info\}>\{words\[LEAD_WORDS\[step\.lead\]\]\}<\/p>\s*\{asksForAddress\(step\) && emailField\}\s*<div className=\{styles\.field\}>\s*<label htmlFor="code"/);
+    assert.match(codeForm, /\{codeError && <ErrorLine id="code-err">\{codeError\}<\/ErrorLine>\}/);
+    assert.match(flow, /const box = errorBox\(step, fieldError, words\.errors\.notUniversityAddress\);\s*const emailError = box === "email" \? fieldError : null;\s*const codeError = box === "code" \? fieldError : null;/);
+    const emailField = flow.slice(flow.indexOf("const emailField = ("), flow.indexOf("return (", flow.indexOf("const emailField = (")));
+    assert.match(emailField, /<label htmlFor="email" className=\{styles\.fieldLabel\}>\s*\{words\.fieldLabel\}\s*<\/label>\s*<p id="email-help" className=\{styles\.small\}>\s*\{words\.fieldHelp\}\s*<\/p>/);
+    assert.match(emailField, /id="email"[\s\S]*type="email"[\s\S]*autoComplete="email"[\s\S]*value=\{address\}\s*onChange=\{\(event\) => setAddress\(event\.target\.value\)\}/);
+    assert.match(emailField, /\{emailError && <ErrorLine id="email-err">\{emailError\}<\/ErrorLine>\}/);
+    assert.match(flow, /<form className=\{styles\.form\} onSubmit=\{onAddress\} noValidate>\s*\{emailField\}/);
+  });
+
+  test("on the page, every press does what emailSteps.ts says, and nothing on the code step can be pressed twice at once", () => {
+    // What a press led to: the code box emptied when it says so, then the step, or the sentence.
+    assert.match(flow, /const follow = \(outcome: Outcome\) => \{\s*if \(outcome\.clearCode\) setCode\(""\);\s*if \(outcome\.go\) \{\s*go\(outcome\.go\);\s*return;\s*\}\s*setFieldError\(outcome\.error \? words\.errors\[outcome\.error\] : null\);\s*\};/);
+    assert.match(flow, /const result = await sendCode\(\);\s*if \(result\) follow\(afterSend\(from, result, words\.errors\)\);/);
+    assert.match(flow, /const onAddress = async \(event: FormEvent\) => \{\s*event\.preventDefault\(\);\s*await send\("address"\);\s*\};/);
+    // The code step's two links wait while a code is being asked for, so a
+    // late answer cannot pull the page back to a step it has left.
+    const codeForm = flow.slice(flow.indexOf('{step.at === "code" && ('), flow.indexOf('{step.at === "already" && ('));
+    assert.match(codeForm, /disabled=\{busy\} onClick=\{\(\) => void send\(step\.lead\)\}>\s*\{words\.newCodeLink\}/);
+    assert.match(codeForm, /disabled=\{busy\} onClick=\{\(\) => go\(\{ at: "address" \}\)\}>\s*\{words\.differentEmailLink\}/);
+    assert.match(flow, /disabled=\{busy\} onClick=\{\(\) => follow\(alreadyHaveCode\(address\)\)\}>\s*\{words\.haveCodeLink\}/);
   });
 });
