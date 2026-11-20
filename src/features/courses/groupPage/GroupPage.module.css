@@ -549,6 +549,22 @@ li.pill {
   gap: var(--space-2);
 }
 
+/* A facilitator's card drawn inside another (each week's meeting link,
+   inside how the group meets): a part of that card under a rule, not a card
+   on a card. Two classes deep, so it outranks the card's own padding at
+   every width. */
+.facCard .facCard {
+  padding: var(--space-4) 0 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
+  background: none;
+}
+
+.facCard .facCard .cardTitle {
+  font-size: var(--text-lg);
+}
+
 /* The panels */
 
 .panel {
@@ -1296,6 +1312,10 @@ a.pill {
   }
   .card {
     padding: var(--space-4);
+  }
+  /* A card inside a facilitator's card keeps its rule and no side padding. */
+  .facCard .facCard {
+    padding: var(--space-4) 0 0;
   }
   .meets {
     grid-template-columns: minmax(0, 1fr);

@@ -83,7 +83,7 @@ const READERS = {
   },
   "features/courses/facilitator/JoiningOnlineBox.tsx": {
     does: "saves",
-    why: "the facilitators' box at the top of the group page and the register: the field a facilitator types a week's link into, held to the group's own cap, which it sends to its route and never shows back",
+    why: "the facilitators' box under the session on the group page and at the top of the register: the field a facilitator types a week's link into, held to the group's own cap, which it sends to its route and never shows back",
   },
   "features/courses/GroupWeekEditor.tsx": {
     does: "shows",

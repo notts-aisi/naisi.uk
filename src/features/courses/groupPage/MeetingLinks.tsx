@@ -23,20 +23,34 @@ import styles from "./GroupPage.module.css";
  * admins, and asks again; nobody is emailed. In a view-as session
  * (`canChange` false) the list is drawn with nothing to press, as the box
  * about joining online draws its own.
+ *
+ * Its heading is an h2 unless its caller says otherwise: the group page draws
+ * it inside how the group meets, whose own heading is an h2, and asks for an
+ * h3 there, so the page's outline shows it as a part of that card.
  */
-export default function MeetingLinks({ view, canChange }: { view: GroupPageView; canChange: boolean }) {
+export default function MeetingLinks({
+  view,
+  canChange,
+  headingLevel = 2,
+}: {
+  view: GroupPageView;
+  canChange: boolean;
+  /** 3 where it is drawn inside a card whose own heading is an h2. */
+  headingLevel?: 2 | 3;
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [week, setWeek] = useState<{ weekNumber: number; sessionKey: string } | null>(null);
   const [opened, setOpened] = useState(0);
   const [said, setSaid] = useState<string | null>(null);
   if (view.weeks.length === 0) return null;
+  const Heading = headingLevel === 3 ? "h3" : "h2";
 
   return (
     <section className={`${styles.card} ${styles.facCard}`} aria-labelledby="meeting-links">
-      <h2 id="meeting-links" className={styles.cardTitle}>
+      <Heading id="meeting-links" className={styles.cardTitle}>
         {W.MEETING_LINKS}
-      </h2>
+      </Heading>
       {said && (
         <p className={styles.said} role="status">
           {said}

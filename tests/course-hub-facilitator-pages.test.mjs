@@ -41,6 +41,7 @@ import { fileURLToPath } from "node:url";
 import { enrolment, registerPath, switches } from "./lib/hubAttendanceWorld.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
 import { B, C, NOW, RUN, facilitatorSeed, find, makeFacilitatorPagesWorld } from "./lib/facilitatorPagesWorld.mjs";
+import { laptopLayout, phoneOrder } from "./lib/groupPageOrder.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
@@ -352,10 +353,12 @@ describe("2. the group page in week 3, as the facilitator's group page draws it"
     assert.equal(find(odd.element, "ReviewQueue")[0].props.initialWeek, 3);
   });
 
-  test("updates: the card the group's page already had, here beside the work to review", async () => {
+  test("updates: the card the group's page already had, over how the group meets, and the pace still under the registers", async () => {
     const drawn = await groupPage("rahul");
     assert.equal(find(drawn.element, "StaffUpdatesSection").length, 1);
-    assert.match(drawn.text, /Updates No updates yet\. Pace On pace with the programme\. Weeks & schedule →/);
+    // In the order of a session: the updates beside who is coming, over how the group meets.
+    assert.match(drawn.text, /In the room Coming Updates No updates yet\. AGI Strategy · Group B Tuesdays, 6pm to 8pm /);
+    assert.match(drawn.text, /Week 3 Tue 17 Nov Tonight Pace On pace with the programme\. Weeks & schedule → Notes for you/);
   });
 
   test("pace: a group pushed a week behind says so, and its chip is its own week", async () => {
@@ -594,8 +597,41 @@ describe("5. the words in week 1, before the first session and after the end", (
     assert.equal(parts.ticket, null);
     assert.match(
       drawn.text,
-      /Group B .* No more sessions are planned for your group\. There’s nothing in this course’s facilitator guide yet\. Claudia or an admin loads it, and it will show here\. Your group Weeks 1 and 2/,
+      /Group B .* No more sessions are planned for your group\. There’s nothing in this course’s facilitator guide yet\. Claudia or an admin loads it, and it will show here\. Updates No updates yet\. /,
     );
+    // Then, after how the group meets, the way to rate the group over the work to review, then the group.
+    assert.match(drawn.text, /No link Rate your group About two minutes a person\. To review 3 /);
+    assert.match(drawn.text, /Review exercises → Your group Weeks 1 and 2 /);
+    // The same in the markup, at both widths: the rate card over the work to review, both across the page between
+    // the two blocks; and with no session ahead the first block has no left column, so the right one takes the width.
+    const order = [
+      ["the card for no more sessions", 'data-testid="session-card"'],
+      ["the updates", 'aria-labelledby="group-updates"'],
+      ["how the group meets", 'aria-labelledby="group-meets-facilitator"'],
+      ["the rate card", 'aria-label="Rate your group"'],
+      ["the work to review", 'aria-labelledby="group-to-review"'],
+      ["your group", 'aria-labelledby="group-people"'],
+      ["the registers", 'aria-labelledby="group-registers"'],
+      ["the pace", 'aria-labelledby="group-pace"'],
+      ["the notes", 'aria-labelledby="group-notes"'],
+    ];
+    const place = phoneOrder(drawn.html, order);
+    const { blocks, column, where } = laptopLayout(drawn.html);
+    assert.deepEqual(
+      order.map(([name]) => [name, where(place[name])]),
+      [
+        ["the card for no more sessions", "across"],
+        ["the updates", "block 1 right"],
+        ["how the group meets", "block 1 right"],
+        ["the rate card", "across"],
+        ["the work to review", "across"],
+        ["your group", "block 2 left"],
+        ["the registers", "block 2 left"],
+        ["the pace", "block 2 right"],
+        ["the notes", "block 2 right"],
+      ],
+    );
+    assert.equal(column(blocks[0], "colMain"), null, "an empty left column is drawn after the last session");
     assert.doesNotMatch(drawn.html, /weekChip/);
     assert.deepEqual(
       parts.registers.registers.map((row) => [row.weekNumber, row.state]),

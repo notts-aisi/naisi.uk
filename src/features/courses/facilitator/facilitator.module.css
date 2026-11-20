@@ -25,6 +25,17 @@
   container-name: facilitator;
 }
 
+/* Everything under the head, in the one order a facilitator uses it: the
+   session, then a block of two columns (who is coming on the left, the
+   week, the updates and how the group meets on the right), the review
+   queue, This week's work, and the group beside the pace and the notes. */
+.groupRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
 /* 44px to press, its margins giving the extra height back to the head. */
 .crumb {
   display: inline-flex;
@@ -2184,9 +2195,16 @@
 }
 
 /* === The group page in one column, as the phone board draws it ===
-   The two columns stack, the main one first: the ticket, the group and the
-   registers, then the work to review, the updates, the pace and the notes. */
+   Each block of two columns stacks, the main one first, so the page reads in
+   its markup's order: the session; who is joining online, Before the
+   session, the pathways and the pairs; who has done the week, the updates
+   and how the group meets with its meeting links; the review queue; This
+   week's work; the group and the registers; the pace and the notes. */
 @container facilitator (max-width: 51.24rem) {
+  .groupRows {
+    gap: var(--space-4);
+  }
+
   .columns {
     flex-direction: column;
     align-items: stretch;

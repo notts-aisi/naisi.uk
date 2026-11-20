@@ -27,6 +27,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { walkSource } from "./lib/functionScan.mjs";
 import { A, B, C, NOW, PAIRS_ONLY, PAIRS_WITH_LAPTOPS, RUN, W2_SESSION, W3_SESSION, makePairsWorld, textOf } from "./lib/pairsWorld.mjs";
+import { laptopLayout, phoneOrder } from "./lib/groupPageOrder.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
@@ -478,6 +479,39 @@ describe("3. the pairs page and the group page's card", () => {
     // Before anybody is paired.
     w.reset();
     inOrder((await w.groupPage("sofia")).text, ["Pairs in Group B", "Nobody is paired yet.", "Pair people up"]);
+  });
+
+  test("the pairs sit where a facilitator meets them: after Before the session and the spread in the left column, over who has done the week on the right", async () => {
+    w.seedGroupB();
+    for (const who of ["rahul", "zach"]) {
+      const { html } = await w.groupPage(who);
+      const order = [
+        ["the session", 'data-testid="session-card"'],
+        ["before the session", 'aria-labelledby="before-the-session"'],
+        ["the spread", 'aria-labelledby="group-spread"'],
+        ["the pairs", 'aria-labelledby="group-pairs"'],
+        ["who has done the week", 'data-testid="week-work-count"'],
+        ["the updates", 'aria-labelledby="group-updates"'],
+        ["how the group meets", 'aria-labelledby="group-meets-facilitator"'],
+        ["this week's work", 'aria-labelledby="this-weeks-work"'],
+      ];
+      const at = phoneOrder(html, order);
+      const { where } = laptopLayout(html);
+      assert.deepEqual(
+        order.map(([name]) => [name, where(at[name])]),
+        [
+          ["the session", "across"],
+          ["before the session", "block 1 left"],
+          ["the spread", "block 1 left"],
+          ["the pairs", "block 1 left"],
+          ["who has done the week", "block 1 right"],
+          ["the updates", "block 1 right"],
+          ["how the group meets", "block 1 right"],
+          ["this week's work", "across"],
+        ],
+        who,
+      );
+    }
   });
 
   test("the card is drawn only for a week that asks: not for Group A's week without pairs, and not on a week written before blocks", async () => {

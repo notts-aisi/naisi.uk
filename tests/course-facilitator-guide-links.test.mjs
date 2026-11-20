@@ -39,6 +39,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { COURSE, NOW, RUN, find, makeFacilitatorGuideWorld, textOf } from "./lib/facilitatorGuideWorld.mjs";
 import { A, B } from "./lib/facilitatorPagesWorld.mjs";
+import { laptopLayout, phoneOrder } from "./lib/groupPageOrder.mjs";
 import { enrolment } from "./lib/hubAttendanceWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
@@ -328,6 +329,18 @@ describe("3. the group page", () => {
       sentence: null,
     });
     assert.match(drawn.html, new RegExp(`No more sessions are planned for your group\\.</p><div class="ticketButtons"><a href="${escape(AGI_GUIDE)}" class="ticketGuide"><span>Facilitator guide</span>`));
+    // Where the ticket was: straight under the head, across the page, over the updates; and with no session ahead
+    // nobody is joining or coming, so the first block has no left column and the right one takes the width.
+    const place = phoneOrder(drawn.html, [
+      ["the head", '<header class="head"'],
+      ["the card for no more sessions", 'data-testid="session-card"'],
+      ["the updates", 'aria-labelledby="group-updates"'],
+    ]);
+    const { blocks, column, where } = laptopLayout(drawn.html);
+    assert.equal(where(place["the card for no more sessions"]), "across");
+    assert.ok(place["the card for no more sessions"] < blocks[0].from, "the card for no more sessions is not over the first block");
+    assert.equal(where(place["the updates"]), "block 1 right");
+    assert.equal(column(blocks[0], "colMain"), null, "an empty left column is drawn after the last session");
   });
 
   test("a group with no dates yet: a small card with the guide alone", async () => {
@@ -340,6 +353,15 @@ describe("3. the group page", () => {
     assert.deepEqual(card, { week: null, standing: { href: AGI_GUIDE, label: "Facilitator guide" }, sentence: null });
     assert.match(drawn.html, new RegExp(`<section class="card" aria-label="Facilitator guide"><div class="ticketButtons"><a href="${escape(AGI_GUIDE)}"`));
     assert.doesNotMatch(drawn.text, /No more sessions/);
+    // In the session's place: straight under the head, across the page, over the first block.
+    const place = phoneOrder(drawn.html, [
+      ["the head", '<header class="head"'],
+      ["the card with the guide alone", 'aria-label="Facilitator guide"'],
+      ["the updates", 'aria-labelledby="group-updates"'],
+    ]);
+    const { blocks, where } = laptopLayout(drawn.html);
+    assert.equal(where(place["the card with the guide alone"]), "across");
+    assert.ok(place["the card with the guide alone"] < blocks[0].from, "the card with the guide alone is not over the first block");
   });
 });
 

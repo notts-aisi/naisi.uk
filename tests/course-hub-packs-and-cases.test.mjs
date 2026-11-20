@@ -26,6 +26,7 @@ import { after, before, beforeEach, describe, mock, test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { A, B, C, D, NOW, RUN, W2, W3, makePacksAndCasesWorld, textOf } from "./lib/packsAndCasesWorld.mjs";
+import { laptopLayout, phoneOrder } from "./lib/groupPageOrder.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
@@ -530,6 +531,37 @@ describe("3. the draw", () => {
     // The spread shows it to the group's facilitators: the draw is the group's logistics.
     const group = await w.groupPage("rahul");
     assert.match(group.text, /Technology 1 FH Farah/);
+  });
+
+  test("the spread sits where a facilitator meets it: under Before the session in the left column, over who has done the week on the right", async () => {
+    w.seedDraw("chloe", "w3", { pack: W3.elections, caseId: W3.surprise });
+    for (const who of ["rahul", "zach"]) {
+      const { html } = await w.groupPage(who);
+      const order = [
+        ["the session", 'data-testid="session-card"'],
+        ["before the session", 'aria-labelledby="before-the-session"'],
+        ["the spread", 'aria-labelledby="group-spread"'],
+        ["who has done the week", 'data-testid="week-work-count"'],
+        ["the updates", 'aria-labelledby="group-updates"'],
+        ["how the group meets", 'aria-labelledby="group-meets-facilitator"'],
+        ["this week's work", 'aria-labelledby="this-weeks-work"'],
+      ];
+      const at = phoneOrder(html, order);
+      const { where } = laptopLayout(html);
+      assert.deepEqual(
+        order.map(([name]) => [name, where(at[name])]),
+        [
+          ["the session", "across"],
+          ["before the session", "block 1 left"],
+          ["the spread", "block 1 left"],
+          ["who has done the week", "block 1 right"],
+          ["the updates", "block 1 right"],
+          ["how the group meets", "block 1 right"],
+          ["this week's work", "across"],
+        ],
+        who,
+      );
+    }
   });
 
   test("only the group's own people are in its draw: nobody who left, nobody another group holds, nobody not told", async () => {

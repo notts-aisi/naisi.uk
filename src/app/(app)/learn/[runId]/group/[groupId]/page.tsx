@@ -98,15 +98,14 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * "Take the register" and each register's "See it" lead
  * there.
  *
- * THE WEEK (a week written as blocks): the review queue beside the ticket,
+ * THE WEEK (a week written as blocks): the review queue,
  * its written answers half (the written answers piece) and its reflections
  * half, with "Read them" to the page where lines are picked to
  * read out (`./reflections`), and This week's work across the page under
  * them, with who ticked each source and the private notes left on it
  * (`src/lib/courses/facilitatorWeek/`). A facilitator is never shown a
  * facilitator's own work there, their own included; an admin is, marked as
- * theirs. The rows of cards follow the board: the ticket and the review
- * queue, then This week's work, then the group and the rest. Once a person's
+ * theirs. Once a person's
  * fill-in boxes are opened there ("Read it"), the page names them to the
  * first-read route, so the day each was first read is kept, never who.
  *
@@ -123,7 +122,7 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * the register says it for every session, from the moment somebody tells
  * us; the ticket's Take the register leads there.
  *
- * WHO HAS DONE THE WEEK, under how the group meets: "4 of 6 have done week
+ * WHO HAS DONE THE WEEK: "4 of 6 have done week
  * 1", its bar and Remind as a sheet, for the week the row of weeks chose
  * (`?week=1`) or the week the page opens on (`FacilitatorWeekWork`, from the
  * group's page's own reader). The group's fellows only, never a
@@ -132,18 +131,26 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * through the same function. Not for an incubator's group, whose weeks are
  * rows: the programme's page draws none for it either.
  *
- * JOINING ONLINE, at the top: for each session still to end where somebody
+ * JOINING ONLINE, under the session: for each session still to end where somebody
  * has said they are joining online, who, and while the session has no
  * meeting link, the field to add one for that week or for every week
  * (`joiningOnlineBox`, the register page's box too). Nobody is emailed.
  *
- * IN THE ORDER A FACILITATOR NEEDS IT BEFORE A SESSION, under how the group
- * meets: that box; "Before the session" (who has asked to be excused and is
- * waiting, who is excused, joining online, visiting from another group that
- * week, away at another group's session, and coming: `beforeTheSessionOf`,
- * from the group's page's own reader); who has done the week, with Remind;
- * then each week's meeting link as words, with the way to change one for
- * that week only or from it on. None of them carries a link or an address.
+ * IN THE ORDER A FACILITATOR USES THE PAGE, from one order in the markup
+ * (the phone reads it top to bottom; a laptop reads each `.columns` block as
+ * two columns, the left first): the head, with Write and Change a session;
+ * the next session (the notice of an evening off and the ticket, or the
+ * card in its place); on the left that box, "Before the session" (who has
+ * asked to be excused and is waiting, who is excused, joining online,
+ * visiting from another group that week, away at another group's session,
+ * and coming: `beforeTheSessionOf`, from the group's page's own reader), the
+ * spread and the pairs; on the right who has done the week, with Remind, the
+ * updates, and how the group meets with each week's meeting link inside it
+ * as words, with the way to change one for that week only or from it on;
+ * then the rate card and the review queue; This week's work; and last the
+ * group and the registers beside the pace and the notes. Neither the box,
+ * Before the session, who has done the week nor the list of meeting links
+ * carries a link or an address.
  *
  * THE FACILITATOR GUIDE, on the ticket, by the session card's one rule
  * (`src/lib/courses/facilitatorGuide/links.ts`): "Facilitator guide for week
@@ -419,7 +426,7 @@ export default async function GroupHomePage({
     loadWrittenQueueAndReadable(db, access.user, access.run, group),
   ]);
   const writtenQueue = queueRead?.rows ?? null;
-  // The box at the top: who is joining a session online, named as this
+  // The box under the session: who is joining a session online, named as this
   // reader is shown the group's people, and where a link is still wanted.
   // Nothing is offered to press in a view-as session, where nothing is written.
   const [joiningOnline, viewAs, meets] = await Promise.all([
@@ -546,8 +553,15 @@ export default async function GroupHomePage({
     leadFirstName: programme?.leadFirstName ?? null,
   });
 
-  // The page's cards, drawn once, and placed below by the shape of the week.
-  const ticketCards = (
+  // The page's cards, each drawn once, then placed below in the order a
+  // facilitator uses the page: the session, who is coming, the week's work,
+  // then the group.
+
+  // The next session: the notice of an evening off, then the ticket; once
+  // every session is over, Home's sentence where the ticket was, and the
+  // guide's course page still a tap away; a group with no dates yet has a
+  // small card with the guide alone.
+  const sessionCards = (
     <>
       {/* An evening is off: the notice the group reads, over the
           session it meets at next, as on their programme page. */}
@@ -575,26 +589,61 @@ export default async function GroupHomePage({
           explainer={explainer}
         />
       )}
-      {/* Every session the group holds is over: Home's sentence where the
-          ticket was, and the guide's course page still a tap away. A group
-          with no dates yet has a small card with the guide alone. */}
       {!facts && range.lastDateKey && <NoMoreSessionsCard guide={guideView} />}
       {!facts && !range.lastDateKey && <GuideOnlyCard guide={guideView} />}
-      {drawWeek && spread && (
-        <PathwaySpread
-          title={spreadTitleWords(drawWeek.draw, groupName)}
-          spread={spread}
-          changeHref={`/learn/draw/${encodeURIComponent(groupId)}?week=${drawWeek.weekNumber}`}
-          changeLabel={changeDrawWords(drawWeek.draw)}
-        />
-      )}
-      {pairsWeek && (
-        <PairsCard
-          groupName={groupName}
-          view={pairsWeek.view}
-          laptops={pairsWeek.ask.laptops}
-          changeHref={`/learn/pairs/${encodeURIComponent(groupId)}?week=${pairsWeek.weekNumber}`}
-        />
+    </>
+  );
+  // Who is coming and what they bring: who is joining a session online (with
+  // the field for its link), who has said what about the next session, the
+  // week's pathways and cases, and its pairs. The left of the laptop's two
+  // columns; on a phone, straight under the session.
+  const spreadCard =
+    drawWeek && spread ? (
+      <PathwaySpread
+        title={spreadTitleWords(drawWeek.draw, groupName)}
+        spread={spread}
+        changeHref={`/learn/draw/${encodeURIComponent(groupId)}?week=${drawWeek.weekNumber}`}
+        changeLabel={changeDrawWords(drawWeek.draw)}
+      />
+    ) : null;
+  const pairsCard = pairsWeek ? (
+    <PairsCard
+      groupName={groupName}
+      view={pairsWeek.view}
+      laptops={pairsWeek.ask.laptops}
+      changeHref={`/learn/pairs/${encodeURIComponent(groupId)}?week=${pairsWeek.weekNumber}`}
+    />
+  ) : null;
+  // The box draws nothing with nobody joining online, so the column is left
+  // out when none of its cards draws: the right one then takes the width.
+  const comingDraws = joiningOnline.length > 0 || Boolean(meets?.before) || spreadCard !== null || pairsCard !== null;
+  const comingCards = (
+    <>
+      {/* Who is joining a session online, and the field for its link. */}
+      <JoiningOnlineBox groupId={groupId} sessions={joiningOnline} canAdd={!viewAs} />
+      {/* Before the session: who has said what about the next one. */}
+      {meets?.before && <BeforeTheSession before={meets.before} />}
+      {spreadCard}
+      {pairsCard}
+    </>
+  );
+  // The week and the group's news: who has done the week the row of weeks
+  // chose, with Remind (an incubator's group has no week card, as on the
+  // programme's page); the updates; then how the group meets, its row of
+  // weeks and, inside it, each week's meeting link with the way to change
+  // one. The right of the laptop's two columns.
+  const weekCards = (
+    <>
+      {meets?.work && !meets.incubator && <FacilitatorWeekWork groupId={groupId} work={meets.work} />}
+      <StaffUpdatesSection updates={staffUpdateRows(updates)} headingId="group-updates" />
+      {meets && (
+        <FacilitatorMeets
+          view={meets}
+          eyebrow={[programme?.shortName ?? access.run.courseTitle, groupName].filter(Boolean).join(" · ")}
+          path={groupPath}
+        >
+          <MeetingLinks view={meets} canChange={!viewAs} headingLevel={3} />
+        </FacilitatorMeets>
       )}
     </>
   );
@@ -620,9 +669,8 @@ export default async function GroupHomePage({
     </>
   );
   const toReviewCard = <ToReviewCard rows={model.toReview} reviewHref={reviewHref} />;
-  const sideCards = (
+  const restCards = (
     <>
-      <StaffUpdatesSection updates={staffUpdateRows(updates)} headingId="group-updates" />
       {model.weeksBehind !== null && (
         <PaceCard weeksBehind={model.weeksBehind} editHref={group.archived ? null : `${groupPath}/edit`} />
       )}
@@ -638,10 +686,10 @@ export default async function GroupHomePage({
       />
     </>
   );
-  // The review queue, beside the ticket: its written answers
-  // half, on a run whose weeks are written as blocks (null on a run of the
-  // summer's weeks), and its reflections half, on a week written as blocks
-  // with something to reflect on.
+  // The review queue: its written answers half, on a run whose weeks are
+  // written as blocks (null on a run of the summer's weeks), and its
+  // reflections half, on a week written as blocks with something to reflect
+  // on.
   // An answer changed since its feedback opens the reading view at that answer, where both versions are drawn.
   const changedHref = (row: WrittenQueueRow) => {
     const read = row.changed ? readHref(row.uid, row.weekNumber) : null;
@@ -655,8 +703,8 @@ export default async function GroupHomePage({
     />
   ) : null;
   // Once the run's last session is over, the way to rate the group: its
-  // facilitators and admins, about two minutes a person. First in the side
-  // column, whichever shape the page takes.
+  // facilitators and admins, about two minutes a person. Over the review
+  // queue, whichever shape the page takes.
   const rateCard = runEndOf(access.run, access.groups, now).over ? (
     <section className={weekly.card} aria-label={RATINGS_WORDS.link}>
       <Link href={`${groupPath}/ratings`} className={facilitator.button}>
@@ -674,7 +722,24 @@ export default async function GroupHomePage({
       />
     ) : null;
   const summerWaiting = model.toReview.length > 0;
+  // The summer's exercises keep their own card while any of them waits, and
+  // on a run of the summer's weeks always (no written answers half there).
+  const toReviewDraws = groupWeek ? summerWaiting : writtenQueue === null || summerWaiting;
 
+  /*
+   * ONE ORDER, read top to bottom on a phone and as two columns on a laptop
+   * (the `.columns` blocks fold into one column, the left first, on a page
+   * narrower than 820px):
+   *
+   *   the head, with Write and Change a session;
+   *   the session (the notice and the ticket, or the cards in its place);
+   *   left: who is joining online, Before the session, the pathways and the
+   *   pairs; right: who has done the week, the updates, how the group meets
+   *   with its meeting links;
+   *   the rate card and the review queue;
+   *   This week's work;
+   *   left: your group and the registers; right: the pace and the notes.
+   */
   return (
     <div className={facilitator.page}>
       <div className={`${weekly.bar} ${facilitator.phoneBar}`}>
@@ -740,46 +805,20 @@ export default async function GroupHomePage({
         )}
       </header>
 
-      {/* How the group meets, Change one week, Set the link and the row of
-          weeks: added above what was here, which stays as it was. */}
-      {meets && (
-        <FacilitatorMeets
-          view={meets}
-          eyebrow={[programme?.shortName ?? access.run.courseTitle, groupName].filter(Boolean).join(" · ")}
-          path={groupPath}
-        />
-      )}
+      <div className={facilitator.groupRows}>
+        {sessionCards}
 
-      {/* Who is joining a session online, and the field for its link. */}
-      <JoiningOnlineBox groupId={groupId} sessions={joiningOnline} canAdd={!viewAs} />
+        <div className={facilitator.columns}>
+          {comingDraws && <div className={facilitator.colMain}>{comingCards}</div>}
+          <div className={facilitator.colSide}>{weekCards}</div>
+        </div>
 
-      {/* Before the session: who has said what about the next one. */}
-      {meets?.before && <BeforeTheSession before={meets.before} />}
+        {rateCard}
+        {writtenCard}
+        {queueCard}
+        {toReviewDraws && toReviewCard}
 
-      {/* Who has done the week the row above chose, and Remind. An
-          incubator's group has no week card, as on the programme's page. */}
-      {meets?.work && !meets.incubator && <FacilitatorWeekWork groupId={groupId} work={meets.work} />}
-
-      {/* Each week's meeting link, in words, and the way to change one. */}
-      {meets && <MeetingLinks view={meets} canChange={!viewAs} />}
-
-      {groupWeek ? (
-        /* A week written as blocks, in the board's rows: the ticket and the
-           review queue, This week's work across the page, then the group and
-           the rest. On a phone the rows stack in that order. */
-        <div className={facilitator.wkRows}>
-          <div className={facilitator.columns}>
-            <div className={facilitator.colMain}>{ticketCards}</div>
-            {(rateCard || writtenCard || queueCard || summerWaiting) && (
-              <div className={facilitator.colSide}>
-                {rateCard}
-                {writtenCard}
-                {queueCard}
-                {/* The summer's exercises keep their own card while any of them waits. */}
-                {summerWaiting && toReviewCard}
-              </div>
-            )}
-          </div>
+        {groupWeek && (
           <ThisWeeksWork
             week={groupWeek}
             groupName={groupName}
@@ -797,28 +836,13 @@ export default async function GroupHomePage({
             }
             emptyLine={model.notYetTold ? NAMES_WHEN_GROUPS_GO_OUT : undefined}
           />
-          <div className={facilitator.columns}>
-            <div className={facilitator.colMain}>{groupCards}</div>
-            <div className={facilitator.colSide}>{sideCards}</div>
-          </div>
-        </div>
-      ) : (
-        <div className={facilitator.columns}>
-          <div className={facilitator.colMain}>
-            {ticketCards}
-            {groupCards}
-          </div>
+        )}
 
-          <div className={facilitator.colSide}>
-            {rateCard}
-            {writtenCard}
-            {/* The summer's exercises keep their own card, on a run of the
-                summer's weeks or while any of them still waits. */}
-            {(writtenQueue === null || summerWaiting) && toReviewCard}
-            {sideCards}
-          </div>
+        <div className={facilitator.columns}>
+          <div className={facilitator.colMain}>{groupCards}</div>
+          <div className={facilitator.colSide}>{restCards}</div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
