@@ -214,9 +214,10 @@ type Props = {
   guide?: GuideLinks | null;
   /**
    * The course's facilitator guide, from the server page, for somebody the
-   * guide admits and nobody else (it is asked only for a facilitator, a lead
-   * or an admin, and handed on only when the guide's gate let them in or the
-   * page knows it would): the course and the weeks that have something
+   * guide admits and nobody else (it is asked only for a facilitator, a track
+   * lead, an admin or somebody who meets a programme lead's bar, and handed
+   * on only when the guide's gate let them in or the page knows it would):
+   * the course and the weeks that have something
    * loaded. "About this course" gains its "Facilitator guide" row, and each
    * group's card "Facilitator guide for week 2" when that week is loaded.
    * Absent for everybody else, so nothing about the guide reaches their page.

@@ -293,7 +293,7 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
           <p className={styles.quiet}>
             {group ? NO_MORE_SESSIONS : "You don’t have a group yet."}
           </p>
-          <div>
+          <div className={facilitator.groupLinkWraps}>
             <Link href={groupHref} className={styles.textLink}>
               {group ? openGroup : `Open ${entry.courseTitle}`}
               <ArrowRight />

@@ -39,6 +39,7 @@ import { walkSource } from "./lib/functionScan.mjs";
 import { GLOSSARY_MARKDOWN, START_HERE_MARKDOWN, glossaryDoc, startHereDoc } from "./lib/guideFixture.mjs";
 import { COURSE } from "./lib/handoverWorld.mjs";
 import { NOW, RUN, makeWeekBlocksPageWorld, textOf } from "./lib/weekBlocksPageWorld.mjs";
+import { B as GROUP_B, enrolment } from "./lib/hubAttendanceWorld.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
@@ -664,6 +665,27 @@ describe("5b. the facilitator guide on the programme page, for the people it is 
     // tests/course-facilitator-guide-links.test.mjs, section 5.
     inOrder(text, ["About this course", "Facilitator guide", "Only facilitators, the programme’s lead and admins see this."]);
     assert.doesNotMatch(text, /Facilitator guide for week/);
+  });
+
+  test("the programme's lead holding a place on the run: the gate is asked, and the row is offered because it lets them in", async () => {
+    guideDoc("w03-plan", "Session 3: Reading the sky");
+    // Claudia leads AGI Strategy, whose programme names the run, and holds a place in Group B, told.
+    w.world.db.seed(`courseEnrolments/${RUN.agi}__claudia`, enrolment("claudia", GROUP_B));
+    const { element, asked } = await programmeAs("claudia");
+    assert.ok(asked.has("courseFacilitatorGuide"), "the lead's page did not ask the guide");
+    assert.deepEqual(element.props.facilitatorGuide, { courseId: COURSE.agi, weeks: [3] });
+    await w.asBrowser("claudia", 3);
+    const text = textOf(renderToStaticMarkup(createElement(w.components.RunHome, element.props)));
+    inOrder(text, ["About this course", "Facilitator guide", "Only facilitators, the programme’s lead and admins see this."]);
+  });
+
+  test("somebody who meets a lead's bar and leads nothing that names the run: the gate is asked and refuses, and nothing is handed on", async () => {
+    guideDoc("w03-plan", "Session 3: Reading the sky");
+    // Tess leads Technical AI Safety, not AGI Strategy, and holds a place in Group B, told.
+    w.world.db.seed(`courseEnrolments/${RUN.agi}__tess`, enrolment("tess", GROUP_B));
+    const { element } = await programmeAs("tess");
+    assert.equal("facilitatorGuide" in element.props, false);
+    assert.doesNotMatch(JSON.stringify(element.props), /facilitator-guide|facilitatorGuide|Reading the sky/);
   });
 
   test("a read of the guide that throws never takes the page down: a facilitator keeps the row", async (t) => {

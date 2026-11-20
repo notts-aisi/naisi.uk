@@ -1040,10 +1040,30 @@
   color: var(--color-text-muted);
 }
 
-/* "Open Group C" under Home's register button. */
+/* "Open Group C" under Home's register button. A group's name can be 80
+   characters, so the link wraps rather than running off a phone: two
+   classes deep, so it outranks the text link's own nowrap. */
 .homeOpenGroup {
   display: flex;
   justify-content: center;
+  min-width: 0;
+}
+
+.homeOpenGroup > a,
+.groupLinkWraps > a {
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.homeOpenGroup > a {
+  text-align: center;
+}
+
+/* The same link in Home's card once no session is ahead, left aligned. */
+.groupLinkWraps {
+  min-width: 0;
 }
 
 .weekRow {

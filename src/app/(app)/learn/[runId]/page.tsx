@@ -13,7 +13,7 @@ import { pitchingCard } from "@/lib/courses/pitching/load";
 import { teamCardFor } from "@/lib/courses/teamPage/load";
 import { timeQuestionFor } from "@/lib/courses/timeAnswer/seat";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { NO_ENTRIES, messagesEntriesFor } from "@/lib/messages/handover";
 import LeftProgramme from "@/features/courses/leaving/LeftProgramme";
@@ -198,12 +198,20 @@ export default async function RunHomePage({
 
   // The course's facilitator guide: "About this course" gains its row, and
   // each group's card its week, for somebody the guide admits. Asked of the
-  // guide's own gate ONLY for a facilitator, a lead or an admin: a member's
-  // page asks nothing and is handed nothing about the guide. A read that
+  // guide's own gate ONLY for a facilitator, a track lead, an admin, or
+  // somebody who meets the bar a programme's lead is held to
+  // (`admissionRounds.leadUid`, decided on the session with no read, so an
+  // ordinary member's page asks nothing and is handed nothing about the
+  // guide; whether they lead a programme naming this run is the gate's own
+  // question, and the row is offered only when it lets them in). A read that
   // fails hands the course page's link on only to somebody the page knows
   // the guide admits (an admin, a facilitator of one of the run's live
   // groups), and never takes the page down.
-  const asksGuide = access.isFacilitator || access.isTrackLead || access.isAdmin;
+  const asksGuide =
+    access.isFacilitator ||
+    access.isTrackLead ||
+    access.isAdmin ||
+    holdsStanding(access.user, "admissionRounds.leadUid");
   const knownGuideReader =
     access.isAdmin ||
     access.groups.some((group) => !group.archived && isNamedWithStanding(access.user, "courseGroups.facilitatorUids", group.facilitatorUids));

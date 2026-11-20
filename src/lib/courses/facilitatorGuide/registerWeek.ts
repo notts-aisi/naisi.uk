@@ -5,9 +5,12 @@ import { sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
  * above the register's table.
  *
  *  - the session the address names (`?session=w03`), when the group holds it;
- *  - else the latest of the group's sessions that has started, the one the
- *    register's foot is about while it is taken and finished (a session in
- *    progress is that one);
+ *  - else the latest of the group's sessions that has started (a session in
+ *    progress is that one). This is not always the session the register's
+ *    foot is about: the foot takes the latest started session whose register
+ *    is not finished, and this page does not read which registers are
+ *    finished, so with week 2's unfinished and week 3's finished the foot is
+ *    about week 2 and this link is week 3's;
  *  - else, before any has started, the first still to come;
  *  - null when the group has no dated session.
  *

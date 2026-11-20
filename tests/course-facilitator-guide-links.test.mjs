@@ -32,7 +32,9 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { COURSE, NOW, RUN, find, makeFacilitatorGuideWorld, textOf } from "./lib/facilitatorGuideWorld.mjs";
@@ -55,6 +57,7 @@ async function me(who) {
   return answer.body.runs;
 }
 
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 const AGI_GUIDE = `/learn/facilitator-guide/${COURSE.agi}`;
 const GROUP_B = `/learn/${RUN.agi}/group/${B}`;
 const FAILED = { kind: "failed" };
@@ -249,6 +252,31 @@ describe("2. a facilitator's Home, in every state", () => {
     assert.doesNotMatch(home.text, /Open AGI Strategy/);
     // On a failed read too.
     assert.match((await homeWithGuide("rahul", "Rahul", FAILED)).text, /No more sessions are planned for your group\. Open Group B Facilitator guide$/);
+  });
+
+  test("Open Group B wraps rather than running off a phone: a group's name can be 80 characters", async (t) => {
+    const css = readFileSync(join(SRC, "features", "courses", "facilitator", "facilitator.module.css"), "utf8");
+    const rule = /\.homeOpenGroup > a,\s*\.groupLinkWraps > a \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    assert.match(rule, /white-space: normal;/);
+    assert.match(rule, /overflow-wrap: anywhere;/);
+    assert.match(rule, /max-width: 100%;/);
+    // Both of Home's links that carry the group's name sit in a wrapper the rule reaches.
+    const home = await homeWithGuide("rahul");
+    assert.match(home.html, new RegExp(`<div class="homeOpenGroup"><a href="${escape(GROUP_B)}" class="textLink">Open Group B`));
+    t.after(() => at(NOW));
+    at("2026-12-20T12:00:00Z");
+    const after = await homeWithGuide("rahul");
+    assert.match(after.html, new RegExp(`<div class="groupLinkWraps"><a href="${escape(GROUP_B)}" class="textLink">Open Group B`));
+    // The programme page's card: its links wrap inside the card.
+    const panelCss = readFileSync(join(SRC, "features", "courses", "FacilitatorGroupPanel.module.css"), "utf8");
+    const panelLink = /\.panelLink \{([^}]*)\}/.exec(panelCss)?.[1] ?? "";
+    assert.match(panelLink, /overflow-wrap: anywhere;/);
+    assert.match(panelLink, /max-width: 100%;/);
+    // My programmes' rows: the group's name and its day and room.
+    const cardCss = readFileSync(join(SRC, "features", "courses", "RunCard.module.css"), "utf8");
+    for (const name of ["doorName", "doorLine"]) {
+      assert.match(new RegExp(`\\.${name} \\{([^}]*)\\}`).exec(cardCss)?.[1] ?? "", /overflow-wrap: anywhere;/, name);
+    }
   });
 
   test("a failed read draws the course page's link alone; an answer still on its way draws nothing of the guide", async () => {
