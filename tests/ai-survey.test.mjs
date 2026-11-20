@@ -897,7 +897,7 @@ describe("the email check's steps", () => {
     for (const address of ["someone@nottingham.ac.uk", "  Someone@Nottingham.ac.uk ", "someone+survey@nottingham.ac.uk"]) {
       assert.deepEqual(alreadyHaveCode(address), { go: codeStep("sent"), error: null, clearCode: true }, address);
     }
-    for (const address of ["", "someone", "someone@gmail.com", "someone@exmail.nottingham.ac.uk", "someone@nottingham.ac.uk."]) {
+    for (const address of ["", "someone", "someone@gmail.com", "someone@cs.nottingham.ac.uk", "someone@nottingham.ac.uk."]) {
       assert.deepEqual(alreadyHaveCode(address), { go: null, error: "notUniversityAddress", clearCode: false }, address);
     }
     // It is a plain function of what is typed: nothing it could call.
