@@ -569,6 +569,30 @@
     display: flex;
   }
 
+  /* The way back can be a group's name, up to 80 characters: it is cut off
+     with an ellipsis on the bar, never pushing it sideways. The link keeps
+     the whole name as its words. With no title in the bar, the way back may
+     take the whole bar. */
+  .page .phoneBar > :first-child {
+    min-width: 0;
+  }
+
+  .page .phoneBar > :first-child:nth-last-child(2) {
+    flex: 1 1 auto;
+  }
+
+  .page .phoneBar > :first-child > a {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .page .phoneBar > :first-child > a > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .crumb {
     display: none;
   }

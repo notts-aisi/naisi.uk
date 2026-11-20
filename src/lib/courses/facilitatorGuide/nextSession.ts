@@ -5,7 +5,8 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
 /**
  * THE READER'S OWN GROUPS ON A COURSE, AS THE GUIDE'S PAGES USE THEM: the
  * card at the top of the course page ("Your next session"), the way back to
- * the group, and "Take the register" under a week's title.
+ * the group, and "Take the register" under a week's title, one row for each
+ * group whose session that week is next or in progress.
  *
  * The guide is addressed by course and knows nothing of the reader's group,
  * so the guide's gate (`./access.ts`), which already reads the course's
@@ -117,22 +118,33 @@ export function homeGroupOf(groups: readonly GuideGroup[], now: Date): GuideGrou
 }
 
 /**
- * The register "Take the register" opens from a week's page: that week's
- * session of the group, when it is the reader's session to take, which is
- * one that has started (in progress, or over, to put a mark right) or the
- * group's next one. Never a session called off, and never one further
- * ahead than the next: its register is not open yet. With two sessions in
- * the week, the latest started, else the next. Null when there is none.
+ * The register "Take the register" opens from a week's page, for one of the
+ * reader's groups: that week's session of the group, when it IS the group's
+ * next session or is in progress now (started and not yet ended). Never a
+ * session that is over, called off or further ahead than the next: putting
+ * a finished register right is done from the group's own page, as before.
+ * Null when there is none. Decided for each group on its own.
  */
 export function registerSessionFor(group: GuideGroup, weekNumber: number, now: Date): GuideSession | null {
   const next = nextSessionOf(group, now);
-  let started: GuideSession | null = null;
+  const at = now.getTime();
   for (const session of group.sessions) {
-    if (session.weekNumber !== weekNumber || session.cancelled || session.startsAt === null) continue;
-    if (session.startsAt <= now.getTime() && (!started || session.startsAt > (started.startsAt ?? -Infinity))) started = session;
+    if (session.weekNumber !== weekNumber || session.cancelled || session.startsAt === null || session.endsAt === null) continue;
+    if (session.startsAt <= at && at <= session.endsAt) return session;
   }
-  if (started) return started;
   return next && next.weekNumber === weekNumber ? next : null;
+}
+
+/**
+ * Every one of the reader's groups whose register for this week is theirs to
+ * take now (`registerSessionFor`), in the order the groups come in, which is
+ * meeting order: one row each on the week's page.
+ */
+export function registerRowsFor(groups: readonly GuideGroup[], weekNumber: number, now: Date): { group: GuideGroup; session: GuideSession }[] {
+  return groups.flatMap((group) => {
+    const session = registerSessionFor(group, weekNumber, now);
+    return session ? [{ group, session }] : [];
+  });
 }
 
 /** The group's page. */
@@ -140,7 +152,12 @@ export function groupPagePath(group: Pick<GuideGroup, "runId" | "groupId">): str
   return `/learn/${encodeURIComponent(group.runId)}/group/${encodeURIComponent(group.groupId)}`;
 }
 
-/** The group's register, at one session: `?session=w03`, as Home and the email to somebody given a session write it. */
+/**
+ * The group's register, at one session: `?session=w03`, the address the
+ * register page reads a session from, as the email to somebody given one
+ * session and the session report's way back write it. Home's "Take the
+ * register" leads to the register with no session named.
+ */
 export function registerPath(group: Pick<GuideGroup, "runId" | "groupId">, session: Pick<GuideSession, "sessionKey">): string {
   return `${groupPagePath(group)}/register?session=${encodeURIComponent(session.sessionKey)}`;
 }

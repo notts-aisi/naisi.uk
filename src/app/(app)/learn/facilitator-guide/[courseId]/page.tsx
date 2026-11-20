@@ -55,9 +55,9 @@ import { WEEK_PART_LABEL } from "@/lib/courses/facilitatorGuide/model";
  * called off is never "next".
  *
  * A WEEK WITH NOTHING LOADED is listed among the weeks, "Not loaded yet",
- * with its theme as its members read it where the reader has a group
- * (`readUnloadedWeeks`: one query, or none for a course whose every week is
- * loaded). Nothing loaded at all: one sentence saying so and who loads it,
+ * with its theme as the members of the reader's group read it, and only once
+ * it is published to them (`readUnloadedWeeks`: the one week overlay, two
+ * queries, or none for a course whose every week is loaded). Nothing loaded at all: one sentence saying so and who loads it,
  * the programme's lead or an admin, never by name, since a course can be
  * named by two programmes.
  */
@@ -110,7 +110,7 @@ export default async function FacilitatorGuideCoursePage({ params }: { params: P
 
   const loadedWeeks = index.weeks.map((week) => week.weekNumber);
   // A read that fails lists the loaded weeks alone, as the page always has.
-  const unloaded = empty ? [] : await readUnloadedWeeks(db, reader, { loadedWeeks, groups, themeRunId: home?.runId ?? null }).catch(() => []);
+  const unloaded = empty ? [] : await readUnloadedWeeks(db, reader, { loadedWeeks, groups, themeGroup: home }).catch(() => []);
   const rows = [
     ...index.weeks.map((week) => ({
       weekNumber: week.weekNumber,

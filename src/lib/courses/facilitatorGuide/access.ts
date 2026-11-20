@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Firestore } from "firebase-admin/firestore";
+import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -105,11 +105,19 @@ export async function ownGroupsOnCourse(db: Firestore, user: SessionUser, course
   }
   // The group's run, read again: it has to be a run of this very course, and
   // one still there. A group's own `courseId` is not taken on trust. Each run
-  // once, however many of the caller's groups it holds.
+  // once, however many of the caller's groups it holds. A run whose read
+  // fails is passed over, as one that fails its bars is: the answer is
+  // decided by the runs that could be read, so a failed read of one run
+  // never turns away somebody another run lets in, and lets nobody in.
   const runIds = [...new Set(named.map((group) => group.runId))];
   const own: GuideGroup[] = [];
   for (const runId of runIds) {
-    const run = await db.collection("courseRuns").doc(runId).get();
+    let run: DocumentSnapshot;
+    try {
+      run = await db.collection("courseRuns").doc(runId).get();
+    } catch {
+      continue;
+    }
     const raw = run.data() ?? {};
     if (!run.exists || raw.courseId !== courseId || raw.destroying === true) continue;
     for (const group of named.filter((each) => each.runId === runId).sort(compareGroupsByMeeting)) {

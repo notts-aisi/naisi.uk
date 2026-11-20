@@ -372,6 +372,13 @@ describe("2b. the facilitators' door hands back the caller's own groups as named
     }
   });
 
+  test("a week's theme is resolved by the one week overlay, never a second rule", () => {
+    const rows = FILES.get("lib/courses/facilitatorGuide/weekRows.ts").code;
+    assert.match(rows, /const weeks = await resolveWeekDocs\(db, themeGroup\.runId, themeGroup\.groupId\);/);
+    assert.match(rows, /if \(!week\.published\) return \[\];/);
+    assert.doesNotMatch(rows, /\.collection\(\s*["']weeks["']\s*\)/, "weekRows.ts reads a week's documents itself instead of through resolveWeekDocs");
+  });
+
   test("nothing in the browser reaches the projection or the pages' reads of what is not loaded", () => {
     const offenders = [...FILES]
       .filter(([path, { client }]) => client && (reach(path).has(NEXT) || reach(path).has("lib/courses/facilitatorGuide/weekRows.ts")))

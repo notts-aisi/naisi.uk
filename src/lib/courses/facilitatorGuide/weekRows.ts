@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Firestore } from "firebase-admin/firestore";
 import { listForms } from "@/lib/applications/handover/run";
+import { resolveWeekDocs } from "@/lib/courses/groupResolve";
 import { namingProgrammeIn, readRunLead } from "@/lib/courses/programmeLead";
 import { sanitizeWeekPlan } from "@/lib/firestore/courses";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -13,7 +14,8 @@ import { memberWeekTheme } from "./words";
 /**
  * WHAT THE GUIDE'S PAGES SAY ABOUT WHAT IS NOT LOADED YET, for a reader of
  * the guide: the weeks of the course with nothing in it, each with its theme
- * as its members read it, and whether a programme's lead stands to load it.
+ * as the reader's group's members read it, and whether a programme's lead
+ * stands to load it.
  *
  * Each takes the gate's proof, so it is asked only once a caller has been let
  * in. Nothing here reads the guide's own collection, and nothing is written.
@@ -45,18 +47,23 @@ export type UnloadedWeek = { weekNumber: number; theme: string };
  * equality on `courseId` with the plans alone (one query), as the printables
  * count their sessions. Never fewer than a week already loaded.
  *
- * THEIR THEMES: the titles of the weeks as the members of the reader's group
- * read them, from the run's own published weeks, by one query of that run's
- * weeks with the two fields it needs; asked only when a week is missing and
- * the reader has a group. An admin or a lead who facilitates nothing is
- * given the week's number alone, which costs nothing more.
+ * THEIR THEMES: each week's title as the members of the reader's group read
+ * it, and only while it is open to them. The week is resolved the way their
+ * own pages resolve it, by the one overlay every week reader uses
+ * (`resolveWeekDocs`: the group's own copy of a week where it has one, else
+ * the run's), and a title is taken only from a week that copy has published,
+ * since every published week is open to everybody the run is open to and an
+ * unpublished one is shut. That reader is two queries, the run's weeks and
+ * the group's own copies, asked only when some week is missing and the
+ * reader has a group. An admin or a lead who facilitates nothing is given
+ * the week's number alone, which costs nothing more.
  */
 export async function readUnloadedWeeks(
   db: Firestore,
   reader: GuideReader,
-  args: { loadedWeeks: readonly number[]; groups: readonly GuideGroup[]; themeRunId: string | null },
+  args: { loadedWeeks: readonly number[]; groups: readonly GuideGroup[]; themeGroup: Pick<GuideGroup, "runId" | "groupId"> | null },
 ): Promise<UnloadedWeek[]> {
-  const { loadedWeeks, groups, themeRunId } = args;
+  const { loadedWeeks, groups, themeGroup } = args;
   let runWeeks: number[];
   if (groups.length > 0) {
     runWeeks = groups.map((group) => group.weekCount);
@@ -73,16 +80,15 @@ export async function readUnloadedWeeks(
   if (missing.length === 0) return [];
 
   let themes = new Map<number, string>();
-  if (groups.length > 0 && themeRunId && groups.some((group) => group.runId === themeRunId)) {
-    const weeks = await db.collection("courseRuns").doc(themeRunId).collection("weeks").select("weekNumber", "title", "published").get();
+  // Only one of the reader's own groups, which the gate read to let them in.
+  if (themeGroup && groups.some((group) => group.groupId === themeGroup.groupId && group.runId === themeGroup.runId)) {
+    const weeks = await resolveWeekDocs(db, themeGroup.runId, themeGroup.groupId);
     themes = new Map(
-      weeks.docs.flatMap((doc): [number, string][] => {
-        const data = doc.data() ?? {};
-        const weekNumber = data.weekNumber;
-        // A title its members read: a published week's alone.
-        if (data.published !== true || typeof weekNumber !== "number" || typeof data.title !== "string") return [];
-        const theme = memberWeekTheme(data.title, weekNumber);
-        return theme ? [[weekNumber, theme]] : [];
+      weeks.flatMap(({ week }): [number, string][] => {
+        // A title its members read: a week published to them, in the copy they read.
+        if (!week.published) return [];
+        const theme = memberWeekTheme(week.title, week.weekNumber);
+        return theme ? [[week.weekNumber, theme]] : [];
       }),
     );
   }
