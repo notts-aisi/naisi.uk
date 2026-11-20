@@ -131,9 +131,6 @@ async function seed({ runId, suppress, onState }) {
  * The send counters this journey's presses leave with no run on the row, by
  * the ids their routes build (`reserveSendSlot` and `reserveNoticeSlots` keep
  * them in `courseNudges` as `emailrate__<key>`):
- *  - finishing a register's throttle, one per group and presser
- *    (`push__<groupId>__<uid>`), for the lead, whom the term's own count does
- *    not name as a presser;
  *  - Remind's: each group's daily cap and each presser's hourly one for a
  *    group's week and who it was for (`claimRemindSlot` in
  *    src/lib/courses/groupWeekWork/remind.ts);
@@ -141,16 +138,17 @@ async function seed({ runId, suppress, onState }) {
  *    two choices that reach everyone the week is open for or the whole
  *    programme, one an hour per presser and choice, and one an hour per
  *    presser for a test (the tell route).
- * The pressers are the lead, the facilitator and the admin. Giving a session
- * (per giver and group, per group, per person given it) is the term's own
- * count (`sendCounterIdsOf` in worlds/course-hub-term.mjs).
+ * The pressers are the lead, the facilitator and the admin. Finishing a
+ * register (`push__<groupId>__<uid>`), the updates route's counters and giving
+ * a session (per giver and group, per group, per person given it) are the
+ * term's own count, the lead's among them (`sendCounterIdsOf` in
+ * worlds/course-hub-term.mjs).
  */
 function ownCounterIdsOf(state) {
   const ids = [];
   const pressers = [state.lead?.uid, state.facilitator?.uid, state.adminUid].filter(Boolean);
   const people = (state.people ?? []).map((person) => person.uid).filter(Boolean);
   for (const group of state.groups ?? []) {
-    if (state.lead?.uid) ids.push(`emailrate__push__${group.id}__${state.lead.uid}`);
     ids.push(`emailrate__weekremindday__${group.id}`);
     for (const uid of pressers) {
       for (let weekNumber = 1; weekNumber <= (state.weekCount ?? WEEK_COUNT); weekNumber += 1) {
@@ -287,6 +285,10 @@ export const SPEC = {
    * The facilitator's two readings of the group's reflections with names
    * moved to the page of one question on 13 Nov 2026, when the page with
    * names was retired; not yet run in a browser.
+   * The lead's register push counter, one of those 5, has been counted with
+   * the term's send counters (`sendCounterIdsOf`) since 20 Nov 2026, not
+   * among this fixture's own: the same rows, split 4 here and one more there;
+   * not yet run in a browser since.
    */
   status: "verified",
   seed,
