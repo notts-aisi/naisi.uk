@@ -65,6 +65,8 @@ const join_ = await loadJoin(made);
 const { routes, press, board, place, rowPath } = join_;
 const words = await lib("courses", "publishWords.ts");
 const plan = await lib("courses", "allocationPublish.ts");
+/** The seed copy of the two emails Publish sends. */
+const courseSeeds = await lib("firestore", "courseEmails.ts");
 /** The allocation board's rail: the function the board itself asks. */
 const tally = await lib("..", "features", "courses", "allocationTally.ts");
 /** A group's names, as its facilitator's group page reads them. */
@@ -389,6 +391,30 @@ describe("2. a test first", () => {
     );
   });
 
+  test("the guide's button, added to the seed in November 2026, asks nobody for a test again, and any other change still does", () => {
+    const seeds = courseSeeds.courseTemplateDefaults;
+    const BUTTON = courseSeeds.FACILITATING_GUIDE_BUTTON_HTML;
+    const now = seeds["course-facilitating"];
+    const allocated = seeds["course-allocated"];
+    assert.equal(now.blocks.length, 1);
+    assert.ok(now.blocks[0].html.includes(BUTTON), "the seed no longer has the guide's button");
+    // The seed as it was before the button, which every test sent before it was made from.
+    const before = { ...now, blocks: [{ ...now.blocks[0], html: now.blocks[0].html.replace(BUTTON, "") }] };
+    assert.equal(before.blocks[0].html.includes("{guide"), false);
+    const fingerprint = (facilitating) => plan.wordingFingerprint({ allocated, facilitating });
+    assert.equal(fingerprint(now), fingerprint(before), "the button made every run's test stale");
+    // A test of the seed before the button still counts against the seed with it.
+    assert.equal(plan.testStandingOf({ wording: fingerprint(before), byUid: "zach" }, fingerprint(now)).state, "fresh");
+    // Only that very paragraph: the button in other words, or anything else changed, is compared as ever.
+    const changed = (html) => fingerprint({ ...now, blocks: [{ ...now.blocks[0], html }] });
+    assert.notEqual(changed(now.blocks[0].html.replace(BUTTON, BUTTON.replace("{guideButton}", "Your guide"))), fingerprint(now));
+    assert.notEqual(changed(now.blocks[0].html.replace("Take the register", "Take the roll")), fingerprint(now));
+    assert.notEqual(fingerprint({ ...now, subject: "You’re running {groupName}" }), fingerprint(now));
+    // And the people's email is compared whole, the paragraph's words included.
+    const theirs = { ...allocated, blocks: [...allocated.blocks, { id: "x", type: "richText", html: BUTTON }] };
+    assert.notEqual(plan.wordingFingerprint({ allocated: theirs, facilitating: now }), fingerprint(now));
+  });
+
   test("a test that was held, or stopped by the do-not-email list, does not count", async () => {
     await placed();
     for (const fate of ["held", "suppressed"]) {
@@ -695,16 +721,24 @@ describe("6. the emails", () => {
     // Everything between the logo and the footer, in order: the board's
     // words since October 2026 (until then "Where: Hallward B12" and "You’re
     // facilitating with Sofia." each had a line of their own, and nothing
-    // said where the names are).
+    // said where the names are), and since November 2026 a second button,
+    // to the course's facilitator guide.
     assert.ok(
       rahul.text.includes(
         "Hi Rahul, Group B meets on Tuesdays at 6pm in Hallward B12, from Tue 3 Nov to Tue 8 Dec. " +
           "You’re facilitating with Sofia. There are 2 people in the group. Their names are on your group page. Open your group " +
-          "Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI",
+          "Facilitator guide Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI",
       ),
       rahul.text,
     );
     assert.ok(rahul.html.includes(`href="https://naisi.invalid/learn/${RUN.agi}/group/${B}"`), "the button leads to the group page");
+    // The second button leads to the run's course's guide, with the course id
+    // Publish read off the run, and to nothing else.
+    assert.ok(rahul.html.includes(`href="https://naisi.invalid/learn/facilitator-guide/${COURSE.agi}"`), "the guide's button leads to the course's guide");
+    assert.deepEqual(
+      [...rahul.html.matchAll(/href="(https:\/\/naisi\.invalid\/learn\/[^"]*)"/g)].map((match) => match[1]),
+      [`https://naisi.invalid/learn/${RUN.agi}/group/${B}`, `https://naisi.invalid/learn/facilitator-guide/${COURSE.agi}`],
+    );
     // Sofia facilitates Group A alone: no sentence names anybody beside her.
     const sofiaA = await opened(realMail().find((mail) => mail.to === "sofia@example.com" && mail.subject.includes("Group A")));
     assert.ok(!sofiaA.text.includes("You’re facilitating with"), sofiaA.text);
@@ -1068,8 +1102,12 @@ describe("8. the facilitators' email promises week 1's guide only while their gr
     await placed();
     await sendTest();
     const tested = await opened(world.mail.find((mail) => isTest(mail) && isFacilitating(mail)));
-    assert.ok(tested.text.includes(`There are 2 people in the group. ${BOARD_WORDS} Open your group`), tested.text);
+    assert.ok(tested.text.includes(`There are 2 people in the group. ${BOARD_WORDS} Open your group Facilitator guide for week 1 Take`), tested.text);
     assert.equal((await pressNow()).status, 200);
+    // The guide's button names week 1 exactly where the sentence does.
+    for (const mail of realMail().filter(isFacilitating)) {
+      assert.ok((await opened(mail)).text.includes(`${BOARD_WORDS} Open your group Facilitator guide for week 1 Take`), mail.to);
+    }
     assert.deepEqual(await namesSentences(), [
       `rahul@example.com: Group B: ${BOARD_WORDS}`,
       `sofia@example.com: Group A: ${BOARD_WORDS}`,

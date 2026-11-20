@@ -2224,6 +2224,27 @@ describe("the designer offers what the composer fills, and proofs through it", (
     // The board's words, from the samples (October 2026; until then "Where: Hallward Library, B12" had a line of its own).
     assert.ok(read(proof).includes("Group B meets on Tuesdays at 6pm in Hallward Library, B12, from Tue 7 Oct to Tue 11 Nov. You’re facilitating with Sam."), read(proof));
     assert.ok(read(proof).includes("There are 8 people in the group. Their names are on your group page."), read(proof));
+    // The guide's button (November 2026), from the sample's address, naming no week: a sample is no course.
+    assert.ok(read(proof).includes("Open your group Facilitator guide Take the register"), read(proof));
+    assert.ok(printed(proof.blocks).includes(`href="${sample.guideUrl}"`), printed(proof.blocks));
+  });
+
+  test("the facilitators' optional guide button is never left unfilled: with no address its paragraph goes, and a copy saved without it sends as saved", () => {
+    const seed = seeds.courseTemplateDefaults["course-facilitating"];
+    const sample = samples.courseSampleTokens("course-facilitating", "Alex Taylor");
+    const facts = { ...facilitating.facilitatingFactsFromSample(sample), weekOneGuide: true };
+    for (const guideUrl of [sample.guideUrl, null, "", "   "]) {
+      const written = facilitating.composeFacilitatingEmail(seed, { ...facts, guideUrl });
+      assert.equal(written.ok, true, JSON.stringify(guideUrl));
+      assert.deepEqual(tokensIn(`${written.subject}\n${printed(written.blocks)}`), [], JSON.stringify(guideUrl));
+      assert.equal(read(written).includes("Facilitator guide for week 1"), guideUrl === sample.guideUrl, JSON.stringify(guideUrl));
+    }
+    // A copy saved before the button, which names neither token: written whole, with nothing in the button's place.
+    const saved = { subject: seed.subject, blocks: [rich(seed.blocks[0].html.replace(seeds.FACILITATING_GUIDE_BUTTON_HTML, ""))] };
+    const written = facilitating.composeFacilitatingEmail(saved, facts);
+    assert.equal(written.ok, true);
+    assert.deepEqual(tokensIn(`${written.subject}\n${printed(written.blocks)}`), []);
+    assert.ok(read(written).includes("Open your group Take the register"), read(written));
   });
 
   test("the tokens the designer lists for the incubator's email are its composer's own", () => {

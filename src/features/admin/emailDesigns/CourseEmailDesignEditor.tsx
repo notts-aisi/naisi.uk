@@ -178,6 +178,16 @@ const FACILITATING_TOKENS: TokenHelp[] = [
     token: "facilitatingWith",
     description: "A sentence naming the others who facilitate the group, e.g. You’re facilitating with Sofia. Nothing for somebody facilitating alone.",
   },
+  {
+    token: "guideUrl",
+    description:
+      "The address of the course's facilitator guide, for a second button. Nothing for a run with no course to link to, and then its paragraph is left out.",
+  },
+  {
+    token: "guideButton",
+    description:
+      "The words on that button: Facilitator guide for week 1 while namesOnPage says week 1's guide is on the group page, Facilitator guide otherwise. A preview says Facilitator guide.",
+  },
 ];
 
 /**
@@ -469,9 +479,10 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
             <code>{"{place}"}</code>, <code>{"{placeNote}"}</code> and <code>{"{facilitatingWith}"}</code>{" "}
             are worded to sit inside a sentence and to go from it when there is nothing to say: a group
             with no room yet reads &ldquo;Group B meets on Tuesdays at 6pm, from Tue 3 Nov to Tue 8
-            Dec.&rdquo; Keep <code>{"{where}"}</code>, <code>{"{coFacilitators}"}</code> and the
+            Dec.&rdquo; Keep <code>{"{where}"}</code>, <code>{"{coFacilitators}"}</code>, the
             sign-offs (<code>{"{leadName}"}</code> with <code>{"{programmeName}"}</code>, or{" "}
-            <code>{"{naisiSignOff}"}</code>) each in a paragraph of its own: that paragraph is left out
+            <code>{"{naisiSignOff}"}</code>) and the guide&rsquo;s button (<code>{"{guideUrl}"}</code> with{" "}
+            <code>{"{guideButton}"}</code>) each in a paragraph of its own: that paragraph is left out
             when there is nothing to put in it, and the rest of the email goes. None can go in the subject, or in a paragraph with{" "}
             <code>{"{groupName}"}</code>, <code>{"{weeklySlot}"}</code> or the two dates. A group with
             no name or no day and time cannot be published at all, and neither can wording that uses a

@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { isAddressableId } from "@/lib/addressableId";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
 import {
@@ -23,6 +24,7 @@ import {
 import type { ProgrammeKind } from "@/lib/applications/model";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
+import { FACILITATING_GUIDE_BUTTON_HTML } from "@/lib/firestore/courseEmails";
 import { loadCourseEmailTemplate, type CourseEmailTemplate } from "@/lib/email/courseApplicationEmails";
 // The three composers by their `@/` paths, as every caller of a token filler
 // imports one, so the tree walk in tests/email-unfilled-tokens.test.mjs
@@ -55,6 +57,7 @@ import { composeJoinedEmail, type JoinedFacts } from "@/lib/courses/joinedEmail"
 import { composeLeftEmail, type LeftFacts } from "@/lib/courses/leftEmail";
 import { composeMovedEmail } from "@/lib/courses/movedEmail";
 import { facilitatorGuideReaderForGroup } from "./facilitatorGuide/access";
+import { facilitatorGuidePath } from "./facilitatorGuide/model";
 import { readGuideIndex } from "./facilitatorGuide/store";
 import { resolveCalendar, resolveWeekDoc } from "./groupResolve";
 import { placedOutsideTheirTimes, sessionLabelOf } from "./outsideTheirTimes";
@@ -502,6 +505,18 @@ export function groupPageUrl(runId: string, groupId: string): string | null {
   return `${base}/learn/${encodeURIComponent(runId)}/group/${encodeURIComponent(groupId)}`;
 }
 
+/**
+ * A course's facilitator guide, as a whole address, for the second button in
+ * "You’re facilitating", or null when the site does not know its own address
+ * or the run names no course. The id is the run's own `courseId`: Publish
+ * reads the run already, so the button costs no read.
+ */
+export function facilitatorGuideUrl(courseId: string): string | null {
+  const base = appUrl();
+  if (!base || !isAddressableId(courseId)) return null;
+  return `${base}${facilitatorGuidePath(courseId)}`;
+}
+
 /** The run's own page in the member area, where its weeks are, or null when the site does not know its own address. */
 export function programmePageUrl(runId: string): string | null {
   const base = appUrl();
@@ -714,15 +729,36 @@ function blockWords(block: Block): unknown[] {
 }
 
 /**
+ * A block of "You’re facilitating" as a test is compared, without the
+ * facilitators' button to their guide.
+ *
+ * THE GUIDE'S BUTTON IS LEFT OUT OF WHAT A TEST IS COMPARED WITH. It was
+ * added to the seed copy of "You’re facilitating" in November 2026, mid-term,
+ * through two optional tokens (`FACILITATING_GUIDE_BUTTON_HTML`). Compared,
+ * it would have made the test of every run on a site with no saved copy
+ * stale at the deploy, and held the next press, a re-publish to tell one new
+ * facilitator included, until somebody sent a test again. Only that exact
+ * paragraph is left out: wording that says anything else, the same button in
+ * other words included, is compared as before.
+ */
+function facilitatingBlockWords(block: Block): unknown[] {
+  return block.type === "richText"
+    ? blockWords({ ...block, html: block.html.split(FACILITATING_GUIDE_BUTTON_HTML).join("") })
+    : blockWords(block);
+}
+
+/**
  * One string for the wording of both emails Publish sends: 64 hex characters,
  * equal exactly when each template's subject, blocks and sender name are. A
  * block's id is left out: the seed copy is given new ids every time a server
- * starts, and an id is not wording.
+ * starts, and an id is not wording. So is the facilitators' button to their
+ * guide, exactly as the seed words it (`facilitatingBlockWords`).
  */
 export function wordingFingerprint(templates: PublishPlan["templates"]): string {
   const lines = (["allocated", "facilitating"] as const).map((kind) => {
     const template = templates[kind];
-    return JSON.stringify([kind, template.subject, template.fromName ?? "", template.blocks.map(blockWords)]);
+    const words = kind === "facilitating" ? facilitatingBlockWords : blockWords;
+    return JSON.stringify([kind, template.subject, template.fromName ?? "", template.blocks.map(words)]);
   });
   return createHash("sha256").update(lines.join("\n"), "utf8").digest("hex");
 }
@@ -1609,6 +1645,9 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       leadName: naming.programmeName ? leadName : null,
       programmeName: naming.programmeName,
       weekOneGuide: weekOneGuide.get(group.id) ?? false,
+      // The course's guide, which the guide's gate opens to a facilitator of
+      // a live group on a live run of the course: every one written to here.
+      guideUrl: facilitatorGuideUrl(run.courseId),
     };
     const written = writeFacilitating(facts);
     if (!written.ok && !refusedFacilitators.has(group.id)) {

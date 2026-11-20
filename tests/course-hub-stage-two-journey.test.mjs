@@ -1908,6 +1908,8 @@ const NOTICE_LINE = (reason) =>
   `Sent as an important notice You are getting this because ${reason}, so it reaches you whatever your notification settings say, and it is never marketing.`;
 const short = (response) => [response.status, response.body?.error ?? null];
 const groupPage = (runId, groupId) => `${APP_URL}/learn/${runId}/group/${groupId}`;
+/** A course's facilitator guide, which "You’re facilitating" links beside the group page since November 2026. */
+const guidePage = (courseId) => `${APP_URL}/learn/facilitator-guide/${courseId}`;
 /** The register's own page, where the register reminder's "Open the register" goes. */
 const registerPage = (runId, groupId) => `${groupPage(runId, groupId)}/register`;
 
@@ -2341,12 +2343,12 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     test("Publish then owes one email, needs no new test, and sends Tom his, from the group's next session", () => {
       assert.deepEqual([s().summary.emails, s().summary.people, s().summary.facilitators, s().summary.test.state], [1, 0, 1, "fresh"]);
       assert.deepEqual(s().pressed.body.report.facilitators, { sent: 1, held: 0, suppressed: 0 });
-      assert.deepEqual(s().pressMail.map((mail) => [mail.to, mail.subject, mail.links]), [[address("tom"), "You’re facilitating Group A: Thursdays at 6pm", [groupPage(RUN, GROUP.A)]]]);
+      assert.deepEqual(s().pressMail.map((mail) => [mail.to, mail.subject, mail.links]), [[address("tom"), "You’re facilitating Group A: Thursdays at 6pm", [groupPage(RUN, GROUP.A), guidePage(COURSE)]]]);
       assert.equal(
         readFrom(s().pressMail[0], "Hi "),
         // The board's words since October 2026 (until then "Where: Room A13" on a line of its own, and nothing about names).
         "Hi Tom, Group A meets on Thursdays at 6pm in Room A13, from Thu 5 Nov to Thu 3 Dec. You’re facilitating with Amelia. " +
-          `There are 3 people in the group. Their names are on your group page. Open your group Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
+          `There are 3 people in the group. Their names are on your group page. Open your group Facilitator guide Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
       );
     });
   });
@@ -2453,7 +2455,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         readFrom(l().pressMail[0], "Hi "),
         // Told on Wed 4 Nov, after the group first met: its next session (G5).
         "Hi Sofia, Group A meets on Thursdays at 6pm in Room A13, from Thu 5 Nov to Thu 3 Dec. You’re facilitating with Amelia and Tom. " +
-          `There are 3 people in the group. Their names are on your group page. Open your group Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
+          `There are 3 people in the group. Their names are on your group page. Open your group Facilitator guide Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
       );
       assert.deepEqual(short(l().leadDecides), [403, "Forbidden"]);
       assert.deepEqual(l().adminDecides.body, { ok: true });

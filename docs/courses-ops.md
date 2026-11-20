@@ -1684,7 +1684,16 @@ programme names" below).
   the default). The board's "and week 1’s guide" is said only while the
   facilitator's group page shows it: the group's next session is its week
   1 and week 1 of the course's facilitator guide has its session plan or
-  its notes (load it before Publish to have it said). That number counts only the people
+  its notes (load it before Publish to have it said). A second button,
+  after "Open your group", opens the course's facilitator guide (since
+  November 2026): "Facilitator guide for week 1" when the email says week
+  1's guide is on the group page, "Facilitator guide" otherwise. It is the
+  optional pair `{guideUrl}` and `{guideButton}` in a paragraph of its own,
+  so a run with no course to link to loses the button and nothing else, and
+  Publish is never refused for it. Wording saved in Email designs before
+  then has neither and sends as saved, without the button, until the pair
+  is added in a paragraph of its own or the wording is reset to the default
+  (a saved change, so it needs a fresh test like any other). That number counts only the people
   told by the end of the press, so it is the number of names on their
   roster: somebody with no address on file, or whose email failed, is
   counted once a later press tells them. Never a meeting link: an online
@@ -1702,7 +1711,9 @@ programme names" below).
   group" or, on a run an incubator names, "Placed on an incubator") locks
   its Publish again until somebody sends themselves a test. A test that this
   copy of the site held, or that went to an address on the do-not-email
-  list, reached nobody and does not count.
+  list, reached nobody and does not count. The one thing left out of the
+  comparison is the guide's button paragraph exactly as the default words
+  it, so adding it to the default in November 2026 locked no run's Publish.
 - **Do not destroy the form while its people are waiting for a group.**
   Until somebody is in a group, their member area knows they hold a place
   only from their application. Destroy the form in between and it tells

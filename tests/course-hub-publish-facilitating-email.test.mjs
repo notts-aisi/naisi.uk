@@ -29,6 +29,11 @@
  *  8. NAISI SIGNS IT WHEN NO LEAD STANDS, as the group email does, with the
  *     group email's own sign-off (Zach, Mon 26 Oct 2026). With a lead the
  *     email is as it was.
+ *  9. THE BUTTON TO THE GUIDE (November 2026): "Facilitator guide for week 1"
+ *     when the group page shows week 1's guide, "Facilitator guide"
+ *     otherwise, to the course's guide; OPTIONAL, so with no guide to link to
+ *     its paragraph goes and nothing else, and wording saved without it sends
+ *     as saved. Never a meeting link in any rendering.
  *
  * The composer is the placement email's own (`composeWholeEmail`), so the
  * hostile-wording and long-input checks in tests/email-unfilled-tokens.test.mjs
@@ -76,6 +81,7 @@ const FACTS = {
   groupUrl: "https://naisi.invalid/learn/run-1/group/group-b",
   leadName: "Claudia",
   programmeName: "AGI Strategy",
+  guideUrl: "https://naisi.invalid/learn/facilitator-guide/agi-strategy",
 };
 const OPTIONAL = ["where", "coFacilitators", "leadName", "programmeName"];
 const ESSENTIAL = ["groupName", "weeklySlot", "firstSession", "lastSession", "groupSize", "groupUrl"];
@@ -90,11 +96,12 @@ function subsets(list) {
  * group whose page does not show week 1's guide (`FACTS` leaves
  * `weekOneGuide` unset): "Their names are on your group page." When the page
  * shows it, the email says the board's whole sentence (`BOARD_FULL`, section
- * 7).
+ * 7). Since November 2026 a second button, "Facilitator guide", follows
+ * "Open your group" (section 9).
  */
 const FULL =
   "You’re facilitating Group B: Tuesdays at 6pm | Hi Rahul, Group B meets on Tuesdays at 6pm in Hallward B12, from Tue 3 Nov to Tue 8 Dec. " +
-  "You’re facilitating with Sofia. There are 8 people in the group. Their names are on your group page. Open your group " +
+  "You’re facilitating with Sofia. There are 8 people in the group. Their names are on your group page. Open your group Facilitator guide " +
   "Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI";
 
 /**
@@ -152,10 +159,13 @@ describe("1. each token has its rule", () => {
       place: "inline",
       placeNote: "inline",
       facilitatingWith: "inline",
+      // The button to the course's facilitator guide (November 2026).
+      guideUrl: "optional",
+      guideButton: "optional",
     });
     const used = tokensIn(`${SEED.subject}\n${printed(SEED.blocks)}`);
     assert.deepEqual(used.filter((token) => !(token in email.FACILITATING_TOKEN_RULES)), []);
-    for (const token of [...ESSENTIAL, "leadName", "programmeName", "naisiSignOff", "firstName", ...BOARD]) {
+    for (const token of [...ESSENTIAL, "leadName", "programmeName", "naisiSignOff", "firstName", ...BOARD, "guideUrl", "guideButton"]) {
       assert.ok(used.includes(token), `the seed no longer says {${token}}`);
     }
     // The wording before the board's is still the email's to fill, every token of it.
@@ -163,7 +173,7 @@ describe("1. each token has its rule", () => {
     assert.deepEqual(saved.filter((token) => !(token in email.FACILITATING_TOKEN_RULES)), []);
     for (const token of [...ESSENTIAL, ...OPTIONAL, "firstName"]) assert.ok(saved.includes(token), `the saved wording no longer says {${token}}`);
     // No optional value may sit in the subject, where it could not be left out.
-    for (const token of [...OPTIONAL, "naisiSignOff"]) assert.ok(!SEED.subject.includes(`{${token}}`) && !SAVED.subject.includes(`{${token}}`), token);
+    for (const token of [...OPTIONAL, "naisiSignOff", "guideUrl", "guideButton"]) assert.ok(!SEED.subject.includes(`{${token}}`) && !SAVED.subject.includes(`{${token}}`), token);
   });
 
   test("it is a course email an admin can edit, named as the designer names it", () => {
@@ -426,8 +436,19 @@ describe("6. the words around the button", () => {
 });
 
 describe("7. week 1's guide, promised only when the group page shows it", () => {
-  /** The board's email with its whole sentence, as Publish writes it when the group page shows week 1's guide. */
-  const BOARD_FULL = FULL.replace("Their names are on your group page.", "Their names and week 1’s guide are on your group page.");
+  /**
+   * The board's email with its whole sentence, as Publish writes it when the
+   * group page shows week 1's guide, and the guide's button naming week 1.
+   */
+  const BOARD_FULL = FULL.replace("Their names are on your group page.", "Their names and week 1’s guide are on your group page.").replace(
+    "Open your group Facilitator guide Take",
+    "Open your group Facilitator guide for week 1 Take",
+  );
+  /** What saying week 1's guide changes: its sentence, and the button's words. */
+  const withWeekOne = (said) =>
+    said
+      .replace("Their names are on your group page.", "Their names and week 1’s guide are on your group page.")
+      .replace("Open your group Facilitator guide Take", "Open your group Facilitator guide for week 1 Take");
 
   test("the sentence, for a group of many and a group of one, with the guide and without", () => {
     assert.equal(email.namesOnPageSentence(8, true), "Their names and week 1’s guide are on your group page.");
@@ -438,7 +459,10 @@ describe("7. week 1's guide, promised only when the group page shows it", () => 
   });
 
   test("the seed says the board's whole sentence when the page shows it, and the names alone when it does not or nobody said", () => {
-    assert.equal(BOARD_FULL.includes("There are 8 people in the group. Their names and week 1’s guide are on your group page. Open your group"), true);
+    assert.equal(
+      BOARD_FULL.includes("There are 8 people in the group. Their names and week 1’s guide are on your group page. Open your group Facilitator guide for week 1 Take"),
+      true,
+    );
     assert.equal(read(email.composeFacilitatingEmail(SEED, { ...FACTS, weekOneGuide: true })), BOARD_FULL);
     assert.equal(read(email.composeFacilitatingEmail(SEED, { ...FACTS, weekOneGuide: false })), FULL);
     assert.equal(read(email.composeFacilitatingEmail(SEED, FACTS)), FULL);
@@ -450,11 +474,12 @@ describe("7. week 1's guide, promised only when the group page shows it", () => 
       read(email.composeFacilitatingEmail(SEED, { ...FACTS, weekOneGuide: true, groupSize: 1 })),
       BOARD_FULL.replace("There are 8 people in the group. Their names and week 1’s guide are on your group page.", "There is 1 person in the group. Their name and week 1’s guide are on your group page."),
     );
-    // With every combination of what can be missing, the guide changes that one sentence and nothing else.
+    // With every combination of what can be missing, the guide changes that
+    // one sentence and the button's words, and nothing else.
     for (const absent of subsets(OPTIONAL)) {
       const without_ = read(email.composeFacilitatingEmail(SEED, without(FACTS, absent)));
       const with_ = read(email.composeFacilitatingEmail(SEED, { ...without(FACTS, absent), weekOneGuide: true }));
-      assert.equal(with_, without_.replace("Their names are on your group page.", "Their names and week 1’s guide are on your group page."), absent.join(", "));
+      assert.equal(with_, withWeekOne(without_), absent.join(", "));
     }
   });
 
@@ -467,7 +492,7 @@ describe("7. week 1's guide, promised only when the group page shows it", () => 
     assert.equal(facts.weekOneGuide, false);
     const proof = read(email.composeFacilitatingEmail(SEED, facts, { proof: true }));
     assert.ok(proof.includes("There are 8 people in the group. Their names are on your group page."), proof);
-    assert.doesNotMatch(proof, /week 1’s guide/);
+    assert.doesNotMatch(proof, /week 1’s guide|guide for week 1/);
   });
 });
 
@@ -537,5 +562,126 @@ describe("8. NAISI signs it when no lead stands, as the group email does", () =>
     assert.match(code, /import \{\s*NAISI_SIGN_OFF,[\s\S]*?\} from "@\/lib\/courses\/placementEmail";/);
     assert.match(code, /naisiSignOff: lead \? null : typed\(NAISI_SIGN_OFF\),/);
     assert.doesNotMatch(code, /["'`]NAISI["'`]/, "a sign-off of this email's own");
+  });
+});
+
+describe("9. the button to the guide", () => {
+  const GUIDE = FACTS.guideUrl;
+  /** The board's email with no guide to link to: the button's paragraph gone, and nothing else. */
+  const NO_BUTTON = FULL.replace("Open your group Facilitator guide Take", "Open your group Take");
+  /** Every address a written email links to, in order. */
+  const hrefs = (written) => [...printed(written.blocks).matchAll(/href="([^"]*)"/g)].map((match) => match[1]);
+  const rich = (html) => ({ id: "r", type: "richText", html });
+
+  test("with week 1 loaded, word for word", () => {
+    const written = email.composeFacilitatingEmail(SEED, { ...FACTS, weekOneGuide: true });
+    assert.equal(written.ok, true, JSON.stringify(written));
+    assert.equal(
+      read(written),
+      "You’re facilitating Group B: Tuesdays at 6pm | Hi Rahul, Group B meets on Tuesdays at 6pm in Hallward B12, from Tue 3 Nov to Tue 8 Dec. " +
+        "You’re facilitating with Sofia. There are 8 people in the group. Their names and week 1’s guide are on your group page. " +
+        "Open your group Facilitator guide for week 1 Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI",
+    );
+    assert.deepEqual(hrefs(written), [FACTS.groupUrl, GUIDE]);
+  });
+
+  test("with week 1 not loaded, word for word", () => {
+    const written = email.composeFacilitatingEmail(SEED, { ...FACTS, weekOneGuide: false });
+    assert.equal(
+      read(written),
+      "You’re facilitating Group B: Tuesdays at 6pm | Hi Rahul, Group B meets on Tuesdays at 6pm in Hallward B12, from Tue 3 Nov to Tue 8 Dec. " +
+        "You’re facilitating with Sofia. There are 8 people in the group. Their names are on your group page. " +
+        "Open your group Facilitator guide Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI",
+    );
+    assert.deepEqual(hrefs(written), [FACTS.groupUrl, GUIDE]);
+  });
+
+  test("from a copy saved without the token, word for word: as it was saved, with no button", () => {
+    for (const weekOneGuide of [false, true]) {
+      const written = email.composeFacilitatingEmail(SAVED, { ...FACTS, weekOneGuide });
+      assert.equal(written.ok, true, JSON.stringify(written));
+      assert.equal(
+        read(written),
+        "You’re facilitating Group B: Tuesdays at 6pm | Hi Rahul, Group B meets on Tuesdays at 6pm, from Tue 3 Nov to Tue 8 Dec. " +
+          "Where: Hallward B12 You’re facilitating with Sofia. There are 8 people in the group. Open your group " +
+          "Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI",
+        String(weekOneGuide),
+      );
+      assert.deepEqual(hrefs(written), [FACTS.groupUrl], String(weekOneGuide));
+    }
+  });
+
+  test("a paragraph of its own, straight after Open your group, in the seed's own words", () => {
+    assert.ok(printed(SEED.blocks).includes(`Open your group</a></p>${seeds.FACILITATING_GUIDE_BUTTON_HTML}<p>Take the register`));
+    const html = printed(email.composeFacilitatingEmail(SEED, FACTS).blocks);
+    const button = seeds.FACILITATING_GUIDE_BUTTON_HTML.replace("{guideUrl}", GUIDE).replace("{guideButton}", "Facilitator guide");
+    assert.ok(html.includes(`Open your group</a></p>${button}<p>Take the register`), html);
+  });
+
+  test("no guide to link to: its paragraph goes and nothing else, whatever else is missing, and the email is never refused for it", () => {
+    for (const absent of subsets(OPTIONAL)) {
+      for (const weekOneGuide of [false, true]) {
+        const label = `${absent.join(", ")} ${weekOneGuide}`;
+        const withButton = email.composeFacilitatingEmail(SEED, { ...without(FACTS, absent), weekOneGuide });
+        const noGuide = email.composeFacilitatingEmail(SEED, { ...without(FACTS, [...absent, "guideUrl"]), weekOneGuide });
+        assert.equal(noGuide.ok, true, label);
+        const all = `${noGuide.subject}\n${printed(noGuide.blocks)}`;
+        assert.deepEqual(tokensIn(all), [], label);
+        assert.doesNotMatch(all, EMPTY_SHELL, label);
+        assert.deepEqual(hrefs(noGuide), [FACTS.groupUrl], label);
+        assert.equal(
+          read(noGuide),
+          read(withButton).replace(/Open your group Facilitator guide(?: for week 1)? Take/, "Open your group Take"),
+          label,
+        );
+      }
+    }
+    // A blank address is no address, and an unset one (a caller from before the button) is none either.
+    for (const blank of ["", "   ", undefined]) {
+      assert.equal(read(email.composeFacilitatingEmail(SEED, { ...FACTS, guideUrl: blank })), NO_BUTTON, JSON.stringify(blank));
+    }
+  });
+
+  test("the button's words go with its address, and only a yes names week 1", () => {
+    assert.equal(email.guideButtonWords(true), "Facilitator guide for week 1");
+    assert.equal(email.guideButtonWords(false), "Facilitator guide");
+    for (const notAYes of ["yes", 1, null, {}]) assert.equal(email.guideButtonWords(notAYes), "Facilitator guide", String(notAYes));
+    // Wording with the words in a paragraph of their own, and no address to give them: they go too.
+    const template = { subject: SEED.subject, blocks: [rich("<p>{groupName} meets on {weeklySlot}.</p><p>Also see the {guideButton}.</p>")] };
+    assert.equal(read(email.composeFacilitatingEmail(template, FACTS)), "You’re facilitating Group B: Tuesdays at 6pm | Group B meets on Tuesdays at 6pm. Also see the Facilitator guide.");
+    assert.equal(read(email.composeFacilitatingEmail(template, without(FACTS, ["guideUrl"]))), "You’re facilitating Group B: Tuesdays at 6pm | Group B meets on Tuesdays at 6pm.");
+  });
+
+  test("wording that puts the button beside what the email is for is refused for a run with no guide, in a sentence that says what to do", () => {
+    const template = { subject: SEED.subject, blocks: [rich("<p>{groupName} meets on {weeklySlot}: {guideButton}</p>")] };
+    assert.equal(email.composeFacilitatingEmail(template, FACTS).ok, true);
+    const written = email.composeFacilitatingEmail(template, without(FACTS, ["guideUrl"]));
+    assert.deepEqual(written.problems, [{ kind: "cannot-leave-out", tokens: ["guideButton"], where: "paragraph" }]);
+    assert.deepEqual(email.facilitatingRefusal([{ name: "Group B", problems: written.problems }]), [
+      "Group B is on a run with no course whose facilitator guide the button could open, and the “You’re facilitating” email uses {guideButton} in the same paragraph as the group or when it meets, where it cannot be left out. Give {guideButton} a paragraph of its own in Email designs, then publish again.",
+    ]);
+  });
+
+  test("never a meeting link, in any rendering", () => {
+    const wheres = [
+      { kind: "room", room: "Hallward B12" },
+      { kind: "room", room: "https://meet.example/j/8675309?pwd=opensesame" },
+      { kind: "online", linkOnPage: true },
+      { kind: "online", linkOnPage: false },
+      { kind: "on-page" },
+    ];
+    for (const template of [SEED, SAVED]) {
+      for (const where of wheres) {
+        for (const weekOneGuide of [false, true]) {
+          for (const guideUrl of [GUIDE, null]) {
+            const written = email.composeFacilitatingEmail(template, { ...FACTS, where, weekOneGuide, guideUrl });
+            assert.equal(written.ok, true);
+            const all = `${written.subject}\n${printed(written.blocks)}`.toLowerCase();
+            assert.ok(!all.includes("meet.example") && !all.includes("8675309"), all);
+            for (const href of hrefs(written)) assert.ok([FACTS.groupUrl, GUIDE].includes(href), href);
+          }
+        }
+      }
+    }
   });
 });
