@@ -30,7 +30,7 @@ Everything below exists to keep that sentence true.
 | Nobody is asked who they are | The public routes read no session, cookie, header or IP address, and the page calls them with no credentials and no referrer | `tests/ai-survey-no-trace.test.mjs` |
 | The consent answer goes nowhere | It is asked on the start screen, held in the page for that screen only, never sent and never stored. "No" leads to a closing screen and never to the email step | `tests/ai-survey-no-trace.test.mjs` |
 | A link out says nothing about where the person came from | The support links and the newsletter link open in a new tab with no referrer, and are plain addresses with no query | `tests/ai-survey-no-trace.test.mjs` |
-| No limit by IP address | One code a minute and five a day for an address, and a ceiling an hour across the survey, kept in the datastore | `tests/public-write-gating.test.mjs` |
+| No limit by IP address | One code a minute and ten a day for an address, and a ceiling an hour across the survey, kept in the datastore | `tests/public-write-gating.test.mjs` |
 
 ## Where things are
 
@@ -39,7 +39,7 @@ Everything below exists to keep that sentence true.
 | The words | `src/content/aiSurvey/definition.ts`. Data, not code. The questions are locked once the survey is open: a change to one raises `version`, which is kept on each answer set. The words around them (the start screen, the end screen, the notice) can change without it, and [ai-survey-changes.md](ai-survey-changes.md) records each change |
 | Reading the definition, the checks, the export | `src/lib/aiSurvey/{definition,answers,exportCsv,address}.ts`, all pure |
 | Storage | `src/lib/aiSurvey/store.ts` |
-| The email check | `src/lib/aiSurvey/emailCheck.ts` |
+| The email check | `src/lib/aiSurvey/emailCheck.ts`, and its steps on the page in `src/features/aiSurvey/emailSteps.ts` |
 | Saving and coming back | `src/lib/aiSurvey/saving.ts`, `pass.ts` |
 | The admin side | `src/lib/aiSurvey/adminStore.ts` |
 | Pages | `src/app/ai-survey` (the survey, `/privacy`, `/results`, `/admin`) and `src/features/aiSurvey` |
@@ -157,6 +157,37 @@ where to find support that stays closed until it is opened. All of it works
 before the page's script arrives. Start needs both ticks and "Yes"; "No"
 turns the button into Finish, which leads to a closing screen. None of these
 answers is sent anywhere.
+
+## Coming back to the code step
+
+Somebody on a phone types their University email, reaches the code box and
+switches to their mail app to read the code, and the phone may reload the
+survey's tab meanwhile. Where somebody is in the email check is held in the
+page's memory alone, so while the code step is shown the page's address ends
+`#code`, set without a new history entry. The fragment is that one word: never
+the address, the code or anything about the person, and a fragment is never
+sent to a server.
+
+A page that loads with it, with no pass kept in the browser and the survey
+taking new people, opens at the start screen as always: its ticks and consent
+question are asked again, because they are never stored. Its button then
+opens the code step with the address box beside the code box, under "This page
+reloaded, so type your University email again, then the code we sent you."
+The server allows it: the browser's own value is given when the code is
+checked, never when it is asked for, so a page that made its value after the
+reload can use a code asked for before it. A kept pass always wins over the
+fragment, and leaving the code step for any other step takes it off. It sits
+beside the page's other fragment, `#in`, which marks the one reload after the
+right code.
+
+Two more ways to the code box, neither of which asks the server for anything
+new: "Send my code" pressed again inside the minute leads there ("We sent you
+a code less than a minute ago. Enter it below."), because a refusal inside the
+minute leaves the code already sent working; and "I already have a code" on
+the email step, with a University address typed. Which step the page opens at
+and where each press leads are plain functions in `emailSteps.ts`, run by
+`tests/ai-survey.test.mjs`; the server's side is in
+`tests/ai-survey-flow.test.mjs`.
 
 ## Layout: no fieldset is a flex item
 

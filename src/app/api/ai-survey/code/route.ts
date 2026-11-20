@@ -16,7 +16,7 @@ import { verifyRecaptcha } from "@/lib/recaptcha/server";
  *
  * What stands in front of the send, in order: the address rule (exactly
  * `nottingham.ac.uk`), the site's reCAPTCHA, a ceiling on codes an hour across
- * the whole survey, and one code a minute and five a day for the address.
+ * the whole survey, and one code a minute and ten a day for the address.
  * NOTHING IS LIMITED BY IP ADDRESS and nothing is kept against one: a room of
  * students shares a few. The limits live in the datastore, keyed by a hash of
  * the address, so they hold across servers.

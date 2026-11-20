@@ -7,6 +7,20 @@ import { useHydrated } from "@/hooks/useHydrated";
 import { normaliseCode, normaliseUniversityAddress } from "@/lib/aiSurvey/address";
 import { own } from "@/lib/applications/keys";
 import { callSurvey } from "./api";
+import {
+  afterSend,
+  alreadyHaveCode,
+  arrive,
+  asksForAddress,
+  CODE_MARK,
+  errorBox,
+  LEAD_WORDS,
+  opening,
+  type CodeLead,
+  type Outcome,
+  type SendResult,
+  type Step,
+} from "./emailSteps";
 import { forgetPass, keepPass, keptPass } from "./keptPass";
 import { sequenceOf, type PublicSurvey } from "./publicSurvey";
 import { PageOfQuestions, type PageAnswers } from "./Questions";
@@ -30,20 +44,12 @@ import styles from "./survey.module.css";
  *    back, pages saved earlier stay closed: on a shared computer the next
  *    person must not see the last person's.
  *
+ * Which step it opens at, where each press on the email check leads, and the
+ * one word its address carries at the code step are decided in
+ * emailSteps.ts, as plain functions.
+ *
  * Nothing slides or fades.
  */
-
-type Step =
-  | { at: "start" }
-  | { at: "declined" }
-  | { at: "comingBack" }
-  | { at: "address" }
-  | { at: "code" }
-  | { at: "already" }
-  | { at: "in" }
-  | { at: "page"; index: number }
-  | { at: "end" }
-  | { at: "closed" };
 
 type Session = { pass: string; order: string[]; savedPages: string[] };
 
@@ -112,6 +118,17 @@ function Support({ support }: { support: PublicSurvey["support"] }) {
 /** The mark left on the address for the one reload after the email check. Never sent anywhere. */
 const JUST_IN = "#in";
 
+/**
+ * Put `mark` on the page's address, or take any mark off, without adding a
+ * history entry. The mark is a fragment, which is never sent to a server, and
+ * is one fixed word (emailSteps.ts).
+ */
+function markAddress(mark: typeof CODE_MARK | null) {
+  const bare = window.location.href.split("#")[0];
+  const wanted = mark ? `${bare}${mark}` : bare;
+  if (window.location.href !== wanted) window.history.replaceState(null, "", wanted);
+}
+
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** One try at checking a code is given up after this long, so there is time to try again. */
 const CODE_CHECK_LIMIT_MS = 10_000;
@@ -153,11 +170,21 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
   const recaptcha = useRef<RecaptchaHandle>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const claim = useRef<string | null>(null);
+  /**
+   * True from a load that came back to the code step until the start screen
+   * is left (emailSteps.ts, `opening`). In this page's memory only.
+   */
+  const comeBack = useRef(false);
 
+  // Every change of step goes through here, and `arrive` says what is shown
+  // and whether the address carries the code step's mark.
   const go = useCallback((next: Step) => {
     setFieldError(null);
     setSaveFailed(false);
-    setStep(next);
+    const arrival = arrive(next, comeBack.current);
+    comeBack.current = arrival.comeBack;
+    markAddress(arrival.mark);
+    setStep(arrival.step);
   }, []);
 
   // Each new screen starts at its top, with its heading focused so a screen
@@ -187,6 +214,13 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
 
   // Coming back: is there a pass in this browser, and does it still work?
   useEffect(() => {
+    const pass = closed ? null : keptPass();
+    // The code step's mark: a page that reloaded at the code step comes back
+    // to it after the start screen (emailSteps.ts). A kept pass, or a closed
+    // survey, wins, and the mark is taken off.
+    const opened = opening({ closed, hash: window.location.hash, passKept: pass !== null });
+    comeBack.current = opened.comeBack;
+    if (opened.dropMark) markAddress(null);
     if (closed) return;
     // The mark the page leaves on its own address for the one reload after
     // the email check. It is taken off again as soon as it has been read, by a
@@ -198,7 +232,6 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
       window.location.hash = "";
       window.history.replaceState(null, "", window.location.href.split("#")[0]);
     };
-    const pass = keptPass();
     if (!pass) {
       clearMark();
       return;
@@ -225,39 +258,42 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
 
   const sequence = session ? sequenceOf(survey.pages, session.order) : [];
 
-  const sendCode = async () => {
-    if (busy) return false;
+  /** Ask for a code for the address typed. Null when a request is already under way. */
+  const sendCode = async (): Promise<SendResult | null> => {
+    if (busy) return null;
     const typed = normaliseUniversityAddress(address);
-    if (!typed) {
-      setFieldError(words.errors.notUniversityAddress);
-      return false;
-    }
+    if (!typed) return { ok: false, error: "notUniversityAddress" };
     setBusy(true);
     setFieldError(null);
     const recaptchaToken = RECAPTCHA_ENABLED ? ((await recaptcha.current?.execute()) ?? null) : null;
     if (RECAPTCHA_ENABLED && !recaptchaToken) {
       setBusy(false);
-      setFieldError(words.errors.botCheckFailed);
-      return false;
+      return { ok: false, error: "botCheckFailed" };
     }
     const reply = await callSurvey<Record<string, never>>("code", { email: typed, recaptchaToken });
     setBusy(false);
-    if (reply.ok) return true;
-    if (reply.error === "closed") {
-      go({ at: "closed" });
-      return false;
+    return reply.ok ? { ok: true } : { ok: false, error: reply.error };
+  };
+
+  /** Do what a press led to (emailSteps.ts). */
+  const follow = (outcome: Outcome) => {
+    if (outcome.clearCode) setCode("");
+    if (outcome.go) {
+      go(outcome.go);
+      return;
     }
-    const known = words.errors as Record<string, string>;
-    setFieldError(known[reply.error] ?? words.errors.couldNotSend);
-    return false;
+    setFieldError(outcome.error ? words.errors[outcome.error] : null);
+  };
+
+  /** "Send my code" on the email step, or "Send a new code" on the code step. */
+  const send = async (from: "address" | CodeLead) => {
+    const result = await sendCode();
+    if (result) follow(afterSend(from, result, words.errors));
   };
 
   const onAddress = async (event: FormEvent) => {
     event.preventDefault();
-    if (await sendCode()) {
-      setCode("");
-      go({ at: "code" });
-    }
+    await send("address");
   };
 
   const onCode = async (event: FormEvent) => {
@@ -266,7 +302,8 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
     const typed = normaliseUniversityAddress(address);
     const digits = normaliseCode(code);
     if (!typed || !digits) {
-      setFieldError(words.errors.wrongCode);
+      // Only the form the page comes back to asks for the address here.
+      setFieldError(typed ? words.errors.wrongCode : words.errors.notUniversityAddress);
       return;
     }
     setBusy(true);
@@ -592,43 +629,58 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
         </h1>
       </div>
     );
+    // Only the come-back form of the code step asks for the address beside
+    // the code, and the sentence about the address goes under its own box.
+    const box = errorBox(step, fieldError, words.errors.notUniversityAddress);
+    const emailError = box === "email" ? fieldError : null;
+    const codeError = box === "code" ? fieldError : null;
+    const emailField = (
+      <div className={styles.field}>
+        <label htmlFor="email" className={styles.fieldLabel}>
+          {words.fieldLabel}
+        </label>
+        <p id="email-help" className={styles.small}>
+          {words.fieldHelp}
+        </p>
+        <input
+          id="email"
+          className={styles.input}
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          value={address}
+          onChange={(event) => setAddress(event.target.value)}
+          aria-invalid={emailError ? "true" : "false"}
+          aria-describedby={emailError ? "email-help email-err" : "email-help"}
+        />
+        {emailError && <ErrorLine id="email-err">{emailError}</ErrorLine>}
+      </div>
+    );
     return (
       <main className={styles.column}>
         {stepHead}
         {step.at === "address" && (
           <form className={styles.form} onSubmit={onAddress} noValidate>
-            <div className={styles.field}>
-              <label htmlFor="email" className={styles.fieldLabel}>
-                {words.fieldLabel}
-              </label>
-              <p id="email-help" className={styles.small}>
-                {words.fieldHelp}
-              </p>
-              <input
-                id="email"
-                className={styles.input}
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                value={address}
-                onChange={(event) => setAddress(event.target.value)}
-                aria-invalid={fieldError ? "true" : "false"}
-                aria-describedby={fieldError ? "email-help email-err" : "email-help"}
-              />
-              {fieldError && <ErrorLine id="email-err">{fieldError}</ErrorLine>}
-            </div>
+            {emailField}
             <button type="submit" className={`${styles.primary} ${styles.full}`} disabled={busy} data-busy={busy || undefined}>
               {words.sendButton}
             </button>
             <RecaptchaLine />
+            <div className={styles.links}>
+              {/* To the code box with nothing sent: for a code already in hand. */}
+              <button type="button" className={styles.link} disabled={busy} onClick={() => follow(alreadyHaveCode(address))}>
+                {words.haveCodeLink}
+              </button>
+            </div>
           </form>
         )}
         {step.at === "code" && (
           <form className={styles.form} onSubmit={onCode} noValidate>
-            <p className={styles.info}>{words.codeSent}</p>
+            <p className={styles.info}>{words[LEAD_WORDS[step.lead]]}</p>
+            {asksForAddress(step) && emailField}
             <div className={styles.field}>
               <label htmlFor="code" className={styles.fieldLabel}>
                 {words.codeFieldLabel}
@@ -642,10 +694,10 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
                 maxLength={6}
                 value={code}
                 onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                aria-invalid={fieldError ? "true" : "false"}
-                aria-describedby={fieldError ? "code-err" : undefined}
+                aria-invalid={codeError ? "true" : "false"}
+                aria-describedby={codeError ? "code-err" : undefined}
               />
-              {fieldError && <ErrorLine id="code-err">{fieldError}</ErrorLine>}
+              {codeError && <ErrorLine id="code-err">{codeError}</ErrorLine>}
             </div>
             <button type="submit" className={`${styles.primary} ${styles.full}`} disabled={busy} data-busy={busy || undefined}>
               {words.checkButton}
@@ -653,14 +705,7 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
             <div className={styles.stackWide}>
               <p className={styles.small}>{words.noEmailArrived}</p>
               <div className={styles.links}>
-                <button
-                  type="button"
-                  className={styles.link}
-                  disabled={busy}
-                  onClick={async () => {
-                    if (await sendCode()) setCode("");
-                  }}
-                >
+                <button type="button" className={styles.link} disabled={busy} onClick={() => void send(step.lead)}>
                   {words.newCodeLink}
                 </button>
                 <button type="button" className={styles.link} onClick={() => go({ at: "address" })}>
