@@ -13,7 +13,7 @@ import {
   normalizeCourseEnrolment,
   type CourseEnrolmentStatus,
 } from "@/lib/firestore/courseEnrolments";
-import { courseApplicationId } from "@/lib/firestore/courseApplications";
+import { courseApplicationId, normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseRunChannel, normalizeCourseRun } from "@/lib/firestore/courses";
 import { unsubscribe } from "@/lib/firestore/subscriptions";
@@ -28,7 +28,13 @@ import { removalChangedWords } from "@/lib/courses/visit/words";
  * group's `memberCount` decrement.
  *
  * WHO MAY REMOVE: admins ∪ the run's `trackLeadUids` ∪ the lead of the
- * programme that names the run (`runStaffingOf`): the allocation gate.
+ * programme that names the run (`runStaffingOf`): the allocation gate. And
+ * of the people on the run, only somebody whose row the board serves the
+ * caller (`rowIsServedTo`): a row the application form placed is an admin's
+ * and the programme lead's, so a run's track lead is answered about such a
+ * person as about a uid with no place on the run, before anything about them
+ * is read, by the preview and the press alike. Somebody with no row on the
+ * run's list (an open run's own sign-up) is anybody's on the gate, as before.
  *
  * It records WHEN (`droppedOutAt`, the field leaving writes), so the
  * programme's Overview, its Attendance tab and the group's register say the
@@ -168,6 +174,14 @@ export async function POST(req: Request, ctx: Ctx) {
   const isAdmin = staffing.isAdmin;
   if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // A person whose row the board does not serve this caller is answered as a uid with no place, before
+  // anything about them is read: the preview's visits and the press's emails alike.
+  const rowSnap = await db.collection("courseApplications").doc(courseApplicationId(runId, uid)).get();
+  const row = rowSnap.exists ? normalizeCourseApplication(rowSnap.id, rowSnap.data() ?? {}) : null;
+  if (row && !rowIsServedTo(row, staffing)) {
+    return NextResponse.json({ error: "Enrolment not found" }, { status: 404 });
   }
 
   const enrolmentRef = db
