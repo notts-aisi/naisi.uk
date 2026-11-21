@@ -53,6 +53,15 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  * the groups are handed on to, which must ask the comparator.
  */
 const READS_WITHOUT_A_LIST = new Map([
+  // Archiving or restoring a group, from the run editor and the group's page.
+  [
+    "src/lib/courses/groupArchive/read.ts",
+    {
+      why:
+        "Archiving or restoring a group reads the run's groups to ask whether another still meets and to name the group " +
+        "a facilitator sits in: never a list of groups on a page.",
+    },
+  ],
   // A move made mid-term on the board, reached from the allocate route.
   [
     "src/lib/courses/moveFromWeek.ts",

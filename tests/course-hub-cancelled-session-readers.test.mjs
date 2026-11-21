@@ -163,6 +163,13 @@ const READERS = {
       "no visit to call off, so it is passed over before any register is read, and one whose register says it did not " +
       "happen is passed over too, so the host's facilitators are told only of a visit that was still happening",
   },
+  "lib/courses/groupArchive/read.ts": {
+    kind: "asks",
+    proof: ["startedSessions(run, group, now).filter((session) => !session.cancelled)", "held: register.held"],
+    why:
+      "what archiving a group reads of its registers: only those of sessions that have started and were not called off, " +
+      "so a session called off is never a register left unfinished, and one said not to have happened counts as done",
+  },
   "lib/courses/staffMove/plan.ts": {
     kind: "asks",
     proof: [

@@ -8,7 +8,7 @@ import { loadPeopleInGroups } from "@/lib/applications/handover/peopleInGroups";
 import { canRunTerm } from "@/lib/applications/access";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { compareGroupsByMeeting, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 
 /**
  * One programme's Groups tab, its first view: People in groups,
@@ -63,8 +63,8 @@ export default async function ProgrammeGroupsPage({
     ? (await db.collection("courseGroups").where("runId", "==", view.run.id).get()).docs
         .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
         .filter((group) => group.archived && group.runId === view.run?.id)
+        .sort(compareGroupsByMeeting)
         .map((group) => ({ id: group.id, name: group.name.trim() || "Untitled group" }))
-        .sort((a, b) => a.name.localeCompare(b.name, "en-GB"))
     : [];
   return (
     <>

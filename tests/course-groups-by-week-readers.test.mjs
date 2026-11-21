@@ -233,6 +233,14 @@ const ASKS_WEEK = new RegExp(`${ASKS_SESSION.source}|${ASKS_OWN.source}`);
  * both directions.
  */
 const READERS = {
+  "lib/courses/groupArchive/plan.ts": {
+    kinds: ["own", "now"],
+    why: "whether a group may be archived: a place whose group it is now still holds a place in it; somebody moved from a week still to come still belongs to it that week (ownGroupForWeek), and a one-week visit to one of its sessions still to come is asked of the visit itself (visitInWeek), so neither is archived away",
+  },
+  "lib/courses/groupArchive/read.ts": {
+    kinds: ["now"],
+    why: "what archiving or restoring a group reads: every place on the run as stored and the group's own registers of the sessions that have started, handed whole to the plan, which decides which group each place means",
+  },
   "lib/courses/visit/plan.ts": {
     kinds: ["week", "own"],
     why: "what a one-week visit would do: the weeks offered are those of the groups the place belongs to (sessionsWithGroup of belonging(place)), the host is never the group they belong to that week (ownGroupForWeek), a session's places left count everybody whose session that week is the group's (placesLeftInWeek), and their next session back is the one they are due at in their own group (sessionsWithGroup)",

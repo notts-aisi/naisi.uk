@@ -21,7 +21,7 @@ export default function ArchivedGroupsLine({
 }) {
   if (groups.length === 0) return null;
   return (
-    <p className={styles.archivedLine} data-testid="archived-groups">
+    <p className={styles.archivedLine}>
       <span className={styles.archivedLabel}>{ARCHIVED_GROUPS}</span>
       {groups.map((group, index) => (
         <span key={group.id}>

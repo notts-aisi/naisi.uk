@@ -77,7 +77,7 @@ export function ArchiveItem({ groupId, groupName }: { groupId: string; groupName
 export function ArchivedGroup({ groupId, groupName, groupsHref }: { groupId: string; groupName: string; groupsHref: string }) {
   const { off, busy, problem, press } = useArchivePress(groupId, false);
   return (
-    <section className={styles.card} aria-labelledby="group-archived" data-testid="group-archived">
+    <section className={styles.card} aria-labelledby="group-archived">
       <p>
         <Link href={groupsHref} className={styles.personLink}>
           {W.GROUPS}

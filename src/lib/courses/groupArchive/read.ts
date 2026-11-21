@@ -52,7 +52,9 @@ export async function readGroupArchiveFacts(
 
   const registers = new Map<string, RegisterState>();
   if (run) {
-    const started = startedSessions(run, group, now);
+    // Only sessions that have started and were not called off: a register of
+    // a session called off is not asked about, whatever it says.
+    const started = startedSessions(run, group, now).filter((session) => !session.cancelled);
     const refs = started.map((session) =>
       db.collection("courseAttendance").doc(attendanceDocId(runId, group.id, session.weekNumber, session.occurrence)),
     );

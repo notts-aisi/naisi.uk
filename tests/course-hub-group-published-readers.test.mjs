@@ -668,6 +668,14 @@ const READERS = {
       "told places are read only to count whose reminders before a session have gone, and the preview answers with " +
       "counts. A placement nobody has told is no reminder and is not counted; nobody's group is shown",
   },
+  "lib/courses/groupArchive/read.ts": {
+    kind: "writer",
+    proof: ['list(db.collection("courseEnrolments").where("runId", "==", runId))'],
+    why:
+      "what archiving or restoring a group reads: every place on the run, told or not, because an untold seat still " +
+      "holds a place in the group (the Groups tab counts it too). It answers a count and group names to whoever may " +
+      "archive the group, and shows nobody a placement",
+  },
   "lib/courses/moveFromWeek.ts": {
     kind: "writer",
     proof: ["if (!placementIsTold(place)) return { ok: false, refusal: \"not-told\" };", "patch.toldGroupId = fromGroupId;"],
