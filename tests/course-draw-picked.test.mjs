@@ -239,6 +239,39 @@ describe("1. a week whose pack each person picks: the page and the route follow 
   });
 });
 
+describe("1a. saving late on a week whose pack each person picks", () => {
+  test("Save asks first, says which week, and says only what the save changes; a co-facilitator's refusal and the content-note tick sit before and after the yes", async () => {
+    pickedWeek();
+    for (const uid of ["chloe", "farah"]) assert.equal((await w.pick(uid, W3.given, "w03", W3.elections)).status, 200);
+    // Group B's week 3 session started at 6pm: the week people are working on now.
+    w.at("2026-11-17T18:30:00Z");
+    const ask = ["Week 3 is the week people are working on now. Its session has started.", "Changing a case takes back that person’s Ready for my talk."];
+    // The page's Save asks these, which week first; no line about changing a pathway, which the draw never changes.
+    assert.deepEqual(editorProps((await w.drawPage("rahul")).element).ask, ask);
+    // The route without the yes: the same lines.
+    let answer = await w.saveDraw("rahul", "w03", [["chloe", W3.caseStudy, W3.surprise]]);
+    assert.deepEqual([answer.status, answer.body.confirm, answer.body.ask], [409, true, ask]);
+    assert.equal(answer.body.error, `${ask[0]} This save needs a yes first. ${ask[1]}`);
+    // A co-facilitator is refused a facilitator's own case outright, never asked for a yes about it.
+    answer = await w.saveDraw("rahul", "w03", [["farah", W3.caseStudy, W3.surprise]]);
+    assert.deepEqual([answer.status, answer.body], [403, { error: NOT_THEIRS("Farah") }]);
+    const confirmed = (entries) => w.call("rahul", w.routes.draw.PUT, { groupId: B }, { course: true, body: { weekId: "w03", entries, confirmed: true } });
+    answer = await confirmed([{ uid: "farah", blockId: W3.caseStudy, value: W3.surprise }]);
+    assert.deepEqual([answer.status, answer.body], [403, { error: NOT_THEIRS("Farah") }]);
+    // With the yes: saved, and the Ready mark goes, as the sentence says.
+    seedCase("chloe", null, true);
+    answer = await confirmed([{ uid: "chloe", blockId: W3.caseStudy, value: W3.surprise }]);
+    assert.deepEqual([answer.status, answer.body], [200, { ok: true, saved: 1 }]);
+    assert.deepEqual([w.recordOf("chloe", W3.caseStudy).caseId, w.recordOf("chloe", W3.caseStudy).ready], [W3.surprise, false]);
+    // A case with a content note needs the row's tick with the yes too, and is taken with both.
+    answer = await confirmed([{ uid: "chloe", blockId: W3.caseStudy, value: W3.closeCall }]);
+    assert.equal(answer.status, 400);
+    answer = await confirmed([{ uid: "chloe", blockId: W3.caseStudy, value: W3.closeCall, asked: true }]);
+    assert.equal(answer.status, 200);
+    assert.equal(w.recordOf("chloe", W3.caseStudy).caseId, W3.closeCall);
+  });
+});
+
 describe("1b. who else reads a facilitator's own pick", () => {
   test("a lead who also facilitates the group reads it and gives its case, as a lead does", async () => {
     pickedWeek();
