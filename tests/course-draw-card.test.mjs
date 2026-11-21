@@ -265,7 +265,7 @@ describe("2. pinned from the start of the session that hands the slips out until
     const { model, slips } = await cardAt("2026-11-01T12:00:00Z");
     assert.deepEqual([model.weekNumber, model.pinned, model.phase, model.facts.handOut, slips], [1, false, "before", null, null]);
     w.at("2026-11-01T12:00:00Z");
-    assert.match(cardText(await w.groupPage("rahul")), /Week 1 has no session before it, so you can set these any time before its first session and change them afterwards\./);
+    assert.match(cardText(await w.groupPage("rahul")), /Week 1 has no session before it, so you can set its slips any time before its first session and change them afterwards\./);
   });
 
   test("after the last session: never pinned", async () => {
