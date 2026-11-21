@@ -38,6 +38,32 @@ export default async function HandOutRowLoader({
   session: string | null;
   now: Date;
 }) {
+  const slips = await slipsToShow({ user, group, runId, dates, session, now });
+  if (!slips) return null;
+  return <HandOutRow groupId={group.id} weekNumber={slips.weekNumber} draw={slips.draw} />;
+}
+
+/**
+ * The row's reads, kept apart from the row they feed: a read that fails
+ * answers null and the register goes on without the row. The row itself is
+ * built outside the `try`, because a `try` round a piece of markup catches
+ * nothing that goes wrong when that markup is drawn.
+ */
+async function slipsToShow({
+  user,
+  group,
+  runId,
+  dates,
+  session,
+  now,
+}: {
+  user: SessionUser;
+  group: CourseGroupDoc;
+  runId: string;
+  dates: DrawWeeks;
+  session: string | null;
+  now: Date;
+}): Promise<Awaited<ReturnType<typeof slipsTonightFrom>>> {
   try {
     const db = getAdminDb();
     if (!db) return null;
@@ -47,7 +73,7 @@ export default async function HandOutRowLoader({
     if (!roster) return null;
     const slips = await slipsTonightFrom(db, { runId, dates, people: roster.people, now });
     if (!slips || (session !== null && session !== slips.handOut.session.sessionKey)) return null;
-    return <HandOutRow groupId={group.id} weekNumber={slips.weekNumber} draw={slips.draw} />;
+    return slips;
   } catch (err) {
     console.error("[register page] the pathways and cases row's read failed", group.id, err);
     return null;
