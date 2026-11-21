@@ -4154,8 +4154,8 @@ public footer already gives the society's address.
   `/team/reply`): admins only, never their own message, one 403 for anybody
   else before anything is read. A reply is one paragraph, no link, up to 600
   characters, stored on the message and emailed (docs/notifications.md).
-- **The member's list** (`ownTeamMessages`, `askedByUid` alone): their own
-  messages, newest first, "Waiting" or "Replied" with the reply in quotes.
+- **The member's list** (`ownTeamMessages`, `askedByUid` and `kind`, two
+  equalities, newest first in code): their own messages, "Waiting" or "Replied" with the reply in quotes.
   Requests about sessions and groups stay on the programme page, and the list
   says so.
 

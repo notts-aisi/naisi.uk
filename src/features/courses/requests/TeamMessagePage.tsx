@@ -51,7 +51,7 @@ export default function TeamMessagePage({ view }: { view: TeamMessagePageView })
       return;
     }
     if (action === "reply") {
-      const emailed = (answer.body?.emailed as { person?: string } | undefined)?.person === "sent";
+      const emailed = (answer.body?.emailed as { person?: string } | undefined)?.person ?? "";
       setSaid(T.repliedSaidWords(first, emailed));
       setReply("");
     }
@@ -74,6 +74,11 @@ export default function TeamMessagePage({ view }: { view: TeamMessagePageView })
       {said && (
         <p className={styles.said} role="status">
           {said}
+        </p>
+      )}
+      {problem && (
+        <p className={styles.problem} role="status">
+          {problem}
         </p>
       )}
 
@@ -115,15 +120,10 @@ export default function TeamMessagePage({ view }: { view: TeamMessagePageView })
               </label>
               <div className={styles.actions}>
                 <Button onClick={() => void act("reply")} disabled={off || !reply.trim()}>
-                  {busy === "reply" ? R.SAVING : T.SEND_THE_REPLY}
+                  {busy === "reply" ? T.PAGE_WORDS.sending : T.SEND_THE_REPLY}
                 </Button>
               </div>
               <p className={styles.line}>{T.replyLineWords(first)}</p>
-              {problem && (
-                <p className={styles.problem} role="status">
-                  {problem}
-                </p>
-              )}
             </section>
           ) : (
             view.yours && (

@@ -2346,7 +2346,7 @@ export const ROUTES = {
       why:
         "An admin's own switch for the email about new requests to be excused: view-as first, then anybody but an " +
         "admin is one 403 before anything is read, and an admin is told a body that is not on or off is not one. " +
-        "It writes the caller's own user document alone. Its answer is { ok, on }.",
+        "It writes the caller's own user document alone; `which: \"team\"` is the second switch, about messages to the team. Its answer is { ok, on }.",
     },
   },
   "/api/courses/requests/[requestId]/excused/reply": {
@@ -4944,7 +4944,8 @@ export const PAGES = {
     why:
       "One request's page, under the Requests page in the admissions tree: the tree's gate, then the loader's " +
       "(loadRequestPage, an admin or somebody leading the programme of the request's group, asked through the group's " +
-      "register gate; and for a request to be excused loadExcusedRequestPage, an admin's alone, so a lead is drawn the " +
+      "register gate; and for a request to be excused loadExcusedRequestPage, a request to go to another session " +
+      "loadVisitRequestPage and a message to the team loadTeamMessagePage, each an admin's alone, so a lead is drawn the " +
       "same not-here). The address names no request the world writes, so everybody the tree admits is drawn the same " +
       "calm 'that request isn't here' with a 200, never told whether one exists; everybody else is sent to the dashboard.",
   },

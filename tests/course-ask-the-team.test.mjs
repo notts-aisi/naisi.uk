@@ -35,6 +35,7 @@ const takeRoute = await w.courseRoute("requests", "[requestId]", "team", "take")
 const replyRoute = await w.courseRoute("requests", "[requestId]", "team", "reply");
 const emailsRoute = await w.courseRoute("requests", "emails");
 const askPage = (await w.loadTs(join("app", "(app)", "ask-the-team", "page.tsx"))).default;
+const RequestsList = (await w.loadTs(join("features", "courses", "requests", "RequestsList.tsx"))).default;
 const TeamMessagePage = (await w.loadTs(join("features", "courses", "requests", "TeamMessagePage.tsx"))).default;
 const { loadTeamMessagePage } = await w.loadTs(join("lib", "courses", "teamAsk", "page.ts"));
 const { loadRequestsPage } = await w.loadTs(join("lib", "courses", "requests", "load.ts"));
@@ -196,8 +197,11 @@ describe("2. No reader of another kind, and no run, sees one", () => {
     assert.equal(waiting.messages, 1);
     assert.equal(waiting.excused, 0);
     assert.equal(waiting.visits, 0);
+    assert.equal(waiting.corrections, 0);
+    // Every kind counted by itself, and together they are the whole count.
+    assert.equal(waiting.corrections + waiting.excused + waiting.visits + waiting.messages, waiting.count);
     assert.equal(
-      pageWords.requestsWaitingLine({ corrections: waiting.count - waiting.excused - waiting.visits - waiting.messages, messages: waiting.messages }),
+      pageWords.requestsWaitingLine({ corrections: waiting.corrections, excused: waiting.excused, visits: waiting.visits, messages: waiting.messages }),
       "Somebody has sent the team a message.",
     );
     assert.equal(pageWords.requestsWaitingLine({ corrections: 0, messages: 3 }), "3 messages to the team are waiting.");
@@ -253,6 +257,7 @@ describe("3. Take it, and the reply", () => {
     world.mail.length = 0;
     assert.equal((await reply("chloe", id, "Thanks")).status, 403);
     assert.equal((await reply("claudia", id, "Thanks")).status, 403);
+    assert.equal((await reply(null, id, "Thanks")).status, 401);
     const answered = await reply("zach", id, "Fixed now, thanks for telling us.");
     assert.equal(answered.status, 200, JSON.stringify(answered.body));
     assert.equal(answered.body.status, "replied");
@@ -291,7 +296,9 @@ describe("3. Take it, and the reply", () => {
     assert.equal((await ask("zach", { topic: "else", words: "A question of my own" })).status, 200);
     const own = messages().find((doc) => doc.askedByUid === "zach");
     assert.equal((await reply("zach", own.id, "Answering myself")).body.error, "You can’t reply to your own message.");
-    assert.equal((await take("zach", own.id)).status, 403);
+    const ownTake = await take("zach", own.id);
+    assert.equal(ownTake.status, 403);
+    assert.equal(ownTake.body.error, "You sent this, so another admin takes it.");
     assert.equal((await reply("ada", own.id, "Answered.")).status, 200);
   });
 });
@@ -350,5 +357,79 @@ describe("4. The member's page", () => {
     assert.equal(words.excerptOf("\nFirst line\nsecond"), "First line");
     const long = words.excerptOf("The reading for week four has a link that goes to a page that is not there any more");
     assert.ok(long.endsWith("…") && long.length <= 50, long);
+  });
+});
+
+describe("5. Since the review", () => {
+  test("a member with many requests of other kinds still sees every message of theirs, newest first", async () => {
+    for (let i = 0; i < 60; i += 1) {
+      world.db.seed(`courseRequests/other${String(i).padStart(2, "0")}`, {
+        kind: i % 2 ? "excused" : "visit",
+        runId: RUN.agi,
+        askedByUid: "chloe",
+        subjectUid: "chloe",
+        status: "withdrawn",
+        askedAt: new Date("2026-11-01T10:00:00Z"),
+      });
+    }
+    mock.timers.setTime(new Date("2026-11-16T10:00:00Z").getTime());
+    await chloeSends({ topic: "else", words: "The older one" });
+    mock.timers.setTime(NOW.getTime());
+    await chloeSends({ topic: "site", words: "The newest one" });
+    const page = await w.draw(askPage, "chloe", {});
+    assert.ok(page.text.includes("Something’s wrong: The newest one"), page.text);
+    assert.ok(page.text.indexOf("The newest one") < page.text.indexOf("The older one"));
+  });
+
+  test("the reply's sentence says what became of the email: sent, no address, or held back", () => {
+    assert.equal(words.repliedSaidWords("Chloe", "sent"), "Replied. Chloe has been emailed.");
+    assert.equal(words.repliedSaidWords("Chloe", "no-address"), "Replied. Chloe has no address we can email, so it shows on their page only.");
+    assert.equal(words.repliedSaidWords("Chloe", "suppressed"), "Replied. Nobody was emailed.");
+    assert.equal(words.repliedSaidWords("Chloe", "failed"), "Replied. Nobody was emailed.");
+  });
+
+  test("a suppressed address: the reply is stored and the route says it was not sent", async () => {
+    const id = await chloeSends();
+    world.mailFate = (args) => (args.to.startsWith("chloe@") ? "suppressed" : "sent");
+    try {
+      const answered = await reply("zach", id, "Fixed now.");
+      assert.equal(answered.status, 200);
+      assert.equal(answered.body.emailed.person, "suppressed");
+      assert.equal(read(`courseRequests/${id}`).status, "replied");
+    } finally {
+      world.mailFate = undefined;
+    }
+  });
+
+  test("the Requests page draws the section, the second switch and the line for an admin, adds no programme to the filter, and draws none of it for a lead", async () => {
+    const replied = await chloeSends();
+    await reply("zach", replied, "Fixed now.");
+    await chloeSends({ topic: "else", words: "Can I bring a friend to a social?" });
+    const admin = await loadRequestsPage(world.courseDb, w.sessionOf("zach"), new Date());
+    const html = renderToStaticMarkup(createElement(RequestsList, { view: admin.view, emailMe: true, emailMeTeam: false }));
+    const text = textOf(html);
+    assert.ok(text.includes("Something’s wrong, something else"), text);
+    assert.ok(text.includes("Chloe Nguyen · Something else “Can I bring a friend to a social?” · Tue 17 Nov · Nobody has it yet Waiting Open"), text);
+    // The replied one is in the Done this week view, not the Waiting one drawn first.
+    assert.ok(!text.includes("Zach replied"), text);
+    assert.ok(text.includes("Email me about messages to the team"));
+    assert.ok(text.includes("When somebody sends the team a message: who, what it’s about and when, never what they wrote."));
+    assert.ok(
+      text.includes(
+        "Messages to the team are for admins only: no programme’s lead or facilitator sees them. A new one emails an admin only if they switch it on above. Replying emails the person and closes the message.",
+      ),
+    );
+    // The switch is drawn before the line that says it is above.
+    assert.ok(text.indexOf("Email me about messages to the team") < text.indexOf("switch it on above"));
+    assert.ok(!html.includes(">A programme<"), "a message adds a made-up programme to the filter");
+    assert.match(html, /role="switch"[^>]*aria-checked="false"|aria-checked="false"[^>]*role="switch"|type="checkbox"/);
+    assert.equal(admin.view.counts.doneThisWeek, 1, "the replied message is done this week");
+
+    const lead = await loadRequestsPage(world.courseDb, w.sessionOf("claudia"), new Date());
+    assert.equal(lead.status, "ok");
+    const leadText = textOf(renderToStaticMarkup(createElement(RequestsList, { view: lead.view, emailMe: null, emailMeTeam: null })));
+    assert.ok(!leadText.includes("Something’s wrong, something else"));
+    assert.ok(!leadText.includes("Email me about messages to the team"));
+    assert.ok(!leadText.includes("Messages to the team are for admins only"));
   });
 });

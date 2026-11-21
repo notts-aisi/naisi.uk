@@ -31,9 +31,19 @@ export const metadata: Metadata = {
 export default async function AskTheTeamPage() {
   const user = await getCurrentUser();
   const db = getAdminDb();
+  // The person's own view: only a place Publish has told them, an admin's own
+  // included. A read that fails still draws the form, with no list rather
+  // than an empty one.
+  const quietly = <T,>(what: string, fallback: T) => (err: unknown): T => {
+    console.warn(`[ask the team] could not read the member's ${what}`, err instanceof Error ? err.message : "unknown");
+    return fallback;
+  };
   const [own, places] =
     user && db
-      ? await Promise.all([ownTeamMessages(db, user.uid), placesThisTermOf(db, user.uid, { isAdmin: user.role === "admin", role: user.role })])
-      : [[], []];
+      ? await Promise.all([
+          ownTeamMessages(db, user.uid).catch(quietly("own messages", null)),
+          placesThisTermOf(db, user.uid, { isAdmin: false, role: user.role }).catch(quietly("places", [])),
+        ])
+      : [null, []];
   return <AskTheTeam places={places.map((place) => ({ runId: place.runId, name: place.programmeName }))} own={own} />;
 }

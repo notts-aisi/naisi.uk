@@ -782,7 +782,8 @@ const NOT_COVERED = {
   "/api/courses/requests/ask": {
     reason:
       "Ask the team: a member sending the people running NAISI a message. tests/course-ask-the-team.test.mjs executes it as a member, an admin, signed out and waiting, with the daily limit of five, the topics offered, the 2,000 characters, a message that belongs to no programme and the admins' email only for an admin who switched it on, under its cap. No browser spec signs in as a member and sends one.",
-    coverWhen: "When a browser spec signs in as a member, opens Ask the team from the foot of a page, sends a message and reads it under Your requests.",
+    coverWhen:
+      "When a browser spec signs in as a member, opens Ask the team from the foot of a page, sends a message and reads it under Your requests. A message belongs to no run, so that spec's teardown has to delete it by askedByUid: a world's teardown deletes courseRequests by runId.",
   },
   "/api/courses/requests/[requestId]/team/take": {
     reason:

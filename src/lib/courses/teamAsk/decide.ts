@@ -51,13 +51,13 @@ function caught(err: unknown): { ok: false; status: number; error: string } {
 const closesOnReply = true;
 
 /** An admin, for a message somebody else sent; anybody else learns nothing of it. */
-async function forAdmin(db: Firestore, actor: SessionUser, requestId: string): Promise<Outcome<TeamMessageDoc>> {
+async function forAdmin(db: Firestore, actor: SessionUser, requestId: string, own: string): Promise<Outcome<TeamMessageDoc>> {
   if (actor.role !== "admin") return fail(403, "Forbidden");
   if (!isAddressableId(requestId) || requestId.length > 128) return fail(404, EXCUSED_REFUSAL.notFound);
   const snap = await db.collection(COURSE_REQUESTS_COLLECTION).doc(requestId).get();
   const message = snap.exists ? normalizeTeamMessage(snap.id, snap.data() ?? {}) : null;
   if (!message) return fail(404, EXCUSED_REFUSAL.notFound);
-  if (message.askedByUid === actor.uid) return fail(403, REPLY_REFUSAL.own);
+  if (message.askedByUid === actor.uid) return fail(403, own);
   return { ok: true, value: message };
 }
 
@@ -69,7 +69,7 @@ async function freshIn(tx: Transaction, db: Firestore, id: string): Promise<Team
 }
 
 export async function takeTeamMessage(db: Firestore, actor: SessionUser, requestId: string, now: Date): Promise<Outcome<{ handlingUid: string }>> {
-  const found = await forAdmin(db, actor, requestId);
+  const found = await forAdmin(db, actor, requestId, REPLY_REFUSAL.ownTake);
   if (!found.ok) return found;
   try {
     await db.runTransaction(async (tx) => {
@@ -100,7 +100,7 @@ async function personOf(db: Firestore, uid: string): Promise<{ firstName: string
 }
 
 export async function replyToTeamMessage(db: Firestore, actor: SessionUser, requestId: string, body: unknown, now: Date): Promise<Outcome<TeamReplyAnswer>> {
-  const found = await forAdmin(db, actor, requestId);
+  const found = await forAdmin(db, actor, requestId, REPLY_REFUSAL.own);
   if (!found.ok) return found;
   const parsed = parseReply(body);
   if (!parsed.ok) return fail(400, parsed.error);

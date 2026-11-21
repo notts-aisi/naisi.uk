@@ -125,7 +125,7 @@ export const MESSAGES_SECTION = "Something’s wrong, something else";
 
 /** The section's line in "Who sees what". */
 export const MESSAGES_WHO_SEES =
-  "Messages to the team are for admins only: no programme’s lead or facilitator sees them. A new one emails an admin only if they switch it on below. Replying emails the person and closes the message.";
+  "Messages to the team are for admins only: no programme’s lead or facilitator sees them. A new one emails an admin only if they switch it on above. Replying emails the person and closes the message.";
 
 /** The second switch, off unless switched on. */
 export const EMAIL_ME_ABOUT_MESSAGES = "Email me about messages to the team";
@@ -158,10 +158,16 @@ export function replyLineWords(firstName: string): string {
   return `Sent by email and shown under ${who}’s message. Sending it closes the message.`;
 }
 
-/** Once replied, from the route's answer. */
-export function repliedSaidWords(firstName: string, emailed: boolean): string {
+/**
+ * Once replied, from the route's answer about the email: sent, no address on
+ * their account, or held back or failed ("Replied. Nobody was emailed.", the
+ * sentence the other request pages use).
+ */
+export function repliedSaidWords(firstName: string, emailed: string): string {
   const who = firstName.trim() || "The person";
-  return emailed ? `Replied. ${who} has been emailed.` : `Replied. ${who} has no address we can email, so it shows on their page only.`;
+  if (emailed === "sent") return `Replied. ${who} has been emailed.`;
+  if (emailed === "no-address") return `Replied. ${who} has no address we can email, so it shows on their page only.`;
+  return "Replied. Nobody was emailed.";
 }
 
 /** The message is the reader's own: another admin answers it. */
@@ -187,6 +193,8 @@ export const REPLY_REFUSAL = {
   link: "The reply can’t include a link.",
   long: "The reply is longer than 600 characters.",
   own: "You can’t reply to your own message.",
+  /** Take it, pressed on your own message. */
+  ownTake: "You sent this, so another admin takes it.",
   answered: "It’s already been answered.",
 } as const;
 

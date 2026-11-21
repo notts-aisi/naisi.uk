@@ -123,7 +123,9 @@ export default function RequestsList({
   const [programme, setProgramme] = useState<string>("all");
 
   const programmes = new Map<string, string>();
-  for (const row of view.rows) programmes.set(programmeKey(row), row.programme.name || "A programme");
+  // A message to the team belongs to no programme: it adds nothing to the
+  // filter, and a programme chosen there shows none (it is in "All" only).
+  for (const row of view.rows) if (row.runId !== "") programmes.set(programmeKey(row), row.programme.name || "A programme");
   const inProgramme = view.rows.filter((row) => programme === "all" || programmeKey(row) === programme);
   const inTab = inProgramme.filter((row) => (tab === "waiting" ? row.state === "waiting" : tab === "handling" ? row.state === "handling" : isDone(row.state)));
   // Each section takes its own kind's rows and no other (`rowsOfKind`).

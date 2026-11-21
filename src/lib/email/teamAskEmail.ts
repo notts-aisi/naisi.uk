@@ -56,7 +56,10 @@ export async function sendTeamReplyEmail(opts: {
         footnote: opts.words.footnote,
       }),
     });
-    return result && Array.isArray(result.suppressed) && result.suppressed.length > 0 ? "suppressed" : "sent";
+    // Held back by the do-not-email list, or by a copy of the site that may not write to the address: not sent.
+    const heldBack =
+      result && ((Array.isArray(result.suppressed) && result.suppressed.length > 0) || (Array.isArray(result.held) && result.held.length > 0));
+    return heldBack ? "suppressed" : "sent";
   } catch (err) {
     console.error("[team reply email] send failed", opts.requestId, err instanceof Error ? err.message : "unknown");
     return "failed";
