@@ -5,24 +5,39 @@ import { useEffect, useId, useRef, useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
 import Select from "@/components/ui/Select";
 import { useHydrated } from "@/hooks/useHydrated";
-import { caseOptions, type DrawTalk } from "@/lib/courses/packsAndCases/model";
+import { askedAtOpen, caseOptions, drawCaseOf, notedCasesFor, untickedHolding, type DrawTalk } from "@/lib/courses/packsAndCases/model";
+import { swapRefusedWords } from "@/lib/courses/packsAndCases/swap";
 import { safeReturnPath } from "@/lib/safeReturnPath";
 import {
+  ASKED_FOR_THIS_ONE,
   CANCEL,
   DRAW_NOT_SAVED,
   LEAVE_WITHOUT_SAVING,
   NOT_GIVEN_YET,
+  NO_CASE_TO_GIVE,
+  PICKS_THEIR_OWN,
   SAVE,
   SAVE_ANYWAY,
   SWAP_LABEL,
   SWAP_THEM,
   SWAP_TWO_PEOPLE,
   SWAP_WITH,
+  THEIR_PICK,
+  THEIR_PICK_CHANGED,
   askAfterRefusal,
   choosePackFirstWords,
+  everyCaseNotedWords,
   leavingUnsavedWords,
+  notPickedYetWords,
+  notedCaseOptionWords,
+  notedCasesWords,
+  ownCaseGivenByWords,
+  pickChangedLineWords,
+  pickLabelWords,
+  picksOnWeekPageWords,
   savedDrawWords,
   swappedWords,
+  waitsForPackWords,
 } from "@/lib/courses/packsAndCases/words";
 import type { DrawSaved } from "@/app/api/courses/groups/[groupId]/draw/route";
 import { DRAW_LEAVE_EVENT } from "./DrawWeekPicker";
@@ -38,11 +53,23 @@ import styles from "./packsAndCases.module.css";
  *  - "Not given yet" is offered while a person has nothing saved, as the
  *    board draws it for Sam.
  *  - A case list offers only the cases of the person's pack when the cases
- *    are grouped by pack, and "Choose a pathway first" until they have one;
- *    a case with a content note is never offered (`caseOptions`, the route's
- *    own rule). Changing somebody's pathway takes back a case their new
- *    pathway does not offer.
- *  - "Swap two people" swaps everything two people have; Save keeps it.
+ *    are grouped by pack, and until they have one says "Choose Chloe’s
+ *    pathway first." (`caseOptions`, the route's own rule). Changing
+ *    somebody's pathway takes back a case their new pathway does not offer.
+ *  - A PACK EACH PERSON PICKS (`picked`, `picks`) is shown as words with
+ *    "Their pick", never a list; until they pick, the case list "Waits for a
+ *    pathway". A pick that changed after its case was given says "Their pick
+ *    changed", and the case they hold stays in the list until it is put
+ *    right. A facilitator's own pick on a co-facilitator's page (`hidden`)
+ *    is "Picks their own", with no case list.
+ *  - A case with a content note is in no list until the row's "Asked for
+ *    this one" is ticked; then it is offered, its note shown under the list
+ *    once chosen, and the save carries the tick (`asked`), which the route
+ *    requires. The tick is not kept: a row holding such a case opens ticked.
+ *  - "Swap two people" swaps what a facilitator gives two people, never a
+ *    pick: across two people who have not picked the same pathway, or a
+ *    case with a content note going to somebody who has not asked for one,
+ *    it is refused in a sentence. Save keeps it.
  *  - Save sends only what changed, and is held until the page has hydrated:
  *    before then nothing is listening to it. Saved, it says how many have
  *    everything the week gives out: "Saved. 6 of 8 have a pathway and a
@@ -70,16 +97,25 @@ import styles from "./packsAndCases.module.css";
 type Person = { uid: string; name: string; firstName: string };
 type PackBlock = { id: string; title: string; packs: Array<{ id: string; name: string }> };
 type Holding = { packs: Record<string, string>; cases: Record<string, string> };
+/** Whether each person asked for a case with a content note, by talk. */
+type Asked = Record<string, Record<string, boolean>>;
 
 type Props = {
   groupId: string;
   weekId: string;
   weekNumber: number;
   people: Person[];
+  /** The Choose ones a facilitator gives out. */
   packs: PackBlock[];
+  /** The Choose ones each person picks that the cases follow: shown, never typed. */
+  picked: PackBlock[];
   talks: DrawTalk[];
   caseLabel: string;
   initial: Record<string, Holding>;
+  /** Each person's pick in each of `picked`, as this viewer may see it. */
+  picks: Record<string, Record<string, string>>;
+  /** The people whose own pick this viewer does not read: their row says only that it is theirs. */
+  hidden: string[];
   foot: string;
   /** What each person is given: "a pathway and a case". */
   holding: string;
@@ -102,9 +138,12 @@ export default function DrawEditor({
   weekNumber,
   people,
   packs,
+  picked,
   talks,
   caseLabel,
   initial,
+  picks,
+  hidden,
   foot,
   holding,
   ask: askAtOpen,
@@ -118,6 +157,11 @@ export default function DrawEditor({
   const [values, setValues] = useState<Record<string, Holding>>(() =>
     Object.fromEntries(people.map((person) => [person.uid, copy(initial[person.uid])])),
   );
+  // A row holding a case with a content note opens ticked: it was given because they asked.
+  const [asked, setAsked] = useState<Asked>(() =>
+    Object.fromEntries(people.map((person) => [person.uid, askedAtOpen(talks, initial[person.uid] ?? { packs: {}, cases: {} })])),
+  );
+  const [swapError, setSwapError] = useState<string | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapA, setSwapA] = useState(people[0]?.uid ?? "");
   const [swapB, setSwapB] = useState(people[1]?.uid ?? "");
@@ -137,8 +181,16 @@ export default function DrawEditor({
     router.push(href);
   }
 
-  const titleOf = new Map(packs.map((block) => [block.id, block.title]));
+  const titleOf = new Map([...packs, ...picked].map((block) => [block.id, block.title]));
   const nameOf = new Map(people.map((person) => [person.uid, person.firstName || person.name]));
+  const pickedById = new Map(picked.map((block) => [block.id, block]));
+  const hiddenSet = new Set(hidden);
+  /** A talk whose cases follow a pack each person picks. */
+  const followsPick = (talk: DrawTalk) => talk.keyedBy !== null && pickedById.has(talk.keyedBy);
+  /** A person's pack in a Choose one: the one they were given, else the one they picked. */
+  const packOfFor = (uid: string, holding: Holding | undefined) => (chooseOneId: string) =>
+    holding?.packs[chooseOneId] ?? picks[uid]?.[chooseOneId] ?? null;
+  const askedOf = (uid: string, talkId: string) => asked[uid]?.[talkId] === true;
 
   /** What changed since the last save, as the route takes it. */
   const changes = people.flatMap((person) => {
@@ -150,11 +202,29 @@ export default function DrawEditor({
         .map((block) => ({ uid: person.uid, blockId: block.id, value: now?.packs[block.id] || null })),
       ...talks
         .filter((talk) => (now?.cases[talk.id] ?? "") !== (was?.cases[talk.id] ?? ""))
-        .map((talk) => ({ uid: person.uid, blockId: talk.id, value: now?.cases[talk.id] || null })),
+        .map((talk) => ({
+          uid: person.uid,
+          blockId: talk.id,
+          value: now?.cases[talk.id] || null,
+          // The row's tick travels with the save, which needs it for a case with a content note.
+          ...(askedOf(person.uid, talk.id) ? { asked: true } : {}),
+        })),
     ];
   });
 
   const changedPeople = new Set(changes.map((change) => change.uid)).size;
+
+  // Under the people: each group's cases with a content note, which are in no list until a row is ticked.
+  const notedLines = [
+    ...new Set(
+      talks.flatMap((talk) =>
+        talk.groups
+          .map((group) => ({ group, count: group.cases.filter((item) => !item.drawable).length }))
+          .filter(({ count }) => count > 0)
+          .map(({ group, count }) => notedCasesWords(count, talk.keyedBy && group.packId ? group.name : "", readOnly)),
+      ),
+    ),
+  ];
   const dirty = !readOnly && changes.length > 0;
 
   // Leaving with changes not saved: a link, the Week picker, or the tab itself.
@@ -209,7 +279,7 @@ export default function DrawEditor({
       // A case the new pack does not offer is taken back.
       for (const talk of talks) {
         if (talk.keyedBy !== blockId || !next.cases[talk.id]) continue;
-        const options = caseOptions(talk, (id) => next.packs[id] ?? null);
+        const options = caseOptions(talk, packOfFor(uid, next), { asked: askedOf(uid, talk.id) });
         if (options.kind !== "cases" || !options.cases.some((item) => item.id === next.cases[talk.id])) delete next.cases[talk.id];
       }
       return { ...prev, [uid]: next };
@@ -227,10 +297,40 @@ export default function DrawEditor({
     });
   }
 
+  /** Ticks or unticks a row's "Asked for this one"; unticked, a case with a content note is taken back. */
+  function setAskedFor(uid: string, talkId: string, on: boolean) {
+    setMessage(null);
+    setError(null);
+    setAsked((prev) => ({ ...prev, [uid]: { ...(prev[uid] ?? {}), [talkId]: on } }));
+    if (on) return;
+    const talk = talks.find((candidate) => candidate.id === talkId);
+    if (!talk) return;
+    setValues((prev) => {
+      const next = untickedHolding(talk, prev[uid] ?? { packs: {}, cases: {} });
+      return next === prev[uid] ? prev : { ...prev, [uid]: next };
+    });
+  }
+
   function swap() {
     if (!swapA || !swapB || swapA === swapB) return;
+    const refused = swapRefusedWords(swapA, swapB, {
+      talks,
+      pickedIds: new Set(pickedById.keys()),
+      titleOf: (chooseOneId) => titleOf.get(chooseOneId) ?? "Pack",
+      nameOf: (uid) => nameOf.get(uid) ?? "",
+      caseOf: (uid, talkId) => values[uid]?.cases[talkId] ?? null,
+      pickOf: (uid, chooseOneId) => picks[uid]?.[chooseOneId] ?? null,
+      askedOf,
+      hidden: (uid) => hiddenSet.has(uid),
+    });
+    if (refused) {
+      setSwapError(refused);
+      return;
+    }
+    // What a facilitator gives moves; a pick stays with its person.
     setValues((prev) => ({ ...prev, [swapA]: copy(prev[swapB]), [swapB]: copy(prev[swapA]) }));
     setError(null);
+    setSwapError(null);
     setMessage(swappedWords(nameOf.get(swapA) ?? "", nameOf.get(swapB) ?? ""));
     setSwapOpen(false);
   }
@@ -266,11 +366,13 @@ export default function DrawEditor({
       if (!res.ok || !answer?.ok) throw new Error(answer?.error || DRAW_NOT_SAVED);
       const kept = Object.fromEntries(people.map((person) => [person.uid, copy(values[person.uid])]));
       setSaved(kept);
-      const have = people.filter((person) => {
+      // Counted over the rows this page gives out to: a row whose case it is not shown is in neither number.
+      const counted = people.filter((person) => !hiddenSet.has(person.uid) || !talks.some(followsPick));
+      const have = counted.filter((person) => {
         const now = kept[person.uid];
         return packs.every((block) => Boolean(now?.packs[block.id])) && talks.every((talk) => Boolean(now?.cases[talk.id]));
       }).length;
-      setMessage(savedDrawWords(weekNumber, have, people.length, holding));
+      setMessage(savedDrawWords(weekNumber, have, counted.length, holding));
       if (then) go(then);
       // What the server holds now, so Back never brings back what the page held before the save.
       else router.refresh();
@@ -295,7 +397,14 @@ export default function DrawEditor({
                 <label className={styles.drawLabel} htmlFor={`${formId}-swap-a`}>
                   {SWAP_LABEL}
                 </label>
-                <Select id={`${formId}-swap-a`} value={swapA} onChange={(event) => setSwapA(event.target.value)}>
+                <Select
+                  id={`${formId}-swap-a`}
+                  value={swapA}
+                  onChange={(event) => {
+                    setSwapA(event.target.value);
+                    setSwapError(null);
+                  }}
+                >
                   {people.map((person) => (
                     <option key={person.uid} value={person.uid}>
                       {person.name}
@@ -307,7 +416,14 @@ export default function DrawEditor({
                 <label className={styles.drawLabel} htmlFor={`${formId}-swap-b`}>
                   {SWAP_WITH}
                 </label>
-                <Select id={`${formId}-swap-b`} value={swapB} onChange={(event) => setSwapB(event.target.value)}>
+                <Select
+                  id={`${formId}-swap-b`}
+                  value={swapB}
+                  onChange={(event) => {
+                    setSwapB(event.target.value);
+                    setSwapError(null);
+                  }}
+                >
                   {people.map((person) => (
                     <option key={person.uid} value={person.uid}>
                       {person.name}
@@ -315,11 +431,23 @@ export default function DrawEditor({
                   ))}
                 </Select>
               </div>
+              {swapError && (
+                <p className={styles.error} role="alert">
+                  {swapError}
+                </p>
+              )}
               <div className={styles.swapActions}>
                 <button type="button" className={facilitator.button} onClick={swap} disabled={!swapA || !swapB || swapA === swapB}>
                   {SWAP_THEM}
                 </button>
-                <button type="button" className={facilitator.buttonGhost} onClick={() => setSwapOpen(false)}>
+                <button
+                  type="button"
+                  className={facilitator.buttonGhost}
+                  onClick={() => {
+                    setSwapOpen(false);
+                    setSwapError(null);
+                  }}
+                >
                   {CANCEL}
                 </button>
               </div>
@@ -358,34 +486,130 @@ export default function DrawEditor({
                     </div>
                   );
                 })}
+                {picked.map((block) => {
+                  const pick = hiddenSet.has(person.uid) ? null : (picks[person.uid]?.[block.id] ?? null);
+                  const name = block.packs.find((pack) => pack.id === pick)?.name ?? null;
+                  // Holding a case from a pack they have since left.
+                  const changed =
+                    name !== null &&
+                    talks.some((talk) => {
+                      if (talk.keyedBy !== block.id) return false;
+                      const held = drawCaseOf(talk, was.cases[talk.id] ?? null);
+                      return held !== null && held.packId !== null && held.packId !== pick;
+                    });
+                  return (
+                    <div key={block.id} className={styles.drawField}>
+                      <span className={styles.drawLabel}>{pickLabelWords(block.title)}</span>
+                      {hiddenSet.has(person.uid) ? (
+                        <p className={`${styles.drawPick} ${styles.drawPickMuted}`}>{PICKS_THEIR_OWN}</p>
+                      ) : name ? (
+                        <p className={styles.drawPick}>
+                          <span>{name}</span>
+                          <span className={styles.chip}>{changed ? THEIR_PICK_CHANGED : THEIR_PICK}</span>
+                        </p>
+                      ) : (
+                        <p className={`${styles.drawPick} ${styles.drawPickMuted}`}>{notPickedYetWords(block.title)}</p>
+                      )}
+                    </div>
+                  );
+                })}
                 {talks.map((talk) => {
-                  const options = caseOptions(talk, (chooseOneId) => now.packs[chooseOneId] ?? null);
+                  const id = `${formId}-${person.uid}-${talk.id}`;
+                  const first = nameOf.get(person.uid) ?? person.name;
+                  if (followsPick(talk) && hiddenSet.has(person.uid)) {
+                    return (
+                      <div key={talk.id} className={styles.drawField}>
+                        <span className={styles.drawLabel}>{caseLabel}</span>
+                        <p className={`${styles.drawPick} ${styles.drawPickMuted}`}>{ownCaseGivenByWords(first)}</p>
+                      </div>
+                    );
+                  }
+                  const packOf = packOfFor(person.uid, now);
+                  const ticked = askedOf(person.uid, talk.id);
+                  const options = caseOptions(talk, packOf, { asked: ticked });
                   const current = now.cases[talk.id] ?? "";
                   const offered = options.kind === "cases" && options.cases.some((item) => item.id === current);
-                  const id = `${formId}-${person.uid}-${talk.id}`;
+                  const keyTitle = talk.keyedBy ? (titleOf.get(talk.keyedBy) ?? "Pack") : "Pack";
+                  if (options.kind === "pack-first") {
+                    const waits = followsPick(talk);
+                    return (
+                      <div key={talk.id} className={styles.drawField}>
+                        <label className={styles.drawLabel} htmlFor={id}>
+                          {caseLabel}
+                        </label>
+                        <Select id={id} value="" disabled aria-describedby={`${id}-line`} onChange={() => undefined}>
+                          <option value="">{waits ? waitsForPackWords(keyTitle) : NOT_GIVEN_YET}</option>
+                        </Select>
+                        <p id={`${id}-line`} className={styles.drawFieldLine}>
+                          {waits ? picksOnWeekPageWords(first, weekNumber) : choosePackFirstWords(keyTitle, first)}
+                        </p>
+                      </div>
+                    );
+                  }
+                  const noted = notedCasesFor(talk, packOf);
+                  const held = drawCaseOf(talk, current || null);
+                  // A pick that changed after its case was given: the case they hold stays shown until it is put right.
+                  const stale =
+                    followsPick(talk) && held !== null && !offered && current === (was.cases[talk.id] ?? "") ? held : null;
+                  const shown = offered || stale !== null;
+                  const pack = talk.keyedBy ? packOf(talk.keyedBy) : null;
+                  const groupName = talk.groups.find((group) => talk.keyedBy !== null && group.packId === pack)?.name ?? "";
+                  const nothingUnasked = options.cases.length === 0 && noted.length > 0 && !ticked && !stale;
+                  const notedIds = new Set(noted.map((item) => item.id));
+                  const showsNote = shown && held !== null && !held.drawable && held.note !== "";
+                  // The line under the list and the case's content note, read out with the list.
+                  const described = [stale || nothingUnasked ? `${id}-line` : "", showsNote ? `${id}-note` : ""].filter(Boolean).join(" ") || undefined;
                   return (
                     <div key={talk.id} className={styles.drawField}>
                       <label className={styles.drawLabel} htmlFor={id}>
                         {caseLabel}
                       </label>
-                      {options.kind === "pack-first" ? (
-                        <Select id={id} value="" disabled onChange={() => undefined}>
-                          <option value="">{choosePackFirstWords(titleOf.get(options.chooseOneId) ?? "Pack")}</option>
+                      {nothingUnasked ? (
+                        <Select id={id} value="" disabled aria-describedby={described} onChange={() => undefined}>
+                          <option value="">{NO_CASE_TO_GIVE}</option>
                         </Select>
                       ) : (
                         <Select
                           id={id}
-                          value={offered ? current : ""}
+                          value={shown ? current : ""}
                           disabled={readOnly}
+                          aria-describedby={described}
                           onChange={(event) => setCase(person.uid, talk.id, event.target.value)}
                         >
-                          {(!was.cases[talk.id] || !offered) && <option value="">{NOT_GIVEN_YET}</option>}
+                          {(!was.cases[talk.id] || !shown) && <option value="">{NOT_GIVEN_YET}</option>}
+                          {stale && <option value={stale.id}>{stale.title}</option>}
                           {options.cases.map((item) => (
                             <option key={item.id} value={item.id}>
-                              {item.title}
+                              {notedIds.has(item.id) ? notedCaseOptionWords(item.title) : item.title}
                             </option>
                           ))}
                         </Select>
+                      )}
+                      {stale && (
+                        <p id={`${id}-line`} className={styles.drawFieldLine}>
+                          {pickChangedLineWords(keyTitle)}
+                        </p>
+                      )}
+                      {nothingUnasked && (
+                        <p id={`${id}-line`} className={styles.drawFieldLine}>
+                          {everyCaseNotedWords(groupName, first, readOnly)}
+                        </p>
+                      )}
+                      {showsNote && (
+                        <p id={`${id}-note`} className={`${styles.caseNote} ${styles.drawCaseNote}`}>
+                          {held.note}
+                        </p>
+                      )}
+                      {noted.length > 0 && !readOnly && (
+                        <label className={styles.drawAsked}>
+                          <input
+                            type="checkbox"
+                            className={styles.drawAskedBox}
+                            checked={ticked}
+                            onChange={(event) => setAskedFor(person.uid, talk.id, event.currentTarget.checked)}
+                          />
+                          <span>{ASKED_FOR_THIS_ONE}</span>
+                        </label>
                       )}
                     </div>
                   );
@@ -395,6 +619,16 @@ export default function DrawEditor({
           );
         })}
       </ul>
+
+      {notedLines.length > 0 && (
+        <div className={styles.drawNotes}>
+          {notedLines.map((line) => (
+            <p key={line} className={styles.line}>
+              {line}
+            </p>
+          ))}
+        </div>
+      )}
 
       {!readOnly && (
         <div className={styles.drawFoot}>

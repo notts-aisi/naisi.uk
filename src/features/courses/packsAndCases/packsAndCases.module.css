@@ -732,6 +732,66 @@
   overflow-wrap: anywhere;
 }
 
+/* A pack the person picked, shown as words beside the label, never a list. */
+.drawPick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* Nobody's pick yet, or a facilitator's own on a co-facilitator's page. */
+.drawPickMuted {
+  color: var(--color-text-muted);
+}
+
+/* A line under a field's control, in the control's column. */
+.drawFieldLine {
+  grid-column: 2;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.drawCaseNote {
+  grid-column: 2;
+}
+
+/* "Asked for this one": the row's tick, with a target of 44px. */
+.drawAsked {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.drawAskedBox {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+/* Under the people: how many cases have a content note. */
+.drawNotes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 /* Save rests on the screen's bottom bar, and on the page's foot where there is none. */
 .drawFoot {
   position: sticky;

@@ -7,8 +7,22 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
 import { drawWeekRule } from "@/lib/courses/packsAndCases/drawWeek";
 import { countedPackTitlesOf, drawTalkOf, findPack, hasDraw, mayBeGiven } from "@/lib/courses/packsAndCases/model";
-import { drawClosed, drawGate, readDrawRoster, readGroupWeek } from "@/lib/courses/packsAndCases/readers";
-import { DRAW_NOT_SAVED, lateSaveChangesWords, lateSaveRefusedWords, weekStandingWords } from "@/lib/courses/packsAndCases/words";
+import {
+  drawClosed,
+  drawGate,
+  hidesOwnPick,
+  readDrawRoster,
+  readGroupWeek,
+  seesFacilitatorsOwnWork,
+  talksFollowingAPick,
+} from "@/lib/courses/packsAndCases/readers";
+import {
+  DRAW_NOT_SAVED,
+  lateSaveChangesWords,
+  lateSaveRefusedWords,
+  ownCaseGivenByWords,
+  weekStandingWords,
+} from "@/lib/courses/packsAndCases/words";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { isWeekItemId } from "@/lib/courses/weekBlocks/model";
 import { closedWords } from "@/lib/courses/weekWork/words";
@@ -22,7 +36,7 @@ import {
 
 /**
  * THE DRAW, TYPED IN: `PUT`
- * with `{ weekId, entries: [{ uid, blockId, value }], confirmed? }` gives each person
+ * with `{ weekId, entries: [{ uid, blockId, value, asked? }], confirmed? }` gives each person
  * named a pack in a Choose one a facilitator gives out, or a case in a talk
  * they give out, or takes one back (`value: null`, "Not given yet"). At the
  * end of a session the facilitator hands out next week's packs and cases on
@@ -41,8 +55,22 @@ import {
  *  - a pack of the Choose one named, which a facilitator gives out;
  *  - a case of the talk named, from the person's pack's cases when the cases
  *    are grouped by pack ("Each case list only offers that pathway's
- *    cases"), as the person's packs stand once this save is applied;
- *  - never a case with a content note: it stays out of the draw.
+ *    cases"), as the person's packs stand once this save is applied: a pack
+ *    given out, or the pack they PICKED themselves, read in the same
+ *    transaction (a pick is never typed in here; it is theirs to change);
+ *  - a case with a content note only when that row's "Asked for this one"
+ *    is ticked, sent with it in the same save (`asked: true`), for a
+ *    facilitator, the lead and an admin alike; a case already held, left as
+ *    it is, needs no tick again. The tick is not stored.
+ * A case that follows a pick and is left as it is is not checked again: the
+ * pick is never changed here, so somebody holding a case from a pick they
+ * have since changed ("Their pick changed") keeps it until the facilitator
+ * changes it, and a save touching the rest of their row goes through.
+ * A FACILITATOR'S OWN PICK is their own work, read by the programme's lead
+ * and admins only (`hidesOwnPick`): from the group's other facilitators the
+ * case that follows it is refused whatever its value, before anything about
+ * the pick is looked at, so the answer says nothing of it, and their save is
+ * never checked against it.
  * A case changed or taken back clears the person's "Ready for my talk",
  * which was for the case they had.
  *
@@ -80,7 +108,7 @@ class DrawError extends Error {
   }
 }
 
-type Entry = { uid: string; blockId: string; value: string | null };
+type Entry = { uid: string; blockId: string; value: string | null; asked: boolean };
 
 export type DrawSaved = {
   ok: true;
@@ -120,17 +148,23 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
   const entries: Entry[] = [];
   const seen = new Set<string>();
   for (const raw of body.entries) {
-    const entry = raw as { uid?: unknown; blockId?: unknown; value?: unknown } | null;
+    const entry = raw as { uid?: unknown; blockId?: unknown; value?: unknown; asked?: unknown } | null;
     const uid = typeof entry?.uid === "string" ? entry.uid : "";
     const blockId = typeof entry?.blockId === "string" ? entry.blockId : "";
     const value = entry?.value === null ? null : typeof entry?.value === "string" ? entry.value : undefined;
-    if (!isAddressableId(uid) || !isWeekItemId(blockId) || value === undefined || (value !== null && !isWeekItemId(value))) {
+    if (
+      !isAddressableId(uid) ||
+      !isWeekItemId(blockId) ||
+      value === undefined ||
+      (value !== null && !isWeekItemId(value)) ||
+      (entry?.asked !== undefined && typeof entry.asked !== "boolean")
+    ) {
       return NextResponse.json({ error: "Each change names a person, what is given out and what they have." }, { status: 400 });
     }
     const key = `${uid} ${blockId}`;
     if (seen.has(key)) return NextResponse.json({ error: "Each person’s pack and case once per save." }, { status: 400 });
     seen.add(key);
-    entries.push({ uid, blockId, value });
+    entries.push({ uid, blockId, value, asked: entry?.asked === true });
   }
 
   // ---- Who: the group's live facilitators, the programme's lead, admins -----
@@ -181,6 +215,19 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
     }
   }
 
+  // A facilitator's own pick, and the case that follows it, are not a co-facilitator's to give: refused
+  // before the pick is looked at. Whether the caller reads a facilitator's own work is asked only when it matters.
+  const following = talksFollowingAPick(week.draw, week.blocks);
+  const mayHide = following.size > 0 && people.some((person) => hidesOwnPick(person, { uid: actor.uid, seesOwnWork: false }));
+  const viewer = { uid: actor.uid, seesOwnWork: mayHide ? await seesFacilitatorsOwnWork(db, actor, group, gate) : true };
+  const hiddenUids = new Set(people.filter((person) => following.size > 0 && hidesOwnPick(person, viewer)).map((person) => person.uid));
+  for (const entry of entries) {
+    if (following.has(entry.blockId) && hiddenUids.has(entry.uid)) {
+      const name = byUid.get(entry.uid)?.firstName ?? "They";
+      return NextResponse.json({ error: ownCaseGivenByWords(name) }, { status: 403 });
+    }
+  }
+
   // A week whose session has started or been held: only with the facilitator's yes.
   const sessions = resolveSessions(run, group, resolveGroupCalendar(run, group, now).calendar);
   const facts = drawWeekRule({ sessions, givingWeeks: [weekNumber], now }).facts.get(weekNumber);
@@ -194,7 +241,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
   }
 
   const touched = [...new Set(entries.map((entry) => entry.uid))];
-  const blocks = [...packsById.keys(), ...talks.keys()];
+  // The Choose ones each person picks that the cases follow: read with the rest, never written here.
+  const picksById = new Map(week.draw.picked.map((chooseOne) => [chooseOne.id, chooseOne]));
+  const blocks = [...packsById.keys(), ...picksById.keys(), ...talks.keys()];
+  const askedFor = new Set(entries.filter((entry) => entry.asked).map((entry) => `${entry.uid} ${entry.blockId}`));
   const ref = (uid: string, blockId: string) =>
     db.collection(COURSE_PACKS_AND_CASES_COLLECTION).doc(packCaseRecordId(group.runId, uid, blockId));
 
@@ -212,7 +262,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
       const after = new Map<string, string | null>();
       for (const uid of touched) {
         for (const blockId of blocks) after.set(`${uid} ${blockId}`, null);
-        for (const [chooseOneId, chooseOne] of packsById) {
+        for (const [chooseOneId, chooseOne] of [...packsById, ...picksById]) {
           const packId = stored.get(`${uid} ${chooseOneId}`)?.packId ?? null;
           after.set(`${uid} ${chooseOneId}`, findPack(chooseOne, packId) ? packId : null);
         }
@@ -220,12 +270,19 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
       }
       for (const entry of entries) after.set(`${entry.uid} ${entry.blockId}`, entry.value);
 
-      // Every case held by a touched person must be one their packs offer.
+      // Every case held by a touched person must be one their packs offer; one with a content note only
+      // with the row's tick, or held already and left as it is. A case this caller may not give is not theirs to check.
       for (const uid of touched) {
         for (const [talkId, talk] of talks) {
+          if (following.has(talkId) && hiddenUids.has(uid)) continue;
           const caseId = after.get(`${uid} ${talkId}`) ?? null;
           if (!caseId) continue;
-          if (!mayBeGiven(talk, caseId, (chooseOneId) => after.get(`${uid} ${chooseOneId}`) ?? null)) {
+          const held = caseId === (stored.get(`${uid} ${talkId}`)?.caseId ?? null);
+          // A case that follows a pick, left as it is: the pick is never changed here, so a case held from a
+          // pick since changed ("Their pick changed") stays until the facilitator changes it, and blocks nothing else.
+          if (held && following.has(talkId)) continue;
+          const asked = askedFor.has(`${uid} ${talkId}`) || held;
+          if (!mayBeGiven(talk, caseId, (chooseOneId) => after.get(`${uid} ${chooseOneId}`) ?? null, { asked })) {
             const name = byUid.get(uid)?.name ?? "Somebody";
             throw new DrawError(`${name}’s case isn’t one their list offers. Choose one of its cases, or leave it not given yet.`, 400);
           }

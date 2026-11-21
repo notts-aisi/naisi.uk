@@ -94,7 +94,7 @@ const WORDS = Object.freeze({
   saved: (have, of, week) => `Saved. ${have} of ${of} have a pathway and a case. Each person sees theirs on their week ${week} page.`,
   foot: (week) => `Each person sees theirs on their week ${week} page. No email.`,
   notGivenYet: "Not given yet",
-  choosePathwayFirst: "Choose a pathway first",
+  choosePathwayFirst: (first) => `Choose ${first}’s pathway first.`,
   now: (week) => `Week ${week} is the week people are working on now. Its session has started.`,
   workingOnNow: /is the week people are working on now/,
   ask: "Changing a case takes back that person’s Ready for my talk.",
@@ -308,7 +308,9 @@ test("course hub: the draw, copied in during the session that hands the slips ou
         // Grouped by pathway: no case is offered until the person has one.
         const caseList = box.getByLabel("Case", { exact: true });
         assert.ok(await caseList.isDisabled(), `${person.first}'s case list is open before they have a pathway`);
-        assert.equal(flat((await caseList.locator("option:checked").textContent()) ?? ""), WORDS.choosePathwayFirst);
+        // The list reads "Not given yet", and the line under it says whose pathway comes first.
+        assert.equal(flat((await caseList.locator("option:checked").textContent()) ?? ""), WORDS.notGivenYet);
+        await box.getByText(WORDS.choosePathwayFirst(person.first), { exact: true }).waitFor({ timeout: WAIT_MS });
         await box.getByLabel(DRAW_SLIPS.chooseOneTitle, { exact: true }).selectOption({ label: pack.name });
         await box.getByLabel("Case", { exact: true }).selectOption({ label: pack.cases[0].title });
       }

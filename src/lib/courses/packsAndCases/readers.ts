@@ -23,14 +23,14 @@ import {
 } from "@/lib/firestore/coursePacksAndCases";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { drawWeekRule, type DrawWeekRule } from "./drawWeek";
-import { chooseOnesOf, drawOf, findCase, findPack, hasDraw, talksOf, type WeekDraw } from "./model";
+import { chooseOnesOf, drawOf, findCase, findPack, hasDraw, keyingChooseOne, talksOf, type WeekDraw } from "./model";
 
 /**
  * THE READERS OF `coursePacksAndCases`, on the server,
  * and the gate the draw is behind. Nothing else reads the collection but the
  * two routes that write it and the two deletions that remove it
- * (`tests/course-packs-and-cases-readers.test.mjs` walks the tree for a file
- * that does).
+ * (`tests/privacy-policy.test.mjs` walks the tree for a file that does, and
+ * holds each reader to who may see what).
  *
  *  - THE PERSON'S OWN, for their week page, programme page and Home: the
  *    overview route reads the caller's records by id, built from the
@@ -41,11 +41,17 @@ import { chooseOnesOf, drawOf, findCase, findPack, hasDraw, talksOf, type WeekDr
  *    group's live facilitators, the programme's lead and admins (`drawGate`).
  *    The draw is the group's logistics, handed out in the room in front of
  *    everybody, so a facilitator who takes part is in it like anybody and
- *    their co-facilitators see what they were given.
+ *    their co-facilitators see what they were given. A pack each person
+ *    PICKS, which the cases follow, is read too, for the case lists; a
+ *    facilitator's own pick is their own coursework, so a co-facilitator's
+ *    page is handed nothing of it nor of the case that follows it
+ *    (`drawRowsFor`, `hidesOwnPick`), and the route refuses that case from
+ *    them.
  *  - THIS WEEK'S WORK, for the group page's table (`weekWorkOf`): each
  *    person's pack and case. A pack the person picked themselves is their own
  *    coursework, so a facilitator of the group who picked one is left blank
- *    for their co-facilitators and shown to the lead and admins.
+ *    for their co-facilitators and shown to the lead and admins, and so is
+ *    the case that follows it, which names it.
  *
  * "Ready for my talk" reaches no page but the person's own.
  *
@@ -236,6 +242,39 @@ export async function readDrawPeople(
   return (await readDrawRoster(db, runId, group, viewer, now))?.people ?? null;
 }
 
+/**
+ * Whether the viewer reads a facilitator's own work: an admin, or the lead of
+ * the programme that names the group's run (asked of the gate, and, for a
+ * facilitator the gate admitted as one, of the programme, since the gate
+ * stops at the first thing that admits). The group's other facilitators do
+ * not: the policy says a facilitator's own work is read by the lead and
+ * admins only.
+ */
+export async function seesFacilitatorsOwnWork(
+  db: Firestore,
+  actor: SessionUser,
+  group: CourseGroupDoc,
+  gate: Extract<DrawGate, { ok: true }>,
+): Promise<boolean> {
+  if (gate.isAdmin || gate.leadOf) return true;
+  return (await programmeLedBy(db, actor, group.runId)) !== null;
+}
+
+/**
+ * Whether a person's own pick, and the case that follows it, are kept from
+ * this viewer: a facilitator of the group, read by somebody who is not them
+ * and does not read a facilitator's own work.
+ */
+export function hidesOwnPick(person: DrawPerson, viewer: { uid: string; seesOwnWork: boolean }): boolean {
+  return person.facilitates && person.uid !== viewer.uid && !viewer.seesOwnWork;
+}
+
+/** The talks of a week's draw whose cases follow a pack each person picks. */
+export function talksFollowingAPick(draw: WeekDraw, blocks: readonly WeekBlock[]): Set<string> {
+  const picked = new Set(draw.picked.map((chooseOne) => chooseOne.id));
+  return new Set(draw.cases.filter((talk) => picked.has(keyingChooseOne(blocks, talk)?.id ?? "")).map((talk) => talk.id));
+}
+
 /** Whether a programme has closed for work at `now`: after it, the draw is read only. */
 export function drawClosed(closesAt: Date | null, now: Date): boolean {
   return closesAt !== null && now.getTime() >= closesAt.getTime();
@@ -368,8 +407,16 @@ export function everybodyHasTheirs(week: GroupWeek, people: readonly DrawPerson[
   });
 }
 
-/** What each person has in a week's draw: a pack per Choose one given out, a case per talk given out. */
-export type DrawState = Map<string, { packs: Record<string, string>; cases: Record<string, string> }>;
+/**
+ * What each person has in a week's draw: a pack per Choose one given out, a
+ * case per talk given out, and the pack they picked in each Choose one they
+ * pick that the cases follow (`picked`). Server side only: what a page is
+ * handed of it goes through `drawRowsFor`.
+ */
+export type DrawState = Map<
+  string,
+  { packs: Record<string, string>; cases: Record<string, string>; picked: Record<string, string> }
+>;
 
 /** The draw as stored, for these people, held to the week's blocks as they are now. */
 export async function readDrawState(
@@ -378,24 +425,67 @@ export async function readDrawState(
   week: GroupWeek,
   people: readonly DrawPerson[],
 ): Promise<DrawState> {
-  const blocks = [...week.draw.packs, ...week.draw.cases];
+  const blocks = [...week.draw.packs, ...week.draw.picked, ...week.draw.cases];
   const pairs = people.flatMap((person) => blocks.map((block) => ({ uid: person.uid, blockId: block.id })));
   const records = pairs.length > 0 ? await readPackCaseRecords(db, runId, pairs) : new Map<string, CoursePackCaseDoc>();
   const state: DrawState = new Map();
   for (const person of people) {
     const packs: Record<string, string> = {};
     const cases: Record<string, string> = {};
+    const picked: Record<string, string> = {};
     for (const chooseOne of week.draw.packs) {
       const pack = findPack(chooseOne, records.get(`${person.uid} ${chooseOne.id}`)?.packId ?? null);
       if (pack) packs[chooseOne.id] = pack.id;
+    }
+    for (const chooseOne of week.draw.picked) {
+      const pack = findPack(chooseOne, records.get(`${person.uid} ${chooseOne.id}`)?.packId ?? null);
+      if (pack) picked[chooseOne.id] = pack.id;
     }
     for (const talk of week.draw.cases) {
       const found = findCase(talk, records.get(`${person.uid} ${talk.id}`)?.caseId ?? null);
       if (found) cases[talk.id] = found.item.id;
     }
-    state.set(person.uid, { packs, cases });
+    state.set(person.uid, { packs, cases, picked });
   }
   return state;
+}
+
+/**
+ * WHAT THE DRAW PAGE HANDS ITS EDITOR, for this viewer: each person's packs
+ * and cases as stored, and their picks (`picks`). A facilitator's own pick is
+ * their own work (`hidesOwnPick`): for a co-facilitator their row carries no
+ * pick and no case of a talk that follows a pick, only that it is theirs to
+ * pick (`hidden`). Nothing else of the state reaches the page.
+ */
+export type DrawRows = {
+  initial: Record<string, { packs: Record<string, string>; cases: Record<string, string> }>;
+  picks: Record<string, Record<string, string>>;
+  hidden: string[];
+};
+
+export function drawRowsFor(
+  week: GroupWeek,
+  people: readonly DrawPerson[],
+  state: DrawState,
+  viewer: { uid: string; seesOwnWork: boolean },
+): DrawRows {
+  const following = talksFollowingAPick(week.draw, week.blocks);
+  const rows: DrawRows = { initial: {}, picks: {}, hidden: [] };
+  for (const person of people) {
+    const holding = state.get(person.uid);
+    const packs = { ...(holding?.packs ?? {}) };
+    const cases = { ...(holding?.cases ?? {}) };
+    if (following.size > 0 && hidesOwnPick(person, viewer)) {
+      for (const talkId of following) delete cases[talkId];
+      rows.initial[person.uid] = { packs, cases };
+      rows.picks[person.uid] = {};
+      rows.hidden.push(person.uid);
+      continue;
+    }
+    rows.initial[person.uid] = { packs, cases };
+    rows.picks[person.uid] = { ...(holding?.picked ?? {}) };
+  }
+  return rows;
 }
 
 /**
@@ -450,15 +540,16 @@ export type WeekWorkCells = { pack: string | null; case: string | null };
  * A pack the person PICKED (a Choose one they choose themselves) is their own
  * coursework: when they facilitate the group too, their co-facilitators get
  * an empty cell, and the lead and admins see it (`viewer.isAdmin` or
- * `viewer.leadOf`). A pack or case GIVEN OUT is the draw, seen by everybody
- * the draw is shown to.
+ * `viewer.leadOf`), and so does that facilitator themself (`viewer.uid`).
+ * The case that follows such a pick names it, so it is kept back with it. A
+ * pack or case GIVEN OUT is the draw, seen by everybody the draw is shown to.
  */
 export async function weekWorkOf(
   db: Firestore,
   runId: string,
   week: GroupWeek,
   people: readonly DrawPerson[],
-  viewer: { isAdmin: boolean; leadOf: LedProgramme | null },
+  viewer: { isAdmin: boolean; leadOf: LedProgramme | null; uid?: string },
 ): Promise<{ packTitle: string | null; cells: Map<string, WeekWorkCells> }> {
   const chooseOne = chooseOnesOf(week.blocks)[0] ?? null;
   const talk = talksOf(week.blocks).find((candidate) => candidate.groups.some((group) => group.cases.length > 0)) ?? null;
@@ -466,16 +557,19 @@ export async function weekWorkOf(
   const pairs = people.flatMap((person) => blocks.map((block) => ({ uid: person.uid, blockId: block.id })));
   const records = pairs.length > 0 ? await readPackCaseRecords(db, runId, pairs) : new Map<string, CoursePackCaseDoc>();
   const seesOwnWork = viewer.isAdmin || viewer.leadOf !== null;
+  // A case that follows a pick names the pick: kept back with it.
+  const keyedByPick = talk ? keyingChooseOne(week.blocks, talk)?.givenBy === "fellow" : false;
   const cells = new Map<string, WeekWorkCells>();
   for (const person of people) {
     let pack: string | null = null;
     if (chooseOne) {
       const picked = chooseOne.givenBy === "fellow";
-      const hidden = picked && person.facilitates && !seesOwnWork;
+      const hidden = picked && person.facilitates && person.uid !== viewer.uid && !seesOwnWork;
       const found = hidden ? null : findPack(chooseOne, records.get(`${person.uid} ${chooseOne.id}`)?.packId ?? null);
       pack = found ? found.name : null;
     }
-    const given = talk ? findCase(talk, records.get(`${person.uid} ${talk.id}`)?.caseId ?? null) : null;
+    const caseHidden = keyedByPick && person.facilitates && person.uid !== viewer.uid && !seesOwnWork;
+    const given = talk && !caseHidden ? findCase(talk, records.get(`${person.uid} ${talk.id}`)?.caseId ?? null) : null;
     cells.set(person.uid, { pack, case: given ? given.item.title : null });
   }
   return { packTitle: chooseOne ? chooseOne.title : null, cells };
