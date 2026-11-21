@@ -5413,6 +5413,12 @@ The group's own page still changes one week with a move, as before. Its notice
 (and the dialog's) now posts its week with the update (`weekNumber` on the
 updates route, for an update to one group only), so the update reaches the
 people the change route counted: with nobody moved, the same people as before.
+The updates route takes that week only when it is one the change route can
+have changed: a week in which the group has a session whose register nobody
+has taken (`weekNoticeRefusal` in `src/lib/courses/updates/week.ts`). Any
+other week (a session that met and was marked, a week past the group's last
+session, a week only another group has) is refused in one sentence before
+anything is posted or sent.
 
 ### The week's page: Save
 

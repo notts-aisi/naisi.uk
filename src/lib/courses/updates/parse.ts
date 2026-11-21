@@ -13,7 +13,9 @@ import { REFUSAL, tooLongWords } from "./words";
  *
  * `weekNumber`, for an update to one group about ONE week's session: its
  * email reaches the people in the group THAT WEEK (`updateEmailAudience`'s
- * week), as the change route counted them. Refused with any other `to`.
+ * week), as the change route counted them. Refused with any other `to`, and
+ * by the route for a week that is not one of the group's the change route can
+ * have changed (`weekNoticeRefusal` in `./week.ts`).
  *
  * `to` is "everyone", "group" (with `groupId`) or "facilitators". `email` is
  * the "Also email it" switch, and `emailCount` the number its button showed:

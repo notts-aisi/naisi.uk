@@ -7,6 +7,7 @@ import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { updateEmailAudience, type UpdateRecipient } from "@/lib/courses/updates/audience";
 import { parseUpdatePost } from "@/lib/courses/updates/parse";
 import { loadRunGroups, loadUpdatesFor, readsAny, updateReadingOf } from "@/lib/courses/updates/readers";
+import { weekNoticeRefusal } from "@/lib/courses/updates/week";
 import {
   REFUSAL,
   UPDATE_REPLY_TO,
@@ -58,7 +59,9 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
  * Everybody else is refused, and a missing run is refused the same way.
  *
  * WHOLE OR NOT AT ALL. Every refusal comes before anything is written or
- * sent: the body, the gate, the group, an audience over what one send can
+ * sent: the body, the gate, the group, the week an update to one group is
+ * about when it names one (a week of that group the change route can have
+ * changed, `weekNoticeRefusal`), an audience over what one send can
  * take, a count that is no longer the one on the button (409, with the new
  * count), and the caps. Only then is the update written, and then emailed,
  * one message per person, never a list and never a copy to anybody else.
@@ -184,6 +187,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string 
   const group = post.to === "group" ? (groups.find((each) => each.id === post.groupId) ?? null) : null;
   if (post.to === "group" && (!group || group.archived)) {
     return NextResponse.json({ error: REFUSAL.groupGone }, { status: 400 });
+  }
+  // About one week: a week of this group the change route can have changed, or nothing is posted or sent.
+  if (post.weekNumber !== null && group) {
+    const refused = await weekNoticeRefusal(db, run, group, post.weekNumber);
+    if (refused) return NextResponse.json({ error: refused }, { status: 400 });
   }
 
   // ── Who it is from, and what the email says ──────────────────────────────
