@@ -10,7 +10,10 @@
  *     that gives nothing out; everybody already has theirs; the bound of two.
  *  2. THE GUARD: the draw's page, its route and the group page's card ask
  *     the one rule and work no week out for themselves, held in the source
- *     and by driving the three over one world at a run of clock times.
+ *     and by driving the three over one world at a run of clock times. So do
+ *     the register's row, Home, the guide's card and the programme Overview's
+ *     line about slips not copied in (driven in
+ *     `tests/course-overview-slips-waiting.test.mjs`).
  *  3. THE ROUTE AND THE PAGE: read only once the programme has closed; a yes
  *     for a save into the week people are working on now or a week that has
  *     met, and none for a week to come; `?week=` for any week; the Week
@@ -278,6 +281,8 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
       ["the group summary route", uncommented(summary).replace("const next = sessionRange(resolveSessions(run, group, resolveGroupCalendar(run, group, now).calendar), now).next;", "")],
       ["the guide's week page", uncommented(read("app", "(app)", "learn", "facilitator-guide", "[courseId]", "[doc]", "page.tsx"))],
       ["Home", uncommented(read("app", "(app)", "dashboard", "HomeFacilitator.tsx"))],
+      ["the Overview's line", uncommented(read("lib", "courses", "drawCard", "overviewLine.ts"))],
+      ["the Overview's reads", uncommented(read("lib", "courses", "drawCard", "overviewReads.ts"))],
     ]) {
       for (const [shape, what] of BY_HAND) assert.doesNotMatch(code, shape, `${file} works out ${what} for itself`);
     }
@@ -296,6 +301,23 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
     assert.match(read("features", "courses", "register", "HandOutRowLoader.tsx"), /const slips = await slipsTonightFrom\(db, \{ runId, dates, people: roster\.people, now \}\);/);
     assert.match(summary, /\? readSlipsTonight\(db, \{ run, group, now, people: async \(\) => drawPeople\(model\.people, model\.facilitators\) \}\)/);
     assert.match(read("app", "(app)", "learn", "facilitator-guide", "[courseId]", "[doc]", "page.tsx"), /readGuideSlips\(db, \{ groups, pageWeek: page\.weekNumber, now \}\)/);
+    // The Overview's line: the course's weeks through `readDrawWeeks` once, the card's people from the records it
+    // read (the same reader `readDrawRoster` answers through), the rule asked again with the draw (`withDraws`),
+    // and the week, the session's end and who waits each asked of what answers them.
+    const overviewReads = read("lib", "courses", "drawCard", "overviewReads.ts");
+    assert.match(overviewReads, /const sessions = resolveSessions\(run, group, resolveGroupCalendar\(run, group, now\)\.calendar\);/);
+    assert.match(overviewReads, /const dates = await readDrawWeeks\(db, \{ run, group, people: \[\], now \}\);/);
+    assert.equal([...overviewReads.matchAll(/readDrawWeeks\(/g)].length, 1, "the Overview's reads ask for the course's weeks twice");
+    assert.match(overviewReads, /const \{ people \} = drawRosterOf\(records, group, viewer, now\);/);
+    assert.match(overviewReads, /slipsWaitingOf\(\{ course: withDraws\(dates, states, people, now\), people, now \}\)/);
+    assert.match(readers, /if \(!records\) return null;\s*return drawRosterOf\(records, group, viewer, now\);/);
+    const overviewLine = read("lib", "courses", "drawCard", "overviewLine.ts");
+    assert.match(overviewLine, /const \{ rule \} = course;\s*const n = rule\.weekNumber;/);
+    assert.match(overviewLine, /const facts = rule\.facts\.get\(n\);/);
+    assert.match(overviewLine, /const handOut = handOutOf\(sessions, facts\.weekNumber, now\);/);
+    assert.match(overviewLine, /return waitingOf\(week\.blocks, \{/);
+    assert.doesNotMatch(overviewLine, /everybodyHasTheirs\(|readDrawState\(|readGroupWeek\(/, "the Overview's line decides who has theirs a second way");
+    assert.doesNotMatch(read("lib", "courses", "programmeOverview.ts"), /drawWeekRule\(|readDrawWeeks\(|\/learn\/draw\//, "the Overview works the slips' week out for itself");
 
     // Every file that asks the rule, and why.
     const asking = [];
@@ -315,6 +337,8 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
       join("lib", "courses", "pairs", "cardWeek.ts"),
       // A member's own week page: which session hands their week's slips out ("gives these out at the end of week 2's session").
       join("lib", "courses", "weekWork", "handOut.ts"),
+      // The programme Overview's line: whether any week still to come is past its hand-out session, before anything is read.
+      join("lib", "courses", "drawCard", "overviewLine.ts"),
     ].sort());
 
     // Nothing else in the tree links to the draw page on a week of its own
@@ -329,6 +353,7 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
       join("features", "courses", "groupPage", "DrawCard.tsx"),
       join("features", "courses", "packsAndCases", "DrawWeekPicker.tsx"),
       join("features", "courses", "register", "HandOutRow.tsx"),
+      join("lib", "courses", "drawCard", "overviewLine.ts"),
     ].sort());
     const card = read("features", "courses", "groupPage", "DrawCard.tsx");
     assert.deepEqual(
@@ -340,6 +365,7 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
     assert.match(read("app", "(app)", "dashboard", "HomeFacilitator.tsx"), /\?week=\$\{known\.slips\.weekNumber\}/);
     assert.match(read("app", "(app)", "learn", "facilitator-guide", "[courseId]", "[doc]", "page.tsx"), /\?week=\$\{entry\.weekNumber\}/);
     assert.match(read("features", "courses", "register", "HandOutRowLoader.tsx"), /<HandOutRow groupId=\{group\.id\} weekNumber=\{slips\.weekNumber\} draw=\{slips\.draw\} \/>/);
+    assert.match(read("lib", "courses", "drawCard", "overviewLine.ts"), /\?week=\$\{waiting\.weekNumber\}/);
   });
 
   test("over one world at a run of clock times, the page opens on the week the card names, and the route asks a yes exactly where the page warns", async () => {
