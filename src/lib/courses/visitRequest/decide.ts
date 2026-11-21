@@ -22,7 +22,7 @@ import { dbReader, excusedAtHomeIn, ownSessionThatWeek, readVisitFacts } from ".
 import { arrangeVisit, type VisitSaveAnswer } from "../visit/save";
 import { personEmailWords } from "../visit/words";
 import { parseApprove, parseReplyBody } from "./model";
-import { visitRequestStandingOf, type VisitRequestStanding } from "./standing";
+import { visitRequestStandingRead, type VisitRequestStanding } from "./standing";
 import {
   WITHDRAW_REFUSAL,
   NOTHING_TO_DISMISS,
@@ -139,7 +139,8 @@ async function standingIn(tx: Transaction, db: Firestore, request: VisitRequestD
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const groups = groupSnap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})).filter((group) => group.runId === run.id);
   const place = placeSnap.exists ? normalizeCourseEnrolment(placeSnap.id, placeSnap.data() ?? {}) : null;
-  return visitRequestStandingOf({ request, run, groups, place, now });
+  // The host's register that week, as every reader reads it.
+  return visitRequestStandingRead((ref) => tx.get(ref), db, { request, run, groups, place, now });
 }
 
 /** The person's first name, from their account: "" with none. */

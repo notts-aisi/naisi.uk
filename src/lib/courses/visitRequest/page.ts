@@ -13,8 +13,9 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { approveButtonWords, sessionWhenWords } from "../excused/words";
 import { dbReader, planVisit, previewOf, readVisitFacts, sessionChoices } from "../visit/plan";
+import { visitLimitRefusal } from "../visit/limits";
 import type { VisitPreviewView } from "../visit/view";
-import { visitRequestStandingOf, type VisitRequestStanding } from "./standing";
+import { hostRegisterIdOf, notHeldIn, visitRequestStandingOf, type VisitRequestStanding } from "./standing";
 import { closedStaffWords, goneStaffWords, movedSinceWords, rowAboutWords } from "./words";
 
 /**
@@ -53,14 +54,29 @@ async function standingFacts(db: Firestore, requests: readonly VisitRequestDoc[]
   });
   const places = new Map<string, CourseEnrolmentDoc>();
   for (const snap of placeSnaps) if (snap.exists) places.set(snap.id, normalizeCourseEnrolment(snap.id, snap.data() ?? {}));
+  // The host's register of each waiting request's week, as every reader reads it (`hostRegisterIdOf`).
+  const registerIds = [
+    ...new Set(
+      requests.flatMap((request) => {
+        const run = runs.get(request.runId);
+        const id = run && request.status === "waiting" ? hostRegisterIdOf(run, groupsOf.get(request.runId) ?? [], request) : null;
+        return id ? [id] : [];
+      }),
+    ),
+  ];
+  const registerSnaps = registerIds.length ? await db.getAll(...registerIds.map((id) => db.collection("courseAttendance").doc(id))) : [];
+  const notHeld = new Set(registerSnaps.filter((snap) => snap.exists && notHeldIn(snap.id, snap.data())).map((snap) => snap.id));
   const standingOf = (request: VisitRequestDoc, now: Date): VisitRequestStanding => {
     const run = runs.get(request.runId);
     if (!run) return request.status === "waiting" ? { state: "gone" } : { state: request.status };
+    const groups = groupsOf.get(request.runId) ?? [];
+    const registerId = hostRegisterIdOf(run, groups, request);
     return visitRequestStandingOf({
       request,
       run,
-      groups: groupsOf.get(request.runId) ?? [],
+      groups,
       place: places.get(courseEnrolmentId(request.runId, request.subjectUid)) ?? null,
+      hostNotHeld: registerId !== null && notHeld.has(registerId),
       now,
     });
   };
@@ -248,9 +264,14 @@ export async function loadVisitRequestPage(db: Firestore, actor: SessionUser, re
     if (read.ok) {
       const offered = sessionChoices(read.facts, request.change.weekNumber, now).find((choice) => choice.groupId === request.change.hostGroupId);
       if (offered) asksFor = { words: offered.words, detail: offered.detail };
-      const planned = planVisit(read.facts, request.change.weekNumber, request.change.hostGroupId, actor.uid, now, request.id);
+      const planned = planVisit(read.facts, request.change.weekNumber, request.change.hostGroupId, actor.uid, now, request.id, { isAdmin: true });
       approving = planned.ok
-        ? { ok: true, preview: previewOf(planned.plan), button: approveButtonWords(planned.plan.emails, "") }
+        ? {
+            ok: true,
+            // The sentence a press now would be refused with by the limit on the visit's emails, said before the press.
+            preview: previewOf(planned.plan, await visitLimitRefusal(db, run.id, request.subjectUid, actor.uid)),
+            button: approveButtonWords(planned.plan.emails, ""),
+          }
         : { ok: false, error: planned.error };
     } else {
       approving = { ok: false, error: read.error };

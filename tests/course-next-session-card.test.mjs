@@ -36,6 +36,9 @@ const w = await makeMemberPagesWorld("__nextSessionCard");
 const words = w.lib.words;
 const online = await w.courseRoute("groups", "[groupId]", "joining-online");
 const askRoute = await w.courseRoute("groups", "[groupId]", "excused");
+const visitAskRoute = await w.courseRoute("runs", "[runId]", "requests", "visit");
+/** Group C, whose week 3 session (Wed 18 Nov, 1pm) is the one other session Chloe can be offered that week. */
+const GROUP_C = "agi-autumn-2026-tbc__grp00003";
 const O = await w.loadTs(join("lib", "courses", "excused", "ownWords.ts"));
 const J = await w.loadTs(join("lib", "courses", "joiningOnline", "words.ts"));
 const answersLib = await w.loadTs(join("lib", "courses", "nextSession", "answers.ts"));
@@ -193,6 +196,18 @@ describe("2. Home and the programme page draw one card", () => {
     assert.equal(asked.status, 200, JSON.stringify(asked.body));
     const waiting = await take("excused, waiting");
     assert.ok(waiting.homeCard.text.includes(O.ASKED_TO_BE_EXCUSED), waiting.homeCard.text);
+
+    // Asked to go to another session, waiting: the request first, and their
+    // own session's buttons kept beside it; only the third button goes.
+    w.reset();
+    const visitAsked = await w.call("chloe", visitAskRoute.POST, { runId: RUN.agi }, { body: { hostGroupId: GROUP_C }, course: true });
+    assert.equal(visitAsked.status, 200, JSON.stringify(visitAsked.body));
+    const visitWaiting = await take("another session, waiting");
+    assert.ok(visitWaiting.homeCard.text.includes("You asked to go to Group C’s session on Wed 18 Nov, 1pm. An admin decides."), visitWaiting.homeCard.text);
+    assert.ok(visitWaiting.homeCard.text.includes("Withdraw the request"));
+    assert.ok(visitWaiting.homeCard.html.includes('data-testid="excuse-open"'), "Can't make it stays");
+    assert.ok(visitWaiting.homeCard.text.includes(J.JOINING_ONLINE), "I'm joining online stays");
+    assert.ok(!visitWaiting.homeCard.text.includes("Go to another session this week"));
 
     // No session to come.
     w.reset();

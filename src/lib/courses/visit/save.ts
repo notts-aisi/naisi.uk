@@ -183,7 +183,9 @@ export type ArrangeInput = {
 
 /** Whether a press to arrange stands on these facts: the plan, or the press's refusal. Asked before the limit is claimed and again inside the save. */
 function checkArrange(facts: VisitFacts, input: ArrangeInput): { ok: true; plan: Extract<ReturnType<typeof planVisit>, { ok: true }>["plan"] } | VisitRefusal | VisitChanged {
-  const planned = planVisit(facts, input.weekNumber, input.hostGroupId, input.actor.uid, input.now, input.approves?.requestId ?? null);
+  const planned = planVisit(facts, input.weekNumber, input.hostGroupId, input.actor.uid, input.now, input.approves?.requestId ?? null, {
+    isAdmin: input.actor.role === "admin",
+  });
   if (!planned.ok) return planned;
   if (planned.plan.emails !== input.emailCount) {
     return { ok: false, status: 409, error: changedWords(planned.plan.emails), emails: planned.plan.emails, overLimit: planned.plan.overLimit !== null };

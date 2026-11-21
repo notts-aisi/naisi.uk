@@ -198,7 +198,7 @@ export default async function DashboardPage() {
       <ForYou events={forYou} />
       {user && askFullName && <FullNameCard uid={user.uid} suggestion={askFullName.suggestion} />}
       <InstallCard />
-      {user?.role !== "admin" && <RequestsWaiting count={requestsWaiting.count} />}
+      {user?.role !== "admin" && <RequestsWaiting count={requestsWaiting.count} corrections={requestsWaiting.corrections} />}
     </>
   );
 
@@ -219,6 +219,7 @@ export default async function DashboardPage() {
           requestsWaiting={requestsWaiting.count}
           excusedWaiting={requestsWaiting.excused}
           visitsWaiting={requestsWaiting.visits}
+          correctionsWaiting={requestsWaiting.corrections}
         />
       ) : (
         <HomeMember

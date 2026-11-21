@@ -94,11 +94,22 @@ export async function ownVisitsOf(
   if (shown.length === 0) return [];
 
   // A visit that approved the person's own request says so, with the reply,
-  // in place of who arranged it: the request approved for that week and host.
+  // in place of who arranged it: the request approved for that week and host
+  // at the moment this visit was arranged (the approval writes both with one
+  // clock), so a visit staff arrange later to the same host is never said to
+  // be the request's.
   const visitRequests = await ownVisitRequestsIn(null, db, place.uid, run.id);
-  const approvedFor = (weekNumber: number, hostId: string) =>
-    visitRequests.find((request) => request.status === "approved" && request.change.weekNumber === weekNumber && request.change.hostGroupId === hostId && request.decidedAt) ?? null;
-  const wanted = [...new Set(shown.flatMap((each) => [...each.host.facilitatorUids, ...each.home.facilitatorUids, each.arrangedByUid ?? "", approvedFor(each.weekNumber, each.host.id)?.decidedByUid ?? ""]))].filter(
+  const approvedFor = (weekNumber: number, hostId: string, arrangedAt: Date | null) =>
+    visitRequests.find(
+      (request) =>
+        request.status === "approved" &&
+        request.change.weekNumber === weekNumber &&
+        request.change.hostGroupId === hostId &&
+        request.decidedAt !== null &&
+        arrangedAt !== null &&
+        request.decidedAt.getTime() === arrangedAt.getTime(),
+    ) ?? null;
+  const wanted = [...new Set(shown.flatMap((each) => [...each.host.facilitatorUids, ...each.home.facilitatorUids, each.arrangedByUid ?? "", approvedFor(each.weekNumber, each.host.id, each.arrangedAt)?.decidedByUid ?? ""]))].filter(
     (uid) => uid && !uid.includes("/"),
   );
   const firstNames = new Map<string, string>();
@@ -148,7 +159,7 @@ export async function ownVisitsOf(
     const told = toldOf(host, home);
     const ownWhen = own ? { dateKey: own.dateKey, startTimeLocal: own.session.startTimeLocal } : null;
     const arranger = arrangedByUid ? (firstNames.get(arrangedByUid) ?? "") : "";
-    const approved = approvedFor(weekNumber, host.id);
+    const approved = approvedFor(weekNumber, host.id, arrangedAt);
     const link = sessionForWeek(host, session.weekId).meetingUrl;
     return {
       weekNumber,

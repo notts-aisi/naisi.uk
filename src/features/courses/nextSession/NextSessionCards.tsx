@@ -23,7 +23,7 @@ import TicketExcuse from "../excused/TicketExcuse";
 import { ticketFacts } from "../sessionChange/cardFacts";
 import SessionNotice from "../sessionChange/SessionNotice";
 import VisitCard from "../visit/VisitCard";
-import { GoToAnotherSession, VisitRequestDeclined, VisitRequestWaiting } from "../visitRequest/CardParts";
+import { GoToAnotherSession, VisitRequestDeclined, VisitRequestWaiting, VisitRequestWithdrawn } from "../visitRequest/CardParts";
 import TicketAnswers from "../weekly/TicketAnswers";
 import NextSessionCard from "./NextSessionCard";
 
@@ -54,8 +54,9 @@ import NextSessionCard from "./NextSessionCard";
  * "Go to another session this week" beside them on their own group's card,
  * only for the week the server offers (`anotherSessionFor`) and not once
  * they have said they are joining online. While such a request waits, the
- * card carries it in place of every button, with "Withdraw the request"; a
- * decline they have not dismissed is said at the top.
+ * card carries it first, with "Withdraw the request", and keeps "Can't make
+ * it" and "I'm joining online"; a decline they have not dismissed is said at
+ * the top.
  * `locked` (an admin looking as the member) draws them and lets nothing be
  * pressed.
  */
@@ -233,15 +234,19 @@ export default function NextSessionCards({
     group?.id === another.offer.homeGroupId &&
     facts?.weekNumber === another.offer.weekNumber &&
     !saidOnline;
-  const ownCardAnswers = another?.waiting ? (
-    <VisitRequestWaiting key={another.waiting.requestId} waiting={another.waiting} locked={locked} />
-  ) : offersAnother ? (
+  // While one waits, the request comes first and their own session's
+  // buttons stay beside it: a member can always say something about their
+  // own session. Withdrawn today, the line that says so, as the server reads it.
+  const ownCardAnswers = (
     <>
+      {another?.waiting ? (
+        <VisitRequestWaiting key={another.waiting.requestId} waiting={another.waiting} locked={locked} />
+      ) : another?.withdrawn ? (
+        <VisitRequestWithdrawn key={another.withdrawn.requestId} line={another.withdrawn.line} />
+      ) : null}
       {ownAnswers}
-      <GoToAnotherSession runId={runId} locked={locked} />
+      {offersAnother && <GoToAnotherSession runId={runId} locked={locked} />}
     </>
-  ) : (
-    ownAnswers
   );
   const declined = another?.declined ? <VisitRequestDeclined key={another.declined.requestId} declined={another.declined} locked={locked} className={wrapClass} /> : null;
   const ownCard =

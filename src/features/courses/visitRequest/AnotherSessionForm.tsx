@@ -20,7 +20,8 @@ import styles from "./VisitRequest.module.css";
  * "Send the request", and "One request at a time. You can withdraw it until
  * it's decided." under it. The route decides everything again; a refusal is
  * its own sentence. Once sent: "Sent. You'll get an email when it's decided."
- * and the page is read again, which then shows the request waiting.
+ * in the form's place, and nothing more until the page is next opened: a read
+ * of it now would draw the request waiting there instead, and that line would go.
  *
  * Takes the fields it draws and nothing else.
  */

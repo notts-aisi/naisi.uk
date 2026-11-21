@@ -1,12 +1,13 @@
 import "server-only";
-import type { Firestore, Transaction } from "firebase-admin/firestore";
+import type { DocumentReference, DocumentSnapshot, Firestore, Transaction } from "firebase-admin/firestore";
+import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
 import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
 import { ownGroupForWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
-import { cancelDeadline, ownSessionThatWeek } from "../visit/plan";
+import { cancelDeadline, ownSessionThatWeek } from "../visit/deadline";
 
 /**
  * WHERE A REQUEST TO GO TO ANOTHER SESSION STANDS NOW, worked out at read
@@ -83,8 +84,12 @@ export function visitRequestStandingOf(input: {
   groups: readonly CourseGroupDoc[];
   /** The person's place on the run, or null with none. */
   place: Pick<CourseEnrolmentDoc, "uid" | "runId" | "role" | "status" | "groupId" | "groupsByWeek"> | null;
-  /** Whether the host's register that week says the session did not happen (when read). */
-  hostNotHeld?: boolean;
+  /**
+   * Whether the host's register that week says the session did not happen.
+   * Every reader passes it, read by `hostRegisterIdOf` (`visitRequestStandingRead`
+   * reads it for a caller that has not).
+   */
+  hostNotHeld: boolean;
   now: Date;
 }): VisitRequestStanding {
   const { request, run, place, now } = input;
@@ -117,7 +122,33 @@ export function visitRequestStandingOf(input: {
   return { state: "waiting", home, host, hostSession, ownSession, cantGoAhead: !hostHappening };
 }
 
-/** Whether a request still waits for a decision, live: stored waiting, and neither closed by itself nor gone. */
-export function isLiveWaiting(standing: VisitRequestStanding): boolean {
-  return standing.state === "waiting";
+/**
+ * THE HOST'S REGISTER THAT WEEK, the one fact every reader hands
+ * `visitRequestStandingOf` beside the run: its document id (the host's
+ * session of the request's week, the week's first), or null when the host has
+ * no such session. Every reader reads that document, or has it already, and
+ * asks `notHeldIn` of it, so a session marked as not having happened reads
+ * the same on the card, the routes and the staff pages.
+ */
+export function hostRegisterIdOf(run: CourseRunDoc, groups: readonly CourseGroupDoc[], request: Pick<VisitRequestDoc, "change">): string | null {
+  const host = groups.find((group) => group.id === request.change.hostGroupId);
+  if (!host) return null;
+  const session = resolveSessions(run, host).find((each) => each.weekNumber === request.change.weekNumber && each.occurrence === 1);
+  return session ? attendanceDocId(run.id, host.id, session.weekNumber, session.occurrence) : null;
+}
+
+/** Whether a register, as stored, says its session did not happen. */
+export function notHeldIn(id: string, data: Record<string, unknown> | undefined): boolean {
+  return data ? !normalizeCourseAttendance(id, data).held : false;
+}
+
+/** Where a request stands, reading the host's register through `get` (the database, or a transaction). */
+export async function visitRequestStandingRead(
+  get: (ref: DocumentReference) => Promise<DocumentSnapshot>,
+  db: Firestore,
+  input: Omit<Parameters<typeof visitRequestStandingOf>[0], "hostNotHeld">,
+): Promise<VisitRequestStanding> {
+  const id = input.request.status === "waiting" ? hostRegisterIdOf(input.run, input.groups, input.request) : null;
+  const snap = id ? await get(db.collection("courseAttendance").doc(id)) : null;
+  return visitRequestStandingOf({ ...input, hostNotHeld: id && snap?.exists ? notHeldIn(id, snap.data()) : false });
 }

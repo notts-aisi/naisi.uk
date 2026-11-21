@@ -26,6 +26,7 @@ import { normalizeExcusedRequest, type ExcusedRequestDoc } from "@/lib/firestore
 import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
 import { visitRequestRows } from "@/lib/courses/visitRequest/page";
 import { sessionKeyParts } from "./decide";
+import { tabCounts } from "./kinds";
 
 /**
  * THE TWO PAGES OF REQUESTS, read on the server: the Requests page (every
@@ -290,11 +291,8 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
     status: "ok",
     view: {
       viewer: isAdmin ? "admin" : "lead",
-      counts: {
-        waiting: rows.filter((row) => row.state === "waiting").length,
-        handling: rows.filter((row) => row.state === "handling").length,
-        doneThisWeek: rows.filter((row) => row.state === "approved" || row.state === "declined").length,
-      },
+      // Over every row, whatever its kind; done is every state that has left waiting.
+      counts: (({ waiting, handling, done }) => ({ waiting, handling, doneThisWeek: done }))(tabCounts(rows)),
       rows,
       weekStartsAt: weekStartsAt.toISOString(),
     },

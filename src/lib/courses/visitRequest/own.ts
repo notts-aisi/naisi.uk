@@ -1,10 +1,10 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { londonDayLabel } from "@/lib/courses/londonLabels";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import type { SessionUser } from "@/lib/firebase/session";
-import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
 import { visitInWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
@@ -12,7 +12,7 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { requestStandingOf, weeksAbout } from "../excused/model";
 import { dbReader, memberSessionChoices, ownWeeksAhead, readVisitFacts, type OwnWeek, type VisitFacts } from "../visit/plan";
 import type { VisitSessionChoiceView } from "../visit/view";
-import { visitRequestStandingOf, type SessionWhen, type VisitRequestStanding } from "./standing";
+import { hostRegisterIdOf, notHeldIn, visitRequestStandingOf, type SessionWhen, type VisitRequestStanding } from "./standing";
 import {
   askedLineWords,
   cantGoAheadWords,
@@ -23,6 +23,7 @@ import {
   rowTitleWords,
   sentWhenWords,
   sessionsLegendWords,
+  withdrewWords,
   type OwnVisitRowState,
 } from "./words";
 
@@ -73,6 +74,12 @@ export type AnotherSessionView = {
   } | null;
   /** A decline they have not dismissed, while that week's session has not ended. */
   declined: { requestId: string; line: string } | null;
+  /**
+   * "You withdrew your request to go to Group I.", for a request they
+   * withdrew today while nothing of theirs waits, until that week's session
+   * ends: worked out here, so the read the press itself starts keeps it.
+   */
+  withdrawn: { requestId: string; line: string } | null;
   rows: OwnVisitRow[];
 };
 
@@ -103,15 +110,10 @@ export function standingsOf(facts: VisitFacts, now: Date): Map<string, VisitRequ
   return out;
 }
 
-/** Whether the host's register that week, when the facts read it, says the session did not happen. */
+/** Whether the host's register that week, as the facts read it, says the session did not happen (`hostRegisterIdOf`, the one reading). */
 function hostNotHeldIn(facts: Pick<VisitFacts, "run" | "groups" | "registers">, request: VisitRequestDoc): boolean {
-  const host = facts.groups.find((group) => group.id === request.change.hostGroupId);
-  if (!host) return false;
-  const session = resolveSessions(facts.run, host).find((each) => each.weekNumber === request.change.weekNumber && each.occurrence === 1);
-  if (!session) return false;
-  const id = attendanceDocId(facts.run.id, host.id, session.weekNumber, session.occurrence);
-  const data = facts.registers.get(id);
-  return data ? !normalizeCourseAttendance(id, data).held : false;
+  const id = hostRegisterIdOf(facts.run, facts.groups, request);
+  return id ? notHeldIn(id, facts.registers.get(id)) : false;
 }
 
 /** The host's session as it is now, or as it was offered when they asked. */
@@ -192,18 +194,29 @@ export async function anotherSessionOf(db: Firestore, facts: VisitFacts, now: Da
       reply: lastReply ? replyLineWords(firstName(lastReply.byUid), lastReply.text) : null,
     };
   }
-  // A decline not dismissed, while that week's session has not ended: their
-  // own group's that week, or the host's with none of their own.
+  // That week's session has not ended: their own group's that week, or the
+  // host's with none of their own.
+  const weekStillOn = (request: VisitRequestDoc): boolean => {
+    const home = facts.groups.find((group) => group.id === request.groupId) ?? null;
+    const host = facts.groups.find((group) => group.id === request.change.hostGroupId) ?? null;
+    const ownSession = home ? resolveSessions(facts.run, home).find((each) => each.weekNumber === request.change.weekNumber && each.occurrence === 1 && each.dateKey !== "" && !each.cancelled) : undefined;
+    const hostSession = host ? resolveSessions(facts.run, host).find((each) => each.weekNumber === request.change.weekNumber && each.occurrence === 1 && each.dateKey !== "") : undefined;
+    const session = ownSession ?? hostSession;
+    const ends = session ? sessionInstants(session).endsAt : null;
+    return ends !== null && ends.getTime() > now.getTime();
+  };
+  // Withdrawn today, with nothing of theirs waiting since: the line stays.
+  const withdrawnRequest =
+    live === null
+      ? ([...facts.visitRequests]
+          .sort((a, b) => (b.withdrawnAt?.getTime() ?? 0) - (a.withdrawnAt?.getTime() ?? 0))
+          .find((request) => request.status === "withdrawn" && request.withdrawnAt !== null && londonDayLabel(request.withdrawnAt) === londonDayLabel(now) && weekStillOn(request)) ?? null)
+      : null;
+  // A decline not dismissed, while that week's session has not ended.
   const declinedRequest =
     facts.visitRequests.find((request) => {
       if (request.status !== "declined" || request.dismissedAt) return false;
-      const home = facts.groups.find((group) => group.id === request.groupId) ?? null;
-      const host = facts.groups.find((group) => group.id === request.change.hostGroupId) ?? null;
-      const ownSession = home ? resolveSessions(facts.run, home).find((each) => each.weekNumber === request.change.weekNumber && each.occurrence === 1 && each.dateKey !== "" && !each.cancelled) : undefined;
-      const hostSession = host ? resolveSessions(facts.run, host).find((each) => each.weekNumber === request.change.weekNumber && each.occurrence === 1 && each.dateKey !== "") : undefined;
-      const session = ownSession ?? hostSession;
-      const ends = session ? sessionInstants(session).endsAt : null;
-      return ends !== null && ends.getTime() > now.getTime();
+      return weekStillOn(request);
     }) ?? null;
   return {
     runId: facts.run.id,
@@ -220,6 +233,7 @@ export async function anotherSessionOf(db: Firestore, facts: VisitFacts, now: Da
           }),
         }
       : null,
+    withdrawn: withdrawnRequest ? { requestId: withdrawnRequest.id, line: withdrewWords(groupName(withdrawnRequest.change.hostGroupId)) } : null,
     rows: ownRowsOf(facts.visitRequests, standings, { group: groupName, firstName }, now),
   };
 }

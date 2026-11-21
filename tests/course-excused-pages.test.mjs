@@ -223,7 +223,9 @@ describe("1. the words, one file per surface", () => {
     assert.equal(correctionWords.requestsWaitingLine({ corrections: 1 }), "A facilitator has asked for a line of a register to be corrected.");
     assert.equal(correctionWords.requestsWaitingLine({ corrections: 0, excused: 1 }), "Somebody has asked to be excused from a week.");
     assert.equal(correctionWords.requestsWaitingLine({ corrections: 1, excused: 2 }), "2 requests to be excused are waiting. A facilitator has asked for a line of a register to be corrected.");
-    // A count per kind: a request to go to another session never reads as a correction.
+    // A count per kind: a request to go to another session never reads as a correction,
+    // and a kind this line has no count for says nothing at all.
+    assert.equal(correctionWords.requestsWaitingLine({ corrections: 0 }), "");
     assert.equal(correctionWords.requestsWaitingLine({ corrections: 0, visits: 1 }), "Somebody has asked to go to another group’s session.");
     assert.equal(
       correctionWords.requestsWaitingLine({ corrections: 2, excused: 1, visits: 3 }),

@@ -186,6 +186,8 @@ type Facts = {
   excusedWaiting?: number;
   /** How many of them are requests to go to another session. */
   visitsWaiting?: number;
+  /** How many of them are register corrections, counted by themselves. */
+  correctionsWaiting?: number;
 };
 
 export default function HomeAdmin({
@@ -202,6 +204,7 @@ export default function HomeAdmin({
   requestsWaiting = 0,
   excusedWaiting = 0,
   visitsWaiting = 0,
+  correctionsWaiting = 0,
 }: Facts) {
   const pending = usePendingCount();
   const bounces = useBounces();
@@ -240,11 +243,7 @@ export default function HomeAdmin({
       key: "requests",
       figure: String(requestsWaiting),
       title: requestsWaitingTitle(requestsWaiting),
-      line: requestsWaitingLine({
-        corrections: requestsWaiting - excusedWaiting - visitsWaiting,
-        excused: excusedWaiting,
-        visits: visitsWaiting,
-      }),
+      line: requestsWaitingLine({ corrections: correctionsWaiting, excused: excusedWaiting, visits: visitsWaiting }),
       action: "Open",
       href: REQUESTS_PATH,
     });

@@ -12,7 +12,7 @@ import styles from "./home.module.css";
  * (worked out on the server, `requestsWaitingFor`). An admin's Home says the
  * same in its To do instead.
  */
-export default function RequestsWaiting({ count }: { count: number }) {
+export default function RequestsWaiting({ count, corrections = count }: { count: number; /** The register corrections among them, counted by themselves. */ corrections?: number }) {
   if (count <= 0) return null;
   return (
     <section className={styles.card} aria-labelledby="home-requests" data-testid="home-requests">
@@ -23,7 +23,7 @@ export default function RequestsWaiting({ count }: { count: number }) {
             <h2 id="home-requests" className={styles.todoTitle}>
               {requestsWaitingTitle(count)}
             </h2>
-            <p className={styles.small}>{requestsWaitingLine({ corrections: count })}</p>
+            <p className={styles.small}>{requestsWaitingLine({ corrections })}</p>
           </div>
           <Link href={REQUESTS_PATH} className={styles.primary}>
             Open

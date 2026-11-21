@@ -26,6 +26,7 @@ import { countsFromArchivedGroup } from "../archivedWeeks";
 import { belonging, sessionsWithGroup } from "../groupsByWeek";
 import { placeTakesMove, runMoveRefusal } from "../staffMove/plan";
 import { facilitatesWords, notToldWords } from "../staffMove/words";
+import { cancelDeadline, ownSessionThatWeek } from "./deadline";
 import { peopleInWeek, placesLeftInWeek } from "./places";
 import type { VisitLineView, VisitPreviewView, VisitSessionChoiceView, VisitStandingView, VisitWeekChoiceView } from "./view";
 import {
@@ -55,6 +56,7 @@ import {
   ownWeekGoneWords,
   personEmailWords,
   visitRequestWaitingWords,
+  withTheAdminsWords,
   readingLineWords,
   registerFullWords,
   registersLineWords,
@@ -91,6 +93,8 @@ import {
  * never whoever pressed, once each (somebody who facilitates both is told as
  * one of the host's).
  */
+
+export { cancelDeadline, ownSessionThatWeek };
 
 /** A refusal: the status a route answers with and its one sentence. */
 export type VisitRefusal = { ok: false; status: number; error: string; kind?: "too-late" | "no-visit" };
@@ -377,50 +381,12 @@ export function ownWeeksAhead(facts: Pick<VisitFacts, "run" | "groups" | "place"
   return out;
 }
 
-/**
- * Their own group's session in a week, whether or not it is still to come:
- * the week's first, dated. A session called off is no session, and a group
- * that no longer meets has none. Null with none.
- */
-export function ownSessionThatWeek(run: CourseRunDoc, home: CourseGroupDoc | null, weekNumber: number): ResolvedSession | null {
-  if (!home || home.archived) return null;
-  return resolveSessions(run, home).find((each) => each.weekNumber === weekNumber && each.occurrence === 1 && each.dateKey !== "" && !each.cancelled) ?? null;
-}
-
 /** Their own group's session in a week (`ownSessionThatWeek`), with the group; null with none. */
 function ownSessionIn(facts: Pick<VisitFacts, "run" | "groups" | "place">, weekNumber: number): { home: CourseGroupDoc; session: ResolvedSession } | null {
   const homeId = ownGroupForWeek(facts.place, weekNumber);
   const home = facts.groups.find((group) => group.id === homeId) ?? null;
   const session = ownSessionThatWeek(facts.run, home, weekNumber);
   return home && session ? { home, session } : null;
-}
-
-/**
- * UNTIL WHEN A VISIT CAN BE CANCELLED, the one answer the person's card, the
- * person's own cancel and staff's call-off all ask: until the EARLIER of the
- * two sessions of that week starts, their own group's (`ownSessionThatWeek`:
- * one called off is no session) or the host's, read from the host group's
- * own schedule whatever has happened to the group since (archived, it still
- * knows when it met). Staff and the person alike: once their own group's
- * session has started, ending the visit would count them absent from a
- * session they were told not to go to; once the host's has, the visit is
- * what that week was. `first` is that session and its group, which the
- * sentence said once it has started names. Null `until` with no dated
- * session to go by. (Staff calling off a visit to a session that is not
- * happening go by their own group's session alone: `planCallOff`.)
- */
-export function cancelDeadline(input: {
-  host: CourseGroupDoc;
-  hostSession: ResolvedSession | null;
-  home: CourseGroupDoc | null;
-  ownSession: ResolvedSession | null;
-}): { until: Date | null; first: { group: CourseGroupDoc; session: ResolvedSession } | null } {
-  const hostStart = input.hostSession ? sessionInstants(input.hostSession).startsAt : null;
-  const ownStart = input.ownSession ? sessionInstants(input.ownSession).startsAt : null;
-  const hostFirst = input.hostSession ? { group: input.host, session: input.hostSession } : null;
-  const ownFirst = input.ownSession && input.home ? { group: input.home, session: input.ownSession } : null;
-  if (ownStart && (!hostStart || ownStart.getTime() < hostStart.getTime())) return { until: ownStart, first: ownFirst };
-  return { until: hostStart, first: hostStart ? hostFirst : ownFirst };
 }
 
 /** The next session of their own group after week N they are due at there, or null. */
@@ -538,6 +504,12 @@ export function planVisit(
   now: Date,
   /** The person's own request this visit approves, which is no reason to refuse it. */
   approving: string | null = null,
+  /**
+   * Whether whoever asks is an admin: only an admin is told a request of the
+   * person's own waits (requests to go to another session are an admin's
+   * alone); anybody else is told the week is with the admins.
+   */
+  viewer: { isAdmin: boolean } = { isAdmin: false },
 ): { ok: true; plan: VisitPlan } | VisitRefusal {
   const { run, place, person, accounts } = facts;
   if (facts.oneGroup) return { ok: false, status: 409, error: VISIT_REFUSAL.oneGroup };
@@ -570,7 +542,11 @@ export function planVisit(
   // checked), such a request waits until the host's session starts, while
   // that session is happening (`visitRequestStandingOf`, the one rule).
   if (facts.visitRequests.some((request) => request.id !== approving && visitRequestWaitsIn(facts, request, weekNumber, homeId, now))) {
-    return { ok: false, status: 409, error: visitRequestWaitingWords(person.firstName, weekNumber) };
+    return {
+      ok: false,
+      status: 409,
+      error: viewer.isAdmin ? visitRequestWaitingWords(person.firstName, weekNumber) : withTheAdminsWords(person.firstName, weekNumber),
+    };
   }
   const host = facts.groups.find((group) => group.id === hostGroupId) ?? null;
   if (!host) return { ok: false, status: 404, error: VISIT_REFUSAL.noGroup };
@@ -712,7 +688,10 @@ export function sessionChoices(facts: VisitFacts, weekNumber: number, now: Date)
  * other live group's session that week, dated, not called off, not marked as
  * not held, not started) with the same count of places left that week
  * (`placesLeftInWeek`), in the order they start, the full ones after and
- * not choosable. No facilitator is named in the detail line.
+ * not choosable, and only those the plan itself would arrange now
+ * (`planVisit`: a host register with no room for another line, or their own
+ * register already saying they came, offers nothing). No facilitator is
+ * named in the detail line.
  */
 export function memberSessionChoices(facts: VisitFacts, weekNumber: number, now: Date): VisitSessionChoiceView[] {
   const homeId = ownGroupForWeek(facts.place, weekNumber);
@@ -721,6 +700,7 @@ export function memberSessionChoices(facts: VisitFacts, weekNumber: number, now:
     .flatMap((group) => {
       const check = hostSessionRefusal(facts, group, weekNumber, now);
       if (check.error || !check.session) return [];
+      if (!planVisit(facts, weekNumber, group.id, facts.place.uid, now).ok) return [];
       const left = placesLeftInWeek(group, facts.places, weekNumber);
       const full = left !== null && left <= 0;
       const words = sessionFacts(group, check.session);

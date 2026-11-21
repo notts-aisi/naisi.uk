@@ -4,7 +4,7 @@ import styles from "@/features/courses/leaving/Leaving.module.css";
 import { ProgrammeBar } from "@/features/courses/leaving/Parts";
 import { getRunAccess } from "@/features/courses/runAccess";
 import AnotherSessionForm from "@/features/courses/visitRequest/AnotherSessionForm";
-import { VisitRequestWaiting } from "@/features/courses/visitRequest/CardParts";
+import { VisitRequestWaiting, VisitRequestWithdrawn } from "@/features/courses/visitRequest/CardParts";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { nextSessionAnswersFor } from "@/lib/courses/nextSession/answers";
 import { anotherSessionPageFor } from "@/lib/courses/visitRequest/own";
@@ -47,7 +47,8 @@ export default async function AnotherSessionPage({ params }: { params: Promise<{
   const now = new Date();
   const asked = { user: access.user, run: access.run, enrolment: access.enrolment, groups: access.groups, now };
   const [view, answers, programme, marker] = await Promise.all([
-    anotherSessionPageFor(db, asked).catch(() => null),
+    // A read that fails is told apart from nothing to ask, and draws neither the form nor that sentence.
+    anotherSessionPageFor(db, asked).catch(() => "failed" as const),
     // Their requests to be excused, for the one list under the form: the card's own answers.
     nextSessionAnswersFor(db, { ...asked, takesPart: access.isEnrolled }),
     runProgrammeOf(db, access.run.id).catch(() => null),
@@ -55,10 +56,12 @@ export default async function AnotherSessionPage({ params }: { params: Promise<{
   ]);
   const locked = markerIsLive(marker, access.user.uid);
   const name = programme?.shortName || access.run.courseTitle.trim() || "this programme";
-  const waiting = view?.card.waiting ?? null;
+  const failed = view === "failed";
+  const page = failed ? null : view;
+  const waiting = page?.card.waiting ?? null;
   const excused = answers.excused;
   const excusedRows = excused?.asks ? excused.requests : [];
-  const visitRows = view?.card.rows ?? [];
+  const visitRows = page?.card.rows ?? [];
 
   return (
     <div className={styles.page}>
@@ -66,8 +69,9 @@ export default async function AnotherSessionPage({ params }: { params: Promise<{
       <div className={styles.body}>
         <section className={styles.section}>
           <h1 className={styles.pageTitle}>{ANOTHER_SESSION_TITLE}</h1>
-          {view?.form ? (
-            <AnotherSessionForm runId={access.run.id} form={view.form} locked={locked} />
+          {page?.card.withdrawn && <VisitRequestWithdrawn line={page.card.withdrawn.line} />}
+          {failed ? null : page?.form ? (
+            <AnotherSessionForm runId={access.run.id} form={page.form} locked={locked} />
           ) : waiting ? (
             <VisitRequestWaiting waiting={waiting} locked={locked} />
           ) : (

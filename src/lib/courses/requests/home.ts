@@ -9,6 +9,7 @@ import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
 import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
 import { liveWaitingVisitRequests } from "@/lib/courses/visitRequest/page";
+import { openByKind } from "./kinds";
 import { loadRequestsPage, requestShownTo } from "./load";
 
 /**
@@ -36,10 +37,8 @@ export async function requestsWaitingFor(db: Firestore, user: SessionUser, now: 
     if (loaded.status !== "ok") return NO_REQUESTS_WAITING;
     // Requests to be excused reach an admin's list alone (the loader sends a
     // lead none), so this is 0 for everybody else.
-    const excused = loaded.view.rows.filter((row) => row.kind === "excused" && row.state === "waiting").length;
-    // Requests to go to another session, waiting or being handled: an admin's alone too.
-    const visits = loaded.view.rows.filter((row) => row.kind === "visit" && (row.state === "waiting" || row.state === "handling")).length;
-    return { count: loaded.view.counts.waiting + loaded.view.counts.handling, excused, visits };
+    // Each kind counted by itself (`openByKind`), never one worked out from the others.
+    return { count: loaded.view.counts.waiting + loaded.view.counts.handling, ...openByKind(loaded.view.rows) };
   } catch (err) {
     console.warn("[dashboard] could not count the requests waiting", err);
     return NO_REQUESTS_WAITING;
@@ -47,13 +46,14 @@ export async function requestsWaitingFor(db: Firestore, user: SessionUser, now: 
 }
 
 /**
- * How many requests wait for somebody, and how many of them are of each
- * member's kind (an admin's alone): requests to be excused, and to go to
- * another session. The rest are register corrections.
+ * How many requests wait for somebody, and how many of each kind, each
+ * counted by itself: register corrections, requests to be excused and to go
+ * to another session (those two an admin's alone). A kind with no count here
+ * is in `count` and in no line of Home's words until it brings its own.
  */
-export type RequestsWaiting = { count: number; excused: number; visits: number };
+export type RequestsWaiting = { count: number; corrections: number; excused: number; visits: number };
 
-export const NO_REQUESTS_WAITING: RequestsWaiting = { count: 0, excused: 0, visits: 0 };
+export const NO_REQUESTS_WAITING: RequestsWaiting = { count: 0, corrections: 0, excused: 0, visits: 0 };
 
 /**
  * How many requests about one run wait for somebody to decide them, as the

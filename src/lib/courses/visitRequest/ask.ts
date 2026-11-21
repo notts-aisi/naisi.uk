@@ -61,7 +61,8 @@ export async function askForVisit(db: Firestore, user: SessionUser, runId: strin
     if (!week) return refuse(409, ASK_REFUSAL.nothingToAsk);
     const choices = memberSessionChoices(facts, week.weekNumber, now);
     const chosen = choices.find((choice) => choice.groupId === press.hostGroupId) ?? null;
-    if (!chosen) return refuse(409, choices.length > 0 && choices.every((choice) => choice.full) ? ASK_REFUSAL.noneWithAPlace : ASK_REFUSAL.notOffered);
+    // No session with a place (none offered at all included): the sentence the form says itself.
+    if (!chosen) return refuse(409, choices.every((choice) => choice.full) ? ASK_REFUSAL.noneWithAPlace : ASK_REFUSAL.notOffered);
     if (chosen.full) return refuse(409, choices.every((choice) => choice.full) ? ASK_REFUSAL.noneWithAPlace : ASK_REFUSAL.justFilled);
     // What its approval would ask, now: everything the staff visit refuses is refused here.
     const planned = planVisit(facts, week.weekNumber, press.hostGroupId, user.uid, now);

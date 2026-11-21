@@ -2752,7 +2752,20 @@ good from that week or before). Neither is written, emailed or listed for
 staff; a closed one is a row "Not decided before Tue 17 Nov, 6pm" on the
 person's own list, a gone one is on no list. While the host's session is
 called off or marked as not held, the person's card says it can't go ahead and
-offers Withdraw.
+offers Withdraw. Every reader hands the rule the same facts, the host's
+register of that week among them (`hostRegisterIdOf`, `notHeldIn`), so the
+card, the routes and the staff pages always agree.
+
+A request that closes by itself or goes with the place keeps its stored
+`waiting` until the run is destroyed or the account deleted, and the admins'
+Requests page and Home read every stored `waiting` request (500 at most) to
+work out where each stands. They accumulate slowly; a later tidy can mark
+them, should a term ever come near that.
+
+A programme's lead arranging a visit for a week a member's request still
+waits about is told only "Week 2 for Daniel is with the admins at the
+moment. Ask an admin to arrange this visit."; an admin is told to decide the
+request first.
 
 **Approving** calls `arrangeVisit` with the request's decision as a hook in
 the same transaction (`approves`): the request is read again there, and the
@@ -2765,7 +2778,12 @@ that request first.
 
 **What the person sees.** On the card (Home and the programme page): "Go to
 another session this week" for the week offered; while it waits, the request
-in place of every button with "Withdraw the request"; a decline at the top
+first with "Withdraw the request", "Can't make it" and "I'm joining online"
+kept beside it (a member can always say something about their own session;
+asking to be excused from that week is refused with "You already have a
+request waiting. Withdraw it to send another." until it is withdrawn or
+decided); once withdrawn, "You withdrew your request to go to Group I.",
+worked out on the server from the request, until that week's session ends; a decline at the top
 with "Dismiss" until dismissed or that week's session has passed; and, once
 approved, the visiting card with "Approved by Zach, Tue 10 Nov, 1:40pm" and
 the reply. "Your requests" lists these with their requests to be excused, one

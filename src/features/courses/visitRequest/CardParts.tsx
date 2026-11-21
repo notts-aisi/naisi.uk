@@ -93,6 +93,15 @@ export function VisitRequestWaiting({ waiting, locked = false }: { waiting: NonN
   );
 }
 
+/** "You withdrew your request to go to Group I.", as the server reads it from the request. */
+export function VisitRequestWithdrawn({ line }: { line: string }) {
+  return (
+    <div className={excuse.state} data-state="visit-withdrawn">
+      <p className={excuse.line}>{line}</p>
+    </div>
+  );
+}
+
 export function VisitRequestDeclined({ declined, locked = false, className }: { declined: NonNullable<AnotherSessionView["declined"]>; locked?: boolean; className?: string }) {
   const router = useRouter();
   const refreshCard = useCardRefresh();

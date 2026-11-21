@@ -73,8 +73,8 @@ export const ASK_REFUSAL = {
   /** A session the form no longer offers: called off, started, or no longer one of the week's. */
   notOffered: "That session can’t be chosen now. Choose another.",
   reasonText: "The reason must be text.",
-  reasonLine: "The reason must be one line.",
-  reasonLink: "Leave links out of the reason.",
+  reasonLine: "Keep it to one line.",
+  reasonLink: "Leave links out.",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -329,7 +329,8 @@ export function replyEmailWords(input: { weekNumber: number; hostName: string; d
     subject: `About your request for week ${input.weekNumber}`,
     before: [`${decider} replied to your request to go to ${possessive(groupName(input.hostName))} session for week ${input.weekNumber}.`],
     quote: `${decider} says: “${line(input.reply)}”`,
-    after: ["It’s still waiting for a decision. You’ll get an email when it’s decided."],
+    // A request nobody decides before the session closes by itself and sends nothing: no promise of a later email.
+    after: ["It’s still waiting for a decision."],
     button: "Open your programme page",
     footnote: null,
   };

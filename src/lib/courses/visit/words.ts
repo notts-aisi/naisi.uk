@@ -690,6 +690,15 @@ export function visitRequestWaitingWords(firstName: string, weekNumber: number):
 }
 
 /**
+ * The same, to anybody who is not an admin (a programme's lead), who sees
+ * nothing of these requests: "Week 2 for Daniel is with the admins at the
+ * moment. Ask an admin to arrange this visit."
+ */
+export function withTheAdminsWords(firstName: string, weekNumber: number): string {
+  return `Week ${weekNumber} for ${line(firstName) || "them"} is with the admins at the moment. Ask an admin to arrange this visit.`;
+}
+
+/**
  * Refused: staff calling off a visit once the person's own group's session
  * that week has started. With the host's session not happening: "Group B’s
  * week 4 session has started, so calling this visit off would count Chloe

@@ -12,6 +12,7 @@ import * as V from "@/lib/courses/visitRequest/words";
 import * as R from "@/lib/courses/excused/requestWords";
 import * as P from "@/lib/courses/registerCorrection/pageWords";
 import type { RequestRow, RequestsPageView } from "@/lib/courses/requests/load";
+import { REQUEST_KINDS, isDone, rowsOfKind, tabCounts } from "@/lib/courses/requests/kinds";
 import { requestPath } from "@/lib/courses/requests/paths";
 import styles from "./Requests.module.css";
 
@@ -85,19 +86,15 @@ export default function RequestsList({ view, emailMe = null }: { view: RequestsP
   const programmes = new Map<string, string>();
   for (const row of view.rows) programmes.set(programmeKey(row), row.programme.name || "A programme");
   const inProgramme = view.rows.filter((row) => programme === "all" || programmeKey(row) === programme);
-  const inTab = inProgramme.filter((row) =>
-    tab === "waiting" ? row.state === "waiting" : tab === "handling" ? row.state === "handling" : row.state === "approved" || row.state === "declined",
-  );
-  const shown = inTab.filter((row) => row.kind !== "excused" && row.kind !== "visit");
-  const excusedShown = inTab.filter((row) => row.kind === "excused");
-  const anyExcused = view.viewer === "admin" && view.rows.some((row) => row.kind === "excused");
-  const visitsShown = inTab.filter((row) => row.kind === "visit");
-  const anyVisits = view.viewer === "admin" && view.rows.some((row) => row.kind === "visit");
-  const counts = {
-    waiting: inProgramme.filter((row) => row.state === "waiting").length,
-    handling: inProgramme.filter((row) => row.state === "handling").length,
-    done: inProgramme.filter((row) => row.state === "approved" || row.state === "declined").length,
-  };
+  const inTab = inProgramme.filter((row) => (tab === "waiting" ? row.state === "waiting" : tab === "handling" ? row.state === "handling" : isDone(row.state)));
+  // Each section takes its own kind's rows and no other (`rowsOfKind`).
+  const shown = rowsOfKind(inTab, REQUEST_KINDS.corrections);
+  const excusedShown = rowsOfKind(inTab, REQUEST_KINDS.excused);
+  const anyExcused = view.viewer === "admin" && rowsOfKind(view.rows, REQUEST_KINDS.excused).length > 0;
+  const visitsShown = rowsOfKind(inTab, REQUEST_KINDS.visits);
+  const anyVisits = view.viewer === "admin" && rowsOfKind(view.rows, REQUEST_KINDS.visits).length > 0;
+  // Over every row of the programme chosen, whatever its kind.
+  const counts = tabCounts(inProgramme);
   const nothing = view.counts.waiting === 0 && view.counts.handling === 0;
 
   const tabs: { id: Tab; label: string; count: number }[] = [
