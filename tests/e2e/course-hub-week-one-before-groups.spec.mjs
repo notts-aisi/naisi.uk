@@ -1620,9 +1620,10 @@ test(
         await adaPage.goto(`${origin}/dashboard`, { waitUntil: "domcontentloaded" });
         const homeTicket = adaPage.getByRole("region", { name: "Your next session", exact: true });
         await homeTicket.waitFor({ timeout: WAIT_MS });
-        // The card names the group on a line of its own, under the day and hours.
-        const homeSaid = await textOf(homeTicket);
-        assert.ok(new RegExp(`(^|\\s)${groupA.name}( with |$|\\s)`).test(homeSaid), `Home's card does not name Ada's group: ${homeSaid}`);
+        // The card names the group on a line of its own, under the day and hours:
+        // read as a line of the card, since the card's whole text runs its lines together.
+        const groupLine = homeTicket.getByText(new RegExp(`^${groupA.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( with .+)?$`));
+        assert.ok((await groupLine.count()) >= 1, `Home's card does not name Ada's group on a line of its own: ${await textOf(homeTicket)}`);
         const homeWhen = await textOf(homeTicket.getByRole("heading", { level: 2 }));
         assert.match(homeWhen, /^\w{3} \d{1,2} \w{3}, \d{1,2}(:\d{2})?[ap]m to \d{1,2}(:\d{2})?[ap]m$/, `Home's card does not give the session's day and hours: ${homeWhen}`);
         assert.equal(await onItsWay(adaPage).count(), 0, "Home still says Ada's group is on its way");
