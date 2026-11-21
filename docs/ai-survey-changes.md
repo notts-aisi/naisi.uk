@@ -43,6 +43,35 @@ answered before the change was told they would.
 In the words file, the end screen's line was named `petition` and is now
 `newsletterLine`. The newsletter button and its link are as they were.
 
+## Change 2: back to the code box after a reload, and ten codes a day
+
+Made on 20 November 2026. It reached the live site with the deploy of this
+change to `main`: this page's own history gives the day.
+
+No question, answer, code or scale changed, and `version` is still 1. The
+privacy notice did not change. Nothing new is stored about anybody, and the
+browser keeps nothing new: the pass, as before.
+
+The email step and the code step gained three sentences, and an address can
+be sent ten codes a day where it could be sent five.
+
+| Where | Before | After |
+|---|---|---|
+| Code step, when the page has reloaded there (the address box is shown beside the code box) | (none) | This page reloaded, so type your University email again, then the code we sent you. |
+| Code step, when "Send my code" is pressed again inside the minute on the email step | (none: the email step said "We've just sent you a code. Wait a minute before asking for another.") | We sent you a code less than a minute ago. Enter it below. |
+| Email step, a link under "Send my code" | (none) | I already have a code |
+| Codes a day for one address | Five | Ten |
+
+What the page does: while the code step is shown, the page's address ends
+`#code`, one fixed word and nothing about the person, so a page that reloads
+there comes back to the code box once the start screen's button has been
+pressed again, with both boxes ticked and the consent answer given on that
+screen ([ai-survey.md](ai-survey.md), "Coming back to the code step"). "Send a new code" inside the minute still says "We've just
+sent you a code. Wait a minute before asking for another." One code a minute,
+five wrong tries for a code, fifteen minutes for a code and the ceiling an
+hour across the survey are as they were, and "You've asked for several codes
+today" still says to try again tomorrow.
+
 ## The privacy notice as it read from 17 November 2026 until change 1
 
 Exactly as the page at `/ai-survey/privacy` showed it, with its values filled
