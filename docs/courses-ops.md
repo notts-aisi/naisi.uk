@@ -2169,7 +2169,12 @@ this page's rule gives (`moveWeekFor`, the one function both ask): every
 week before it stays with the old group, the record is extended, or folded
 back when the person returns to a group before an earlier move took effect,
 and a visit to the group moved into from that week on goes in the same
-write. It EMAILS NOBODY and is held to no limit: the next Publish sends
+write. It is made by an admin or the programme's lead, as on this page
+(`movesForGoodMidTerm`): a run's track lead, who places people on the board
+before their group has met, is refused it in the preview and at the press,
+nothing written, in one sentence that says who to ask ("Leo has already met
+with Group C, so only an admin or the programme’s lead can move Leo now. Ask
+one of them."). It EMAILS NOBODY and is held to no limit: the next Publish sends
 "You’ve moved", as for any move on the board, so `toldGroupId` and
 Publish's markers are left as the board leaves them. One row on each group's
 History ("Leo Park moved to Group F from week 3 on the Groups tab, to be

@@ -88,7 +88,7 @@ const CALLERS = {
     "planBoardMove(db, input.run, input.uid, input.toGroupId, input.now, false, false)",
   ],
   // The board's preview: asked of the one function that decides who reads time answers.
-  "src/app/api/courses/runs/[runId]/allocate/route.ts": ["planBoardMove(db, run, uid, groupId, now, true, readsTimeAnswers(staffing))"],
+  "src/app/api/courses/runs/[runId]/allocate/route.ts": ["planBoardMove(db, run, uid, groupId, now, movesMidTerm, readsTimeAnswers(staffing))"],
 };
 
 describe("every reader of what a move leaves behind says who it reads for", () => {

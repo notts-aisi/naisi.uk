@@ -74,3 +74,14 @@ export function doesTrackLeadWork(staffing: RunStaffing): boolean {
 export function readsTimeAnswers(staffing: RunStaffing): boolean {
   return staffing.isAdmin || staffing.leadOf !== null;
 }
+
+/**
+ * Moves somebody to another group for good once their group has met: an
+ * admin, or the lead of the programme that names the run, on the person's
+ * move page and on every board alike (the board's mid-term path, preview and
+ * press). Never a run's track lead by that alone, who places people before
+ * any session of their group has met.
+ */
+export function movesForGoodMidTerm(staffing: RunStaffing): boolean {
+  return staffing.isAdmin || staffing.leadOf !== null;
+}

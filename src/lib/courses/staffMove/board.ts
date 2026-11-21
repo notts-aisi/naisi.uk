@@ -19,6 +19,7 @@ import {
   boardMovedOutDetail,
   boardWeekChangedWords,
   leftBehindWords,
+  midTermLeadOnlyWords,
   midTermToPoolWords,
   oldNoLongerMeetsWords,
   oldOffWords,
@@ -133,6 +134,16 @@ export async function readIsMidTerm(
 export async function midTermToPoolRefusal(db: Firestore, uid: string, fromName: string): Promise<BoardRefusal> {
   const person = await namesOf(db, uid);
   return { reason: "mid-term-to-pool", words: midTermToPoolWords(person.firstName, fromName) };
+}
+
+/**
+ * The refusal of a move made mid-term by somebody who does not make one (see
+ * `movesForGoodMidTerm`), in the board's sentence: the person's first name
+ * read from their account, the group they are in named.
+ */
+export async function midTermLeadOnlyRefusal(db: Firestore, uid: string, fromName: string): Promise<BoardRefusal> {
+  const person = await namesOf(db, uid);
+  return { reason: "mid-term-lead-only", words: midTermLeadOnlyWords(person.firstName, fromName) };
 }
 
 /** What the board says before a press, for one person: the week and the question, or why no week can be offered. */

@@ -535,6 +535,16 @@ export function boardMoveConfirmWords(input: {
  * group: the weeks met with Group A would be lost. Move Amara straight to the
  * new group instead, or take Amara off the run."
  */
+/**
+ * NOT DRAWN AS A LINE OF ITS OWN: the board shows it as the refusal of a
+ * move made mid-term by somebody who is neither an admin nor the programme's
+ * lead (a run's track lead), naming who to ask.
+ */
+export function midTermLeadOnlyWords(firstName: string, fromName: string): string {
+  const first = line(firstName) || "They";
+  return `${first} has already met with ${groupName(fromName)}, so only an admin or the programme’s lead can move ${first} now. Ask one of them.`;
+}
+
 export function midTermToPoolWords(firstName: string, fromName: string): string {
   const first = line(firstName) || "They";
   const from = groupName(fromName);
