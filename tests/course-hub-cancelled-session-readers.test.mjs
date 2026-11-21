@@ -122,6 +122,17 @@ const READERS = {
       "so neither a session cancelled through Change a session nor one whose register says it was not held is one",
   },
 
+  "lib/courses/archivedWeeks.ts": {
+    kind: "asks",
+    proof: [
+      "return !session.cancelled && register != null && register.held && register.pushedAt instanceof Date;",
+      "if (session.cancelled || !raw || raw.held === false) return false;",
+    ],
+    why:
+      "what still counts of a week spent in a group archived since: a finished register of a session held, so neither a " +
+      "session cancelled through Change a session nor one whose register says it was not held counts for anybody",
+  },
+
   // ── Correcting a finished register (November 2026) ──────────────────────
   "lib/courses/registerCorrection/line.ts": {
     kind: "asks",
@@ -129,6 +140,58 @@ const READERS = {
     why:
       "a line of a finished register corrected, by a lead or an admin or an approved request: a session that did not " +
       "happen, called off or said so on its register, has no line to correct",
+  },
+  "lib/courses/visit/plan.ts": {
+    kind: "asks",
+    proof: [
+      "if (session.cancelled) return { session, error: hostCancelledWords(host.name, weekNumber) };",
+      "const happening = session !== null && !session.cancelled && (register?.held ?? true) && (!host.archived || countsFromArchivedGroup(session, register));",
+    ],
+    why:
+      "a one-week visit: a host session called off through Change a session is refused in its own sentence before its " +
+      "register's held is read, a week whose own session is called off is no week to visit from, and a visit that stands " +
+      "to a called-off session is said to be no longer happening",
+  },
+  "lib/courses/visit/removed.ts": {
+    kind: "asks",
+    proof: [
+      "const startsAt = session && !session.cancelled ? sessionInstants(session).startsAt : null;",
+      ".filter((_, index) => !(snaps[index]?.exists && snaps[index].data()?.held === false))",
+    ],
+    why:
+      "taking somebody off the run with a visit still to come: a host session called off through Change a session is " +
+      "no visit to call off, so it is passed over before any register is read, and one whose register says it did not " +
+      "happen is passed over too, so the host's facilitators are told only of a visit that was still happening",
+  },
+  "lib/courses/staffMove/plan.ts": {
+    kind: "asks",
+    proof: [
+      "if (session.cancelled) return false;",
+      "snaps[index]?.exists && snaps[index].data()?.held === false",
+    ],
+    why:
+      "the week a move made mid-term is from (the move page and the allocation board): only the person's own sessions " +
+      "that have started and were not called off through Change a session are read for a register that says it did " +
+      "not happen; the week rule reads a called-off session as no meeting by its own flag, and a not-held one the same way",
+  },
+  "lib/courses/visit/card.ts": {
+    kind: "asks",
+    proof: [
+      "if (!session || session.cancelled) continue;",
+      ".held === false).map((each) => each.weekNumber),",
+    ],
+    why:
+      "a person's own visit card: a host session called off through Change a session draws no card, and neither does " +
+      "one whose register says it did not happen, so the card never offers a Cancel that the person's own cancel, which " +
+      "reads such a visit as none, would then refuse",
+  },
+  "lib/scheduler/jobs/weekReminders.ts": {
+    kind: "asks",
+    proof: ["if (session.cancelled) continue;", "notHeld: data ? normalizeCourseAttendance(id, data).held === false : false,"],
+    why:
+      "the reminders before a session: a session called off through Change a session is reminded about by nobody, and " +
+      "for somebody visiting it for one week, a register that says it did not happen means their programme page draws " +
+      "no visit card for it, so the reminder says neither Can't make it nor where its link is",
   },
   "lib/courses/registerCorrection/column.ts": {
     kind: "asks",
@@ -283,6 +346,24 @@ const READERS = {
     via: ["facts"],
     proof: ["listGroups(records, viewer, now, weeksOf(records))"],
     why: "the Overview's sessions this week and Needs attention: each group's session facts, as the lead's tabs read them",
+  },
+  "lib/courses/overviewByWeek.ts": {
+    kind: "told",
+    from: ["lib/courses/programmeAttendance.ts"],
+    via: ["facts"],
+    proof: ["const facts = entry.sessions.get(weekNumber);"],
+    why:
+      "the Overview's attendance by week and its groups in a week: each group's session facts as the lead's tabs read them, " +
+      "so a cancelled session is no session in any count and its row says it was cancelled",
+  },
+  "lib/courses/personPage/load.ts": {
+    kind: "told",
+    from: ["lib/courses/programmeAttendance.ts"],
+    via: ["session"],
+    proof: ["groupSessions(records, group, now)"],
+    why:
+      "a person's page: whether a one-week visit's session is happening, read off the host group's session facts as the " +
+      "lead's tabs read them, so a visit whose session was cancelled through Change a session is no visit on the page",
   },
   "lib/surveys/leadOverview.ts": {
     kind: "told",

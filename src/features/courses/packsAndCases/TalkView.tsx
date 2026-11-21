@@ -48,6 +48,16 @@ type Props = {
   canWrite: boolean;
   picks: Picks;
   askToSwap: readonly string[];
+  /** The session that hands the week's slips out (`givenOutWords`): its week's number, null for none, undefined when not known. */
+  handOutSession?: number | null;
+  /**
+   * Under "Not given yet" while the case waits on the facilitator's slip, in
+   * the design's words, or null: not the first part waiting (the line is
+   * under the pathway), or no words for it.
+   */
+  waitingLine?: string | null;
+  /** That line is said already, under the pathway above, so the case says nothing more. */
+  waitingSaidAbove?: boolean;
   /** The pack the person has in the Choose one whose packs this talk's case groups name, or null. */
   packId: string | null;
   /** `<section>` with its heading at the top of the week, or a block inside a part. */
@@ -131,7 +141,7 @@ function Prepare({ prepare }: { prepare: ProseValue }) {
 
 /** "Your case": the case the person was given, or "Not given yet". */
 function YourCase({ props }: { props: Props }) {
-  const { block, weekNumber, picks, askToSwap } = props;
+  const { block, weekNumber, picks, askToSwap, handOutSession, waitingLine = null, waitingSaidAbove = false } = props;
   const found = findCase(block, picks.caseOf(block.id));
   return (
     <div className={styles.caseCard}>
@@ -154,12 +164,22 @@ function YourCase({ props }: { props: Props }) {
               <Runs runs={found.item.start} linkClassName={styles.startLink} />
             </p>
           )}
-          {block.givenBy === "facilitator" && <p className={styles.line}>{givenCaseLineWords(weekNumber, askToSwap)}</p>}
+          {block.givenBy === "facilitator" && <p className={styles.line}>{givenCaseLineWords(weekNumber, askToSwap, handOutSession)}</p>}
         </>
       ) : (
         <>
           <h3 className={styles.caseTitle}>{NOT_GIVEN_YET}</h3>
-          {block.givenBy === "facilitator" && <p className={styles.line}>{givenCaseLineWords(weekNumber, [])}</p>}
+          {/*
+            Waiting on the facilitator's slip: the design's line when this is
+            the first part waiting, nothing more when the line is under the
+            pathway, and today's line where the design has no words.
+          */}
+          {block.givenBy === "facilitator" &&
+            (waitingLine ? (
+              <p className={styles.line}>{waitingLine}</p>
+            ) : waitingSaidAbove ? null : (
+              <p className={styles.line}>{givenCaseLineWords(weekNumber, [], handOutSession)}</p>
+            ))}
         </>
       )}
       <ReadyBox props={props} given={found !== null} />

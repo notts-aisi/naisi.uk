@@ -105,6 +105,16 @@ export function leadsNamingProgramme(person: SessionUser, naming: NamingProgramm
 }
 
 /** A programme on a form, by its two ids. */
+/**
+ * Whether somebody meets the bar a programme's lead is held to, decided on
+ * the session with no read. It says nothing about any one programme: a page
+ * asks it first, so that only somebody who COULD lead costs the further
+ * question of whether they lead the programme naming a run.
+ */
+export function meetsLeadBar(person: SessionUser): boolean {
+  return holdsStanding(person, "admissionRounds.leadUid");
+}
+
 export type LedProgramme = { roundId: string; programmeId: string };
 
 /**
@@ -117,7 +127,7 @@ export async function programmeLedBy(
   actor: SessionUser,
   runId: string,
 ): Promise<LedProgramme | null> {
-  if (!holdsStanding(actor, "admissionRounds.leadUid")) return null;
+  if (!meetsLeadBar(actor)) return null;
   const naming = await readNamingProgramme(db, runId);
   if (!naming || !leadsNamingProgramme(actor, naming)) return null;
   return { roundId: naming.roundId, programmeId: naming.programmeId };

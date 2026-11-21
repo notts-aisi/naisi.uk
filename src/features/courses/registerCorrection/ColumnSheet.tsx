@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import * as P from "@/lib/courses/registerCorrection/pageWords";
 import { secondSessionWords } from "@/lib/courses/registerCorrection/words";
+import { visitsOffDoneWords } from "@/lib/courses/visit/words";
 import { correctColumn, postGroupNotice, type Answer } from "./api";
 import styles from "./CorrectionSheets.module.css";
 
@@ -25,6 +26,11 @@ import styles from "./CorrectionSheets.module.css";
  * count is the preview's, and the route checks it again when the button is
  * pressed. A move or a clear puts the register back to not taken, so its
  * reminder may go again, and Before you save says who gets it and when.
+ * Somebody visiting the session from another group whose own session that
+ * week is still to come has their visit ended with it, as Change a session
+ * ends one: Before you save says how many and how many emails that is, those
+ * emails go whatever the tick says, and the press sends the count so the
+ * route can refuse it when it changed.
  */
 
 export type ColumnTarget = {
@@ -69,6 +75,8 @@ export default function ColumnSheet({
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [store, setStore] = useState<Store>({ key: "", answer: null });
+  // Asked again after a press the route refused because who is visiting changed.
+  const [nonce, setNonce] = useState(0);
 
   const session = target?.session ?? null;
   // Whether a session happened is changed for a week's first session only.
@@ -104,7 +112,7 @@ export default function ColumnSheet({
     return () => {
       cancelled = true;
     };
-  }, [groupId, previewKey]);
+  }, [groupId, previewKey, nonce]);
 
   if (!target || !session) return null;
 
@@ -122,6 +130,8 @@ export default function ColumnSheet({
           ? Number(preview?.clears ?? 0)
           : 0;
   const told = (preview?.told as { emails: number; refused: boolean } | undefined) ?? null;
+  // The emails of the visits that end with it, as the preview said them: the press sends the number.
+  const visitEmails = kind === "did-not-happen" ? Number((preview?.visitsOff as { emails?: number } | undefined)?.emails ?? 0) : 0;
   const emails = emailsSaid ?? told?.emails ?? 0;
   const canTell = Boolean(told && !told.refused && emails > 0 && runId);
   const targets = ((preview?.targets as { weekNumber: number; occurrence: number; sessionKey: string; dateKey: string; ok: boolean; why: string | null }[] | undefined) ?? []).filter((each) => each.ok);
@@ -177,7 +187,14 @@ export default function ColumnSheet({
       kind === "move"
         ? { ...base, to: weekOfKey(toKey ?? "") }
         : kind === "did-not-happen"
-          ? { ...base, pace, dateKey: session.dateKey, tell: tell && canTell, ...(tell && canTell ? { emailCount: emails } : {}) }
+          ? {
+              ...base,
+              pace,
+              dateKey: session.dateKey,
+              tell: tell && canTell,
+              ...(tell && canTell ? { emailCount: emails } : {}),
+              ...(visitEmails > 0 ? { visitEmails } : {}),
+            }
           : kind === "did-happen"
             ? {
                 ...base,
@@ -191,10 +208,14 @@ export default function ColumnSheet({
     if (!pressed.ok) {
       setBusy(false);
       if (pressed.status === 409 && typeof pressed.body?.emails === "number") setEmailsSaid(pressed.body.emails);
+      // Who is visiting changed: Before you save is worked out again before another press.
+      if (pressed.status === 409 && typeof pressed.body?.visitEmails === "number") setNonce((n) => n + 1);
       setProblem(pressed.error);
       return;
     }
-    const done = P.columnDoneWords(kind, session.weekNumber, count, toWeek);
+    // Visits that ended with it: said beside what changed, emailed whatever the tick.
+    const ended = pressed.body?.visitsOff as { people: number; sent: number; failed: number } | undefined;
+    const done = [P.columnDoneWords(kind, session.weekNumber, count, toWeek), ended ? visitsOffDoneWords(ended.people, ended.sent, ended.failed) : ""].filter(Boolean).join(" ");
     close();
     const update = pressed.body?.update as { groupId: string; title: string; message: string; emailCount: number } | null | undefined;
     if (kind === "did-not-happen" && update && runId) {
@@ -204,7 +225,7 @@ export default function ColumnSheet({
       return;
     }
     setBusy(false);
-    onDone(kind === "did-not-happen" ? `${done} Nobody was emailed.` : done);
+    onDone(kind === "did-not-happen" ? `${done} ${ended ? "Nobody else was emailed." : "Nobody was emailed."}` : done);
   }
 
   const title = happened ? P.correctColumnWords(session.weekNumber) : P.didHappenWords(session.weekNumber);

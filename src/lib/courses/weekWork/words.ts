@@ -1,6 +1,7 @@
 import { londonClockLabel, londonDayLabel } from "../londonLabels";
 import { namesAnd, numberWords } from "../writtenAnswerWords";
 import type { NotDone, PersonWeekProgress, WeekDue, WeekWorkState } from "./model";
+import { WAITING } from "./waitingWords";
 
 /**
  * EVERY WORD THE WEEK SAYS ABOUT ITSELF: the week page's line about until
@@ -127,7 +128,18 @@ export function doneOfWords(done: number, of: number): string {
 }
 
 /** Who reads the written answer: the group's facilitators by first name, or the lead and admins for a facilitator's own. */
-export type Readers = { kind: "facilitators"; names: string[] } | { kind: "lead"; leadName: string | null };
+export type Readers =
+  | {
+      kind: "facilitators";
+      names: string[];
+      /**
+       * Who else may READ it, never give feedback: in a week of a one-week
+       * visit, the host's facilitators the reading rule lets read that week.
+       * Named in who can read it, never in who gives feedback.
+       */
+      alsoRead?: string[];
+    }
+  | { kind: "lead"; leadName: string | null };
 
 // ---------------------------------------------------------------------------
 // What isn't done (the reminders, and the routes' refusals)
@@ -372,7 +384,7 @@ export function staffChangedSinceSentWords(firstName: string): string {
 export function answerReadersWords(readers: Readers, leadName: string | null): string {
   const names =
     readers.kind === "facilitators"
-      ? [...readers.names, ...(leadName ? [leadName] : []), "admins"]
+      ? [...readers.names, ...(readers.alsoRead ?? []).filter((name) => !readers.names.includes(name)), ...(leadName ? [leadName] : []), "admins"]
       : [...(readers.leadName ? [readers.leadName] : []), "admins"];
   return `Once you send it, or once your session has started, ${namesAnd(names)} can read your written answer.`;
 }
@@ -419,8 +431,9 @@ function saidDone(progress: PersonWeekProgress): boolean {
 /**
  * Where one person's week stands, as a staff page says it: "Done on time",
  * "Done late" (with how late beside it), "Done" (no session to tell it
- * against, or no time to tell it by), "2 of 3 done", "Started", "Not
- * started", "Joined late".
+ * against, or no time to tell it by), "Waiting" (all that is left waits on
+ * the facilitator's slip), "2 of 3 done", "Started", "Not started", "Joined
+ * late".
  */
 export function personWeekWords(line: PersonWeekLine): { text: string; detail: string | null } {
   const { progress, doneAt, due } = line;
@@ -431,6 +444,8 @@ export function personWeekWords(line: PersonWeekLine): { text: string; detail: s
     if (late !== null) return { text: DONE_LATE, detail: lateAfterSessionWords(late) };
     return { text: DONE_ON_TIME, detail: null };
   }
+  // All that is left waits on the facilitator's slip: neither done nor not done.
+  if (progress.waiting?.only) return { text: WAITING, detail: null };
   if (due.by === "joined-late" && !progress.started) return { text: JOINED_LATE, detail: null };
   if (progress.done > 0 && count) return { text: count, detail: null };
   return { text: progress.started ? STARTED : NOT_STARTED, detail: null };

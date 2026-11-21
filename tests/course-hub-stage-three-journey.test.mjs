@@ -1059,7 +1059,7 @@ async function tabsOf(who) {
             line: session.line,
             remind: session.remind ? [session.remind.label, session.remind.count, session.remind.sessionKey] : null,
           })),
-          chart: overview.props.model.chart.weeks.map((week) => [week.label, week.percent, week.soFar]),
+          byWeek: overview.props.model.byWeek.weeks.map((week) => [week.label, week.line, week.state]),
           people: overview.props.model.people,
           finishing: overview.props.finishing,
         }
@@ -1649,6 +1649,12 @@ const LEFT_ATTENTION = [
 const SAM_LEFT_PAGE =
   "My programmes AGI Strategy You left AGI Strategy That was on Fri 13 Nov. Thanks for coming along. " +
   "Changed your mind? Email ai-safety@uonsu.com and we’ll see what we can do.";
+/**
+ * The group page's one calm page, as a signed-in person the page does not
+ * admit reads it: somebody who left included. Its words alone, every one.
+ */
+const notForYou = await loadTs(join("lib", "courses", "notForYouWords.ts"));
+const GROUP_NOT_FOR_YOU = [notForYou.NOT_FOR_YOU_HEADING, notForYou.NOT_FOR_YOU_GROUP_PAGE, notForYou.NOT_FOR_YOU_HELP, "My programmes"].join(" ");
 const THE_LEAVING_EMAIL = (first) =>
   `You've left AGI Strategy Fellowship You've left AGI Strategy Fellowship That's you off the list, ${first} You're no longer on ` +
   "AGI Strategy Fellowship (Autumn 2026), and your place has gone back to the group. The weekly emails will stop. Thanks for giving " +
@@ -1830,7 +1836,7 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       assert.equal(pages.reading, SAM_LEFT_PAGE);
       assert.deepEqual(
         [pages.leave, pages.group, pages.layout, pages.overview, pages.updates, pages.roster],
-        [{ sentTo: HOME }, { sentTo: HOME }, "drawn", 403, 403, 403],
+        [{ sentTo: HOME }, GROUP_NOT_FOR_YOU, "drawn", 403, 403, 403],
       );
       // The list of runs still leaves out a run somebody left. My programmes
       // draws a card for it from its own page's read of the runs they left,
@@ -1921,7 +1927,8 @@ describe("stage three of the course hub, one term from week 3 to after its end",
         { group: "Group B", when: "Tue 24 Nov · 6pm", pill: "Not held", line: null, remind: null },
       ]);
       assert.deepEqual(c().lead.overview.attention, LEFT_ATTENTION);
-      assert.deepEqual(c().lead.overview.chart.find(([label]) => label === "W4"), ["W4", 67, false]);
+      // Week 4 is whole once Group A's register is finished: Group B's cancelled session is no session.
+      assert.deepEqual(c().lead.overview.byWeek.find(([label]) => label === "Week 4"), ["Week 4", "2 of 3 came", "done"]);
       assert.deepEqual(short(c().remind), [409, "Group B’s session on Tue 24 Nov didn’t happen, so its register needs nothing."]);
       assert.deepEqual(c().remindMail, []);
     });

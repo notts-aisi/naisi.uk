@@ -4,7 +4,9 @@ import styles from "@/features/courses/facilitating/Facilitating.module.css";
 import { isAddressableId } from "@/lib/addressableId";
 import { loadAnswerPage, type AnswerPageModel } from "@/lib/courses/facilitatorAsks/answerPage";
 import {
+  GUIDE_OPEN_NOW,
   NOT_YOURS,
+  OPEN_THE_GUIDE,
   OPEN_YOUR_GROUP,
   PAGE_FIELDS,
   SAID_NO_HEADING,
@@ -28,6 +30,10 @@ import { getCurrentUser } from "@/lib/firebase/session";
  *
  * Drawn on the server; the two buttons are a client component that takes the
  * ask's id and nothing else, and does nothing until the page has hydrated.
+ *
+ * After yes, under today's words, "The facilitator guide is open to you now."
+ * and a button to it, only while the guide's own gate admits them
+ * (`guideHref`, from `loadAnswerPage`).
  */
 
 export const dynamic = "force-dynamic";
@@ -104,13 +110,23 @@ export default async function FacilitatePage({ params }: { params: Promise<{ ask
           </p>
         </>
       ) : model.state === "yes" ? (
-        model.groupsOut ? (
-          <a className={styles.groupLink} href={model.groupHref}>
-            {OPEN_YOUR_GROUP}
-          </a>
-        ) : (
-          <p className={styles.foot}>{NAMES_WHEN_GROUPS_GO_OUT}</p>
-        )
+        <>
+          {model.groupsOut ? (
+            <a className={styles.groupLink} href={model.groupHref}>
+              {OPEN_YOUR_GROUP}
+            </a>
+          ) : (
+            <p className={styles.foot}>{NAMES_WHEN_GROUPS_GO_OUT}</p>
+          )}
+          {model.guideHref ? (
+            <>
+              <p className={styles.foot}>{GUIDE_OPEN_NOW}</p>
+              <a className={styles.guideLink} href={model.guideHref}>
+                {OPEN_THE_GUIDE}
+              </a>
+            </>
+          ) : null}
+        </>
       ) : model.state === "no" ? (
         <div className={styles.closed} role="status">
           <p className={styles.closedTitle}>{SAID_NO_HEADING}</p>

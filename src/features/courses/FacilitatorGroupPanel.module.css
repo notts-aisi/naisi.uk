@@ -85,6 +85,10 @@
      a card, the aspirational tier of docs/touch-targets.md, and a 44px block
      would read as a second button competing with the hero CTA. */
   padding: var(--space-2) 0;
+  /* "Open Group C" carries a group's name, up to 80 characters: it wraps
+     inside the card rather than widening it. */
+  max-width: 100%;
+  overflow-wrap: anywhere;
   color: var(--color-accent);
   font-size: var(--text-sm);
   font-weight: 600;

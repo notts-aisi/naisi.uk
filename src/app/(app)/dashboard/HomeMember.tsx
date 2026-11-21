@@ -21,7 +21,8 @@ import styles from "./home.module.css";
  * WHICH FORM is decided by `/api/courses/me`, the list of runs this member
  * touches, narrowed to the ones that are live (`liveRunsOf`):
  *
- *   - they facilitate a live run: the facilitator's Home, for that run;
+ *   - they facilitate a live run: the facilitator's Home, for the group that
+ *     meets next of every live run they facilitate on;
  *   - otherwise they are a learner on one: the programme Home, for that run;
  *   - otherwise: the Home of a member who is not on a programme.
  *
@@ -110,7 +111,9 @@ export default function HomeMember({
 }: Slots) {
   const { runs, loading, error } = useMyRuns();
   const live = liveRunsOf(runs);
-  const facilitated = live.find((entry) => entry.roles.includes("facilitator")) ?? null;
+  // Every live run they facilitate on: Home shows the group that meets next of all of them.
+  const facilitating = live.filter((entry) => entry.roles.includes("facilitator"));
+  const facilitated = facilitating[0] ?? null;
   const learning = live.find((entry) => entry.roles.includes("learner")) ?? null;
   const featured = facilitated ?? learning;
   // Somebody with an offer, or who leads or reviews a programme, is not on
@@ -141,6 +144,7 @@ export default function HomeMember({
         loading={loading}
         error={error}
         featuredRunId={featured?.runId ?? null}
+        alsoShownRunIds={facilitated ? facilitating.map((entry) => entry.runId) : undefined}
       />
       <MyWorkSummary />
     </>
@@ -171,6 +175,7 @@ export default function HomeMember({
         given={given}
         invite={underGreeting}
         entry={facilitated}
+        others={facilitating.slice(1)}
         comingUp={comingUpCards}
         more={
           <>

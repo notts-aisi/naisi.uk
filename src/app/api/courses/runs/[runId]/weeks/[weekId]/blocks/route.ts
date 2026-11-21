@@ -11,6 +11,7 @@ import { saveWeekBlocks } from "@/lib/courses/weekEdit/save";
 import { HISTORY_WORDS } from "@/lib/courses/weekEdit/words";
 import {
   answersOnRemoved,
+  holdersFor,
   pasteAnswer,
   pasteBodyOf,
   readPasteAgainst,
@@ -55,6 +56,17 @@ import { emptyWeekFields, normalizeCourse, normalizeCourseRun, normalizeCourseWe
  * paste with a problem is refused (400). A paste that takes out items with
  * answers is refused (409) until the body confirms the count it was shown,
  * so a count that has grown since "Read it" asks again.
+ *
+ * WHO CHOOSES. The check lists each Choose one and Cases block with who
+ * chooses and why (`whoChooses`), and the author may change it: the change
+ * is sent with Read it and again with Save, applied to the paste as it is
+ * read (`src/lib/courses/weekBlocks/whoChooses.ts`), after the gate like the
+ * rest of the body. Where the change reaches a block people already hold a
+ * pack in, the check counts them (`packHolders`), everybody on the
+ * programme, which it says. Who has picked never stops a change: a Choose
+ * one turned from picked to given out keeps every pick as the pack given,
+ * somebody who facilitates a group included, so a save reads no holders,
+ * and counts them only to answer a refused save with the check.
  *
  * THE CHECK SAYS WHAT CHANGES. "Read it" also answers what the pasted week
  * holds by kind (`kinds`) and how it differs from the live week, block by
@@ -138,9 +150,9 @@ function isAlreadyExists(err: unknown): boolean {
   return code === 6 || code === "already-exists" || code === "ALREADY_EXISTS";
 }
 
-/** The paste, read against the week as stored. */
-function readAgainst(markdown: string, loaded: Loaded) {
-  return readPasteAgainst(markdown, { blocks: loaded.week.blocks ?? null, weekNumber: loaded.weekNumber, dayBeforeTime: loaded.dayBeforeTime });
+/** The paste, read against the week as stored, with the author's changes to who chooses. */
+function readAgainst(sent: PasteBody, loaded: Loaded) {
+  return readPasteAgainst(sent, { blocks: loaded.week.blocks ?? null, weekNumber: loaded.weekNumber, dayBeforeTime: loaded.dayBeforeTime });
 }
 
 export async function GET(_req: Request, ctx: Params) {
@@ -175,9 +187,10 @@ export async function POST(req: Request, ctx: Params) {
   if (sent instanceof NextResponse) return sent;
   const loaded = await load(db, gated.runId, gated.weekId);
   if (loaded instanceof NextResponse) return loaded;
-  const read = readAgainst(sent.markdown, loaded);
-  const counts = await answersOnRemoved(db, gated.runId, gated.weekId, read.removed);
-  const answer = pasteAnswer(read, counts, loaded.dayBeforeTime);
+  const read = readAgainst(sent, loaded);
+  // Who holds a pack is counted among every row of the run, as the answers are.
+  const [counts, holders] = await Promise.all([answersOnRemoved(db, gated.runId, gated.weekId, read.removed), holdersFor(db, gated.runId, read, null)]);
+  const answer = pasteAnswer(read, counts, loaded.dayBeforeTime, holders, true);
   // What it holds by kind, and what it changes in the live week, block by block.
   const compared = compareWeeks(
     { title: loaded.week.title, blocks: loaded.week.blocks ?? [] },
@@ -212,11 +225,17 @@ export async function PUT(req: Request, ctx: Params) {
   if (sent instanceof NextResponse) return sent;
   const loaded = await load(db, gated.runId, gated.weekId);
   if (loaded instanceof NextResponse) return loaded;
-  const read = readAgainst(sent.markdown, loaded);
+  const read = readAgainst(sent, loaded);
+  // The save is decided by the paste and the answers it takes out alone; a
+  // refusal, which the page shows as its check, counts who holds a pack too.
   const counts = await answersOnRemoved(db, gated.runId, gated.weekId, read.removed);
-  const answer = pasteAnswer(read, counts, loaded.dayBeforeTime);
-  if (read.problems.length > 0) return badRequest(read.problems[0], answer);
+  let answer = pasteAnswer(read, counts, loaded.dayBeforeTime, new Map(), true);
   const unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
+  if (read.problems.length > 0 || unconfirmed) {
+    answer = pasteAnswer(read, counts, loaded.dayBeforeTime, await holdersFor(db, gated.runId, read, null), true);
+  }
+  // What the paste itself holds stops it first: another week, facilitator material, a broken block.
+  if (read.problems.length > 0) return badRequest(read.problems[0], answer);
   if (unconfirmed) return NextResponse.json({ error: unconfirmed, ...answer }, { status: 409 });
   // What the paste keeps of people's work, counted before the save, and who it reaches.
   const [work, reach] = await Promise.all([

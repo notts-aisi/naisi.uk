@@ -54,11 +54,17 @@ export type ChangePress = {
   tell: boolean;
   /** How many people the button said it would email. Nought posts without an email. */
   emailCount: number;
+  /**
+   * How many emails the preview said the visits ending with a session called
+   * off take (`visitsOff.emails`; nought when it said none). Checked at the
+   * press against the visitors read in its transaction.
+   */
+  visitEmails: number;
 };
 
 export type ParsedPress = { ok: true; value: ChangePress } | { ok: false; error: string };
 
-const FIELDS = new Set(["week", "dateKey", "kind", "move", "reason", "tell", "emailCount", "metAtAnotherTime", "preview"]);
+const FIELDS = new Set(["week", "dateKey", "kind", "move", "reason", "tell", "emailCount", "visitEmails", "metAtAnotherTime", "preview"]);
 const MOVE_FIELDS = new Set(["dateKey", "time", "room", "length", "campus", "roomToBeConfirmed"]);
 
 function oneLine(value: string): boolean {
@@ -155,8 +161,14 @@ export function parseChangePress(raw: unknown): ParsedPress {
     emailCount = body.emailCount;
   }
 
+  let visitEmails = 0;
+  if (body.visitEmails !== undefined) {
+    if (typeof body.visitEmails !== "number" || !Number.isInteger(body.visitEmails) || body.visitEmails < 0) return { ok: false, error: REFUSAL.emailCount };
+    visitEmails = body.visitEmails;
+  }
+
   return {
     ok: true,
-    value: { weekNumber, dateKey: body.dateKey, kind, move, metAtAnotherTime, preview, reason, tell, emailCount },
+    value: { weekNumber, dateKey: body.dateKey, kind, move, metAtAnotherTime, preview, reason, tell, emailCount, visitEmails },
   };
 }

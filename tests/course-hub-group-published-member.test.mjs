@@ -41,7 +41,7 @@
  *
  * `tests/lib/groupPublishedWorld.mjs` says what is real and what is stubbed.
  */
-import { beforeEach, describe, test } from "node:test";
+import { afterEach, beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { render } from "@react-email/render";
 import { GROUP, OPEN_GROUP, RUN, makeGroupWorld } from "./lib/groupPublishedWorld.mjs";
@@ -345,6 +345,14 @@ const toldOf = (uid) => {
 };
 
 describe("moved after Publish: still told, so shown at once in the new group, and told of the move by the next press", () => {
+  // Before the run's first session (Mon 26 Oct 2026), on a fixed clock: a move
+  // on the board then is for every week, and taking somebody out of every
+  // group is allowed. Once a session has started a move keeps the weeks already
+  // met and the pool is refused (`tests/course-board-move.test.mjs`), so these
+  // moves are made on this clock, never on the day the suite runs.
+  beforeEach(() => mock.timers.enable({ apis: ["Date"], now: new Date("2026-10-20T12:00:00Z") }));
+  afterEach(() => mock.timers.reset());
+
   test("a move sends nothing and hides nobody: the person reads their new group, and only its people see them", async () => {
     await steps.published();
     world.mail.length = 0;

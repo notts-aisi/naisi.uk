@@ -169,6 +169,9 @@ describe("1. a week written as blocks counts This week's tasks", () => {
         [0, 0, 1, 0],
       ],
     );
+    // The overview says which part of each task waits on the facilitator's slip (Chloe has no pack or case
+    // yet). The progress page says no Waiting, so it counts every task, a waiting one as not done.
+    assert.deepEqual(tasks.map((task) => task.waiting?.map((part) => part.kind) ?? null), [["pack"], null, ["case"]]);
     // Every source and checklist item of the week ticked: still nothing done.
     const everyTick = tasks.flatMap((task) => task.needs.tickIds);
     assert.deepEqual(rowOf(await rowsFor("chloe", everyTick), 2), [0, 3, true]);
@@ -180,6 +183,7 @@ describe("1. a week written as blocks counts This week's tasks", () => {
       rows.map((row) => [row.weekNumber, row.completed, row.total, row.counted, row.isCurrent]),
       [
         [1, 0, 1, true, false],
+        // Week 2's pack and case are not given to Chloe yet: the progress page still counts all three tasks.
         [2, 0, 3, true, false],
         [3, 0, 1, true, true],
         [4, 0, 2, true, false],

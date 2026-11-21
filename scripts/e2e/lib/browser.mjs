@@ -64,6 +64,38 @@ const RE_CONSENT_PATH = "/re-consent";
  */
 export const DEFAULT_VIEWPORT = { width: 1280, height: 900 };
 
+/** A phone's viewport, for a step that asks a page for its narrow layout. */
+export const PHONE_VIEWPORT = { width: 390, height: 844 };
+
+/**
+ * WHAT A CARD CUTS OFF. Every link, button and paragraph inside `card` whose
+ * box runs past the card's left or right edge, as the first words of each
+ * with how far over it is, or an empty list when everything sits inside.
+ *
+ * For a layout that only goes wrong at one width: a row that turns into a
+ * column on a phone can push a child into a second column beside the first,
+ * where the card's own clipping hides it and the page's width never grows,
+ * so neither a desktop step nor a check for sideways scrolling sees it. It
+ * only ASSERTS: a spec compares the answer with an empty list, and nothing
+ * acts on a measurement.
+ *
+ * @param {import('playwright').Locator} card
+ * @returns {Promise<string[]>}
+ */
+export async function cutOffBy(card) {
+  return card.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const out = [];
+    for (const child of element.querySelectorAll("a, button, p")) {
+      const inner = child.getBoundingClientRect();
+      if (inner.width === 0 || inner.height === 0) continue;
+      const over = Math.max(inner.right - box.right, box.left - inner.left);
+      if (over > 1) out.push(`${JSON.stringify((child.textContent ?? "").trim().slice(0, 60))} by ${Math.round(over)}px`);
+    }
+    return out;
+  });
+}
+
 /** The URL the widget loads. Pinned to what `RecaptchaInvisible` appends. */
 export const RECAPTCHA_SCRIPT_URL = "https://www.google.com/recaptcha/api.js";
 
@@ -810,4 +842,41 @@ export async function readPointerProbe(page, { target }) {
     `${probe.ups} pointerup; the pointer crossed ${probe.seen || "nothing"}; ` +
     `the element is ${probe.sameNode ? "the same" : "a DIFFERENT"} node than before`
   );
+}
+
+/**
+ * THE FOOT OF A SIGNED-IN PAGE, and the page's own words without it.
+ *
+ * `AppShell` closes `<main>` with a `<footer>` of its own after the page
+ * (one link, "Anonymous feedback"), so every signed-in page's `<main>` ends
+ * with the same words whatever the page is. A spec that reads what a page
+ * says "and nothing else" reads it through `pageOwnText`, which is the text
+ * content of `<main>` with that last `<footer>` taken out and nothing else
+ * taken out, and states the foot separately through `shellFoot`.
+ *
+ * Found as a reader finds it: the footer that is the last thing in the main
+ * column, never a test id. Inside `<main>` a `<footer>` is not a landmark (it
+ * has no role, so it takes no accessible name), which is why this is the
+ * element and its place rather than a role and a name. Only the LAST child is
+ * taken, so a page's own footer, wherever it sits, stays in the page's text.
+ */
+export const SHELL_FOOT_SELECTOR = "main > footer:last-child";
+
+/** The shell's foot on this page, as a locator. */
+export function shellFoot(page) {
+  return page.locator(SHELL_FOOT_SELECTOR);
+}
+
+/**
+ * The text content of `<main>` without the shell's foot, as written (text
+ * content, never `innerText`), with its spacing untouched: a spec flattens
+ * it the way it flattens every other read.
+ */
+export async function pageOwnText(page) {
+  return page.locator("main").evaluate((main) => {
+    const copy = main.cloneNode(true);
+    const foot = copy.querySelector(":scope > footer:last-child");
+    if (foot) foot.remove();
+    return copy.textContent ?? "";
+  });
 }

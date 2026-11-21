@@ -367,12 +367,16 @@ test(
         // Every session of this fixture is over, so where the next session's
         // ticket would be, the page says there are no more
         // (on the group page, since the register moved to its own page).
+        // The fixture's course is a new one with nothing in its facilitator
+        // guide and no programme naming its run, so the card then says so,
+        // with nobody but an admin to load it. Any other ending (the guide's
+        // course page alone is what a failed read draws) is wrong here.
         const sessionCard = page.getByTestId("session-card").first();
         await sessionCard.waitFor({ timeout: WAIT_MS });
         assert.equal(
           (await sessionCard.innerText()).replace(/\s+/g, " ").trim(),
-          "No more sessions are planned for your group.",
-          "the group page does not say its sessions are over",
+          "No more sessions are planned for your group. There’s nothing in this course’s facilitator guide yet. An admin loads it, and it will show here.",
+          "the group page does not say its sessions are over, and that the course's facilitator guide has nothing in it",
         );
 
         // The register is a page of its own beside the group's.
@@ -942,15 +946,40 @@ test(
 
         // The reminder marker: claimed exactly once, whatever the resend did to
         // it. Absent when nothing was sent, because the route deliberately does
-        // not claim a marker for a send it declined to make.
+        // not claim a marker for a send it declined to make. Read by its kind,
+        // so the people's own claims beside it are never counted as it.
         const markers = await fixtureQuery("courseNudges")
           .where("groupId", "==", state.groupId)
+          .where("kind", "==", "group-week-nudge")
           .get();
         assert.equal(
           markers.size,
           mailFlows && !scheduled ? 1 : 0,
           `the group's reminder marker count is wrong: ${markers.size}`,
         );
+        // Each person's own claim on the week's email (`week-open-person`),
+        // made just before their message: exactly one for each member mailed,
+        // for the week the push was about, none for anybody else, and none at
+        // all when nothing was sent. The resend sends again over the same
+        // claims and makes no second one.
+        const claims = await fixtureQuery("courseNudges")
+          .where("groupId", "==", state.groupId)
+          .where("kind", "==", "week-open-person")
+          .get();
+        const mailed = mailFlows && !scheduled ? state.members.map((member) => member.uid).sort() : [];
+        assert.deepEqual(
+          claims.docs.map((doc) => doc.data().uid).sort(),
+          mailed,
+          `the people's claims on the week's email are wrong: ${claims.size}`,
+        );
+        for (const doc of claims.docs) {
+          assert.equal(doc.data().runId, state.runId, "a claim was made against another run");
+          assert.equal(doc.data().weekNumber, NEXT_WEEK, `a claim is for week ${doc.data().weekNumber}, not week ${NEXT_WEEK}`);
+          assert.equal(doc.data().visit, false, "a claim says somebody was on a visit, and nobody is");
+        }
+        // Nothing else of this group's is in the collection.
+        const everything = await fixtureQuery("courseNudges").where("groupId", "==", state.groupId).get();
+        assert.equal(everything.size, markers.size + claims.size, `something else of the group's is in courseNudges: ${everything.size}`);
 
         // The mirrors: every member's rollup was rebuilt from the pushed
         // register, which is the fact a reviewer reads months later.

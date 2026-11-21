@@ -444,12 +444,95 @@ export function weekOnlyWords(weekNumber: number): string {
   return `Week ${weekNumber} only`;
 }
 export const EVERY_WEEK = "Every week";
+/** "Week 3 onwards": the link from that week on, every earlier week keeping the link it had. */
+export function weekOnwardsWords(weekNumber: number): string {
+  return `Week ${weekNumber} onwards`;
+}
+
+/** "Week 4", "Weeks 4 and 5", "Weeks 4 to 6", "Weeks 2, 4 and 6". */
+function weeksWords(numbers: readonly number[]): string {
+  const sorted = [...numbers].sort((a, b) => a - b);
+  if (sorted.length === 1) return `Week ${sorted[0]}`;
+  const consecutive = sorted.every((n, i) => i === 0 || n === sorted[i - 1] + 1);
+  if (consecutive && sorted.length > 2) return `Weeks ${sorted[0]} to ${sorted[sorted.length - 1]}`;
+  return `Weeks ${namesWords(sorted.map(String))}`;
+}
+
+/**
+ * Under "Week 3 only": the later weeks that read the every-week link keep
+ * it ("Weeks 4 to 6 keep the every-week link."), or, with none, that every
+ * other week stays as it is.
+ */
+export function onlyHintWords(laterOnEvery: readonly number[]): string {
+  if (laterOnEvery.length === 0) return "Other weeks stay as they are.";
+  return `${weeksWords(laterOnEvery)} ${laterOnEvery.length === 1 ? "keeps" : "keep"} the every-week link.`;
+}
+
+/**
+ * Under "Week 3 onwards": what it replaces from that week on, every later
+ * week still to come that will NOT get it (a link set for it on purpose), and
+ * that the earlier weeks keep the link they had ("Replaces the every-week
+ * link from week 3. Week 2 keeps the link it had.").
+ */
+export function onwardsHintWords(weekNumber: number, earlier: readonly number[], standing: boolean, laterOwn: readonly number[] = []): string {
+  const parts = [
+    standing
+      ? `Replaces the every-week link from week ${weekNumber}.`
+      : `Sets it for week ${weekNumber} and every later week without a link of its own.`,
+  ];
+  if (laterOwn.length > 0) {
+    parts.push(`${weeksWords(laterOwn)} ${laterOwn.length === 1 ? "keeps the link set for it" : "keep the links set for them"}, and won’t get this one.`);
+  }
+  if (earlier.length > 0) {
+    parts.push(`${weeksWords(earlier)} ${earlier.length === 1 ? "keeps the link it had" : "keep the links they had"}.`);
+  }
+  return parts.join(" ");
+}
+
+// ---------------------------------------------------------------------------
+// Each week's meeting link, on the facilitator's page
+// ---------------------------------------------------------------------------
+
+export const MEETING_LINKS = "Meeting links";
+/** Under the list, while the group has an every-week link. */
+export const ANY_WEEK_OWN_LINK = "Any week can still have a link of its own.";
+/** Which link a week reads, in the rooms page's words: one wording for both pages. Never the link. */
+export { weekLinkWords } from "../weekRooms/words";
+
+// ---------------------------------------------------------------------------
+// Before the session, on the facilitator's page
+// ---------------------------------------------------------------------------
+
+export const BEFORE_THE_SESSION = "Before the session";
+/** "Week 2 · Tue 10 Nov", under the title. */
+export function beforeWhenWords(weekNumber: number, dateKey: string): string {
+  const day = dayWords(dateKey);
+  return day ? `Week ${weekNumber} · ${day}` : `Week ${weekNumber}`;
+}
+/** Each row's chip. Somebody away at another group's session has none: their line says where. */
+export const BEFORE_CHIP: Record<"waiting" | "excused" | "online" | "visiting" | "away" | "coming", string | null> = {
+  waiting: "Waiting",
+  excused: "Excused",
+  online: "Online",
+  visiting: "Visiting",
+  away: null,
+  coming: "Coming",
+};
+/** What a row says beside its names, where it has no line of its own. */
+export function beforeSaysWords(kind: "waiting" | "excused" | "online" | "coming", sessionOnline: boolean): string {
+  if (kind === "waiting") return "Asked to be excused, waiting";
+  if (kind === "excused") return "Can’t make it";
+  if (kind === "online") return "Joining online";
+  return sessionOnline ? "Joining online" : "In the room";
+}
+
 export const SAVE_THE_LINK = "Save the link";
-/** Said once a link is saved: nobody is emailed. */
-export function linkSavedWords(weekNumber: number, everyWeek: boolean): string {
-  return everyWeek
-    ? `The meeting link is set for every week, from week ${weekNumber}. Nobody was emailed.`
-    : `The meeting link is set for week ${weekNumber}. Nobody was emailed.`;
+/** Said once a link is saved: nobody is emailed. From a week on, the later weeks that kept a link set for them are named. */
+export function linkSavedWords(weekNumber: number, everyWeek: boolean, keptLater: readonly number[] = []): string {
+  if (!everyWeek) return `The meeting link is set for week ${weekNumber}. Nobody was emailed.`;
+  if (keptLater.length === 0) return `The meeting link is set for every week, from week ${weekNumber}. Nobody was emailed.`;
+  const kept = keptLater.length === 1 ? `week ${keptLater[0]}` : `weeks ${namesWords(keptLater.map(String))}`;
+  return `The meeting link is set from week ${weekNumber} on, except ${kept}, which ${keptLater.length === 1 ? "keeps its" : "keep their"} own. Nobody was emailed.`;
 }
 /** No session left that a link could be set on. */
 export const NO_SESSION_FOR_LINK = "There’s no session still to come, so there’s nothing to set a link for.";

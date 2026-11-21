@@ -31,8 +31,10 @@ import {
   type PreviewLine,
   type PushBlock,
   type RegularPreview,
+  VISITS_LABEL,
 } from "@/lib/courses/groupPage/model";
 import * as W from "@/lib/courses/groupPage/words";
+import { visitsOffDoneWords } from "@/lib/courses/visit/words";
 import { pushHasRecordsHint } from "@/lib/courses/registerCover/words";
 import {
   DRAFT_DIDNT_HAPPEN_LINE,
@@ -48,6 +50,7 @@ import { lengthWords, SESSION_LENGTH_PRESETS } from "@/lib/courses/sessionLength
 import { changedWords, clockWords, dayWords, notToldWords, UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
 import { weekdaysWords } from "@/lib/courses/regularTime/words";
 import { postedWords } from "@/lib/courses/updates/words";
+import { afterChangeRefused } from "./changeRefused";
 import styles from "./GroupPage.module.css";
 
 /**
@@ -92,7 +95,15 @@ type Preview =
 /** A preview, with the question it answered: only an answer to the question the panel asks now is drawn. */
 type Answered = { asked: string; preview: Preview };
 
-type PendingUpdate = { groupId: string; title: string; message: string; emailCount: number; withFacilitators: boolean };
+type PendingUpdate = {
+  groupId: string;
+  title: string;
+  message: string;
+  emailCount: number;
+  withFacilitators: boolean;
+  /** About one week's session: the people in the group that week, as the change route counted them. */
+  weekNumber?: number;
+};
 
 /** Why "Push the rest back a week" is not offered, in the panel's words; "" when it is. */
 function pushBlockWords(block: PushBlock, weekNumber: number): string {
@@ -313,6 +324,8 @@ export default function ChangePanel({
           // A session called off after it started: what else follows, from the route's own preview.
           ...(preview.data.didNotHappen ? didNotHappenLines(preview.data.didNotHappen, preview.data.weekNumber, preview.data.kind) : []),
           ...oneWeekPreviewLines({ preview: preview.data, metAtAnotherTime: met, tell, groupName: view.groupName, incubator: view.incubator }),
+          // Visits to it that end with it: their emails go whatever the tick says.
+          ...(preview.data.visitsOff ? [{ label: VISITS_LABEL, text: preview.data.visitsOff.words }] : []),
         ]
       : preview.status === "regular"
         ? regularPreviewLines({ preview: preview.data, groupName: view.groupName, incubator: view.incubator, todayKey: view.todayKey })
@@ -348,6 +361,7 @@ export default function ChangePanel({
       ...(update.emailCount > 0 ? { emailCount: update.emailCount } : {}),
       // A change to the group's sessions reaches its facilitators too.
       withFacilitators: update.withFacilitators,
+      ...(typeof update.weekNumber === "number" ? { weekNumber: update.weekNumber } : {}),
     });
     if (!answer) {
       setPending({ update, changed });
@@ -379,16 +393,20 @@ export default function ChangePanel({
     if (!body || !ready) return;
     setBusy(true);
     setProblem(null);
-    const answer = await postJson(body.url, { ...body.body, tell, ...(tell ? { emailCount: buttonEmails } : {}) });
+    // The visit emails the preview said: the press is refused if they changed.
+    const visitEmails = preview.status === "one" ? (preview.data.visitsOff?.emails ?? 0) : 0;
+    const answer = await postJson(body.url, { ...body.body, tell, ...(tell ? { emailCount: buttonEmails } : {}), ...(visitEmails > 0 ? { visitEmails } : {}) });
     if (!answer) {
       setBusy(false);
       setProblem(UNKNOWN_OUTCOME);
       return;
     }
     const said = typeof answer.body?.error === "string" ? answer.body.error : null;
-    if (answer.status === 409 && typeof answer.body?.emails === "number") {
-      // The count on the button no longer holds: show the new one, and ask again. Nothing changed.
-      setEmailsSaid(answer.body.emails);
+    const refused = afterChangeRefused(answer.status, answer.body);
+    if (refused.askAgain) {
+      // The count on the button, or of the emails to the people visiting, no
+      // longer holds: show the new one, and ask again. Nothing changed.
+      if (refused.emailsSaid !== null) setEmailsSaid(refused.emailsSaid);
       setNonce((n) => n + 1);
       setBusy(false);
       setProblem(said ?? UNKNOWN_OUTCOME);
@@ -407,10 +425,14 @@ export default function ChangePanel({
       return;
     }
     const change = answer.body.change as { kind?: string; dateKey?: string } | undefined;
-    const changed = changedWords(kind ?? "move", String(change?.dateKey ?? week?.dateKey ?? ""));
+    // Visits that ended with the session: said beside what changed, emailed whatever the tick.
+    const ended = answer.body.visitsOff as { people: number; sent: number; failed: number } | undefined;
+    const changed = [changedWords(kind ?? "move", String(change?.dateKey ?? week?.dateKey ?? "")), ended ? visitsOffDoneWords(ended.people, ended.sent, ended.failed) : ""]
+      .filter(Boolean)
+      .join(" ");
     const update = answer.body.update as PendingUpdate | null;
     if (update) await postUpdate({ ...update, withFacilitators: update.withFacilitators === true }, changed);
-    else onDone(`${changed} Nobody was emailed.`);
+    else onDone(`${changed} ${ended ? "Nobody else was emailed." : "Nobody was emailed."}`);
     setBusy(false);
   }
 

@@ -115,7 +115,8 @@ describe("2. the sessions calendar asks whether there is a link, and never print
     const uses = [...feed.matchAll(/^.*\bhasLink\b.*$/gm)].map((m) => m[0].trim());
     assert.deepEqual(uses, [
       'const hasLink = typeof slot.meetingUrl === "string" && validateSubmissionUrl(slot.meetingUrl, GROUP_FIELD_LIMITS.meetingUrl) === null;',
-      'const online = mode === "virtual" || (mode === null && hasLink);',
+      // A link makes a week with no room online only on the Online campus or none, as the ticket asks it.
+      'const online = mode === "virtual" || (mode === null && hasLink && (slot.location.trim() !== "" || campus === null || campus === "online"));',
     ]);
     // What an online week says is the site's own address, from the words.
     assert.match(feed, /location: room \?\? \(online \? JOIN_ON_SITE : undefined\),/);

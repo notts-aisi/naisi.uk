@@ -9,7 +9,7 @@ import {
   type RunRecords,
 } from "@/lib/courses/programmeAttendance";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
-import { groupsOfWeeks, hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
+import { belonging, groupsOfWeeks, hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
 import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { attendanceDocId } from "@/lib/firestore/courseAttendance";
 import { isOwnBoxResponse, normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
@@ -153,7 +153,8 @@ export async function readExerciseTallies(
   records.groups.forEach((group, index) => forksByGroup.set(group.id, forksOf(forkSnaps[index]?.docs ?? [])));
   // A group a moved person's record names that no longer meets keeps its own copies too.
   const moved = records.enrolments.filter((enrolment) => enrolment.groupId && hasGroupsByWeek(enrolment));
-  const named = [...new Set(moved.flatMap((enrolment) => groupsOfWeeks(enrolment)))].filter(
+  // The groups they BELONGED to: a one-week visit's host is never the copy they read.
+  const named = [...new Set(moved.flatMap((enrolment) => groupsOfWeeks(belonging(enrolment))))].filter(
     (id) => !forksByGroup.has(id) && id !== "" && !id.includes("/"),
   );
   const namedSnaps = await Promise.all(named.map((id) => db.collection("courseGroups").doc(id).collection("weeks").get()));

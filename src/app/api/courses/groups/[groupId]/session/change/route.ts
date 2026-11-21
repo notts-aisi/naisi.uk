@@ -13,7 +13,7 @@ import {
   startOf,
   toldFacts,
 } from "@/lib/courses/groupChange/facts";
-import { readNamingProgramme } from "@/lib/courses/programmeLead";
+import { programmeLedBy, readNamingProgramme } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { CHANGE_FIELDS, ChangeRefusal, checkPress, putBackSetsChangeFields, type CheckedPress } from "@/lib/courses/sessionChange/check";
@@ -31,6 +31,9 @@ import { coverHolderNames, coversEndLines, coversOffOf, coversOffWords, startMov
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
 import { parseChangePress, type ChangePress } from "@/lib/courses/sessionChange/parse";
+import { isRoomPressBody, parseRoomPress } from "@/lib/courses/sessionChange/room";
+import { answerRoomPress } from "@/lib/courses/sessionChange/roomWrite";
+import { ROOM_REFUSAL } from "@/lib/courses/sessionChange/roomWords";
 import { REFUSAL, countChangedWords, movesMetWords } from "@/lib/courses/sessionChange/words";
 import { updateEmailAudience } from "@/lib/courses/updates/audience";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -46,6 +49,8 @@ import {
   type CourseGroupDoc,
 } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { endVisitsIn, sendVisitsOff, visitsEndingWith, visitsOffPreview, type EndingVisit } from "@/lib/courses/visit/hostOff";
+import { VISITS_CHANGED_WORDS, visitsOffFailedWords } from "@/lib/courses/visit/words";
 
 /**
  * CHANGE ONE WEEK'S SESSION OF ONE GROUP: hold it online,
@@ -84,11 +89,23 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
  * and its email go through, with its own gate, caps, count and receipts.
  * Nothing here can put a meeting link in a message: the reason and a room are
  * refused when they hold one, and the online update says where the link is.
+ *
+ * ── A ROOM AND NOTHING ELSE (`kind: "room"`) ────────────────────────────────
+ * One week's room, or several weeks' of the group in one transaction, set,
+ * changed or taken off, its day and time untouched and the week not marked
+ * moved (`src/lib/courses/sessionChange/room.ts`). Behind the same gate, in
+ * its own body (`parseRoomPress`), and then for an admin or the programme's
+ * own lead alone: a facilitator or a track lead is refused in one sentence
+ * that sends them to the group's page. Unlike every other kind, it tells the group
+ * itself, after the commit, in the same request, through the same lane, limits
+ * and people as a move's update (`src/lib/courses/sessionChange/roomWrite.ts`).
  */
 
 /** What the press changed, for the dialog's sentence. */
 type Answer = {
   ok: true;
+  /** Visits that ended with a session called off, and what became of their emails (`visit/hostOff.ts`); absent with none. */
+  visitsOff?: { people: number; sent: number; failed: number; words: string | null };
   change: { kind: ChangePress["kind"]; weekNumber: number; dateKey: string; newDateKey: string | null };
   update: {
     groupId: string;
@@ -97,6 +114,8 @@ type Answer = {
     emailCount: number;
     /** Post it with the group's facilitators in its email too. */
     withFacilitators: true;
+    /** Its week: the update reaches the people in the group that week (`updateEmailAudience`), as the count above did. */
+    weekNumber: number;
   } | null;
 };
 
@@ -191,9 +210,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
   } catch {
     return NextResponse.json({ error: REFUSAL.body }, { status: 400 });
   }
-  const parsed = parseChangePress(raw);
-  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-  const press = parsed.value;
+  // A room and nothing else has a body of its own; every other kind, the press's.
+  const roomParsed = isRoomPressBody(raw) ? parseRoomPress(raw) : null;
+  if (roomParsed && !roomParsed.ok) return NextResponse.json({ error: roomParsed.error }, { status: 400 });
+  const parsed = roomParsed ? null : parseChangePress(raw);
+  if (parsed && !parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
@@ -214,10 +235,24 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
   if (!found || !run) return NextResponse.json({ error: "Group not found" }, { status: 404 });
   if (found.archived) return NextResponse.json({ error: REFUSAL.gone }, { status: 400 });
 
+  if (roomParsed?.ok) {
+    // A room and nothing else, for one week or sixty: the people the week's
+    // rooms and the term's rooms are for, an admin and the programme's own
+    // lead. A facilitator and a track lead change a week's room on the group's
+    // page, as a move, as before.
+    if (!isAdmin && (await programmeLedBy(db, actor, run.id)) === null) {
+      return NextResponse.json({ error: ROOM_REFUSAL.notYours }, { status: 403 });
+    }
+    const answer = await answerRoomPress(db, { actor, run, group: found, groupRef, press: roomParsed.value, now: new Date() });
+    return NextResponse.json(answer.body, { status: answer.status, headers: answer.headers });
+  }
+  if (!parsed?.ok) return NextResponse.json({ error: REFUSAL.body }, { status: 400 });
+  const press = parsed.value;
+
   // ── The session, as the dialog showed it ─────────────────────────────────
   const now = new Date();
   const registerRef = registerRefOf(db, run, found.id, press.weekNumber);
-  let outcome: { change: Answer["change"]; checked: CheckedPress };
+  let outcome: { change: Answer["change"]; checked: CheckedPress; ending: EndingVisit[] };
   try {
     const registerSnap = await registerRef.get();
     const register = registerSnap.exists ? (registerSnap.data() ?? {}) : undefined;
@@ -227,6 +262,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     if (press.kind === "push" && (await sessionHasCheckInOrReport(db, run.id, found.id, first.session.sessionKey))) {
       throw new ChangeRefusal(pushHasRecordsWords(press.weekNumber), 409);
     }
+    // Calling it off: the visits to it that end with it (`visit/hostOff.ts`),
+    // left out of the group's notice and told by their own emails instead.
+    const callsOff = press.kind === "cancel" || press.kind === "push";
+    const ending = callsOff ? await visitsEndingWith(db, { run, host: found, weekNumber: press.weekNumber, actorUid: actor.uid, now }) : [];
+    const except = new Set(ending.map((visit) => visit.uid));
     const naming = await readNamingProgramme(db, run.id);
     const incubator = naming?.kind === "incubator";
     const groupName = found.name.trim() || "Untitled group";
@@ -248,7 +288,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
         reminderFacts(db, { run, group: found, before: first.session, after: weekSessionAfter(run, first, press.weekNumber), switches }),
         saidFacts(db, register),
         // A change to one session tells that week's people (`updateEmailAudience`'s week).
-        toldFacts(db, run, found, actor.uid, press.weekNumber),
+        toldFacts(db, run, found, actor.uid, press.weekNumber, except),
         // Whose cover the press would take off, by the press's own rule (`../registerCover/moves`).
         coversEndLines(db, startMovedRegisters(before, after, metRefs, metSnaps)),
       ]);
@@ -276,6 +316,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
               ? await didNotHappenFacts(db, { run, group: found, session: first.session, register })
               : null,
           notice: oneWeekNoticeFor(run, first, press, { groupName, incubator }),
+          // Visits that end with it, and their emails, whatever the tick says: present only where one does.
+          ...(ending.length ? { visitsOff: visitsOffPreview(ending) } : {}),
           at: iso(now),
         },
       });
@@ -289,6 +331,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
         withFacilitators: true,
         // The people of the changed session's week: somebody moved mid-term is told about their own week's session.
         weekNumber: press.weekNumber,
+        except,
       });
       if (audience.refused) throw new ChangeRefusal(REFUSAL.overCap, 400);
       if (audience.recipients.length === 0) throw new ChangeRefusal(REFUSAL.nobodyToEmail, 400);
@@ -311,6 +354,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       const freshRegister = await tx.get(registerRef);
       const freshData = freshRegister.exists ? (freshRegister.data() ?? {}) : undefined;
       const checked = checkPress(run, group, press, now, freshData);
+      // The visits that end with it, as they stand now, and the limits on their emails: read before any write.
+      const endingNow = callsOff ? await visitsEndingWith(db, { run, host: group, weekNumber: press.weekNumber, actorUid: actor.uid, now, tx }) : [];
+      // Who is visiting, and the number of their emails the press was shown, as they are now.
+      const visitEmailsNow = endingNow.reduce((sum, visit) => sum + visit.recipients.length, 0);
+      if (endingNow.map((visit) => visit.uid).sort().join() !== [...except].sort().join() || visitEmailsNow !== press.visitEmails) {
+        throw new ChangeRefusal(VISITS_CHANGED_WORDS, 409, { visitEmails: visitEmailsNow });
+      }
+      const visitsOff = endingNow.length ? await endVisitsIn(tx, db, { run, host: group, weekNumber: press.weekNumber, ending: endingNow, actor }) : null;
+      if (visitsOff?.refusal) throw new ChangeRefusal(visitsOff.refusal, 429);
 
       // Every session whose start moves, and its register: read before anything is written.
       const before = resolveSessions(run, group);
@@ -410,6 +462,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
         tx.update(movedRefs[index], { sessionAt: startsAt });
       });
       writeCoversOff(tx, coversOff);
+      visitsOff?.write();
 
       const emailed = press.tell ? press.emailCount : 0;
       const afterSession = weekSessionAfter(run, checked, press.weekNumber);
@@ -447,6 +500,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       );
       return {
         checked,
+        ending: endingNow,
         change: {
           kind: press.kind,
           weekNumber: press.weekNumber,
@@ -468,15 +522,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       await closeCalledOffFollowUp(db, { runId: run.id, groupId: found.id, sessionKey: outcome.checked.session.sessionKey });
     }
 
+    // The visits ended: their emails, after the commit; a send that fails is said.
+    // To the recipients read in the transaction, whose number the press was shown.
+    const endedNow = outcome.ending;
+    const visitsSent = endedNow.length ? await sendVisitsOff({ run, host: found, weekNumber: press.weekNumber, ending: endedNow, actorUid: actor.uid }) : null;
     const answer: Answer = {
       ok: true,
       change: outcome.change,
+      ...(visitsSent ? { visitsOff: { people: endedNow.length, sent: visitsSent.sent, failed: visitsSent.failed, words: visitsSent.failed > 0 ? visitsOffFailedWords(visitsSent.failed) : null } } : {}),
       update: press.tell
         ? {
             groupId: found.id,
             ...oneWeekNoticeFor(run, outcome.checked, press, { groupName, incubator }),
             emailCount: press.emailCount,
             withFacilitators: true,
+            weekNumber: press.weekNumber,
           }
         : null,
     };

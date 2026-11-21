@@ -3,6 +3,7 @@ import { isAddressableId } from "@/lib/addressableId";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { boxesReaderFor } from "@/lib/courses/fillInBoxes/access";
+import { hostReadsWeekOf } from "@/lib/courses/visit/reading";
 import { isFillInResponse } from "@/lib/firestore/courseExercises";
 
 /**
@@ -71,8 +72,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ runId: string }
   }
 
   // The gate, before any box is read.
+  // Or a facilitator of the host group of the writer's one-week visit, for
+  // that week alone (`hostReadsWeekOf`): they read it, and do nothing else.
   const reader = await boxesReaderFor(db, actor, runId, uid);
-  if (!reader) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!reader && !(await hostReadsWeekOf(db, actor, runId, uid, week))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   // Three equalities, served by the existing (runId, weekNumber, uid) composite.
   const snap = await db

@@ -261,6 +261,7 @@ export const TERM_POINTS = Object.freeze([
   "six-months-on",
   "check-in",
   "whole-term",
+  "draw-night",
 ]);
 
 /** The form's one programme at the first three points. Fixed: a programme id is unique on its own form. */
@@ -506,6 +507,7 @@ export function laterPlanOf(point) {
   if (point === "coursework") return COURSEWORK;
   if (point === "check-in") return CHECK_IN_DAY;
   if (point === "whole-term") return WHOLE_TERM;
+  if (point === "draw-night") return DRAW_NIGHT;
   return null;
 }
 
@@ -1656,8 +1658,85 @@ export function courseworkWeekDoc({ state, weekNumber, at }) {
           },
         ],
       },
+      // A week whose slips a facilitator hands out at the session before it.
+      ...(state.drawWeeks?.includes(weekNumber) ? drawBlocksOf(weekNumber) : []),
     ],
   };
+}
+
+/**
+ * THE SLIPS A FACILITATOR HANDS OUT for one week of the draw point, by the
+ * key their ids end in: a pathway each person is given (a Choose one given
+ * out by the facilitator) and a case study whose cases are grouped by
+ * pathway, given out too. Every word made up; every address reserved.
+ */
+export const DRAW_SLIPS = Object.freeze({
+  chooseOneTitle: "Pathway",
+  packs: Object.freeze([
+    Object.freeze({ key: "pk1", name: "The harbour", cases: Object.freeze([Object.freeze({ key: "ca1", title: "The storm of 1987" }), Object.freeze({ key: "ca2", title: "The lamp that failed" })]) }),
+    Object.freeze({ key: "pk2", name: "The keepers", cases: Object.freeze([Object.freeze({ key: "ca3", title: "The last keeper" })]) }),
+  ]),
+});
+
+/**
+ * A draw week's two blocks, as an editor publishes them: a part holding the
+ * pathway (a Choose one lives only inside a part: the week's reader drops one
+ * at the top level), then the case study, which may stand on its own.
+ */
+function drawBlocksOf(weekNumber) {
+  const id = (key) => courseworkItemId(weekNumber, key);
+  const run = (text, extra = {}) => ({ text, ...extra });
+  const p = (text) => ({ type: "p", runs: [run(text)] });
+  const pathway = {
+    id: id("co"),
+    type: "chooseOne",
+    form: "table",
+    title: DRAW_SLIPS.chooseOneTitle,
+    givenBy: "facilitator",
+    kind: "read",
+    time: "",
+    noteHeading: "",
+    questions: [],
+    packs: DRAW_SLIPS.packs.map((pack) => ({
+      id: id(pack.key),
+      name: pack.name,
+      time: "20 minutes",
+      note: [],
+      read: [run("E2E Example, "), run(`“${pack.name}”`, { href: `https://example.com/e2e-${pack.key}-${weekNumber}` })],
+    })),
+  };
+  return [
+    {
+      id: id("pw"),
+      type: "part",
+      title: "Your pathway",
+      time: "About 20 minutes",
+      framing: [p("Your facilitator gives you a pathway at the end of the session before.")],
+      blocks: [pathway],
+    },
+    {
+      id: id("cs"),
+      type: "cases",
+      heading: "Your case study",
+      intro: [p("You get a case from your pathway at the end of the session before.")],
+      talk: { minutes: 3, name: "talk" },
+      prepare: [],
+      givenBy: "facilitator",
+      groupLabel: DRAW_SLIPS.chooseOneTitle,
+      startLabel: "Start here",
+      groups: DRAW_SLIPS.packs.map((pack) => ({
+        name: pack.name,
+        packId: id(pack.key),
+        cases: pack.cases.map((item) => ({
+          id: id(item.key),
+          title: item.title,
+          what: [run("Made up for the harness.")],
+          start: [run("A summary", { href: `https://example.org/e2e-${item.key}-${weekNumber}` })],
+          contentNote: "",
+        })),
+      })),
+    },
+  ];
 }
 
 /**
@@ -1971,6 +2050,8 @@ export async function seedTerm({
     ...(laterPlan?.notes ? { notes: laterPlan.notes.map((entry) => ({ ...entry })) } : {}),
     // Weeks that count their work: each opens with This week (`courseworkWeekDoc`).
     ...(laterPlan?.thisWeek ? { thisWeek: true } : {}),
+    // Weeks whose slips a facilitator hands out: each carries a pathway and its cases (`drawBlocksOf`).
+    ...(laterPlan?.drawWeeks ? { drawWeeks: [...laterPlan.drawWeeks] } : {}),
   };
 
   // Published BEFORE the first write and filled in place from here on.
@@ -2215,7 +2296,10 @@ export function accountsOf(state) {
   // the other group, made by its fixture like `lead` and `covering`.
   // `outsider`: a member on no programme, made by the whole term's fixture so
   // a spec can show that nothing reaches them.
-  return [...(state.people ?? []), state.facilitator, state.lead, state.covering, state.otherFacilitator, state.outsider].filter(
+  // `invited`: somebody offered a place given back and not answered yet, made
+  // by the search spec's fixture, whose application and decision are the
+  // form's and go with it.
+  return [...(state.people ?? []), state.facilitator, state.lead, state.covering, state.otherFacilitator, state.outsider, state.invited].filter(
     Boolean,
   );
 }
@@ -2368,7 +2452,9 @@ async function sendRowsOf(state, surveyIds = [], messageIds = []) {
  * (`reserveSendSlot` and `reserveNoticeSlots` keep them in `courseNudges` as
  * `emailrate__<key>`, with no run on the row to query by):
  *  - the updates route's: each audience's daily counter, and each presser's
- *    own hourly ones, the test's and the post's;
+ *    own hourly ones, the test's and the post's (a session's new room claims
+ *    the same group's two, `answerRoomPress` in
+ *    src/lib/courses/sessionChange/roomWrite.ts);
  *  - a register's push throttle, one per group and presser
  *    (`push__<groupId>__<uid>` in src/app/api/courses/groups/[groupId]/attendance/push/route.ts);
  *  - the notice a group's new regular time or room sends, one daily counter
@@ -2377,10 +2463,27 @@ async function sendRowsOf(state, surveyIds = [], messageIds = []) {
  *  - giving one session to somebody (the cover route's `GIVE_LIMITS`): one
  *    counter per group and giver an hour (`covergive__<groupId>__<uid>`), one
  *    per group a day (`covergiveday__<groupId>`), and one per person given a
- *    session a day (`covergiven__<uid>`), for every account of the term.
+ *    session a day (`covergiven__<uid>`), for every account of the term;
+ *  - moving somebody to another group for good, mid-term
+ *    (src/lib/courses/staffMove/limits.ts): one counter per person moved a
+ *    day on the run (`staffmoved__<runId>__<uid>`), for every account of the term, and one per
+ *    presser a day (`staffmover__<uid>`), for the lead a fixture makes.
  * The pressers are the admin, while the ledger holds the admin's uid, the
  * term's facilitator, who writes to their group and finishes its register,
- * and, for giving a session, the programme's lead a fixture makes.
+ * and the programme's lead a fixture makes, who may do everything either of
+ * them does here (the updates route lets a lead write to any audience, test
+ * or post, and a lead finishes a register in a facilitator's place) and
+ * gives a session.
+ *
+ * Every id here carries a run, a group or an account this term made, so no
+ * other fixture's press can write one. A counter keyed on the admin's uid
+ * ALONE does not belong here: the admin is one account shared by every
+ * fixture on every machine of a run, so such a counter counted by every term
+ * reads another machine's press as this term's residue, and every term's
+ * teardown deletes it from under that machine's spec. The admin's
+ * `staffmover__<uid>` is counted and deleted by the one fixture whose spec
+ * moves somebody (`course-hub-staff-move.mjs`), as the visit's presser
+ * counter is by `course-hub-visit.mjs`.
  */
 function sendCounterIdsOf(state) {
   const audiences = [
@@ -2390,7 +2493,7 @@ function sendCounterIdsOf(state) {
   ];
   const ids = audiences.map((key) => `emailrate__updateday__${key}`);
   for (const group of state.groups ?? []) ids.push(`emailrate__groupchangeday__${group.id}`);
-  for (const uid of [state.adminUid, state.facilitator?.uid].filter(Boolean)) {
+  for (const uid of [state.adminUid, state.facilitator?.uid, state.lead?.uid].filter(Boolean)) {
     ids.push(`emailrate__updatetest__${state.runId}__${uid}`);
     ids.push(`emailrate__updatepost__${state.runId}__${uid}`);
     for (const key of audiences) ids.push(`emailrate__update__${key}__${uid}`);
@@ -2401,6 +2504,8 @@ function sendCounterIdsOf(state) {
     for (const uid of [state.adminUid, state.lead?.uid].filter(Boolean)) ids.push(`emailrate__covergive__${group.id}__${uid}`);
   }
   for (const account of accountsOf(state)) ids.push(`emailrate__covergiven__${account.uid}`);
+  for (const account of accountsOf(state)) ids.push(`emailrate__staffmoved__${state.runId}__${account.uid}`);
+  if (state.lead?.uid) ids.push(`emailrate__staffmover__${state.lead.uid}`);
   return ids;
 }
 
@@ -2606,6 +2711,8 @@ export async function countTerm(state) {
   // The week you submit: a submitted or reopened week, and the log every tick, box, submit and reopen writes.
   counts.courseWeekWork = (await fixtureQuery("courseWeekWork").where("runId", "==", runId).get()).size;
   counts.courseWorkLog = (await fixtureQuery("courseWorkLog").where("runId", "==", runId).get()).size;
+  // The draw: the pathway and case each person was given, typed in by a facilitator.
+  counts.coursePacksAndCases = (await fixtureQuery("coursePacksAndCases").where("runId", "==", runId).get()).size;
   // A facilitator's session reports, one a writer and session.
   counts.courseSessionReports = (
     await fixtureQuery("courseSessionReports").where("runId", "==", runId).get()
@@ -2752,6 +2859,8 @@ export async function teardownTerm(state) {
   // The week you submit's rows, written by the routes a spec drives.
   await deleteQuery(fixtureQuery("courseWeekWork").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseWorkLog").where("runId", "==", runId));
+  // The draw's records, written by the draw route a facilitator presses.
+  await deleteQuery(fixtureQuery("coursePacksAndCases").where("runId", "==", runId));
   // The session reports a facilitator sent.
   await deleteQuery(fixtureQuery("courseSessionReports").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("tasks").where("sourceRef.cohortId", "==", runId));
@@ -3006,6 +3115,37 @@ export const CHECK_IN_DAY = Object.freeze({
   facilitated: "A",
   published: 3,
   blockWeeks: true,
+  earlierUpdate: false,
+});
+
+/**
+ * THE NIGHT A FACILITATOR HANDS OUT NEXT WEEK'S SLIPS ("draw-night"). The
+ * check-in point's fellowship and day, with one group of two, Ada and Ben,
+ * whose week 3 session started half an hour before the seed
+ * (`SESSION_UNDER_WAY`): the seed's day is day 15 of the plan, week 3's
+ * session day, so the session under way hands out week 4's slips. Weeks 1 to
+ * 4 are published and written as blocks, and weeks 3 and 4 each give out a
+ * pathway and a case study grouped by it (`DRAW_SLIPS`), so week 3 is the week
+ * people are working on now and week 4 the one the slips are for. Weeks 1 and
+ * 2's registers are finished, both present. Fern is the account the admin
+ * appoints to the group on the real page, and takes part in its draw like
+ * anybody. Nobody has been given anything.
+ */
+export const DRAW_NIGHT = Object.freeze({
+  daysIn: 15,
+  programme: FELLOWSHIP,
+  groups: Object.freeze([
+    Object.freeze({ key: "A", name: "Group A", dayAfterStart: 1, startTimeLocal: SESSION_UNDER_WAY, room: "Room E1", online: false }),
+  ]),
+  people: Object.freeze(["ada", "ben"].map((key) => Object.freeze({ key, first: key[0].toUpperCase() + key.slice(1), canMake: Object.freeze(["A"]) }))),
+  facilitator: FACILITATOR_PLAN,
+  places: Object.freeze({ ada: "A", ben: "A" }),
+  marks: Object.freeze({ A: Object.freeze({ 1: Object.freeze({ ada: "present", ben: "present" }), 2: Object.freeze({ ada: "present", ben: "present" }) }) }),
+  unfinished: null,
+  facilitated: "A",
+  published: 4,
+  blockWeeks: true,
+  drawWeeks: Object.freeze([3, 4]),
   earlierUpdate: false,
 });
 

@@ -108,6 +108,8 @@ export type CourseworkRowsInput = {
   weekOf: (groupId: string | null, weekNumber: number) => CourseworkWeek | null;
   /** The person's page, without a week. */
   personHref: (uid: string) => string;
+  /** What a row's name opens, where it is not `personHref`: the person's page on the programme. Left out, `personHref`. */
+  nameHref?: (uid: string) => string | null;
   /** When a person pressed a week's old Submit, and the session they were due at (`loadRunWeekStates`). */
   standingOf: (uid: string, weekNumber: number) => { submittedAt: Date | null; due: WeekDue };
   /** The last week that has begun for a person, on the calendar of the group whose weeks they read; 0 before any. */
@@ -151,12 +153,13 @@ export function courseworkRows(input: CourseworkRowsInput): CourseworkRow[] {
     return {
       ...person,
       cells,
-      notDone: cells.some((cell) => cell.reached && cell.done === false),
+      // Waiting on the facilitator's slip is not "not done".
+      notDone: cells.some((cell) => cell.reached && cell.done === false && !cell.onlyWaiting),
       late: cells.some((cell) => cell.done === true && cell.doneLateMs !== null),
       unread: cells.some((cell) => cell.flags.unread),
       noFeedback: cells.some((cell) => cell.flags.noFeedback),
       changed: cells.some((cell) => cell.flags.changed),
-      href,
+      href: input.nameHref?.(person.uid) ?? href,
     };
   });
 }

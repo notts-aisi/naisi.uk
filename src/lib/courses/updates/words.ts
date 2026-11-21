@@ -216,6 +216,7 @@ export const REFUSAL = {
   emailCount: "Say how many people the button said it would email.",
   test: "Choose whether this is a test.",
   withFacilitators: "Only an update to one group can be emailed to its facilitators too.",
+  weekNumber: "Only an update to one group can be about one week, from week 1 to 60.",
   ownGroupOnly: "You can write to your own group only.",
   groupGone: "That group isn’t on this programme any more. Choose another.",
   nobodyToEmail: "Nobody it’s to can be emailed yet. Turn off Also email it to post it.",
@@ -223,6 +224,16 @@ export const REFUSAL = {
     "This would email more than one send can take, so nothing was posted or sent. Post it without emailing, or ask an admin.",
   noTestAddress: "Your account has no email address on file to send a test to.",
 } as const;
+
+/**
+ * NOT DRAWN: an update about one week that is not a week of the group the
+ * change route can have changed (`weekNoticeRefusal`). The pages that post
+ * the week only ever send one that is.
+ */
+export function weekNotOpenWords(groupName: string, weekNumber: number): string {
+  const group = groupName.trim() || "This group";
+  return `${group} has no session in week ${weekNumber} that can still change, so nothing was posted or sent.`;
+}
 
 /** "You’ve sent 10 tests in the last hour. Try again shortly." */
 export function tooManyTestsWords(limit: number): string {

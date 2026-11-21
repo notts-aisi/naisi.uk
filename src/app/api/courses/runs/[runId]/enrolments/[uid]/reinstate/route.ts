@@ -13,6 +13,7 @@ import {
   groupFullError,
   normalizeCourseGroup,
 } from "@/lib/firestore/courseGroups";
+import { courseApplicationId, normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
 import { courseRunChannel, normalizeCourseRun } from "@/lib/firestore/courses";
 import { subscribe } from "@/lib/firestore/subscriptions";
 
@@ -24,7 +25,12 @@ import { subscribe } from "@/lib/firestore/subscriptions";
  * WHO MAY REINSTATE: admins, the run's `trackLeadUids` and the lead of the
  * programme that names the run (`runStaffingOf`), the same gate the remove
  * route uses. Reinstating is the exact inverse of removing, so it belongs to
- * the same people.
+ * the same people. And, as Remove, only for somebody whose row on the run's
+ * list the board serves the caller (`rowIsServedTo`): a row the application
+ * form placed is an admin's and the programme lead's, so a run's track lead
+ * is answered about such a person as about a uid with no place, before
+ * anything about them is read. Somebody with no row on the list (an open
+ * run's own sign-up) is anybody's on the gate, as before.
  *
  * ## Why this route had to exist
  *
@@ -99,6 +105,14 @@ export async function POST(_req: Request, ctx: Ctx) {
   const isAdmin = staffing.isAdmin;
   if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // A person whose row the board does not serve this caller is answered as a uid with no place, before
+  // anything about them is read, as Remove answers them.
+  const rowSnap = await db.collection("courseApplications").doc(courseApplicationId(runId, uid)).get();
+  const listed = rowSnap.exists ? normalizeCourseApplication(rowSnap.id, rowSnap.data() ?? {}) : null;
+  if (listed && !rowIsServedTo(listed, staffing)) {
+    return NextResponse.json({ error: "Enrolment not found" }, { status: 404 });
   }
 
   // A run being taken apart owns its own document until it is gone, and an

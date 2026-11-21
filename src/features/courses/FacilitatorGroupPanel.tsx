@@ -6,6 +6,8 @@ import InitialsChip from "@/components/ui/InitialsChip";
 import MemberName from "@/components/ui/MemberName";
 import Skeleton from "@/components/ui/Skeleton";
 import { clockWords } from "@/lib/courses/sessionChange/words";
+import { openGroupWords } from "@/lib/courses/facilitatorPageWords";
+import { weekGuideLink, type FacilitatorGuideProp } from "@/lib/courses/facilitatorGuide/links";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "./groupNamesWords";
 import { weekHref } from "./links";
 import { useGroupRoster } from "./useGroupRoster";
@@ -63,6 +65,12 @@ type Props = {
   emailGroupHref?: string | null;
   /** Messages set to the run's cohort, in the same way; null keeps the run's own page. */
   emailCohortHref?: string | null;
+  /**
+   * The course's facilitator guide, handed by the server page only to
+   * somebody the guide admits: "Facilitator guide for week 2", for the week
+   * of this group's next session, when that week is loaded. Null draws none.
+   */
+  facilitatorGuide?: FacilitatorGuideProp | null;
 };
 
 /**
@@ -159,6 +167,7 @@ export default function FacilitatorGroupPanel({
   showCohortLinks,
   emailGroupHref = null,
   emailCohortHref = null,
+  facilitatorGuide = null,
 }: Props) {
   /*
     The shared hook, the same one the facilitator group page and the email
@@ -174,6 +183,8 @@ export default function FacilitatorGroupPanel({
   const next = nextLine(group.calendar);
   const showSchedule = Boolean(week || range || next);
   const targetWeekNumber = materialsWeek(group.calendar, publishedWeekNumbers);
+  // The guide for the week this group meets next, when that week is loaded.
+  const guideWeek = weekGuideLink(facilitatorGuide, group.calendar.nextSession?.weekNumber ?? null);
 
   return (
     <Card as="section" padding="md" className={styles.panel}>
@@ -220,31 +231,40 @@ export default function FacilitatorGroupPanel({
           </ul>
         ))}
 
-      {/* Unconditional, unlike the materials link below: the review queue is
-          where a facilitator's own work is, and it stays reachable even in a
-          week nobody has published yet. */}
-      <Link className={styles.panelLink} href={`${groupHref}/review`}>
-        Review exercises
+      {/* The group's own page, by its name: the register and the roster
+          are there. Unconditional: a facilitator's own tools stay reachable
+          in a week nobody has published yet. */}
+      <Link className={styles.panelLink} href={groupHref}>
+        {openGroupWords(group.name)}
         <span className={styles.arrow} aria-hidden="true">
           →
         </span>
       </Link>
 
-      {/* Unconditional for the same reason as the review link above: the
-          register and the roster are a facilitator's own tools, and they stay
-          reachable in a week nobody has published yet. */}
-      <Link className={styles.panelLink} href={groupHref}>
-        Roster and attendance
-        <span className={styles.arrow} aria-hidden="true">
-          →
-        </span>
-      </Link>
+      {guideWeek && (
+        <Link className={styles.panelLink} href={guideWeek.href}>
+          {guideWeek.label}
+          <span className={styles.arrow} aria-hidden="true">
+            →
+          </span>
+        </Link>
+      )}
 
       {/* Messages, set to this group, does what the group's email page did,
           its phone notification included; the old page stays the way in
           where Messages would not start with the group (`emailGroupHref`). */}
       <Link className={styles.panelLink} href={emailGroupHref ?? `${groupHref}/email`}>
         Email the group
+        <span className={styles.arrow} aria-hidden="true">
+          →
+        </span>
+      </Link>
+
+      {/* Unconditional, unlike the materials link below: the review queue is
+          where a facilitator's own work is, and it stays reachable even in a
+          week nobody has published yet. */}
+      <Link className={styles.panelLink} href={`${groupHref}/review`}>
+        Review exercises
         <span className={styles.arrow} aria-hidden="true">
           →
         </span>

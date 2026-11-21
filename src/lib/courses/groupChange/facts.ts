@@ -97,7 +97,7 @@ export type ScheduledSend = { before: string | null; after: string | null; gone:
 export type ReminderFacts = {
   /** "Week N is open", 6 days before at 9am: on its schedule, or sent by finishing the register before. */
   weekOpen: ScheduledSend & { scheduled: boolean };
-  /** The reminders 3 days and 1 day before, at 9am, to each person whose week is not done. */
+  /** The reminders 3 days and 1 day before, at 9am, to everybody due at the session. */
   reminders: {
     on: boolean;
     /** How many of the group's people's reminders have already gone (claimed), 3 days and 1 day before. */
@@ -226,10 +226,12 @@ export async function toldFacts(
   writerUid: string,
   /** A change to ONE session: its week, so its people are that week's (`updateEmailAudience`). Null for a regular time. */
   weekNumber: number | null = null,
+  /** People the notice leaves out (`updateEmailAudience`'s `except`): visitors whose visit ends with the session. */
+  except: ReadonlySet<string> = new Set(),
 ): Promise<ToldFacts> {
   const [members, everyone, facilitatorUids] = await Promise.all([
-    updateEmailAudience(db, run, [group], "group", group.id, writerUid, { weekNumber }),
-    updateEmailAudience(db, run, [group], "group", group.id, writerUid, { withFacilitators: true, weekNumber }),
+    updateEmailAudience(db, run, [group], "group", group.id, writerUid, { weekNumber, except }),
+    updateEmailAudience(db, run, [group], "group", group.id, writerUid, { withFacilitators: true, weekNumber, except }),
     standingFacilitatorUidsOf(db, group, writerUid),
   ]);
   const memberUids = new Set(members.recipients.map((recipient) => recipient.uid));

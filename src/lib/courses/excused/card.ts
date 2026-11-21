@@ -116,6 +116,9 @@ export function weeksToChoose(view: ExcusedOwnView, firstKey: string, max = 10):
     .filter((session) => session.ask.open && session.ask.when === "before")
     .sort((a, b) => (a.startsAt ?? "").localeCompare(b.startsAt ?? ""));
   const first = open.find((session) => session.sessionKey === firstKey);
-  const rest = open.filter((session) => session.sessionKey !== firstKey);
+  // One request is asked of one group: a week of a one-week visit is asked of
+  // its host alone, and never beside a week of their own group.
+  const groupOf = (session: OwnExcusedSession) => session.visit?.groupId ?? view.groupId;
+  const rest = open.filter((session) => session.sessionKey !== firstKey && (!first || groupOf(session) === groupOf(first)));
   return (first ? [first, ...rest] : rest).slice(0, max);
 }

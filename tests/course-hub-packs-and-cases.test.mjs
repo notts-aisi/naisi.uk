@@ -23,11 +23,27 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, mock, test } from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { A, B, C, D, NOW, RUN, W2, W3, makePacksAndCasesWorld, textOf } from "./lib/packsAndCasesWorld.mjs";
+import { laptopLayout, phoneOrder } from "./lib/groupPageOrder.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 const w = await makePacksAndCasesWorld();
+const { default: NotForYou } = await w.loadTs(join("features", "courses", "facilitator", "NotForYou.tsx"));
+
+/** Somebody signed in whom the draw's page does not admit: its one calm page, byte for byte, with no redirect. */
+function assertNotForYou(drawn, at) {
+  assert.equal(drawn.to, null, `${at}: sent to ${drawn.to} instead of the calm page`);
+  assert.equal(drawn.html, renderToStaticMarkup(createElement(NotForYou, { page: "draw" })), `${at}: not the calm page`);
+}
+
+/** Somebody the draw's page admits, at an address it cannot open: the second, fixed answer, never "not for your account". */
+function assertCantOpen(drawn, at) {
+  assert.equal(drawn.to, null, `${at}: sent to ${drawn.to} instead of the calm page`);
+  assert.equal(drawn.html, renderToStaticMarkup(createElement(NotForYou, { page: "draw", admitted: true })), `${at}: not the second calm page`);
+}
 
 before(() => mock.timers.enable({ apis: ["Date"], now: NOW }));
 after(() => mock.timers.reset());
@@ -185,7 +201,12 @@ describe("2. Choose one on the week page", () => {
 
   test("before a pack is given out, the packs are listed and none is the person's", async () => {
     const { html, text } = await w.weekPage("kofi", 3);
-    assert.match(text, /Given out at the end of session 2\. Only your pack counts\. To switch, ask Rahul, Sofia or Farah\./);
+    // The page says when the slips go out once, under "Your pack", so the line above it does not say it too.
+    assert.match(
+      text,
+      /Packs Only your pack counts\. To switch, ask Rahul, Sofia or Farah\. Your pack Not given yet Rahul, Sofia and Farah haven’t copied in your slip yet\./,
+    );
+    assert.doesNotMatch(text, /Given out at the end of session/);
     assert.doesNotMatch(html, /packMine/);
     assert.doesNotMatch(html, /<span class="chip">Your pack<\/span>/);
   });
@@ -321,13 +342,19 @@ describe("2. Choose one on the week page", () => {
       const answer = await w.call("chloe", (await w.courseRoute("runs", "[runId]", "reflections", "[promptId]")).PUT, { runId: RUN.agi, promptId }, { course: true, body: { weekId: "w03", text: "Written." } });
       assert.equal(answer.status, 200);
     }
+    // Chloe's case is not given yet: its task's row says Waiting, and every task is counted, as it always was.
     const home = await w.programmeHome("chloe", [...needs.tickIds]);
     assert.match(home.text, /This week 0 of 3 done/, "the pack is not ticked yet");
+    assert.match(home.text, /Waiting: Your case talk Waiting for your case Waiting/);
     const done = await w.programmeHome("chloe", [...needs.tickIds, W3.elections]);
     assert.match(done.text, /This week 1 of 3 done/);
     // The week page counts it the same way, from the pack it was handed.
     assert.match((await w.weekPage("chloe", 3, [...needs.tickIds])).text, /This week 0 of 3 done/);
     assert.match((await w.weekPage("chloe", 3, [...needs.tickIds, W3.elections])).text, /This week 1 of 3 done/);
+    // Once the case is given, nothing about the count changes: the talk's row is open again, with Not ready yet.
+    w.seedDraw("chloe", "w3", { pack: W3.elections, caseId: W3.surprise });
+    assert.match((await w.programmeHome("chloe", [...needs.tickIds])).text, /This week 0 of 3 done/);
+    assert.doesNotMatch((await w.programmeHome("chloe", [...needs.tickIds])).text, /Waiting for your case/);
     // Home lists Chloe's pack among the rows to tick, and no other pack.
     const card = await w.homeCard("chloe");
     assert.match(card.text, /Elections/);
@@ -369,7 +396,7 @@ function selects(html) {
 }
 
 describe("3. the draw", () => {
-  test("the draw page: the week of the group's next session, a row per person and their facilitators, as the board draws it", async () => {
+  test("the draw page: the week the slips are for, with the Week picker, a row per person and their facilitators, as the board draws it", async () => {
     w.seedDraw("chloe", "w3", { pack: W3.elections, caseId: W3.surprise });
     const page = await w.drawPage("rahul");
     assert.equal(page.to, null);
@@ -377,8 +404,11 @@ describe("3. the draw", () => {
       "Group B",
       "Packs and cases",
       "Group B · after session 2",
+      "Packs and cases",
+      "Week",
+      "Week 2 · Packs and cases",
       "Week 3 · Packs and cases",
-      "Copy in the slips you handed out tonight.",
+      "Weeks 2 and 3 give something out. Weeks 1 and 4 to 6 don’t.",
       "Swap two people",
       "Chloe Nguyen",
       "Farah Hussain",
@@ -388,20 +418,34 @@ describe("3. the draw", () => {
       "Save",
       "Each person sees theirs on their week 3 page. No email.",
     ]);
+    // Week 3's slips went out at last Tuesday's session, so "tonight" is not said at noon on the 17th.
+    assert.doesNotMatch(page.text, /handed out tonight/);
     const lists = selects(page.html);
-    assert.equal(lists.length, 10, "a pack and a case for each of five people");
+    assert.equal(lists.length, 11, "the Week picker, then a pack and a case for each of five people");
+    // The picker: every week that gives something out, on week 3, held until the page is live.
+    assert.deepEqual(lists[0], { disabled: true, options: ["Week 2 · Packs and cases", "*Week 3 · Packs and cases"] });
     // Chloe has both: no "Not given yet", and one case for Elections (the other has a content note).
-    assert.deepEqual(lists[0].options, ["*Elections", "Markets", "Technology"]);
-    assert.deepEqual(lists[1].options, ["*The surprise result, 2016"]);
-    // Farah has nothing yet: "Not given yet", and "Choose a pack first" for the case, which takes no press.
-    assert.deepEqual(lists[2].options, ["*Not given yet", "Elections", "Markets", "Technology"]);
-    assert.deepEqual(lists[3], { disabled: true, options: ["*Choose a pack first"] });
+    assert.deepEqual(lists[1].options, ["*Elections", "Markets", "Technology"]);
+    assert.deepEqual(lists[2].options, ["*The surprise result, 2016"]);
+    // Farah has nothing yet: "Not given yet", and for the case a list that takes no press, under it
+    // "Choose Farah’s pack first." (the week's own word, the person's own name).
+    assert.deepEqual(lists[3].options, ["*Not given yet", "Elections", "Markets", "Technology"]);
+    assert.deepEqual(lists[4], { disabled: true, options: ["*Not given yet"] });
+    inOrder(page.text, ["Farah Hussain", "Pack", "Not given yet", "Case", "Not given yet", "Choose Farah’s pack first.", "Kofi Asante"]);
+    assert.doesNotMatch(page.text, /Choose a pack first/);
     // Labels are real, one per select.
     assert.equal((page.html.match(/<label class="drawLabel" for="/g) ?? []).length, 10);
+    assert.equal((page.html.match(/<label class="drawWeekLabel" for="/g) ?? []).length, 1);
     // Nobody who left, and nobody of another group.
     assert.doesNotMatch(page.text, /Sam Whitfield|Omar Haddad|Amara Okafor/);
     // Save waits for the page to be live.
     assert.match(page.html, /<button type="button" class="buttonPrimary saveButton" disabled="">Save<\/button>/);
+
+    // On the hand-out night, during session 2 (Tue 10 Nov, 6pm to 8pm), the page is about week 3 and says "tonight".
+    w.at("2026-11-10T19:00:00Z");
+    const night = await w.drawPage("rahul");
+    inOrder(night.text, ["Group B · after session 2", "Week 3 · Packs and cases", "Copy in the slips you handed out tonight.", "Swap two people"]);
+    assert.deepEqual(selects(night.html)[0].options, ["Week 2 · Packs and cases", "*Week 3 · Packs and cases"]);
   });
 
   test("a case with a content note is never in the draw: no list offers it, and the route refuses it", async () => {
@@ -509,12 +553,81 @@ describe("3. the draw", () => {
     assert.deepEqual(w.records(), []);
   });
 
-  test("a facilitator who takes part is given a pathway like anybody, by a co-facilitator", async () => {
+  test("a facilitator who takes part is given a pathway like anybody, by a co-facilitator; the group page's card names it to them and admins, never to the group's other facilitators", async () => {
     const answer = await w.saveDraw("sofia", "w03", [["farah", W3.given, W3.technology]]);
     assert.equal(answer.status, 200);
-    // The spread shows it to the group's facilitators: the draw is the group's logistics.
-    const group = await w.groupPage("rahul");
-    assert.match(group.text, /Technology 1 FH Farah/);
+    assert.equal(w.recordOf("farah", W3.given).packId, W3.technology);
+    // The card: Farah and Sofia facilitate too, so Rahul is shown neither by
+    // name, and Technology, which only Farah holds, has no row for Rahul.
+    const rahul = await w.groupPage("rahul");
+    assert.match(rahul.text, /Not given yet: Chloe, Kofi, Rahul and 2 more /);
+    assert.doesNotMatch(rahul.text, /Technology Farah/);
+    // Farah sees their own; an admin sees everybody's.
+    assert.match((await w.groupPage("farah")).text, /Technology Farah Not given yet: Chloe, Farah, Kofi and 2 more /);
+    assert.match((await w.groupPage("zach")).text, /Technology Farah Not given yet: Chloe, Farah, Kofi, Rahul and Sofia /);
+  });
+
+  test("the card sits where a facilitator meets it: pinned straight under the session card while slips are being handed out, else under Before the session in the left column", async () => {
+    // Pinned: week 3's slips went out at session 2, and only Chloe has theirs.
+    w.seedDraw("chloe", "w3", { pack: W3.elections, caseId: W3.surprise });
+    for (const who of ["rahul", "zach"]) {
+      const { html } = await w.groupPage(who);
+      assert.match(html, /data-testid="draw-card" data-pinned="true"/, who);
+      const order = [
+        ["the session", 'data-testid="session-card"'],
+        ["the card", 'aria-labelledby="group-spread"'],
+        ["before the session", 'aria-labelledby="before-the-session"'],
+        ["who has done the week", 'data-testid="week-work-count"'],
+        ["the updates", 'aria-labelledby="group-updates"'],
+        ["how the group meets", 'aria-labelledby="group-meets-facilitator"'],
+        ["this week's work", 'aria-labelledby="this-weeks-work"'],
+      ];
+      const at = phoneOrder(html, order);
+      const { where } = laptopLayout(html);
+      assert.deepEqual(
+        order.map(([name]) => [name, where(at[name])]),
+        [
+          ["the session", "across"],
+          ["the card", "across"],
+          ["before the session", "block 1 left"],
+          ["who has done the week", "block 1 right"],
+          ["the updates", "block 1 right"],
+          ["how the group meets", "block 1 right"],
+          ["this week's work", "across"],
+        ],
+        who,
+      );
+    }
+    // Not pinned: everybody has week 3's, so the card says so, where it always sat.
+    for (const uid of ["chloe", "farah", "kofi", "rahul", "sofia"]) w.seedDraw(uid, "w3", { pack: W3.elections, caseId: W3.surprise });
+    for (const who of ["rahul", "zach"]) {
+      const { html } = await w.groupPage(who);
+      assert.doesNotMatch(html, /data-pinned=/, who);
+      const order = [
+        ["the session", 'data-testid="session-card"'],
+        ["before the session", 'aria-labelledby="before-the-session"'],
+        ["the spread", 'aria-labelledby="group-spread"'],
+        ["who has done the week", 'data-testid="week-work-count"'],
+        ["the updates", 'aria-labelledby="group-updates"'],
+        ["how the group meets", 'aria-labelledby="group-meets-facilitator"'],
+        ["this week's work", 'aria-labelledby="this-weeks-work"'],
+      ];
+      const at = phoneOrder(html, order);
+      const { where } = laptopLayout(html);
+      assert.deepEqual(
+        order.map(([name]) => [name, where(at[name])]),
+        [
+          ["the session", "across"],
+          ["before the session", "block 1 left"],
+          ["the spread", "block 1 left"],
+          ["who has done the week", "block 1 right"],
+          ["the updates", "block 1 right"],
+          ["how the group meets", "block 1 right"],
+          ["this week's work", "across"],
+        ],
+        who,
+      );
+    }
   });
 
   test("only the group's own people are in its draw: nobody who left, nobody another group holds, nobody not told", async () => {
@@ -533,10 +646,10 @@ describe("3. the draw", () => {
     assert.match(page.text, /Hamza Qureshi/);
   });
 
-  test("an archived group's draw is closed: its page sends its facilitators away, and nothing on it changes", async () => {
+  test("an archived group's draw is closed: its page tells its facilitators it is not theirs, and nothing on it changes", async () => {
     w.world.db.poke(`courseGroups/${B}`, { archived: true });
-    assert.equal((await w.drawPage("rahul")).to, "/learn");
-    assert.equal((await w.drawPage("zach")).to, "/learn");
+    assertNotForYou(await w.drawPage("rahul"), "a facilitator of an archived group");
+    assertCantOpen(await w.drawPage("zach"), "an admin on an archived group");
     let answer = await w.saveDraw("rahul", "w03", [["kofi", W3.given, W3.markets]]);
     assert.equal(answer.status, 403);
     answer = await w.saveDraw("zach", "w03", [["kofi", W3.given, W3.markets]]);
@@ -568,10 +681,13 @@ describe("3. the draw", () => {
     assert.equal(answer.status, 400);
     assert.deepEqual(w.records(), []);
     const page = await w.drawPage("rahul", B, 1);
-    assert.match(page.text, /Week 1 Nothing is given out in week 1\./);
+    // Opened by its address: the picker holds it beside every week that gives something out, then the sentence and the way back.
+    inOrder(page.text, ["Week", "Week 1", "Week 2 · Packs and cases", "Week 3 · Packs and cases", "Nothing is given out in week 1.", "Back to Group B"]);
+    assert.deepEqual(selects(page.html)[0].options, ["*Week 1", "Week 2 · Packs and cases", "Week 3 · Packs and cases"]);
+    assert.doesNotMatch(page.html, />Save</);
   });
 
-  test("who reaches the draw page: the group's facilitators, the lead by its address, and admins; everybody else is sent away", async () => {
+  test("who reaches the draw page: the group's facilitators, the lead by its address, and admins; everybody else signed in is told the page is not theirs", async () => {
     for (const who of ["rahul", "sofia", "farah", "zach"]) {
       const page = await w.drawPage(who);
       assert.equal(page.to, null, who);
@@ -582,24 +698,38 @@ describe("3. the draw", () => {
     assert.equal(lead.to, null);
     assert.match(lead.html, /href="\/admin\/admissions\/forms\/[^"]+\/programmes\/[^"]+\/groups" class="back"><svg[^>]*>.*?<\/svg><span>Groups<\/span>/);
     for (const who of ["grace", "tom", "chloe", "amara", "sam", "tess", "yusuf", "lloyd", "nobody"]) {
-      const page = await w.drawPage(who);
-      assert.equal(page.to, "/learn", who);
+      assertNotForYou(await w.drawPage(who), who);
     }
     assert.match((await w.drawPage(null)).to, /^\/login\?next=/);
-    assert.equal((await w.drawPage("zach", "no-such-group")).to, "/learn");
+    assertCantOpen(await w.drawPage("zach", "no-such-group"), "an admin on a made-up group");
   });
 
-  test("the group page's spread: each pack with who has it, who has nothing yet, and the way to the draw", async () => {
-    w.seedDraw("chloe", "w3", { pack: W3.elections });
-    w.seedDraw("kofi", "w3", { pack: W3.elections });
-    w.seedDraw("farah", "w3", { pack: W3.markets });
+  test("the group page's card: each pack with who has it by the name they go by, who has nothing yet, and the way to the draw", async () => {
+    w.seedDraw("chloe", "w3", { pack: W3.elections, caseId: W3.surprise });
+    w.seedDraw("kofi", "w3", { pack: W3.elections, caseId: W3.surprise });
+    w.seedDraw("farah", "w3", { pack: W3.markets, caseId: W3.crash });
+    // An admin is shown everybody.
+    inOrder((await w.groupPage("zach")).text, [
+      "Packs and cases",
+      "Week 3 · 3 of 5 given",
+      "Elections",
+      "Chloe and Kofi",
+      "Markets",
+      "Farah",
+      "Not given yet: Rahul and Sofia",
+      "Rahul and Sofia are waiting for theirs.",
+      "Copy in the slips",
+    ]);
+    // A facilitator is shown no other facilitator by name: counted, never named.
     const group = await w.groupPage("rahul");
-    inOrder(group.text, ["Packs in Group B", "Elections 2", "Chloe and Kofi", "Markets 1", "Farah", "Technology 0", "Not given yet: Rahul and Sofia", "Change packs and cases"]);
+    inOrder(group.text, ["Packs and cases", "Week 3 · 3 of 5 given", "Elections", "Chloe and Kofi", "Not given yet: Rahul and 1 more", "Rahul and 1 more are waiting for theirs.", "Copy in the slips"]);
+    assert.doesNotMatch(group.text, /Markets Farah|Sofia are waiting/);
     assert.match(group.html, new RegExp(`href="/learn/draw/${B}\\?week=3"`));
-    // An admin sees it too; a group whose next week gives nothing out has none.
-    assert.match((await w.groupPage("zach")).text, /Packs in Group B/);
+    // A week that gives nothing out next: the card stays and says so, with what was given out a tap away.
     w.world.db.poke(`courseRuns/${RUN.agi}/weeks/w03`, { blocks: w.world.db.read(`courseRuns/${RUN.agi}/weeks/w01`).blocks });
-    assert.doesNotMatch((await w.groupPage("rahul")).text, /Packs in Group B|Change packs and cases/);
+    const after = await w.groupPage("rahul");
+    inOrder(after.text, ["Pathways and cases", "Nothing is given out in week 3.", "What was given out", "Week 2"]);
+    assert.match(after.html, new RegExp(`href="/learn/draw/${B}"`));
   });
 
   test("the draw's words", () => {
@@ -613,7 +743,9 @@ describe("3. the draw", () => {
     assert.equal(words.changeDrawWords({ packs: [{ title: "Pathway" }], cases: [{}] }), "Change pathways and cases");
     assert.equal(words.spreadTitleWords({ packs: [{ title: "Pathway" }], cases: [] }, "Group B"), "Pathways in Group B");
     assert.equal(words.choosePackFirstWords("Pathway"), "Choose a pathway first");
-    assert.equal(words.drawEyebrowWords("Group B", 3), "Group B · after session 2");
+    // The eyebrow names the hand-out session the rule finds; none, as for week 1, names the group alone.
+    assert.equal(words.drawEyebrowWords("Group B", 2), "Group B · after session 2");
+    assert.equal(words.drawEyebrowWords("Group B", null), "Group B");
     assert.equal(words.drawFootWords(3), "Each person sees theirs on their week 3 page. No email.");
     void D;
   });
@@ -661,8 +793,21 @@ describe("4. Your case study", () => {
   test("before a case is given: \"Not given yet\", when it is given out, and no ready box to press", async () => {
     w.ui.hydrated = true;
     const { html, text } = await w.weekPage("kofi", 3);
-    inOrder(text, ["Your case: Not given yet", "Not ready yet", "Your case study", "Your case", "Not given yet", "Given out at the end of session 2.", "Ready for my talk"]);
-    assert.doesNotMatch(text, /Given out at the end of session 2\. To swap/);
+    // Kofi has done nothing: "Parts 1 to 3" still holds readings to tick beside the pack, so its row is open, as it
+    // always was; the case study holds nothing but the case, so its row says Waiting. Every task is counted.
+    inOrder(text, [
+      "This week 0 of 3 done",
+      "Not done yet: Parts 1 to 3",
+      "Waiting: Your case study",
+      "Waiting for your case Waiting",
+      "Your case study",
+      "Your case",
+      "Not given yet",
+      "Ready for my talk",
+    ]);
+    assert.doesNotMatch(text, /Your case: Not given yet|Not ready yet|Waiting for your pack/);
+    // When the slips go out is said once, under the pack above, so the case says nothing more.
+    assert.doesNotMatch(text, /Given out at the end of session/);
     assert.match(html, /type="checkbox" class="tickInput" disabled=""/);
     assert.doesNotMatch(html, /caseGroupMine/);
     // Before a pack, nothing is marked as Kofi's pack's.
@@ -786,6 +931,7 @@ describe("5. This week's work: the pathway and case columns", () => {
         const name = w.world.db.read(`users/${uid}`).profile.preferredName;
         return { uid, firstName: name.split(" ")[0], name };
       }),
+      new Set(group.facilitatorUids),
     );
     const out = await w.lib.readers.weekWorkOf(w.world.courseDb, RUN.agi, week, people, viewer);
     return { packTitle: out.packTitle, cells: Object.fromEntries([...out.cells].map(([uid, cell]) => [uid, [cell.pack, cell.case]])) };
@@ -801,7 +947,7 @@ describe("5. This week's work: the pathway and case columns", () => {
     assert.deepEqual(facilitator.cells.kofi, [null, null]);
     // Nothing of a ready mark travels: a cell is a pack's name and a case's title.
     const week = await w.lib.readers.readGroupWeek(w.world.courseDb, RUN.agi, B, 3);
-    const chloe = { uid: "chloe", name: "Chloe Nguyen", firstName: "Chloe", facilitates: false };
+    const chloe = { uid: "chloe", name: "Chloe Nguyen", firstName: "Chloe", facilitates: false, ownWork: false };
     const out = await w.lib.readers.weekWorkOf(w.world.courseDb, RUN.agi, week, [chloe], { isAdmin: false, leadOf: null });
     assert.deepEqual(Object.keys(out.cells.get("chloe")).sort(), ["case", "pack"]);
   });

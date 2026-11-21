@@ -60,6 +60,7 @@
 import { describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { A, AGI, B, ROUND, RUN, leadSeed } from "./lib/leadWorld.mjs";
 import { COURSE } from "./lib/handoverWorld.mjs";
@@ -298,6 +299,18 @@ function questionViewOf(page) {
   };
   walk(page.element);
   return found[0]?.props.view ?? null;
+}
+
+/** The group page's one calm page, for somebody signed in it does not admit. */
+async function groupNotForYou() {
+  const { default: NotForYou } = await loadTs(join("features", "courses", "facilitator", "NotForYou.tsx"));
+  return renderToStaticMarkup(createElement(NotForYou, { page: "group" }));
+}
+
+/** Asserts a fellow on the group page is given its calm page, byte for byte, and nothing of the group. */
+async function assertFellowNotForYou(drawn) {
+  assert.equal(drawn.to, null, `a fellow was sent to ${drawn.to}`);
+  assert.equal(drawn.html, await groupNotForYou(), "a fellow is not given the group page's calm page");
 }
 
 async function serverPage(file, params, who, searchParams = {}) {
@@ -811,8 +824,13 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
       ok(await asCourse(who, routes.submitWeek.POST, { runId: RUN.agi, weekId: "w02" }, { submit: true }), `${who} submits`);
     }
     const counts = await threeCounts("amara", 2);
-    // The answer sent is one task of three done: the parts wait for a pack, the talk for a case.
+    // The answer sent is one task of three done, on all three pages, as it always was. "Parts 1 to 3" still holds
+    // readings Amara has not ticked beside the pack she has not been given, so its row is open; the case study holds
+    // nothing but the case, which waits on Rahul's slip, so its row says Waiting.
     assert.deepEqual([counts.week, counts.programme, counts.home], ["1 of 3 done", "1 of 3 done", "1 of 3 done"]);
+    assert.match(counts.pages.week.text, /Waiting for your case Waiting/);
+    assert.doesNotMatch(counts.pages.week.text, /Waiting for your pack/);
+    assert.match(counts.pages.programme.text, /Waiting for your case/);
     assert.match(counts.pages.week.text, /Done: Part 4: your forecast, the week’s written answer \(200 to 300 words\) About 30 minutes By the end of Mon 9 Nov Sent Sun 8 Nov/);
     assert.match(counts.pages.programme.text, /Done: Your written answer Sent Sun 8 Nov/);
   });
@@ -961,7 +979,9 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     assert.doesNotMatch(nextWeek[0].text, /\block|submit/i, "Week N is open still speaks of locking or submitting");
     assert.doesNotMatch(nextWeek[0].text, /exercise/i);
     const weekThree = await w.weekPage("amara", 3, ticksOf("amara"));
+    // Before the draw every task is counted, as it always was; the case study's row says Waiting.
     assert.equal(doneOn(weekThree.text), "0 of 3 done");
+    assert.match(weekThree.text, /Waiting for your case Waiting/);
     assert.match(weekThree.text, /In all: About 2 hours/);
     at("2026-11-10T20:40:00Z");
     const w3 = stored(3);
@@ -1107,8 +1127,8 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     assert.match(admin.text, /SR Sofia Rossi Facilitator Not yet Not yet Not started Not given yet Not started Not given yet /);
     assert.doesNotMatch(admin.text, /Reopen week/);
     assert.ok(admin.html.includes(review("bea")), "an admin has no way to Bea's answer");
-    // A fellow never reaches the group page.
-    assert.equal((await groupPage("amara")).to, `/learn/${encodeURIComponent(RUN.agi)}`);
+    // A fellow never reaches the group page: its calm page, with nothing of the group.
+    await assertFellowNotForYou(await groupPage("amara"));
     // The lead's view of the group's week asks the same loader as the lead: Bea's own pick and answer are the
     // lead's to see, and "To give feedback" leads to the lead's own review page.
     const run = w.lib.courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
@@ -1325,8 +1345,8 @@ describe("7. week 6 (Group B meets on Tue 8 Dec, its last session)", () => {
     const beaRow = { uid: "bea", name: "Bea Lindqvist", firstName: "Bea", own: true, written: rahulWeek.parts.map(() => false) };
     const handed = await lib.groupWeek.loadGroupWeekBoxes(world.courseDb, { run, actor: rahul, week: { ...rahulWeek, rows: [...rahulWeek.rows, beaRow] } });
     assert.deepEqual(handed.map((entry) => entry.person.uid), ["amara"]);
-    // A fellow never reaches the group page, so never anybody's plan there.
-    assert.equal((await groupPage("amara")).to, `/learn/${encodeURIComponent(RUN.agi)}`);
+    // A fellow never reaches the group page, so never anybody's plan there: its calm page instead.
+    await assertFellowNotForYou(await groupPage("amara"));
   });
 
   test("a pack each picks herself: Amara and Bea pick one and change it before the session", async () => {
@@ -1422,10 +1442,13 @@ describe("8. after the end (Group C's last session ends at 3pm on Wed 9 Dec)", (
     // A3: a week that is over is Done only when everything it counts is, by the count beside it, for Amara and
     // for Bea, who takes part through a learner's row; never "Done" beside "0 of 1". Rahul, who holds no place,
     // has no count of their own, so every week whose session is over is Done for Rahul.
+    // Week 2's case was never given to Amara, but "Parts 1 to 3" still has her unticked readings, so the week
+    // is Not done, never Waiting or Done, beside every task counted, as it always was.
     assert.match(
       amara.text,
       /The 6 weeks Week 1 Who keeps the lamps Tue 3 Nov · Done 1 of 1 Week 2 How sure are you\? Tue 10 Nov · Not done 1 of 3 Week 3 How sure are you, again\? Tue 17 Nov · Done 3 of 3 Week 4 The lamp makers Tue 24 Nov · Not done 0 of 1 Week 5 Lamps in pairs Tue 1 Dec · Not done 0 of 1 Week 6 Your next lamp Tue 8 Dec · Not done 1 of 4 /,
     );
+    // Bea's the same way: week 2's readings are not ticked, so Not done, and every task counted.
     assert.match(
       bea.text,
       /The 6 weeks Week 1 Who keeps the lamps Tue 3 Nov · Done 1 of 1 Week 2 How sure are you\? Tue 10 Nov · Not done 1 of 3 Week 3 How sure are you, again\? Tue 17 Nov · Not done 1 of 3 Week 4 The lamp makers Tue 24 Nov · Not done 0 of 1 Week 5 Lamps in pairs Tue 1 Dec · Not done 0 of 1 Week 6 Your next lamp Tue 8 Dec · Not done 0 of 4 /,

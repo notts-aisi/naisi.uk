@@ -43,6 +43,8 @@ export type WorkRow = {
   remindable: boolean;
   /** Done after the session: the line under them in "Late in week N", and how late; null otherwise. */
   late: { line: string; detail: string } | null;
+  /** From another group, at this week's session for one week: chip "Visiting", never reminded here. Absent otherwise. */
+  visiting?: true;
 };
 
 /** One facilitator's own week, for the programme's lead and admins only. */
@@ -68,6 +70,14 @@ export type GroupWeekWorkView = {
   /** "Done means every reading ticked and the written answer sent." */
   doneMeans: string;
   rows: WorkRow[];
+  /**
+   * How many of the group's people are waiting for a slip from their
+   * facilitator (a pathway, plan or pack given out, a case), whatever else
+   * they have done: "2 are waiting for a case from you." to the group's own
+   * facilitator, "2 are waiting for a case." to anybody else. Absent with
+   * nobody waiting.
+   */
+  waiting?: string;
   /** The facilitators' own weeks: the programme's lead's and admins' alone, null for anybody else. */
   own: OwnWeekRow[] | null;
   /**

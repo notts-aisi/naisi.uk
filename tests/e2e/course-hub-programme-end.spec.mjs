@@ -70,6 +70,7 @@ import {
   createStepRecorder,
   newIdentityPage,
   openBrowser,
+  pageOwnText,
   signInWithPassword,
   stubRecaptchaOnLoopback,
 } from "../../scripts/e2e/lib/browser.mjs";
@@ -704,8 +705,11 @@ test(
       return locator;
     };
 
-    /** The main column's words, the page's own and nothing of the shell around it. */
-    const mainText = async (pg) => textOf(pg.locator("main"));
+    /**
+     * The main column's words, the page's own and nothing of the shell around
+     * it: `<main>` without the shell's foot (`pageOwnText`).
+     */
+    const mainText = async (pg) => flat(await pageOwnText(pg));
 
     /** A stored instant, from a Timestamp. */
     const instantOf = (value) => (value && typeof value.toDate === "function" ? value.toDate() : null);

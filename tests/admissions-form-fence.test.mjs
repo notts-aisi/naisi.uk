@@ -443,11 +443,23 @@ const ROUND_SURFACES = {
       "one person's coursework on the programme, for its lead and admins. It reaches the round only through " +
       "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]": {
+    kind: "form",
+    why:
+      "one person's page on the programme, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
     kind: "form",
     why:
       "moving one person on the programme to another group for good, for its lead and admins. It reaches the round " +
       "only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit": {
+    kind: "form",
+    why:
+      "arranging a one-week visit to another group's session for one person on the programme, for its lead and admins. It reaches " +
+      "the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question": {
     kind: "form",
@@ -659,6 +671,18 @@ const ROUND_SURFACES = {
       "stops at a form before it reads stages or anybody's application, so to the older half a " +
       "form is a round that is not there and the older flow is never drawn for one",
   },
+  "/(app)/admin/admissions/forms/[roundId]/rooms": {
+    kind: "form",
+    why:
+      "the week's rooms, an admin's and a programme's lead's page. It loads the round with the form's own loader, " +
+      "which answers null for a round that is not a form, and the page then draws 'there is no programme here'",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/rooms/term": {
+    kind: "form",
+    why:
+      "the term's rooms, the same gate and the same loader as the week's rooms: a round of the older kind is " +
+      "answered as a form with no programme the reader may see",
+  },
   "/(app)/admin/admissions/forms/[roundId]/send": {
     kind: "form",
     why:
@@ -869,6 +893,13 @@ const ROUND_SURFACES = {
     kind: "form",
     why:
       "moving one person on the programme to another group for good, for its lead and admins, through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' (a 404) for a round that is not " +
+      "a form, before anything about the person is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit": {
+    kind: "form",
+    why:
+      "arranging or calling off a one-week visit for one person on the programme, for its lead and admins, through " +
       "loadProgrammeRun, which starts from the form's own loader and answers 'none' (a 404) for a round that is not " +
       "a form, before anything about the person is read",
   },

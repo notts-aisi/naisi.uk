@@ -8,6 +8,7 @@ import {
 } from "firebase-admin/firestore";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
+import { standingUserOf } from "@/lib/courses/programmeLead";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
@@ -35,7 +36,7 @@ import {
   type RegisterLine,
 } from "./model";
 import { excuseHoldsIn } from "@/lib/courses/excused/standing";
-import { everInGroup, hasGroupsByWeek, inGroupForWeek, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, everInGroup, inGroupForWeek, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { CANT_MAKE_IT_REFUSAL } from "./words";
 
 /**
@@ -132,7 +133,8 @@ export function takesPartInWeek(
  * to finish (`sessionRange`), each week's from the group they were in that
  * week (`sessionsWithGroup`). `group` is the group they are in now and
  * `groups` the run's groups: a week in a group that no longer meets has no
- * session. With no record of groups by week, their group's next session,
+ * session; a week of a one-week visit is the host's session that week. With
+ * no record of groups by week and no visit, their group's next session,
  * exactly as `sessionRange(resolveSessions(run, group), now)` answers it.
  * Null once none is left. "Joining online" asks the same
  * (`src/lib/courses/joiningOnline/seat.ts`).
@@ -144,7 +146,7 @@ export function nextSessionByWeek(
   groups: readonly CourseGroupDoc[],
   now: Date,
 ): { group: CourseGroupDoc; session: ResolvedSession } | null {
-  if (!hasGroupsByWeek(seat)) {
+  if (!differsByWeek(seat)) {
     const next = sessionRange(resolveSessions(run, group), now).next;
     return next ? { group, session: next } : null;
   }
@@ -176,8 +178,27 @@ export function facilitatesGroup(user: SessionUser, group: CourseGroupDoc): bool
   return isNamedWithStanding(user, "courseGroups.facilitatorUids", group.facilitatorUids);
 }
 
-/** One person's line of one register, as `cantMakeItState` asks it. */
-function lineOf(data: Record<string, unknown> | undefined, id: string, uid: string): RegisterLine {
+/**
+ * WHETHER THE PERSON'S CARD OFFERS "CAN'T MAKE IT" AS A REQUEST, the page's
+ * own rule (`asks` in `excusedFor`, `../excused/own.ts`): unless they
+ * facilitate, with standing, the group their place is in NOW (`groupNow`),
+ * whose card's "Can't make it" is then the instant one, and a visit's card
+ * offers none. Asked by the staff call-off's sentence (`../visit/plan.ts`)
+ * and the reminders before a session (`shownOnTheirPage`), so the three never
+ * answer differently. `account` is the person's stored account, read by the
+ * caller; with none, or no group, they facilitate nothing and the card asks.
+ */
+export function cardAsksFor(uid: string, account: Record<string, unknown> | null | undefined, groupNow: CourseGroupDoc | null): boolean {
+  if (!account || !groupNow) return true;
+  return !facilitatesGroup(standingUserOf(uid, account), groupNow);
+}
+
+/**
+ * One person's line of one register, as `cantMakeItState` asks it: what the
+ * programme page's ticket is drawn from, and what the reminders before a
+ * session read to know who said they can't make it.
+ */
+export function lineOf(data: Record<string, unknown> | undefined, id: string, uid: string): RegisterLine {
   if (!data) return EMPTY_LINE;
   const register = normalizeCourseAttendance(id, data);
   return {
@@ -488,7 +509,7 @@ export async function recordCantMakeIt(
       // A request to be excused from it, waiting or declined, is not undone
       // on the person's own word.
       if (state.kind === "open") {
-        const hold = (await excuseHoldsIn(tx, db, user.uid, run.id))(session.sessionKey);
+        const hold = (await excuseHoldsIn(tx, db, user.uid, run.id, { groupId: group.id, place: seat }))(session.sessionKey);
         if (hold) return refuse(409, hold === "waiting" ? CANT_MAKE_IT_REFUSAL.askedWaiting : CANT_MAKE_IT_REFUSAL.askedDeclined);
       }
       if (state.kind === "open") {

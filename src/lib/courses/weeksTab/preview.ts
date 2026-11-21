@@ -105,6 +105,7 @@ export async function loadWeekPreview(
     weekSchedule: [],
     // In no group, there is nobody to ask to swap a pack or a case.
     askToSwap: [],
+    askToSwapPicked: [],
     programme: programme ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName } : null,
     shownCrest: null,
     forkedWeekIds: resolved.source === "group" ? [week.id] : [],

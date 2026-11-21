@@ -7,8 +7,10 @@ import {
   gateGroupRegisterRead,
   isAddressableId,
   loadMirrorMembers,
+  awayMarkRefusal,
   isRowForWeek,
   loadRegisterMembers,
+  rowsOfWeeks,
   marksExcused,
   readsFacilitatorRecord as readsFacilitatorRecordOf,
   registerSessionAccess,
@@ -602,11 +604,17 @@ function checkMarksAgainstRoster(
   marks: Map<string, AttendanceStatus | null>,
   members: RegisterMember[],
   weekNumber: number,
+  firstNames: ReadonlyMap<string, string> = new Map(),
 ): string | null {
   const byUid = new Map(members.map((m) => [m.uid, m]));
   for (const [uid, status] of marks) {
     const member = byUid.get(uid);
     if (!member) return "Someone in that batch isn't an active member of this group.";
+    // A member of this group at another group's session that week (a
+    // one-week visit): their line here says so and is never marked, the
+    // mark lives on the host's register. Refused, clearing included.
+    const away = member.awayAt?.find((each) => each.weekNumber === weekNumber);
+    if (away) return awayMarkRefusal(firstNames.get(uid) ?? member.displayName, away.groupName);
     // A row of this register for some weeks and not this one: their place
     // records them in another group this week (`isRowForWeek`).
     if (status !== null && !isRowForWeek(member, weekNumber)) {
@@ -658,6 +666,8 @@ type WriteContext = {
   sessions: ResolvedSession[];
   session: ResolvedSession;
   members: RegisterMember[];
+  /** The first name of each row, by uid, for a sentence about one of them. */
+  firstNames: ReadonlyMap<string, string>;
   body: Record<string, unknown>;
 };
 
@@ -702,7 +712,7 @@ async function prepareWrite(
   const target = parseSessionTarget(body);
   if (!target.ok) return fail(target.error, 400);
 
-  const [runSnap, { members }] = await Promise.all([
+  const [runSnap, { members, firstNames }] = await Promise.all([
     db.collection("courseRuns").doc(gated.runId).get(),
     loadRegisterMembers(db, gated.runId, groupId, { isAdmin: gated.isAdmin, role: actor.role }),
   ]);
@@ -742,6 +752,7 @@ async function prepareWrite(
       sessions,
       session,
       members,
+      firstNames,
       body,
     },
   };
@@ -826,13 +837,14 @@ export async function GET(
   const now = new Date();
   // Somebody GIVEN a session, and admitted no other way, reads that
   // session's register and nothing else of the group: no other column, no
-  // session still to come, nobody who left.
+  // session still to come, nobody who left, and nobody and nothing of
+  // another week.
   const onlyGiven = !gated.isAdmin && !gated.facilitates && !gated.leads;
 
   // The run's records too, for who left this group: the lead's grid works
   // that out from the whole run (somebody staff took off is listed where a
   // register last marked them), and the register asks the same function.
-  const [runSnap, { members, notYetTold }, runRecords] = await Promise.all([
+  const [runSnap, { members: groupRows, notYetTold }, runRecords] = await Promise.all([
     db.collection("courseRuns").doc(runId).get(),
     loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin, role: actor.role }),
     onlyGiven ? Promise.resolve(null) : readRunRecords(db, runId),
@@ -848,6 +860,9 @@ export async function GET(
   const columns = onlyGiven
     ? sessions.filter((session) => gated.givenSessions.includes(session.sessionKey))
     : columnsFor(run, group, sessions, requestedWeek);
+  // Somebody given a session opens that one register: the rows its week's
+  // column draws, and of every per-week field that week's alone (`rowsOfWeeks`).
+  const members = onlyGiven ? rowsOfWeeks(groupRows, columns.map((column) => column.weekNumber)) : groupRows;
 
   // Three `getAll`s, one round trip: the canonical week docs (titles only),
   // this group's forked copies of the same weeks, and the registers
@@ -1006,12 +1021,16 @@ export async function GET(
     .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.uid.localeCompare(b.uid));
 
   // Somebody told us in advance, and the register still has them excused:
-  // the rows only, in their order, soonest session first.
+  // the rows of that session's week only (somebody moved from a week is a row
+  // of this group for the weeks they were in it, `isRowForWeek`; a line left
+  // on a later week by a move names nobody here), in their order, soonest
+  // session first.
   const cantMakeIt: AttendanceCantMakeIt[] = [];
   for (const session of [...columns, ...ahead]) {
     const register = registerBySessionKey.get(session.sessionKey);
     if (!register) continue;
     const uids = members
+      .filter((m) => isRowForWeek(m, session.weekNumber))
       .map((m) => m.uid)
       .filter((uid) => register.excusedInAdvance[uid] && register.records[uid] === "excused");
     if (uids.length === 0) continue;
@@ -1200,7 +1219,7 @@ export async function POST(
   if (notYours) return notYours;
   const cancelled = cancelledSessionRefusal(prepared.ctx);
   if (cancelled) return cancelled;
-  const { actor, db, runId, session, members, body, group, facilitates } = prepared.ctx;
+  const { actor, db, runId, session, members, firstNames, body, group, facilitates } = prepared.ctx;
 
   const parsedMarks = parseMarks(body.marks);
   if (!parsedMarks.ok) {
@@ -1230,7 +1249,7 @@ export async function POST(
     return NextResponse.json({ error: "Nothing to save." }, { status: 400 });
   }
 
-  const rosterError = checkMarksAgainstRoster(wanted, members, session.weekNumber);
+  const rosterError = checkMarksAgainstRoster(wanted, members, session.weekNumber, firstNames);
   if (rosterError) return NextResponse.json({ error: rosterError }, { status: 400 });
 
   // EXCUSED, AND AN EXCUSAL THAT STANDS, ARE AN ADMIN'S OR THE PROGRAMME'S
@@ -1589,7 +1608,7 @@ export async function PATCH(
   const { groupId } = await ctx.params;
   const prepared = await prepareWrite(groupId, req);
   if (!prepared.ok) return prepared.response;
-  const { actor, db, runId, isAdmin, leads, facilitates, sessions, session, members, body, group } = prepared.ctx;
+  const { actor, db, runId, isAdmin, leads, facilitates, sessions, session, members, firstNames, body, group } = prepared.ctx;
 
   // WHO, before the body is looked at any further: an admin or somebody
   // leading the programme. A facilitator of the group asks instead.
@@ -1641,7 +1660,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Nothing to change." }, { status: 400 });
   }
 
-  const rosterError = checkMarksAgainstRoster(parsedMarks.value, members, session.weekNumber);
+  const rosterError = checkMarksAgainstRoster(parsedMarks.value, members, session.weekNumber, firstNames);
   if (rosterError) return NextResponse.json({ error: rosterError }, { status: 400 });
 
   const now = new Date();

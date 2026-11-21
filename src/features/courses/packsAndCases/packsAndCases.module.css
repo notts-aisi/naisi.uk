@@ -574,6 +574,79 @@
   color: var(--color-text-soft);
 }
 
+/* Said before any change on the week people are working on now, or a week that has met. */
+.drawWarn {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-soft);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* The Week picker. */
+.drawWeek {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 6px;
+}
+
+.drawWeekRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.drawWeekRow > select {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.drawWeekLabel {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--color-text);
+}
+
+.drawWeekHint {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* What Save asks first: leaving unsaved, or a save into a week that has met. */
+.drawAsk {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.drawAsk:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.drawAskLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
 .draw {
   display: flex;
   flex-direction: column;
@@ -657,6 +730,66 @@
   line-height: 1.4;
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
+}
+
+/* A pack the person picked, shown as words beside the label, never a list. */
+.drawPick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* Nobody's pick yet, or a facilitator's own on a co-facilitator's page. */
+.drawPickMuted {
+  color: var(--color-text-muted);
+}
+
+/* A line under a field's control, in the control's column. */
+.drawFieldLine {
+  grid-column: 2;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.drawCaseNote {
+  grid-column: 2;
+}
+
+/* "Asked for this one": the row's tick, with a target of 44px. */
+.drawAsked {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.drawAskedBox {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+/* Under the people: how many cases have a content note. */
+.drawNotes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 /* Save rests on the screen's bottom bar, and on the page's foot where there is none. */

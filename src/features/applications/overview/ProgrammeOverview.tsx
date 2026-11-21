@@ -10,6 +10,7 @@ import type { OverviewAttention, OverviewModel, OverviewSession } from "@/lib/co
 import type { OverviewUpdate } from "@/lib/courses/updates/views";
 import CertificatesSection from "./CertificatesSection";
 import GetReady from "./GetReady";
+import OverviewByWeekSections from "./OverviewByWeek";
 import OverviewMarkReady from "./OverviewMarkReady";
 import RemindButton from "./RemindButton";
 import WhoFinished from "./WhoFinished";
@@ -17,9 +18,10 @@ import styles from "./ProgrammeOverview.module.css";
 
 /**
  * A PROGRAMME'S OVERVIEW, drawn from the model the
- * server worded (`buildProgrammeOverview`): the week, the sessions this week
- * and their registers, what needs attention, who came by week, and the
- * people. Only "Remind" and week 1's "Mark ready" run in the browser.
+ * server worded (`buildProgrammeOverview`): the week, attendance by week
+ * across the programme and one row per group for a chosen week
+ * (`OverviewByWeekSections`), the sessions this week and their registers,
+ * what needs attention, and the people. Only "Remind" and week 1's "Mark ready" run in the browser.
  *
  * Not drawn, because it is not built: the board's "Email Freya". The
  * Updates card shows the newest updates and leads to the Messages tab, where
@@ -187,7 +189,7 @@ export default function ProgrammeOverview({
       />
     );
   }
-  const { week, sessions, attention, chart, people } = model;
+  const { week, sessions, attention, byWeek, people } = model;
   return (
     <div className={styles.page}>
       {finishing?.state === "open" && (
@@ -277,6 +279,8 @@ export default function ProgrammeOverview({
         </section>
       )}
 
+      <OverviewByWeekSections byWeek={byWeek} programmePath={programmePath} ending={model.ending} />
+
       <section aria-labelledby="overview-sessions">
         <h2 id="overview-sessions" className={styles.sectionTitle}>
           Sessions this week
@@ -339,94 +343,52 @@ export default function ProgrammeOverview({
       )}
 
       <div className={styles.columns}>
-        <section className={styles.card} aria-labelledby="overview-chart">
-          <h2 id="overview-chart" className={styles.cardTitle}>
-            Attendance by week
+        <section className={styles.card} aria-labelledby="overview-people">
+          <h2 id="overview-people" className={styles.cardTitle}>
+            People
           </h2>
-          <p className={styles.muted}>Late and left early count as came.</p>
-          <div className={styles.chart} role="img" aria-label={chart.description}>
-            <div className={styles.gridLines} aria-hidden="true">
-              <span className={styles.gridLine}>100%</span>
-              <span className={styles.gridLine}>50%</span>
-              <span className={styles.gridLine}>0%</span>
-            </div>
-            <ol className={styles.bars} aria-hidden="true">
-              {chart.weeks.map((entry) => (
-                <li key={entry.weekNumber} className={styles.barColumn}>
-                  <span className={styles.barTrack}>
-                    {entry.percent !== null && (
-                      <span
-                        className={`${styles.bar} ${entry.soFar ? styles.barSoFar : ""}`}
-                        style={{ height: `${entry.percent}%` }}
-                      >
-                        <span className={styles.barValue}>{entry.percent}%</span>
-                      </span>
-                    )}
-                    {entry.percent === null && <span className={styles.barEmpty}>·</span>}
-                  </span>
-                  <span className={styles.barLabel}>
-                    {entry.label}
-                    {entry.soFar && <span className={styles.barSoFarWord}>so far</span>}
+          <p className={styles.peopleCount}>
+            <span className={styles.bigNumber}>{people.takingPart}</span> taking part
+          </p>
+          <p className={styles.peopleLine}>{people.line}</p>
+          {finishing?.state === "not-yet" && (
+            <>
+              <p className={styles.peopleLine}>{finishing.line}</p>
+              {finishing.needsRule && (
+                <Link href={`${programmePath}/setup#who-finished`} className={styles.textLink}>
+                  {SET_THE_RULE}
+                  <Arrow />
+                </Link>
+              )}
+            </>
+          )}
+        </section>
+        <section className={styles.card} aria-labelledby="overview-updates">
+          <h2 id="overview-updates" className={styles.cardTitle}>
+            Updates
+          </h2>
+          <Link href={`${programmePath}/messages`} className={styles.textLink}>
+            Write an update
+            <Arrow />
+          </Link>
+          {updates.length === 0 ? (
+            <p className={styles.peopleLine}>No updates yet.</p>
+          ) : (
+            <ul className={styles.updateList}>
+              {updates.map((update) => (
+                <li key={update.id} className={styles.updateItem}>
+                  <InitialsChip name={update.author} uid={update.authorUid} size="sm" />
+                  <span className={styles.updateBody}>
+                    <Link href={`${programmePath}/messages`} className={styles.updateTitle}>
+                      {update.title}
+                    </Link>
+                    <span className={styles.updateMeta}>{update.meta}</span>
                   </span>
                 </li>
               ))}
-            </ol>
-          </div>
-          {chart.from && <p className={styles.chartFrom}>{chart.from}</p>}
-          <Link href={`${programmePath}/attendance`} className={styles.textLink}>
-            All attendance
-            <Arrow />
-          </Link>
+            </ul>
+          )}
         </section>
-
-        <div className={styles.side}>
-          <section className={styles.card} aria-labelledby="overview-people">
-            <h2 id="overview-people" className={styles.cardTitle}>
-              People
-            </h2>
-            <p className={styles.peopleCount}>
-              <span className={styles.bigNumber}>{people.takingPart}</span> taking part
-            </p>
-            <p className={styles.peopleLine}>{people.line}</p>
-            {finishing?.state === "not-yet" && (
-              <>
-                <p className={styles.peopleLine}>{finishing.line}</p>
-                {finishing.needsRule && (
-                  <Link href={`${programmePath}/setup#who-finished`} className={styles.textLink}>
-                    {SET_THE_RULE}
-                    <Arrow />
-                  </Link>
-                )}
-              </>
-            )}
-          </section>
-          <section className={styles.card} aria-labelledby="overview-updates">
-            <h2 id="overview-updates" className={styles.cardTitle}>
-              Updates
-            </h2>
-            <Link href={`${programmePath}/messages`} className={styles.textLink}>
-              Write an update
-              <Arrow />
-            </Link>
-            {updates.length === 0 ? (
-              <p className={styles.peopleLine}>No updates yet.</p>
-            ) : (
-              <ul className={styles.updateList}>
-                {updates.map((update) => (
-                  <li key={update.id} className={styles.updateItem}>
-                    <InitialsChip name={update.author} uid={update.authorUid} size="sm" />
-                    <span className={styles.updateBody}>
-                      <Link href={`${programmePath}/messages`} className={styles.updateTitle}>
-                        {update.title}
-                      </Link>
-                      <span className={styles.updateMeta}>{update.meta}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
       </div>
     </div>
   );

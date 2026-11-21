@@ -65,7 +65,7 @@ export type RegularSlot = {
 export type Pin = Partial<Pick<GroupSessionOverride, "weekday" | "startTimeLocal" | "durationMinutes" | "location" | "campus">>;
 
 /** Why a week keeps its own time after the change. */
-export type OwnTime = "online" | "moved" | "cancelled" | "pushed" | "set";
+export type OwnTime = "online" | "moved" | "cancelled" | "pushed" | "set" | "room";
 
 export type RegularPlan = {
   fromWeek: number;
@@ -110,7 +110,12 @@ function hasOwnTime(override: GroupSessionOverride | undefined): boolean {
 function ownTimeOf(change: SessionChange | null, override: GroupSessionOverride | undefined): OwnTime | null {
   if (change) return change.kind === "cancelled" ? "cancelled" : change.kind;
   if (override?.mode === "virtual") return "online";
-  return hasOwnTime(override) ? "set" : null;
+  if (!hasOwnTime(override)) return null;
+  // A room of its own and nothing else (the week's rooms): the week takes the
+  // new day and time, and keeps its room.
+  const timeFields = ["weekday", "startTimeLocal", "durationMinutes"] as const;
+  const ownTimeFields = timeFields.some((field) => Object.hasOwn(override as object, field));
+  return !ownTimeFields && Object.hasOwn(override as object, "location") ? "room" : "set";
 }
 
 /** When a taken register says its session started (`sessionAt`, a Date or a stored timestamp), or null. */

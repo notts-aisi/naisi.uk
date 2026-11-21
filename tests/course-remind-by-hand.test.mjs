@@ -543,7 +543,7 @@ describe("8b. the card, drawn", () => {
     assert.match(text, /Done means every reading ticked, the reflection written and the written answer sent\./);
     assert.match(text, /Everyone 4 .*Week not done 2 .*Readings not done 2 .*Reflection not done 2 .*Written answer not done 2 .*Late 1/);
     assert.match(text, /Ines .*2 of 2 .*Written Wed 18 Nov .*Late: 1 day after the session .*Sent Wed 18 Nov, 6pm .*Done late/);
-    assert.match(text, /Omar .*Not started .*Mon 16 Nov, 9am · 1-day, automatic/);
+    assert.match(text, /Omar .*Not started .*Mon 16 Nov, 9am · 1-day reminder before the session/);
     assert.match(text, /Late in week 3 Ines Readings, reflection and written answer done Wed 18 Nov, 6pm Late: 1 day after the session/);
     assert.match(text, /Facilitators’ own work/);
     // Dev is not told: no Remind of his own, and said by name under the button. Nobody done has one either. Omar's
@@ -585,4 +585,159 @@ test("the seed: Amara did week 3 before the session, and nobody else did all of 
   const seed = remindSeed();
   assert.ok(seed[`courseExerciseResponses/${RUN.agi}__amara__w03__r3-wa`].firstSentAt < new Date("2026-11-17T18:00:00Z"));
   assert.equal(seed[`courseExerciseResponses/${RUN.agi}__ines__w03__r3-wa`], undefined);
+});
+
+/**
+ * Week 3 with a pathway the facilitators give out, as a third task; nobody
+ * has been given one yet. With `caseStudy`, a case study whose case they
+ * give out too, as a fourth.
+ */
+function withPathway({ caseStudy = false } = {}) {
+  const seed = remindSeed();
+  const doc = seed[`courseRuns/${RUN.agi}/weeks/w03`];
+  const [thisWeek, ...rest] = doc.blocks;
+  const pathways = {
+    id: "r3-p3",
+    type: "part",
+    title: "Your pathway",
+    time: "",
+    framing: [],
+    blocks: [
+      {
+        id: "r3-co",
+        type: "chooseOne",
+        form: "table",
+        title: "Pathway",
+        givenBy: "facilitator",
+        kind: "read",
+        time: "",
+        noteHeading: "",
+        questions: [],
+        packs: [
+          { id: "r3-pk1", name: "Loss of control", time: "", note: [], read: [{ text: "A first reading", href: "https://example.com/c" }] },
+          { id: "r3-pk2", name: "Misuse", time: "", note: [], read: [{ text: "A second reading", href: "https://example.com/d" }] },
+        ],
+      },
+    ],
+  };
+  const study = {
+    id: "r3-cs",
+    type: "cases",
+    heading: "Your case study",
+    intro: [],
+    talk: { minutes: 3, name: "talk" },
+    prepare: [],
+    givenBy: "facilitator",
+    groupLabel: "",
+    startLabel: "",
+    groups: [{ name: "", packId: null, cases: [{ id: "r3-ca1", title: "The storm of 1987", what: [], start: [], contentNote: "" }] }],
+    note: [],
+  };
+  const rows = [
+    ...thisWeek.rows,
+    { type: "task", what: "Part 3: your pathway", time: "", when: "before", whenText: "", covers: ["r3-p3"] },
+    ...(caseStudy ? [{ type: "task", what: "Your case study", time: "", when: "atSession", whenText: "", covers: ["r3-cs"] }] : []),
+  ];
+  const blocks = [{ ...thisWeek, rows }, ...rest, pathways, ...(caseStudy ? [study] : [])];
+  return { ...seed, [`courseRuns/${RUN.agi}/weeks/w03`]: { ...doc, blocks } };
+}const withPathwayOnly = () => withPathway();
+const withPathwayAndCase = () => withPathway({ caseStudy: true });
+
+describe("9. a part waiting on the facilitator's slip", () => {
+
+
+  beforeEach(() => w.reset(withPathway()));
+
+  test("somebody for whom the pathway is all that is left is not reminded, and the button's count is the preview's", async () => {
+    const view = await page("facilitator", "rahul", 3);
+    // Amara did everything else: waiting, neither done nor not done, and no Remind.
+    assert.deepEqual(view.work.rows.map((row) => [row.uid, row.week.text, row.remindable]), [
+      ["amara", "Waiting", false],
+      ["ines", "Not started", true],
+      ["omar", "Not started", true],
+    ]);
+    assert.equal(view.work.waiting, "3 are waiting for a pathway from you.");
+    assert.equal(view.work.remind.count, 2);
+    const shown = await preview("rahul", 3);
+    assert.deepEqual(peopleOf(shown), ["ines"]);
+    for (const uid of peopleOf(shown)) assert.ok(view.work.rows.find((row) => row.uid === uid)?.remindable, uid);
+    const amara = await preview("zach", 3, "amara");
+    assert.equal(amara.status, 409);
+    assert.equal(amara.body.count, 0);
+  });
+
+  test("the email never asks for the pathway, and once it is given Remind asks for its reading", async () => {
+    const shown = await preview("rahul", 3, "ines");
+    assert.doesNotMatch(JSON.stringify(shown.body.preview.email), /pathway/i);
+    world.db.seed(`coursePacksAndCases/${RUN.agi}__amara__r3-co`, {
+      runId: RUN.agi,
+      uid: "amara",
+      weekId: "w03",
+      weekNumber: 3,
+      blockId: "r3-co",
+      kind: "pack",
+      packId: "r3-pk1",
+      caseId: null,
+      ready: false,
+    });
+    const view = await page("facilitator", "rahul", 3);
+    assert.deepEqual(view.work.rows.find((row) => row.uid === "amara").remindable, true);
+    assert.equal(view.work.waiting, "2 are waiting for a pathway from you.");
+    const amara = await preview("rahul", 3, "amara");
+    assert.equal(amara.status, 200, JSON.stringify(amara.body));
+    assert.match(JSON.stringify(amara.body.preview.email), /your pathway’s reading/);
+  });
+});
+
+describe("9b. a slip waiting with something of their own still on the list", () => {
+  beforeEach(() => {
+    w.reset(withPathwayAndCase());
+    // Amara's case is given and she has not said she is ready; her pathway is not given yet.
+    world.db.seed(`coursePacksAndCases/${RUN.agi}__amara__r3-cs`, {
+      runId: RUN.agi,
+      uid: "amara",
+      weekId: "w03",
+      weekNumber: 3,
+      blockId: "r3-cs",
+      kind: "talk",
+      packId: null,
+      caseId: "r3-ca1",
+      ready: false,
+    });
+  });
+
+  test("Remind still reaches her, for the talk and never the pathway, and the button counts her", async () => {
+    const view = await page("facilitator", "rahul", 3);
+    assert.equal(view.work.rows.find((row) => row.uid === "amara").remindable, true);
+    assert.equal(view.work.remind.count, 3);
+    const shown = await preview("rahul", 3, "amara");
+    assert.equal(shown.status, 200, JSON.stringify(shown.body));
+    const email = JSON.stringify(shown.body.preview.email);
+    assert.match(email, /getting ready for your talk/);
+    assert.doesNotMatch(email, /pathway/i);
+  });
+});
+
+describe("9c. \"Week N is open\" never names a week where only a slip is left", () => {
+  beforeEach(() => w.reset(withPathwayOnly()));
+
+  test("Amara did everything but the pathway: week 3 is not among her earlier weeks; Ines's is; given her pathway, Amara's is again", async () => {
+    const earlier = await w.loadTs("lib/courses/groupWeekWork/earlier.ts");
+    const run = coursesLib.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const group = groupsLib.normalizeCourseGroup(B, world.db.read(`courseGroups/${B}`));
+    const ask = () => earlier.earlierWeeksNotDone(world.db, { run, group, weekNumber: 4, uids: ["amara", "ines"], now: new Date() });
+    assert.deepEqual(Object.fromEntries(await ask()), { amara: [], ines: [3] });
+    world.db.seed(`coursePacksAndCases/${RUN.agi}__amara__r3-co`, {
+      runId: RUN.agi,
+      uid: "amara",
+      weekId: "w03",
+      weekNumber: 3,
+      blockId: "r3-co",
+      kind: "pack",
+      packId: "r3-pk1",
+      caseId: null,
+      ready: false,
+    });
+    assert.deepEqual(Object.fromEntries(await ask()), { amara: [3], ines: [3] }, "her pathway's reading is hers to do now");
+  });
 });

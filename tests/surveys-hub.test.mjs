@@ -246,7 +246,8 @@ describe("2. By programme: the term's programmes, a row for every stage, then th
     assert.ok(
       text.startsWith(
         // CHANGED ON PURPOSE: the third tab, Question sets (the questions each kind of survey starts with).
-        "Surveys Only admins make and send surveys. Leads see results for their own programme, in its Surveys tab. New survey " +
+        // CHANGED ON PURPOSE: the head's button to anonymous feedback, before New survey.
+        "Surveys Only admins make and send surveys. Leads see results for their own programme, in its Surveys tab. Anonymous feedback New survey " +
           "By programme Events Question sets Confidential We know who answered. Only admins see who said what. ",
       ),
       text.slice(0, 300),
@@ -259,6 +260,8 @@ describe("2. By programme: the term's programmes, a row for every stage, then th
     ].map((heading) => text.indexOf(heading));
     assert.ok(order.every((found) => found !== -1), `a card is missing:\n${text}`);
     assert.deepEqual([...order].sort((a, b) => a - b), order, "the cards are out of order");
+    // The head's button to anonymous feedback, for an admin, to its own page.
+    assert.match(html, /<a href="\/admin\/surveys\/anonymous-feedback"[^>]*>Anonymous feedback<\/a>/);
     // The tabs: links to the page's own address, By programme the current one.
     assert.match(
       html,

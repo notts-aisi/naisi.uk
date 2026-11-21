@@ -510,6 +510,15 @@ const HANDS_ON = new Map([
     },
   ],
   [
+    "src/lib/search/load.ts",
+    {
+      to: "src/lib/applications/handover/holders.ts",
+      why:
+        "hands a form's sent applications to the People tab's own reader (readProgrammePeople), whose rows are who " +
+        "holds a place by holdsPlaceOn, which passes over anybody who has left the term, so search finds exactly the tab's rows",
+    },
+  ],
+  [
     "src/lib/surveys/audience.ts",
     {
       to: "src/lib/applications/handover/holders.ts",

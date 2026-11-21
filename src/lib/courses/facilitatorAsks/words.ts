@@ -624,6 +624,13 @@ export function saidYesHeading(groupName: string): string {
 }
 /** After yes, once groups have gone out. */
 export const OPEN_YOUR_GROUP = "Open your group";
+/**
+ * After yes, while the guide's own gate admits them: saying yes names them on
+ * the group, which opens the course's facilitator guide to them at once.
+ * The boards' words (November 2026).
+ */
+export const GUIDE_OPEN_NOW = "The facilitator guide is open to you now.";
+export const OPEN_THE_GUIDE = "Open the facilitator guide";
 /** After no. */
 export const SAID_NO_HEADING = "Thanks for letting us know.";
 export function saidNoText(shortName: string): string {

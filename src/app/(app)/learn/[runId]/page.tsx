@@ -21,6 +21,10 @@ import { leftPageSurvey } from "@/features/courses/leaving/leftSurvey";
 import RunHome from "@/features/courses/RunHome";
 import { getRunAccess } from "@/features/courses/runAccess";
 import { guideLinksOf } from "@/lib/courses/guide/load";
+import { meetsLeadBar } from "@/lib/courses/programmeLead";
+import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
+import { GUIDE_READ_FAILED, facilitatorGuideProp, guideReadOfIndex, type GuideRead } from "@/lib/courses/facilitatorGuide/links";
+import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
 
 /**
  * The run home — the page a learner opens daily, and the stage for the
@@ -193,6 +197,36 @@ export default async function RunHomePage({
   // Glossary, each linked when the run has it; nothing for a run with neither.
   const guide = db ? await guideLinksOf(db, access.run.id).catch(() => null) : null;
 
+  // The course's facilitator guide: "About this course" gains its row, and
+  // each group's card its week, for somebody the guide admits. Asked of the
+  // guide's own gate ONLY for a facilitator, a track lead, an admin, or
+  // somebody who meets the bar a programme's lead is held to
+  // (`admissionRounds.leadUid`, decided on the session with no read, so an
+  // ordinary member's page asks nothing and is handed nothing about the
+  // guide; whether they lead a programme naming this run is the gate's own
+  // question, and the row is offered only when it lets them in). A read that
+  // fails hands the course page's link on only to somebody the page knows
+  // the guide admits (an admin, a facilitator of one of the run's live
+  // groups), and never takes the page down.
+  const asksGuide =
+    access.isFacilitator ||
+    access.isTrackLead ||
+    access.isAdmin ||
+    meetsLeadBar(access.user);
+  const knownGuideReader =
+    access.isAdmin ||
+    access.groups.some((group) => !group.archived && isNamedWithStanding(access.user, "courseGroups.facilitatorUids", group.facilitatorUids));
+  let guideRead: GuideRead = GUIDE_READ_FAILED;
+  if (db && asksGuide) {
+    try {
+      const guideReader = await facilitatorGuideReader(db, access.user, access.run.courseId);
+      guideRead = guideReadOfIndex(guideReader ? await readGuideIndex(db, guideReader) : null);
+    } catch (err) {
+      console.error("[programme page] the facilitator guide's read failed", runId, err);
+    }
+  }
+  const facilitatorGuide = asksGuide ? facilitatorGuideProp(guideRead, access.run.courseId, knownGuideReader) : null;
+
   // "Your certificate": the caller's own, by their two
   // addresses, and none during a view-as session, which is never the owner.
   const viewAs = markerIsLive(await getImpersonator(), access.user.uid);
@@ -233,6 +267,7 @@ export default async function RunHomePage({
       viewAs={viewAs}
       uid={access.user.uid}
       {...(guide ? { guide } : {})}
+      {...(facilitatorGuide ? { facilitatorGuide } : {})}
       {...(certificates.length > 0 ? { certificates } : {})}
       {...(endSurvey ? { endSurvey } : {})}
       {...(nextEvent ? { nextEvent } : {})}

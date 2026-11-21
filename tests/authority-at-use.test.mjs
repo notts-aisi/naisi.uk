@@ -446,18 +446,32 @@ const RAW_SITES = {
       "as its lead on the forms. That grants nothing: every candidate is held to the lead's gate, " +
       "`programmeLedBy`, which asks the lead's standing, before any of its requests is read.",
   },
-  "src/lib/messages/writers.ts": {
+  "src/lib/courses/facilitatingMenuRead.ts": {
     role: "not-a-gate",
     matches: { facilitatorUids: 1 },
-    provedBy: ["return (await messageWriterOf(db, user, now)) !== null;"],
+    provedBy: ['if (!isNamedWithStanding(user, "courseGroups.facilitatorUids", group.facilitatorUids)) continue;'],
     // The control runs after the query, as on the course hub: the query only
-    // finds whether any group names the caller, and decides nothing.
+    // finds which groups name the caller, and decides nothing.
     controlAfter: true,
     why:
-      "One `array-contains` query scoped to the caller's own uid, asked only to spare a member who " +
-      "facilitates nothing the term's reads when the menu asks whether to draw Messages. A group " +
-      "naming the caller grants nothing here: the answer is `messageWriterOf`'s, which reads the " +
-      "term and holds every facilitator to their bar with `isNamedWithStanding`.",
+      "One `array-contains` query scoped to the caller's own uid (`ownGroupsQuery`), the one the menu's " +
+      "answer asks (`src/lib/messages/writers.ts`, which once held it): it spares a member who facilitates " +
+      "nothing the term's reads when the menu asks whether to draw Messages, and finds the groups the " +
+      "Facilitating part may list. A group naming the caller grants nothing: Messages is `messageWriterOf`'s " +
+      "answer, from the term, and every group is held to the facilitator's bar with `isNamedWithStanding` " +
+      "before it is listed. The pages it links to ask their own gates again.",
+  },
+  "src/lib/search/load.ts": {
+    role: "not-a-gate",
+    matches: { facilitatorUids: 1 },
+    provedBy: ['isNamedWithStanding(user, "courseGroups.facilitatorUids", group.facilitatorUids),'],
+    // The control runs after the query: the query only finds the groups that might be the caller's.
+    controlAfter: true,
+    why:
+      "Search finds the groups a caller might facilitate with one `array-contains` query scoped to their own " +
+      "uid. A group naming them grants nothing: each is held to the facilitator's bar with " +
+      "`isNamedWithStanding` (and to being live, on a run that is not being destroyed) before it is " +
+      "searched, which is the group page's own gate.",
   },
   "src/app/api/members/roster/route.ts": {
     role: "not-a-gate",

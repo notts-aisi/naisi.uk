@@ -141,6 +141,8 @@ function heldReason(group: string, line: HeldLine): string {
       return `${group} has already had its email about week ${line.weekNumber}`;
     case "nobody":
       return `nobody in ${group} is set up to receive email`;
+    case "had":
+      return `everybody in ${group} has already had week ${line.weekNumber}’s email from another group`;
     case "no-date":
       return `${group} has no dates set, so no reminder can be sent`;
     case "refused":
@@ -159,6 +161,8 @@ function heldFootSentence(group: string, line: HeldLine): string {
       return `${capitalise(group)} has already had its email about week ${line.weekNumber}, so nobody’s emailed.`;
     case "nobody":
       return `Nobody in ${group} is set up to receive email.`;
+    case "had":
+      return `Everybody in ${group} has already had week ${line.weekNumber}’s email from another group, so nobody’s emailed.`;
     case "no-date":
       return `${capitalise(group)} has no dates set, so nobody’s emailed.`;
     case "refused":

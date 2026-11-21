@@ -1,0 +1,370 @@
+/* A programme's Overview, by week: attendance by week across the
+   programme, and one row per group for a chosen week. The table scrolls
+   inside its own card; on a phone it gives way to a list. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 22px 24px 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.sub,
+.muted {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ── Attendance by week ───────────────────────────────────────────────── */
+
+.weeks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.week {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr) 16rem;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.weekQuiet .weekName {
+  color: var(--color-text-body);
+}
+
+.weekName {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.weekName:hover {
+  color: var(--color-accent-text);
+}
+
+.weekWhen {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.weekFigures {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--color-surface-hover);
+}
+
+.segment {
+  display: block;
+  height: 100%;
+}
+
+.room {
+  background: var(--color-accent);
+}
+
+.online {
+  background: var(--color-live);
+}
+
+.excused {
+  background: var(--color-control-border);
+}
+
+.absent {
+  background: var(--color-warning);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--color-text-body);
+}
+
+.legendCount {
+  color: var(--color-text);
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.weekLine {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 15px;
+  color: var(--color-text-body);
+}
+
+.weekQuiet .weekLine {
+  grid-column: 2 / -1;
+  color: var(--color-text-muted);
+}
+
+.weekNote {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/* ── Groups in a week ─────────────────────────────────────────────────── */
+
+.picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pickerLabel {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.pickerSelect {
+  width: auto;
+  min-width: 11rem;
+}
+
+.pickerButton {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.pickerButton:hover {
+  background: var(--color-surface-hover);
+}
+
+.scroll {
+  overflow-x: auto;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.table {
+  width: 100%;
+  min-width: 64rem;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.table thead th {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody th {
+  font-weight: 500;
+}
+
+.groupLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: -12px 0;
+  color: var(--color-accent-text);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.groupLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.weekName:focus-visible,
+.groupLink:focus-visible,
+.listLink:focus-visible,
+.pickerButton:focus-visible,
+.scroll:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.narrow {
+  display: none;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listItem + .listItem {
+  border-top: 1px solid var(--color-border);
+}
+
+.listLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;
+  padding: 12px 0;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.listTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.listName {
+  font-weight: 600;
+  color: var(--color-accent-text);
+}
+
+.listLine {
+  font-size: 14px;
+  color: var(--color-text-body);
+}
+
+.chip {
+  padding: 2px 10px;
+  border: 1px solid var(--color-warning-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .card {
+    padding: 18px 16px 20px;
+  }
+
+  .week {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .weekQuiet .weekLine {
+    grid-column: auto;
+  }
+
+  .head {
+    align-items: stretch;
+  }
+
+  .picker {
+    width: 100%;
+  }
+
+  .pickerSelect {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .wide {
+    display: none;
+  }
+
+  .narrow {
+    display: block;
+  }
+}

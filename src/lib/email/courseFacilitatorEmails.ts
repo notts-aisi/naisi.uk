@@ -12,6 +12,8 @@ import {
   normalizeCourseEnrolment,
   placementIsTold,
   groupForWeek,
+  ownGroupForWeek,
+  type CourseEnrolmentDoc,
   type CourseEnrolmentRole,
 } from "@/lib/firestore/courseEnrolments";
 import {
@@ -412,6 +414,24 @@ export type CohortAudienceScope = {
    * exactly the people in the group now.
    */
   weekNumber?: number | null;
+  /**
+   * With `weekNumber`, for "Week N is open" only: ALSO keep the people who
+   * belong to that group that week (`ownGroupForWeek`) while a one-week visit
+   * takes them to another group's session, so the email of a week can reach
+   * them in their own group's send when no other send has
+   * (`src/lib/courses/nextWeekEmail.ts`). With no visit anywhere these are
+   * nobody, and the audience is exactly the week's.
+   */
+  belongingToo?: boolean;
+  /**
+   * With `groupId`, and in place of `weekNumber`: keep the people whose place
+   * BELONGS to that group (`ownGroupForWeek`) in at least one of these weeks,
+   * so a group's email about its sessions still to come reaches somebody
+   * moving out of it from a later week and somebody moving into it from one,
+   * and never somebody only visiting it for a week
+   * (`src/lib/courses/termRoomsEmail/`). Empty: nobody.
+   */
+  belongingInWeeks?: readonly number[] | null;
 };
 
 /** Hard ceiling per request. Beyond this a send FAILS — see below. */
@@ -754,7 +774,18 @@ export async function resolveNoticeAudience(
   const onlyGroupId = scope.groupId ?? null;
   // A week's group is read off each place, so the read is not narrowed to the
   // group there: somebody whose week is spent in it may be in another now.
-  const forWeek = onlyGroupId && typeof scope.weekNumber === "number" ? scope.weekNumber : null;
+  const belongingWeeks = onlyGroupId && Array.isArray(scope.belongingInWeeks) ? scope.belongingInWeeks : null;
+  const forWeek = onlyGroupId && belongingWeeks === null && typeof scope.weekNumber === "number" ? scope.weekNumber : null;
+  // In scope for a week: due at the group's session that week, or (for the
+  // week's email alone) belonging to the group that week while visiting another.
+  const inWeekScope = (enrolment: CourseEnrolmentDoc, week: number): boolean =>
+    groupForWeek(enrolment, week) === onlyGroupId || (scope.belongingToo === true && ownGroupForWeek(enrolment, week) === onlyGroupId);
+  // In scope for some weeks: belonging to the group in at least one of them.
+  const inWeeksScope = (enrolment: CourseEnrolmentDoc): boolean =>
+    (belongingWeeks ?? []).some((week) => ownGroupForWeek(enrolment, week) === onlyGroupId);
+  /** Whether a place is in the group's scope, however the scope reads it. */
+  const inGroupScope = (enrolment: CourseEnrolmentDoc): boolean =>
+    belongingWeeks !== null ? inWeeksScope(enrolment) : forWeek === null ? enrolment.groupId === onlyGroupId : inWeekScope(enrolment, forWeek);
   const gmailOnly = process.env.EMAIL_GMAIL_ONLY_MODE === "true";
 
   // The run's active places, narrowed to the group when there is one. Equality
@@ -764,16 +795,16 @@ export async function resolveNoticeAudience(
     .collection("courseEnrolments")
     .where("runId", "==", runId)
     .where("status", "==", "active");
-  if (onlyGroupId && forWeek === null) places = places.where("groupId", "==", onlyGroupId);
+  if (onlyGroupId && forWeek === null && belongingWeeks === null) places = places.where("groupId", "==", onlyGroupId);
   const placeSnap = await places.get();
   // The ceiling counts the places IN SCOPE, as it did when the read was the
   // group's: for a week's group, the places whose group that week is this
   // one, so a run with more places than one send carries still sends each
   // group its own email.
   const counted =
-    forWeek === null
+    forWeek === null && belongingWeeks === null
       ? placeSnap.docs.length
-      : placeSnap.docs.filter((doc) => groupForWeek(normalizeCourseEnrolment(doc.id, doc.data() ?? {}), forWeek) === onlyGroupId).length;
+      : placeSnap.docs.filter((doc) => inGroupScope(normalizeCourseEnrolment(doc.id, doc.data() ?? {}))).length;
   if (counted > MAX_NOTICE_ENROLMENT_ROWS) {
     console.error(`[${lane.logTag}] enrolment read exceeds ceiling`, runId, counted);
     return {
@@ -803,7 +834,7 @@ export async function resolveNoticeAudience(
       continue;
     }
     if (!NOTICE_ROLES.includes(enrolment.role)) continue;
-    if (onlyGroupId && (forWeek === null ? enrolment.groupId : groupForWeek(enrolment, forWeek)) !== onlyGroupId) continue;
+    if (onlyGroupId && !inGroupScope(enrolment)) continue;
     if (!placementIsTold(enrolment)) {
       notYetTold += 1;
       continue;

@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import type { FacilitatorGroupModel } from "@/lib/courses/facilitatorGroup";
+import type { FacilitatorGroupModel, GroupVisitorRow } from "@/lib/courses/facilitatorGroup";
 import { boxesReaderFor } from "@/lib/courses/fillInBoxes/access";
 import { resolveCalendar, resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { resolveSessions, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
@@ -20,7 +20,8 @@ import { readRunFeedback } from "@/lib/courses/feedback/readers";
 import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import type { SessionUser } from "@/lib/firebase/session";
-import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { courseEnrolmentId, normalizeCourseEnrolment, placementIsShownTo, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc, type CourseWeekDoc } from "@/lib/firestore/courses";
 import {
@@ -192,6 +193,14 @@ async function readPrivateNotes(
 export type GroupWeekRow = WeekPerson & {
   /** Whether each part's reflection is written, in the order of `parts`. */
   written: boolean[];
+  /**
+   * Somebody from another group at this week's session for one week (a
+   * one-week visit): a row to read, never counted, with no ticks and no
+   * notes, whose reflections are read on THEIR OWN group's copy of the week
+   * (part by part, by number), leading to the reading view of that week
+   * alone. Absent for everybody else.
+   */
+  visiting?: true;
 };
 
 /** One source with who ticked it, and the private notes left on it the viewer reads. */
@@ -285,7 +294,7 @@ export async function loadGroupWeek(
   input: {
     run: CourseRunDoc;
     group: CourseGroupDoc;
-    model: Pick<FacilitatorGroupModel, "people" | "facilitators">;
+    model: Pick<FacilitatorGroupModel, "people" | "facilitators"> & Partial<Pick<FacilitatorGroupModel, "visitors">>;
     viewer: WeekViewer;
     now: Date;
   },
@@ -310,11 +319,15 @@ export async function loadGroupWeek(
     readsPrivateNotes(viewer) ? readPrivateNotes(db, run.id, at.weekNumber, readable, sourceIds) : Promise.resolve(null),
   ]);
 
-  const rows: GroupWeekRow[] = people.map((person) => ({
-    ...person,
-    written: parts.map((part) => partWritten(part, (promptId) => reflections.get(person.uid)?.has(promptId) === true)),
-  }));
-  const fellows = rows.filter((row) => !row.own);
+  const rows: GroupWeekRow[] = [
+    ...people.map((person) => ({
+      ...person,
+      written: parts.map((part) => partWritten(part, (promptId) => reflections.get(person.uid)?.has(promptId) === true)),
+    })),
+    ...(await visitorRowsOf(db, { run, weekNumber: at.weekNumber, parts, visitors: (model.visitors ?? []).filter((each) => each.weekNumber === at.weekNumber && !shown.has(each.uid)), viewer })),
+  ];
+  // The group's fellows: never a facilitator's own row, never a visitor's.
+  const fellows = rows.filter((row) => !row.own && !row.visiting);
   const byUid = new Map(people.map((person) => [person.uid, person]));
 
   return {
@@ -348,6 +361,58 @@ export async function loadGroupWeek(
     ownApart: rows.some((row) => row.own),
     fillIn: fillInOf(week),
   };
+}
+
+/**
+ * THE ROWS OF THE PEOPLE VISITING THIS WEEK'S SESSION FROM ANOTHER GROUP (a
+ * one-week visit), as the group's model lists them to its viewer: whether
+ * each part's reflection is written, on the copy of the week each works in
+ * (`copyGroupIdFor`, their own group's), matched to this group's parts by
+ * number, a part their copy does not have read as not written. Their places by
+ * address, each copy once, and their reflections by one read of the week's
+ * rows. None with no visitor.
+ */
+async function visitorRowsOf(
+  db: Firestore,
+  input: { run: CourseRunDoc; weekNumber: number; parts: ReturnType<typeof reflectionPartsOf>; visitors: readonly GroupVisitorRow[]; viewer: WeekViewer },
+): Promise<GroupWeekRow[]> {
+  const { run, weekNumber, parts, visitors } = input;
+  if (visitors.length === 0) return [];
+  const shownSeats = new Set<string>();
+  const seats = await db.getAll(...visitors.map((visitor) => db.collection("courseEnrolments").doc(courseEnrolmentId(run.id, visitor.uid))));
+  const copies = new Map<string, Promise<ReturnType<typeof reflectionPartsOf>>>();
+  const theirParts = new Map<string, ReturnType<typeof reflectionPartsOf>>();
+  for (const snap of seats) {
+    if (!snap.exists) continue;
+    const seat = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
+    // A place Publish has not told is shown to nobody but an admin (the group's model lists none anyway).
+    if (!placementIsShownTo(seat, { isAdmin: input.viewer === "admin" })) continue;
+    const copy = copyGroupIdFor(seat, weekNumber, seat.groupId) ?? seat.groupId;
+    if (!copy) continue;
+    let read = copies.get(copy);
+    if (!read) {
+      read = blockWeekOf(db, run.id, copy, weekNumber).then((week) => (week ? reflectionPartsOf(week.blocks) : []));
+      copies.set(copy, read);
+    }
+    theirParts.set(seat.uid, await read);
+    shownSeats.add(seat.uid);
+  }
+  const promptIds = new Set([...theirParts.values()].flatMap((each) => each.flatMap((part) => part.prompts.map((prompt) => prompt.id))));
+  const reflections = await readReflections(db, run.id, weekNumber, new Set(visitors.map((visitor) => visitor.uid)), promptIds);
+  return visitors.filter((visitor) => shownSeats.has(visitor.uid)).map((visitor) => {
+    const own = theirParts.get(visitor.uid) ?? [];
+    return {
+      uid: visitor.uid,
+      name: visitor.name,
+      firstName: visitor.name.trim().split(/\s+/)[0] ?? "",
+      own: false,
+      visiting: true as const,
+      written: parts.map((part) => {
+        const theirs = own.find((each) => each.number === part.number);
+        return theirs ? partWritten(theirs, (promptId) => reflections.get(visitor.uid)?.has(promptId) === true) : false;
+      }),
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -603,6 +668,8 @@ export async function readRunCoursework(
         changed:
           takesFeedback &&
           changedSinceFeedback(feedbackVersionsOf(id, onThis, record.feedback, piece), read.savedAt ? read.savedAt.toISOString() : null),
+        // Feedback given before pieces existed, as who and when, never its words: as readable as the reading view shows it.
+        legacy: readable && record.feedback ? { byUid: record.feedback.byUid, sentAt: record.feedback.sentAt } : null,
       });
       const own = wordsOfUid(uid);
       if (own) {

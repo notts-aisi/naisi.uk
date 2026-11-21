@@ -43,6 +43,9 @@ import type { ChangePress } from "@/lib/courses/sessionChange/parse";
 import { REFUSAL, countChangedWords, movesMetWords } from "@/lib/courses/sessionChange/words";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { updateEmailAudience } from "@/lib/courses/updates/audience";
+import { endVisitsIn, sendVisitsOff, visitsEndingWith, visitsOffPreview, type EndingVisit } from "@/lib/courses/visit/hostOff";
+import { rollupAfter } from "@/lib/courses/visit/save";
+import { VISITS_CHANGED_WORDS, visitsOffFailedWords } from "@/lib/courses/visit/words";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
@@ -146,11 +149,18 @@ export type ColumnPress = {
   dateKey: string | null;
   tell: boolean;
   emailCount: number;
+  /**
+   * `did-not-happen`: how many emails the preview said the visits that end
+   * with it take (`visitsOff.emails`; nought when it said none). Checked at
+   * the press against the visits read in its transaction, as Change a
+   * session checks its own.
+   */
+  visitEmails: number;
   /** `did-happen`: how each person was there. */
   lines: Map<string, RegisterLine> | null;
 };
 
-const FIELDS = new Set(["weekNumber", "occurrence", "kind", "reason", "preview", "to", "pace", "dateKey", "tell", "emailCount", "lines"]);
+const FIELDS = new Set(["weekNumber", "occurrence", "kind", "reason", "preview", "to", "pace", "dateKey", "tell", "emailCount", "visitEmails", "lines"]);
 
 /** A session's week and occurrence from a body, or null. */
 function sessionOf(raw: unknown, occurrenceRaw: unknown): { weekNumber: number; occurrence: number } | null {
@@ -199,6 +209,7 @@ export function parseColumnPress(raw: unknown): { ok: true; value: ColumnPress }
   let dateKey: string | null = null;
   let tell = false;
   let emailCount = 0;
+  let visitEmails = 0;
   if (kind === "did-not-happen") {
     if (body.pace !== "keep" && body.pace !== "push") return { ok: false, error: CORRECTION_REFUSAL.pace };
     pace = body.pace;
@@ -213,7 +224,19 @@ export function parseColumnPress(raw: unknown): { ok: true; value: ColumnPress }
       }
       emailCount = body.emailCount;
     }
-  } else if (body.pace !== undefined || body.dateKey !== undefined || body.tell !== undefined || body.emailCount !== undefined) {
+    if (body.visitEmails !== undefined) {
+      if (typeof body.visitEmails !== "number" || !Number.isInteger(body.visitEmails) || body.visitEmails < 0) {
+        return { ok: false, error: CORRECTION_REFUSAL.emailCount };
+      }
+      visitEmails = body.visitEmails;
+    }
+  } else if (
+    body.pace !== undefined ||
+    body.dateKey !== undefined ||
+    body.tell !== undefined ||
+    body.emailCount !== undefined ||
+    body.visitEmails !== undefined
+  ) {
     return { ok: false, error: CORRECTION_REFUSAL.body };
   }
 
@@ -235,7 +258,7 @@ export function parseColumnPress(raw: unknown): { ok: true; value: ColumnPress }
 
   return {
     ok: true,
-    value: { kind, ...session, reason: reason.value, preview, to, pace, dateKey, tell, emailCount, lines },
+    value: { kind, ...session, reason: reason.value, preview, to, pace, dateKey, tell, emailCount, visitEmails, lines },
   };
 }
 
@@ -1000,6 +1023,7 @@ function changePressOf(press: ColumnPress): ChangePress {
     reason: press.reason,
     tell: press.tell,
     emailCount: press.emailCount,
+    visitEmails: press.visitEmails,
   };
 }
 
@@ -1021,6 +1045,11 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
   const naming = await readNamingProgramme(db, run.id);
   const context = { groupName: group.name.trim() || "Untitled group", incubator: naming?.kind === "incubator" };
   const groupRef = db.collection("courseGroups").doc(group.id);
+  // The visits to it that end with it, exactly as Change a session ends them
+  // (`visit/hostOff.ts`): left out of the group's notice, and told by their
+  // own emails instead, whatever Tell the group says.
+  const ending = await visitsEndingWith(db, { run, host: group, weekNumber: press.weekNumber, actorUid: actor.uid, now });
+  const except = new Set(ending.map((visit) => visit.uid));
 
   try {
     // Called off as if nobody had taken it: its lines are cleared in the same write.
@@ -1036,8 +1065,8 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
         sessions.filter((s) => !s.cancelled && s.dateKey).reduce((last, s) => (s.dateKey > last ? s.dateKey : last), "");
       const [facts, told, names, coversEnd] = await Promise.all([
         didNotHappenFacts(db, { run, group, session: first.session, register: snap.data() ?? {} }),
-        // The people of the session's week (`updateEmailAudience`'s week).
-        toldFacts(db, run, group, actor.uid, session.weekNumber),
+        // The people of the session's week (`updateEmailAudience`'s week), but the visitors whose visit ends with it.
+        toldFacts(db, run, group, actor.uid, session.weekNumber, except),
         namesForReader(ctx, Object.keys(register.records)),
         // Whose cover of a later session the press would take off, by the press's own rule.
         coversEndLines(db, laterMovedRegisters(before, after, refs, refSnaps, session.sessionKey)),
@@ -1065,6 +1094,8 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
             told,
             notice: oneWeekNoticeFor(run, first, change, context),
             figures: true,
+            // Visits that end with it, and their emails, whatever the tick says: present only where one does.
+            ...(ending.length ? { visitsOff: visitsOffPreview(ending, "email") } : {}),
             at: iso(now),
           },
         },
@@ -1076,6 +1107,7 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
       const audience = await updateEmailAudience(db, run, [group], "group", group.id, actor.uid, {
         withFacilitators: true,
         weekNumber: session.weekNumber,
+        except,
       });
       if (audience.refused) return refuse(400, REFUSAL.overCap);
       if (audience.recipients.length === 0) return refuse(400, REFUSAL.nobodyToEmail);
@@ -1093,6 +1125,7 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
     clearedNames(db, snap.data() ?? {}),
   ]);
   let outcome: { kind: "cancel" | "push"; newDateKey: string | null; notice: { title: string; message: string } } | null = null;
+  let ended: EndingVisit[] = [];
   const failed = await runInTransaction(ctx, async (tx) => {
     const groupSnap = await tx.get(groupRef);
     if (!groupSnap.exists) throw new ChangeRefusal(REFUSAL.gone, 400);
@@ -1115,6 +1148,16 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
     // before the first write.
     const coversOff = coversOffOf(laterMovedRegisters(before, after, refs, refSnaps, session.sessionKey));
     const holderNames = await coverHolderNames(tx, db, coversOff);
+    // The visits that end with it, as they stand now, the number of their
+    // emails the press was shown, and the limits on them: read before any
+    // write, as Change a session reads them (`visit/hostOff.ts`).
+    const endingNow = await visitsEndingWith(db, { run, host: fresh, weekNumber: press.weekNumber, actorUid: actor.uid, now, tx });
+    const visitEmailsNow = endingNow.reduce((sum, visit) => sum + visit.recipients.length, 0);
+    if (endingNow.map((visit) => visit.uid).sort().join() !== [...except].sort().join() || visitEmailsNow !== press.visitEmails) {
+      throw new ChangeRefusal(VISITS_CHANGED_WORDS, 409, { visitEmails: visitEmailsNow });
+    }
+    const visitsOff = endingNow.length ? await endVisitsIn(tx, db, { run, host: fresh, weekNumber: press.weekNumber, ending: endingNow, actor }) : null;
+    if (visitsOff?.refusal) throw new ChangeRefusal(visitsOff.refusal, 429);
     // Every other session whose start moves keeps it on a register nobody took.
     const moved = after.filter((now_) => {
       if (now_.occurrence !== 1 || now_.sessionKey === session.sessionKey) return false;
@@ -1126,12 +1169,21 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
     const movedRefs = moved.map((each) => registerRef(ctx, each));
     const movedSnaps = movedRefs.length ? await tx.getAll(...movedRefs) : [];
     const lines = linesCalledOff(stored).uids;
+    // Somebody whose visit ends with it is no longer this group's that week:
+    // their figures are rebuilt from their own group's registers, on the
+    // place as it is written (`rollupAfter`, as calling a visit off does).
+    const endedUids = new Set(endingNow.map((visit) => visit.uid));
+    const visitorRollups: Awaited<ReturnType<typeof rollupAfter>> = [];
+    for (const visit of endingNow) {
+      const place = { ...visit.place, visits: (visit.place.visits ?? []).filter((each) => each.weekNumber !== press.weekNumber) };
+      visitorRollups.push(...(await rollupAfter(tx, db, run, visit.home, place, now)));
+    }
     const plan = await readMirrorPlan(tx, db, {
       runId: run.id,
       run,
       groupId: group.id,
       sessions: after,
-      members: mirrorMembers,
+      members: endedUids.size ? mirrorMembers.filter((member) => !endedUids.has(member.uid)) : mirrorMembers,
       overrides: new Map<string, RegisterOverride>([
         [session.sessionKey, { marks: new Map(lines.map((uid) => [uid, null])), unpushed: true }],
       ]),
@@ -1155,6 +1207,8 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
       update[`sessionChanges.${weekId}`] = { kind: "cancelled", ...record };
     }
     tx.update(groupRef, update);
+    visitsOff?.write();
+    ended = endingNow;
     moved.forEach((each, index) => {
       const movedSnap = movedSnaps[index];
       const startsAt = startsAtOf(each);
@@ -1193,7 +1247,7 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
       },
       { merge: true },
     );
-    for (const write of plan.writes) tx.set(write.ref, { attendance: write.rollup }, { merge: true });
+    for (const write of [...plan.writes, ...visitorRollups]) tx.set(write.ref, { attendance: write.rollup }, { merge: true });
     tx.set(
       db.collection(COURSE_AUDIT_COLLECTION).doc(),
       {
@@ -1221,6 +1275,8 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
   if (failed) return failed;
   // A session that did not happen has no register left to finish.
   await closeCalledOffFollowUp(db, { runId: run.id, groupId: group.id, sessionKey: session.sessionKey });
+  // The visits that ended with it: their emails, after the commit, a failed one counted and said.
+  const visitsSent = ended.length ? await sendVisitsOff({ run, host: group, weekNumber: press.weekNumber, ending: ended, actorUid: actor.uid }) : null;
   const done = outcome as { kind: "cancel" | "push"; newDateKey: string | null; notice: { title: string; message: string } } | null;
   return {
     status: 200,
@@ -1232,6 +1288,9 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
         press.tell && done
           ? { groupId: group.id, ...done.notice, emailCount: press.emailCount, withFacilitators: true as const }
           : null,
+      ...(visitsSent
+        ? { visitsOff: { people: ended.length, sent: visitsSent.sent, failed: visitsSent.failed, words: visitsSent.failed > 0 ? visitsOffFailedWords(visitsSent.failed) : null } }
+        : {}),
     },
   };
 }

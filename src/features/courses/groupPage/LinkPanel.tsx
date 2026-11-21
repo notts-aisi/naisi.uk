@@ -5,13 +5,15 @@ import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useHydrated } from "@/hooks/useHydrated";
 import { UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
-import type { GroupPageView } from "@/lib/courses/groupPage/model";
+import { linkChoiceFacts, type GroupPageView } from "@/lib/courses/groupPage/model";
 import * as W from "@/lib/courses/groupPage/words";
 import styles from "./GroupPage.module.css";
 
 /**
- * SET THE LINK: a meeting link for one week, or for every week from the
- * next session on, saved through the group's meeting link route
+ * SET THE LINK: a meeting link for one week ("Week 3 only", the default), or
+ * from that week on ("Week 3 onwards": the every-week link from then, each
+ * earlier week keeping the link it had, a later week with a link of its own
+ * keeping it), saved through the group's meeting link route
  * (`POST /api/courses/groups/[groupId]/meeting-link`, which admits the
  * group's facilitators, the programme's lead, the run's track leads and
  * admins, and asks again). Nobody is emailed: the link is on the programme
@@ -25,7 +27,7 @@ export default function LinkPanel({
   onDone,
 }: {
   view: GroupPageView;
-  /** The week it is for, or null for every week from the next session on. */
+  /** The week it is for, or null for the next session still to end. */
   week: { weekNumber: number; sessionKey: string } | null;
   onClose: () => void;
   onDone: (said: string) => void;
@@ -34,7 +36,9 @@ export default function LinkPanel({
   const hydrated = useHydrated();
   const target = week ?? (view.linkSessionKey && view.linkWeekNumber !== null ? { weekNumber: view.linkWeekNumber, sessionKey: view.linkSessionKey } : null);
   const [url, setUrl] = useState("");
-  const [everyWeek, setEveryWeek] = useState(week === null);
+  // That week only is the default; "onwards" is a choice made on purpose.
+  const [everyWeek, setEveryWeek] = useState(false);
+  const facts = target ? linkChoiceFacts(view.weeks, target.weekNumber) : null;
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const off = !hydrated || busy;
@@ -63,7 +67,7 @@ export default function LinkPanel({
       setProblem(typeof body?.error === "string" ? body.error : UNKNOWN_OUTCOME);
       return;
     }
-    onDone(W.linkSavedWords(target.weekNumber, everyWeek));
+    onDone(W.linkSavedWords(target.weekNumber, everyWeek, everyWeek ? (facts?.laterOwn ?? []) : []));
   }
 
   const titleId = `${ids}-title`;
@@ -113,7 +117,14 @@ export default function LinkPanel({
                   className={styles.radio}
                 />
                 <span className={styles.optionText}>
-                  <span className={styles.optionName}>{every ? W.EVERY_WEEK : W.weekOnlyWords(target.weekNumber)}</span>
+                  <span className={styles.optionName}>{every ? W.weekOnwardsWords(target.weekNumber) : W.weekOnlyWords(target.weekNumber)}</span>
+                  {facts && (
+                    <span className={styles.optionHint}>
+                      {every
+                        ? W.onwardsHintWords(target.weekNumber, facts.earlier, view.meets.hasLink, facts.laterOwn)
+                        : W.onlyHintWords(facts.laterOnEvery)}
+                    </span>
+                  )}
                 </span>
               </label>
             ))}

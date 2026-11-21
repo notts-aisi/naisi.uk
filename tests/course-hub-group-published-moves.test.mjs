@@ -73,6 +73,13 @@ beforeEach(() => {
 const seatOf = (uid) => enrolments.normalizeCourseEnrolment(`${RUN.agi}__${uid}`, world.db.read(enrolmentPath(uid)));
 const addressOf = (uid) => world.db.read(`users/${uid}`).email;
 const HOLDERS = ["amara", "dev", "bea", "tariq"];
+/**
+ * Before the run's first session (Mon 26 Oct 2026): a move on the board then
+ * is for every week, as it always was. A move made once a session has started
+ * keeps the weeks already met (`tests/course-board-move.test.mjs`), so the
+ * moves below are made on this clock, never on the day the suite runs.
+ */
+const BEFORE_TERM = new Date("2026-10-20T12:00:00Z");
 const GROUPS = [GROUP.monday, GROUP.thursday, GROUP.unset];
 
 // ---------------------------------------------------------------------------
@@ -129,7 +136,8 @@ describe("1. the tree: the stamp and the group it was about are cleared and writ
 // ---------------------------------------------------------------------------
 
 describe("2. a told seat stays told through every move, and is shown where it is", () => {
-  test("each person a press told, moved into each other group, then out of every group, then back", async () => {
+  test("each person a press told, moved into each other group, then out of every group, then back", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_TERM });
     await steps.published();
     for (const who of HOLDERS) {
       const toldAbout = seatOf(who).groupId;
@@ -161,7 +169,8 @@ describe("2. a told seat stays told through every move, and is shown where it is
 // ---------------------------------------------------------------------------
 
 describe("3. what a press owes is worked out from where they are and what they were told", () => {
-  test("a seat told before the group was kept has the group it leaves written by its first move", async () => {
+  test("a seat told before the group was kept has the group it leaves written by its first move", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_TERM });
     await steps.published();
     // As a seat Publish told before this was kept: no group written beside the stamp.
     const path = enrolmentPath("amara");
@@ -179,7 +188,8 @@ describe("3. what a press owes is worked out from where they are and what they w
     assert.equal(seatOf("amara").toldGroupId, GROUP.thursday);
   });
 
-  test("a move of a seat nobody has told keeps it untold, and Publish sends its first email about where it is", async () => {
+  test("a move of a seat nobody has told keeps it untold, and Publish sends its first email about where it is", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_TERM });
     await steps.placed();
     await steps.place([{ uid: "amara", groupId: GROUP.monday }]);
     assert.equal(enrolments.placementIsTold(seatOf("amara")), false);
@@ -198,7 +208,8 @@ describe("3. what a press owes is worked out from where they are and what they w
 // ---------------------------------------------------------------------------
 
 describe("4. Publish never sends its first email to a told seat", () => {
-  test("not to one told by its stamp and moved, and not to one told because they chose it", async () => {
+  test("not to one told by its stamp and moved, and not to one told because they chose it", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_TERM });
     await steps.placed();
     // Amara took her seat for herself: it is told by her choice, with no stamp.
     world.db.poke(enrolmentPath("amara"), { selfEnrolled: true });
@@ -227,9 +238,13 @@ describe("4. Publish never sends its first email to a told seat", () => {
     assert.match(words, /You’ll meet on Mondays at 6pm in Room B12, from Mon 2 Nov\./);
     assert.ok(!words.includes("26 Oct"), "the email names a first session gone by");
     // Once the run's last session is behind it, no session is named at all.
-    t.mock.timers.setTime(new Date("2026-11-10T12:00:00Z").getTime());
-    await steps.place([{ uid: "amara", groupId: GROUP.thursday }]);
+    // Dev, moved on Wed 28 Oct after Monday's week 1 (a move made mid-term):
+    // from week 2, so the only Thursday session that is Dev's is Thu 5 Nov.
+    // A move on the board once the run is over has no week to be from, and
+    // is refused; so the move is made now and Publish pressed after the end.
     await steps.place([{ uid: "dev", groupId: GROUP.thursday }]);
+    assert.deepEqual(seatOf("dev").groupsByWeek, [{ groupId: GROUP.monday, fromWeek: 1 }, { groupId: GROUP.thursday, fromWeek: 2 }]);
+    t.mock.timers.setTime(new Date("2026-11-10T12:00:00Z").getTime());
     world.mail.length = 0;
     await steps.publishes();
     const late = world.mail.find((mail) => mail.to === addressOf("dev"));

@@ -283,6 +283,16 @@ export function firstSessionEyebrow(tomorrow: boolean, weekNumbers: readonly num
 /** The ticket's way to the group's page, before the first session. */
 export const OPEN_YOUR_GROUP = "Open your group";
 
+/**
+ * "Open Group C": the way to a group's page by its name, on Home from the
+ * first session on and after the last, and on the programme page's card for
+ * a group somebody facilitates.
+ */
+export function openGroupWords(groupName: string): string {
+  const name = groupName.trim();
+  return name ? `Open ${name}` : OPEN_YOUR_GROUP;
+}
+
 export const WHOS_COMING = "Who’s coming";
 
 /**

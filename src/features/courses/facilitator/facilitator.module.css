@@ -25,6 +25,17 @@
   container-name: facilitator;
 }
 
+/* Everything under the head, in the one order a facilitator uses it: the
+   session, then a block of two columns (who is coming on the left, the
+   week, the updates and how the group meets on the right), the review
+   queue, This week's work, and the group beside the pace and the notes. */
+.groupRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
 /* 44px to press, its margins giving the extra height back to the head. */
 .crumb {
   display: inline-flex;
@@ -422,6 +433,24 @@
   color: var(--color-text);
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* A name that opens the person's page, for the group's facilitator. */
+.personLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-decoration: none;
+}
+
+.personLink:hover {
+  color: var(--color-accent-text-hover);
+  text-decoration: underline;
+}
+
+.personLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
 }
 
 .personNameLeft {
@@ -902,6 +931,16 @@
   min-width: 0;
 }
 
+/* The facilitator guide above the register's table: the week's link, or the
+   sentence in its place, and the guide's course page. */
+.registerGuide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 18px;
+  min-width: 0;
+}
+
 /* === Home === */
 
 /* Home's ticket heading, "Group B, 6pm", at the board's 24px: two classes
@@ -997,6 +1036,45 @@
   align-items: center;
   gap: 0 18px;
   margin: -6px 0 4px;
+}
+
+/* The guide's sentence where a link would be ("Week 3’s plan isn’t in the
+   guide yet. Maya or an admin loads it."), on Home's This week card, on the
+   group page's ticket and on the register: a line of its own in the row of
+   links. */
+.guideSentence {
+  flex: 1 1 100%;
+  margin: 0;
+  padding: 4px 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+/* "Open Group C" under Home's register button. A group's name can be 80
+   characters, so the link wraps rather than running off a phone: two
+   classes deep, so it outranks the text link's own nowrap. */
+.homeOpenGroup {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.homeOpenGroup > a,
+.groupLinkWraps > a {
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.homeOpenGroup > a {
+  text-align: center;
+}
+
+/* The same link in Home's card once no session is ahead, left aligned. */
+.groupLinkWraps {
+  min-width: 0;
 }
 
 .weekRow {
@@ -2117,9 +2195,16 @@
 }
 
 /* === The group page in one column, as the phone board draws it ===
-   The two columns stack, the main one first: the ticket, the group and the
-   registers, then the work to review, the updates, the pace and the notes. */
+   Each block of two columns stacks, the main one first, so the page reads in
+   its markup's order: the session; who is joining online, Before the
+   session, the pathways and the pairs; who has done the week, the updates
+   and how the group meets with its meeting links; the review queue; This
+   week's work; the group and the registers; the pace and the notes. */
 @container facilitator (max-width: 51.24rem) {
+  .groupRows {
+    gap: var(--space-4);
+  }
+
   .columns {
     flex-direction: column;
     align-items: stretch;
@@ -2164,18 +2249,26 @@
     text-align: left;
   }
 
+  /* One column, never two: a child that asks for a whole row (the guide's
+     sentence) would otherwise start a second column beside the buttons,
+     where the card cuts it off with every button after it. */
   .ticketButtons {
     flex-direction: column;
+    flex-wrap: nowrap;
     align-items: stretch;
   }
 
   .ticketButtons > * {
     justify-content: center;
   }
+
+  .ticketButtons > .guideSentence {
+    flex: 0 0 auto;
+  }
 }
 
-/* === The spread: "Pathways in Group B", drawn by
-   src/features/courses/packsAndCases/PathwaySpread.tsx === */
+/* === The spread's tiles and links, which the pairs card and the pairs page
+   draw each pair with (src/features/courses/pairs/) === */
 
 .spreadTiles {
   list-style: none;
@@ -2350,6 +2443,157 @@
   clear: both;
   min-width: 0;
   padding-left: calc(4.5rem + 10px);
+}
+
+/* === The pathways and cases card on the group page, and the rows that point
+   to it at the session that hands the slips out (the register, Home and the
+   guide's week), drawn by src/features/courses/groupPage/DrawCard.tsx and
+   src/features/courses/register/HandOutRow.tsx. One column at every width:
+   nothing in it sits in a row that turns into a column. === */
+
+.drawCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Pinned under the session card, from the start of the hand-out session
+   until everybody has theirs. */
+.drawCardPinned {
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-soft);
+}
+
+.drawCardMeta {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.drawCardLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.drawCardSaid {
+  color: var(--color-text);
+}
+
+.drawCardButton {
+  width: 100%;
+  white-space: normal;
+  text-align: center;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.drawRows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.drawRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 0;
+}
+
+.drawRow + .drawRow {
+  border-top: 1px solid var(--color-border);
+}
+
+.drawRowName {
+  font-size: var(--text-base);
+  line-height: 1.45;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.drawRowPeople {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.drawLinkRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.drawLinkRow:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.drawLinkText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.drawLinkTitle {
+  font-size: var(--text-base);
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.drawLinkSub {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.drawLinkChevron {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+/* The register's row: the words, and the way to the page beside them, which
+   wraps under them when the two do not fit; the button never asks for the
+   whole row. */
+.handOutRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  margin-top: var(--space-4);
+}
+
+.handOutText {
+  flex: 1 1 8.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.handOutAction {
+  flex: none;
+  max-width: 100%;
 }
 
 /* === Mobile === */

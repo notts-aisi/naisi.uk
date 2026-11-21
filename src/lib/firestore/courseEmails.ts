@@ -326,6 +326,28 @@ function h(text: string, level: 2 | 3 = 2): Block {
   return { id: newBlockId(), type: "heading", text, level };
 }
 
+/** The facilitators' button to their group page, the first paragraph after the size in the seed copy of "You’re facilitating". */
+export const FACILITATING_GROUP_BUTTON_HTML =
+  '<p><a href="{groupUrl}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#6a82ff;color:#050810;font-weight:600;text-decoration:none">Open your group</a></p>';
+
+/**
+ * The facilitators' button to their course's facilitator guide, in a
+ * paragraph of its own after "Open your group" in the seed copy of "You’re
+ * facilitating" (added November 2026). `{guideUrl}` and `{guideButton}` are
+ * OPTIONAL: with no guide to link to the paragraph is left out and the email
+ * goes, so Publish is never refused for want of it.
+ *
+ * Exported because Publish's test of the wording leaves this paragraph out
+ * of what it compares, once and only where the seed has it, straight after
+ * `FACILITATING_GROUP_BUTTON_HTML` (`wordingFingerprint` in
+ * `src/lib/courses/allocationPublish.ts`): adding it to the seed must not
+ * ask anybody to send a test again before a re-publish. Change these words
+ * and a test sent before them still counts, so keep them a link and nothing
+ * more.
+ */
+export const FACILITATING_GUIDE_BUTTON_HTML =
+  '<p><a href="{guideUrl}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#6a82ff;color:#050810;font-weight:600;text-decoration:none">{guideButton}</a></p>';
+
 /**
  * Seed copy for each template. Admins can fully rewrite these in the editor;
  * they exist so a fresh deploy has something sensible to send before anyone
@@ -490,7 +512,15 @@ export const courseTemplateDefaults: Record<
    *    and week 1 of the course's facilitator guide has its session plan or
    *    its notes (Publish's plan asks).
    *
-   * The button is a link styled as one, in the colours of the decision-day
+   *  - `{guideUrl}` and `{guideButton}` are the second button's address and
+   *    words, to the course's facilitator guide: "Facilitator guide for
+   *    week 1" to week 1's page of the guide when `{namesOnPage}` says week
+   *    1's guide is on the group page, "Facilitator guide" to the guide's
+   *    front page otherwise. Optional, in a paragraph of their own
+   *    (`FACILITATING_GUIDE_BUTTON_HTML`), so a run with no course to link to
+   *    loses the button and nothing else.
+   *
+   * Each button is a link styled as one, in the colours of the decision-day
    * emails' main button. No meeting link is ever filled in: an online group
    * is told the link is on the group page.
    */
@@ -502,7 +532,8 @@ export const courseTemplateDefaults: Record<
         "<p>Hi {firstName},</p>" +
           "<p>{groupName} meets on {weeklySlot} {place}, from {firstSession} to {lastSession}. {placeNote} {facilitatingWith}</p>" +
           "<p>{groupSize} {namesOnPage}</p>" +
-          '<p><a href="{groupUrl}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#6a82ff;color:#050810;font-weight:600;text-decoration:none">Open your group</a></p>' +
+          FACILITATING_GROUP_BUTTON_HTML +
+          FACILITATING_GUIDE_BUTTON_HTML +
           "<p>Take the register on your phone during the session.</p>" +
           '<p>{leadName}<br /><span style="color:#71717a">{programmeName} lead, NAISI</span></p>' +
           "<p>{naisiSignOff}</p>",

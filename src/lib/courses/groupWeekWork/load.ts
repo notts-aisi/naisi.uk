@@ -7,13 +7,16 @@ import { coveredWeeks } from "@/lib/courses/sessionChange/model";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
-import { WEEK_REMINDER_DAYS, weekEmailSendAt, weekLeft, type WeekLeft } from "@/lib/courses/weekEmails/model";
+import { WEEK_REMINDER_DAYS, nothingLeftButSlips, weekEmailSendAt, weekLeft, type WeekLeft } from "@/lib/courses/weekEmails/model";
 import { weekDone, weekWritingNeeds, workIsClosed, type WeekDue } from "@/lib/courses/weekWork/model";
-import { loadPeopleWeekFacts, loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
+import { waitingOf, type WaitingPart } from "@/lib/courses/weekWork/waiting";
+import { waitingCountWords } from "@/lib/courses/weekWork/waitingWords";
+import { loadPeopleWeekFacts, loadRunWeekStates, readWeekRows, type RunWeekStates } from "@/lib/courses/weekWork/readers";
 import { facilitatingOnRunOf, liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import { resolveNoticeAudience } from "@/lib/email/courseFacilitatorEmails";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import {
   HAND_REMINDERS_COLLECTION,
   HAND_REMINDER_KIND,
@@ -98,6 +101,8 @@ export type GroupWeekRead = {
    * and never somebody Remind reaches.
    */
   runFacilitatorUids: ReadonlySet<string>;
+  /** This group's own facilitators: the people "waiting for a case from you" is said to. */
+  groupFacilitatorUids: readonly string[];
   /**
    * Whether the person's week is this group's: for somebody whose place
    * records a move mid-term, the group their place belonged to in this week
@@ -106,6 +111,22 @@ export type GroupWeekRead = {
    * Remind's people, and somebody moved out of it is not in the group now.
    */
   belongs: (uid: string) => boolean;
+  /**
+   * The week as somebody asked about reads it when the copy they work in is
+   * not this group's (`RunWeekStates.copyGroupOf`): a visitor here for one
+   * week is judged on their own group's copy, never on this group's. Only
+   * such people are in it, so with no visit and no record it is empty.
+   */
+  copies: Map<string, WeekCopyRead>;
+};
+
+/** One copy of the week, read for the people who work in it. */
+export type WeekCopyRead = {
+  tasks: TaskNeeds[];
+  asks: TaskNeeds;
+  pieces: WeekPiece[];
+  blocks: WeekBlock[];
+  facts: Map<string, PersonFacts>;
 };
 
 /** Why a week cannot be read for its card or reminded about. */
@@ -132,53 +153,217 @@ export async function readGroupWeek(
   if (!week || !isBlockWeek(week)) return { ok: false, why: "notBlocks" };
   if (!week.published) return { ok: false, why: "unpublished" };
   const blocks = week.blocks as WeekBlock[];
-  const tasks = weekTaskNeeds(blocks);
-  const asks = weekWritingNeeds(blocks);
   const uids = [...new Set(input.uids.filter(Boolean))];
   const [states, facts] = await Promise.all([
     loadRunWeekStates(db, { run, liveGroups, now }),
     loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks, uids }),
   ]);
+  const copies = await visitorCopiesOf(db, { runId: run.id, group, weekNumber, weekId, states, uids });
+  return { ok: true, read: groupWeekReadOf({ group, weekNumber, weekId, blocks, sessions, own, liveGroups, states, facts, now, copies }) };
+}
+
+/**
+ * Anybody here whose copy of the week is another group's (a visitor for one
+ * week): that copy, read once a copy, and their facts on it. Nobody's with no
+ * visit anywhere, so then nothing is read.
+ */
+async function visitorCopiesOf(
+  db: Firestore,
+  input: { runId: string; group: CourseGroupDoc; weekNumber: number; weekId: string; states: RunWeekStates; uids: readonly string[] },
+): Promise<Map<string, WeekCopyRead>> {
+  const { runId, group, weekNumber, weekId, states } = input;
+  const byCopy = new Map<string, string[]>();
+  for (const uid of input.uids) {
+    const copy = states.copyGroupOf(uid, weekNumber, group.id);
+    if (copy !== group.id) byCopy.set(copy, [...(byCopy.get(copy) ?? []), uid]);
+  }
+  const copies = new Map<string, WeekCopyRead>();
+  for (const [copy, people] of byCopy) {
+    const { week: theirs } = await resolveWeekDoc(db, runId, copy, weekId);
+    if (!theirs || !isBlockWeek(theirs) || !theirs.published) continue;
+    const theirBlocks = theirs.blocks as WeekBlock[];
+    const theirTasks = weekTaskNeeds(theirBlocks);
+    const theirAsks = weekWritingNeeds(theirBlocks);
+    const theirFacts = await loadPeopleWeekFacts(db, { runId, weekNumber, blocks: theirBlocks, uids: people });
+    const read: WeekCopyRead = {
+      blocks: theirBlocks,
+      tasks: theirTasks,
+      asks: theirAsks,
+      pieces: weekPiecesOf(theirBlocks, theirTasks, theirAsks),
+      facts: new Map([...theirFacts].map(([uid, each]) => [uid, each as PersonFacts])),
+    };
+    for (const uid of people) copies.set(uid, read);
+  }
+  return copies;
+}
+
+/** One group's week, put together from what was read for it: the one shape both readers below hand back. */
+function groupWeekReadOf(input: {
+  group: CourseGroupDoc;
+  weekNumber: number;
+  weekId: string;
+  blocks: WeekBlock[];
+  sessions: ResolvedSession[];
+  own: ResolvedSession | null;
+  liveGroups: readonly CourseGroupDoc[];
+  states: RunWeekStates;
+  facts: ReadonlyMap<string, unknown>;
+  now: Date;
+  /** A visitor's own copy of the week, by uid (`visitorCopiesOf`). */
+  copies: Map<string, WeekCopyRead>;
+}): GroupWeekRead {
+  const { group, weekNumber, weekId, blocks, sessions, own, liveGroups, states, facts, now, copies } = input;
+  const tasks = weekTaskNeeds(blocks);
+  const asks = weekWritingNeeds(blocks);
   return {
-    ok: true,
-    read: {
-      weekNumber,
-      weekId,
-      blocks,
-      tasks,
-      asks,
-      pieces: weekPiecesOf(blocks, tasks, asks),
-      states,
-      closed: workIsClosed(states.closesAt, now),
-      sessions,
-      session: own,
-      sessionAt: own ? sessionInstants(own).startsAt : null,
-      facts: new Map([...facts].map(([uid, each]) => [uid, each as PersonFacts])),
-      runFacilitatorUids: facilitatingOnRunOf(group, liveGroups),
-      belongs: (uid) => states.belongsTo(uid, group.id, weekNumber),
-    },
+    weekNumber,
+    weekId,
+    blocks,
+    tasks,
+    asks,
+    pieces: weekPiecesOf(blocks, tasks, asks),
+    states,
+    closed: workIsClosed(states.closesAt, now),
+    sessions,
+    session: own,
+    sessionAt: own ? sessionInstants(own).startsAt : null,
+    facts: new Map([...facts].map(([uid, each]) => [uid, each as PersonFacts])),
+    runFacilitatorUids: facilitatingOnRunOf(group, liveGroups),
+    groupFacilitatorUids: [...group.facilitatorUids],
+    belongs: (uid) => states.belongsTo(uid, group.id, weekNumber),
+    copies,
   };
 }
 
-/** One person's facts on the week, or nothing done. */
-function factsOf(read: GroupWeekRead, uid: string): PersonFacts {
-  return read.facts.get(uid) ?? NOTHING_DONE;
+/**
+ * ONE WEEK OF SEVERAL GROUPS OF A RUN, each read exactly as `readGroupWeek`
+ * reads it for that group's page, with what is the same for every group
+ * read once: the run's live groups and places (handed in when the caller
+ * has read them already), where everybody's weeks stand, and the week's
+ * answers and ticks, asked once and split by copy of the week (the run's
+ * own, or a group's). A programme's Overview asks it for the week it shows,
+ * so its counts are the group pages' own.
+ *
+ * Bounded: the run's groups and places unless handed in (one equality each),
+ * its stored weeks (one equality), each group's copy of the week (two reads
+ * a group), the run's answers and ticks for the week once (two equalities,
+ * projected), and each person's pack records by id, per copy of the week.
+ */
+export async function readGroupsWeek(
+  db: Firestore,
+  input: {
+    run: CourseRunDoc;
+    groups: readonly CourseGroupDoc[];
+    weekNumber: number;
+    /** The people asked about in each group, by the group's id. */
+    uidsOf: (groupId: string) => readonly string[];
+    now: Date;
+    /** The run's live groups and its places, when the caller has read them already: not read again. */
+    liveGroups?: readonly CourseGroupDoc[] | null;
+    enrolments?: readonly CourseEnrolmentDoc[] | null;
+  },
+): Promise<Map<string, { ok: true; read: GroupWeekRead } | { ok: false; why: WeekNotRead }>> {
+  const { run, groups, weekNumber, now } = input;
+  const out = new Map<string, { ok: true; read: GroupWeekRead } | { ok: false; why: WeekNotRead }>();
+  if (groups.length === 0 || !Number.isInteger(weekNumber) || weekNumber < 1) {
+    for (const group of groups) out.set(group.id, { ok: false, why: "week" });
+    return out;
+  }
+  const weekId = weekDocId(weekNumber);
+  const [liveGroups, resolved] = await Promise.all([
+    input.liveGroups ? Promise.resolve(input.liveGroups) : liveGroupsOf(db, run.id),
+    Promise.all(groups.map((group) => resolveWeekDoc(db, run.id, group.id, weekId))),
+  ]);
+  const states = await loadRunWeekStates(db, { run, liveGroups, enrolments: input.enrolments ?? null, now });
+
+  // Which copy each group reads, and everybody reading each copy.
+  type Ready = { group: CourseGroupDoc; sessions: ResolvedSession[]; own: ResolvedSession | null; blocks: WeekBlock[]; copy: string };
+  const ready: Ready[] = [];
+  const copies = new Map<string, { blocks: WeekBlock[]; uids: Set<string> }>();
+  groups.forEach((group, index) => {
+    const sessions = resolveSessions(run, group);
+    if (!sessions.some((session) => session.weekNumber === weekNumber)) {
+      out.set(group.id, { ok: false, why: "week" });
+      return;
+    }
+    const { week, source } = resolved[index];
+    if (!week || !isBlockWeek(week)) {
+      out.set(group.id, { ok: false, why: "notBlocks" });
+      return;
+    }
+    if (!week.published) {
+      out.set(group.id, { ok: false, why: "unpublished" });
+      return;
+    }
+    const blocks = week.blocks as WeekBlock[];
+    const copy = source === "group" ? `group:${group.id}` : "run";
+    const own = sessions.find((session) => session.weekNumber === weekNumber && session.occurrence === 1) ?? null;
+    ready.push({ group, sessions, own, blocks, copy });
+    const entry = copies.get(copy) ?? { blocks, uids: new Set<string>() };
+    for (const uid of input.uidsOf(group.id)) if (uid) entry.uids.add(uid);
+    copies.set(copy, entry);
+  });
+  // The week's answers and ticks once, whatever the number of copies; each copy then reads its people's.
+  const read = copies.size > 0 ? await readWeekRows(db, run.id, weekNumber) : null;
+  const factsByCopy = new Map(
+    await Promise.all(
+      [...copies].map(
+        async ([copy, { blocks, uids }]) =>
+          [copy, await loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks, uids: [...uids], read })] as const,
+      ),
+    ),
+  );
+  for (const { group, sessions, own, blocks, copy } of ready) {
+    const facts = factsByCopy.get(copy) ?? new Map();
+    const copies = await visitorCopiesOf(db, { runId: run.id, group, weekNumber, weekId, states, uids: input.uidsOf(group.id) });
+    out.set(group.id, {
+      ok: true,
+      read: groupWeekReadOf({ group, weekNumber, weekId, blocks, sessions, own, liveGroups, states, facts, now, copies }),
+    });
+  }
+  return out;
 }
 
-/** Whether one person's week is done, by the one meaning. */
+/** The copy of the week one person is judged on: their own when it is another group's, else the group's. */
+function copyOf(read: GroupWeekRead, uid: string): WeekCopyRead {
+  return read.copies?.get(uid) ?? read;
+}
+
+/** One person's facts on the week, on the copy they work in, or nothing done. */
+function factsOf(read: GroupWeekRead, uid: string): PersonFacts {
+  return copyOf(read, uid).facts.get(uid) ?? NOTHING_DONE;
+}
+
+/** Whether one person's week is done, by the one meaning, on the copy they work in. */
 export function isWeekDone(read: GroupWeekRead, uid: string): boolean {
   const facts = factsOf(read, uid);
+  const copy = copyOf(read, uid);
   return weekDone({
-    tasks: read.tasks,
+    tasks: copy.tasks,
     state: facts.state,
     submitted: read.states.submittedOf(uid, read.weekNumber) !== null,
-    asks: read.asks,
+    asks: copy.asks,
   });
 }
 
-/** What is left of one person's week, as the automatic reminders list it. */
+/** The parts of one person's week that wait on the facilitator's slip (`waitingOf`), on the copy they work in. */
+export function waitingOfPerson(read: GroupWeekRead, uid: string): WaitingPart[] {
+  return waitingOf(copyOf(read, uid).blocks, factsOf(read, uid).state);
+}
+
+/**
+ * Whether a part of one person's week waits on the facilitator's slip and
+ * nothing else is on the list Remind's email would print (`nothingLeftButSlips`),
+ * on the copy they work in: Remind does not reach them about the week.
+ */
+export function nothingLeftButSlipsOf(read: GroupWeekRead, uid: string): boolean {
+  return nothingLeftButSlips(leftOf(read, uid), waitingOfPerson(read, uid));
+}
+
+/** What is left of one person's week, as the automatic reminders list it, on the copy they work in. */
 export function leftOf(read: GroupWeekRead, uid: string): WeekLeft {
-  return weekLeft({ blocks: read.blocks, tasks: read.tasks, state: factsOf(read, uid).state });
+  const copy = copyOf(read, uid);
+  return weekLeft({ blocks: copy.blocks, tasks: copy.tasks, state: factsOf(read, uid).state });
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +475,8 @@ export type RemindPerson = {
  * about is the group's (`read.belongs`), each held to
  * `notRemindedBecause` (never the presser, never anybody who facilitates a
  * live group of the run, this one or another, never somebody whose week is
- * done or who joined it late, nobody once the programme has closed),
+ * done, or with a part waiting on the facilitator's slip and nothing else
+ * on their list, or who joined it late, nobody once the programme has closed),
  * narrowed to one person when asked. The preview's count and the press's
  * are this one function's. The page's button counts the same rule from its
  * rows (`remindableOf`) and reads no address: the preview says who an
@@ -338,6 +524,7 @@ export function remindableOf(read: GroupWeekRead, person: { uid: string; told: b
       facilitatorUids: [...read.runFacilitatorUids],
       told: person.told,
       weekDone: isWeekDone(read, person.uid),
+      nothingLeftButSlips: nothingLeftButSlipsOf(read, person.uid),
       due: read.states.dueOf(person.uid, read.weekNumber),
       closed: read.closed,
     }) === null
@@ -415,6 +602,13 @@ export function groupWeekWorkView(
     viewerUid: string;
     /** The group's people holding a place, named as the page names them, and whether Publish has told them. */
     people: ReadonlyArray<{ uid: string; name: string; firstName: string; told: boolean }>;
+    /**
+     * Somebody from another group at the week's session for one week (a
+     * one-week visit): a row of their own, marked as visiting, whose week its
+     * facilitators read through the row; never reached by this group's
+     * Remind, which is their own group's to press. Empty or absent with none.
+     */
+    visitors?: ReadonlyArray<{ uid: string; name: string; firstName: string }>;
     /** The programme's lead and admins: a facilitator's own week is theirs to read. */
     readsOwnWork: boolean;
     /**
@@ -445,17 +639,22 @@ export function groupWeekWorkView(
       ]
     : [];
 
+  // Each person on the copy they work in: a visitor's cells are their own copy's pieces, by kind.
   const stateOf = (uid: string) =>
     personWeekStateOf({
-      tasks: read.tasks,
-      asks: read.asks,
-      pieces: read.pieces,
+      tasks: copyOf(read, uid).tasks,
+      asks: copyOf(read, uid).asks,
+      pieces: copyOf(read, uid).pieces,
       facts: factsOf(read, uid),
       submittedAt: read.states.submittedOf(uid, weekNumber),
       due: read.states.dueOf(uid, weekNumber),
+      waiting: waitingOfPerson(read, uid),
     });
 
-  const rows: WorkRow[] = fellows.map((person) => {
+  const rows: WorkRow[] = [
+    ...fellows.map((person) => ({ ...person, visiting: false })),
+    ...(input.visitors ?? []).filter((person) => !fellows.some((fellow) => fellow.uid === person.uid)).map((person) => ({ ...person, told: true, visiting: true })),
+  ].map((person) => {
     const state = stateOf(person.uid);
     const latePieces = state.pieces.filter((piece) => piece.bucket === "done-late");
     return {
@@ -471,7 +670,9 @@ export function groupWeekWorkView(
       })),
       lastReminded: reminded.last.get(person.uid) ?? null,
       recent: remindedRecently(reminded.last.get(person.uid) ?? null, now),
-      remindable: remindableOf(read, { uid: person.uid, told: person.told, presserUid: viewerUid }),
+      // Never this group's Remind for a visitor: their own group's reaches them.
+      remindable: !person.visiting && remindableOf(read, { uid: person.uid, told: person.told, presserUid: viewerUid }),
+      ...(person.visiting ? { visiting: true } : {}),
       late:
         state.bucket === "done-late"
           ? {
@@ -501,6 +702,12 @@ export function groupWeekWorkView(
   // Null for anybody but the lead and admins; an empty list for them when no facilitator has a week to show.
   const own: OwnWeekRow[] | null = ownPeople.length > 0 ? ownRows : null;
 
+  // How many of the group's own people are waiting for a slip, whatever else they have done: to the group's facilitator, "from you".
+  const waiting = waitingCountWords(
+    rows.filter((row) => !row.visiting).map((row) => waitingOfPerson(read, row.uid)),
+    (read.groupFacilitatorUids ?? []).includes(viewerUid),
+  );
+
   return {
     weekNumber,
     sessionStarted,
@@ -508,6 +715,7 @@ export function groupWeekWorkView(
     pieces: read.pieces.map((piece) => ({ key: piece.key, label: pieceLabel(piece.key, piece.title), title: piece.title })),
     doneMeans: doneMeansWords(read.pieces),
     rows,
+    ...(waiting ? { waiting } : {}),
     own,
     remind: read.closed ? null : { count: rows.filter((row) => row.remindable).length },
     automatic: automaticRemindersWords(automatic),

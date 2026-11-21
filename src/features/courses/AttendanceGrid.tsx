@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { isRowForWeek } from "@/lib/courses/groupsByWeek";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { awayAtWords, visitingFromWords, visitorCorrectionWords } from "@/lib/courses/visit/words";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import ActionToast, { useActionToast } from "@/components/ui/ActionToast";
 import Button from "@/components/ui/Button";
 import CountedTextarea from "@/components/ui/CountedTextarea";
@@ -13,7 +14,7 @@ import Skeleton from "@/components/ui/Skeleton";
 import { TOLD_IN_ADVANCE, registerCantMakeItLine } from "@/lib/courses/cantMakeIt/words";
 import { EXCUSED_WHO_CAN, MARK_CYCLE, cellMarks, cycleWords, nextMark } from "@/lib/courses/excused/marking";
 import * as S from "@/lib/courses/excused/staffWords";
-import { JOINED_ONLINE, ONLINE_WORD, SAID_ONLINE_IN_ADVANCE, whereChoiceLabel } from "@/lib/courses/joiningOnline/words";
+import { JOINED_ONLINE, ONLINE_WORD, SAID_JOINING_ONLINE, SAID_ONLINE_IN_ADVANCE, whereChoiceLabel } from "@/lib/courses/joiningOnline/words";
 import { londonClockLabel } from "@/lib/courses/londonLabels";
 import {
   ATTENDANCE_LIMITS,
@@ -187,6 +188,12 @@ export type AttendanceGridProps = {
    * programme's group page); null elsewhere. One request's page is beneath it.
    */
   requestsBase?: string | null;
+  /**
+   * The row to the pathways and cases page at the session that hands the
+   * slips out, drawn by the page around the register for whoever that page
+   * admits (`HandOutRow`), beside the check-in. Absent at any other time.
+   */
+  handOut?: ReactNode;
 };
 
 /** "w02" or "w02-2" as its week, or null. */
@@ -412,6 +419,7 @@ export default function AttendanceGrid({
   session: askedSession = null,
   didntHappen = null,
   requestsBase = null,
+  handOut = null,
 }: AttendanceGridProps) {
   const {
     group,
@@ -964,6 +972,16 @@ export default function AttendanceGrid({
       story: corrections[on.sessionKey]?.[member.uid] ?? null,
       request: requests[on.sessionKey]?.[member.uid] ?? null,
     };
+    // A visitor's line on this, the host's, register: where their week lives.
+    const visiting = member.visitingFrom?.find((each) => each.weekNumber === on.weekNumber) ?? null;
+    if (visiting) {
+      target.visitorNote = visitorCorrectionWords({
+        firstName: member.displayName.trim().split(/\s+/)[0] ?? "",
+        weekNumber: on.weekNumber,
+        homeName: visiting.groupName,
+        hostName: group?.name ?? "",
+      });
+    }
     return { sessionKey: on.sessionKey, target };
   })();
   const columnSession = columnTarget ? (sessionByKey.get(columnTarget) ?? null) : null;
@@ -1272,12 +1290,30 @@ export default function AttendanceGrid({
               <tr key={member.uid}>
                 <th scope="row" className={styles.nameCell}>
                   <MemberName name={member.displayName} />
+                  {/* At this group's session for one week, from another group: the board's line. */}
+                  {member.visitingFrom?.[0] && (
+                    <span className={styles.rowNote}>
+                      {visitingFromWords(member.visitingFrom[0].groupName)}
+                    </span>
+                  )}
                 </th>
                 {sessions.map((session) => {
                   const notYet = session.weekNumber < member.joinedWeekNumber;
                   // A week their place records them in another group: inert
-                  // the same way. Only a row whose place records a move.
+                  // the same way. Only a row whose place records a move or a visit.
                   const elsewhere = !notYet && !isRowForWeek(member, session.weekNumber);
+                  // A week they spend at another group's session (a one-week
+                  // visit): a line that cannot be marked, never counted.
+                  const awayAt = elsewhere ? (member.awayAt?.find((each) => each.weekNumber === session.weekNumber) ?? null) : null;
+                  if (awayAt) {
+                    return (
+                      <td key={cellKey(session.sessionKey, member.uid)} className={styles.cell}>
+                        <span className={styles.rowNote}>
+                          {awayAtWords(awayAt.groupName)}
+                        </span>
+                      </td>
+                    );
+                  }
                   const status = statusOf(session.sessionKey, member.uid);
                   const key = cellKey(session.sessionKey, member.uid);
                   const hasNote = Boolean(
@@ -1325,6 +1361,11 @@ export default function AttendanceGrid({
                   const came = cameBy(status);
                   const isOnline = onlineOf(session.sessionKey, member.uid);
                   const said = saidOnline(session.sessionKey, member.uid);
+                  // Somebody who said they are joining online, on a draft
+                  // line nobody has marked yet: the register opens with their
+                  // word in (online), and one tap records it with the mark.
+                  // Nothing is written until that tap.
+                  const saidFirst = said && status === null && !finished;
                   // Who set this line and when, beside it: a register written
                   // before lines were stamped says nothing here.
                   const stamp = setBy[session.sessionKey]?.[member.uid] ?? null;
@@ -1428,6 +1469,12 @@ export default function AttendanceGrid({
                           <span className={`${styles.where} ${styles.whereOnline} ${styles.whereStatic}`} aria-hidden="true">
                             <ScreenIcon />
                           </span>
+                        ) : saidFirst ? (
+                          /* Their own word, already in: online, which the
+                             first tap records with the mark it sets. */
+                          <span className={`${styles.where} ${styles.whereOnline} ${styles.whereStatic}`} aria-hidden="true">
+                            <ScreenIcon />
+                          </span>
                         ) : (
                           <span className={styles.whereSlot} aria-hidden="true" />
                         )}
@@ -1458,6 +1505,11 @@ export default function AttendanceGrid({
                       {chip && (
                         <span className={`${styles.lineChip} ${chip === P.ASKED ? styles.lineChipWaiting : ""}`} data-testid="attendance-line-chip">
                           {chip}
+                        </span>
+                      )}
+                      {saidFirst && !excuse && (
+                        <span className={styles.lineChip}>
+                          {SAID_JOINING_ONLINE}
                         </span>
                       )}
                       {excuse && (
@@ -1552,6 +1604,11 @@ export default function AttendanceGrid({
           and whoever took that session's register (a lead who has not taken
           it is shown nothing). */}
       {!side && checkIn}
+
+      {/* THE ROW TO THE PATHWAYS AND CASES PAGE, beside the check-in, at
+          the session that hands the slips out: the page around the
+          register decides when and for whom. */}
+      {handOut}
 
       {/* THE SESSION REPORT, beside the check-in: from the session's start,
           whether or not its register is finished, and still there once it

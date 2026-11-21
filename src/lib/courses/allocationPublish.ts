@@ -1,12 +1,14 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { isAddressableId } from "@/lib/addressableId";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
   enrolmentHasLeft,
   enrolmentIsPutBack,
+  groupForWeek,
   movedSinceTold,
   normalizeCourseEnrolment,
   placementIsTold,
@@ -22,6 +24,7 @@ import {
 import type { ProgrammeKind } from "@/lib/applications/model";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
+import { FACILITATING_GROUP_BUTTON_HTML, FACILITATING_GUIDE_BUTTON_HTML } from "@/lib/firestore/courseEmails";
 import { loadCourseEmailTemplate, type CourseEmailTemplate } from "@/lib/email/courseApplicationEmails";
 // The three composers by their `@/` paths, as every caller of a token filler
 // imports one, so the tree walk in tests/email-unfilled-tokens.test.mjs
@@ -54,6 +57,7 @@ import { composeJoinedEmail, type JoinedFacts } from "@/lib/courses/joinedEmail"
 import { composeLeftEmail, type LeftFacts } from "@/lib/courses/leftEmail";
 import { composeMovedEmail } from "@/lib/courses/movedEmail";
 import { facilitatorGuideReaderForGroup } from "./facilitatorGuide/access";
+import { facilitatorGuidePath } from "./facilitatorGuide/model";
 import { readGuideIndex } from "./facilitatorGuide/store";
 import { resolveCalendar, resolveWeekDoc } from "./groupResolve";
 import { placedOutsideTheirTimes, sessionLabelOf } from "./outsideTheirTimes";
@@ -501,6 +505,24 @@ export function groupPageUrl(runId: string, groupId: string): string | null {
   return `${base}/learn/${encodeURIComponent(runId)}/group/${encodeURIComponent(groupId)}`;
 }
 
+/**
+ * A course's facilitator guide, as a whole address, for the second button in
+ * "You’re facilitating", or null when the site does not know its own address
+ * or the run names no course. The id is the run's own `courseId`: Publish
+ * reads the run already, so the button costs no read.
+ *
+ * With `weekOne` (the email says week 1's guide is on the group page, and
+ * the button says "Facilitator guide for week 1") it is week 1's page of the
+ * guide, where those words lead everywhere else on the site
+ * (`src/lib/courses/facilitatorGuide/links.ts`); otherwise the guide's front
+ * page, which "Facilitator guide" opens.
+ */
+export function facilitatorGuideUrl(courseId: string, weekOne = false): string | null {
+  const base = appUrl();
+  if (!base || !isAddressableId(courseId)) return null;
+  return `${base}${facilitatorGuidePath(courseId, weekOne ? { kind: "week", weekNumber: 1 } : undefined)}`;
+}
+
 /** The run's own page in the member area, where its weeks are, or null when the site does not know its own address. */
 export function programmePageUrl(runId: string): string | null {
   const base = appUrl();
@@ -713,15 +735,43 @@ function blockWords(block: Block): unknown[] {
 }
 
 /**
+ * A block of "You’re facilitating" as a test is compared, without the
+ * facilitators' button to their guide.
+ *
+ * THE GUIDE'S BUTTON IS LEFT OUT OF WHAT A TEST IS COMPARED WITH. It was
+ * added to the seed copy of "You’re facilitating" in November 2026, mid-term,
+ * through two optional tokens (`FACILITATING_GUIDE_BUTTON_HTML`). Compared,
+ * it would have made the test of every run on a site with no saved copy
+ * stale at the deploy, and held the next press, a re-publish to tell one new
+ * facilitator included, until somebody sent a test again. So ONE copy of that
+ * exact paragraph is left out, and only where the seed has it: straight
+ * after the seed's "Open your group" paragraph, the first time that pair
+ * appears. A copy moved elsewhere, a second copy, a copy inside another
+ * sentence, the same button in other words, and everything else are
+ * compared as before.
+ */
+function facilitatingBlockWords(block: Block): unknown[] {
+  // `replace` with a string replaces the first match only.
+  return block.type === "richText"
+    ? blockWords({
+        ...block,
+        html: block.html.replace(FACILITATING_GROUP_BUTTON_HTML + FACILITATING_GUIDE_BUTTON_HTML, FACILITATING_GROUP_BUTTON_HTML),
+      })
+    : blockWords(block);
+}
+
+/**
  * One string for the wording of both emails Publish sends: 64 hex characters,
  * equal exactly when each template's subject, blocks and sender name are. A
  * block's id is left out: the seed copy is given new ids every time a server
- * starts, and an id is not wording.
+ * starts, and an id is not wording. So is the facilitators' button to their
+ * guide, once, exactly as and where the seed has it (`facilitatingBlockWords`).
  */
 export function wordingFingerprint(templates: PublishPlan["templates"]): string {
   const lines = (["allocated", "facilitating"] as const).map((kind) => {
     const template = templates[kind];
-    return JSON.stringify([kind, template.subject, template.fromName ?? "", template.blocks.map(blockWords)]);
+    const words = kind === "facilitating" ? facilitatingBlockWords : blockWords;
+    return JSON.stringify([kind, template.subject, template.fromName ?? "", template.blocks.map(words)]);
   });
   return createHash("sha256").update(lines.join("\n"), "utf8").digest("hex");
 }
@@ -1492,7 +1542,13 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   const moved: PlannedMoved[] = movedOwed.map(({ row, group, from }) => {
     const data = users.get(row.uid);
     const name = data ? displayNameOf(data) : row.displayName || "NAISI member";
-    const next = sessionRange(resolveSessions(run, group), now).next;
+    // Their next session in the group is the first they are due at there: a
+    // move made mid-term leaves its earlier weeks with the group they left,
+    // and a week visiting another group's session is that session's. With no
+    // record and no visit, every week is the group's, as it always was.
+    const seat = enrolmentByUid.get(row.uid);
+    const theirs = resolveSessions(run, group).filter((session) => !seat || groupForWeek(seat, session.weekNumber) === group.id);
+    const next = sessionRange(theirs, now).next;
     return {
       uid: row.uid,
       name,
@@ -1602,6 +1658,10 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       leadName: naming.programmeName ? leadName : null,
       programmeName: naming.programmeName,
       weekOneGuide: weekOneGuide.get(group.id) ?? false,
+      // The course's guide, which the guide's gate opens to a facilitator of
+      // a live group on a live run of the course: every one written to here.
+      // Week 1's page when the button names week 1, its front page otherwise.
+      guideUrl: facilitatorGuideUrl(run.courseId, weekOneGuide.get(group.id) === true),
     };
     const written = writeFacilitating(facts);
     if (!written.ok && !refusedFacilitators.has(group.id)) {

@@ -200,6 +200,9 @@ const COMPARED_FIELDS: Partial<Record<BlockType, readonly string[]>> = {
   text: ["heading", "time", "body"],
   reflection: ["prompts"],
   writtenAnswer: ["prompt", "guidance", "words", "due"],
+  // Who chooses: a save that changes only that names it, in the paste's check and in the history.
+  chooseOne: ["givenBy"],
+  cases: ["givenBy"],
 };
 
 const FIELD_ALIAS: Record<string, string> = { prompt: "question", prompts: "body" };

@@ -447,6 +447,35 @@ After "Read it" the loader shows:
   to "the Start here tab"; links a link checker cannot read (they work in a
   browser); a This week task that names nothing it covers; packs with one
   time each where each holds several sources; anything left out.
+- **Who chooses?**: each Choose one and each case study with cases, given out
+  by the facilitator or picked by each person, and one line naming the rule
+  that decided it (the block's own line, the words before a table, a list,
+  the case study's heading). The author can change it before saving: a
+  Choose one table either way; Cases only to given out, since no page lets a
+  member pick a case; a list never, since copying a week out writes no words
+  for one. A talk with no cases has no row. The change is sent with Read it
+  and again with Save as an override by the block's place among the week's
+  Choose ones and Cases blocks (`src/lib/courses/weekBlocks/whoChooses.ts`),
+  applied to the paste as it is read, behind the paste's own gate. Nothing
+  new is stored: the week copies out with "given out by your facilitator" or
+  "picked by each person", so pasting it back keeps the choice, and a fresh
+  paste of the guide's own words goes back to what they say. Where the
+  change reaches a Choose one people already hold a pack in, the check
+  counts them: picked to given keeps every pick and stops people changing
+  theirs; given to picked makes what was given each person's own pick,
+  which they can change until their session for the week starts. On the
+  programme's own week the count is of everybody on the programme, and the
+  check says it can be a little high.
+- **Who has picked never stops a change.** A Choose one turned from picked
+  to given out always saves, whether the check's switch or the pasted words
+  make the change: everybody who picked keeps their pick as the pack they
+  are given, somebody who facilitates a group included, and the check's
+  count includes them. Given out, the pathways and cases page shows that
+  pack to the group's other facilitators, as the privacy policy says from
+  version 21 ("If you facilitate your own group."). A save reads who holds
+  a pack only to answer a refused save with the check.
+- **The comparison and the history** name a change of who chooses on a
+  Choose one or Cases block: "Who chooses changed."
 - **What stops a save**: another week's Markdown, a source with no https
   link, a Reflect with no prompt or more than two, a field over its cap, an
   id used twice, and the rest of the check, each in a sentence that says what

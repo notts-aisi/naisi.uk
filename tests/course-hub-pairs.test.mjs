@@ -23,12 +23,31 @@ import { readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, mock, test } from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { walkSource } from "./lib/functionScan.mjs";
 import { A, B, C, NOW, PAIRS_ONLY, PAIRS_WITH_LAPTOPS, RUN, W2_SESSION, W3_SESSION, makePairsWorld, textOf } from "./lib/pairsWorld.mjs";
+import { laptopLayout, phoneOrder } from "./lib/groupPageOrder.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 const w = await makePairsWorld();
+const { default: NotForYou } = await w.loadTs(join("features", "courses", "facilitator", "NotForYou.tsx"));
+
+/**
+ * Somebody signed in whom `page` ("group" or "pairs") does not admit: its one
+ * calm page, byte for byte, with no redirect and nothing of the group.
+ */
+function assertNotForYou(drawn, page, at) {
+  assert.equal(drawn.to, null, `${at}: sent to ${drawn.to} instead of the calm page`);
+  assert.equal(drawn.html, renderToStaticMarkup(createElement(NotForYou, { page })), `${at}: not the calm page`);
+}
+
+/** Somebody the page admits, at an address it cannot open: the second, fixed answer, never "not for your account". */
+function assertCantOpen(drawn, page, at) {
+  assert.equal(drawn.to, null, `${at}: sent to ${drawn.to} instead of the calm page`);
+  assert.equal(drawn.html, renderToStaticMarkup(createElement(NotForYou, { page, admitted: true })), `${at}: not the second calm page`);
+}
 
 before(() => mock.timers.enable({ apis: ["Date"], now: NOW }));
 after(() => mock.timers.reset());
@@ -302,7 +321,7 @@ describe("2. typing the pairs", () => {
     assert.deepEqual(w.records(), []);
   });
 
-  test("the body is checked before anything is read; a week with no session in pairs, or changed since the page opened, refuses", async () => {
+  test("the gate is asked first, then the body; a week with no session in pairs, or changed since the page opened, refuses", async () => {
     const bad = [
       { weekId: "w3", blockId: W3_SESSION, entries: [{ uid: "chloe", pair: 1, laptop: false }] },
       { weekId: "w03", blockId: "", entries: [{ uid: "chloe", pair: 1, laptop: false }] },
@@ -315,11 +334,11 @@ describe("2. typing the pairs", () => {
       { weekId: "w03", blockId: W3_SESSION, entries: [{ uid: "chloe", pair: 1, laptop: false }, { uid: "chloe", pair: 2, laptop: false }] },
     ];
     for (const body of bad) {
-      // A member with no role meets the same 400 as a facilitator: nothing was read to tell them apart.
-      for (const who of ["nobody", "rahul"]) {
-        const answer = await w.call(who, w.routes.pairs.PUT, { groupId: B }, { course: true, body });
-        assert.equal(answer.status, 400, `${who} ${JSON.stringify(body)}: ${JSON.stringify(answer.body)}`);
-      }
+      // A member with no role is refused by the gate whatever the body; a facilitator meets the body's 400.
+      const refused = await w.call("nobody", w.routes.pairs.PUT, { groupId: B }, { course: true, body });
+      assert.deepEqual([refused.status, refused.body], [403, { error: "Forbidden" }], `nobody ${JSON.stringify(body)}`);
+      const answer = await w.call("rahul", w.routes.pairs.PUT, { groupId: B }, { course: true, body });
+      assert.equal(answer.status, 400, `rahul ${JSON.stringify(body)}: ${JSON.stringify(answer.body)}`);
     }
     const notJson = await w.call("rahul", w.routes.pairs.PUT, { groupId: B }, { course: true });
     assert.equal(notJson.status, 400);
@@ -427,7 +446,7 @@ describe("3. the pairs page and the group page's card", () => {
     assert.doesNotMatch(page.html, /<form|<select|Save/);
   });
 
-  test("who reaches the pairs page: the group's facilitators, the lead by its address, and admins; everybody else is sent away", async () => {
+  test("who reaches the pairs page: the group's facilitators, the lead by its address, and admins; everybody else signed in is told the page is not theirs", async () => {
     w.seedGroupB();
     for (const who of ["rahul", "sofia", "farah", "zach"]) {
       const page = await w.pairsPage(who);
@@ -439,12 +458,14 @@ describe("3. the pairs page and the group page's card", () => {
     assert.match(lead.text, /Chloe and Kofi/);
     assert.match(lead.html, /href="\/admin\/admissions\/forms\/[^"]+\/programmes\/[^"]+\/groups"/, "the lead goes back to the programme's Groups");
     for (const who of ["tom", "grace", "tess", "yusuf", "lloyd", "chloe", "kofi", "amara", "sam", "nobody"]) {
-      assert.equal((await w.pairsPage(who)).to, "/learn", who);
+      assertNotForYou(await w.pairsPage(who), "pairs", who);
     }
     assert.match((await w.pairsPage(null)).to, /^\/login\?next=/);
-    assert.equal((await w.pairsPage("zach", "no-such-group")).to, "/learn");
+    assertCantOpen(await w.pairsPage("zach", "no-such-group"), "pairs", "an admin on a made-up group");
     w.world.db.poke(`courseGroups/${B}`, { archived: true });
-    for (const who of ["rahul", "zach"]) assert.equal((await w.pairsPage(who)).to, "/learn", `${who} on an archived group`);
+    // The draw's gate admits no facilitator of an archived group; it admits an admin, who is told it can't be opened.
+    assertNotForYou(await w.pairsPage("rahul"), "pairs", "rahul on an archived group");
+    assertCantOpen(await w.pairsPage("zach"), "pairs", "zach on an archived group");
   });
 
   test("the group page's card: the week the group meets next, each pair, the check and the way to the pairs page", async () => {
@@ -454,18 +475,57 @@ describe("3. the pairs page and the group page's card", () => {
     assert.match(page.html, new RegExp(`href="/learn/pairs/${encodeURIComponent(B)}\\?week=3"`));
     // An admin sees the same; another group's facilitator never reaches the page.
     inOrder((await w.groupPage("zach")).text, ["Pairs in Group B", "Pair 1", "Chloe and Kofi", "Laptop: Kofi"]);
-    assert.notEqual((await w.groupPage("tom")).to, null);
+    assertNotForYou(await w.groupPage("tom"), "group", "another group's facilitator on the group page");
     // Before anybody is paired.
     w.reset();
     inOrder((await w.groupPage("sofia")).text, ["Pairs in Group B", "Nobody is paired yet.", "Pair people up"]);
   });
 
-  test("the card is drawn only for a week that asks: not for Group A's week without pairs, and not on a week written before blocks", async () => {
+  test("the pairs sit where a facilitator meets them: after Before the session in the left column, never pinned, over who has done the week on the right", async () => {
+    w.seedGroupB();
+    for (const who of ["rahul", "zach"]) {
+      const { html } = await w.groupPage(who);
+      // Week 4's slips go out tonight and nobody has week 3's: the pathways and
+      // cases card is pinned under the session card; the pairs card never is.
+      const order = [
+        ["the session", 'data-testid="session-card"'],
+        ["the spread", 'aria-labelledby="group-spread"'],
+        ["before the session", 'aria-labelledby="before-the-session"'],
+        ["the pairs", 'aria-labelledby="group-pairs"'],
+        ["who has done the week", 'data-testid="week-work-count"'],
+        ["the updates", 'aria-labelledby="group-updates"'],
+        ["how the group meets", 'aria-labelledby="group-meets-facilitator"'],
+        ["this week's work", 'aria-labelledby="this-weeks-work"'],
+      ];
+      const at = phoneOrder(html, order);
+      const { where } = laptopLayout(html);
+      assert.deepEqual(
+        order.map(([name]) => [name, where(at[name])]),
+        [
+          ["the session", "across"],
+          ["the spread", "across"],
+          ["before the session", "block 1 left"],
+          ["the pairs", "block 1 left"],
+          ["who has done the week", "block 1 right"],
+          ["the updates", "block 1 right"],
+          ["how the group meets", "block 1 right"],
+          ["this week's work", "across"],
+        ],
+        who,
+      );
+    }
+  });
+
+  test("the card is always there on a course with pairs, about the week the pairs are for: with none still to come it says so", async () => {
     // Group A meets on Thursday, in week 3 too: it asks. Take the session out of Group A's own copy.
     const copy = structuredClone(w.world.db.read(`courseRuns/${RUN.agi}/weeks/w03`));
     copy.blocks = copy.blocks.filter((block) => block.type !== "inTheSession");
     w.world.db.seed(`courseGroups/${A}/weeks/w03`, { ...copy, groupId: A, runId: RUN.agi });
-    assert.doesNotMatch((await w.groupPage("sofia", A)).text, /Pairs in Group A/);
+    // Group A's only week in pairs, week 2, has met: the card stays, says so, and offers nothing to press.
+    const groupA = await w.groupPage("sofia", A);
+    inOrder(groupA.text, ["Pairs in Group A", "No week still to come is in pairs."]);
+    assert.doesNotMatch(groupA.text, /Pair people up|Change pairs/);
+    assert.doesNotMatch(groupA.html, /href="\/learn\/pairs\//);
     assert.match((await w.groupPage("sofia", B)).text, /Pairs in Group B/);
     // Group C meets tomorrow, in week 3, with the run's week: it asks.
     assert.match((await w.groupPage("tom", C)).text, /Pairs in Group C/);
@@ -775,10 +835,12 @@ describe("6. who sees what, and every file that addresses the record", () => {
       else assert.equal(pairBoxOf(week.html), sees.week, `${key}'s week page`);
       const group = await w.groupPage(who);
       if (sees.group) inOrder(group.text, ["Pairs in Group B", ...allPairs]);
-      else assert.notEqual(group.to, null, `${key || "signed out"} reaches Group B's page`);
+      else if (who === null) assert.notEqual(group.to, null, "signed out reaches Group B's page");
+      else assertNotForYou(group, "group", `${key} on Group B's page`);
       const pairs = await w.pairsPage(who);
       if (sees.pairs) inOrder(pairs.text, ["The pairs", ...allPairs]);
-      else assert.notEqual(pairs.to, null, `${key || "signed out"} reaches the pairs page`);
+      else if (who === null) assert.notEqual(pairs.to, null, "signed out reaches the pairs page");
+      else assertNotForYou(pairs, "pairs", `${key} on the pairs page`);
       // Nothing about another pair's laptop reaches anybody outside the group's staff and the pair itself.
       const shown = [week.text, group.text, pairs.text].join(" ");
       if (!sees.group && !sees.pairs) {
@@ -827,12 +889,13 @@ describe("6. who sees what, and every file that addresses the record", () => {
     );
     // The gates, as the page and the route ask them, and the shell's reader asked for the session's own person.
     const code = (file) => readFileSync(join(SRC, file), "utf8");
-    assert.match(code("app/(app)/learn/pairs/[groupId]/page.tsx"), /const gate = await drawGate\(db, user, group\);\s*if \(!gate\.ok \|\| group\.archived\) redirect\("\/learn"\);/);
-    assert.match(code("app/api/courses/groups/[groupId]/pairs/route.ts"), /const gate = await drawGate\(db, actor, group\);\s*if \(!gate\.ok\) return NextResponse\.json\(\{ error: "Forbidden" \}, \{ status: 403 \}\);/);
+    assert.match(code("app/(app)/learn/pairs/[groupId]/page.tsx"), /const gate = await drawGate\(db, user, group\);\s*if \(!gate\.ok\) return <NotForYou page="pairs" \/>;\s*(?:\/\/[^\n]*\n\s*)*if \(group\.archived\) return <NotForYou page="pairs" admitted \/>;/);
+    assert.match(code("app/api/courses/groups/[groupId]/pairs/route.ts"), /const opened = await openDrawGroup\(db, actor, groupId\);\s*if \(!opened\.ok\) return NextResponse\.json\(\{ error: opened\.error \}, \{ status: opened\.status \}\);/);
+    assert.match(code("lib/courses/packsAndCases/readers.ts"), /const gate = await drawGate\(db, actor, group\);\s*if \(!gate\.ok\) return \{ ok: false, status: 403, error: "Forbidden" \};/);
     assert.match(code("app/(app)/learn/[runId]/weeks/[n]/page.tsx"), /return await readOwnPairs\(db, access\.user, access\.run\.id, access\.groups, access\.enrolment, weekNumber, new Date\(\)\);/);
     assert.match(
       code("app/(app)/learn/[runId]/group/[groupId]/page.tsx"),
-      /const pairsWeek = drawWeek \? await readGroupPairs\(db, runId, groupId, drawWeek, drawList\) : null;/,
+      /const pairsWeek = pairsFor\?\.week \? await readGroupPairs\(db, runId, groupId, pairsFor\.week, drawList\) : null;/,
     );
     // The person's own reader hands the page first names and laptops of one pair, never a record.
     const readers = code("lib/courses/pairs/readers.ts");

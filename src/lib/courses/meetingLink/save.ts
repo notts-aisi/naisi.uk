@@ -5,7 +5,8 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { GROUP_FIELD_LIMITS, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, validateSubmissionUrl } from "@/lib/firestore/courses";
-import { MEETING_LINK_REFUSAL } from "@/lib/courses/joiningOnline/words";
+import { MEETING_LINK_REFUSAL, meetingLinkFullWords } from "@/lib/courses/joiningOnline/words";
+import { planLinkSave } from "./plan";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { historyDetail, linkBeforeWords, linkHeadline } from "@/lib/courses/groupChange/words";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
@@ -17,9 +18,12 @@ import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
  *  - ONE WEEK: the week's own link, `sessionOverrides.<week>.meetingUrl`,
  *    which `sessionForWeek` lays over the group's standing slot for that
  *    week and no other.
- *  - EVERY WEEK: the group's standing link, `session.meetingUrl`, and the
- *    week's own link taken away so that week reads the standing one too.
- *    A week that already has a link of its own keeps it.
+ *  - FROM THAT WEEK ON (`everyWeek`): the group's standing link,
+ *    `session.meetingUrl`, and the week's own link taken away so that week
+ *    reads the standing one too. A later week that already has a link of its
+ *    own keeps it, and every earlier week keeps the link it had: each that
+ *    read the standing link is given it as its own (`planLinkSave`), so a
+ *    week that has met never reads a link set after it.
  *
  * Everybody in the group sees the link on their programme page from then on
  * (`seesSessionLink`), and nobody is emailed: no email and no calendar feed
@@ -103,35 +107,45 @@ export async function saveSessionLink(
     const { endsAt } = sessionInstants(session);
     if (endsAt !== null && endsAt.getTime() <= now.getTime()) return { ok: false, status: 409, error: MEETING_LINK_REFUSAL.over };
 
-    // A dotted path is safe here: a week id is "w" and digits (`weekDocId`),
-    // never a dot, unlike a uid, which is why maps keyed by uid take a
-    // `FieldPath`.
-    const weekLink = `sessionOverrides.${session.weekId}.meetingUrl`;
     // The weeks as STORED: the group as read folds each week's mode in too,
     // which is kept in a map of its own and is no week set apart.
     const stored = groupSnap.data()?.sessionOverrides;
     const storedWeeks: Record<string, unknown> = stored && typeof stored === "object" ? (stored as Record<string, unknown>) : {};
     // Whether the week had a link before, its own or the group's: the history says so, never what it was.
     const hadLink = Boolean(session.session.meetingUrl);
-    if (request.everyWeek) {
-      // The week's own link, when it has one, would hide the standing link
-      // that week; a week without one is not given an empty entry.
-      const week = storedWeeks[session.weekId];
-      const ownLink = Boolean(week) && typeof week === "object" && Object.hasOwn(week as object, "meetingUrl");
-      tx.update(groupRef, {
-        "session.meetingUrl": request.url,
-        ...(ownLink ? { [weekLink]: FieldValue.delete() } : {}),
-        updatedAt: FieldValue.serverTimestamp(),
+    // What the press writes (`planLinkSave`): that week's own link, or the
+    // standing link from that week on, every earlier week keeping the link it
+    // had. A dotted path is safe: a week id is "w" and digits (`weekDocId`),
+    // never a dot, unlike a uid, which is why maps keyed by uid take a `FieldPath`.
+    const planFor = (onwards: boolean) =>
+      planLinkSave({
+        week: { weekNumber: session.weekNumber, weekId: session.weekId },
+        url: request.url,
+        onwards,
+        standing: groupSnap.data()?.session?.meetingUrl,
+        storedWeeks,
+        weeks: resolveSessions(run, group)
+          .filter((each) => each.occurrence === 1)
+          .map((each) => {
+            const ends = sessionInstants(each).endsAt;
+            return { weekNumber: each.weekNumber, weekId: each.weekId, ended: ends !== null && ends.getTime() <= now.getTime() };
+          }),
+        maxWeeks: GROUP_FIELD_LIMITS.maxSessionOverrides,
       });
-    } else {
-      // The group keeps at most so many weeks apart from its usual slot, and
-      // a week past the cap would be dropped when the group is read.
-      const weeks = Object.keys(storedWeeks);
-      if (!weeks.includes(session.weekId) && weeks.length >= GROUP_FIELD_LIMITS.maxSessionOverrides) {
-        return { ok: false, status: 409, error: MEETING_LINK_REFUSAL.full };
-      }
-      tx.update(groupRef, { [weekLink]: request.url, updatedAt: FieldValue.serverTimestamp() });
+    const plan = planFor(request.everyWeek);
+    if (!plan.ok) {
+      // Said with what is possible instead: the other choice, when it would be saved.
+      return {
+        ok: false,
+        status: 409,
+        error: meetingLinkFullWords({ weekNumber: session.weekNumber, onwards: request.everyWeek, otherWorks: planFor(!request.everyWeek).ok }),
+      };
     }
+    tx.update(groupRef, {
+      ...plan.set,
+      ...Object.fromEntries(plan.remove.map((path) => [path, FieldValue.delete()])),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
     tx.set(
       db.collection(COURSE_AUDIT_COLLECTION).doc(),
       groupHistoryRow({
@@ -141,7 +155,7 @@ export async function saveSessionLink(
         actor,
         weekId: session.weekId,
         detail: historyDetail({
-          headline: linkHeadline(session.weekNumber, request.everyWeek),
+          headline: linkHeadline(session.weekNumber, request.everyWeek, plan.keptLater),
           before: linkBeforeWords(hadLink),
         }),
         before: { link: hadLink },

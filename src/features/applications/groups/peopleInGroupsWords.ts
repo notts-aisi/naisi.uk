@@ -152,24 +152,48 @@ export function moveOptionWords(name: string, count: number, capacity: number | 
 /** The menu's last choice, for a seat still on the run. */
 export const TAKE_OFF = "Take off the run…";
 
-/** The confirmation of taking somebody off the run. */
-export function takeOffConfirm(name: string, where: string, programmeName: string): string {
+/** A visit taking somebody off the run calls off with an email to its host's facilitators. */
+export type VisitOffSaid = { hostName: string; weekNumber: number };
+
+/**
+ * The confirmation of taking somebody off the run. With a visit still to come
+ * whose host's facilitators are emailed that it is off, it says so and counts
+ * the emails (`emails`, the number the press sends back); with none, the
+ * words are as they always were.
+ */
+export function takeOffConfirm(name: string, where: string, programmeName: string, visits: readonly VisitOffSaid[] = [], emails = 0): string {
+  const head = `Take ${name} off the run?\n\n` + `Their seat in ${where} is freed and their place on ${programmeName} is given back.`;
+  const off = visitsOffSentence(visits, emails);
+  return off ? `${head} ${off}` : `${head} Nobody is emailed.`;
+}
+
+/**
+ * "Their visit to Group I’s week 2 session is called off, and Group I’s
+ * facilitators are emailed that it is off: 2 emails. Nobody else is
+ * emailed." Said before taking somebody off the run, on either board; "" when
+ * it emails nobody.
+ */
+export function visitsOffSentence(visits: readonly VisitOffSaid[], emails: number): string {
+  if (visits.length === 0 || emails === 0) return "";
+  const sessions = visits.map((visit) => `${visit.hostName}’s week ${visit.weekNumber} session`);
+  const listed = sessions.length === 1 ? sessions[0] : `${sessions.slice(0, -1).join(", ")} and ${sessions[sessions.length - 1]}`;
+  const hosts = [...new Set(visits.map((visit) => visit.hostName))];
+  const whose = hosts.length === 1 ? `${hosts[0]}’s facilitators are` : "those groups’ facilitators are";
+  const count = emails === 1 ? "1 email" : `${emails} emails`;
   return (
-    `Take ${name} off the run?\n\n` +
-    `Their seat in ${where} is freed and their place on ${programmeName} is given back. Nobody is emailed.`
+    `${visits.length === 1 ? "Their visit" : "Their visits"} to ${listed} ${visits.length === 1 ? "is" : "are"} called off, ` +
+    `and ${whose} emailed that ${visits.length === 1 ? "it is" : "they are"} off: ${count}. Nobody else is emailed.`
   );
 }
 
 /**
  * Why the allocate route did not move somebody, from its reason's code, in a
- * sentence: "Pat Doe wasn’t moved: Group A is full."
+ * sentence: "Pat Doe wasn’t moved: Group A is full." A move made mid-term
+ * that its own save refused carries the server's sentence (`words`): "Pat
+ * Doe wasn’t moved. Group F has already met for week 3, ..."
  */
-export function notMovedWords(name: string, where: string, reason: string): string {
-  // A place with weeks in two groups is not moved here at all: the staff move keeps them.
-  if (reason === "moved-mid-term") {
-    const first = name.trim().split(/\s+/)[0] || "They";
-    return `${first} was moved mid-term and has weeks with two groups. Use Move on ${first}’s row, which keeps them.`;
-  }
+export function notMovedWords(name: string, where: string, reason: string, words?: string): string {
+  if (words) return `${name} wasn’t moved. ${words}`;
   const why =
     reason === "group-full"
       ? `${where} is full.`
@@ -181,7 +205,9 @@ export function notMovedWords(name: string, where: string, reason: string): stri
             ? "they facilitate another group, and somebody holding a place sits in the group they facilitate."
             : reason === "not-accepted"
               ? "their row on the run’s own list doesn’t say Accepted."
-              : "the move was refused. Try again.";
+              : reason === "failed"
+                ? "the move couldn’t be saved. Reload the board to see where they are."
+                : "the move was refused. Try again.";
   return `${name} wasn’t moved: ${why}`;
 }
 

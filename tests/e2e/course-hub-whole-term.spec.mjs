@@ -277,6 +277,39 @@ async function waitFor(what, predicate, { timeout = WAIT_MS } = {}) {
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const flat = (text) => text.replace(/\s+/g, " ").trim();
 const textOf = async (locator) => flat((await locator.textContent()) ?? "");
+
+/**
+ * The group page's one calm page, as somebody signed in whom it does not
+ * admit reads it: a 200 at the address asked, never a redirect, with the
+ * heading, who the page is for (its facilitators and admins: the group page
+ * admits no lead), what to do if that is wrong, the one way on to My
+ * programmes, and nothing of the group.
+ */
+async function assertGroupNotForYou(pg, origin, path, group, who) {
+  const response = await pg.goto(`${origin}${path}`, { waitUntil: "domcontentloaded" });
+  assert.equal(response?.status(), 200, `${who} opened ${path} and was answered ${response?.status()}`);
+  const calm = pg.getByTestId("not-for-you");
+  await calm.waitFor({ timeout: WAIT_MS });
+  assert.equal(new URL(pg.url()).pathname, path, `${who} was moved off the group's page to ${new URL(pg.url()).pathname}`);
+  // Each piece on its own: `textContent` runs the elements together with no
+  // space between them, so the whole is never compared as one string.
+  assert.equal(await textOf(calm.getByRole("heading", { level: 1 })), "This page isn’t for your account");
+  const lines = calm.locator("p");
+  assert.equal(await lines.count(), 2, `${who} reads ${await lines.count()} sentences`);
+  assert.equal(await textOf(lines.nth(0)), "It’s for a group’s facilitators and admins.", `${who} is told the page is for somebody else`);
+  assert.equal(
+    await textOf(lines.nth(1)),
+    "If you facilitate this group and can’t open it, ask the team and we’ll put it right.",
+    `${who} reads other words`,
+  );
+  const ways = calm.getByRole("link");
+  assert.equal(await ways.count(), 1, `${who} is offered ${await ways.count()} links`);
+  assert.equal(await textOf(ways.first()), "My programmes");
+  assert.equal(await ways.first().getAttribute("href"), "/learn");
+  const main = await textOf(pg.locator("main"));
+  assert.ok(!main.includes(group.name), `${who} is shown the group's name`);
+  assert.equal(await pg.getByRole("link", { name: "Take the register" }).count(), 0, `${who} is offered the group's register`);
+}
 /** A person's cell on the Coursework tab, by the start of its label: "Ada Fixture ..., week 3: ", after which come its state and its flags. */
 const tabCell = (page, person, week) => page.getByRole("link", { name: new RegExp(`^${escapeRegExp(person.displayName)}, week ${week}: `) });
 /** What an element says, as written: every text node in it, a space between each. */
@@ -1085,7 +1118,10 @@ test(
         await kitPage.getByTestId("attendance-grid").waitFor({ timeout: WAIT_MS });
         assert.equal(await kitPage.getByTestId("attendance-session").count(), 1, "somebody given one session sees another week");
         assert.ok((await textOf(kitPage.getByTestId("attendance-session").first())).startsWith(`Week ${GIVEN_WEEK}`));
-        for (const path of [learnGroupPath(groupB), `${learnRegisterPath(groupB)}?session=${weekDocId(1)}`, learnRegisterPath(groupA)]) {
+        // The group's page is not Kit's: its one calm page, where it used to send Kit to My programmes without a word.
+        await assertGroupNotForYou(kitPage, origin, learnGroupPath(groupB), groupB, "Kit, given one session,");
+        // Another week's register, and another group's, still send Kit to My programmes.
+        for (const path of [`${learnRegisterPath(groupB)}?session=${weekDocId(1)}`, learnRegisterPath(groupA)]) {
           await kitPage.goto(`${origin}${path}`, { waitUntil: "domcontentloaded" });
           await kitPage.waitForURL((url) => url.pathname === "/learn", { timeout: WAIT_MS });
         }
@@ -1756,23 +1792,46 @@ test(
           expectEqual(await textOf(row.locator("td").last()), wantCame, `the Attendance tab, ${person.first}'s Came`);
         }
 
-        // 5. The Overview: who came, by week, from the same lines.
+        // 5. The Overview: attendance by week, a row a week, each held to its own
+        // week's lines (`attendanceByWeek` in src/lib/courses/overviewByWeek.ts):
+        // a whole week (every group's held session finished) by kind and
+        // "N of M came"; a week after this one "Not met yet" (the story's weeks
+        // after week 2 are all to come: asserted at its start).
         await adminPg.goto(`${formBase}/overview`, { waitUntil: "domcontentloaded" });
         const byWeek = adminPg.getByRole("region", { name: "Attendance by week", exact: true });
         await byWeek.waitFor({ timeout: WAIT_MS });
-        const description = (await byWeek.getByRole("img").first().getAttribute("aria-label")) ?? "";
-        for (const week of [1, 2]) {
-          let came = 0;
-          let of = 0;
-          for (const person of [...fellows, ivo]) {
-            const line = finishedLine(person, week);
-            if (!line) continue;
-            of += 1;
-            if (CAME.has(line.mark)) came += 1;
+        const weekRows = byWeek.locator("ol > li");
+        expectEqual(await weekRows.count(), state.weekCount, "the Overview, one row a week");
+        for (let week = 1; week <= state.weekCount; week += 1) {
+          const row = weekRows.nth(week - 1);
+          const said = await textOf(row);
+          expectEqual(said.startsWith(`Week ${week}`), true, `the Overview, row ${week} is week ${week} (${said.slice(0, 40)})`);
+          const held = ["A", "B"].filter((key) => !ATTENDANCE[key][week]?.cancelled);
+          const whole = held.every((key) => ATTENDANCE[key][week]?.finished);
+          if (whole) {
+            const kinds = { room: 0, online: 0, excused: 0, absent: 0 };
+            for (const person of [...fellows, ivo]) {
+              const line = finishedLine(person, week);
+              if (!line) continue;
+              if (CAME.has(line.mark)) kinds[line.online ? "online" : "room"] += 1;
+              else kinds[line.mark === "excused" ? "excused" : "absent"] += 1;
+            }
+            const came = kinds.room + kinds.online;
+            const of = came + kinds.excused + kinds.absent;
+            const bar = (await row.getByRole("img").getAttribute("aria-label").catch(() => null)) ?? "";
+            expectEqual(
+              bar,
+              `Week ${week}: in the room ${kinds.room}, online ${kinds.online}, excused ${kinds.excused}, absent ${kinds.absent}.`,
+              `the Overview, week ${week}'s bar`,
+            );
+            expectEqual(said.includes(`${came} of ${of} came`), true, `the Overview, week ${week} says ${came} of ${of} came (${said})`);
+          } else if (week > runWeek) {
+            expectEqual(said.includes("Not met yet"), true, `the Overview, week ${week} has not met (${said})`);
+          } else {
+            problems.push(`the story's week ${week} is in progress, which this check does not work out`);
           }
-          const percent = Math.round((100 * came) / of);
-          expectEqual(description.includes(`week ${week} ${percent}%`), true, `the Overview, week ${week} at ${percent}% (${description})`);
         }
+        expectEqual((await textOf(byWeek)).includes("Late and left early count as came."), true, "the Overview says late counts as came");
 
         assert.deepEqual(problems, [], `the pages do not agree with the story:\n${problems.join("\n")}`);
       });

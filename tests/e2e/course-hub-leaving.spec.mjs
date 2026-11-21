@@ -67,6 +67,8 @@ import {
   createStepRecorder,
   newIdentityPage,
   openBrowser,
+  pageOwnText,
+  shellFoot,
   signInWithPassword,
   stubRecaptchaOnLoopback,
 } from "../../scripts/e2e/lib/browser.mjs";
@@ -168,6 +170,9 @@ const LEAVING = Object.freeze({
   changedYourMind: "Changed your mind?",
   changedLine: `Email ${SOCIETY} and we’ll see what we can do.`,
   myProgrammes: "My programmes",
+  // The foot of every signed-in page (`FOOTER_LINK` in src/lib/societyFeedback/words.ts):
+  // somebody who left is still a member of the society, so it stays.
+  feedbackFoot: "Anonymous feedback",
 });
 
 /**
@@ -606,8 +611,12 @@ test(
 
     // ---- Pages ----------------------------------------------------------------------
 
-    /** The main column's words, the page's own and nothing of the shell around it. */
-    const mainText = async (pg) => textOf(pg.locator("main"));
+    /**
+     * The main column's words, the page's own and nothing of the shell around
+     * it: `<main>` without the shell's foot, which `readLeftPage` states on
+     * its own.
+     */
+    const mainText = async (pg) => flat(await pageOwnText(pg));
 
     /**
      * The page that says somebody left, read whole at `path`: the bar (back
@@ -633,6 +642,25 @@ test(
         "the page that says they left says more, or less, than that they left and when",
       );
       for (const words of KEPT_NOTHING) assert.ok(!said.includes(words), `the page that says they left shows ${JSON.stringify(words)}: ${said}`);
+      // The rest of the main column is the foot every signed-in page carries,
+      // and the foot is its one link and nothing else: they are still a member
+      // of the society, so they may still send anonymous feedback.
+      const foot = shellFoot(pg);
+      assert.equal(await foot.count(), 1, "the page that says they left has no foot, or more than one");
+      assert.equal(await textOf(foot), LEAVING.feedbackFoot, "the foot of the page that says they left says more, or less, than its one link");
+      const footLinks = foot.getByRole("link");
+      assert.equal(await footLinks.count(), 1, "the foot of the page that says they left has more, or fewer, than one link");
+      assert.equal(await textOf(footLinks), LEAVING.feedbackFoot, "the foot's one link is not Anonymous feedback");
+      assert.equal(
+        await foot.getByRole("link", { name: LEAVING.feedbackFoot, exact: true }).getAttribute("href"),
+        "/anonymous-feedback",
+        "Anonymous feedback at the foot does not lead to the members' form",
+      );
+      assert.equal(
+        await textOf(pg.locator("main")),
+        `${said}${LEAVING.feedbackFoot}`,
+        "the main column of the page that says they left is more than the page and its foot",
+      );
       assert.equal(await pg.getByRole("region", { name: "Your sessions" }).count(), 0, "the page that says they left lists their sessions");
       for (const suffix of ["/notes", "/reading"]) {
         assert.equal(await pg.locator(`main a[href$="${suffix}"]`).count(), 0, `the page that says they left links to ${suffix}`);
@@ -1662,15 +1690,34 @@ test(
             const answer = await fetchAs(pg, path);
             assert.equal(answer.status, 403, `${path} answered ${person.first} ${answer.status} after they left`);
           }
-          // The group's own page and its register, a facilitator's, send them
-          // to the page that says they left, and show nothing of the group on the way.
-          for (const path of [groupPagePath, `${groupPagePath}/register`]) {
-            await pg.goto(`${origin}${path}`, { waitUntil: "domcontentloaded" });
-            await pg
-              .getByRole("heading", { level: 1, name: LEAVING.leftHeading(term.programmeName), exact: true })
-              .waitFor({ timeout: WAIT_MS });
-            assert.equal(new URL(pg.url()).pathname, learnPath(term), `${person.first} was not sent from ${path} to the page that says they left`);
-          }
+          // The group's own page, a facilitator's, answers the calm page that
+          // says it is for somebody else, at the address asked, and shows
+          // nothing of the group. Each piece on its own: `textContent` runs
+          // the elements together with no space between them.
+          const answered = await pg.goto(`${origin}${groupPagePath}`, { waitUntil: "domcontentloaded" });
+          assert.equal(answered?.status(), 200, `${groupPagePath} answered ${person.first} ${answered?.status()} after they left`);
+          const calm = pg.getByTestId("not-for-you");
+          await calm.waitFor({ timeout: WAIT_MS });
+          assert.equal(new URL(pg.url()).pathname, groupPagePath, `${person.first} was moved off the group's page after they left`);
+          assert.equal(await textOf(calm.getByRole("heading", { level: 1 })), "This page isn’t for your account");
+          const lines = calm.locator("p");
+          assert.equal(await lines.count(), 2, `${person.first} reads ${await lines.count()} sentences on the group's page`);
+          assert.equal(await textOf(lines.nth(0)), "It’s for a group’s facilitators and admins.");
+          assert.equal(await textOf(lines.nth(1)), "If you facilitate this group and can’t open it, ask the team and we’ll put it right.");
+          const ways = calm.getByRole("link");
+          assert.equal(await ways.count(), 1, `${person.first} is offered ${await ways.count()} links on the group's page`);
+          assert.equal(await textOf(ways.first()), "My programmes");
+          assert.equal(await ways.first().getAttribute("href"), "/learn");
+          assert.ok(!(await textOf(pg.locator("main"))).includes(groupA.name), `${person.first} is shown the group's name after they left`);
+          assert.equal(await pg.getByRole("link", { name: "Take the register" }).count(), 0, `${person.first} is offered the group's register after they left`);
+          // Its register, a facilitator's, still sends them to the page that
+          // says they left, and shows nothing of the group on the way.
+          const registerPath = `${groupPagePath}/register`;
+          await pg.goto(`${origin}${registerPath}`, { waitUntil: "domcontentloaded" });
+          await pg
+            .getByRole("heading", { level: 1, name: LEAVING.leftHeading(term.programmeName), exact: true })
+            .waitFor({ timeout: WAIT_MS });
+          assert.equal(new URL(pg.url()).pathname, learnPath(term), `${person.first} was not sent from ${registerPath} to the page that says they left`);
         }
       });
 

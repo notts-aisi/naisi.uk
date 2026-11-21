@@ -22,6 +22,8 @@ import { TASK_DONE, TASK_MARK_WORDS } from "@/lib/courses/memberPageWords";
 import { draftStateWords, feedbackFromWords, sentOnWords } from "@/lib/courses/writtenAnswerWords";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { handedTaskDone, handedTasksDone, isCounted } from "@/lib/courses/weekBlocks/progress";
+import { handedTaskWaitsOn } from "@/lib/courses/weekWork/waiting";
+import { WAITING, waitingForWords } from "@/lib/courses/weekWork/waitingWords";
 import { NOT_GIVEN_YET, NOT_READY_YET } from "@/lib/courses/packsAndCases/words";
 import { blockTickItemsOf } from "../weekBlocks/tickItems";
 import TickRows, { tickItemsOf } from "./TickRows";
@@ -138,6 +140,9 @@ export default function ThisWeekCard({
           {known && open && thisWeek && variant === "this-week" && tasks.length > 0 && (
             <ul className={styles.taskRows} role="list">
               {tasks.map((task, index) => {
+                // Waiting on the facilitator's slip (the slip the one thing left in it): "Waiting" in place of
+                // not done. It stays in the count, not done, as it always was.
+                const waits = handedTaskWaitsOn(task, ticks.isDone);
                 const counted = isCounted(task.needs);
                 const taskIsDone = counted && handedTaskDone(task, ticks.isDone);
                 return (
@@ -155,12 +160,21 @@ export default function ThisWeekCard({
                     <div className={styles.taskRowBody}>
                       <p className={styles.taskRowLabel}>
                         {counted && (
-                          <span className={styles.srOnly}>{taskIsDone ? TASK_MARK_WORDS.done : TASK_MARK_WORDS.notDone}: </span>
+                          <span className={styles.srOnly}>{waits ? WAITING : taskIsDone ? TASK_MARK_WORDS.done : TASK_MARK_WORDS.notDone}: </span>
                         )}
                         {task.label}
                       </p>
-                      {task.talk?.hasCases && <p className={styles.taskRowSub}>{task.talk.caseTitle ?? NOT_GIVEN_YET}</p>}
-                      {task.talk && !task.talk.ready && !taskIsDone && <p className={styles.taskRowStatus}>{NOT_READY_YET}</p>}
+                      {waits ? (
+                        <>
+                          <p className={styles.taskRowSub}>{waitingForWords(waits)}</p>
+                          <p className={styles.taskRowStatus}>{WAITING}</p>
+                        </>
+                      ) : (
+                        <>
+                          {task.talk?.hasCases && <p className={styles.taskRowSub}>{task.talk.caseTitle ?? NOT_GIVEN_YET}</p>}
+                          {task.talk && !task.talk.ready && !taskIsDone && <p className={styles.taskRowStatus}>{NOT_READY_YET}</p>}
+                        </>
+                      )}
                       {task.answer ? (
                         // The written answer's own line: "Sent Mon 16 Nov", then
                         // "Feedback from Rahul"; "Draft · 241 words" before it is sent.

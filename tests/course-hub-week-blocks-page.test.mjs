@@ -167,13 +167,16 @@ describe("1. a week written as blocks, drawn", () => {
     const { text } = await w.weekPage("chloe", 2);
     inOrder(text, [
       "This week",
+      // Chloe has done nothing and has no pack or case yet. "Parts 1 to 3" still holds readings to tick, so its row
+      // is open, as it always was; the case study holds nothing but the case, so its row says Waiting. Every task counts.
       "0 of 3 done",
-      "Parts 1 to 3 below: two shared readings, then your pack",
+      "Not done yet: Parts 1 to 3 below: two shared readings, then your pack",
       "Before your session, Tue 10 Nov",
       "Part 4: your forecast, the week’s written answer (200 to 300 words)",
       "By the end of Mon 9 Nov",
-      "Your case study: a 3-minute talk on a case from your pack",
+      "Waiting: Your case study: a 3-minute talk on a case from your pack",
       "At your session, Tue 10 Nov",
+      "Waiting for your case Waiting",
       "Part 5 and the pitch",
       "None this week",
       "They come back in a later week",
@@ -286,7 +289,11 @@ describe("1. a week written as blocks, drawn", () => {
       "Your pack",
       "Read the pack you were given at the end of the last session.",
       "Packs",
-      "Given out at the end of session 1. Only your pack counts. To switch, ask Rahul or Sofia.",
+      // When the slips go out is said once, under "Your pack", so the line above it does not say it too.
+      "Only your pack counts. To switch, ask Rahul or Sofia.",
+      "Your pack",
+      "Not given yet",
+      "Rahul and Sofia haven’t copied in your slip yet.",
       "Base rate: what has happened before?",
       "Change: what is different now?",
       "Elections",
@@ -309,7 +316,10 @@ describe("1. a week written as blocks, drawn", () => {
       "Forecasting in public",
       "if you like writing",
     ]);
-    assert.doesNotMatch(html, /Your pack<\/span>/);
+    // No pack is marked as Chloe's: the card that says whose pack it is says none is given yet.
+    assert.doesNotMatch(html, /<span class="chip">Your pack<\/span>/);
+    assert.doesNotMatch(html, /packMine/);
+    assert.ok(text.includes("Your pack Not given yet"));
     // The talks are drawn: the pitch with how to prepare and
     // "Ready for my pitch", then the case study with Chloe's case not given
     // yet, every case of the week by pack, and the content note on the one
@@ -323,7 +333,6 @@ describe("1. a week written as blocks, drawn", () => {
       "You get a case from your pack at the end of the previous session.",
       "Your case",
       "Not given yet",
-      "Given out at the end of session 1.",
       "Ready for my talk",
       "Prepare a 3-minute talk: the three questions",
       "All 3 cases this week",
@@ -625,7 +634,9 @@ describe("4. counts by This week's tasks", () => {
     const ticked = ["src-1", "src-7", "src-2", "src-8", "ci-1", "ci-2"];
     for (const id of ["rp-1", "rp-2", "rp-3"]) assert.equal((await w.writeBox("chloe", id, "w02", "Done.")).status, 200);
     const page = await w.weekPage("chloe", 2, ticked);
+    // The pack and the case are the one thing left in their tasks, so those rows say Waiting; every task is counted.
     assert.match(page.text, /0 of 3 done/);
+    assert.match(page.text, /Waiting for your pack Waiting/);
   });
 
   test("This week's covers are the paste's: week 1's task covers its three parts, worked out from its words", async () => {

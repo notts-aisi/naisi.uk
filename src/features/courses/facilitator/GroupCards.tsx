@@ -1,4 +1,6 @@
 import { joinsLaterWords, newFromWeekWords } from "@/lib/courses/staffMove/joins";
+import { readingHref } from "@/lib/courses/coursework/reading";
+import { VISITING_CHIP, awayAtWords } from "@/lib/courses/visit/words";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
@@ -8,6 +10,7 @@ import type { TicketFacts } from "@/features/courses/sessionChange/cardFacts";
 import type {
   GroupMark,
   GroupPersonRow,
+  GroupVisitorRow,
   GroupRegisterRow,
   GroupReviewRow,
 } from "@/lib/courses/facilitatorGroup";
@@ -47,6 +50,8 @@ import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { STARTS_WITH_AN_EXPLAINER, facilitatorLineWords, scheduledByWords } from "@/lib/courses/explainers/words";
+import { NO_GUIDE_LINKS, type GuideLinksView } from "@/lib/courses/facilitatorGuide/links";
+import { FACILITATOR_GUIDE } from "@/lib/courses/facilitatorGuide/words";
 import { PeopleIcon } from "./icons";
 import styles from "./facilitator.module.css";
 
@@ -92,6 +97,7 @@ export function FacilitatorTicket({
   registerHref,
   guide = null,
   guideContents = null,
+  guideSentence = null,
   explainer = null,
 }: {
   facts: TicketFacts;
@@ -111,6 +117,12 @@ export function FacilitatorTicket({
    * course's own documents, or null when the guide has nothing loaded.
    */
   guideContents?: { href: string; label: string } | null;
+  /**
+   * The sentence in place of the week's link ("Week 3’s plan isn’t in the
+   * guide yet. Maya or an admin loads it."), or in place of both links when
+   * nothing is loaded for the course; null with none.
+   */
+  guideSentence?: string | null;
   /**
    * The explainer the session starts with, named as this reader sees people
    * (`by` and `scheduledBy`, null once an account is gone), or null.
@@ -173,6 +185,7 @@ export function FacilitatorTicket({
                 <ArrowRight />
               </Link>
             )}
+            {guideSentence && <p className={styles.guideSentence}>{guideSentence}</p>}
             {guideContents && (
               <Link href={guideContents.href} className={styles.ticketGuide}>
                 <span>{guideContents.label}</span>
@@ -200,14 +213,52 @@ export function FacilitatorTicket({
   );
 }
 
+/** The guide under a card with no ticket: the sentence, then the guide's course page, as the ticket draws them. */
+function GuideRow({ guide }: { guide: GuideLinksView }) {
+  if (!guide.standing && !guide.sentence && !guide.week) return null;
+  return (
+    <div className={styles.ticketButtons}>
+      {guide.week && (
+        <Link href={guide.week.href} className={styles.ticketGuide}>
+          <span>{guide.week.label}</span>
+          <ArrowRight />
+        </Link>
+      )}
+      {guide.sentence && <p className={styles.guideSentence}>{guide.sentence}</p>}
+      {guide.standing && (
+        <Link href={guide.standing.href} className={styles.ticketGuide}>
+          <span>{guide.standing.label}</span>
+          <ArrowRight />
+        </Link>
+      )}
+    </div>
+  );
+}
+
 /**
  * Where the ticket would be once the group's last session is over: the
- * sentence Home says, so the page never just stops above "Your group".
+ * sentence Home says, so the page never just stops above "Your group", and
+ * the facilitator guide still a tap away.
  */
-export function NoMoreSessionsCard() {
+export function NoMoreSessionsCard({ guide = NO_GUIDE_LINKS }: { guide?: GuideLinksView }) {
   return (
     <section className={weekly.card} aria-label="Your next session" data-testid="session-card">
       <p className={weekly.cardLine}>{NO_MORE_SESSIONS}</p>
+      <GuideRow guide={guide} />
+    </section>
+  );
+}
+
+/**
+ * Where the ticket would be for a group with no dates yet: the facilitator
+ * guide alone, so it is a tap away before anything is planned. Nothing when
+ * the guide's rule draws nothing.
+ */
+export function GuideOnlyCard({ guide }: { guide: GuideLinksView }) {
+  if (!guide.standing && !guide.sentence && !guide.week) return null;
+  return (
+    <section className={weekly.card} aria-label={FACILITATOR_GUIDE}>
+      <GuideRow guide={guide} />
     </section>
   );
 }
@@ -259,6 +310,10 @@ export function GroupPeopleCard({
   finishedWeeks,
   notYetTold,
   groupName = "",
+  personBase = null,
+  unlinked = [],
+  visitors = [],
+  readBase = null,
 }: {
   people: GroupPersonRow[];
   leavers: GroupPersonRow[];
@@ -266,6 +321,18 @@ export function GroupPeopleCard({
   notYetTold: boolean;
   /** The group's name, for the line under somebody joining it from a later week. */
   groupName?: string;
+  /**
+   * The group's people pages, before the person (".../people"), for a
+   * facilitator of the group: each name taking part opens that person's page
+   * as their facilitator sees them. Left out, names are plain text.
+   */
+  personBase?: string | null;
+  /** Whose names stay plain text though `personBase` is given: the reader's own, and the group's facilitators', whose page is not the reader's to open. */
+  unlinked?: readonly string[];
+  /** Somebody from another group at the next session for one week, with their line and chip. */
+  visitors?: GroupVisitorRow[];
+  /** The group's reading view, before a person (".../coursework"): a visitor's name opens the week they visit. Null: plain text. */
+  readBase?: string | null;
 }) {
   const meta = finishedWeeksWords(finishedWeeks);
   return (
@@ -284,10 +351,37 @@ export function GroupPeopleCard({
             <li key={person.uid} className={styles.person}>
               <InitialsChip name={person.name} uid={person.uid} size="lg" />
               <span className={styles.personText}>
-                <span className={styles.personName}>{person.name}</span>
+                {personBase && !person.joins && !unlinked.includes(person.uid) ? (
+                  <Link href={`${personBase}/${encodeURIComponent(person.uid)}`} className={`${styles.personName} ${styles.personLink}`}>
+                    {person.name}
+                  </Link>
+                ) : (
+                  <span className={styles.personName}>{person.name}</span>
+                )}
                 {person.joins && <span className={styles.personNote}>{joinsLaterWords(groupName, person.joins)}</span>}
+                {person.awayAt && (
+                  <span className={styles.personNote}>
+                    {awayAtWords(person.awayAt)}
+                  </span>
+                )}
               </span>
               {person.joins ? <span className={styles.personNote}>{newFromWeekWords(person.joins.fromWeek)}</span> : <Marks marks={person.marks} />}
+            </li>
+          ))}
+          {visitors.map((person) => (
+            <li key={`visiting-${person.uid}`} className={styles.person}>
+              <InitialsChip name={person.name} uid={person.uid} size="lg" />
+              <span className={styles.personText}>
+                {readBase ? (
+                  <Link href={readingHref(readBase, person.uid, person.weekNumber)} className={styles.personName}>
+                    {person.name}
+                  </Link>
+                ) : (
+                  <span className={styles.personName}>{person.name}</span>
+                )}
+                <span className={styles.personNote}>{person.line}</span>
+              </span>
+              <span className={styles.personNote}>{VISITING_CHIP}</span>
             </li>
           ))}
           {leavers.map((person) => (

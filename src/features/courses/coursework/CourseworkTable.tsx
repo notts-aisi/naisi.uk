@@ -88,6 +88,7 @@ const STATE_CLASS: Record<CellState, string> = {
   done: styles.doneChip,
   "done-on-time": styles.doneChip,
   "done-late": styles.lateChip,
+  "waiting-slip": styles.joinedChip,
   "joined-late": styles.joinedChip,
   opens: styles.quiet,
   started: styles.startedChip,

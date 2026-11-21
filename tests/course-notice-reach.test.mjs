@@ -213,9 +213,11 @@ describe("3. the week's emails are notices: they reach her", () => {
   test("its source, and the reminders', ask the notice audience for the group, never the list", () => {
     // Both ask for the group by the session's week: the people whose group
     // that week is this one (`groupForWeek`), which with no record of groups
-    // by week is the people in it now.
+    // by week is the people in it now. The week's email also asks for the
+    // people who belong to it that week while visiting another group
+    // (`belongingToo`), who with no visit anywhere are nobody.
     for (const [parts, scope] of [
-      [["lib", "courses", "nextWeekEmail.ts"], /\{ groupId: group\.id, weekNumber: session\.weekNumber \}/],
+      [["lib", "courses", "nextWeekEmail.ts"], /\{ groupId: group\.id, weekNumber: session\.weekNumber, belongingToo: true \}/],
       [["lib", "scheduler", "jobs", "weekReminders.ts"], /\{ groupId: group\.id, weekNumber \}/],
     ]) {
       const text = source(...parts);

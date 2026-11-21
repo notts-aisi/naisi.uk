@@ -141,6 +141,14 @@ const READERS = {
       "their placement may be shown to the caller, so the lead sees an untold one as not in a group yet; asked a second time " +
       "about a caller who is no admin, to know whether the person was told and so reads the group's copy of a week",
   },
+  "lib/courses/personPage/load.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "a person's page on the programme and a facilitator's cut of it: the person's group comes from the Coursework tab's rows and the " +
+      "one gate, which ask the question themselves; asked here once more about a caller who is no admin, so Activity says Publish told them " +
+      "their group only once it has",
+  },
   "lib/courses/coursework/readingLoad.ts": {
     kind: "shown",
     asks: 3,
@@ -177,6 +185,14 @@ const READERS = {
       "the card under a request for a place at an event, for the people organising it: a place names its group only " +
       "where the placement may be shown to the person looking, so anybody but an admin reads a seat nobody has told as " +
       "not in a group yet",
+  },
+  "lib/courses/termRoomsEmail/send.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "a group's rooms for the rest of term, emailed by hand by an admin or the programme's lead: its people come from the " +
+      "notice audience, which leaves out every seat Publish has not told, and the run's places are read again only to give " +
+      "each of those people the lines of their own weeks, a seat nobody has told given none; nothing is shown to anybody",
   },
   "lib/courses/weekOne/door.ts": {
     kind: "told",
@@ -306,6 +322,11 @@ const READERS = {
     kind: "shown",
     asks: 1,
     why: "who takes part in their own week, for Submit: an untold seat does not open the run (a group's facilitator takes part as its facilitator, which is no seat)",
+  },
+  "lib/scheduler/jobs/weekReminders.ts": {
+    kind: "told",
+    asks: 1,
+    why: "the reminders before a session read the run's places for the certificate sentence of each person they email, keeping only a place Publish has told its owner, as the notice audience they go to does",
   },
   "lib/courses/weekWork/readers.ts": {
     kind: "told",
@@ -448,6 +469,13 @@ const READERS = {
       "tab's Group column read each person's group as Publish told it, so a seat Publish has not told them about is " +
       "in no group, and no answer is counted under a group its person has not been told",
   },
+  "lib/courses/weekRooms/load.ts": {
+    kind: "staff",
+    proof: ['if (!visible) return { status: "none" };'],
+    why:
+      "the week's rooms, for an admin or the programme's lead alone: the run's places are read only to ask which group each " +
+      "line on a session's register belonged to that week, so a moved person's old line is not counted; no seat is shown or sent",
+  },
   "lib/courses/excused/page.ts": {
     kind: "staff",
     proof: ['if (actor.role !== "admin") return { status: "none" };'],
@@ -551,14 +579,24 @@ const READERS = {
       "the notes admins keep, an admin's alone: a person's seats are read only for the runs they are on, to offer the " +
       "programme a note is written from. No group or placement is shown",
   },
+  "lib/search/load.ts": {
+    kind: "staff",
+    proof: ['if (searcher.kind === "admin") {', 'const snap = await db.collection("courseEnrolments").where("uid", "in", uids).get();'],
+    why:
+      "search, for an admin alone: the seats of the six people at most in an admin's answer are read for the programme " +
+      "and group to say beside each name, which an admin is shown for everybody placed. A lead's and a facilitator's " +
+      "people are the People tab's and the group page's own rows, read by those pages' own readers",
+  },
   "lib/courses/groupPage/load.ts": {
     kind: "staff",
     proof: [
       'const staff = viewer !== "facilitator";',
       ".filter((seat) => staff || placementIsTold(seat)),",
       "told: placementIsTold(seat),",
+      // Somebody from another group at one of its sessions for one week: only a told place, for everybody.
+      'seat.groupId !== group.id && placementIsTold(seat) && (seat.visits ?? []).some((visit) => visit.groupId === group.id)',
     ],
-    told: 2,
+    told: 3,
     why:
       "a group's page: admins and the programme's lead are shown every place in the group, told or not, as the " +
       "Groups tab shows them (the page is behind `loadProgrammeRun`); the facilitator's cut on their own group page " +
@@ -591,10 +629,71 @@ const READERS = {
     proof: ["if (!placementIsTold(place)) return { ok: false, refusal: \"not-told\" };", "patch.toldGroupId = fromGroupId;"],
     told: 1,
     why:
-      "moving somebody to another group from a week, called by the staff move alone: it moves only a seat Publish has told " +
-      "(a seat nobody has told is the board's to move), keeps it told, and writes the group it was told about the first " +
-      "time a seat told before that was kept moves, or, for the staff move, the group they join, whose own email tells them. " +
-      "It shows nobody anything and emails nobody",
+      "moving somebody to another group from a week, called by the staff move and by a move made mid-term on the board: " +
+      "it moves only a seat Publish has told (a seat nobody has told is the board's to move), keeps it told, and writes " +
+      "the group it was told about the first time a seat told before that was kept moves, or, for the staff move, the " +
+      "group they join, whose own email tells them. It shows nobody anything and emails nobody",
+  },
+  "lib/courses/staffMove/board.ts": {
+    kind: "writer",
+    proof: [
+      'return place.role === "learner" && place.status === "active" && place.groupId !== null && placementIsTold(place);',
+      "toldAtPublish: true,",
+    ],
+    told: 1,
+    why:
+      "a move made mid-term on the board, behind the allocate route's gate: only a seat Publish has told is moved from a " +
+      "week (a seat nobody has told is the board's plain move, as always), through the writer above, told at the next " +
+      "Publish as every move on the board is. Its question before the press goes to the staff who may place the person, " +
+      "and it emails nobody",
+  },
+  "lib/courses/nextWeekEmail.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "\"Week N is open\" reads, by address, the places of the people its told audience already holds, only to pick the " +
+      "copy of the week each works in (a visitor's own group's): a place Publish has not told is skipped, and nobody is " +
+      "added to the email by it",
+  },
+  "lib/courses/facilitatorWeek/readers.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "the facilitator's detailed This week's work reads, by address, the places of the visitors the group's own model " +
+      "already lists, to judge each on their own copy: a place shown to nobody but an admin until Publish has told it " +
+      "(placementIsShownTo, about the viewer) gives no row",
+  },
+  "lib/courses/visit/reading.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "who reads a visitor's work for the week of a one-week visit: a facilitator of the host group, never the visitor and " +
+      "never an admin by this answer, and only of a place that may be shown to somebody who is not an admin " +
+      "(placementIsShownTo), as the fill-in boxes' gate asks it, so nobody reads the work of somebody Publish has not told",
+  },
+  "lib/courses/visit/plan.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "what arranging a one-week visit to another group's session would do, for an admin or the programme's lead (the page " +
+      "and the route ask the gate first): a seat Publish has not told is refused in a sentence, so nobody is emailed about a " +
+      "group they were never told, and the visitor's name reaches no facilitator. The ways in ask the same of a seat " +
+      "(placeTakesMove) before they offer a visit",
+  },
+  "lib/courses/visit/hostOff.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "a session called off ends the visits to it of people whose own session that week is still to come, and emails them " +
+      "and their own group's facilitators: only a seat Publish has told is one, as only such a seat can hold a visit",
+  },
+  "lib/courses/visit/save.ts": {
+    kind: "writer",
+    proof: ["visits: storedVisits(visits),", "tx.set(write.ref, { attendance: write.rollup }, { merge: true });"],
+    why:
+      "arranging or calling off a one-week visit, behind the plan's refusals (a seat Publish has not told never reaches " +
+      "it): it writes the visit on the place, rebuilds the person's own figures and writes history rows, and changes " +
+      "nobody's group; the emails go to the people the plan counted. It shows nobody anything",
   },
   "lib/courses/staffMove/plan.ts": {
     kind: "told",

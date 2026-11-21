@@ -46,35 +46,25 @@
  *  - the enrolment probe behind an offer is ADDRESSED via `courseEnrolmentId`,
  *    never queried, so it cannot be widened into a scan of anyone else's seats.
  *
- * ## Why the loader dance
+ * ## How the route is loaded
  *
- * Same root cause as `course-schedule-changes.test.mjs`: this repo's Node predates the
- * v22.18 that strips TypeScript natively, so the module graph is transpiled in
- * memory with the `typescript` devDependency `npx tsc --noEmit` already uses.
- * The transpile path is taken unconditionally rather than as a fallback,
- * because the module under test is an API route: on a Node new enough to
- * import `.ts` directly, a native import would bypass the rewrites and load
- * `server-only` (which throws by design outside a React Server Component
- * graph) plus the Admin SDK.
+ * Through the shared loader (`tests/lib/tsLoader.mjs`), with the four doors
+ * below stubbed. The module under test is an API route, so its whole graph is
+ * compiled and loaded: the shared loader writes each compiled module to a
+ * file of its own, which keeps this suite's memory flat however far the
+ * route's graph reaches.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createLoader } from "./lib/tsLoader.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(REPO_ROOT, "src");
 
 const ME_ROUTE = join(SRC, "app", "api", "courses", "me", "route.ts");
-
-/**
- * Every module specifier in transpiled output: `from "x"`, `import "x"` and
- * `import("x")`, in either quote style. Deliberately a regex over the OUTPUT
- * rather than a TypeScript AST walk — by that point the type-only imports are
- * already gone and what is left is plain ES module syntax.
- */
-const SPECIFIER = /(\bfrom\s*|\bimport\s*\(?\s*)(["'])([^"']+)\2/g;
 
 /**
  * Specifiers replaced with a no-op module, and why each one is safe to
@@ -108,91 +98,10 @@ const STUBS = new Map([
   ],
 ]);
 
-function resolveLocalTs(specifier, fromFile) {
-  const base = specifier.startsWith("@/")
-    ? join(SRC, specifier.slice(2))
-    : resolve(dirname(fromFile), specifier);
-  for (const candidate of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts")]) {
-    if (existsSync(candidate)) return candidate;
-  }
-  return null;
-}
+const { loadTs } = createLoader({ stubs: STUBS });
 
-/** file path (or stub key) → data: URL of its module source. Memoised. */
-const graph = new Map();
-let tsc = null;
-
-function dataUrl(source) {
-  return `data:text/javascript;base64,${Buffer.from(source, "utf8").toString("base64")}`;
-}
-
-function stubUrl(key) {
-  const cached = graph.get(key);
-  if (cached) return cached;
-  const url = dataUrl(STUBS.get(key));
-  graph.set(key, url);
-  return url;
-}
-
-async function transpileToDataUrl(file) {
-  if (STUBS.has(file)) return stubUrl(file);
-  const cached = graph.get(file);
-  if (cached) return cached;
-
-  const { outputText } = tsc.transpileModule(readFileSync(file, "utf8"), {
-    fileName: file,
-    compilerOptions: {
-      target: tsc.ScriptTarget.ES2022,
-      module: tsc.ModuleKind.ESNext,
-    },
-  });
-
-  const rewrites = new Map();
-  for (const [, , , specifier] of outputText.matchAll(SPECIFIER)) {
-    if (rewrites.has(specifier)) continue;
-    if (STUBS.has(specifier)) {
-      rewrites.set(specifier, stubUrl(specifier));
-    } else if (specifier.startsWith(".") || specifier.startsWith("@/")) {
-      const target = resolveLocalTs(specifier, file);
-      if (!target) throw new Error(`cannot resolve "${specifier}" imported from ${file}`);
-      rewrites.set(specifier, await transpileToDataUrl(target));
-    } else {
-      // A package. `import.meta.resolve` is the runtime's own resolver, so this
-      // is exactly the file the app would have loaded.
-      rewrites.set(specifier, import.meta.resolve(specifier));
-    }
-  }
-
-  const rewritten = outputText.replace(
-    SPECIFIER,
-    (whole, prefix, quote, specifier) =>
-      rewrites.has(specifier)
-        ? `${prefix}${quote}${rewrites.get(specifier)}${quote}`
-        : whole,
-  );
-  const url = dataUrl(rewritten);
-  graph.set(file, url);
-  return url;
-}
-
-async function loadTs(file) {
-  if (!tsc) {
-    try {
-      tsc = (await import("typescript")).default;
-    } catch (err) {
-      throw new Error(
-        "the `typescript` devDependency is not installed — run `npm install`.",
-        { cause: err },
-      );
-    }
-  }
-  return import(await transpileToDataUrl(file));
-}
-
-const { membershipFor } = await loadTs(ME_ROUTE);
-const { COURSE_APPLICATION_STATUSES } = await loadTs(
-  join(SRC, "lib", "firestore", "courseApplications.ts"),
-);
+const { membershipFor } = await loadTs("app/api/courses/me/route.ts");
+const { COURSE_APPLICATION_STATUSES } = await loadTs("lib/firestore/courseApplications.ts");
 
 const ME_SOURCE = readFileSync(ME_ROUTE, "utf8");
 

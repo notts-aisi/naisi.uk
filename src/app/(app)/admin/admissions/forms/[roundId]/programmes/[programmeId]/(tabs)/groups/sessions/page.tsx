@@ -11,6 +11,10 @@ import { canRunTerm } from "@/lib/applications/access";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
+import Link from "next/link";
+import roomsStyles from "@/features/courses/weekRooms/WeekRooms.module.css";
+import { termRoomsPath, weekRoomsPath } from "@/lib/courses/weekRooms/paths";
+import { TO_TERM_ROOMS, TO_WEEK_ROOMS } from "@/lib/courses/weekRooms/words";
 
 /**
  * One programme's Groups tab, its Sessions view: one week of the
@@ -26,6 +30,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  *
  * EACH GROUP'S CAMPUS is set on its card by the same people, through its own
  * route (`.../groups/[groupId]/campus`), which asks the gate again.
+ *
+ * THE WEEK'S ROOMS AND THE TERM'S ROOMS, every group's room for one week and
+ * for the whole term, are linked from here filtered to this programme.
  *
  * WHEN GROUPS GO OUT is the run's own setting, set here above the sessions
  * by the same people (`GroupsGoOut`, saved through its own route, which asks
@@ -70,6 +77,14 @@ export default async function ProgrammeSessionsPage({
 
   return (
     <GroupsFrame views={views}>
+      <div className={roomsStyles.toolbar}>
+        <Link href={weekRoomsPath(view.roundId, { programme: view.programmeId })} className={roomsStyles.textLink}>
+          {TO_WEEK_ROOMS}
+        </Link>
+        <Link href={termRoomsPath(view.roundId, view.programmeId)} className={roomsStyles.textLink}>
+          {TO_TERM_ROOMS}
+        </Link>
+      </div>
       <GroupsGoOut roundId={view.roundId} programmeId={view.programmeId} initial={run.groupsGoOutOn} />
       <SessionsBoard
         heading={shown.heading}

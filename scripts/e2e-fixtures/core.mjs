@@ -419,6 +419,10 @@ export const FIXTURE_COLLECTIONS = [
   // nothing a fixture seeds.
   "courseWeekWork",
   "courseWorkLog",
+  // The draw: the pathway and the case a facilitator gives each person of
+  // their group, one row a person and block (`runId` on every one). Written
+  // by the draw route a spec presses, and by nothing a fixture seeds.
+  "coursePacksAndCases",
   // A facilitator's report on a session of their group, one a writer and
   // session (`runId` on every one). Written by the session report route a
   // spec drives, and by nothing a fixture seeds.

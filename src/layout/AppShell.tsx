@@ -11,18 +11,21 @@ import { useAuth } from "@/auth/AuthProvider";
 import { exitImpersonation } from "@/auth/impersonation";
 import { signOut } from "@/auth/signInWithGoogle";
 import { usePendingCount } from "@/features/admin/usePendingCount";
-import { useWritesMessages } from "@/features/messages/useWritesMessages";
+import { useMenuAnswer } from "@/features/messages/useWritesMessages";
+import PeopleSearch, { SearchButton, useSlashToSearch } from "@/features/search/PeopleSearch";
+import { useSearches } from "@/features/search/useSearches";
 import type { UserPermissions } from "@/lib/firestore/users";
 import { mark, warn } from "@/lib/devMonitor";
 import { hardNavigate } from "@/lib/navigation/hardNavigate";
 import { clearSelfHealAttempt } from "@/lib/navigation/selfHealGuard";
 import { InstallLink } from "@/features/pwa/InstallLink";
+import { FOOTER_LINK } from "@/lib/societyFeedback/words";
 import {
-  APP_NAV,
-  BOTTOM_BAR,
   BOTTOM_BAR_MENU_LABEL,
   barTitleFor,
+  bottomBarFor,
   currentEntry,
+  menuFor,
   roleInWords,
   type NavRule,
 } from "./appNav";
@@ -45,8 +48,11 @@ type Viewer = {
    *  round. See `users.admissionsReviewer`. */
   admissionsReviewer: boolean;
   /** This person leads a programme or facilitates a group Messages can write
-   *  to, as the records say (`useWritesMessages`). Draws the entry only. */
+   *  to, as the records say (`useMenuAnswer`). Draws the entry only. */
   writesMessages: boolean;
+  /** How many live groups the records name this person to facilitate
+   *  (`useMenuAnswer`). Draws the Facilitating part only. */
+  facilitatesGroups: number;
 };
 
 /*
@@ -110,6 +116,13 @@ const MEMBERSHIP_ADMIN_ACCESS = (v: Viewer) =>
 // and its routes ask the records again.
 const MESSAGES_ACCESS = (v: Viewer) => v.role === "admin" || v.writesMessages;
 
+// Facilitating: anybody named as a facilitator of a live group of a live run,
+// as the records say and the session does not, so the shell asks once
+// (`useMenuAnswer`, the same request as Messages). From the day somebody is
+// made a facilitator, before groups are published: the group page and the
+// guide are theirs from then. Each page and route asks the records again.
+const FACILITATING_ACCESS = (v: Viewer) => v.facilitatesGroups > 0;
+
 /** The rule behind each name `appNav.ts` uses. Typed by `NavRule`, so an entry
  *  there cannot name a rule that is missing here. */
 const RULES: Record<NavRule, (v: Viewer) => boolean> = {
@@ -123,6 +136,7 @@ const RULES: Record<NavRule, (v: Viewer) => boolean> = {
   courseAdmin: COURSE_ADMIN_ACCESS,
   membershipAdmin: MEMBERSHIP_ADMIN_ACCESS,
   messages: MESSAGES_ACCESS,
+  facilitating: FACILITATING_ACCESS,
 };
 
 const NAV_DRAWER_ID = "app-nav-drawer";
@@ -161,7 +175,12 @@ export default function AppShell({
   const pathname = usePathname();
   const { user, role, permissions, suRecognised, admissionsReviewer, loading } = useAuth();
   const pendingCount = usePendingCount();
-  const writesMessages = useWritesMessages();
+  const { writes: writesMessages, facilitating } = useMenuAnswer();
+  // Search for a person or a group: drawn only for somebody its route answers,
+  // and asked about only for somebody who could run something.
+  const searches = useSearches(writesMessages || admissionsReviewer);
+  const [searchOpen, setSearchOpen] = useState(false);
+  useSlashToSearch(searches && !searchOpen && !loading, () => setSearchOpen(true));
   const [exiting, setExiting] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Fade the main content in once when we arrive from the sign-in flow.
@@ -264,6 +283,7 @@ export default function AppShell({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDrawerOpen(false);
+    setSearchOpen(false);
   }, [pathname]);
 
   async function handleExitImpersonation() {
@@ -278,25 +298,29 @@ export default function AppShell({
     }
   }
 
-  const visibleGroups =
+  const viewer: Viewer | null =
     role === "admin" || role === "committee" || role === "member"
-      ? APP_NAV.map((g) => ({
-          ...g,
-          entries: g.entries.filter((entry) =>
-            RULES[entry.rule]({ role, permissions, suRecognised, admissionsReviewer, writesMessages }),
-          ),
-        })).filter((g) => g.entries.length > 0)
-      : [];
+      ? { role, permissions, suRecognised, admissionsReviewer, writesMessages, facilitatesGroups: facilitating.length }
+      : null;
+  // The menu: `APP_NAV`, with the Facilitating part when the records name
+  // this person on a live group, each entry filtered by its rule.
+  const visibleGroups = viewer
+    ? menuFor(facilitating)
+        .map((g) => ({ ...g, entries: g.entries.filter((entry) => RULES[entry.rule](viewer)) }))
+        .filter((g) => g.entries.length > 0)
+    : [];
   const visibleEntries = visibleGroups.flatMap((g) => g.entries);
   // The one entry marked as the current page, in the sidebar, the drawer and
   // the bottom bar alike. See `currentEntry` for how an admin page finds the
   // entry that is the way into its section.
   const current = currentEntry(visibleEntries, pathname);
-  // The phone's bottom bar: its words, for the entries this person has.
-  const barEntries = BOTTOM_BAR.filter((b) => visibleEntries.some((e) => e.href === b.href));
+  // The phone's bottom bar: its words, for the entries this person has, and a
+  // facilitator's own shape, drawn only from the answer (`bottomBarFor`).
+  const facilitatingPart = visibleGroups.find((g) => g.entries.some((entry) => entry.rule === "facilitating")) ?? null;
+  const barWords = bottomBarFor(visibleEntries, facilitatingPart);
   // Menu carries the line when the page somebody is on is one the bar has no
   // word for, so the bar always says where they are.
-  const menuHoldsPage = current !== null && !barEntries.some((b) => b.href === current.href);
+  const menuHoldsPage = current !== null && !barWords.some((word) => word.lights.includes(current.href));
   const barTitle = barTitleFor(current);
 
   const displayName = user?.displayName ?? user?.email ?? "Signed in";
@@ -347,7 +371,10 @@ export default function AppShell({
   // `label` names the landmark. The sidebar's is "Main". The drawer's has
   // none: it sits inside a dialog that is already named, beside the bottom
   // bar, which is the "Main" navigation on a narrow screen.
-  const renderNav = (opts: { label?: string; onLinkClick?: () => void }): ReactNode => (
+  // `details` draws an entry's line under its name (the Facilitating part's
+  // "Wednesdays 3pm · Portland A21"): in the phone's Menu, and in the sidebar
+  // only for two groups that share a name (`detailInSidebar`).
+  const renderNav = (opts: { label?: string; onLinkClick?: () => void; details?: boolean }): ReactNode => (
     <nav className={styles.nav} aria-label={opts.label}>
       {visibleGroups.map((group, gi) => (
         <div key={group.label ?? `group-${gi}`} className={styles.navGroup}>
@@ -365,7 +392,14 @@ export default function AppShell({
                 aria-current={active ? "page" : undefined}
                 onClick={opts.onLinkClick}
               >
-                <span>{entry.label}</span>
+                {(opts.details || entry.detailInSidebar) && entry.detail ? (
+                  <span className={styles.navText}>
+                    <span>{entry.label}</span>
+                    <span className={styles.navDetail}>{entry.detail}</span>
+                  </span>
+                ) : (
+                  <span>{entry.label}</span>
+                )}
                 {count > 0 && (
                   <span
                     className={styles.navBadge}
@@ -527,6 +561,7 @@ export default function AppShell({
                 </span>
               </button>
             </div>
+            {searches && <SearchButton onOpen={() => setSearchOpen(true)} />}
             {renderNav({ label: "Main" })}
             {renderFoot()}
           </aside>
@@ -559,6 +594,14 @@ export default function AppShell({
               </div>
             )}
             {children}
+            {/* The foot of every signed-in page: anonymous feedback, which any
+                member can send (docs/surveys.md). A plain link: no read, no
+                count, nothing about whether anybody has sent any. */}
+            <footer className={styles.appFooter}>
+              <Link href="/anonymous-feedback" className={styles.appFooterLink}>
+                {FOOTER_LINK}
+              </Link>
+            </footer>
           </main>
         </div>
         {/* Always rendered so the slide-in/out transition has an interpolation
@@ -604,35 +647,45 @@ export default function AppShell({
             <div className={styles.drawerBrand}>
               <BrandMark size={28} className={styles.sidebarMark} />
             </div>
-            {renderNav({ onLinkClick: () => setDrawerOpen(false) })}
+            {searches && (
+              <SearchButton
+                onOpen={() => {
+                  setDrawerOpen(false);
+                  setSearchOpen(true);
+                }}
+              />
+            )}
+            {renderNav({ onLinkClick: () => setDrawerOpen(false), details: true })}
             {/* Quiet, permanent install route. Renders nothing when installed,
                 on desktop, or on Android before Chrome offers its prompt. */}
             <InstallLink />
             {renderFoot()}
           </div>
         </Drawer>
+        {searches && <PeopleSearch open={searchOpen} onClose={() => setSearchOpen(false)} />}
       </div>
       {/*
         The phone's bottom bar, shown wherever the sidebar is hidden. A few of
         the person's own entries by a short name, then Menu, which opens the
         drawer above with every entry they have. Written from a list
-        (`BOTTOM_BAR` in appNav.ts), so another word is one line there.
+        (`BOTTOM_BAR` in appNav.ts), so another word is one line there; a
+        facilitator's own words come from `bottomBarFor` beside it.
       */}
       <nav
         className={`${styles.bottomBar} ${signoutExiting ? styles.bottomBarExiting : ""}`}
         aria-label="Main"
       >
-        {barEntries.map((entry) => {
-          const active = current?.href === entry.href;
+        {barWords.map((word) => {
+          const active = current !== null && word.lights.includes(current.href);
           return (
             <Link
-              key={entry.href}
-              href={entry.href}
+              key={word.label}
+              href={word.href}
               className={`${styles.barItem} ${active ? styles.barItemCurrent : ""}`}
               aria-current={active ? "page" : undefined}
             >
               <span className={styles.barLine} aria-hidden />
-              <span>{entry.label}</span>
+              <span>{word.label}</span>
             </Link>
           );
         })}
