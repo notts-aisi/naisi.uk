@@ -703,8 +703,8 @@ describe("3. the card on the programme page", () => {
     });
     const { text } = await runHome("amara");
     assert.match(text, /Group A · Thursdays 6pm · Jubilee · with Sofia/);
-    // The next session's ticket: the campus where its room would be.
-    assert.match(text, /Your next session · week 4 Thu 19 Nov, 6pm to 8pm Jubilee S with Sofia/);
+    // The next session's card: the campus where its room would be, then the group.
+    assert.match(text, /Your next session · week 4 Thu 19 Nov, 6pm to 8pm Jubilee S Group A with Sofia/);
     assert.match(text, /Group A meets Thursdays, 6pm to 8pm, on Jubilee campus\./);
     // With a room, both: the campus beside the time, the room after it.
     world.db.seed(`courseGroups/${A}`, { ...read(`courseGroups/${A}`), session: { ...read(`courseGroups/${A}`).session, location: "Portland A13" } });
@@ -720,6 +720,9 @@ describe("3. the card on the programme page", () => {
       programme: { ...(payload.programme ?? { name: "AGI Strategy", leadFirstName: null }), kind: "incubator" },
     }));
     assert.match(text, /Can you make this time most weeks\? You meet Thursdays, 6pm to 8pm\./);
+    // Nor does the next session's card: its group line is the facilitators alone.
+    assert.match(text, /Thu 19 Nov, 6pm to 8pm Portland A13 S with Sofia/);
+    assert.doesNotMatch(text, /Group A with Sofia/);
   });
 });
 

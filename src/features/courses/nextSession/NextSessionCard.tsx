@@ -8,7 +8,7 @@ import { JOIN_ONLINE, LINK_IS_HERE } from "@/lib/courses/sessionChange/words";
 import { FOR_JOINING_ONLINE } from "@/lib/courses/joiningOnline/words";
 import { memberLineWords } from "@/lib/courses/explainers/words";
 import AddToCalendar from "../weekly/AddToCalendar";
-import styles from "../weekly/weekly.module.css";
+import styles from "@/features/courses/weekly/weekly.module.css";
 
 /**
  * THE CARD FOR A PERSON'S NEXT SESSION WITH THEIR OWN GROUP, the one shape
