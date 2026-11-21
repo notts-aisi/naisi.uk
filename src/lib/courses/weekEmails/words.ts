@@ -124,7 +124,7 @@ export type WeekOpenFacts = {
 
 /** "Week N is open" for a session in a room not booked yet: it goes, with this line. */
 export const WEEK_OPEN_ROOM_TO_BE_CONFIRMED =
-  "Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page.";
+  "Room to be confirmed: it’ll be on your programme page as soon as it’s booked.";
 
 /**
  * The one line "Week N is open" adds for an earlier week of the person's that

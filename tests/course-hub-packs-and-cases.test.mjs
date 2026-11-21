@@ -201,7 +201,12 @@ describe("2. Choose one on the week page", () => {
 
   test("before a pack is given out, the packs are listed and none is the person's", async () => {
     const { html, text } = await w.weekPage("kofi", 3);
-    assert.match(text, /Given out at the end of session 2\. Only your pack counts\. To switch, ask Rahul, Sofia or Farah\./);
+    // The page says when the slips go out once, under "Your pack", so the line above it does not say it too.
+    assert.match(
+      text,
+      /Packs Only your pack counts\. To switch, ask Rahul, Sofia or Farah\. Your pack Not given yet Rahul, Sofia and Farah haven’t copied in your slip yet\./,
+    );
+    assert.doesNotMatch(text, /Given out at the end of session/);
     assert.doesNotMatch(html, /packMine/);
     assert.doesNotMatch(html, /<span class="chip">Your pack<\/span>/);
   });
@@ -798,11 +803,11 @@ describe("4. Your case study", () => {
       "Your case study",
       "Your case",
       "Not given yet",
-      "Given out at the end of session 2.",
       "Ready for my talk",
     ]);
     assert.doesNotMatch(text, /Your case: Not given yet|Not ready yet|Waiting for your pack/);
-    assert.doesNotMatch(text, /Given out at the end of session 2\. To swap/);
+    // When the slips go out is said once, under the pack above, so the case says nothing more.
+    assert.doesNotMatch(text, /Given out at the end of session/);
     assert.match(html, /type="checkbox" class="tickInput" disabled=""/);
     assert.doesNotMatch(html, /caseGroupMine/);
     // Before a pack, nothing is marked as Kofi's pack's.

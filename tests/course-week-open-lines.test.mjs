@@ -7,9 +7,8 @@
  *
  *  1. ROOM TO BE CONFIRMED. A session in a room not booked yet: the email
  *     goes (the schedule no longer holds it, and raises no card), with the
- *     line "Room to be confirmed: we’ll email you as soon as it’s booked, and
- *     it’ll be on your programme page." An online week says Online and has no
- *     such line.
+ *     line "Room to be confirmed: it’ll be on your programme page as soon as
+ *     it’s booked." An online week says Online and has no such line.
  *  2. AN EARLIER WEEK NOT DONE. Each person's own email adds "Week 1 isn’t
  *     done yet either: it’s still open on your programme page." when week 1
  *     (written as blocks, published) is not done by them, its session has
@@ -51,7 +50,7 @@ const mailTo = (uid) => world.mail.filter((message) => message.to === `${uid}@ex
 const weekTwo = (uid) => mailTo(uid).filter((message) => message.subject.startsWith("Week 2 is open"));
 const textOf = async (message) => (await render(message.react, { plainText: true })).replace(/\s+/g, " ");
 
-const ROOM_LINE = "Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page.";
+const ROOM_LINE = "Room to be confirmed: it’ll be on your programme page as soon as it’s booked.";
 const EARLIER_LINE = "Week 1 isn’t done yet either: it’s still open on your programme page.";
 
 /** Before Group B's week 1 session (Tue 20 Oct, 6pm BST). */

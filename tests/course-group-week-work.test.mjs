@@ -424,7 +424,7 @@ describe("8. Week N is open's two new lines", () => {
     const email = emailWords.weekOpenEmailWords({ ...OPEN, roomToBeConfirmed: true }, "Priya");
     assert.deepEqual(email.paragraphs, [
       "Week 3 of AGI Strategy is open: Power and incentives. Your next session is Tue 17 Nov at 5:30pm.",
-      "Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page.",
+      "Room to be confirmed: it’ll be on your programme page as soon as it’s booked.",
     ]);
     assert.deepEqual(emailWords.missingWeekOpenValues({ ...OPEN, roomToBeConfirmed: true }), [], "a room not booked yet holds nothing");
     assert.equal(emailWords.weekOpenEmailWords({ ...OPEN, where: "Online" }, "").paragraphs.length, 1, "an online session needs no room");

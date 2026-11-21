@@ -472,13 +472,29 @@ describe("5. the member's week page, in each state the design draws", () => {
       waitingWords.notCopiedInWords("Rahul"),
       "Rahul hasn’t copied in your slip yet. There’s nothing you need to do, and nobody will remind you about this part until it’s here.",
     );
-    // No words where the design has none: two facilitators, nobody named, no date.
-    assert.equal(waitingWords.waitingLineWords({ kind: "session", weekNumber: 2, ended: false }, ["Rahul", "Sofia"]), null);
+    // More than one facilitator: every name, and the verb in the plural.
+    assert.equal(
+      waitingWords.waitingLineWords({ kind: "session", weekNumber: 2, ended: false }, ["Rahul", "Sofia"]),
+      "Rahul and Sofia give these out at the end of week 2’s session.",
+    );
+    assert.equal(
+      waitingWords.waitingLineWords({ kind: "session", weekNumber: 2, ended: true }, ["Rahul", "Sofia"]),
+      "Rahul and Sofia haven’t copied in your slip yet. There’s nothing you need to do, and nobody will remind you about this part until it’s here.",
+    );
+    assert.equal(
+      waitingWords.waitingLineWords({ kind: "session", weekNumber: 2, ended: false }, ["Rahul", "Sofia", "Farah"]),
+      "Rahul, Sofia and Farah give these out at the end of week 2’s session.",
+    );
+    assert.equal(waitingWords.waitingLineWords({ kind: "none" }, [" Rahul ", "", "Sofia"]), waitingWords.notCopiedInWords(["Rahul", "Sofia"]));
+    // No words with nobody named, or with no date.
     assert.equal(waitingWords.waitingLineWords({ kind: "session", weekNumber: 2, ended: false }, []), null);
     assert.equal(waitingWords.waitingLineWords({ kind: "undated" }, ["Rahul"]), null);
     assert.equal(waitingWords.waitingLineWords({ kind: "none" }, ["Rahul"]), waitingWords.notCopiedInWords("Rahul"));
     assert.equal(w.lib.words.givenPacksLineWords(3, "Pathway", [], 1), "Given out at the end of session 1. Only your pathway counts.");
     assert.equal(w.lib.words.givenPacksLineWords(3, "Pathway", [], null), "Only your pathway counts.");
+    // While the person's own waits and the page says when the slips go out, the line does not say it too.
+    assert.equal(w.lib.words.givenPacksLineWords(3, "Pathway", ["Rahul"], 2, true), "Only your pathway counts. To switch, ask Rahul.");
+    assert.equal(w.lib.words.givenPacksLineWords(3, "Pathway", ["Rahul"], 2), "Given out at the end of session 2. Only your pathway counts. To switch, ask Rahul.");
     assert.equal(w.lib.words.givenCaseLineWords(3, ["Rahul"], 2), "Given out at the end of session 2. To swap, ask Rahul.");
     // Today's wording, where the page cannot say: the week before.
     assert.equal(w.lib.words.givenCaseLineWords(3, []), "Given out at the end of session 2.");
@@ -489,6 +505,9 @@ describe("5. the member's week page, in each state the design draws", () => {
     const { text } = await w.weekPage("kofi", 3);
     assert.ok(text.includes("Your pack Not given yet Rahul gives these out at the end of week 2’s session."), text);
     assert.ok(text.includes("Your case Not given yet Ready for my talk"), "the line is said once, under the pack");
+    // When they go out is said once: the pack's own line leaves "Given out at the end of session 2." out while it waits.
+    assert.ok(text.includes("Only your pack counts. To switch, ask Rahul. Your pack Not given yet"), text);
+    assert.doesNotMatch(text, /Given out at the end of session/);
     // Kofi has done nothing: "Parts 1 to 3" still holds readings to tick, so it is open, as it always was; the case study waits.
     assert.ok(text.includes("Not done yet: Parts 1 to 3"), text);
     assert.doesNotMatch(text, /Waiting for your pack/);
@@ -504,10 +523,11 @@ describe("5. the member's week page, in each state the design draws", () => {
       text,
     );
     assert.doesNotMatch(text, /gives these out/);
-    // The pack given and the case not: the line is under the case.
+    assert.doesNotMatch(text, /Given out at the end of session/);
+    // The pack given and the case not: the line is under the case, and the pack's own line says when it was given out.
     w.seedDraw("kofi", "w3", { pack: W3.elections });
     const caseOnly = (await w.weekPage("kofi", 3)).text;
-    assert.ok(caseOnly.includes("Your pack Elections"));
+    assert.ok(caseOnly.includes("Given out at the end of session 2. Only your pack counts. To switch, ask Rahul. Your pack Elections"), caseOnly);
     assert.ok(caseOnly.includes("Your case Not given yet Rahul hasn’t copied in your slip yet."), caseOnly);
   });
 
@@ -524,13 +544,34 @@ describe("5. the member's week page, in each state the design draws", () => {
     w.at(new Date("2026-11-03T12:00:00Z"));
     const before = (await w.weekPage("kofi", 3)).text;
     assert.ok(before.includes("Rahul gives these out at the end of week 1’s session."), before);
-    assert.ok(before.includes("Given out at the end of session 1."), before);
+    assert.doesNotMatch(before, /Given out at the end of session/);
+    // Once given, the pack's own line names the session that really handed them out.
+    w.seedDraw("kofi", "w3", { pack: W3.elections, caseId: W3.surprise });
+    const given = (await w.weekPage("kofi", 3)).text;
+    assert.ok(given.includes("Given out at the end of session 1. Only your pack counts."), given);
   });
 
-  test("two facilitators: the design has no words, so the page says what it said before", async () => {
+  test("two facilitators: both are named, with the verb in the plural", async () => {
     w.world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia"] });
     const { text } = await w.weekPage("kofi", 3);
-    assert.doesNotMatch(text, /hasn’t copied in|gives these out/);
+    assert.ok(
+      text.includes(
+        "Your pack Not given yet Rahul and Sofia haven’t copied in your slip yet. There’s nothing you need to do, and nobody will remind you about this part until it’s here.",
+      ),
+      text,
+    );
+    assert.ok(text.includes("Your case Not given yet Ready for my talk"), "the line is said once, under the pack");
+    assert.doesNotMatch(text, /Given out at the end of session/);
+    w.at(new Date("2026-11-10T12:00:00Z"));
+    const before = (await w.weekPage("kofi", 3)).text;
+    assert.ok(before.includes("Your pack Not given yet Rahul and Sofia give these out at the end of week 2’s session."), before);
+  });
+
+  test("no facilitator named: there are no words, so the page says what it said before", async () => {
+    w.world.db.poke(`courseGroups/${B}`, { facilitatorUids: [] });
+    const { text } = await w.weekPage("kofi", 3);
+    assert.doesNotMatch(text, /copied in|these out/);
+    assert.ok(text.includes("Given out at the end of session 2. Only your pack counts."), text);
     assert.ok(text.includes("Your case Not given yet Given out at the end of session 2."), text);
   });
 

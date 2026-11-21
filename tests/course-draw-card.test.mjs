@@ -394,7 +394,7 @@ describe("4. every sentence the card says", () => {
     assert.equal(words.NOTHING_TO_GIVE_OUT, "No week of this course has anything to give out yet.");
     assert.equal(words.registerRowTitleWords(3, pathways), "Week 3’s pathways and cases");
     assert.equal(words.REGISTER_ROW_LINE, "Hand out the slips, then copy them in.");
-    assert.equal(words.homeSlipsTitleWords("2026-11-11"), "After Wednesday’s session");
+    assert.equal(words.homeSlipsTitleWords("2026-11-11"), "Slips from Wednesday’s session");
     assert.equal(words.homeSlipsLineWords(3, "Pathways and cases"), "Copy in the pathways and cases you hand out for week 3.");
     assert.equal(words.guideSlipsEyebrowWords(2), "After session 2");
     assert.equal(words.guideSlipsLineWords(3, pathways), "Copy in the pathway and case slips you handed out for week 3.");

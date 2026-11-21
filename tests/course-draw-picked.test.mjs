@@ -522,7 +522,7 @@ describe("4. a case with a content note: given only when the row says they asked
       "The surprise result, 2016",
       "Asked for this one",
       "Kofi Asante",
-      "1 Elections case has a content note, so it isn’t in the list to give out. To give one to somebody who asked for it, tick Asked for this one on their row.",
+      "1 case in Elections has a content note, so it isn’t in the list to give out. To give one to somebody who asked for it, tick Asked for this one on their row.",
       "Save",
     ]);
 
@@ -530,8 +530,8 @@ describe("4. a case with a content note: given only when the row says they asked
     page = await w.drawPage("rahul");
     // The row opens ticked, the case in its list marked, and its note under it.
     assert.match(page.html, /<input type="checkbox" class="drawAskedBox" checked=""\/><span>Asked for this one<\/span>/);
-    assert.deepEqual(selects(page.html)[2].options, ["The surprise result, 2016", "*The close call, 2019 (content note)"]);
-    inOrder(page.text, ["Chloe Nguyen", "The close call, 2019 (content note)", NOTE, "Asked for this one", "Farah Hussain"]);
+    assert.deepEqual(selects(page.html)[2].options, ["The surprise result, 2016", "*The close call, 2019 (note)"]);
+    inOrder(page.text, ["Chloe Nguyen", "The close call, 2019 (note)", NOTE, "Asked for this one", "Farah Hussain"]);
   });
 
   test("a pack whose every case has a content note: No case to give, and the line says what to do", async () => {
@@ -546,14 +546,14 @@ describe("4. a case with a content note: given only when the row says they asked
     inOrder(page.text, [
       "Chloe Nguyen",
       "No case to give",
-      "Every Elections case has a content note, so none is offered unless Chloe asked for one. If Chloe did, tick Asked for this one.",
+      "Every case in Elections has a content note, so none is offered unless Chloe asked for one. If Chloe did, tick Asked for this one.",
       "Asked for this one",
     ]);
     assert.doesNotMatch(page.text, /Tell /);
     // The line is read out with the list.
     const id = /<select id="([^"]+)" disabled="" aria-describedby="([^"]+)"[^>]*><option value="" selected="">No case to give</.exec(page.html);
     assert.ok(id, "the list says nothing of the line under it");
-    assert.match(page.html, new RegExp(`<p id="${id[2]}" class="drawFieldLine">Every Elections case has a content note`));
+    assert.match(page.html, new RegExp(`<p id="${id[2]}" class="drawFieldLine">Every case in Elections has a content note`));
   });
 
   test("a page that is read only draws no tick, so tells nobody to tick one", async () => {
@@ -561,7 +561,7 @@ describe("4. a case with a content note: given only when the row says they asked
     const open = editorProps((await w.drawPage("rahul")).element);
     const html = renderToStaticMarkup(createElement(DrawEditor, { ...open, readOnly: true }));
     assert.doesNotMatch(html, /Asked for this one|tick /);
-    assert.match(html, /1 Elections case has a content note, so it isn’t in the list to give out\.<\/p>/);
+    assert.match(html, /1 case in Elections has a content note, so it isn’t in the list to give out\.<\/p>/);
     // Every case of the pack with a note: the first part alone.
     const stored = w.world.db.read(`courseRuns/${RUN.agi}/weeks/w03`);
     const blocks = structuredClone(stored.blocks);
@@ -569,7 +569,7 @@ describe("4. a case with a content note: given only when the row says they asked
     w.world.db.seed(`courseRuns/${RUN.agi}/weeks/w03`, { ...stored, blocks });
     const all = editorProps((await w.drawPage("rahul")).element);
     const closed = renderToStaticMarkup(createElement(DrawEditor, { ...all, readOnly: true }));
-    assert.match(closed, />Every Elections case has a content note\.<\/p>/);
+    assert.match(closed, />Every case in Elections has a content note\.<\/p>/);
     assert.doesNotMatch(closed, /Asked for this one|tick /);
   });
 
@@ -609,7 +609,7 @@ describe("4. a case with a content note: given only when the row says they asked
     assert.equal((await w.pick("chloe", W3.given, "w03", W3.elections)).status, 200);
     assert.equal((await saveRaw("rahul", [{ uid: "chloe", blockId: W3.caseStudy, value: W3.closeCall }])).status, 400);
     assert.equal((await saveRaw("rahul", [{ uid: "chloe", blockId: W3.caseStudy, value: W3.closeCall, asked: true }])).status, 200);
-    assert.match((await w.drawPage("rahul")).text, /The close call, 2019 \(content note\)/);
+    assert.match((await w.drawPage("rahul")).text, /The close call, 2019 \(note\)/);
   });
 });
 
@@ -698,18 +698,22 @@ describe("6. every new sentence, word for word", () => {
     assert.equal(words.PICKS_THEIR_OWN, "Picks their own");
     assert.equal(words.ownCaseGivenByWords("Rahul"), NOT_THEIRS("Rahul"));
     assert.equal(words.ASKED_FOR_THIS_ONE, "Asked for this one");
-    assert.equal(words.notedCaseOptionWords("The close call, 2019"), "The close call, 2019 (content note)");
+    assert.equal(words.notedCaseOptionWords("The close call, 2019"), "The close call, 2019 (note)");
     assert.equal(words.NO_CASE_TO_GIVE, "No case to give");
     assert.equal(
       words.everyCaseNotedWords("Misuse", "Chloe"),
-      "Every Misuse case has a content note, so none is offered unless Chloe asked for one. If Chloe did, tick Asked for this one.",
+      "Every case in Misuse has a content note, so none is offered unless Chloe asked for one. If Chloe did, tick Asked for this one.",
     );
-    assert.equal(words.everyCaseNotedWords("Misuse", "Chloe", true), "Every Misuse case has a content note.");
+    assert.equal(words.everyCaseNotedWords("Misuse", "Chloe", true), "Every case in Misuse has a content note.");
+    assert.equal(words.everyCaseNotedWords("", "Chloe", true), "Every case has a content note.");
     assert.equal(
       words.notedCasesWords(2, "Misuse"),
-      "2 Misuse cases have a content note, so they aren’t in the list to give out. To give one to somebody who asked for it, tick Asked for this one on their row.",
+      "2 cases in Misuse have a content note, so they aren’t in the list to give out. To give one to somebody who asked for it, tick Asked for this one on their row.",
     );
-    assert.equal(words.notedCasesWords(1, "Misuse", true), "1 Misuse case has a content note, so it isn’t in the list to give out.");
+    assert.equal(words.notedCasesWords(1, "Misuse", true), "1 case in Misuse has a content note, so it isn’t in the list to give out.");
+    // The pathway's name comes after "in", so a name that starts with "The" still reads.
+    assert.equal(words.notedCasesWords(1, "The harbour", true), "1 case in The harbour has a content note, so it isn’t in the list to give out.");
+    assert.equal(words.notedCasesWords(2, "", true), "2 cases have a content note, so they aren’t in the list to give out.");
     // The week's word: a one-word title, lower-cased; anything else, "pathway".
     const PHRASE = "one 80,000 Hours career review that fits you";
     for (const [title, word] of [["Pathway", "pathway"], ["Pack", "pack"], ["Plan", "plan"], [PHRASE, "pathway"], ["", "pathway"]]) {

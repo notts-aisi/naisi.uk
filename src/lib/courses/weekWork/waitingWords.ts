@@ -5,9 +5,11 @@ import type { WaitingPart } from "./waiting";
  *
  * What a member reads is the design's, word for word, with their own
  * facilitator's first name and the real week in place of the sample ones.
- * Where the design has no words for a state (a group with more than one
- * facilitator, or none named; a week whose sessions cannot be dated), these
- * say nothing and the page says what it said before.
+ * A group with more than one facilitator names them all, with the verb in
+ * the plural ("Rahul and Sofia give these out ..."). Where there are no
+ * words for a state (a group with no facilitator named; a week whose
+ * sessions cannot be dated), these say nothing and the page says what it
+ * said before.
  *
  * What staff read is plain and says what is true: how many in the group are
  * waiting for what, and "Waiting" where a week or a piece of it is neither
@@ -44,30 +46,49 @@ export type HandOut =
   | { kind: "none" }
   | { kind: "undated" };
 
-/** "Rahul gives these out at the end of week 2’s session." */
-export function handsOutWords(firstName: string, weekNumber: number): string {
-  return `${firstName} gives these out at the end of week ${weekNumber}’s session.`;
+/** "Rahul", "Rahul and Sofia", "Rahul, Sofia and Farah". */
+function namesWords(firstNames: readonly string[]): string {
+  return firstNames.length <= 1 ? (firstNames[0] ?? "") : `${firstNames.slice(0, -1).join(", ")} and ${firstNames[firstNames.length - 1]}`;
 }
 
-/** "Rahul hasn’t copied in your slip yet. There’s nothing you need to do, and nobody will remind you about this part until it’s here." */
-export function notCopiedInWords(firstName: string): string {
-  return `${firstName} hasn’t copied in your slip yet. There’s nothing you need to do, and nobody will remind you about this part until it’s here.`;
+/** One facilitator's first name, or the first names of several. */
+type Names = string | readonly string[];
+
+const listOf = (names: Names): readonly string[] => (typeof names === "string" ? [names] : names);
+
+/**
+ * "Rahul gives these out at the end of week 2’s session."; with more than
+ * one facilitator, "Rahul and Sofia give these out at the end of week 2’s
+ * session."
+ */
+export function handsOutWords(firstNames: Names, weekNumber: number): string {
+  const names = listOf(firstNames);
+  return `${namesWords(names)} ${names.length > 1 ? "give" : "gives"} these out at the end of week ${weekNumber}’s session.`;
+}
+
+/**
+ * "Rahul hasn’t copied in your slip yet. There’s nothing you need to do, and
+ * nobody will remind you about this part until it’s here."; with more than
+ * one facilitator, "Rahul and Sofia haven’t copied in your slip yet. ..."
+ */
+export function notCopiedInWords(firstNames: Names): string {
+  const names = listOf(firstNames);
+  return `${namesWords(names)} ${names.length > 1 ? "haven’t" : "hasn’t"} copied in your slip yet. There’s nothing you need to do, and nobody will remind you about this part until it’s here.`;
 }
 
 /**
  * THE LINE UNDER THE FIRST PART THAT WAITS, on the person's own week page:
  * before the session that hands the slips out, who gives them out and at
  * which session; after it (or with no session before the week), that they
- * are not copied in yet and nobody will chase them for it. Null when the
- * design has no words for it: not exactly one facilitator to name, or no
- * date to tell before from after. The page then says what it said before.
+ * are not copied in yet and nobody will chase them for it. Null when there
+ * are no words for it: no facilitator to name, or no date to tell before
+ * from after. The page then says what it said before.
  */
 export function waitingLineWords(handOut: HandOut | null, facilitatorFirstNames: readonly string[]): string | null {
   const names = facilitatorFirstNames.map((name) => name.trim()).filter(Boolean);
-  if (!handOut || names.length !== 1) return null;
-  const [name] = names;
-  if (handOut.kind === "session") return handOut.ended ? notCopiedInWords(name) : handsOutWords(name, handOut.weekNumber);
-  if (handOut.kind === "none") return notCopiedInWords(name);
+  if (!handOut || names.length === 0) return null;
+  if (handOut.kind === "session") return handOut.ended ? notCopiedInWords(names) : handsOutWords(names, handOut.weekNumber);
+  if (handOut.kind === "none") return notCopiedInWords(names);
   return null;
 }
 
