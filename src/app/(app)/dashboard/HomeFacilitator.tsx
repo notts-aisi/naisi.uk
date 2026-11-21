@@ -37,6 +37,7 @@ import {
   whosComingSentence,
 } from "@/lib/courses/facilitatorPageWords";
 import { firstQuestionHref, readingAnswerHref } from "@/lib/courses/coursework/forwards";
+import { homeSlipsLineWords, homeSlipsTitleWords } from "@/lib/courses/drawCard/words";
 import { NO_GUIDE_LINKS, guideLinksView, type GuideLinksView, type GuideRead } from "@/lib/courses/facilitatorGuide/links";
 import {
   MY_PROGRAMMES_PATH,
@@ -114,6 +115,12 @@ import styles from "./home.module.css";
  * way to its page and its own course's guide by the same rule, under the
  * course's title (`useFacilitatorGuide`, once for each other course). With
  * one run nothing more is asked or drawn.
+ *
+ * AT THE SESSION THAT HANDS SLIPS OUT, from its start to the end of its
+ * evening while somebody has not got theirs, a card pointing to the
+ * pathways and cases page on the week the slips are for: "After Wednesday’s
+ * session", "Copy in the pathways and cases you hand out for week 3." From
+ * the summary route, which works it out for the group's facilitators alone.
  *
  * AN EXPLAINER at the start of the next session, when an admin scheduled one:
  * the ticket says so as the group page's does, from the summary route, and
@@ -630,6 +637,22 @@ export default function HomeFacilitator({ given, invite, entry: first, comingUp,
           )}
 
           {!beforeFirst && thisWeekCard(true)}
+
+          {/* The slips being handed out tonight: the way to copy them in. */}
+          {!beforeFirst && known?.slips && group && (
+            <section className={`${styles.card} ${facilitator.drawCard}`} aria-labelledby="home-slips">
+              <h2 id="home-slips" className={facilitator.beforeTitle}>
+                {homeSlipsTitleWords(known.slips.handOutDateKey)}
+              </h2>
+              <p className={facilitator.drawCardLine}>{homeSlipsLineWords(known.slips.weekNumber, known.slips.title)}</p>
+              <Link
+                href={`/learn/draw/${encodeURIComponent(group.id)}?week=${known.slips.weekNumber}`}
+                className={`${facilitator.buttonGhost} ${facilitator.drawCardButton}`}
+              >
+                {known.slips.title}
+              </Link>
+            </section>
+          )}
 
           {known?.leftRecently.map((person) => (
             <div key={person.uid} className={facilitator.leftNotice} role="status">

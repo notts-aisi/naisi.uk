@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { isRowForWeek } from "@/lib/courses/groupsByWeek";
 import { awayAtWords, visitingFromWords, visitorCorrectionWords } from "@/lib/courses/visit/words";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import ActionToast, { useActionToast } from "@/components/ui/ActionToast";
 import Button from "@/components/ui/Button";
 import CountedTextarea from "@/components/ui/CountedTextarea";
@@ -188,6 +188,12 @@ export type AttendanceGridProps = {
    * programme's group page); null elsewhere. One request's page is beneath it.
    */
   requestsBase?: string | null;
+  /**
+   * The row to the pathways and cases page at the session that hands the
+   * slips out, drawn by the page around the register for whoever that page
+   * admits (`HandOutRow`), beside the check-in. Absent at any other time.
+   */
+  handOut?: ReactNode;
 };
 
 /** "w02" or "w02-2" as its week, or null. */
@@ -413,6 +419,7 @@ export default function AttendanceGrid({
   session: askedSession = null,
   didntHappen = null,
   requestsBase = null,
+  handOut = null,
 }: AttendanceGridProps) {
   const {
     group,
@@ -1597,6 +1604,11 @@ export default function AttendanceGrid({
           and whoever took that session's register (a lead who has not taken
           it is shown nothing). */}
       {!side && checkIn}
+
+      {/* THE ROW TO THE PATHWAYS AND CASES PAGE, beside the check-in, at
+          the session that hands the slips out: the page around the
+          register decides when and for whom. */}
+      {handOut}
 
       {/* THE SESSION REPORT, beside the check-in: from the session's start,
           whether or not its register is finished, and still there once it

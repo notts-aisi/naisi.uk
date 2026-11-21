@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import AttendanceGrid from "@/features/courses/AttendanceGrid";
 import JoiningOnlineBox from "@/features/courses/facilitator/JoiningOnlineBox";
@@ -47,6 +48,7 @@ export default async function RegisterPageBody({
   didntHappen,
   requestsBase = null,
   guide = null,
+  handOut = null,
 }: {
   gated: Extract<RegisterGate, { ok: true }>;
   user: SessionUser;
@@ -67,6 +69,13 @@ export default async function RegisterPageBody({
    * read beside the register's own reads; null draws nothing.
    */
   guide?: Promise<GuideLinksView> | null;
+  /**
+   * The row to the pathways and cases page at the session that hands the
+   * slips out, worked out by the page from that page's own gate, read beside
+   * the register's own reads; null, or a read that draws nothing, adds
+   * nothing. The register draws it beside the check-in.
+   */
+  handOut?: Promise<ReactNode> | null;
 }) {
   const db = getAdminDb();
   const groupName = gated.group.name || "Group";
@@ -86,7 +95,7 @@ export default async function RegisterPageBody({
   // The box at the top, named as the register names its rows for this
   // reader: never for somebody given one session. Nothing is offered to press
   // in a view-as session, where nothing is written.
-  const [joiningOnline, viewAs, guideView] = await Promise.all([
+  const [joiningOnline, viewAs, guideView, handOutRow] = await Promise.all([
     db && !onlyGiven
       ? joiningOnlineBox(db, {
           run,
@@ -97,6 +106,7 @@ export default async function RegisterPageBody({
       : Promise.resolve([]),
     getImpersonator().then((marker) => markerIsLive(marker, user.uid)),
     guide ?? Promise.resolve(NO_GUIDE_LINKS),
+    handOut ?? Promise.resolve(null),
   ]);
 
   return (
@@ -164,7 +174,7 @@ export default async function RegisterPageBody({
       {/* The register owns its own week controls and its own horizontal
           overflow: a wide table handles its own responsiveness rather than
           widening the shell (the `.mainWide` rule). */}
-      <AttendanceGrid groupId={gated.group.id} runId={gated.runId} reportHref={reportHref} session={session} didntHappen={didntHappen} requestsBase={requestsBase} />
+      <AttendanceGrid groupId={gated.group.id} runId={gated.runId} reportHref={reportHref} session={session} didntHappen={didntHappen} requestsBase={requestsBase} {...(handOutRow ? { handOut: handOutRow } : {})} />
     </div>
   );
 }

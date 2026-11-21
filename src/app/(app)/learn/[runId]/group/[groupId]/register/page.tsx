@@ -1,4 +1,6 @@
+import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
+import HandOutRow from "@/features/courses/register/HandOutRow";
 import RegisterPageBody, { sessionParamOf } from "@/features/courses/register/RegisterPageBody";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
@@ -15,6 +17,8 @@ import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
 import { GUIDE_READ_FAILED, guideLinksView, guideReadOfIndex, type GuideLinksView } from "@/lib/courses/facilitatorGuide/links";
 import { registerGuideWeek } from "@/lib/courses/facilitatorGuide/registerWeek";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
+import { readSlipsTonight } from "@/lib/courses/drawCard/reads";
+import { drawGate, readDrawRoster } from "@/lib/courses/packsAndCases/readers";
 import { resolveSessions } from "@/lib/courses/sessions";
 
 /**
@@ -52,6 +56,15 @@ import { resolveSessions } from "@/lib/courses/sessions";
  * group's facilitators and admins, whom the guide admits, and nothing for
  * anybody else. The programme's lead's first name, for the sentence about
  * who loads a week, is read only when a sentence is drawn.
+ *
+ * THE ROW TO THE PATHWAYS AND CASES PAGE, beside the check-in, at the
+ * session that hands the slips out (`readSlipsTonight`: from the start of
+ * that session to the end of its evening, while somebody has not got theirs),
+ * on the week the slips are for. Asked of that page's own gate (`drawGate`),
+ * NEVER of the register's: somebody given one session and a run's track
+ * lead are not offered it. Only on the register the address names no session
+ * of, or names the hand-out session. The read runs beside the register's
+ * own; one that fails draws nothing.
  */
 
 export const dynamic = "force-dynamic";
@@ -131,6 +144,24 @@ export default async function GroupRegisterPage({
     return guideLinksView({ read: GUIDE_READ_FAILED, courseId: access.run.courseId, weekNumber: null, knownReader, leadFirstName: null });
   });
 
+  // The row to the pathways and cases page, read beside the register's own
+  // reads, through that page's gate and never the register's.
+  const handOut: Promise<ReactNode> = (async () => {
+    const gate = await drawGate(db, access.user, gated.group);
+    if (!gate.ok) return null;
+    const slips = await readSlipsTonight(db, {
+      run: access.run,
+      group: gated.group,
+      now,
+      people: async () => (await readDrawRoster(db, runId, gated.group, { isAdmin: gate.isAdmin }, now))?.people ?? null,
+    });
+    if (!slips || (session !== null && session !== slips.handOut.session.sessionKey)) return null;
+    return <HandOutRow groupId={gated.group.id} weekNumber={slips.weekNumber} draw={slips.draw} />;
+  })().catch((err: unknown) => {
+    console.error("[register page] the pathways and cases row's read failed", groupId, err);
+    return null;
+  });
+
   // Called, not mounted: the page answers with the tree the body draws.
   return RegisterPageBody({
     gated,
@@ -141,5 +172,6 @@ export default async function GroupRegisterPage({
     reportHref: `${groupPath}/report`,
     didntHappen: opensGroupPage ? { href: groupPath, words: DIDNT_HAPPEN_MOVED_FACILITATOR } : null,
     guide,
+    handOut,
   });
 }

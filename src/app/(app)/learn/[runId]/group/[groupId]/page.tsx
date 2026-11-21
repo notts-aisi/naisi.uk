@@ -16,7 +16,7 @@ import {
   ToReviewCard,
 } from "@/features/courses/facilitator/GroupCards";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
-import PathwaySpread from "@/features/courses/packsAndCases/PathwaySpread";
+import DrawCard from "@/features/courses/groupPage/DrawCard";
 import PairsCard from "@/features/courses/pairs/PairsCard";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import ThisWeeksWork, { ReflectionsQueueCard, workColumnsOf } from "@/features/courses/facilitatorWeek/ThisWeeksWork";
@@ -45,8 +45,9 @@ import { seesSessionLink } from "@/lib/courses/meetingLink/audience";
 import { joiningOnlineBox } from "@/lib/courses/meetingLink/box";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { facilitatorExplainerOn } from "@/lib/courses/explainers/readers";
-import { drawCardOf, drawPeople, readDrawWeeks } from "@/lib/courses/packsAndCases/readers";
-import { changeDrawWords, drawCardWeekWords, spreadTitleWords } from "@/lib/courses/packsAndCases/words";
+import { drawPeople, readDrawWeeks } from "@/lib/courses/packsAndCases/readers";
+import { drawCardModel } from "@/lib/courses/drawCard/model";
+import { pairsCardWeek } from "@/lib/courses/pairs/cardWeek";
 import { readGroupPairs } from "@/lib/courses/pairs/readers";
 import { loadGroupWeek, loadGroupWeekBoxes } from "@/lib/courses/facilitatorWeek/readers";
 import { loadWorkColumns } from "@/lib/courses/facilitatorWeek/workColumns";
@@ -108,18 +109,23 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * fill-in boxes are opened there ("Read it"), the page names them to the
  * first-read route, so the day each was first read is kept, never who.
  *
- * THE SPREAD ("Pathways in Group B", "Week 4"): the draw of the week the
- * slips being handed out are for (`drawWeekRule`, through `readDrawWeeks`,
- * the one rule the draw page and its route ask too), while that week is still
- * to come: so from the start of the session that hands them out it is about
- * next week, never that session's own. Each pathway with who has it, and the
- * way to the draw page (`/learn/draw/[groupId]`) on that week, where the
- * slips are copied in.
+ * THE PATHWAYS AND CASES CARD (`DrawCard`, from `drawCardModel`): on any
+ * course with a Choose one or a Cases block, always, saying what is next or
+ * why there is nothing to do, about the week the slips being handed out are
+ * for (`drawWeekRule`, through `readDrawWeeks`, the one rule the draw page
+ * and its route ask too): so from the start of the session that hands them
+ * out it is about next week, never that session's own. From that start until
+ * everybody has theirs it is PINNED straight under the session card. Every
+ * way on leads to the pathways and cases page (`/learn/draw/[groupId]`).
+ * A facilitator of the group is named on it only to themself and admins.
  *
- * THE PAIRS ("Pairs in Group B"): when the week of the group's next session
- * asks for pairs (its In the session block says people are paired), each
- * pair, who is bringing a laptop and the check that every pair has one, and
- * the way to the pairs page (`/learn/pairs/[groupId]`), where they are typed.
+ * THE PAIRS ("Pairs in Group B", "Week 4"): on a course with a week in
+ * pairs (its In the session block says people are paired), the week the
+ * pairs are for: the week the group meets next when it is in pairs, else
+ * the next week still to come that is, with each pair, who is bringing a
+ * laptop and the check that every pair has one, and the way to the pairs
+ * page (`/learn/pairs/[groupId]`), where they are typed. Never pinned: pairs
+ * are made for their own session, not handed out the session before.
  *
  * WHO CAN'T MAKE IT: "Before the session" says it for the next session, and
  * the register says it for every session, from the moment somebody tells
@@ -143,7 +149,8 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * (the phone reads it top to bottom; a laptop reads each `.columns` block as
  * two columns, the left first): the head, with Write and Change a session;
  * the next session (the notice of an evening off and the ticket, or the
- * card in its place); on the left that box, "Before the session" (who has
+ * card in its place), and the pathways and cases card while it is pinned;
+ * on the left that box, "Before the session" (who has
  * asked to be excused and is waiting, who is excused, joining online,
  * visiting from another group that week, away at another group's session,
  * and coming: `beforeTheSessionOf`, from the group's page's own reader), the
@@ -468,15 +475,22 @@ export default async function GroupHomePage({
   });
 
   // Every week of the course as the group reads it, and the draw of the week
-  // the slips being handed out are for, while it is still to come. Everybody
-  // in the group is in it, its facilitators too, who take part.
+  // the slips being handed out are for (`drawWeekRule`, through
+  // `readDrawWeeks`). Everybody in the group is in it, its facilitators too,
+  // who take part. The card says what is next on any course with a Choose
+  // one or a Cases block; a facilitator of the group is named on it only to
+  // themself, an admin and the lead.
   const drawList = drawPeople(model.people, model.facilitators);
   const course = group.archived ? null : await readDrawWeeks(db, { run: access.run, group, people: drawList, now });
-  const drawCard = course ? drawCardOf(course, drawList) : null;
-  // The pairs of the week the group meets next, when it asks for them:
-  // everybody in the group's pairs, its facilitators too, who take part.
-  const nextWeek = course && range.next ? (course.weeks.get(range.next.weekNumber) ?? null) : null;
-  const pairsWeek = nextWeek ? await readGroupPairs(db, runId, groupId, nextWeek, drawList) : null;
+  const drawCard = course
+    ? drawCardModel({ course, people: drawList, viewer: { uid: access.user.uid, isAdmin: access.isAdmin, lead: false }, now })
+    : null;
+  // The pairs of the week they are for, on a course with pairs: the week the
+  // group meets next when it is in pairs, else the next week still to come
+  // that is; with none to come, the card says so. Everybody in the group's
+  // pairs, its facilitators too, who take part.
+  const pairsFor = course ? pairsCardWeek(course, range.next?.weekNumber ?? null, now) : null;
+  const pairsWeek = pairsFor?.week ? await readGroupPairs(db, runId, groupId, pairsFor.week, drawList) : null;
 
   // This week's work's Pathway, Written answer and Case columns,
   // for the week it shows, through the packs' and the written answers' own
@@ -598,35 +612,41 @@ export default async function GroupHomePage({
   );
   // Who is coming and what they bring: who is joining a session online (with
   // the field for its link), who has said what about the next session, the
-  // week's pathways and cases, and its pairs. The left of the laptop's two
-  // columns; on a phone, straight under the session.
+  // pathways and cases card, and the pairs. The left of the laptop's two
+  // columns; on a phone, straight under the session. From the start of the
+  // session that hands the slips out until everybody has theirs, the
+  // pathways and cases card is pinned instead: straight under the session
+  // card, across the page, so a phone and a keyboard meet it there.
   const spreadCard = drawCard ? (
-    <PathwaySpread
-      title={spreadTitleWords(drawCard.week.draw, groupName)}
-      week={drawCardWeekWords(drawCard.week.weekNumber)}
-      spread={drawCard.spread}
-      changeHref={`/learn/draw/${encodeURIComponent(groupId)}?week=${drawCard.week.weekNumber}`}
-      changeLabel={changeDrawWords(drawCard.week.draw)}
+    <DrawCard
+      model={drawCard}
+      groupId={groupId}
+      groupName={groupName}
+      leadFirstName={programme?.leadFirstName ?? null}
+      todayKey={londonDateKey(now)}
     />
   ) : null;
-  const pairsCard = pairsWeek ? (
+  const pinnedCard = drawCard?.kind === "week" && drawCard.pinned ? spreadCard : null;
+  const placedCard = pinnedCard ? null : spreadCard;
+  const pairsCard = pairsFor ? (
     <PairsCard
       groupName={groupName}
-      view={pairsWeek.view}
-      laptops={pairsWeek.ask.laptops}
-      changeHref={`/learn/pairs/${encodeURIComponent(groupId)}?week=${pairsWeek.weekNumber}`}
+      weekNumber={pairsWeek?.weekNumber ?? null}
+      view={pairsWeek?.view ?? null}
+      laptops={pairsWeek?.ask.laptops ?? false}
+      changeHref={pairsWeek ? `/learn/pairs/${encodeURIComponent(groupId)}?week=${pairsWeek.weekNumber}` : null}
     />
   ) : null;
   // The box draws nothing with nobody joining online, so the column is left
   // out when none of its cards draws: the right one then takes the width.
-  const comingDraws = joiningOnline.length > 0 || Boolean(meets?.before) || spreadCard !== null || pairsCard !== null;
+  const comingDraws = joiningOnline.length > 0 || Boolean(meets?.before) || placedCard !== null || pairsCard !== null;
   const comingCards = (
     <>
       {/* Who is joining a session online, and the field for its link. */}
       <JoiningOnlineBox groupId={groupId} sessions={joiningOnline} canAdd={!viewAs} />
       {/* Before the session: who has said what about the next one. */}
       {meets?.before && <BeforeTheSession before={meets.before} />}
-      {spreadCard}
+      {placedCard}
       {pairsCard}
     </>
   );
@@ -736,6 +756,7 @@ export default async function GroupHomePage({
    *
    *   the head, with Write and Change a session;
    *   the session (the notice and the ticket, or the cards in its place);
+   *   the pathways and cases card, while it is pinned;
    *   left: who is joining online, Before the session, the pathways and the
    *   pairs; right: who has done the week, the updates, how the group meets
    *   with its meeting links;
@@ -810,6 +831,7 @@ export default async function GroupHomePage({
 
       <div className={facilitator.groupRows}>
         {sessionCards}
+        {pinnedCard}
 
         <div className={facilitator.columns}>
           {comingDraws && <div className={facilitator.colMain}>{comingCards}</div>}

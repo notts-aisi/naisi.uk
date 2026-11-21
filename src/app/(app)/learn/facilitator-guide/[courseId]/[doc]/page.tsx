@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
@@ -23,6 +24,8 @@ import {
 } from "@/lib/courses/facilitatorGuide/nextSession";
 import { printablesBySession, sectionsOfSession } from "@/lib/courses/facilitatorGuide/printables";
 import { readSessionCount } from "@/lib/courses/facilitatorGuide/sessionCount";
+import { readGuideSlips } from "@/lib/courses/drawCard/reads";
+import { copyInWeekWords, guideSlipsEyebrowWords, guideSlipsLineWords } from "@/lib/courses/drawCard/words";
 import { readGuideIndex, readGuidePage } from "@/lib/courses/facilitatorGuide/store";
 import { groupsOfReader } from "@/lib/courses/facilitatorGuide/weekRows";
 import {
@@ -75,6 +78,13 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * their own; for an admin, the page asks the same question of the course's
  * groups (`groupsOfReader`). A week with nothing loaded draws only its
  * sentence.
+ *
+ * AFTER A WEEK'S FIRST PART, at the session that hands the next week's slips
+ * out (from its start to the end of its evening), a card for each of the
+ * reader's groups whose slips go out at this week's session: "After session
+ * 2", "Copy in the pathway and case slips you handed out for week 3." and the
+ * way to the pathways and cases page on that week (`readGuideSlips`: next
+ * week's blocks as the group reads them, never a draw).
  */
 
 export const dynamic = "force-dynamic";
@@ -149,6 +159,8 @@ export default async function FacilitatorGuidePage({ params }: { params: Promise
   const registers = registerRowsFor(groups, page.weekNumber, now);
   const home = homeGroupOf(groups, now);
   const rows: { group: GuideGroup; session: GuideSession | null }[] = registers.length > 0 ? registers : home ? [{ group: home, session: null }] : [];
+  // The next week's slips, for each of the reader's groups that hands them out at this week's session tonight.
+  const slips = groups.length > 0 ? await readGuideSlips(db, { groups, pageWeek: page.weekNumber, now }) : [];
   // This session's printables, beside the first document the page shows (its
   // plan, or its notes when only those are loaded), when there is anything
   // to print for it. A week with something loaded is a week the guide has,
@@ -190,14 +202,34 @@ export default async function FacilitatorGuidePage({ params }: { params: Promise
             </nav>
           )}
           {documents.map(({ slot, doc }, index) => (
-            <section key={slotKey(slot)} id={slotKey(slot)} className={styles.part} aria-labelledby={`${slotKey(slot)}-title`}>
-              <p className={styles.partEyebrow}>{slot.kind === "week" ? WEEK_PART_LABEL[slot.part] : ""}</p>
-              <h2 id={`${slotKey(slot)}-title`} className={styles.partTitle}>
-                {doc.title}
-              </h2>
-              {index === 0 && printFor !== null && <PrintablesLink courseId={courseId} session={printFor} />}
-              <GuideDocumentView doc={doc} level={3} />
-            </section>
+            <Fragment key={slotKey(slot)}>
+              <section id={slotKey(slot)} className={styles.part} aria-labelledby={`${slotKey(slot)}-title`}>
+                <p className={styles.partEyebrow}>{slot.kind === "week" ? WEEK_PART_LABEL[slot.part] : ""}</p>
+                <h2 id={`${slotKey(slot)}-title`} className={styles.partTitle}>
+                  {doc.title}
+                </h2>
+                {index === 0 && printFor !== null && <PrintablesLink courseId={courseId} session={printFor} />}
+                <GuideDocumentView doc={doc} level={3} />
+              </section>
+              {index === 0 &&
+                slips.map((entry) => (
+                  <section
+                    key={`slips-${entry.groupId}`}
+                    className={`${styles.card} ${styles.next}`}
+                    aria-label={guideSlipsEyebrowWords(entry.sessionNumber)}
+                    data-testid="guide-slips"
+                  >
+                    <p className={styles.nextEyebrow}>
+                      {slips.length > 1 ? `${entry.name.trim() || GROUP_FALLBACK} · ` : ""}
+                      {guideSlipsEyebrowWords(entry.sessionNumber)}
+                    </p>
+                    <p className={styles.nextLine}>{guideSlipsLineWords(entry.weekNumber, entry.draw)}</p>
+                    <Link href={`/learn/draw/${encodeURIComponent(entry.groupId)}?week=${entry.weekNumber}`} className={facilitator.buttonGhost}>
+                      {copyInWeekWords(entry.weekNumber)}
+                    </Link>
+                  </section>
+                ))}
+            </Fragment>
           ))}
         </>
       )}
