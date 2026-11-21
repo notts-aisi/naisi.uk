@@ -16,6 +16,7 @@ import {
   unconfirmedAnswers,
   type PasteBody,
 } from "@/lib/courses/weekPaste";
+import { facilitatorPickProblems } from "@/lib/courses/weekBlocks/whoChooses";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -281,7 +282,11 @@ export async function PUT(req: Request, ctx: Params) {
     answer = pasteAnswer(read, counts, loaded.dayBeforeTime, await holdersOf(db, gated.group, read, owners, true));
     unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
   }
-  if (answer.problems.length > 0) return badRequest(answer.problems[0], answer);
+  // What the paste itself holds stops it first: another week, facilitator material, a broken block.
+  if (read.problems.length > 0) return badRequest(read.problems[0], answer);
+  // Then a Choose one turned to given out over a facilitator's own pick, which the store decides.
+  const pickRefusal = facilitatorPickProblems(read.whoChooses, guard)[0];
+  if (pickRefusal) return badRequest(pickRefusal, answer);
   if (unconfirmed) return NextResponse.json({ error: unconfirmed, ...answer }, { status: 409 });
 
   const copyRef = groupWeekRef(db, gated.group.id, gated.weekId);

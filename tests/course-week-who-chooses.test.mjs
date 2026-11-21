@@ -635,7 +635,7 @@ describe("9. a facilitator's own pick is never put in front of their co-facilita
     );
   });
 
-  test("allowed as before when only people who do not facilitate have picked, and no co-facilitator's draw then carries a facilitator's own pick", async () => {
+  test("allowed as before when only people who do not facilitate have picked, and no slips page a facilitator opens then carries a facilitator's own pick", async () => {
     const markdown = await storePicked();
     assert.equal((await w.pick("chloe", W3.given, "w03", W3.elections)).status, 200);
     assert.equal((await w.pick("kofi", W3.given, "w03", W3.markets)).status, 200);
@@ -674,6 +674,27 @@ describe("9. a facilitator's own pick is never put in front of their co-facilita
     const runRow = rowOf(await paste("claudia", "POST", { markdown: await copyOut() }), "Part 3: Your pack");
     const forRun = await paste("claudia", "PUT", { markdown: await copyOut(), whoChooses: [{ place: runRow.place, kind: "chooseOne", givenBy: "facilitator" }] });
     assert.deepEqual([forRun.status, forRun.body.error], [400, ONE]);
+  });
+
+  test("a paste carrying facilitator material is refused for that first, whatever it does to who chooses", async () => {
+    const copied = await storePicked();
+    assert.equal((await w.pick("farah", W3.given, "w03", W3.markets)).status, 200);
+    const material = `${copied}\n## Run sheet\n\nTen minutes on the base rates, then pairs.\n`;
+    const MATERIAL = "“Run sheet” is a heading only facilitator material has. Facilitator material never goes in a week, which anyone signed in can read: load it in the course’s facilitator guide.";
+    const row = rowOf(await paste("claudia", "POST", { markdown: copied }), "Part 3: Your pack");
+    const before = everything();
+    for (const change of [[], [{ place: row.place, kind: "chooseOne", givenBy: "facilitator" }], [{ place: row.place, kind: "chooseOne", givenBy: "fellow" }]]) {
+      const run = await paste("claudia", "PUT", { markdown: material, whoChooses: change });
+      assert.deepEqual([run.status, run.body.error], [400, MATERIAL], `the run's week, ${JSON.stringify(change)}`);
+      assert.equal(run.body.problems[0], MATERIAL);
+      const group = await pasteForGroup("claudia", "PUT", { markdown: material, whoChooses: change }, B);
+      assert.deepEqual([group.status, group.body.error], [400, MATERIAL], `a group's copy, ${JSON.stringify(change)}`);
+    }
+    // The pasted words turning it to given out are refused for the material first too.
+    const words = material.replace(`**Choose one** · picked by each person {#${W3.given}}`, `**Choose one** · given out by your facilitator {#${W3.given}}`);
+    assert.notEqual(words, material);
+    assert.deepEqual([(await paste("claudia", "PUT", { markdown: words })).body.error], [MATERIAL]);
+    assert.equal(everything(), before, "nothing is written");
   });
 
   test("given to picked is never refused: a pick is less widely seen than what was given", async () => {

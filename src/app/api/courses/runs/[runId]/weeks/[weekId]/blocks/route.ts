@@ -20,6 +20,7 @@ import {
   unconfirmedAnswers,
   type PasteBody,
 } from "@/lib/courses/weekPaste";
+import { facilitatorPickProblems } from "@/lib/courses/weekBlocks/whoChooses";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -252,7 +253,11 @@ export async function PUT(req: Request, ctx: Params) {
     answer = pasteAnswer(read, counts, loaded.dayBeforeTime, await holdersOf(db, gated.runId, read, true), true);
     unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
   }
-  if (answer.problems.length > 0) return badRequest(answer.problems[0], answer);
+  // What the paste itself holds stops it first: another week, facilitator material, a broken block.
+  if (read.problems.length > 0) return badRequest(read.problems[0], answer);
+  // Then a Choose one turned to given out over a facilitator's own pick, which the store decides.
+  const pickRefusal = facilitatorPickProblems(read.whoChooses, guard)[0];
+  if (pickRefusal) return badRequest(pickRefusal, answer);
   if (unconfirmed) return NextResponse.json({ error: unconfirmed, ...answer }, { status: 409 });
   // What the paste keeps of people's work, counted before the save, and who it reaches.
   const [work, reach] = await Promise.all([
