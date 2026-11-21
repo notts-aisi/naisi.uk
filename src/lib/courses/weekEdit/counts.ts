@@ -6,7 +6,7 @@ import { instantOf } from "@/lib/courses/writtenAnswers/model";
 import { normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "@/lib/firestore/coursePacksAndCases";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
-import { allBlocks, weekItems, type WeekBlock } from "../weekBlocks/model";
+import { allBlocks, weekItems, type ChooseOneBlock, type WeekBlock } from "../weekBlocks/model";
 import type { SaveReach } from "./history";
 
 /**
@@ -24,7 +24,9 @@ import type { SaveReach } from "./history";
  *    (a reflection box, a fill-in box, a written answer), and of the written
  *    answers, the ones sent;
  *  - picks: `coursePacksAndCases` rows of this week (a pack picked or given,
- *    a case given, a talk marked ready).
+ *    a case given, a talk marked ready); and, for the paste's check, how
+ *    many people hold a pack in a Choose one whose chooser the paste changes
+ *    (`packHolders`).
  *
  * Every row of the run is counted, a group with its own copy of the week
  * included: none exists on the live site, and a count that can only be too
@@ -92,6 +94,42 @@ export async function readWeekWork(db: Firestore, runId: string, weekId: string,
     if (uid && row.weekId === weekId) work.started.add(uid);
   }
   return work;
+}
+
+/**
+ * How many people hold a pack in each of `blocks` (Choose ones whose chooser
+ * a paste changes), by block id: picked by them or given out to them, which
+ * is one record either way. A record whose pack is no longer in its block
+ * holds none, as every reader reads it. `owners` narrows the count to the
+ * people who read the week being pasted, as `answersOnRemoved` does: null for
+ * the run's own week (every row of the run, which can only over-count), a
+ * group's people and facilitators for a group's own copy. Nothing is read
+ * when no block's chooser changes. A number for the check; never whose.
+ */
+export async function packHolders(
+  db: Firestore,
+  runId: string,
+  blocks: readonly ChooseOneBlock[],
+  owners: ReadonlySet<string> | null = null,
+): Promise<Map<string, number>> {
+  const holders = new Map<string, number>();
+  if (blocks.length === 0) return holders;
+  const packs = new Map(blocks.map((block) => [block.id, new Set(block.packs.map((pack) => pack.id))]));
+  const people = new Map<string, Set<string>>();
+  const snap = await db.collection(COURSE_PACKS_AND_CASES_COLLECTION).where("runId", "==", runId).get();
+  for (const doc of snap.docs) {
+    const row = doc.data() ?? {};
+    const uid = typeof row.uid === "string" ? row.uid : "";
+    const blockId = typeof row.blockId === "string" ? row.blockId : "";
+    const ids = packs.get(blockId);
+    if (!uid || !ids || row.kind !== "pack" || typeof row.packId !== "string" || !ids.has(row.packId)) continue;
+    if (owners !== null && !owners.has(uid)) continue;
+    const set = people.get(blockId) ?? new Set<string>();
+    set.add(uid);
+    people.set(blockId, set);
+  }
+  for (const [blockId, set] of people) holders.set(blockId, set.size);
+  return holders;
 }
 
 /** What people have done on one block, by count: people who ticked it, answers in it, people who sent it. */

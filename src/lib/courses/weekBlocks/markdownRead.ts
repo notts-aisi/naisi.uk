@@ -31,6 +31,7 @@ import {
   type WrittenAnswerBlock,
 } from "./model";
 import { canonicalRuns, runsText, safeLinkUrl, safeSourceUrl, type CodeEnds, type Prose, type Run, type TableCell } from "./prose";
+import { choiceBlocks, type ChooserRule } from "./whoChooses";
 
 /**
  * READING A WEEK'S MARKDOWN INTO BLOCKS. The contract is
@@ -72,6 +73,12 @@ export type ParsedWeek = {
    * when it says neither. The loader holds it against the course's setting.
    */
   dayBeforeSaid: string | null;
+  /**
+   * Why each Choose one and Cases block reads as given out or picked, by
+   * place (`choiceBlocks` in `./whoChooses.ts`): the rule that set its
+   * `givenBy`, for the check to name.
+   */
+  choices: Array<ChooserRule | null>;
 };
 
 // ---------------------------------------------------------------------------
@@ -682,10 +689,17 @@ export function partNumbersIn(what: string): number[] {
  * agenda" is the person's pick; "the one you chose at session 2", "you'll be
  * given one" and anything else is a facilitator's draw.
  */
-function givenByFrom(tokens: readonly Token[], counts: InlineCounts): GivenBy {
+function givenByFrom(tokens: readonly Token[], counts: InlineCounts, line: boolean): { givenBy: GivenBy; rule: ChooserRule } {
   const text = tokens.map((token) => (token.type === "paragraph" ? lineText(tokensLine((token as Tokens.Paragraph).tokens, counts)) : "")).join(" ");
-  if (/\bchoose one\b|\bpick one\b/i.test(text) && !/\b(?:chose|given|draw)\b/i.test(text)) return "fellow";
-  return "facilitator";
+  // The words that decided it, for the paste's check to name.
+  const asks = /\bchoose one\b|\bpick one\b/i.exec(text)?.[0].toLowerCase() ?? null;
+  const but = /\b(?:chose|given|draw)\b/i.exec(text)?.[0].toLowerCase() ?? null;
+  return { givenBy: asks && !but ? "fellow" : "facilitator", rule: { rule: "partWords", line, asks, but } };
+}
+
+/** The words of the block's own line that said who chooses: `givenByIn` reads "given out" as the facilitator's and "picked by" as the person's. */
+function saidRule(line: "chooseOne" | "cases", givenBy: GivenBy): ChooserRule {
+  return { rule: "said", line, words: givenBy === "facilitator" ? "given out" : "picked by" };
 }
 
 /** A content note inside "What happened": "Content note: ..." or "... talk to your facilitator before you take this one." */
@@ -781,6 +795,8 @@ class Reader {
   readonly packTables: number[] = [];
   /** The part numbers This week's tasks name. */
   readonly namedParts = new Set<number>();
+  /** Each Choose one and Cases block read, to the rule that set who chooses it. */
+  readonly rules = new Map<ChooseOneBlock | CasesBlock, ChooserRule>();
 
   // ---- This week ----
 
@@ -1012,7 +1028,9 @@ class Reader {
         read: line(optionRuns.slice(0, end)),
       });
     }
-    return { id, type: "chooseOne", form: "list", title, givenBy: "fellow", kind: kind.kind, time, noteHeading: "", questions: [], packs };
+    const block: ChooseOneBlock = { id, type: "chooseOne", form: "list", title, givenBy: "fellow", kind: kind.kind, time, noteHeading: "", questions: [], packs };
+    this.rules.set(block, { rule: "list" });
+    return block;
   }
 
   reflection(id: string, inline: RawRun[], following: Token | undefined): { block: ReflectionBlock | null; used: number } {
@@ -1108,7 +1126,9 @@ class Reader {
   talk(id: string, rest: RawRun[], tokens: readonly Token[], from: number, heading: string): { block: CasesBlock; used: number } {
     const segments = splitRuns(rest, " · ").map(lineText);
     const talk = /^none$/i.test(segments[0] ?? "") ? null : talkIn(segments[0] ?? "");
-    const givenBy = segments.slice(1).map(givenByIn).find((given): given is GivenBy => given !== null) ?? (heading ? "facilitator" : "fellow");
+    const said = segments.slice(1).map(givenByIn).find((given): given is GivenBy => given !== null) ?? null;
+    const givenBy = said ?? (heading ? "facilitator" : "fellow");
+    const rule: ChooserRule = said ? saidRule("cases", said) : heading ? { rule: "heading", heading } : { rule: "inPart" };
     let used = 0;
     const intro: Token[] = [];
     const prepare: Token[] = [];
@@ -1125,22 +1145,21 @@ class Reader {
       }
       used += 1;
     }
-    return {
-      block: {
-        id,
-        type: "cases",
-        heading,
-        intro: proseOf(intro, this.counts, this.leftOut),
-        talk,
-        prepare: proseOf(prepare, this.counts, this.leftOut),
-        givenBy,
-        groupLabel: "",
-        startLabel: "Start here",
-        groups: [],
-        note: [],
-      },
-      used,
+    const block: CasesBlock = {
+      id,
+      type: "cases",
+      heading,
+      intro: proseOf(intro, this.counts, this.leftOut),
+      talk,
+      prepare: proseOf(prepare, this.counts, this.leftOut),
+      givenBy,
+      groupLabel: "",
+      startLabel: "Start here",
+      groups: [],
+      note: [],
     };
+    this.rules.set(block, rule);
+    return { block, used };
   }
 
   /** Does this token start a block of its own: a label line, a due line, or an id on its own line? */
@@ -1171,7 +1190,7 @@ class Reader {
     const talk = talkIn(part.title);
     if (!talk || part.blocks.some((block) => block.type === "cases")) return;
     const given = part.blocks.find((block): block is ChooseOneBlock => block.type === "chooseOne");
-    part.blocks.push({
+    const block: CasesBlock = {
       id: "",
       type: "cases",
       heading: "",
@@ -1183,7 +1202,9 @@ class Reader {
       startLabel: "Start here",
       groups: [],
       note: [],
-    });
+    };
+    this.rules.set(block, { rule: "partTitle", followsChooseOne: given !== undefined });
+    part.blocks.push(block);
   }
 
   /**
@@ -1408,9 +1429,10 @@ class Reader {
             }
           }
         }
-        const givenBy = choose?.givenBy ?? givenByFrom([...framing, ...(pendingText?.tokens ?? [])], this.counts);
+        const from = choose?.givenBy ? null : givenByFrom([...framing, ...(pendingText?.tokens ?? [])], this.counts, choose !== null);
+        const givenBy = choose?.givenBy ?? from?.givenBy ?? "facilitator";
         flushText();
-        blocks.push({
+        const block: ChooseOneBlock = {
           id: choose?.id ?? "",
           type: "chooseOne",
           form: "table",
@@ -1421,7 +1443,9 @@ class Reader {
           noteHeading: packs.noteHeading,
           questions: proseOf(questions, this.counts, this.leftOut),
           packs: packs.packs,
-        });
+        };
+        this.rules.set(block, from ? from.rule : saidRule("chooseOne", givenBy));
+        blocks.push(block);
         if (!choose) packTable = true;
         choose = null;
         continue;
@@ -1529,6 +1553,8 @@ class Reader {
       const runs = takeId(tokensLine((before[talkAt] as Tokens.Paragraph).tokens, this.counts)).runs;
       const { block: talk } = this.talk(id, labelOf(runs)?.rest ?? [], before, talkAt + 1, heading);
       block = { ...talk, intro: [...proseOf(before.slice(0, talkAt), this.counts, this.leftOut), ...talk.intro] };
+      const rule = this.rules.get(talk);
+      if (rule) this.rules.set(block, rule);
     } else {
       block = this.talk(id, [], before, 0, heading).block;
       // The guide's own case study names its talk in its words ("Prepare a 3-minute talk").
@@ -1827,6 +1853,8 @@ export function readWeekMarkdown(markdown: string): ParsedWeek {
     leftOut: [...new Set(reader.leftOut)],
     packTables: reader.packTables,
     dayBeforeSaid: dayBeforeTimeIn(markdown),
+    // Every Choose one and Cases block is made through a method that records its rule; null would be a block made without one.
+    choices: choiceBlocks(blocks).map((block) => reader.rules.get(block) ?? null),
   };
 }
 

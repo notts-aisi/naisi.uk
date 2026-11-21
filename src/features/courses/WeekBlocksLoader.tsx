@@ -6,8 +6,9 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { Field, Textarea } from "@/components/ui/Input";
 import type { ChipTone } from "@/components/ui/Chip";
+import OptionRow from "@/components/ui/OptionRow";
 import { kindsLine, pasteRows, replaceLabel, type Counts, type Reach } from "@/lib/courses/weekEdit/pageModel";
-import { HISTORY_PAGE, PASTE_CHECK } from "@/lib/courses/weekEdit/pageWords";
+import { HISTORY_PAGE, PASTE_CHECK, WHO_CHOOSES } from "@/lib/courses/weekEdit/pageWords";
 import styles from "./WeekBlocksLoader.module.css";
 
 /**
@@ -27,7 +28,16 @@ import styles from "./WeekBlocksLoader.module.css";
  * ON A PROGRAMME'S WEEKS PAGE (`weekEdit`), the run's own week: the paste
  * takes the week's one lock when something is first typed into it, and
  * gives it back on a save, on emptying the box and on leaving; while
- * somebody else holds it the box is off. The check also says what the
+ * somebody else holds it the box is off.
+ *
+ * WHO CHOOSES, wherever the card is drawn: the check lists each Choose one and
+ * Cases block with who chooses and why, and the author may change it (a
+ * table either way; Cases only to given out; a list never). A change is read
+ * again at once, so the check counts the people it reaches, and is sent with
+ * Save; a paste nobody changed sends what it always sent. Read it, or a
+ * change to the box, starts again from the pasted words.
+ *
+ * On the Weeks page the check also says what the
  * pasted week holds by kind and how it differs from the week now, block by
  * block, with what that does to people's ticks and answers, and the replace
  * says for how many groups. The route's refusals (somebody else editing, the
@@ -35,6 +45,26 @@ import styles from "./WeekBlocksLoader.module.css";
  */
 
 type FoundRow = { state: "found" | "missing" | "check"; label: string; detail: string; indent: boolean };
+
+type GivenBy = "facilitator" | "fellow";
+
+/** One block of "Who chooses?", as the route words it (`whoChoosesWire`). */
+type WhoChoosesRow = {
+  place: number;
+  kind: "chooseOne" | "cases";
+  label: string;
+  detail: string;
+  start: GivenBy;
+  givenBy: GivenBy;
+  can: "both" | "given" | "none";
+  why: string;
+  only: string | null;
+  changed: string | null;
+  people: string | null;
+};
+
+/** The author's change to who chooses one block, by place, as the route takes it. */
+type WhoChoosesChange = { place: number; kind: "chooseOne" | "cases"; givenBy: GivenBy };
 
 type ReadAnswer = {
   title: string;
@@ -45,6 +75,8 @@ type ReadAnswer = {
   answers: number;
   due: string;
   error?: string;
+  /** Each Choose one and Cases block, who chooses it and why. */
+  whoChooses?: WhoChoosesRow[];
   /** The run's route only: what the pasted week holds by kind. */
   kinds?: Array<{ type: string; label: string; count: number }>;
   /** The run's route only: how it differs from the week now, block by block. */
@@ -125,6 +157,8 @@ export default function WeekBlocksLoader({
   const [copied, setCopied] = useState<string | null>(null);
   /** This paste holds the week's lock (the Weeks page only). */
   const [holding, setHolding] = useState(false);
+  /** The author's changes to who chooses, which `read` was read with. */
+  const [changes, setChanges] = useState<WhoChoosesChange[]>([]);
 
   const current = read !== null && readFor === markdown;
   const lockedOut = weekEdit?.lockedBy && !holding ? weekEdit.lockedBy : null;
@@ -147,12 +181,20 @@ export default function WeekBlocksLoader({
     }
   }
 
-  async function send(method: "POST" | "PUT", confirmAnswers?: number): Promise<{ status: number; body: ReadAnswer & { saved?: boolean } } | null> {
+  async function send(
+    method: "POST" | "PUT",
+    confirmAnswers?: number,
+    whoChooses: WhoChoosesChange[] = [],
+  ): Promise<{ status: number; body: ReadAnswer & { saved?: boolean } } | null> {
     try {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markdown, ...(confirmAnswers !== undefined ? { confirmAnswers } : {}) }),
+        body: JSON.stringify({
+          markdown,
+          ...(confirmAnswers !== undefined ? { confirmAnswers } : {}),
+          ...(whoChooses.length > 0 ? { whoChooses } : {}),
+        }),
       });
       const body = (await res.json().catch(() => ({}))) as ReadAnswer & { saved?: boolean };
       return { status: res.status, body };
@@ -162,10 +204,11 @@ export default function WeekBlocksLoader({
     }
   }
 
-  async function readIt() {
+  /** Read the paste with these changes to who chooses: none for Read it, which starts from the pasted words. */
+  async function readIt(next: WhoChoosesChange[] = []) {
     setBusy(true);
     setMessage(null);
-    const answer = await send("POST");
+    const answer = await send("POST", undefined, next);
     setBusy(false);
     if (!answer) return;
     if (answer.status !== 200) {
@@ -175,19 +218,27 @@ export default function WeekBlocksLoader({
     }
     setRead(answer.body);
     setReadFor(markdown);
+    setChanges(next);
+  }
+
+  /** The author changes who chooses one block: read again with it, so the check counts who it reaches. */
+  function choose(row: WhoChoosesRow, givenBy: GivenBy) {
+    const others = changes.filter((change) => change.place !== row.place);
+    void readIt(givenBy === row.start ? others : [...others, { place: row.place, kind: row.kind, givenBy }]);
   }
 
   async function save() {
     if (!read) return;
     setBusy(true);
     setMessage(null);
-    const answer = await send("PUT", read.answers > 0 ? read.answers : undefined);
+    const answer = await send("PUT", read.answers > 0 ? read.answers : undefined, changes);
     setBusy(false);
     if (!answer) return;
     if (answer.status === 200 && answer.body.saved) {
       setMessage({ tone: "done", text: `Week ${weekNumber} saved.` });
       setRead(null);
       setReadFor(null);
+      setChanges([]);
       setMarkdown("");
       if (weekEdit) {
         setHolding(false);
@@ -240,6 +291,9 @@ export default function WeekBlocksLoader({
   }
 
   const answered = read ? read.removed.filter((item) => item.answers > 0) : [];
+  const whoChooses = read?.whoChooses ?? [];
+  // A block the author can change here: a table either way, Cases read as picked to given out.
+  const changeable = whoChooses.filter((row) => row.can === "both" || (row.can === "given" && row.start === "fellow")).length;
   // On the Weeks page: each block the paste changes or takes out, and what it does to people's work.
   const rows = read?.comparison && weekEdit ? pasteRows(read.comparison.rows, weekEdit.countsOf, read.removed) : [];
   const blockCount = read?.kinds ? read.kinds.reduce((sum, kind) => sum + kind.count, 0) : 0;
@@ -280,7 +334,7 @@ export default function WeekBlocksLoader({
       </p>
 
       <div className={styles.actions}>
-        <Button type="button" onClick={readIt} disabled={busy || markdown.trim() === "" || lockedOut !== null}>
+        <Button type="button" onClick={() => void readIt()} disabled={busy || markdown.trim() === "" || lockedOut !== null}>
           Read it
         </Button>
         {blockWeek && (
@@ -314,6 +368,22 @@ export default function WeekBlocksLoader({
               </li>
             ))}
           </ul>
+
+          {whoChooses.length > 0 && (
+            <div className={styles.check}>
+              <h4 className={styles.checkTitle}>{WHO_CHOOSES.title}</h4>
+              <p className={styles.muted}>{WHO_CHOOSES.lede(changeable)}</p>
+              {whoChooses.map((row) => (
+                <WhoChoosesBlock
+                  key={row.place}
+                  row={row}
+                  name={`who-chooses-${weekId}${idSuffix}-${row.place}`}
+                  disabled={busy || lockedOut !== null}
+                  onChoose={(givenBy) => choose(row, givenBy)}
+                />
+              ))}
+            </div>
+          )}
 
           {read.checks.length > 0 && (
             <>
@@ -398,5 +468,58 @@ export default function WeekBlocksLoader({
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * One block of "Who chooses?": its place and what it holds, who chooses it
+ * now, and why it started that way. A table offers both answers; Cases read
+ * as picked offer "Given out" alone; a list, and Cases already given out,
+ * offer nothing to change, only who chooses and why.
+ */
+function WhoChoosesBlock({
+  row,
+  name,
+  disabled,
+  onChoose,
+}: {
+  row: WhoChoosesRow;
+  name: string;
+  disabled: boolean;
+  onChoose: (givenBy: GivenBy) => void;
+}) {
+  const options: GivenBy[] =
+    row.can === "both" ? ["facilitator", "fellow"] : row.can === "given" && row.start === "fellow" ? ["facilitator"] : [];
+  const words = (givenBy: GivenBy) => (givenBy === "facilitator" ? WHO_CHOOSES.given : WHO_CHOOSES.picked);
+  return (
+    <fieldset className={styles.chooser}>
+      <legend className={styles.chooserLegend}>
+        <span className={styles.label}>{row.label}</span>
+        <span className={styles.detail}>{row.detail}</span>
+      </legend>
+      {options.length > 0 ? (
+        <div className={styles.chooserOptions}>
+          {options.map((givenBy) => (
+            <OptionRow
+              key={givenBy}
+              type="radio"
+              name={name}
+              value={givenBy}
+              checked={row.givenBy === givenBy}
+              disabled={disabled}
+              onChange={() => onChoose(givenBy)}
+            >
+              {words(givenBy)}
+            </OptionRow>
+          ))}
+        </div>
+      ) : (
+        <p className={styles.checkPlace}>{words(row.givenBy)}</p>
+      )}
+      <p className={styles.muted}>{row.why}</p>
+      {row.only && <p className={styles.muted}>{row.only}</p>}
+      {row.changed && <p className={styles.muted}>{row.changed}</p>}
+      {row.people && <p className={styles.checkLine}>{row.people}</p>}
+    </fieldset>
   );
 }
