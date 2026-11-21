@@ -7,7 +7,7 @@ import DateTile from "@/components/ui/DateTile";
 import PageHead from "@/components/ui/PageHead";
 import ProgressBar from "@/components/ui/ProgressBar";
 import { usePendingCount } from "@/features/admin/usePendingCount";
-import MyCoursesSummary from "@/features/courses/MyCoursesSummary";
+import MyCoursesSummary, { liveRunsOf } from "@/features/courses/MyCoursesSummary";
 import { useMyRuns } from "@/features/courses/useMyRuns";
 import { useSiteNoticeState } from "@/features/maintenance/useSiteNotice";
 import { useDrafts } from "@/features/newsletter/useDrafts";
@@ -18,6 +18,7 @@ import { ChevronRight } from "./icons";
 import type { HomeEvent } from "./homeData";
 import { requestsWaitingLine, requestsWaitingTitle } from "@/lib/courses/registerCorrection/pageWords";
 import { REQUESTS_PATH } from "@/lib/courses/requests/paths";
+import HomeAdminFacilitating from "./HomeAdminFacilitating";
 import { firstName } from "./homeWords";
 import styles from "./home.module.css";
 
@@ -29,6 +30,11 @@ import styles from "./home.module.css";
  * site notice, the newsletter drafts and the committee's tasks. The page
  * checks the role on the server before it draws this, and each of those reads
  * refuses anybody else on its own account.
+ *
+ * AN ADMIN WHO FACILITATES a group on a live run sees their group's card
+ * first (`HomeAdminFacilitating`), decided from the list of runs this page
+ * already reads for My programmes: an admin who facilitates nothing asks
+ * nothing new and sees nothing new.
  *
  * WHERE A FIGURE HAS NO READ A PAGE CAN MAKE, THE ROW HAS NO FIGURE. How many
  * applications are waiting for a lead is worked out on the server for the
@@ -201,6 +207,14 @@ export default function HomeAdmin({
   const { drafts } = useDrafts();
   const { tasks } = useTasks({ visibility: "committee", includeArchived: false });
   const myRuns = useMyRuns();
+  // The live runs whose rows name a live group this admin facilitates, from
+  // the list Home reads already: none, and nothing is asked or drawn for them.
+  // Not the facilitator role, which an older row can still grant after the
+  // group itself is archived.
+  const facilitating = useMemo(
+    () => liveRunsOf(myRuns.runs).filter((entry) => (entry.facilitates?.length ?? 0) > 0),
+    [myRuns.runs],
+  );
   // The clock as this page was opened. Read once, so a render is the same
   // however many times it runs.
   const [now] = useState(() => Date.now());
@@ -290,6 +304,9 @@ export default function HomeAdmin({
 
       <div className={styles.columns}>
         <div className={styles.stack}>
+          {/* An admin who facilitates: their own group first. */}
+          {facilitating.length > 0 && <HomeAdminFacilitating runs={facilitating} />}
+
           <section className={styles.card} aria-labelledby="home-todo">
             <div className={styles.cardHead}>
               <h2 id="home-todo" className={styles.cardTitle}>

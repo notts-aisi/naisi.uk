@@ -21,7 +21,9 @@ import styles from "./PeopleSearch.module.css";
 
 /**
  * SEARCH FOR A PERSON OR A GROUP, from the sidebar: the button that opens it,
- * the "/" key, and the dialog. Drawn only for somebody `POST /api/search`
+ * the "/" key, and the dialog. For somebody who facilitates, a facilitator
+ * guide that matched is a third short list, Guides, drawn only when there is
+ * one. Drawn only for somebody `POST /api/search`
  * answers (`useSearches`): an admin, a programme's lead or a group's
  * facilitator. Everything it shows is the route's answer, worked out on the
  * server from lists the reader may already open; nothing is kept here
@@ -86,6 +88,14 @@ export function useSlashToSearch(enabled: boolean, open: () => void): void {
   }, [enabled]);
 }
 
+/**
+ * The facilitator guides an answer offers: a third list, in the answer only
+ * when one matched, for somebody who facilitates. Anything else, none.
+ */
+function guidesOf(answer: SearchAnswer): SearchHit[] {
+  return Array.isArray(answer.guides) ? answer.guides : [];
+}
+
 type State =
   | { kind: "idle" }
   | { kind: "waiting"; query: string }
@@ -106,6 +116,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
   const ids = useId();
   const peopleListId = `${ids}-people-list`;
   const groupsListId = `${ids}-groups-list`;
+  const guidesListId = `${ids}-guides-list`;
   const optionId = (at: number) => `${ids}-option-${at}`;
   const [typed, setTyped] = useState("");
   const [state, setState] = useState<State>({ kind: "idle" });
@@ -150,7 +161,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
         return;
       }
       setState({ kind: "answered", query, answer: json });
-      setActive(json.people.length + json.groups.length > 0 ? 0 : -1);
+      setActive(json.people.length + json.groups.length + guidesOf(json).length > 0 ? 0 : -1);
     } catch (err) {
       if ((err as { name?: string })?.name === "AbortError" || mine !== asked.current) return;
       setState({ kind: "failed", message: SEARCH_REFUSAL.failed });
@@ -171,7 +182,8 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
     pause.current = setTimeout(() => void ask(value), PAUSE_MS);
   }
 
-  const hits: SearchHit[] = state.kind === "answered" ? [...state.answer.people, ...state.answer.groups] : [];
+  const hits: SearchHit[] =
+    state.kind === "answered" ? [...state.answer.people, ...state.answer.groups, ...guidesOf(state.answer)] : [];
 
   function go(hit: SearchHit) {
     // Closed directly, not through history: the page is changing, and an unwind would undo it.
@@ -200,6 +212,9 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
 
   const answered = state.kind === "answered" ? state : null;
   const shown = answered !== null && hits.length > 0;
+  const guides = answered ? guidesOf(answered.answer) : [];
+  // Only a guide matched: the two empty lists are left out, so the guide leads.
+  const onlyGuides = guides.length > 0 && answered !== null && answered.answer.people.length === 0 && answered.answer.groups.length === 0;
 
   const renderList = (list: SearchHit[], offset: number) =>
     list.map((hit, index) => {
@@ -239,7 +254,9 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
           onKeyDown={onKeyDown}
           role="combobox"
           aria-expanded={shown}
-          aria-controls={`${peopleListId} ${groupsListId}`}
+          aria-controls={
+            onlyGuides ? guidesListId : guides.length > 0 ? `${peopleListId} ${groupsListId} ${guidesListId}` : `${peopleListId} ${groupsListId}`
+          }
           aria-autocomplete="list"
           aria-activedescendant={shown && active >= 0 ? optionId(active) : undefined}
           autoComplete="off"
@@ -256,26 +273,40 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
 
       {answered ? (
         <div className={styles.results}>
-          <section className={styles.section} aria-labelledby={`${ids}-people`}>
-            <h2 id={`${ids}-people`} className={styles.heading}>
-              {SEARCH_HEADINGS.people}
-            </h2>
-            <div id={peopleListId} role="listbox" aria-labelledby={`${ids}-people`} className={styles.list}>
-              {renderList(answered.answer.people, 0)}
-            </div>
-            {answered.answer.people.length === 0 ? <p className={styles.empty}>{noPeopleWords(answered.query)}</p> : null}
-            {answered.answer.morePeople ? <p className={styles.more}>{SEARCH_MORE.people}</p> : null}
-          </section>
-          <section className={styles.section} aria-labelledby={`${ids}-groups`}>
-            <h2 id={`${ids}-groups`} className={styles.heading}>
-              {SEARCH_HEADINGS.groups}
-            </h2>
-            <div id={groupsListId} role="listbox" aria-labelledby={`${ids}-groups`} className={styles.list}>
-              {renderList(answered.answer.groups, answered.answer.people.length)}
-            </div>
-            {answered.answer.groups.length === 0 ? <p className={styles.empty}>{noGroupsWords(answered.query)}</p> : null}
-            {answered.answer.moreGroups ? <p className={styles.more}>{SEARCH_MORE.groups}</p> : null}
-          </section>
+          {onlyGuides ? null : (
+            <>
+              <section className={styles.section} aria-labelledby={`${ids}-people`}>
+                <h2 id={`${ids}-people`} className={styles.heading}>
+                  {SEARCH_HEADINGS.people}
+                </h2>
+                <div id={peopleListId} role="listbox" aria-labelledby={`${ids}-people`} className={styles.list}>
+                  {renderList(answered.answer.people, 0)}
+                </div>
+                {answered.answer.people.length === 0 ? <p className={styles.empty}>{noPeopleWords(answered.query)}</p> : null}
+                {answered.answer.morePeople ? <p className={styles.more}>{SEARCH_MORE.people}</p> : null}
+              </section>
+              <section className={styles.section} aria-labelledby={`${ids}-groups`}>
+                <h2 id={`${ids}-groups`} className={styles.heading}>
+                  {SEARCH_HEADINGS.groups}
+                </h2>
+                <div id={groupsListId} role="listbox" aria-labelledby={`${ids}-groups`} className={styles.list}>
+                  {renderList(answered.answer.groups, answered.answer.people.length)}
+                </div>
+                {answered.answer.groups.length === 0 ? <p className={styles.empty}>{noGroupsWords(answered.query)}</p> : null}
+                {answered.answer.moreGroups ? <p className={styles.more}>{SEARCH_MORE.groups}</p> : null}
+              </section>
+            </>
+          )}
+          {guides.length > 0 ? (
+            <section className={styles.section} aria-labelledby={`${ids}-guides`}>
+              <h2 id={`${ids}-guides`} className={styles.heading}>
+                {SEARCH_HEADINGS.guides}
+              </h2>
+              <div id={guidesListId} role="listbox" aria-labelledby={`${ids}-guides`} className={styles.list}>
+                {renderList(guides, answered.answer.people.length + answered.answer.groups.length)}
+              </div>
+            </section>
+          ) : null}
         </div>
       ) : null}
 

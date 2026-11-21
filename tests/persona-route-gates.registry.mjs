@@ -4033,7 +4033,7 @@ export const ROUTES = {
     },
     POST: {
       expect: everyone(403, { admin: 200, lead: 200, facilitator: 200 }),
-      fields: ["groups", "moreGroups", "morePeople", "people"],
+      fields: ["groups", "guides", "moreGroups", "morePeople", "people"],
       drive: {
         body: { query: "an" },
         why:
@@ -4043,7 +4043,9 @@ export const ROUTES = {
       why:
         "One query. Everybody search is not for gets the GET's one 403 before the body is read; an admin, a " +
         "programme's lead and a facilitator with standing are answered, people and groups each with whether more " +
-        "matched. What each finds is held as every kind of reader against a real term in tests/search.test.mjs. " +
+        "matched. For somebody who facilitates, a query that matches a facilitator guide (\"guide\", the course's title) " +
+        "adds a third list, guides, and only then (this two-letter query matches none, so its answer carries the other " +
+        "four fields for everybody). What each finds is held as every kind of reader against a real term in tests/search.test.mjs. " +
         "It writes nothing.",
     },
   },

@@ -158,11 +158,11 @@ function rawTimesIn(source, name = "file.tsx", names = TIME_NAMES) {
  */
 const ALLOWED = [
   {
-    file: "app/(app)/dashboard/HomeFacilitator.tsx",
+    file: "lib/courses/homeGroups.ts",
     kind: "template",
     expr: "next.startTimeLocal",
     count: 1,
-    why: "a sort key: the next session's date key and its 24-hour start, compared as text so the soonest group sorts first, and never shown",
+    why: "a sort key: the next session's date key and its 24-hour start, compared as text so the group that meets soonest, across every run a facilitator's Home reads, sorts first, and never shown",
   },
   {
     file: "features/applications/circles/PersonPanel.tsx",

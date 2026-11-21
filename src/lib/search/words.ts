@@ -12,8 +12,11 @@ export const SEARCH_LABEL = "Search people and groups";
 /** The key that opens it, drawn on the button. */
 export const SEARCH_KEY = "/";
 
-/** The two lists' headings. */
-export const SEARCH_HEADINGS = { people: "People", groups: "Groups" } as const;
+/**
+ * The lists' headings. Guides is drawn only when a facilitator guide matched,
+ * for somebody who facilitates (`src/lib/search/model.ts`).
+ */
+export const SEARCH_HEADINGS = { people: "People", groups: "Groups", guides: "Guides" } as const;
 
 /** The line under the results. */
 export const SEARCH_HELP = "Up and down to move, Enter to open, Esc to close. Press / anywhere to search.";

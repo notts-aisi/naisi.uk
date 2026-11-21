@@ -25,6 +25,17 @@
  * finds it. Never on an address: a world's `matchOn` is built from names
  * alone.
  *
+ * ## The facilitator guide
+ *
+ * A third short list, `guides`, for somebody who facilitates: the
+ * facilitator guide of each course they facilitate a live group on, matched
+ * on "Facilitator guide" and the course's title, so "guide", "facilitator
+ * guide" and "agi strategy" each find it. It is in the answer ONLY when
+ * something matched, so every answer without a guide in it is exactly the
+ * answer it always was. A guide is offered only for a course the guide's
+ * own gate would admit the searcher to as a facilitator (`./load.ts`, which
+ * also gives each the course's own title).
+ *
  * Client safe: no import, so the box, the route and the tests run the same
  * rule.
  */
@@ -56,6 +67,12 @@ export type SearchAnswer = {
   morePeople: boolean;
   /** More groups matched than the answer holds. */
   moreGroups: boolean;
+  /**
+   * The facilitator guides that matched, one per course: present only when
+   * one did (see the module comment). Never more than the courses the
+   * searcher facilitates on, so never capped.
+   */
+  guides?: SearchHit[];
 };
 
 /** One row a reader may already list, as the world hands it in. */
@@ -74,6 +91,8 @@ export type SearchCandidate = SearchHit & {
 export type SearchWorld = {
   people: SearchCandidate[];
   groups: SearchCandidate[];
+  /** The guides of the courses the searcher facilitates on. Absent: none. */
+  guides?: SearchCandidate[];
 };
 
 export const EMPTY_WORLD: SearchWorld = Object.freeze({ people: [], groups: [] }) as SearchWorld;
@@ -173,7 +192,27 @@ export function searchWorld(world: SearchWorld, query: unknown): SearchAnswer {
   if (!words) return NO_ANSWER;
   const people = pick(world.people, words, MAX_PEOPLE);
   const groups = pick(world.groups, words, MAX_GROUPS);
-  return { people: people.hits, groups: groups.hits, morePeople: people.more, moreGroups: groups.more };
+  const answer: SearchAnswer = { people: people.hits, groups: groups.hits, morePeople: people.more, moreGroups: groups.more };
+  const guides = pick(world.guides ?? [], words, Number.POSITIVE_INFINITY).hits;
+  return guides.length > 0 ? { ...answer, guides } : answer;
+}
+
+/** The answer with no `guides` in it: the shape every answer without a guide has. */
+export function withoutGuides(answer: SearchAnswer): SearchAnswer {
+  return { people: answer.people, groups: answer.groups, morePeople: answer.morePeople, moreGroups: answer.moreGroups };
+}
+
+/** The name a facilitator guide is offered by: the guide's own name. */
+export const GUIDE_HIT_NAME = "Facilitator guide";
+
+/**
+ * One course's facilitator guide as a candidate: "Facilitator guide", the
+ * course's title under it, to the guide's page, matched on both. One per
+ * course (`key`).
+ */
+export function guideCandidate(courseId: string, courseTitle: string, href: string): SearchCandidate {
+  const title = courseTitle.trim();
+  return { name: GUIDE_HIT_NAME, line: title, href, matchOn: `${GUIDE_HIT_NAME} ${title}`, key: `guide:${courseId}` };
 }
 
 /** "AGI Strategy · Group C": the parts that have something in them, joined. */
