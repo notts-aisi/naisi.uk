@@ -50,9 +50,11 @@ export async function nextSessionAnswersFor(
 ): Promise<NextSessionAnswers> {
   if (!db || !input.takesPart) return NO_ANSWERS;
   const asked = { user: input.user, run: input.run, enrolment: input.enrolment, groups: input.groups, now: input.now };
-  // In the order the programme page always asked them.
-  const cantMakeIt = await cantMakeItFor(db, asked).catch(() => null);
-  const joiningOnline = await joiningOnlineFor(db, asked).catch(() => null);
-  const excused = await excusedFor(db, asked).catch(() => null);
+  // Three reads that do not depend on each other, asked together.
+  const [cantMakeIt, joiningOnline, excused] = await Promise.all([
+    cantMakeItFor(db, asked).catch(() => null),
+    joiningOnlineFor(db, asked).catch(() => null),
+    excusedFor(db, asked).catch(() => null),
+  ]);
   return { cantMakeIt, joiningOnline, excused };
 }

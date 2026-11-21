@@ -138,8 +138,8 @@ type Slots = {
 export default function HomeProgramme({ given, invite, entry, comingUp, applications, more, endSurvey = null }: Slots) {
   const { user } = useAuth();
   const { data, error } = useRunOverview(entry.runId);
-  const takesPart = data?.enrolment?.role === "learner";
-  const { answers, reload } = useNextSessionAnswers(entry.runId, takesPart);
+  // Asked beside the overview: Home draws this form for somebody taking part.
+  const { answers, reload } = useNextSessionAnswers(entry.runId, true);
   const [tickFailed, setTickFailed] = useState(false);
   const head = headLine(entry, data?.programme?.name || entry.courseTitle);
 
@@ -179,7 +179,8 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
   // left out; once it is over there is no ticket, and the cards say so.
   const lastWeek = inLastWeek(entry.currentWeek, entry.totalWeeks);
   const lastDateKey = group?.calendar.lastSessionDate ?? "";
-  const isLast = facts !== null && lastDateKey !== "" && facts.dateKey === lastDateKey;
+  // Their own group's last session, while the card is about it: never while a visit comes first.
+  const isLast = facts !== null && cardSession !== null && !cardSession.visiting && lastDateKey !== "" && facts.dateKey === lastDateKey;
   const onTheDay = isLast && isToday && facts ? (tonightWord(facts.startTimeLocal) === "Tonight" ? "tonight" : "today") : null;
   // The group's names, read once for the group's card and for who steps out
   // while the survey at the end is answered: the group's facilitators who
@@ -248,7 +249,8 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
             runId={entry.runId}
             data={data}
             answers={answers}
-            locked={answers?.viewAs === true}
+            // Nothing can be pressed until the answers say this is not an admin looking as the member.
+            locked={answers ? answers.viewAs : true}
             home
             calendar={learner !== null && group !== null && learner.groupId === group.id}
           />

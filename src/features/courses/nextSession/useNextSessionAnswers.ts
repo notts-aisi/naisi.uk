@@ -10,9 +10,11 @@ import type { NextSessionReply } from "@/app/api/courses/runs/[runId]/next-sessi
  * browser. One-shot, with `reload` for the card's own presses (a request
  * sent or withdrawn), as `useRunOverview` is.
  *
- * Until it lands, or when it fails, `answers` is null and the card offers no
- * button, as the programme page does when a read fails: never a button the
- * server did not offer.
+ * Until it lands, or when the first read fails, `answers` is null and the
+ * card offers no button, as the programme page does when a read fails: never
+ * a button the server did not offer. A read again that fails keeps what the
+ * card already showed. Asked at once, beside the overview, since Home draws
+ * this form for somebody taking part.
  */
 export function useNextSessionAnswers(runId: string, enabled: boolean): { answers: NextSessionReply | null; reload: () => void } {
   const [answers, setAnswers] = useState<NextSessionReply | null>(null);
@@ -24,10 +26,10 @@ export function useNextSessionAnswers(runId: string, enabled: boolean): { answer
     fetch(`/api/courses/runs/${encodeURIComponent(runId)}/next-session`, { cache: "no-store" })
       .then(async (res) => (res.ok ? ((await res.json().catch(() => null)) as NextSessionReply | null) : null))
       .then((body) => {
-        if (!cancelled) setAnswers(body);
+        if (!cancelled && body) setAnswers(body);
       })
       .catch(() => {
-        if (!cancelled) setAnswers(null);
+        // Kept as it was: a read that failed says nothing new.
       });
     return () => {
       cancelled = true;

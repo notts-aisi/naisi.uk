@@ -177,11 +177,6 @@ export function onlineWithWords(groupName: string, firstNames: readonly string[]
   return who.length > 0 ? `Online, with ${namesWords(who)}` : "Online";
 }
 
-/** Home's card's heading: "Group B, 6pm to 8pm". The tile beside it carries the date. */
-export function groupHoursWords(groupName: string, hours: string): string {
-  return [groupName.trim(), hours].filter(Boolean).join(", ");
-}
-
 /** "6pm to 8pm", from the start and the length. "" without a time. */
 export function hoursWords(startTimeLocal: string, durationMinutes: number): string {
   const start = clockWords(startTimeLocal);

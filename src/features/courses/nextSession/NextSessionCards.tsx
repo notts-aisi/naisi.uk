@@ -244,6 +244,7 @@ export default function NextSessionCards({
         home={home}
         calendar={calendar}
         answers={ownAnswers}
+        next={!visitFirst}
       />
     ) : null;
 
@@ -258,11 +259,14 @@ export default function NextSessionCards({
       </div>
     ) : null;
 
-  // The label of the next session's card, on the visit when it comes first.
+  // The label of the next session's card, on the visit when it comes first:
+  // "Your last session" when the visit is in their programme's last week.
+  const lastWeekNumber = Math.max(0, ...data.weekSchedule.filter((week) => !week.cancelled).map((week) => week.weekNumber));
   const visitLabel = (visit: { weekNumber: number; dateKey: string; startTimeLocal: string }) =>
     sessionEyebrow({
       isToday: visit.dateKey === todayKey,
       isFirst: false,
+      isLast: lastWeekNumber > 0 && visit.weekNumber === lastWeekNumber,
       startTimeLocal: visit.startTimeLocal,
       weekNumbers: [visit.weekNumber],
       home,
@@ -271,10 +275,12 @@ export default function NextSessionCards({
   if (home) {
     const first = around.first[0] ?? null;
     if (first) {
+      // A cancelled evening of their own group's is said under the visit,
+      // where the programme page says it, never over a session it is not about.
       return (
         <>
-          {notice}
           {visitCardOf(first, visitLabel(first))}
+          {notice}
         </>
       );
     }

@@ -24,7 +24,7 @@
 /** The button on the card. */
 export const JOINING_ONLINE = "I’m joining online";
 
-/** Its name for a screen reader: "Joining online on Tue 17 Nov". */
+/** Its name for a screen reader: "I’m joining online on Tue 17 Nov". */
 export function joiningOnlineLabel(day: string): string {
   return day ? `${JOINING_ONLINE} on ${day}` : JOINING_ONLINE;
 }

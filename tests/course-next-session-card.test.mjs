@@ -25,6 +25,8 @@
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { join } from "node:path";
 import { walkSource } from "./lib/functionScan.mjs";
 import { B, NOW, RUN, makeMemberPagesWorld, textOf } from "./lib/memberPagesWorld.mjs";
@@ -37,6 +39,8 @@ const askRoute = await w.courseRoute("groups", "[groupId]", "excused");
 const O = await w.loadTs(join("lib", "courses", "excused", "ownWords.ts"));
 const J = await w.loadTs(join("lib", "courses", "joiningOnline", "words.ts"));
 const answersLib = await w.loadTs(join("lib", "courses", "nextSession", "answers.ts"));
+const refresh = await w.loadTs(join("features", "courses", "nextSession", "refresh.ts"));
+const LINK = "https://meet.example.com/week-3";
 
 const at = (iso) => mock.timers.setTime(new Date(iso).getTime());
 
@@ -260,11 +264,126 @@ describe("4. a visit on Home", () => {
     // Their own group's session after it, on the programme page, says only its week.
     assert.match(before.programme.text, / Week 5 Tue 1 Dec, 6pm to 8pm /);
     assert.doesNotMatch(before.home.text, /Tue 1 Dec, 6pm to 8pm/);
+    // Home's reading before the session is the visit week's, due at the session they go to.
+    assert.match(before.home.text, /Before your session 0 of 3 done Week 4 · Week 4 readings/);
+    assert.doesNotMatch(before.home.text, /Week 5 · Week 5 readings/);
+    // Only the visit is called their next session.
+    assert.ok(before.programme.html.includes('aria-label="Week 5"'), before.programme.html);
+    assert.equal((before.programme.html.match(/aria-label="Your next session"/g) ?? []).length, 0);
 
     at("2026-11-19T18:30:00Z");
     const started = await bothPages("chloe");
     assert.match(started.homeCard.text, /Visiting Group A Thu 19 Nov, 6pm to 8pm/);
     assert.doesNotMatch(started.homeCard.text, /Cancel this visit/);
     assert.equal(comparable(started.homeCard.text), comparable(started.programmeCard.text));
+  });
+});
+
+describe("5. what else the card says, on both pages", () => {
+  test("an incubator's card names no group, on Home as on the programme page, before and after they say they are joining online", async () => {
+    const asIncubator = async () => {
+      // The world as the browser holds it, then the programme told it is an incubator.
+      await bothPages("chloe");
+      w.ui.overview = { ...w.ui.overview, programme: { ...(w.ui.overview.programme ?? { name: "AGI Strategy", leadFirstName: null }), kind: "incubator" } };
+      const answer = w.ui.nextSession;
+      const programme = firstCard(w.programmeHome("chloe", { cantMakeIt: answer.cantMakeIt, joiningOnline: answer.joiningOnline, excused: answer.excused }).html);
+      const home = firstCard((await w.homeCard("chloe")).html);
+      return { home, programme };
+    };
+    const plain = await asIncubator();
+    assert.ok(plain.home.text.includes("Hallward B12 R S with Rahul and Sofia"), plain.home.text);
+    assert.doesNotMatch(plain.home.text, /Group B|\bgroup\b/i);
+    assert.equal(comparable(plain.home.text), comparable(plain.programme.text));
+    assert.equal((await w.call("chloe", online.POST, { groupId: B }, { body: { sessionKey: "w03", online: true }, course: true })).status, 200);
+    const said = await asIncubator();
+    assert.ok(said.home.text.includes("Online, with Rahul and Sofia"), said.home.text);
+    assert.doesNotMatch(said.home.text, /Group B|\bgroup\b/i);
+    assert.equal(comparable(said.home.text), comparable(said.programme.text));
+  });
+
+  test("joining online with a link set: the link in the row under the card, the line that says it is here, both pages alike", async () => {
+    changeGroupB(() => ({ sessionOverrides: { w03: { meetingUrl: LINK } } }));
+    assert.equal((await w.call("chloe", online.POST, { groupId: B }, { body: { sessionKey: "w03", online: true }, course: true })).status, 200);
+    const both = await bothPages("chloe");
+    assert.match(both.homeCard.text, /^Tonight · week 3 Joining online Tue 17 Nov, 6pm to 8pm Online, with Group B, Rahul and Sofia/);
+    assert.ok(both.homeCard.text.includes(J.saidOnlineWords(true, ["Rahul", "Sofia"])), both.homeCard.text);
+    assert.ok(both.homeCard.html.includes(`href="${LINK}"`), both.homeCard.html);
+    assert.ok(both.homeCard.text.includes(`Join online ${J.FOR_JOINING_ONLINE} The link is here, not in your emails, so it can’t be forwarded.`), both.homeCard.text);
+    assert.equal(comparable(both.homeCard.text), comparable(both.programmeCard.text));
+  });
+
+  test("joining online in a week moved for its week alone: the chip says joining online, and the Why line goes", async () => {
+    moveWeekThree();
+    assert.equal((await w.call("chloe", online.POST, { groupId: B }, { body: { sessionKey: "w03", online: true }, course: true })).status, 200);
+    const both = await bothPages("chloe");
+    assert.match(both.homeCard.text, /^Your next session · week 3 Joining online Wed 18 Nov, 3pm to 5pm Online, with Group B, Rahul and Sofia/);
+    assert.doesNotMatch(both.homeCard.text, /Moved this week|Why:|Usually/);
+    assert.equal(comparable(both.homeCard.text), comparable(both.programmeCard.text));
+  });
+
+  test("the buttons in the order the card is drawn: Can't make it, then I'm joining online", async () => {
+    const both = await bothPages("chloe");
+    for (const card of [both.homeCard, both.programmeCard]) {
+      const cant = card.html.indexOf('data-testid="excuse-open"');
+      const join = card.html.indexOf(`aria-label="${J.JOINING_ONLINE} on Tue 17 Nov"`);
+      assert.ok(cant >= 0 && join > cant, card.html);
+    }
+  });
+
+  test("a member of two programmes: each run's route answers about that run's place alone", async () => {
+    const T = "technical-ai-safety-weekly__grp00077";
+    w.world.db.seed(`courseGroups/${T}`, {
+      ...w.world.db.read(`courseGroups/${B}`),
+      runId: RUN.tais,
+      name: "Group T",
+      facilitatorUids: ["grace"],
+      memberCount: 1,
+      sessionChanges: {},
+      sessionOverrides: {},
+      sessionModes: {},
+    });
+    w.world.db.seed(`courseEnrolments/${RUN.tais}__chloe`, { ...w.world.db.read(`courseEnrolments/${RUN.agi}__chloe`), runId: RUN.tais, groupId: T });
+    const ask = (runId) => w.call("chloe", w.routes.nextSession.GET, { runId }, { course: true });
+    const agi = await ask(RUN.agi);
+    const tais = await ask(RUN.tais);
+    assert.equal(agi.status, 200);
+    assert.equal(tais.status, 200, JSON.stringify(tais.body));
+    assert.equal(agi.body.excused.groupId, B);
+    assert.equal(tais.body.excused.groupId, T);
+    assert.equal(agi.body.joiningOnline?.groupId ?? B, B);
+    assert.equal(tais.body.joiningOnline?.groupId ?? T, T);
+    assert.doesNotMatch(JSON.stringify(agi.body), new RegExp(T));
+    assert.doesNotMatch(JSON.stringify(tais.body), new RegExp(B));
+    // Somebody with a place on another run only is answered nothing here.
+    assert.equal((await w.call("grace", w.routes.nextSession.GET, { runId: RUN.agi }, { course: true })).status, 403);
+  });
+});
+
+describe("6. Home reads its buttons again after a press", () => {
+  test("the request's form and its withdraw call the card's refresh beside the page's, and Home provides its own read again", () => {
+    const SRC = join(import.meta.dirname, "..", "src");
+    const read = (rel) => readFileSync(join(SRC, rel), "utf8");
+    for (const rel of ["features/courses/excused/AskForm.tsx", "features/courses/excused/WithdrawButton.tsx"]) {
+      assert.match(read(rel), /const refreshCard = useCardRefresh\(\);/, rel);
+      assert.match(read(rel), /router\.refresh\(\);\n\s+refreshCard\(\);/, rel);
+    }
+    const home = read("app/(app)/dashboard/HomeProgramme.tsx");
+    assert.match(home, /const \{ answers, reload \} = useNextSessionAnswers\(entry\.runId, true\);/);
+    assert.match(home, /<CardRefresh\.Provider value=\{reload\}>\s*<NextSessionCards/);
+  });
+
+  test("a press inside Home's provider calls Home's read again; with no provider, nothing", () => {
+    let heard = 0;
+    let got = null;
+    const Probe = () => {
+      got = refresh.useCardRefresh();
+      return null;
+    };
+    renderToStaticMarkup(createElement(refresh.CardRefresh.Provider, { value: () => (heard += 1) }, createElement(Probe)));
+    got();
+    assert.equal(heard, 1);
+    renderToStaticMarkup(createElement(Probe));
+    got();
+    assert.equal(heard, 1);
   });
 });
