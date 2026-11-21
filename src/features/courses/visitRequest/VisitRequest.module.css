@@ -1,0 +1,125 @@
+/* Going to another group's session for a week: the card's waiting block and
+   declined message, the form's page, and the admins' request page. Every
+   control is at least 44px tall; nothing here is wider than its container. */
+
+.goLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  text-decoration: none;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.goLink:hover {
+  background: var(--color-surface-hover, var(--color-surface));
+}
+
+.goLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.headRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 40rem;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl, 1.5rem);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.choice input {
+  width: 22px;
+  height: 22px;
+  margin: 2px 0 0;
+  flex: none;
+  accent-color: var(--color-accent);
+}
+
+.choiceFull {
+  cursor: default;
+  padding-left: 48px;
+}
+
+.choiceBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.choiceTitle {
+  margin: 0;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 36rem) {
+  .choiceFull {
+    padding-left: 14px;
+  }
+}

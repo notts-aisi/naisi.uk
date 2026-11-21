@@ -8,6 +8,7 @@ import Select from "@/components/ui/Select";
 import Switch from "@/components/ui/Switch";
 import { useHydrated } from "@/hooks/useHydrated";
 import { EMAIL_ME_ABOUT_REQUESTS, EMAIL_ME_LINE } from "@/lib/courses/excused/words";
+import * as V from "@/lib/courses/visitRequest/words";
 import * as R from "@/lib/courses/excused/requestWords";
 import * as P from "@/lib/courses/registerCorrection/pageWords";
 import type { RequestRow, RequestsPageView } from "@/lib/courses/requests/load";
@@ -30,6 +31,13 @@ import styles from "./Requests.module.css";
  * none): their own card, each row with the person, the group and the weeks
  * and where each stands, never the reason. Nobody "has" one: there is no
  * Take it for them, so a row says nothing of handling.
+ *
+ * ONE SECTION PER KIND, each with its own row builder, in the order the
+ * page draws them: "Moves and visits" first (requests to go to another
+ * session, an admin's alone: who, "One week at another session", from which
+ * group to which and the day, when, who has it), then register corrections,
+ * then requests to be excused. A later kind adds its own section. The tabs'
+ * counts are worked out over every row.
  */
 
 type Tab = "waiting" | "handling" | "done";
@@ -80,9 +88,11 @@ export default function RequestsList({ view, emailMe = null }: { view: RequestsP
   const inTab = inProgramme.filter((row) =>
     tab === "waiting" ? row.state === "waiting" : tab === "handling" ? row.state === "handling" : row.state === "approved" || row.state === "declined",
   );
-  const shown = inTab.filter((row) => row.kind !== "excused");
+  const shown = inTab.filter((row) => row.kind !== "excused" && row.kind !== "visit");
   const excusedShown = inTab.filter((row) => row.kind === "excused");
   const anyExcused = view.viewer === "admin" && view.rows.some((row) => row.kind === "excused");
+  const visitsShown = inTab.filter((row) => row.kind === "visit");
+  const anyVisits = view.viewer === "admin" && view.rows.some((row) => row.kind === "visit");
   const counts = {
     waiting: inProgramme.filter((row) => row.state === "waiting").length,
     handling: inProgramme.filter((row) => row.state === "handling").length,
@@ -141,6 +151,23 @@ export default function RequestsList({ view, emailMe = null }: { view: RequestsP
           </label>
         )}
       </div>
+
+      {anyVisits && (
+        <section className={styles.card} aria-labelledby="requests-visits" data-testid="requests-visits">
+          <h2 id="requests-visits" className={styles.cardTitle}>
+            {V.MOVES_AND_VISITS}
+          </h2>
+          {visitsShown.length === 0 ? (
+            <p className={styles.line}>{P.NOTHING_IN_THIS_VIEW}</p>
+          ) : (
+            <ul className={styles.rows} role="list">
+              {visitsShown.map((row) => (
+                <VisitRowItem key={row.id} row={row} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section id="requests-panel" role="tabpanel" aria-labelledby={`requests-tab-${tab}`} className={styles.card}>
         <h2 className={styles.cardTitle}>Register corrections</h2>
@@ -249,7 +276,38 @@ export default function RequestsList({ view, emailMe = null }: { view: RequestsP
           about a correction, and nobody is emailed when one is decided: the facilitator who asked reads the answer on the register.
         </p>
         {view.viewer === "admin" && <p className={styles.line}>{R.EXCUSED_WHO_SEES}</p>}
+        {view.viewer === "admin" && <p className={styles.line}>{V.VISITS_WHO_SEES}</p>}
       </aside>
     </div>
+  );
+}
+
+/** One request to go to another session, as its row: who, the kind, from which group to which and the day, when, who has it or who decided it. */
+function VisitRowItem({ row }: { row: RequestRow }) {
+  return (
+    <li className={styles.row} data-testid="request-row" data-kind="visit">
+      <div className={styles.rowBody}>
+        <p className={styles.rowTitle}>
+          <strong>{row.subject.name}</strong> · {V.ONE_WEEK_AT_ANOTHER_SESSION}
+        </p>
+        <p className={styles.line}>
+          {[
+            [row.programme.name, row.about ?? ""].filter(Boolean).join(", "),
+            P.dayAndClock(row.askedAt),
+            row.state === "approved" || row.state === "declined"
+              ? V.decidedRowWords(row.state, row.decidedBy?.name ?? "", P.dayAndClock(row.decidedAt))
+              : P.handlingWords(row.handling, row.mine),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      </div>
+      <div className={styles.rowEnd}>
+        <Chip tone={TONE[row.state]}>{P.stateChip(row.state)}</Chip>
+        <Link href={requestPath(row.id)} className={styles.open} aria-label={`${P.OPEN}: ${V.requestTitleWords(row.subject.name)}`}>
+          {P.OPEN}
+        </Link>
+      </div>
+    </li>
   );
 }

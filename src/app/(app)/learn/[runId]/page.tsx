@@ -162,7 +162,7 @@ export default async function RunHomePage({
   // way in: a request an admin decides, or, for somebody who facilitates the
   // group they hold a place in, today's instant "Can't make it". Never a
   // count. A read that fails draws nothing.
-  const { cantMakeIt, joiningOnline, excused } = await nextSessionAnswersFor(db, {
+  const { cantMakeIt, joiningOnline, excused, anotherSession } = await nextSessionAnswersFor(db, {
     user: access.user,
     run: access.run,
     enrolment: access.enrolment,
@@ -250,6 +250,7 @@ export default async function RunHomePage({
       cantMakeIt={cantMakeIt}
       joiningOnline={joiningOnline}
       excused={excused}
+      anotherSession={anotherSession}
       viewAs={viewAs}
       uid={access.user.uid}
       {...(guide ? { guide } : {})}

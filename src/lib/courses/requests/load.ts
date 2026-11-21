@@ -23,6 +23,8 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { excusedRequestRows } from "@/lib/courses/excused/page";
 import { normalizeExcusedRequest, type ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
+import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
+import { visitRequestRows } from "@/lib/courses/visitRequest/page";
 import { sessionKeyParts } from "./decide";
 
 /**
@@ -56,8 +58,12 @@ export type RequestPerson = { uid: string; name: string };
 
 export type RequestRow = {
   id: string;
-  /** `excused` rows are admins' only (`src/lib/courses/excused/page.ts`). */
-  kind: CourseRequestKind | "excused";
+  /**
+   * `excused` and `visit` rows are admins' only (`src/lib/courses/excused/page.ts`,
+   * `src/lib/courses/visitRequest/page.ts`). A later kind widens this union
+   * and brings its own row builder and its own section of the page.
+   */
+  kind: CourseRequestKind | "excused" | "visit";
   status: CourseRequestStatus;
   state: RequestState;
   askedBy: RequestPerson;
@@ -80,6 +86,8 @@ export type RequestRow = {
   mine: boolean;
   decidedBy: RequestPerson | null;
   decidedAt: string | null;
+  /** A visit request's line: "Group C to Group I, Wed 11 Nov"; absent on every other kind. */
+  about?: string;
   /** An excused request's weeks, each with where it stands; absent on a correction. */
   weeks?: { sessionKey: string; weekNumber: number; occurrence: number; dateKey: string; state: CourseRequestStatus }[];
 };
@@ -218,12 +226,16 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
   const weekStartsAt = weekStartOf(now);
 
   let requests: CourseRequestDoc[] = [];
-  // Requests to be excused: admins' only, read from the same two lists.
+  // Requests to be excused and to go to another session: admins' only, read
+  // from the same two lists, each through its own kind's normaliser.
   let excused: ExcusedRequestDoc[] = [];
+  let visits: VisitRequestDoc[] = [];
   const read = (snap: FirebaseFirestore.QuerySnapshot) =>
     snap.docs.map((doc) => normalizeCourseRequest(doc.id, doc.data() ?? {})).filter((each): each is CourseRequestDoc => each !== null);
   const readExcused = (snap: FirebaseFirestore.QuerySnapshot) =>
     snap.docs.map((doc) => normalizeExcusedRequest(doc.id, doc.data() ?? {})).filter((each): each is ExcusedRequestDoc => each !== null);
+  const readVisits = (snap: FirebaseFirestore.QuerySnapshot) =>
+    snap.docs.map((doc) => normalizeVisitRequest(doc.id, doc.data() ?? {})).filter((each): each is VisitRequestDoc => each !== null);
   if (isAdmin) {
     const [waiting, decided] = await Promise.all([
       db.collection(COURSE_REQUESTS_COLLECTION).where("status", "==", "waiting").limit(MAX_REQUESTS).get(),
@@ -239,6 +251,9 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
         each.status === "waiting" ||
         ((each.status === "approved" || each.status === "declined") && each.decidedAt !== null && each.decidedAt.getTime() >= weekStartsAt.getTime()),
     );
+    const visitsById = new Map<string, VisitRequestDoc>();
+    for (const each of [...readVisits(waiting), ...readVisits(decided)]) visitsById.set(each.id, each);
+    visits = [...visitsById.values()];
   } else {
     const snaps = await Promise.all(
       led.runIds.map((runId) => db.collection(COURSE_REQUESTS_COLLECTION).where("runId", "==", runId).limit(MAX_REQUESTS).get()),
@@ -252,14 +267,19 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
       ((each.status === "approved" || each.status === "declined") && each.decidedAt !== null && each.decidedAt.getTime() >= weekStartsAt.getTime()),
   );
 
-  const [ctx, excusedRows] = await Promise.all([context(db, requests, actor), excusedRequestRows(db, excused, led.naming, actor)]);
+  const [ctx, excusedRows, visitRows] = await Promise.all([
+    context(db, requests, actor),
+    excusedRequestRows(db, excused, led.naming, actor),
+    // Live waiting ones and those decided this week: one closed by itself or gone with the place is on no list.
+    visitRequestRows(db, visits, led.naming, actor, weekStartsAt, now),
+  ]);
   // Only what the reader can open (`requestShownTo`): one request's page asks
   // the group's own register gate (`gateGroupRegisterForRead`), which answers
   // a lead who also facilitates the group as a facilitator, and admits no
   // lead to an archived group. The runs are led already (`ledRuns`); the rest
   // is the group's, read once above. (Requests to be excused are an admin's alone.)
   requests = requests.filter((each) => requestShownTo(actor, ctx.groups.get(each.groupId), each.runId, led.runIds.includes(each.runId)));
-  const rows: RequestRow[] = [...requests.map((each) => rowOf(each, ctx, led.naming, actor)), ...excusedRows]
+  const rows: RequestRow[] = [...requests.map((each) => rowOf(each, ctx, led.naming, actor)), ...excusedRows, ...visitRows]
     .sort(
       (a, b) =>
         ORDER[a.state] - ORDER[b.state] ||

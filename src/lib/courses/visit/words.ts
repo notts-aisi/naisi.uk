@@ -276,11 +276,14 @@ export type VisitEmailFacts = {
 };
 
 /**
- * To the person: "You’re going to Group I’s session on Wed 11 Nov". Staff
- * arranged it, so the approved first sentence ("Your request is approved.")
- * and the quoted reply are not said: nobody asked, and nobody replied.
+ * To the person: "You’re going to Group I’s session on Wed 11 Nov". When staff
+ * arranged it, the approved first sentence ("Your request is approved.") and
+ * the quoted reply are not said: nobody asked, and nobody replied. When it
+ * approves the person's own request (`approved`), both are: the first
+ * sentence opens the email, and the reply, when there is one, follows the
+ * line about their own group.
  */
-export function personEmailWords(facts: VisitEmailFacts): VisitEmailWords {
+export function personEmailWords(facts: VisitEmailFacts, approved: { first: string; quote: string | null } | null = null): VisitEmailWords {
   const host = groupName(facts.hostName);
   const day = dayWords(facts.host.dateKey);
   const when = spanWords(facts.host.dateKey, facts.host.startTimeLocal, facts.host.durationMinutes);
@@ -292,10 +295,11 @@ export function personEmailWords(facts: VisitEmailFacts): VisitEmailWords {
   return {
     subject: `You’re going to ${possessive(host)} session${day ? ` on ${day}` : ""}`,
     lines: [
-      `For week ${facts.weekNumber} you’re with ${host}:`,
+      `${approved ? `${approved.first} ` : ""}For week ${facts.weekNumber} you’re with ${host}:`,
       ...(when ? [when] : []),
       ...(where ? [where] : []),
       `${back ? `You’re still in ${groupName(facts.homeName)}, and back with them on ${back}.` : `You’re still in ${groupName(facts.homeName)}.`} Week ${facts.weekNumber}’s work is due by ${possessive(host)} session.`,
+      ...(approved?.quote ? [approved.quote] : []),
     ],
     button: "Open your programme page",
     footnote: until ? `Changed your mind? You can cancel the visit on your programme page until ${until}.` : "",
@@ -678,6 +682,11 @@ export function tooLateToCancelWords(hostName: string): string {
 /** Refused: a request to be excused from that week is waiting. "Aisha is waiting to hear about being excused from week 2. Decide that request first." */
 export function excusedWaitingWords(firstName: string, weekNumber: number): string {
   return `${firstName || "They"} ${firstName ? "is" : "are"} waiting to hear about being excused from week ${weekNumber}. Decide that request first, on the Requests page.`;
+}
+
+/** Refused: the person's own request to go to another session that week is waiting. "Daniel asked to go to another group’s session in week 2. Decide that request first, on the Requests page." */
+export function visitRequestWaitingWords(firstName: string, weekNumber: number): string {
+  return `${line(firstName) || "They"} asked to go to another group’s session in week ${weekNumber}. Decide that request first, on the Requests page.`;
 }
 
 /**

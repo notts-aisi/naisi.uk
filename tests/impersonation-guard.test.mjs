@@ -158,7 +158,7 @@ const MUST_GUARD = [
     "src/app/api/courses/groups/[groupId]/excused/route.ts",
     "asks to be excused from sessions of the caller's own group, with a reason only admins read, in the asker's name, and emails the admins that it has arrived",
   ],
-  ["src/app/api/courses/requests/emails/route.ts", "switches the caller's own email about new requests to be excused on or off, on their own user document"],
+  ["src/app/api/courses/requests/emails/route.ts", "switches the caller’s own email about new requests to be excused or to go to another session on or off, on their own user document"],
   ["src/app/api/courses/requests/[requestId]/excused/withdraw/route.ts", "withdraws a request to be excused, or a week of it, in the asker's name"],
   [
     "src/app/api/courses/requests/[requestId]/excused/approve/route.ts",
@@ -169,6 +169,19 @@ const MUST_GUARD = [
     "declines a week of a request to be excused and emails the person the reply, in the decider's name",
   ],
   ["src/app/api/courses/requests/[requestId]/excused/reply/route.ts", "replies to a request to be excused and emails the person, in the replier's name"],
+  [
+    "src/app/api/courses/runs/[runId]/requests/visit/route.ts",
+    "asks to go to another group's session for a week, in the asker's name, and emails the admins that it has arrived",
+  ],
+  [
+    "src/app/api/courses/requests/[requestId]/visit/approve/route.ts",
+    "approves a request to go to another session, arranging the visit on the person's place and both groups' history and emailing the person and both groups' facilitators, in the approver's name",
+  ],
+  ["src/app/api/courses/requests/[requestId]/visit/decline/route.ts", "declines a request to go to another session and emails the person the reply, in the decider's name"],
+  ["src/app/api/courses/requests/[requestId]/visit/reply/route.ts", "replies to a request to go to another session and emails the person, in the replier's name"],
+  ["src/app/api/courses/requests/[requestId]/visit/take/route.ts", "says who is dealing with a request to go to another session, in their name"],
+  ["src/app/api/courses/requests/[requestId]/visit/withdraw/route.ts", "withdraws a request to go to another session, in the asker's name"],
+  ["src/app/api/courses/requests/[requestId]/visit/dismiss/route.ts", "dismisses the message that a request to go to another session was declined, in the asker's name"],
   ["src/app/api/courses/groups/[groupId]/attendance/push/route.ts", "locks a register, rewrites every member's attendance record and mails the group"],
   [
     "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts",

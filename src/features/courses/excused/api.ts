@@ -18,7 +18,7 @@ export type Answer = {
   error: string | null;
 };
 
-async function send(url: string, body: unknown): Promise<Answer> {
+export async function send(url: string, body: unknown): Promise<Answer> {
   try {
     const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     const parsed = (await res.json().catch(() => null)) as Record<string, unknown> | null;

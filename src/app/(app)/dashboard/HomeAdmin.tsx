@@ -184,6 +184,8 @@ type Facts = {
   requestsWaiting?: number;
   /** How many of them are requests to be excused, so the line says what waits. */
   excusedWaiting?: number;
+  /** How many of them are requests to go to another session. */
+  visitsWaiting?: number;
 };
 
 export default function HomeAdmin({
@@ -199,6 +201,7 @@ export default function HomeAdmin({
   applications,
   requestsWaiting = 0,
   excusedWaiting = 0,
+  visitsWaiting = 0,
 }: Facts) {
   const pending = usePendingCount();
   const bounces = useBounces();
@@ -231,13 +234,17 @@ export default function HomeAdmin({
     });
   }
   // A facilitator asked for a register to be corrected, or somebody asked to
-  // be excused: the Requests page.
+  // be excused or to go to another session: the Requests page.
   if (requestsWaiting > 0) {
     todo.push({
       key: "requests",
       figure: String(requestsWaiting),
       title: requestsWaitingTitle(requestsWaiting),
-      line: requestsWaitingLine(requestsWaiting, excusedWaiting),
+      line: requestsWaitingLine({
+        corrections: requestsWaiting - excusedWaiting - visitsWaiting,
+        excused: excusedWaiting,
+        visits: visitsWaiting,
+      }),
       action: "Open",
       href: REQUESTS_PATH,
     });

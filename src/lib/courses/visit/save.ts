@@ -23,6 +23,7 @@ import {
   tooLateToCancelWords,
   visitingDetail,
   visitsDetail,
+  type VisitEmailFacts,
   type VisitEmailWords,
 } from "./words";
 
@@ -164,11 +165,25 @@ export type ArrangeInput = {
   reason: string;
   actor: SessionUser;
   now: Date;
+  /**
+   * The person's own request this press approves (`../visitRequest/decide.ts`).
+   * Its decision is written by `inTransaction` IN THIS TRANSACTION, after
+   * every other read and with every other write, so a visit is never written
+   * without its decision nor a decision without its visit, and a withdraw or a
+   * second press racing it cannot both land. The request itself is no reason
+   * to refuse (`planVisit`'s `approving`), and the person's email is the
+   * approved one (`personWords`). Absent for a visit staff arrange.
+   */
+  approves?: {
+    requestId: string;
+    inTransaction: (tx: Transaction) => Promise<{ ok: true; write: () => void } | VisitRefusal>;
+    personWords: (facts: VisitEmailFacts) => VisitEmailWords;
+  };
 };
 
 /** Whether a press to arrange stands on these facts: the plan, or the press's refusal. Asked before the limit is claimed and again inside the save. */
 function checkArrange(facts: VisitFacts, input: ArrangeInput): { ok: true; plan: Extract<ReturnType<typeof planVisit>, { ok: true }>["plan"] } | VisitRefusal | VisitChanged {
-  const planned = planVisit(facts, input.weekNumber, input.hostGroupId, input.actor.uid, input.now);
+  const planned = planVisit(facts, input.weekNumber, input.hostGroupId, input.actor.uid, input.now, input.approves?.requestId ?? null);
   if (!planned.ok) return planned;
   if (planned.plan.emails !== input.emailCount) {
     return { ok: false, status: 409, error: changedWords(planned.plan.emails), emails: planned.plan.emails, overLimit: planned.plan.overLimit !== null };
@@ -204,6 +219,9 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
       const withdrawRequests = replaced
         ? await withdrawVisitRequestsIn(tx, db, { runId: input.runId, uid: input.uid, hostGroupId: replaced.hostGroupId, weekNumber: input.weekNumber, byUid: input.actor.uid, now: input.now })
         : () => {};
+      // The request this press approves: read again and its decision made ready, after every other read.
+      const decision = input.approves ? await input.approves.inTransaction(tx) : null;
+      if (decision && !decision.ok) throw new Stop(decision);
       const visit: OneWeekVisit = { weekNumber: input.weekNumber, groupId: planned.plan.hostGroupId, arrangedByUid: input.actor.uid, arrangedAt: input.now };
       // A visit to a session not happening that this one replaces goes in the same write.
       const visits = [...(facts.place.visits ?? []).filter((each) => !(planned.plan.replaces && each.weekNumber === input.weekNumber)), visit];
@@ -217,6 +235,7 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
       // Writes, after every read.
       limits.write();
       withdrawRequests();
+      if (decision?.ok) decision.write();
       tx.update(db.collection("courseEnrolments").doc(courseEnrolmentId(input.runId, input.uid)), {
         visits: storedVisits(visits),
         updatedAt: FieldValue.serverTimestamp(),
@@ -255,7 +274,7 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
     runId: input.runId,
     hostGroupId: done.hostGroupId,
     homeGroupId: done.homeGroupId,
-    wordsFor: (recipient) => arrangedEmailFor(done, recipient),
+    wordsFor: (recipient) => (recipient.as === "person" && input.approves ? input.approves.personWords(done.emailFacts) : arrangedEmailFor(done, recipient)),
     greet: () => true,
   });
   return {

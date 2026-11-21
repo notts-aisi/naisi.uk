@@ -1,4 +1,6 @@
 import "server-only";
+import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
+import { liveWaitingVisitRequests } from "@/lib/courses/visitRequest/page";
 import type { Firestore } from "firebase-admin/firestore";
 import { opensProgrammeGroups, programmeRolesFor } from "@/lib/applications/access";
 import { RUNS_COLLECTION, readRun } from "@/lib/applications/handover/run";
@@ -152,7 +154,9 @@ async function readRegisters(db: Firestore, ids: readonly string[]): Promise<Map
  * it (every one to an admin; to the lead, none on a group they facilitate),
  * and each week of a request to be excused still waiting, which is an
  * admin's alone to decide and so counted for an admin alone, as the
- * programme head's count is (`requestsWaitingOnRun`).
+ * programme head's count is (`requestsWaitingOnRun`), and each request to go
+ * to another session still waiting, on its own group's session that week,
+ * an admin's alone too.
  */
 async function requestsWaiting(
   db: Firestore,
@@ -164,6 +168,12 @@ async function requestsWaiting(
   const add = (key: string) => out.set(key, (out.get(key) ?? 0) + 1);
   const byId = new Map(groups.map((group) => [group.id, group] as const));
   const snap = await db.collection(COURSE_REQUESTS_COLLECTION).where("runId", "==", run.id).limit(MAX_REQUESTS).get();
+  // Requests to go to another session, still waiting for a decision (live), on
+  // the session of their own group that week: an admin's alone, as above.
+  if (user.role === "admin") {
+    const visits = snap.docs.map((doc) => normalizeVisitRequest(doc.id, doc.data() ?? {})).filter((each): each is VisitRequestDoc => each !== null && each.runId === run.id);
+    for (const visit of await liveWaitingVisitRequests(db, visits, new Date())) add(`${visit.groupId}__${visit.sessionKey}`);
+  }
   for (const doc of snap.docs) {
     const data = doc.data() ?? {};
     const correction = normalizeCourseRequest(doc.id, data);

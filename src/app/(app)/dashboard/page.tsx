@@ -218,6 +218,7 @@ export default async function DashboardPage() {
           applications={yourApplications}
           requestsWaiting={requestsWaiting.count}
           excusedWaiting={requestsWaiting.excused}
+          visitsWaiting={requestsWaiting.visits}
         />
       ) : (
         <HomeMember

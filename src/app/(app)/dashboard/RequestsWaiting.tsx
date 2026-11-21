@@ -23,7 +23,7 @@ export default function RequestsWaiting({ count }: { count: number }) {
             <h2 id="home-requests" className={styles.todoTitle}>
               {requestsWaitingTitle(count)}
             </h2>
-            <p className={styles.small}>{requestsWaitingLine(count)}</p>
+            <p className={styles.small}>{requestsWaitingLine({ corrections: count })}</p>
           </div>
           <Link href={REQUESTS_PATH} className={styles.primary}>
             Open

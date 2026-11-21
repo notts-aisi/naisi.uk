@@ -1,6 +1,7 @@
 import "server-only";
 import { MAX_OWN } from "@/lib/courses/excused/ask";
 import { normalizeExcusedRequest, type ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
+import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
 import { excusalStandsFor } from "@/lib/courses/excused/marking";
 import { factOf, requestStandingOf, weeksAbout } from "@/lib/courses/excused/model";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
@@ -53,6 +54,7 @@ import {
   replacesLineWords,
   ownWeekGoneWords,
   personEmailWords,
+  visitRequestWaitingWords,
   readingLineWords,
   registerFullWords,
   registersLineWords,
@@ -130,6 +132,13 @@ export type VisitFacts = {
    * stands (`excusalStandsFor`, the register's own rule).
    */
   requests: ExcusedRequestDoc[];
+  /**
+   * The person's own requests to go to another group's session on the run
+   * (the same read, through the visit kind's own normaliser). A visit is not
+   * arranged for a week one of them still waits about: it is decided first,
+   * on the Requests page, unless it is the request being approved.
+   */
+  visitRequests: VisitRequestDoc[];
 };
 
 /**
@@ -316,7 +325,10 @@ export async function readVisitFacts(
   const requests = requestSnap.docs
     .map((doc) => normalizeExcusedRequest(doc.id, doc.data() ?? {}))
     .filter((request): request is ExcusedRequestDoc => request !== null && request.runId === run.id && request.subjectUid === uid);
-  return { ok: true, facts: { run, destroying, groups, place, person, accounts, places, registers, oneGroup, requests } };
+  const visitRequests = requestSnap.docs
+    .map((doc) => normalizeVisitRequest(doc.id, doc.data() ?? {}))
+    .filter((request): request is VisitRequestDoc => request !== null && request.runId === run.id && request.subjectUid === uid);
+  return { ok: true, facts: { run, destroying, groups, place, person, accounts, places, registers, oneGroup, requests, visitRequests } };
 }
 
 /** A live group's sessions. */
@@ -471,6 +483,22 @@ export function excusedAtHomeIn(facts: Pick<VisitFacts, "run" | "groups" | "plac
   return excusalStandsFor({ approved, mark: register?.records[facts.place.uid] ?? null, kept: Boolean(register && Object.hasOwn(register.excusalKept, facts.place.uid)) });
 }
 
+/**
+ * Whether the person's own request to go to another session in `weekNumber`
+ * still waits, given their own group's session that week is still to come:
+ * stored waiting, asked from the group they belong to that week, and the
+ * host's session not yet started where it is happening. The same answer as
+ * `visitRequestStandingOf` in that case, asked here so this file reads nothing
+ * of it.
+ */
+function visitRequestWaitsIn(facts: Pick<VisitFacts, "run" | "groups" | "registers">, request: VisitRequestDoc, weekNumber: number, homeId: string | null, now: Date): boolean {
+  if (request.status !== "waiting" || request.change.weekNumber !== weekNumber || request.groupId !== homeId) return false;
+  const host = facts.groups.find((group) => group.id === request.change.hostGroupId) ?? null;
+  if (!host) return true;
+  const { session, happening } = hostHappeningIn(facts, host, weekNumber);
+  return !(happening && session && hasStarted(session, now));
+}
+
 /** The marks that say somebody came: in the room, online, late, left early. */
 const CAME = new Set(["present", "late", "left-early"]);
 
@@ -502,7 +530,15 @@ export type VisitPlan = {
  * WHAT ARRANGING A VISIT TO `hostGroupId`'S SESSION IN `weekNumber` WOULD DO,
  * from the facts read, or the one sentence why it can't be arranged.
  */
-export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: string, actorUid: string, now: Date): { ok: true; plan: VisitPlan } | VisitRefusal {
+export function planVisit(
+  facts: VisitFacts,
+  weekNumber: number,
+  hostGroupId: string,
+  actorUid: string,
+  now: Date,
+  /** The person's own request this visit approves, which is no reason to refuse it. */
+  approving: string | null = null,
+): { ok: true; plan: VisitPlan } | VisitRefusal {
   const { run, place, person, accounts } = facts;
   if (facts.oneGroup) return { ok: false, status: 409, error: VISIT_REFUSAL.oneGroup };
   // A visit that stands that week is refused, unless its session is not
@@ -529,6 +565,13 @@ export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: st
   }
   const homeGroup = facts.groups.find((group) => group.id === homeId) ?? null;
   if (!own || !homeGroup) return { ok: false, status: 409, error: ownWeekGoneWords(homeGroup?.name ?? "", weekNumber) };
+  // Their own request to go to another session that week, still waiting:
+  // decided first. With their own session that week still to come (just
+  // checked), such a request waits until the host's session starts, while
+  // that session is happening (`visitRequestStandingOf`, the one rule).
+  if (facts.visitRequests.some((request) => request.id !== approving && visitRequestWaitsIn(facts, request, weekNumber, homeId, now))) {
+    return { ok: false, status: 409, error: visitRequestWaitingWords(person.firstName, weekNumber) };
+  }
   const host = facts.groups.find((group) => group.id === hostGroupId) ?? null;
   if (!host) return { ok: false, status: 404, error: VISIT_REFUSAL.noGroup };
   if (host.archived) return { ok: false, status: 409, error: hostArchivedWords(host.name) };
@@ -661,6 +704,43 @@ export function sessionChoices(facts: VisitFacts, weekNumber: number, now: Date)
         },
       ];
     });
+}
+
+/**
+ * THE SESSIONS A PERSON MAY ASK TO GO TO in one week, as their own form
+ * draws them: the same sessions staff are offered (`hostSessionRefusal`: every
+ * other live group's session that week, dated, not called off, not marked as
+ * not held, not started) with the same count of places left that week
+ * (`placesLeftInWeek`), in the order they start, the full ones after and
+ * not choosable. No facilitator is named in the detail line.
+ */
+export function memberSessionChoices(facts: VisitFacts, weekNumber: number, now: Date): VisitSessionChoiceView[] {
+  const homeId = ownGroupForWeek(facts.place, weekNumber);
+  const offered = facts.groups
+    .filter((group) => !group.archived && group.id !== homeId)
+    .flatMap((group) => {
+      const check = hostSessionRefusal(facts, group, weekNumber, now);
+      if (check.error || !check.session) return [];
+      const left = placesLeftInWeek(group, facts.places, weekNumber);
+      const full = left !== null && left <= 0;
+      const words = sessionFacts(group, check.session);
+      return [
+        {
+          startsAt: sessionInstants(check.session).startsAt?.getTime() ?? Number.MAX_SAFE_INTEGER,
+          name: group.name,
+          view: {
+            groupId: group.id,
+            words: sessionChoiceWords(group.name, words),
+            // A full one says so on its own line, beside its tag: the count is left out of the detail.
+            detail: sessionDetailWords(words, [], full ? null : left),
+            full,
+          },
+        },
+      ];
+    });
+  return offered
+    .sort((a, b) => Number(a.view.full) - Number(b.view.full) || a.startsAt - b.startsAt || a.name.localeCompare(b.name))
+    .map((each) => each.view);
 }
 
 // ---------------------------------------------------------------------------
