@@ -81,19 +81,19 @@ export type SlipsWaiting = {
 };
 
 /**
- * The group's line, from the card's own model of the course (`withDraws` over
- * the rule's weeks) and the card's people, at `now`; null while there is
+ * The group's line, from the course's weeks as the card reads them
+ * (`withDraws` over the rule's weeks) and the card's people, at `now`; null while there is
  * nothing to say.
  */
-export function slipsWaitingOf(input: { course: DrawWeeks; people: readonly DrawPerson[]; now: Date }): SlipsWaiting | null {
-  const { course, people, now } = input;
-  const { rule } = course;
+export function slipsWaitingOf(input: { weeks: DrawWeeks; people: readonly DrawPerson[]; now: Date }): SlipsWaiting | null {
+  const { weeks, people, now } = input;
+  const { rule } = weeks;
   const n = rule.weekNumber;
   if (n === null || !rule.ahead) return null;
   const facts = rule.facts.get(n);
-  const week = course.weeks.get(n);
-  const state = course.states.get(n);
-  if (!facts || !week || !state || !pastItsHandOut(course.sessions, facts, now)) return null;
+  const week = weeks.weeks.get(n);
+  const state = weeks.states.get(n);
+  if (!facts || !week || !state || !pastItsHandOut(weeks.sessions, facts, now)) return null;
   const waiting = people
     .map((person) => {
       const holding = state.get(person.uid);

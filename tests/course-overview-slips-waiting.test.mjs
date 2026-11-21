@@ -61,9 +61,9 @@ function find(element, name, out = []) {
 }
 
 /**
- * Every read the store is asked for while `fn` runs: each collection by its
- * path, each document by its path, each subcollection by its path. Optionally
- * `fail` a subcollection's query.
+ * What the store is asked while `fn` runs: each top-level collection by its
+ * name, each query of a subcollection as `query <path>`, and each `getAll` as
+ * one array of its paths. Optionally `fail` a subcollection's query.
  */
 async function watched(fn, { fail = null } = {}) {
   const db = w.world.db;
@@ -73,10 +73,15 @@ async function watched(fn, { fail = null } = {}) {
     ...ref,
     collection: (name) => {
       const path = `${ref.path}/${name}`;
-      log.push(path);
       const inner = ref.collection(name);
-      if (path !== fail) return inner;
-      return { ...inner, get: async () => Promise.reject(new Error(`the store refused ${path}`)) };
+      return {
+        ...inner,
+        get: async () => {
+          log.push(`query ${path}`);
+          if (path === fail) throw new Error(`the store refused ${path}`);
+          return inner.get();
+        },
+      };
     },
   });
   db.collection = (name) => {
@@ -85,7 +90,7 @@ async function watched(fn, { fail = null } = {}) {
     return { ...inner, doc: (id) => wrapDoc(inner.doc(id)) };
   };
   db.getAll = async (...refs) => {
-    for (const ref of refs) log.push(ref.path);
+    log.push(refs.map((ref) => ref.path));
     return getAll(...refs);
   };
   try {
@@ -155,7 +160,9 @@ describe("1. the line, from the end of the session that hands the slips out to t
       ["2026-11-10T17:59:00Z", null],
       ["2026-11-10T18:00:00Z", null],
       ["2026-11-10T19:30:00Z", null],
-      ["2026-11-10T20:00:00Z", null],
+      ["2026-11-10T19:59:00Z", null],
+      // Ended at 8pm, as the member's own week page counts it (`handOutOf`).
+      ["2026-11-10T20:00:00Z", "Group B: 5 people are waiting for week 3’s pack and case."],
       ["2026-11-10T20:01:00Z", "Group B: 5 people are waiting for week 3’s pack and case."],
       ["2026-11-17T12:00:00Z", "Group B: 5 people are waiting for week 3’s pack and case."],
       ["2026-11-17T17:59:00Z", "Group B: 5 people are waiting for week 3’s pack and case."],
@@ -273,19 +280,26 @@ describe("1. the line, from the end of the session that hands the slips out to t
 // ---------------------------------------------------------------------------
 
 describe("2. what the line reads", () => {
-  const draws = (log) => log.filter((path) => path.startsWith("coursePacksAndCases/"));
-  const weekQueries = (log, groupId) => log.filter((path) => path === `courseGroups/${groupId}/weeks`).length;
+  /**
+   * The draw's reads: each a `getAll` of the week's draw blocks alone (week 3's
+   * pack and case study), one per group. The Overview's own read of the week's
+   * work is a `getAll` too, of every block a person keeps a record in, so it
+   * holds the week's other Choose one and talk as well and is told apart by them.
+   */
+  const DRAW_BLOCK = new RegExp(`__(?:${W3.given}|${W3.caseStudy})$`);
+  const draws = (log) => log.filter((entry) => Array.isArray(entry) && entry.length > 0 && entry.every((path) => path.startsWith("coursePacksAndCases/") && DRAW_BLOCK.test(path)));
+  const queries = (log) => log.filter((entry) => typeof entry === "string" && entry.startsWith("query "));
+  const weekQueries = (log, groupId) => queries(log).filter((entry) => entry === `query courseGroups/${groupId}/weeks`).length;
 
   test("in a hand-out week: the course's weeks for each group between sessions, and the draw only for the groups past a hand-out session", async () => {
     w.reset();
     const { log } = await overview("claudia");
-    // Groups B and C are past the session that hands week 3's slips out: their draw is read, by id.
-    const read = draws(log);
-    assert.ok(read.length > 0);
-    assert.ok(read.every((path) => /__(chloe|farah|kofi|rahul|sofia|hamza|tom)__w3-/.test(path)), read.join("\n"));
-    assert.ok(read.some((path) => path.includes("__chloe__")) && read.some((path) => path.includes("__hamza__")));
-    // Groups A and D have met in week 3 and week 4 gives nothing out: the course's weeks, once each, and no slip.
-    for (const groupId of [B, C]) assert.equal(weekQueries(log, groupId), 1, groupId);
+    // Groups B and C are past the session that hands week 3's slips out: one read each of their people's draw, by id.
+    const people = draws(log).map((batch) => [...new Set(batch.map((path) => path.split("__").at(-2)))].sort());
+    assert.deepEqual(people, [["chloe", "farah", "kofi", "rahul", "sofia"], ["hamza", "tom"]]);
+    // Every group between sessions: the course's weeks, the run's and the group's own copies, once each.
+    for (const groupId of [A, B, C]) assert.equal(weekQueries(log, groupId), 1, groupId);
+    assert.equal(queries(log).filter((entry) => entry === `query courseRuns/${RUN.agi}/weeks`).length, 4);
   });
 
   test("in any other week: the course's weeks for each group between sessions and no slip; nothing at all for a group in its session", async () => {
@@ -298,6 +312,7 @@ describe("2. what the line reads", () => {
     assert.ok(model.sessions.some((session) => session.groupId === A && session.state === "today"));
     assert.equal(weekQueries(log, A), 0);
     for (const groupId of [B, C]) assert.equal(weekQueries(log, groupId), 1, groupId);
+    assert.equal(queries(log).filter((entry) => entry === `query courseRuns/${RUN.agi}/weeks`).length, 3);
   });
 
   test("a read that fails for one group draws no line for it, logs, and leaves the other's line and the page whole", async () => {

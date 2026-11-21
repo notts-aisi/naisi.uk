@@ -309,10 +309,10 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
     assert.match(overviewReads, /const dates = await readDrawWeeks\(db, \{ run, group, people: \[\], now \}\);/);
     assert.equal([...overviewReads.matchAll(/readDrawWeeks\(/g)].length, 1, "the Overview's reads ask for the course's weeks twice");
     assert.match(overviewReads, /const \{ people \} = drawRosterOf\(records, group, viewer, now\);/);
-    assert.match(overviewReads, /slipsWaitingOf\(\{ course: withDraws\(dates, states, people, now\), people, now \}\)/);
+    assert.match(overviewReads, /slipsWaitingOf\(\{ weeks: withDraws\(dates, states, people, now\), people, now \}\)/);
     assert.match(readers, /if \(!records\) return null;\s*return drawRosterOf\(records, group, viewer, now\);/);
     const overviewLine = read("lib", "courses", "drawCard", "overviewLine.ts");
-    assert.match(overviewLine, /const \{ rule \} = course;\s*const n = rule\.weekNumber;/);
+    assert.match(overviewLine, /const \{ rule \} = weeks;\s*const n = rule\.weekNumber;/);
     assert.match(overviewLine, /const facts = rule\.facts\.get\(n\);/);
     assert.match(overviewLine, /const handOut = handOutOf\(sessions, facts\.weekNumber, now\);/);
     assert.match(overviewLine, /return waitingOf\(week\.blocks, \{/);

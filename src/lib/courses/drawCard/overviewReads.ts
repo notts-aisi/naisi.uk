@@ -51,7 +51,7 @@ export async function readSlipsWaiting(
           }),
         );
         const states = new Map<number, DrawState>(read.filter((entry): entry is readonly [number, DrawState] => entry !== null));
-        const waiting = slipsWaitingOf({ course: withDraws(dates, states, people, now), people, now });
+        const waiting = slipsWaitingOf({ weeks: withDraws(dates, states, people, now), people, now });
         return waiting ? ([group.id, waiting] as const) : null;
       } catch (err) {
         console.error("[overview] the slips not copied in could not be read", group.id, err);
