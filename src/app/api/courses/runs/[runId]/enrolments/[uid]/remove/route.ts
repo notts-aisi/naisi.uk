@@ -176,6 +176,10 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // The body first: a malformed one gets the one answer, whoever the uid is.
+  const body = await readBody(req);
+  if (!body) return NextResponse.json({ error: "Expected no body, or a JSON object." }, { status: 400 });
+
   // A person whose row the board does not serve this caller is answered as a uid with no place, before
   // anything about them is read: the preview's visits and the press's emails alike.
   const rowSnap = await db.collection("courseApplications").doc(courseApplicationId(runId, uid)).get();
@@ -187,9 +191,6 @@ export async function POST(req: Request, ctx: Ctx) {
   const enrolmentRef = db
     .collection("courseEnrolments")
     .doc(courseEnrolmentId(runId, uid));
-
-  const body = await readBody(req);
-  if (!body) return NextResponse.json({ error: "Expected no body, or a JSON object." }, { status: 400 });
 
   if (body.preview) {
     // What a press would do about their visits, read now: writes nothing.

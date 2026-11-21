@@ -68,6 +68,12 @@ describe("a run's track lead and somebody the application form placed", () => {
     }
     // The same answer as for somebody with no place on the run at all.
     assert.deepEqual(await remove("yusuf", "nobody-at-all", { preview: true }).then((r) => [r.status, r.body]), NOT_FOUND);
+    // A malformed body: the one answer for Amara and for a uid with no place, so it tells nothing either.
+    const malformed = await Promise.all(
+      ["amara", "nobody-at-all"].map((uid) => remove("yusuf", uid, ["not", "an", "object"]).then((r) => [r.status, r.body])),
+    );
+    assert.deepEqual(malformed[0], malformed[1]);
+    assert.equal(malformed[0][0], 400);
     assert.equal(JSON.stringify(read(seatPath("amara"))), before);
     assert.equal(world.mail.length, 0);
   });
