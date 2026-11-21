@@ -18,6 +18,7 @@ const TONE: Record<Bucket, string> = {
   "done-on-time": styles.toneDone,
   "done-late": styles.toneLate,
   done: styles.toneDone,
+  waiting: styles.toneWaiting,
   started: styles.toneStarted,
   "not-started": styles.toneNone,
   "joined-late": styles.toneNone,
@@ -28,7 +29,8 @@ const NONE: readonly string[] = [];
 
 /**
  * THE CHOSEN WEEK'S WORK ON A GROUP'S PAGE, for admins and the programme's
- * lead: "4 of 6 have done week 1", a bar for the week and one for each of its
+ * lead: "4 of 6 have done week 1" (and how many are waiting for a slip from
+ * their facilitator, "2 are waiting for a case from you."), a bar for the week and one for each of its
  * pieces, what is true of the automatic reminders, and Remind for everybody
  * whose week isn't done; then the people table (each piece, the week, what
  * they said about the session, when they were last reminded, and a Remind of
@@ -111,6 +113,7 @@ export default function WeekWorkCard({
           <h2 id="week-work-title" className={styles.cardTitle}>
             {R.haveDoneTitle(doneCount(weekCounts), rows.length, work.weekNumber)}
           </h2>
+          {work.waiting && <p className={styles.cardLine}>{work.waiting}</p>}
           {work.doneMeans && <p className={styles.cardLine}>{work.doneMeans}</p>}
         </div>
         <div className={styles.workBars}>

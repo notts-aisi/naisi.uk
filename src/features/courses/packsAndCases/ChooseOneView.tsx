@@ -5,6 +5,7 @@ import { TASK_DONE, doneItemWords } from "@/lib/courses/memberPageWords";
 import { packSourceCount } from "@/lib/courses/packsAndCases/model";
 import {
   CHOOSE_ONE,
+  NOT_GIVEN_YET,
   ONLY_THE_ONE_YOU_CHOOSE,
   PICK_CLOSED,
   READ,
@@ -29,9 +30,12 @@ import styles from "./packsAndCases.module.css";
  *
  *  - GIVEN OUT by a facilitator (week 3's pathways): "Pathway packs", the
  *    line "Given out at the end of session 2. Only your pathway counts. To
- *    switch, ask Rahul or Sofia.", and the person's own pack open, marked
- *    "Your pathway", with its tick. The others stay closed. Nothing here
- *    changes it: a facilitator types the draw into the group page.
+ *    switch, ask Rahul or Sofia." (the session that really hands them out),
+ *    "Your pathway" with its name, or "Not given yet" and, while it waits on
+ *    the facilitator's slip, when it goes out or that it is not copied in
+ *    yet; and the person's own pack open, marked "Your pathway", with its
+ *    tick. The others stay closed. Nothing here changes it: a facilitator
+ *    types the draw into the group page.
  *  - PICKED by the person (week 6's career review): "Choose one", the line
  *    "Only the one you choose counts.", and a real radio button per pack,
  *    which saves at once and can change until their session starts.
@@ -51,6 +55,14 @@ type Props = {
   canWrite: boolean;
   picks: Picks;
   askToSwap: readonly string[];
+  /** The session that hands the week's slips out (`givenOutWords`): its week's number, null for none, undefined when not known. */
+  handOutSession?: number | null;
+  /**
+   * Under "Your pathway" while it waits on the facilitator's slip, in the
+   * design's words ("Rahul gives these out at the end of week 2’s
+   * session."), or null: not the first part waiting, or no words for it.
+   */
+  waitingLine?: string | null;
   isDone: (itemId: string) => boolean;
   canTick: boolean;
   rows: ReadonlyMap<string, CourseProgressDoc>;
@@ -142,12 +154,23 @@ function PackReading({ pack }: { pack: Pack }) {
 }
 
 function GivenPacks(props: Props) {
-  const { block, weekNumber, participant, picks, askToSwap } = props;
+  const { block, weekNumber, participant, picks, askToSwap, handOutSession, waitingLine = null } = props;
   const own = participant ? picks.packOf(block.id) : null;
+  const ownPack = own ? (block.packs.find((pack) => pack.id === own) ?? null) : null;
   return (
     <div className={styles.packs}>
       <p className={styles.eyebrow}>{packsEyebrowWords(block.title)}</p>
-      <p className={styles.line}>{givenPacksLineWords(weekNumber, block.title, askToSwap)}</p>
+      <p className={styles.line}>{givenPacksLineWords(weekNumber, block.title, askToSwap, handOutSession)}</p>
+      {participant && (
+        // "Your pathway": the pack given, or "Not given yet" while it waits on the facilitator's slip.
+        <div className={styles.caseCard}>
+          <p className={styles.caseEyebrow}>
+            <span>{yourPackWords(block.title)}</span>
+          </p>
+          <h3 className={styles.caseTitle}>{ownPack ? ownPack.name : NOT_GIVEN_YET}</h3>
+          {!ownPack && waitingLine && <p className={styles.line}>{waitingLine}</p>}
+        </div>
+      )}
       {block.questions.length > 0 && (
         <Prose prose={block.questions} className={blockWeek.body} listClassName={blockWeek.list} linkClassName={blockWeek.inlineLink} />
       )}

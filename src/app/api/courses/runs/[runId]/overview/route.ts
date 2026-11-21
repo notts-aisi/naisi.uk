@@ -42,6 +42,9 @@ import { taskNeeds, taskSubject, thisWeekOf, type TaskNeeds } from "@/lib/course
 import { taskLabelWords } from "@/lib/courses/memberPageWords";
 import { findCase, talksOf } from "@/lib/courses/packsAndCases/model";
 import { NO_PICKS, readOwnPacksAndCases, type OwnPicks } from "@/lib/courses/packsAndCases/readers";
+import { handOutOf } from "@/lib/courses/weekWork/handOut";
+import { NOTHING_GIVEN_OUT, givenOutOf, waitingParts, waitingPartsIn, type WaitingPart } from "@/lib/courses/weekWork/waiting";
+import type { HandOut } from "@/lib/courses/weekWork/waitingWords";
 import { workClosesAt } from "@/lib/courses/weekWork/closes";
 import { NO_GROUP } from "@/lib/courses/weekWork/sessionDue";
 import type { WeekWorkWire } from "@/lib/courses/weekWork/model";
@@ -507,6 +510,16 @@ export type OverviewThisWeekRow =
        * `moved`: the week's session is cancelled and it is due by the next.
        */
       due: { dateKey: string; moved: boolean } | null;
+      /**
+       * Every part of it that waits on the caller's facilitator's slip
+       * (`waitingPartsIn`, `src/lib/courses/weekWork/waiting.ts`): a pack
+       * given out not given yet, with its word ("pathway"), or a case.
+       * Whether the task itself waits is decided on the page with the
+       * caller's live ticks (`handedTaskWaitsOn`), once everything else in
+       * it is done, for its row's words alone: no count reads it. Absent
+       * when nothing waits, and for anybody not taking part.
+       */
+      waiting?: Array<{ kind: "pack"; id: string; word: string } | { kind: "case"; id: string }>;
     }
   | { type: "none"; what: string; time: string; note: string }
   /** Offered, not set (the hands-on route): outside "In all", never counted. */
@@ -588,6 +601,14 @@ export type OverviewPayload = {
      * part. Never whether a piece was emailed, and never anybody else's.
      */
     feedback: OwnFeedbackCard[] | null;
+    /**
+     * A week written as blocks where the caller's facilitator gives something
+     * out, for somebody taking part: when the slips go out (`handOutOf`, from
+     * the one rule the draw asks, on the caller's own sessions), for the week
+     * page's "Given out at the end of session 2." and its line under what
+     * waits. Absent otherwise.
+     */
+    handOut?: HandOut;
   }>;
   /**
    * Who a person taking part asks to switch a pack or swap a case
@@ -1010,6 +1031,8 @@ function thisWeekPayload(
   picks: OwnPicks,
   answersReadBy: OverviewThisWeek["answersReadBy"],
   dueOf: (when: When) => { dateKey: string; moved: boolean } | null,
+  /** What of the caller's own week waits on their facilitator's slip (`waitingOf`): none for anybody not taking part. */
+  waiting: readonly WaitingPart[] = [],
 ): OverviewThisWeek | null {
   const block = thisWeekOf(blocks);
   if (!block) return null;
@@ -1029,6 +1052,7 @@ function thisWeekPayload(
       if (row.type === "optional") return { type: "optional", what: row.what, time: row.time, note: row.note };
       const needs = taskNeeds(blocks, row);
       const due = dueOf(row.when);
+      const waits = waitingPartsIn(needs, waiting);
       return {
         type: "task",
         what: row.what,
@@ -1048,6 +1072,9 @@ function thisWeekPayload(
         ready: needs.talkIds.filter((id) => picks.ready.includes(id)),
         talk: talkLine(blocks, needs.talkIds, picks),
         due: due ? { dateKey: due.dateKey, moved: due.moved } : null,
+        ...(waits.length > 0
+          ? { waiting: waits.map((part) => (part.kind === "pack" ? { kind: "pack" as const, id: part.id, word: part.word } : { kind: "case" as const, id: part.id })) }
+          : {}),
       };
     }),
   };
@@ -1504,7 +1531,7 @@ export async function GET(
   const forkedWeekGroups: Record<string, string> | undefined =
     ownLearnerGroup && liveEnrolment && hasGroupsByWeek(liveEnrolment) ? {} : undefined;
   const entries: ReadonlyArray<ResolvedWeekEntry & { copyGroupId?: string | null }> = weekEntries;
-  const weeks = entries
+  const weeks: OverviewPayload["weeks"] = entries
     .map((entry) => {
       const { source, week: w } = entry;
       if (source === "group") forkedWeekIds.push(w.id);
@@ -1762,6 +1789,11 @@ export async function GET(
       const startsAt = ownGroup ? dueMoment(ownDueSessions, entry.weekNumber, "before") : null;
       entry.picks = { ...(ownPicks.get(entry.id) ?? NO_PICKS), open: !startsAt || now.getTime() < startsAt.at.getTime() };
     }
+    // What of the caller's own week waits on their facilitator's slip, and when the slips go out: only for somebody taking part.
+    const weekPicks = ownPicks.get(entry.id) ?? NO_PICKS;
+    const given = blocks && readsOwnPicks ? givenOutOf(blocks) : NOTHING_GIVEN_OUT;
+    const waiting = waitingParts(given, { packOf: (id) => weekPicks.packs[id] ?? null, caseOf: (id) => weekPicks.cases[id] ?? null });
+    if (given.packs.length + given.cases.length > 0) entry.handOut = handOutOf(ownGroup ? ownDueSessions : [], entry.weekNumber, now);
     if (!blocks) continue;
     entry.thisWeek = thisWeekPayload(
       blocks,
@@ -1771,6 +1803,7 @@ export async function GET(
       ownPicks.get(entry.id) ?? NO_PICKS,
       facilitates.length > 0 ? "lead" : "facilitators",
       (when) => (ownGroup ? dueMoment(ownDueSessions, entry.weekNumber, when, course.dayBeforeTime) : null),
+      waiting,
     );
   }
 

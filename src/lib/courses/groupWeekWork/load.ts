@@ -7,8 +7,10 @@ import { coveredWeeks } from "@/lib/courses/sessionChange/model";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
-import { WEEK_REMINDER_DAYS, weekEmailSendAt, weekLeft, type WeekLeft } from "@/lib/courses/weekEmails/model";
+import { WEEK_REMINDER_DAYS, nothingLeftButSlips, weekEmailSendAt, weekLeft, type WeekLeft } from "@/lib/courses/weekEmails/model";
 import { weekDone, weekWritingNeeds, workIsClosed, type WeekDue } from "@/lib/courses/weekWork/model";
+import { waitingOf, type WaitingPart } from "@/lib/courses/weekWork/waiting";
+import { waitingCountWords } from "@/lib/courses/weekWork/waitingWords";
 import { loadPeopleWeekFacts, loadRunWeekStates, readWeekRows, type RunWeekStates } from "@/lib/courses/weekWork/readers";
 import { facilitatingOnRunOf, liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import { resolveNoticeAudience } from "@/lib/email/courseFacilitatorEmails";
@@ -99,6 +101,8 @@ export type GroupWeekRead = {
    * and never somebody Remind reaches.
    */
   runFacilitatorUids: ReadonlySet<string>;
+  /** This group's own facilitators: the people "waiting for a case from you" is said to. */
+  groupFacilitatorUids: readonly string[];
   /**
    * Whether the person's week is this group's: for somebody whose place
    * records a move mid-term, the group their place belonged to in this week
@@ -225,6 +229,7 @@ function groupWeekReadOf(input: {
     sessionAt: own ? sessionInstants(own).startsAt : null,
     facts: new Map([...facts].map(([uid, each]) => [uid, each as PersonFacts])),
     runFacilitatorUids: facilitatingOnRunOf(group, liveGroups),
+    groupFacilitatorUids: [...group.facilitatorUids],
     belongs: (uid) => states.belongsTo(uid, group.id, weekNumber),
     copies,
   };
@@ -339,6 +344,20 @@ export function isWeekDone(read: GroupWeekRead, uid: string): boolean {
     submitted: read.states.submittedOf(uid, read.weekNumber) !== null,
     asks: copy.asks,
   });
+}
+
+/** The parts of one person's week that wait on the facilitator's slip (`waitingOf`), on the copy they work in. */
+export function waitingOfPerson(read: GroupWeekRead, uid: string): WaitingPart[] {
+  return waitingOf(copyOf(read, uid).blocks, factsOf(read, uid).state);
+}
+
+/**
+ * Whether a part of one person's week waits on the facilitator's slip and
+ * nothing else is on the list Remind's email would print (`nothingLeftButSlips`),
+ * on the copy they work in: Remind does not reach them about the week.
+ */
+export function nothingLeftButSlipsOf(read: GroupWeekRead, uid: string): boolean {
+  return nothingLeftButSlips(leftOf(read, uid), waitingOfPerson(read, uid));
 }
 
 /** What is left of one person's week, as the automatic reminders list it, on the copy they work in. */
@@ -456,7 +475,8 @@ export type RemindPerson = {
  * about is the group's (`read.belongs`), each held to
  * `notRemindedBecause` (never the presser, never anybody who facilitates a
  * live group of the run, this one or another, never somebody whose week is
- * done or who joined it late, nobody once the programme has closed),
+ * done, or with a part waiting on the facilitator's slip and nothing else
+ * on their list, or who joined it late, nobody once the programme has closed),
  * narrowed to one person when asked. The preview's count and the press's
  * are this one function's. The page's button counts the same rule from its
  * rows (`remindableOf`) and reads no address: the preview says who an
@@ -504,6 +524,7 @@ export function remindableOf(read: GroupWeekRead, person: { uid: string; told: b
       facilitatorUids: [...read.runFacilitatorUids],
       told: person.told,
       weekDone: isWeekDone(read, person.uid),
+      nothingLeftButSlips: nothingLeftButSlipsOf(read, person.uid),
       due: read.states.dueOf(person.uid, read.weekNumber),
       closed: read.closed,
     }) === null
@@ -627,6 +648,7 @@ export function groupWeekWorkView(
       facts: factsOf(read, uid),
       submittedAt: read.states.submittedOf(uid, weekNumber),
       due: read.states.dueOf(uid, weekNumber),
+      waiting: waitingOfPerson(read, uid),
     });
 
   const rows: WorkRow[] = [
@@ -680,6 +702,12 @@ export function groupWeekWorkView(
   // Null for anybody but the lead and admins; an empty list for them when no facilitator has a week to show.
   const own: OwnWeekRow[] | null = ownPeople.length > 0 ? ownRows : null;
 
+  // How many of the group's own people are waiting for a slip, whatever else they have done: to the group's facilitator, "from you".
+  const waiting = waitingCountWords(
+    rows.filter((row) => !row.visiting).map((row) => waitingOfPerson(read, row.uid)),
+    (read.groupFacilitatorUids ?? []).includes(viewerUid),
+  );
+
   return {
     weekNumber,
     sessionStarted,
@@ -687,6 +715,7 @@ export function groupWeekWorkView(
     pieces: read.pieces.map((piece) => ({ key: piece.key, label: pieceLabel(piece.key, piece.title), title: piece.title })),
     doneMeans: doneMeansWords(read.pieces),
     rows,
+    ...(waiting ? { waiting } : {}),
     own,
     remind: read.closed ? null : { count: rows.filter((row) => row.remindable).length },
     automatic: automaticRemindersWords(automatic),

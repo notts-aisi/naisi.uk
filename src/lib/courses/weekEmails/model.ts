@@ -5,6 +5,7 @@ import type { ResolvedSession } from "../sessions";
 import { allBlocks, type WeekBlock } from "../weekBlocks/model";
 import { isCounted, type TaskNeeds } from "../weekBlocks/progress";
 import { packNameOf, weekCheck, type CheckState, type NotDone } from "../weekWork/model";
+import { waitingOf, withoutWaiting, type WaitingPart } from "../weekWork/waiting";
 import { addDaysToKey, isValidDateKey, londonWallClockToInstant } from "../weekPlan";
 import type { ReminderPlace } from "./words";
 import { campusForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -145,18 +146,40 @@ export function legacyWeekAsks(week: {
  * reflections and boxes, an empty written answer, one over its limit), and
  * whether a written answer with words in it has not been sent yet (`notSent`),
  * which the check does not name. Asked only of a week that is not done, so
- * it is never empty: such a week has something its tasks count still to
- * tick, or to write, or to send. Nothing closes at the session: a week the
- * old Submit was pressed for has every answer sent already.
+ * it is never empty unless a part waits on the facilitator
+ * (`nothingLeftButSlips`): such a week has something its tasks count still
+ * to tick, or to write, or to send. Nothing closes at the
+ * session: a week the old Submit was pressed for has every answer sent
+ * already.
+ *
+ * NEVER A PART THAT WAITS ON THE FACILITATOR'S SLIP (`weekWork/waiting.ts`):
+ * a pack given out that has not been given, and a talk whose case has not
+ * been, are taken out of the tasks before the check reads them
+ * (`withoutWaiting`), so no reminder asks for something the person cannot
+ * do. A state that leaves out `caseOf` never takes a talk out.
  */
 export type WeekLeft = { items: NotDone[]; notSent: boolean };
 
 export function weekLeft(input: { blocks: readonly WeekBlock[]; tasks: readonly TaskNeeds[]; state: CheckState }): WeekLeft {
   const answers = allBlocks(input.blocks).filter((block) => block.type === "writtenAnswer");
   return {
-    items: weekCheck(input.blocks, input.tasks, input.state),
+    items: weekCheck(input.blocks, withoutWaiting(input.tasks, waitingOf(input.blocks, input.state)), input.state),
     notSent: answers.some((block) => input.state.answerOf(block.id).words > 0 && !input.state.isSent(block.id)),
   };
+}
+
+/**
+ * NOTHING LEFT BUT THE FACILITATOR'S SLIP: a part of the week waits on it,
+ * and the list of what is left (`weekLeft`, the very list the email would
+ * print) names nothing else. Decided from the list itself, so somebody with
+ * anything at all of their own still to do (a talk to say they are ready
+ * for, a box no task covers, an answer to send) is reminded as before. Such
+ * a week is chased by nobody: the reminders before a session list nothing
+ * for it, Remind by hand does not reach the person about it, and "Week N is
+ * open" does not name it among the earlier weeks not done.
+ */
+export function nothingLeftButSlips(left: WeekLeft, parts: readonly WaitingPart[]): boolean {
+  return parts.length > 0 && left.items.length === 0 && !left.notSent;
 }
 
 // ---------------------------------------------------------------------------

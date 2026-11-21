@@ -1,6 +1,7 @@
 import { londonClockLabel, londonDayLabel } from "../londonLabels";
 import { namesAnd, numberWords } from "../writtenAnswerWords";
 import type { NotDone, PersonWeekProgress, WeekDue, WeekWorkState } from "./model";
+import { WAITING } from "./waitingWords";
 
 /**
  * EVERY WORD THE WEEK SAYS ABOUT ITSELF: the week page's line about until
@@ -430,8 +431,9 @@ function saidDone(progress: PersonWeekProgress): boolean {
 /**
  * Where one person's week stands, as a staff page says it: "Done on time",
  * "Done late" (with how late beside it), "Done" (no session to tell it
- * against, or no time to tell it by), "2 of 3 done", "Started", "Not
- * started", "Joined late".
+ * against, or no time to tell it by), "Waiting" (all that is left waits on
+ * the facilitator's slip), "2 of 3 done", "Started", "Not started", "Joined
+ * late".
  */
 export function personWeekWords(line: PersonWeekLine): { text: string; detail: string | null } {
   const { progress, doneAt, due } = line;
@@ -442,6 +444,8 @@ export function personWeekWords(line: PersonWeekLine): { text: string; detail: s
     if (late !== null) return { text: DONE_LATE, detail: lateAfterSessionWords(late) };
     return { text: DONE_ON_TIME, detail: null };
   }
+  // All that is left waits on the facilitator's slip: neither done nor not done.
+  if (progress.waiting?.only) return { text: WAITING, detail: null };
   if (due.by === "joined-late" && !progress.started) return { text: JOINED_LATE, detail: null };
   if (progress.done > 0 && count) return { text: count, detail: null };
   return { text: progress.started ? STARTED : NOT_STARTED, detail: null };

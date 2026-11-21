@@ -19,6 +19,7 @@ import { boxesReaderFor } from "@/lib/courses/fillInBoxes/access";
 import { resolveGroupCalendar, resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { readGroupWeek, readLastReminded, remindableOf } from "@/lib/courses/groupWeekWork/load";
 import { personWeekStateOf, weekPiecesOf, type Bucket, type LastReminded } from "@/lib/courses/groupWeekWork/model";
+import { waitingOf } from "@/lib/courses/weekWork/waiting";
 import { courseCardOf } from "@/lib/courses/predictions/own";
 import { besideScopeOf, type ReportLinesView } from "@/lib/courses/sessionReports/beside";
 import { readReportLinesAbout } from "@/lib/courses/sessionReports/readers";
@@ -636,6 +637,7 @@ async function weekStateOf(
     facts: own,
     submittedAt: input.submittedAt,
     due: input.due,
+    waiting: waitingOf(input.blocks, own.state),
   });
   return { text: state.text, detail: state.detail, bucket: state.bucket };
 }

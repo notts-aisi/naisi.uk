@@ -4,7 +4,9 @@ import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
+import { nothingLeftButSlips, weekLeft } from "@/lib/courses/weekEmails/model";
 import { weekDone, weekWritingNeeds, workIsClosed } from "@/lib/courses/weekWork/model";
+import { waitingOf } from "@/lib/courses/weekWork/waiting";
 import { loadPeopleWeekFacts, loadRunWeekStates } from "@/lib/courses/weekWork/readers";
 import { liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -18,7 +20,10 @@ import { NOTHING_DONE } from "./model";
  * written as blocks and published, whose session the person was due at has
  * passed (they had joined the group by then: somebody told their group after
  * it has no such session, so it is never named), and which is not done by
- * the one meaning of done. Nothing once the programme has closed.
+ * the one meaning of done. Never a week where a part waits on the
+ * facilitator's slip and nothing else is left (`nothingLeftButSlips`): the
+ * person's page has told them nobody will chase that part. Nothing once the
+ * programme has closed.
  *
  * EACH WEEK ON THE COPY THAT PERSON READS (`RunWeekStates.copyGroupOf`, made
  * of `copyGroupIdFor`): the copy their own week page shows them and "where
@@ -83,7 +88,9 @@ export async function earlierWeeksNotDone(
       for (const uid of people) {
         const own = facts.get(uid) ?? NOTHING_DONE;
         const done = weekDone({ tasks, state: own.state, submitted: states.submittedOf(uid, n) !== null, asks });
-        if (!done) out.get(uid)?.push(n);
+        // A week where a part waits on the facilitator's slip and nothing else is left is chased by nobody: not named.
+        const onlySlips = !done && nothingLeftButSlips(weekLeft({ blocks, tasks, state: own.state }), waitingOf(blocks, own.state));
+        if (!done && !onlySlips) out.get(uid)?.push(n);
       }
     }
   }

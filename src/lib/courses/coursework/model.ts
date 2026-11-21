@@ -3,7 +3,8 @@ import type { GroupFromWeek } from "@/lib/firestore/courseEnrolments";
 import { isBlockWeek, type WeekBlock, type When, type WordRange } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { weekFillInBoxes, weekWrittenAnswers, type ReadableWeek } from "@/lib/courses/weekBlocks/reader";
-import { lateBy, weekAsksForWriting, weekDone, weekDoneAt, weekWritingNeeds, type WeekDue } from "@/lib/courses/weekWork/model";
+import { lateBy, onlyWaitingLeft, weekAsksForWriting, weekDone, weekDoneAt, weekWritingNeeds, type WeekDue } from "@/lib/courses/weekWork/model";
+import { givenOutOf, waitingParts, type GivenOut } from "@/lib/courses/weekWork/waiting";
 import type { AnswerState } from "@/lib/courses/writtenAnswers/model";
 import type { StaffFeedbackCard } from "@/lib/courses/feedback/model";
 import type { PieceFacts } from "@/lib/courses/weekWork/versions";
@@ -82,6 +83,8 @@ export type CourseworkWeek = {
    * one question across a group steps through them. Absent: none.
    */
   order?: QuestionStep[];
+  /** What a facilitator gives out in the week (`givenOutOf`), for what waits on their slip. Absent: nothing. */
+  givenOut?: GivenOut;
 };
 
 /** One question a week asks to be written: a reflection's prompt, a fill-in box or the written answer, by its id. */
@@ -133,7 +136,14 @@ export function courseworkWeekOf(week: (ReadableWeek & { weekNumber: number; tit
     writes: weekAsksForWriting(blocks),
     asks: weekWritingNeeds(blocks),
     order: questionOrderOf(blocks, answer?.id ?? null),
+    ...givenOutField(blocks),
   };
+}
+
+/** The week's `givenOut`, only when a facilitator gives something out in it. */
+function givenOutField(blocks: readonly WeekBlock[]): { givenOut?: GivenOut } {
+  const given = givenOutOf(blocks);
+  return given.packs.length + given.cases.length > 0 ? { givenOut: given } : {};
 }
 
 /** The Choose ones a week's tasks count, whose pack the person has: what done asks of their records. */
@@ -297,6 +307,11 @@ export type CourseworkCell = {
   ticks: { ticked: number; of: number } | null;
   /** The written answer's state; null for a week with none. */
   answer: { state: CellAnswerState } | null;
+  /**
+   * All that is left of the week waits on the facilitator's slip
+   * (`onlyWaitingLeft`): neither done nor not done. Absent otherwise.
+   */
+  onlyWaiting?: true;
   /** Boxes filled in, of the week's boxes; null for a week with none. Not drawn. */
   boxes: { filled: number; of: number } | null;
   /** The flags beside the state, for a reader who may read the person's work. */
@@ -538,17 +553,16 @@ export function cellOf(
   }
   const key = (id: string) => workKey(weekNumber, id);
   const packOf = (id: string) => work.packs?.get(id) ?? null;
-  const done = weekDone({
-    tasks: week.tasks,
-    state: {
-      isTicked: (id) => work.ticked.has(id),
-      packOf,
-      isWritten: (id) => work.reflections.has(key(id)) || work.boxes.has(key(id)),
-      isSent: (id) => work.sentAt?.has(key(id)) ?? false,
-    },
-    submitted: standing.submittedAt !== null,
-    asks: week.asks,
-  });
+  const doneState = {
+    isTicked: (id: string) => work.ticked.has(id),
+    packOf,
+    isWritten: (id: string) => work.reflections.has(key(id)) || work.boxes.has(key(id)),
+    isSent: (id: string) => work.sentAt?.has(key(id)) ?? false,
+  };
+  const done = weekDone({ tasks: week.tasks, state: doneState, submitted: standing.submittedAt !== null, asks: week.asks });
+  // The tab reads packs, not cases: a case never decides done, so only a pack can be all that is left.
+  const parts = week.givenOut ? waitingParts(week.givenOut, { packOf }) : [];
+  const onlyWaiting = onlyWaitingLeft({ tasks: week.tasks, state: doneState, submitted: standing.submittedAt !== null, asks: week.asks, parts });
   const doneAt = done
     ? weekDoneAt({
         tasks: week.tasks,
@@ -588,6 +602,7 @@ export function cellOf(
     ticks,
     answer,
     boxes,
+    ...(onlyWaiting ? { onlyWaiting: true as const } : {}),
     // The flags are this reader's, laid over the cell by `courseworkRows` (`./overview.ts`).
     flags: NO_FLAGS,
     waiting: null,
@@ -596,26 +611,32 @@ export function cellOf(
 }
 
 /** What a cell says first, in words the tab's words file holds (`CELL_STATE_WORDS`). */
-export type CellState = "no-coursework" | "done" | "done-on-time" | "done-late" | "joined-late" | "opens" | "started" | "not-started";
+export type CellState = "no-coursework" | "done" | "done-on-time" | "done-late" | "waiting-slip" | "joined-late" | "opens" | "started" | "not-started";
 
 /**
  * WHAT A CELL SAYS FIRST, one thing, in words (Fri 13 Nov 2026):
  *  - a week not written as blocks: "No coursework";
  *  - done (`weekDone`): "Done late" when it became done after the session they
  *    were due at, "Done on time" once that session has passed, else "Done";
+ *  - not done, and all that is left waits on the facilitator's slip
+ *    (`onlyWaitingLeft`): "Waiting", neither done nor not done;
  *  - a week before they were told their group, not done: "Joined late";
  *  - a week that has not begun for them: "Opens Thu 12 Nov", the day it opens
  *    on the calendar of the group whose weeks they read;
  *  - otherwise "Started" where they have done anything in it, "Not started"
  *    where nothing.
  */
-export function cellStateOf(cell: Pick<CourseworkCell, "counted" | "done" | "doneAt" | "doneLateMs" | "due" | "reached" | "started">, now: Date): CellState {
+export function cellStateOf(
+  cell: Pick<CourseworkCell, "counted" | "done" | "doneAt" | "doneLateMs" | "due" | "reached" | "started" | "onlyWaiting">,
+  now: Date,
+): CellState {
   if (!cell.counted) return "no-coursework";
   if (cell.done === true) {
     if (cell.doneLateMs !== null) return "done-late";
     if (cell.doneAt && cell.due.at && now.getTime() >= new Date(cell.due.at).getTime()) return "done-on-time";
     return "done";
   }
+  if (cell.onlyWaiting) return "waiting-slip";
   if (cell.due.by === "joined-late") return "joined-late";
   if (!cell.reached) return "opens";
   return cell.started ? "started" : "not-started";

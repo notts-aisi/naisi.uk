@@ -1,5 +1,6 @@
 import { londonDayLabel } from "@/lib/courses/londonLabels";
 import { dayWords } from "@/lib/courses/sessionChange/words";
+import { WAITING } from "@/lib/courses/weekWork/waitingWords";
 import { DONE_LATE, DONE_ON_TIME, JOINED_LATE, LATE } from "@/lib/courses/weekWork/words";
 import { dayAndClockWords } from "@/lib/courses/writtenAnswerWords";
 import type { CellAnswerState, CellState, CourseworkShow } from "./model";
@@ -369,6 +370,8 @@ export function cellStateWords(state: CellState, opensOn: string | null): string
       return DONE_ON_TIME;
     case "done-late":
       return DONE_LATE;
+    case "waiting-slip":
+      return WAITING;
     case "joined-late":
       return JOINED_LATE;
     case "opens":

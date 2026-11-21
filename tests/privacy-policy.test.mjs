@@ -11421,6 +11421,10 @@ describe("v21 says the reminders before a session go to everybody due at it, wit
     const done = job.indexOf("if (weekDone({ tasks: week.tasks, state: own.state, submitted: state.submittedAt !== null, asks: week.asks })) continue;");
     const listed = job.indexOf("remind.push({");
     assert.ok(done > 0 && listed > done, "a week that is done is listed");
+    // Nor a week where a part waits on the facilitator's slip and the very list it would print names nothing else.
+    const waits = job.indexOf("if (nothingLeftButSlips(weekLeft({ blocks: week.blocks, tasks: week.tasks, state: own.state }), waitingOf(week.blocks, own.state))) continue;");
+    assert.ok(waits > done && listed > waits, "a week where only a slip not given yet is left is listed");
+    assert.match(model, /return parts\.length > 0 && left\.items\.length === 0 && !left\.notSent;/, "held back for anything but an empty list");
   });
 
   test("they no longer stop once the week is done: done takes the list off, and never the reminder", () => {

@@ -34,6 +34,7 @@ function Chevron() {
 const MARK_CLASS: Record<WeekRow["state"], string> = {
   done: `${styles.weekMark} ${styles.weekMarkDone}`,
   notDone: styles.weekMark,
+  waiting: styles.weekMark,
   current: `${styles.weekMark} ${styles.weekMarkCurrent}`,
   next: `${styles.weekMark} ${styles.weekMarkCurrent}`,
   open: styles.weekMark,
@@ -43,6 +44,7 @@ const MARK_CLASS: Record<WeekRow["state"], string> = {
 const MARK_WORD: Record<WeekRow["state"], string> = {
   done: WEEK_STATE_WORDS.done,
   notDone: WEEK_STATE_WORDS.notDone,
+  waiting: WEEK_STATE_WORDS.waiting,
   current: WEEK_STATE_WORDS.current,
   next: WEEK_STATE_WORDS.next,
   open: WEEK_STATE_WORDS.open,
