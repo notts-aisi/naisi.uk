@@ -535,6 +535,15 @@ export function boardMoveConfirmWords(input: {
  * group: the weeks met with Group A would be lost. Move Amara straight to the
  * new group instead, or take Amara off the run."
  */
+export function midTermToPoolWords(firstName: string, fromName: string): string {
+  const first = line(firstName) || "They";
+  const from = groupName(fromName);
+  return (
+    `${first} has already met with ${from}, so ${first} can’t be taken out of every group: the weeks met with ${from} would be lost. ` +
+    `Move ${first} straight to the new group instead, or take ${first} off the run.`
+  );
+}
+
 /**
  * NOT DRAWN AS A LINE OF ITS OWN: the board shows it as the refusal of a
  * move made mid-term by somebody who is neither an admin nor the programme's
@@ -543,15 +552,6 @@ export function boardMoveConfirmWords(input: {
 export function midTermLeadOnlyWords(firstName: string, fromName: string): string {
   const first = line(firstName) || "They";
   return `${first} has already met with ${groupName(fromName)}, so only an admin or the programme’s lead can move ${first} now. Ask one of them.`;
-}
-
-export function midTermToPoolWords(firstName: string, fromName: string): string {
-  const first = line(firstName) || "They";
-  const from = groupName(fromName);
-  return (
-    `${first} has already met with ${from}, so ${first} can’t be taken out of every group: the weeks met with ${from} would be lost. ` +
-    `Move ${first} straight to the new group instead, or take ${first} off the run.`
-  );
 }
 
 /** A move on the board whose week changed between the question and the press: "The move is now from week 4. Move Leo again to see what it does." */
