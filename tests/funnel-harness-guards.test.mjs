@@ -593,6 +593,8 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     "courseSessionReports",
     "courseWeekWork",
     "courseWorkLog",
+    // The draw: the pathway and case a facilitator copies in for each person.
+    "coursePacksAndCases",
     // The survey admin spec: the end of a programme's question set its
     // browser changes and puts back (through its one door), and the weeks of
     // check-ins the scheduler fixes once the spec names a run whose weeks are

@@ -888,7 +888,7 @@ describe("6. who sees what, and every file that addresses the record", () => {
     assert.match(code("app/(app)/learn/[runId]/weeks/[n]/page.tsx"), /return await readOwnPairs\(db, access\.user, access\.run\.id, access\.groups, access\.enrolment, weekNumber, new Date\(\)\);/);
     assert.match(
       code("app/(app)/learn/[runId]/group/[groupId]/page.tsx"),
-      /const pairsWeek = drawWeek \? await readGroupPairs\(db, runId, groupId, drawWeek, drawList\) : null;/,
+      /const pairsWeek = nextWeek \? await readGroupPairs\(db, runId, groupId, nextWeek, drawList\) : null;/,
     );
     // The person's own reader hands the page first names and laptops of one pair, never a record.
     const readers = code("lib/courses/pairs/readers.ts");

@@ -1996,7 +1996,7 @@ const NOT_COVERED = {
     reason:
       "Course hub: the draw typed into the group page: who may type it, the case lists, the content note kept out, swaps and what a save clears are executed by tests/course-hub-packs-and-cases.test.mjs as every kind of caller; typed in a browser on the preview kit at 390 and 1440.",
     coverWhen:
-      "When a browser spec signs in a group's facilitator after a session, copies the slips in on the draw page and a member of the group reads their case on their week page.",
+      "When course-hub-draw is verified: it signs in a group's facilitator during the session that hands the slips out, copies two slips in on the draw page, a member of the group reads their case on their week page, and a save into the session's own week asks first. Written, not yet run.",
   },
   "/api/courses/groups/[groupId]/pairs": {
     reason:
@@ -2081,7 +2081,7 @@ const NOT_COVERED = {
     reason:
       "Course hub: the draw's page, drawn as each kind of caller and with its lists held word for word by tests/course-hub-packs-and-cases.test.mjs, and its one calm page for everybody else held byte for byte, for a real, an archived and a made-up group, by tests/course-hub-not-for-you.test.mjs; photographed on the preview kit at 390 and 1440.",
     coverWhen:
-      "When the browser spec that copies the slips in drives the page.",
+      "When course-hub-draw is verified: the browser spec that opens the page during a session on next week, picks a week from its Week picker and copies the slips in. Written, not yet run.",
   },
   "/(app)/learn/pairs/[groupId]": {
     reason:
