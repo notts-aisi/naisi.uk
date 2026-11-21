@@ -106,6 +106,16 @@ export const ONLY_THE_ONE_YOU_CHOOSE = "Only the one you choose counts.";
  */
 export const PICK_CLOSED = "Your session has started, so your choice stays as it is.";
 
+/**
+ * Once a case that follows their pick has been given, a pick stays as it is
+ * until the case is taken back: "Your case has been given, so your pathway
+ * stays as it is. To switch, ask Rahul." Whom to ask is named as the week
+ * page names them ("Rahul or Sofia"; nothing when there is nobody to ask).
+ */
+export function pickStaysWords(title: string, askNames: readonly string[]): string {
+  return [`Your case has been given, so your ${titleWord(title)} stays as it is.`, askWords("switch", askNames)].filter(Boolean).join(" ");
+}
+
 /** When a pick or the ready mark did not save. Not drawn on the boards; listed for the designers. */
 export const NOT_SAVED = "That didn’t save. Check your connection and try again.";
 
@@ -184,10 +194,97 @@ export const DRAW_LEDE = "Copy in the slips you handed out tonight.";
 export const SWAP_TWO_PEOPLE = "Swap two people";
 export const CASE = "Case";
 
-/** The only option of a case list before the person has a pack: "Choose a pathway first". */
-export function choosePackFirstWords(title: string): string {
+/**
+ * Under a case list before the person has a pack a facilitator gives out:
+ * "Choose Chloe’s pathway first."; with no name, "Choose a pathway first".
+ */
+export function choosePackFirstWords(title: string, firstName = ""): string {
   const word = titleWord(title);
-  return `Choose ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} first`;
+  const name = firstName.trim();
+  return name ? `Choose ${name}’s ${word} first.` : `Choose ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} first`;
+}
+
+/** Over the people, on a week whose pack each person picks: "In week 3 each person picks their own pathway. You give out the case, from that pathway’s list." */
+export function pickedLedeWords(weekNumber: number, title: string): string {
+  const word = titleWord(title);
+  return `In week ${weekNumber} each person picks their own ${word}. You give out the case, from that ${word}’s list.`;
+}
+
+/** Beside a pack the person picked, shown as words. */
+export const THEIR_PICK = "Their pick";
+
+/** Beside a pick that changed after its case was given, the case now from the pack they left. */
+export const THEIR_PICK_CHANGED = "Their pick changed";
+
+/** Under such a row's case list. Not drawn on the boards. */
+export function pickChangedLineWords(title: string): string {
+  return `The case they hold is from the ${titleWord(title)} they picked before. Give them one from this list, or Not given yet.`;
+}
+
+/** Where the pack would be, before the person has picked: "Hasn’t picked a pathway yet". */
+export function notPickedYetWords(title: string): string {
+  const word = titleWord(title);
+  return `Hasn’t picked ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} yet`;
+}
+
+/** The case list's only option until then: "Waits for a pathway". */
+export function waitsForPackWords(title: string): string {
+  const word = titleWord(title);
+  return `Waits for ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word}`;
+}
+
+/** Under it: "Daniel picks on their week 3 page. You can give the case once they have." */
+export function picksOnWeekPageWords(firstName: string, weekNumber: number): string {
+  return `${firstName} picks on their week ${weekNumber} page. You can give the case once they have.`;
+}
+
+/**
+ * A facilitator's own pick, on a co-facilitator's page: the pick is their
+ * own work, read by the programme's lead and admins only, so the row says
+ * no more than this, and its case is given by them, the lead or an admin.
+ */
+export const PICKS_THEIR_OWN = "Picks their own";
+
+/** That row's case, and the route's refusal of it from a co-facilitator. Not drawn on the boards. */
+export function ownCaseGivenByWords(firstName: string): string {
+  return `Only ${firstName}, the programme’s lead or an admin can give ${firstName} a case.`;
+}
+
+/** The tick on a row that lets a case with a content note be given: the person asked for one. */
+export const ASKED_FOR_THIS_ONE = "Asked for this one";
+
+/** A case with a content note in a list, once the row is ticked. Not drawn on the boards. */
+export function notedCaseOptionWords(title: string): string {
+  return `${title} (content note)`;
+}
+
+/** The case list of a row whose every case has a content note, until it is ticked. */
+export const NO_CASE_TO_GIVE = "No case to give";
+
+/** "Every Misuse case here has a content note, so none can be given out. If Chloe asked for one, tick Asked for this one." */
+export function everyCaseNotedWords(groupName: string, firstName: string): string {
+  const group = groupName.trim();
+  return `Every ${group ? `${group} ` : ""}case here has a content note, so none can be given out. If ${firstName} asked for one, tick ${ASKED_FOR_THIS_ONE}.`;
+}
+
+/**
+ * Under the people: "2 Misuse cases have a content note, so they aren’t in
+ * the list to give out." and how to give one to somebody who asked.
+ */
+export function notedCasesWords(count: number, groupName: string): string {
+  const group = groupName.trim();
+  const cases = `${count} ${group ? `${group} ` : ""}${count === 1 ? "case has" : "cases have"}`;
+  return `${cases} a content note, so ${count === 1 ? "it isn’t" : "they aren’t"} in the list to give out. To give one to somebody who asked for it, tick ${ASKED_FOR_THIS_ONE} on their row.`;
+}
+
+/** Swap two people, across two picks that differ. Not drawn on the boards. */
+export function swapAcrossPicksWords(first: string, second: string, title: string): string {
+  return `${first} and ${second} haven’t picked the same ${titleWord(title)}, so their cases can’t be swapped.`;
+}
+
+/** Swap two people, a case with a content note going to somebody who hasn't asked for one. Not drawn on the boards. */
+export function swapNotedWords(holder: string, other: string): string {
+  return `${holder}’s case has a content note and ${other} hasn’t asked for one, so they can’t be swapped.`;
 }
 
 /** Under Save: "Each person sees theirs on their week 3 page. No email." */

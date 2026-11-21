@@ -9,7 +9,16 @@ import NotForYou from "@/features/courses/facilitator/NotForYou";
 import { getSessionUser } from "@/features/courses/runAccess";
 import { isAddressableId } from "@/lib/addressableId";
 import { countedPackTitlesOf, drawTalkOf, hasDraw } from "@/lib/courses/packsAndCases/model";
-import { drawClosed, drawGate, readDrawRoster, readDrawState, readDrawWeeks } from "@/lib/courses/packsAndCases/readers";
+import {
+  drawClosed,
+  drawGate,
+  drawRowsFor,
+  hidesOwnPick,
+  readDrawRoster,
+  readDrawState,
+  readDrawWeeks,
+  seesFacilitatorsOwnWork,
+} from "@/lib/courses/packsAndCases/readers";
 import {
   CASE,
   DRAW_LEDE,
@@ -24,6 +33,7 @@ import {
   lateSaveChangesWords,
   noSessionBeforeWords,
   nothingGivenOutWords,
+  pickedLedeWords,
   sessionsFinishedWords,
   setBeforeWords,
   weekStandingWords,
@@ -40,9 +50,18 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * paper, then copies the slips in here; swaps go through them too. One row
  * per person in the group (its people taking part and its facilitators, who
  * take part too), each with the Choose one's select ("Pathway") and the
- * case's ("Case"), whose list offers only that pathway's cases and never a
- * case with a content note. "Swap two people" swaps two rows. Save writes
- * what changed (`/api/courses/groups/[groupId]/draw`); nobody is emailed.
+ * case's ("Case"), whose list offers only that pathway's cases, and a case
+ * with a content note only once the row's "Asked for this one" is ticked.
+ * "Swap two people" swaps what two rows are given. Save writes what changed
+ * (`/api/courses/groups/[groupId]/draw`); nobody is emailed.
+ *
+ * A PATHWAY EACH PERSON PICKS, whose cases a facilitator gives out: the
+ * person's pick is shown as words ("Their pick"), never a list, and their
+ * case list offers that pathway's cases; somebody who has not picked waits.
+ * A facilitator's own pick is their own work, read by the programme's lead
+ * and admins only: to the group's other facilitators that row says "Picks
+ * their own" and carries neither the pick nor the case that follows it
+ * (`drawRowsFor`), and its case is given by them, the lead or an admin.
  *
  * WHICH WEEK: `?week=3`, any week, or else the week the slips being handed
  * out are for (`drawWeekRule`, through `readDrawWeeks`: the one rule the
@@ -128,6 +147,9 @@ export default async function DrawPage({
   const state = week && gives ? (course.states.get(weekNumber) ?? (await readDrawState(db, run.id, week, people))) : new Map();
   const facts = gives ? (course.rule.facts.get(weekNumber) ?? null) : null;
   const closed = closesAt !== null && drawClosed(closesAt, now);
+  // Whether this viewer reads a facilitator's own pick: asked only when the week has one to keep back.
+  const askOwnWork = week !== null && gives && week.draw.picked.length > 0 && people.some((person) => hidesOwnPick(person, { uid: user.uid, seesOwnWork: false }));
+  const seesOwnWork = askOwnWork ? await seesFacilitatorsOwnWork(db, user, group, gate) : true;
 
   const groupName = group.name.trim() || "Group";
   // A facilitator and an admin go back to the group's page; a lead to their programme's Groups.
@@ -139,7 +161,9 @@ export default async function DrawPage({
           label: "Groups",
         };
 
-  const draw = week?.draw ?? { packs: [], cases: [] };
+  const draw = week?.draw ?? { packs: [], cases: [], picked: [] };
+  // What the editor is handed of each person: never the state itself.
+  const rows = week && gives ? drawRowsFor(week, people, state, { uid: user.uid, seesOwnWork }) : null;
   // What the course gives out, for a week that gives nothing: the first week that does, or the week's number.
   const courseDraw = course.giving[0]?.draw ?? null;
   const title = gives ? drawTitleWords(draw) : courseDraw ? drawTitleWords(courseDraw) : `Week ${weekNumber}`;
@@ -160,6 +184,8 @@ export default async function DrawPage({
 
   // What the page says about the week, over the people.
   const lines: Array<{ text: string; warn?: boolean }> = [];
+  const picked = gives ? (draw.picked[0] ?? null) : null;
+  if (picked) lines.push({ text: pickedLedeWords(weekNumber, picked.title.trim() || "Pack") });
   if (course.finished) lines.push({ text: sessionsFinishedWords(groupName) });
   if (closed && closesAt) lines.push({ text: closedWords(closesAt) });
   // Which week this is, once its session has started or been held: said before any change, and first in what Save asks.
@@ -220,7 +246,7 @@ export default async function DrawPage({
           ))}
         </header>
 
-        {week && gives ? (
+        {week && gives && rows ? (
           <DrawEditor
             // A week of its own each: opening another week starts its editor afresh.
             key={week.weekId}
@@ -232,9 +258,16 @@ export default async function DrawPage({
               title: chooseOne.title.trim() || "Pack",
               packs: chooseOne.packs.map((pack) => ({ id: pack.id, name: pack.name })),
             }))}
+            picked={draw.picked.map((chooseOne) => ({
+              id: chooseOne.id,
+              title: chooseOne.title.trim() || "Pack",
+              packs: chooseOne.packs.map((pack) => ({ id: pack.id, name: pack.name })),
+            }))}
             talks={draw.cases.map((talk) => drawTalkOf(week.blocks, talk))}
             caseLabel={CASE}
-            initial={Object.fromEntries(people.map((person) => [person.uid, state.get(person.uid) ?? { packs: {}, cases: {} }]))}
+            initial={rows.initial}
+            picks={rows.picks}
+            hidden={rows.hidden}
             foot={drawFootWords(weekNumber)}
             weekNumber={weekNumber}
             holding={drawHoldingWords(draw)}

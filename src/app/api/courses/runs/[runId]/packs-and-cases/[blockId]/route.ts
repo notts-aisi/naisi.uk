@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -8,16 +8,25 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { differsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
-import { findCase, findPack } from "@/lib/courses/packsAndCases/model";
+import { drawTalkOf, findCase, findPack, keyingChooseOne, talksOf } from "@/lib/courses/packsAndCases/model";
+import { pickStaysWords } from "@/lib/courses/packsAndCases/words";
+import { displayNameOf } from "@/lib/courses/registerAccess";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { dueMoment } from "@/lib/courses/weekBlocks/due";
-import { allBlocks, isBlockWeek, isWeekItemId, type CasesBlock, type ChooseOneBlock } from "@/lib/courses/weekBlocks/model";
+import {
+  allBlocks,
+  isBlockWeek,
+  isWeekItemId,
+  type CasesBlock,
+  type ChooseOneBlock,
+  type WeekBlock,
+} from "@/lib/courses/weekBlocks/model";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
   placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import {
   COURSE_PACKS_AND_CASES_COLLECTION,
   normalizeCoursePackCase,
@@ -53,6 +62,15 @@ import { closedWords } from "@/lib/courses/weekWork/words";
  * week is the group's they were in that week (`groupForWeek`), so somebody
  * moved from a later week picks until their old group's session that week.
  *
+ * A PICK STAYS ONCE ITS CASE IS GIVEN: when the week's cases follow the
+ * pick (a talk whose case groups name this Choose one's packs) and the
+ * person holds a case from the pack they picked, a different pick is
+ * refused, read in the same transaction that writes: "Your case has been
+ * given, so your pathway stays as it is. To switch, ask Rahul." Whom to ask
+ * is named as their week page names them (`askToSwap` in the overview: their
+ * own group's facilitators other than themselves, by first name). A
+ * facilitator who takes the case back frees the pick again.
+ *
  * READY is the person's own mark and nobody else's: coursework gets no mark.
  * On a talk with cases it waits for a case to be given; a talk with none (a
  * pitch) can be marked any time. It can be taken back.
@@ -82,6 +100,24 @@ class PickError extends Error {
   ) {
     super(message);
   }
+}
+
+/** Thrown out of the transaction when a case that follows the pick has been given: the words need names read after. */
+class PickStaysError extends Error {}
+
+/**
+ * Whom a person asks to switch, as their week page names them: the first
+ * names of their own group's facilitators other than themselves (the
+ * overview's `askToSwap`). Read only to refuse.
+ */
+async function askNamesFor(db: Firestore, group: CourseGroupDoc | null, uid: string): Promise<string[]> {
+  const uids = (group?.facilitatorUids ?? []).filter((each) => each !== uid);
+  if (uids.length === 0) return [];
+  const docs = await db.getAll(...uids.map((each) => db.collection("users").doc(each)));
+  return docs
+    .filter((doc) => doc.exists)
+    .map((doc) => displayNameOf(doc.data() ?? {}).trim().split(/\s+/)[0] ?? "")
+    .filter(Boolean);
 }
 
 export type PackCaseWire = {
@@ -217,10 +253,33 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
     if (startsAt && Date.now() >= startsAt.at.getTime()) {
       return NextResponse.json({ error: "Your session has started, so your choice stays as it is." }, { status: 409 });
     }
+    // The talks whose cases follow this pick, and the person's record in each: read in the transaction.
+    const blocks: readonly WeekBlock[] = week && isBlockWeek(week) ? week.blocks : [];
+    const following = talksOf(blocks).filter((talk) => keyingChooseOne(blocks, talk)?.id === chooseOne.id);
+    const talkRef = (talkId: string) => db.collection(COURSE_PACKS_AND_CASES_COLLECTION).doc(packCaseRecordId(runId, actor.uid, talkId));
     try {
       await db.runTransaction(async (tx) => {
-        const week = await weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, closesAt, now });
-        assertWeekTakesWork(week.state);
+        const [state, snaps] = await Promise.all([
+          weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, closesAt, now }),
+          following.length > 0 ? tx.getAll(ref, ...following.map((talk) => talkRef(talk.id))) : Promise.resolve([]),
+        ]);
+        assertWeekTakesWork(state.state);
+        if (following.length > 0) {
+          const [packSnap, ...talkSnaps] = snaps;
+          const stored = packSnap?.exists ? normalizeCoursePackCase(packSnap.id, packSnap.data() ?? {}) : null;
+          const current = stored && stored.runId === runId ? (findPack(chooseOne, stored.packId)?.id ?? null) : null;
+          if (current && current !== packId) {
+            // A case given from the pack they picked: the pick stays until it is taken back.
+            const held = following.some((talk, at) => {
+              const snap = talkSnaps[at];
+              const record = snap?.exists ? normalizeCoursePackCase(snap.id, snap.data() ?? {}) : null;
+              if (!record || record.runId !== runId || !record.caseId) return false;
+              const given = drawTalkOf(blocks, talk).groups.find((group) => group.cases.some((item) => item.id === record.caseId));
+              return given !== undefined && given.packId === current;
+            });
+            if (held) throw new PickStaysError();
+          }
+        }
         tx.set(
           ref,
           { ...base, kind: "pack", packId, givenAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() },
@@ -230,6 +289,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
       });
     } catch (err) {
       if (err instanceof WorkClosedError) return NextResponse.json({ error: closedWords(err.at) }, { status: 409 });
+      if (err instanceof PickStaysError) {
+        const names = await askNamesFor(db, ownGroup, actor.uid).catch(() => []);
+        return NextResponse.json({ error: pickStaysWords(chooseOne.title, names) }, { status: 409 });
+      }
       console.error("[courses packs and cases] pick failed", runId, weekId, blockId, err);
       return NextResponse.json({ error: "Couldn’t save that just now. Try again." }, { status: 500 });
     }

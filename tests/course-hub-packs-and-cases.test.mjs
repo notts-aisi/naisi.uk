@@ -416,9 +416,12 @@ describe("3. the draw", () => {
     // Chloe has both: no "Not given yet", and one case for Elections (the other has a content note).
     assert.deepEqual(lists[1].options, ["*Elections", "Markets", "Technology"]);
     assert.deepEqual(lists[2].options, ["*The surprise result, 2016"]);
-    // Farah has nothing yet: "Not given yet", and "Choose a pack first" for the case, which takes no press.
+    // Farah has nothing yet: "Not given yet", and for the case a list that takes no press, under it
+    // "Choose Farah’s pack first." (the week's own word, the person's own name).
     assert.deepEqual(lists[3].options, ["*Not given yet", "Elections", "Markets", "Technology"]);
-    assert.deepEqual(lists[4], { disabled: true, options: ["*Choose a pack first"] });
+    assert.deepEqual(lists[4], { disabled: true, options: ["*Not given yet"] });
+    inOrder(page.text, ["Farah Hussain", "Pack", "Not given yet", "Case", "Not given yet", "Choose Farah’s pack first.", "Kofi Asante"]);
+    assert.doesNotMatch(page.text, /Choose a pack first/);
     // Labels are real, one per select.
     assert.equal((page.html.match(/<label class="drawLabel" for="/g) ?? []).length, 10);
     assert.equal((page.html.match(/<label class="drawWeekLabel" for="/g) ?? []).length, 1);
