@@ -154,20 +154,20 @@ function InfoIcon() {
  * the session card's rule (`guideLinksView`). Nothing when the rule draws
  * nothing.
  */
-function HomeGuideLinks({ view, course }: { view: GuideLinksView; course?: string }) {
+function HomeGuideLinks({ view, courseTitle }: { view: GuideLinksView; courseTitle?: string }) {
   if (!view.week && !view.standing && !view.sentence) return null;
   // Somebody facilitating on two courses has two guides: each link says
   // whose, under its words (and in them, for a screen reader).
   const guideLink = (link: { href: string; label: string }) =>
-    course ? (
+    courseTitle ? (
       <div className={styles.guideLink}>
         <Link href={link.href} className={styles.textLink}>
           {link.label}
-          <span className={styles.srOnly}>, {course}</span>
+          <span className={styles.srOnly}>, {courseTitle}</span>
           <ArrowRight />
         </Link>
         <span className={styles.guideCourse} aria-hidden="true">
-          {course}
+          {courseTitle}
         </span>
       </div>
     ) : (
@@ -266,7 +266,7 @@ function OtherCourseGroups({
                 <ArrowRight />
               </Link>
             </div>
-            {link && <HomeGuideLinks view={{ week: link, standing: null, sentence: null }} course={courseTitle} />}
+            {link && <HomeGuideLinks view={{ week: link, standing: null, sentence: null }} courseTitle={courseTitle} />}
           </div>
         );
       })}
@@ -354,7 +354,7 @@ export default function HomeFacilitator({ given, invite, entry: first, comingUp,
       <section className={facilitator.weekCard} aria-label={THIS_WEEK}>
         <p className={facilitator.weekEyebrow}>{THIS_WEEK}</p>
         <p className={facilitator.weekTitle}>{weekTitleWords(facts.weekNumber, weekDoc?.title ?? "")}</p>
-        <HomeGuideLinks view={guide} course={acrossRuns ? entry.courseTitle : undefined} />
+        <HomeGuideLinks view={guide} courseTitle={acrossRuns ? entry.courseTitle : undefined} />
         {full && known && known.writtenToGive !== undefined && (
           // A run written as blocks: the written answers waiting for feedback (Feedback to write).
           <div className={facilitator.weekRow}>
@@ -449,7 +449,7 @@ export default function HomeFacilitator({ given, invite, entry: first, comingUp,
               <ArrowRight />
             </Link>
           </div>
-          {group && <HomeGuideLinks view={guideFor(null)} course={acrossRuns ? entry.courseTitle : undefined} />}
+          {group && <HomeGuideLinks view={guideFor(null)} courseTitle={acrossRuns ? entry.courseTitle : undefined} />}
         </section>
       )}
 
