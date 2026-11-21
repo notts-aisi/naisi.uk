@@ -540,15 +540,16 @@ export type WeekWorkCells = { pack: string | null; case: string | null };
  * A pack the person PICKED (a Choose one they choose themselves) is their own
  * coursework: when they facilitate the group too, their co-facilitators get
  * an empty cell, and the lead and admins see it (`viewer.isAdmin` or
- * `viewer.leadOf`). A pack or case GIVEN OUT is the draw, seen by everybody
- * the draw is shown to.
+ * `viewer.leadOf`), and so does that facilitator themself (`viewer.uid`).
+ * The case that follows such a pick names it, so it is kept back with it. A
+ * pack or case GIVEN OUT is the draw, seen by everybody the draw is shown to.
  */
 export async function weekWorkOf(
   db: Firestore,
   runId: string,
   week: GroupWeek,
   people: readonly DrawPerson[],
-  viewer: { isAdmin: boolean; leadOf: LedProgramme | null },
+  viewer: { isAdmin: boolean; leadOf: LedProgramme | null; uid?: string },
 ): Promise<{ packTitle: string | null; cells: Map<string, WeekWorkCells> }> {
   const chooseOne = chooseOnesOf(week.blocks)[0] ?? null;
   const talk = talksOf(week.blocks).find((candidate) => candidate.groups.some((group) => group.cases.length > 0)) ?? null;
@@ -563,11 +564,11 @@ export async function weekWorkOf(
     let pack: string | null = null;
     if (chooseOne) {
       const picked = chooseOne.givenBy === "fellow";
-      const hidden = picked && person.facilitates && !seesOwnWork;
+      const hidden = picked && person.facilitates && person.uid !== viewer.uid && !seesOwnWork;
       const found = hidden ? null : findPack(chooseOne, records.get(`${person.uid} ${chooseOne.id}`)?.packId ?? null);
       pack = found ? found.name : null;
     }
-    const caseHidden = keyedByPick && person.facilitates && !seesOwnWork;
+    const caseHidden = keyedByPick && person.facilitates && person.uid !== viewer.uid && !seesOwnWork;
     const given = talk && !caseHidden ? findCase(talk, records.get(`${person.uid} ${talk.id}`)?.caseId ?? null) : null;
     cells.set(person.uid, { pack, case: given ? given.item.title : null });
   }

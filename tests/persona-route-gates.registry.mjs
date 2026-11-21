@@ -3042,8 +3042,10 @@ export const ROUTES = {
       // (tests/course-visit-readers.test.mjs). `visitReaders`: for each of
       // the caller's own visits that stands, the host's facilitators who may
       // read that week, by first name, absent with none
-      // (tests/course-visit-follow-up.test.mjs).
-      fields: ["run", "calendarSource", "currentWeek", "weeks", "askToSwap", "weekSchedule", "programme", "shownCrest", "forkedWeekIds", "forkedWeekGroups", "visits", "visitReaders", "enrolment", "group", "groups", "ownAttendance", "finished", "access", "beforeGroups", "whatsNext", "certificateNeeds"],
+      // (tests/course-visit-follow-up.test.mjs). `askToSwapPicked`: who a
+      // person asks to swap a case that follows a pack they picked, nobody
+      // for a facilitator of their own group (tests/course-draw-picked.test.mjs).
+      fields: ["run", "calendarSource", "currentWeek", "weeks", "askToSwap", "askToSwapPicked", "weekSchedule", "programme", "shownCrest", "forkedWeekIds", "forkedWeekGroups", "visits", "visitReaders", "enrolment", "group", "groups", "ownAttendance", "finished", "access", "beforeGroups", "whatsNext", "certificateNeeds"],
       why:
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +

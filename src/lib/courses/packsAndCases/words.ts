@@ -33,6 +33,17 @@ function isOneWord(title: string): boolean {
   return /^[A-Za-z]+$/.test(title.trim());
 }
 
+/**
+ * The week's word for a Choose one in the sentences this page and the pick's
+ * refusal add: its title when that is one plain word ("pathway", "pack",
+ * "plan"), lower-cased as "Only your pathway counts." has it; otherwise
+ * "pathway", so a title written as a phrase ("one 80,000 Hours career review
+ * that fits you") never lands inside a sentence.
+ */
+function pickWord(title: string): string {
+  return isOneWord(title) ? titleWord(title) : "pathway";
+}
+
 /** "Pathways", "Plans", "Packs": what a facilitator gives out of a Choose one. */
 function plural(title: string): string {
   return isOneWord(title) ? `${title.trim()}s` : "Packs";
@@ -113,7 +124,7 @@ export const PICK_CLOSED = "Your session has started, so your choice stays as it
  * page names them ("Rahul or Sofia"; nothing when there is nobody to ask).
  */
 export function pickStaysWords(title: string, askNames: readonly string[]): string {
-  return [`Your case has been given, so your ${titleWord(title)} stays as it is.`, askWords("switch", askNames)].filter(Boolean).join(" ");
+  return [`Your case has been given, so your ${pickWord(title)} stays as it is.`, askWords("switch", askNames)].filter(Boolean).join(" ");
 }
 
 /** When a pick or the ready mark did not save. Not drawn on the boards; listed for the designers. */
@@ -199,15 +210,21 @@ export const CASE = "Case";
  * "Choose Chloe’s pathway first."; with no name, "Choose a pathway first".
  */
 export function choosePackFirstWords(title: string, firstName = ""): string {
-  const word = titleWord(title);
   const name = firstName.trim();
-  return name ? `Choose ${name}’s ${word} first.` : `Choose ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} first`;
+  if (name) return `Choose ${name}’s ${pickWord(title)} first.`;
+  const word = titleWord(title);
+  return `Choose ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} first`;
 }
 
 /** Over the people, on a week whose pack each person picks: "In week 3 each person picks their own pathway. You give out the case, from that pathway’s list." */
 export function pickedLedeWords(weekNumber: number, title: string): string {
-  const word = titleWord(title);
+  const word = pickWord(title);
   return `In week ${weekNumber} each person picks their own ${word}. You give out the case, from that ${word}’s list.`;
+}
+
+/** The label beside a person's pick on the draw: "Pathway", "Pack", "Plan"; "Pathway" for a title written as a phrase. */
+export function pickLabelWords(title: string): string {
+  return capital(pickWord(title));
 }
 
 /** Beside a pack the person picked, shown as words. */
@@ -218,18 +235,18 @@ export const THEIR_PICK_CHANGED = "Their pick changed";
 
 /** Under such a row's case list. Not drawn on the boards. */
 export function pickChangedLineWords(title: string): string {
-  return `The case they hold is from the ${titleWord(title)} they picked before. Give them one from this list, or Not given yet.`;
+  return `The case they hold is from the ${pickWord(title)} they picked before. Give them one from this list, or Not given yet.`;
 }
 
 /** Where the pack would be, before the person has picked: "Hasn’t picked a pathway yet". */
 export function notPickedYetWords(title: string): string {
-  const word = titleWord(title);
+  const word = pickWord(title);
   return `Hasn’t picked ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} yet`;
 }
 
 /** The case list's only option until then: "Waits for a pathway". */
 export function waitsForPackWords(title: string): string {
-  const word = titleWord(title);
+  const word = pickWord(title);
   return `Waits for ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word}`;
 }
 
@@ -261,25 +278,35 @@ export function notedCaseOptionWords(title: string): string {
 /** The case list of a row whose every case has a content note, until it is ticked. */
 export const NO_CASE_TO_GIVE = "No case to give";
 
-/** "Every Misuse case here has a content note, so none can be given out. If Chloe asked for one, tick Asked for this one." */
-export function everyCaseNotedWords(groupName: string, firstName: string): string {
+/**
+ * A row whose every case has a content note, until it is ticked: "Every
+ * Misuse case has a content note, so none is offered unless Chloe asked for
+ * one. If Chloe did, tick Asked for this one." On a page that is read only,
+ * which draws no tick, the first part alone: "Every Misuse case has a content
+ * note."
+ */
+export function everyCaseNotedWords(groupName: string, firstName: string, readOnly = false): string {
   const group = groupName.trim();
-  return `Every ${group ? `${group} ` : ""}case here has a content note, so none can be given out. If ${firstName} asked for one, tick ${ASKED_FOR_THIS_ONE}.`;
+  const every = `Every ${group ? `${group} ` : ""}case has a content note`;
+  if (readOnly) return `${every}.`;
+  return `${every}, so none is offered unless ${firstName} asked for one. If ${firstName} did, tick ${ASKED_FOR_THIS_ONE}.`;
 }
 
 /**
  * Under the people: "2 Misuse cases have a content note, so they aren’t in
- * the list to give out." and how to give one to somebody who asked.
+ * the list to give out." and, where the page draws the tick, how to give one
+ * to somebody who asked.
  */
-export function notedCasesWords(count: number, groupName: string): string {
+export function notedCasesWords(count: number, groupName: string, readOnly = false): string {
   const group = groupName.trim();
   const cases = `${count} ${group ? `${group} ` : ""}${count === 1 ? "case has" : "cases have"}`;
-  return `${cases} a content note, so ${count === 1 ? "it isn’t" : "they aren’t"} in the list to give out. To give one to somebody who asked for it, tick ${ASKED_FOR_THIS_ONE} on their row.`;
+  const line = `${cases} a content note, so ${count === 1 ? "it isn’t" : "they aren’t"} in the list to give out.`;
+  return readOnly ? line : `${line} To give one to somebody who asked for it, tick ${ASKED_FOR_THIS_ONE} on their row.`;
 }
 
 /** Swap two people, across two picks that differ. Not drawn on the boards. */
 export function swapAcrossPicksWords(first: string, second: string, title: string): string {
-  return `${first} and ${second} haven’t picked the same ${titleWord(title)}, so their cases can’t be swapped.`;
+  return `${first} and ${second} haven’t picked the same ${pickWord(title)}, so their cases can’t be swapped.`;
 }
 
 /** Swap two people, a case with a content note going to somebody who hasn't asked for one. Not drawn on the boards. */

@@ -28,11 +28,14 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, mock, test } from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { B, NOW, RUN, W3, makePacksAndCasesWorld } from "./lib/packsAndCasesWorld.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 const w = await makePacksAndCasesWorld("__drawPicked");
 const swap = await w.loadTs(join("lib", "courses", "packsAndCases", "swap.ts"));
+const { default: DrawEditor } = await w.loadTs(join("features", "courses", "packsAndCases", "DrawEditor.tsx"));
 
 before(() => mock.timers.enable({ apis: ["Date"], now: NOW }));
 after(() => mock.timers.reset());
@@ -236,6 +239,54 @@ describe("1. a week whose pack each person picks: the page and the route follow 
   });
 });
 
+describe("1b. who else reads a facilitator's own pick", () => {
+  test("a lead who also facilitates the group reads it and gives its case, as a lead does", async () => {
+    pickedWeek();
+    const groupB = w.world.db.read(`courseGroups/${B}`);
+    w.world.db.seed(`courseGroups/${B}`, { ...groupB, facilitatorUids: [...groupB.facilitatorUids, "claudia"] });
+    assert.equal((await w.pick("farah", W3.given, "w03", W3.markets)).status, 200);
+    const page = await w.drawPage("claudia");
+    inOrder(page.text, ["Farah Hussain", "Markets", "Their pick", "The crash nobody priced, 2008"]);
+    assert.doesNotMatch(page.text, /Picks their own/);
+    assert.deepEqual(editorProps(page.element).hidden, []);
+    const answer = await w.saveDraw("claudia", "w03", [["farah", W3.caseStudy, W3.crash]]);
+    assert.deepEqual([answer.status, answer.body], [200, { ok: true, saved: 1 }]);
+  });
+
+  test("the group page's This week's work: a facilitator's own pick and case blank for their co-facilitators, shown to themself, the lead and an admin", async () => {
+    pickedWeek();
+    assert.equal((await w.pick("farah", W3.given, "w03", W3.markets)).status, 200);
+    assert.equal((await w.saveDraw("farah", "w03", [["farah", W3.caseStudy, W3.crash]])).status, 200);
+    /** The table's words, as the group page draws it for `who`. */
+    const table = async (who) => {
+      const { text } = await w.groupPage(who);
+      const at = text.indexOf("This week’s work");
+      assert.ok(at >= 0, `${who}: no This week's work`);
+      return text.slice(at, text.indexOf("Facilitators’ own work", at) > 0 ? text.indexOf("Facilitators’ own work", at) : undefined);
+    };
+    // An admin reads every row: Farah's own pick and case among them.
+    inOrder(await table("zach"), ["Farah Hussain", "Facilitator", "Markets", "The crash nobody priced, 2008"]);
+    // The group's facilitators, Farah included, are shown nobody's own work on this table, as before this piece.
+    for (const who of ["rahul", "farah"]) {
+      const words = await table(who);
+      assert.doesNotMatch(words, /Farah Hussain|Markets|The crash nobody priced/, who);
+    }
+    // The table's reader, as each: the lead and an admin see both cells, Farah sees her own, a co-facilitator sees blanks.
+    const week = await w.lib.readers.readGroupWeek(w.world.courseDb, RUN.agi, B, 3);
+    const farah = { uid: "farah", name: "Farah Hussain", firstName: "Farah", facilitates: true };
+    const cellFor = async (viewer) => {
+      const out = await w.lib.readers.weekWorkOf(w.world.courseDb, RUN.agi, week, [farah], viewer);
+      const cell = out.cells.get("farah");
+      return [cell.pack, cell.case];
+    };
+    const shown = ["Markets", "The crash nobody priced, 2008"];
+    assert.deepEqual(await cellFor({ isAdmin: false, leadOf: null, uid: "rahul" }), [null, null], "a co-facilitator");
+    assert.deepEqual(await cellFor({ isAdmin: false, leadOf: null, uid: "farah" }), shown, "Farah herself");
+    assert.deepEqual(await cellFor({ isAdmin: false, leadOf: { roundId: "r", programmeId: "p" }, uid: "claudia" }), shown, "the lead");
+    assert.deepEqual(await cellFor({ isAdmin: true, leadOf: null, uid: "zach" }), shown, "an admin");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 2. A pick stays once its case is given
 // ---------------------------------------------------------------------------
@@ -256,22 +307,65 @@ describe("2. a pick stays once a case that follows it is given", () => {
 
   test("with several facilitators, and with nobody else to ask, the same naming as the week page", async () => {
     pickedWeek();
-    for (const uid of ["chloe", "farah"]) assert.equal((await w.pick(uid, W3.given, "w03", W3.elections)).status, 200);
-    assert.equal((await w.saveDraw("claudia", "w03", [["chloe", W3.caseStudy, W3.surprise], ["farah", W3.caseStudy, W3.surprise]])).status, 200);
-    for (const [who, ask] of [
-      ["chloe", "Rahul, Sofia or Farah"],
-      ["farah", "Rahul or Sofia"],
-    ]) {
-      const answer = await w.pick(who, W3.given, "w03", W3.markets);
-      assert.deepEqual([answer.status, answer.body.error], [409, `Your case has been given, so your pack stays as it is. To switch, ask ${ask}.`], who);
-      assert.equal((await w.overview(who)).body.askToSwap.join(", ").replace(/, (\w+)$/, " or $1"), ask, who);
-    }
-    // Farah the only facilitator: nobody else to ask, so nobody is named, as the week page names nobody.
+    assert.equal((await w.pick("chloe", W3.given, "w03", W3.elections)).status, 200);
+    assert.equal((await w.saveDraw("claudia", "w03", [["chloe", W3.caseStudy, W3.surprise]])).status, 200);
+    const answer = await w.pick("chloe", W3.given, "w03", W3.markets);
+    assert.deepEqual([answer.status, answer.body.error], [409, "Your case has been given, so your pack stays as it is. To switch, ask Rahul, Sofia or Farah."]);
+    const overview = (await w.overview("chloe")).body;
+    assert.deepEqual([overview.askToSwap, overview.askToSwapPicked], [["Rahul", "Sofia", "Farah"], ["Rahul", "Sofia", "Farah"]]);
+    // Her week page names the same people under her case.
+    assert.match((await w.weekPage("chloe", 3)).text, /To swap, ask Rahul, Sofia or Farah\./);
+    // Kofi's group with nobody else to ask names nobody, as the week page names nobody.
     const groupB = w.world.db.read(`courseGroups/${B}`);
-    w.world.db.seed(`courseGroups/${B}`, { ...groupB, facilitatorUids: ["farah"] });
-    const alone = await w.pick("farah", W3.given, "w03", W3.markets);
+    w.world.db.seed(`courseGroups/${B}`, { ...groupB, facilitatorUids: [] });
+    const alone = await w.pick("chloe", W3.given, "w03", W3.markets);
     assert.deepEqual([alone.status, alone.body.error], [409, "Your case has been given, so your pack stays as it is."]);
-    assert.deepEqual((await w.overview("farah")).body.askToSwap, []);
+    assert.deepEqual((await w.overview("chloe")).body.askToSwap, []);
+  });
+
+  test("a facilitator who takes part is told only the first sentence, names nobody under their case, takes their own case back and picks again", async () => {
+    pickedWeek();
+    // Farah facilitates Group B, the group Farah takes part in: picks, and gives herself a case on the pathways and cases page.
+    assert.equal((await w.pick("farah", W3.given, "w03", W3.elections)).status, 200);
+    assert.equal((await w.saveDraw("farah", "w03", [["farah", W3.caseStudy, W3.surprise]])).status, 200);
+    // Locked, with nobody named: her co-facilitators cannot change that case.
+    const locked = await w.pick("farah", W3.given, "w03", W3.markets);
+    assert.deepEqual([locked.status, locked.body.error], [409, "Your case has been given, so your pack stays as it is."]);
+    const overview = (await w.overview("farah")).body;
+    // Who to ask about a pack given out is unchanged; a case that follows her own pick names nobody.
+    assert.deepEqual([overview.askToSwap, overview.askToSwapPicked], [["Rahul", "Sofia"], []]);
+    const page = await w.weekPage("farah", 3);
+    assert.match(page.text, /The surprise result, 2016/);
+    assert.doesNotMatch(page.text, /To swap, ask/);
+    // Nobody named is somebody who could not do it: Rahul is refused that case.
+    const rahul = await w.saveDraw("rahul", "w03", [["farah", W3.caseStudy, null]]);
+    assert.deepEqual([rahul.status, rahul.body.error], [403, NOT_THEIRS("Farah")]);
+    // She takes it back herself, and picks again.
+    assert.equal((await w.saveDraw("farah", "w03", [["farah", W3.caseStudy, null]])).status, 200);
+    assert.equal((await w.pick("farah", W3.given, "w03", W3.markets)).status, 200);
+    assert.equal(w.recordOf("farah", W3.given).packId, W3.markets);
+  });
+
+  test("a Choose one written as a phrase never lands in the sentence: the word is \"pathway\"; a one-word title is the week's own word", async () => {
+    pickedWeek({ title: "one 80,000 Hours career review that fits you" });
+    assert.equal((await w.pick("chloe", W3.given, "w03", W3.elections)).status, 200);
+    assert.equal((await w.saveDraw("rahul", "w03", [["chloe", W3.caseStudy, W3.surprise]])).status, 200);
+    const answer = await w.pick("chloe", W3.given, "w03", W3.markets);
+    assert.deepEqual(
+      [answer.status, answer.body.error],
+      [409, "Your case has been given, so your pathway stays as it is. To switch, ask Rahul, Sofia or Farah."],
+    );
+    const page = await w.drawPage("rahul");
+    inOrder(page.text, ["In week 3 each person picks their own pathway. You give out the case, from that pathway’s list.", "Hasn’t picked a pathway yet", "Waits for a pathway"]);
+    // The row's label too: "Pathway", never the phrase.
+    inOrder(page.text, ["Chloe Nguyen", "Pathway", "Elections", "Their pick"]);
+    assert.doesNotMatch(page.text, /80,000 Hours/);
+    w.reset();
+    pickedWeek({ title: "Plan" });
+    assert.equal((await w.pick("chloe", W3.given, "w03", W3.elections)).status, 200);
+    assert.equal((await w.saveDraw("rahul", "w03", [["chloe", W3.caseStudy, W3.surprise]])).status, 200);
+    const plan = await w.pick("chloe", W3.given, "w03", W3.markets);
+    assert.equal(plan.body.error, "Your case has been given, so your plan stays as it is. To switch, ask Rahul, Sofia or Farah.");
   });
 
   test("free as today before any case, the same pick again is fine, and taking the case back frees it", async () => {
@@ -324,6 +418,27 @@ describe("3. a case held from a pack the person has since left", () => {
     const after = await w.drawPage("rahul");
     assert.doesNotMatch(after.text, /Their pick changed/);
     inOrder(after.text, ["Chloe Nguyen", "Markets", "Their pick", "The crash nobody priced, 2008"]);
+  });
+
+  test("a save touching the rest of their row goes through, and the case they hold stays until the facilitator changes it", async () => {
+    // The week's second Choose one made one a facilitator gives out, so the row holds something else to change.
+    const stored = w.world.db.read(`courseRuns/${RUN.agi}/weeks/w03`);
+    pickedWeek();
+    const blocks = structuredClone(w.world.db.read(`courseRuns/${RUN.agi}/weeks/w03`).blocks);
+    const second = blocks.flatMap((block) => (block.type === "part" ? block.blocks : [block])).find((block) => block.id === W3.picked);
+    second.givenBy = "facilitator";
+    w.world.db.seed(`courseRuns/${RUN.agi}/weeks/w03`, { ...stored, blocks });
+    seedPick("chloe", W3.markets);
+    seedCase("chloe", W3.surprise, true);
+    const answer = await w.saveDraw("rahul", "w03", [["chloe", W3.picked, W3.atWork]]);
+    assert.deepEqual([answer.status, answer.body], [200, { ok: true, saved: 1 }]);
+    assert.equal(w.recordOf("chloe", W3.picked).packId, W3.atWork);
+    assert.deepEqual([w.recordOf("chloe", W3.caseStudy).caseId, w.recordOf("chloe", W3.caseStudy).ready], [W3.surprise, true]);
+    // The row still says so, and still offers the case of the pick they have.
+    inOrder((await w.drawPage("rahul")).text, ["Chloe Nguyen", "Markets", "Their pick changed", "The surprise result, 2016"]);
+    // A case they do not hold, from the pack they left, is still refused.
+    const other = await w.saveDraw("rahul", "w03", [["chloe", W3.caseStudy, W3.closeCall]]);
+    assert.equal(other.status, 400);
   });
 });
 
@@ -398,10 +513,62 @@ describe("4. a case with a content note: given only when the row says they asked
     inOrder(page.text, [
       "Chloe Nguyen",
       "No case to give",
-      "Every Elections case here has a content note, so none can be given out. If Chloe asked for one, tick Asked for this one.",
+      "Every Elections case has a content note, so none is offered unless Chloe asked for one. If Chloe did, tick Asked for this one.",
       "Asked for this one",
     ]);
     assert.doesNotMatch(page.text, /Tell /);
+    // The line is read out with the list.
+    const id = /<select id="([^"]+)" disabled="" aria-describedby="([^"]+)"[^>]*><option value="" selected="">No case to give</.exec(page.html);
+    assert.ok(id, "the list says nothing of the line under it");
+    assert.match(page.html, new RegExp(`<p id="${id[2]}" class="drawFieldLine">Every Elections case has a content note`));
+  });
+
+  test("a page that is read only draws no tick, so tells nobody to tick one", async () => {
+    w.seedDraw("chloe", "w3", { pack: W3.elections });
+    const open = editorProps((await w.drawPage("rahul")).element);
+    const html = renderToStaticMarkup(createElement(DrawEditor, { ...open, readOnly: true }));
+    assert.doesNotMatch(html, /Asked for this one|tick /);
+    assert.match(html, /1 Elections case has a content note, so it isn’t in the list to give out\.<\/p>/);
+    // Every case of the pack with a note: the first part alone.
+    const stored = w.world.db.read(`courseRuns/${RUN.agi}/weeks/w03`);
+    const blocks = structuredClone(stored.blocks);
+    blocks.find((block) => block.id === W3.caseStudy).groups[0].cases = blocks.find((block) => block.id === W3.caseStudy).groups[0].cases.filter((item) => item.id !== W3.surprise);
+    w.world.db.seed(`courseRuns/${RUN.agi}/weeks/w03`, { ...stored, blocks });
+    const all = editorProps((await w.drawPage("rahul")).element);
+    const closed = renderToStaticMarkup(createElement(DrawEditor, { ...all, readOnly: true }));
+    assert.match(closed, />Every Elections case has a content note\.<\/p>/);
+    assert.doesNotMatch(closed, /Asked for this one|tick /);
+  });
+
+  test("the note and the line under a list are read out with it", async () => {
+    w.seedDraw("chloe", "w3", { pack: W3.elections });
+    assert.equal((await saveRaw("rahul", [{ uid: "chloe", blockId: W3.caseStudy, value: W3.closeCall, asked: true }])).status, 200);
+    const { html } = await w.drawPage("rahul");
+    const chosen = /<select id="([^"]+-chloe-w3-cs-1)" aria-describedby="([^"]+)"/.exec(html);
+    assert.ok(chosen, "Chloe's case list says nothing of its note");
+    assert.equal(chosen[2], `${chosen[1]}-note`);
+    assert.match(html, new RegExp(`<p id="${chosen[1]}-note" class="caseNote drawCaseNote">${NOTE}</p>`));
+    // Farah has no pack: the disabled list and the line under it.
+    const waits = /<select id="([^"]+-farah-w3-cs-1)" disabled="" aria-describedby="([^"]+)"/.exec(html);
+    assert.ok(waits, "Farah's case list says nothing of the line under it");
+    assert.match(html, new RegExp(`<p id="${waits[2]}" class="drawFieldLine">Choose Farah’s pack first\.</p>`));
+  });
+
+  test("the row's tick, executed: it opens ticked over a case with a note, and unticking takes that case back and nothing else", () => {
+    const blocks = w.world.db.read(`courseRuns/${RUN.agi}/weeks/w03`).blocks;
+    const talk = w.lib.model.drawTalkOf(blocks, w.lib.model.talksOf(blocks).find((each) => each.id === W3.caseStudy));
+    const { askedAtOpen, untickedHolding } = w.lib.model;
+    const noted = { packs: { [W3.given]: W3.elections }, cases: { [W3.caseStudy]: W3.closeCall } };
+    const plain = { packs: { [W3.given]: W3.elections }, cases: { [W3.caseStudy]: W3.surprise } };
+    assert.deepEqual(askedAtOpen([talk], noted), { [W3.caseStudy]: true });
+    assert.deepEqual(askedAtOpen([talk], plain), { [W3.caseStudy]: false });
+    assert.deepEqual(askedAtOpen([talk], { packs: {}, cases: {} }), { [W3.caseStudy]: false });
+    assert.deepEqual(untickedHolding(talk, noted), { packs: { [W3.given]: W3.elections }, cases: {} });
+    assert.equal(untickedHolding(talk, plain), plain);
+    // The editor asks exactly these: clicking it needs a browser, which this suite does not have.
+    const editor = readFileSync(join(SRC, "features", "courses", "packsAndCases", "DrawEditor.tsx"), "utf8");
+    assert.match(editor, /askedAtOpen\(talks, initial\[person\.uid\] \?\? \{ packs: \{\}, cases: \{\} \}\)/);
+    assert.match(editor, /const next = untickedHolding\(talk, prev\[uid\] \?\? \{ packs: \{\}, cases: \{\} \}\);/);
   });
 
   test("on a week whose pack each person picks, the same", async () => {
@@ -500,11 +667,28 @@ describe("6. every new sentence, word for word", () => {
     assert.equal(words.ASKED_FOR_THIS_ONE, "Asked for this one");
     assert.equal(words.notedCaseOptionWords("The close call, 2019"), "The close call, 2019 (content note)");
     assert.equal(words.NO_CASE_TO_GIVE, "No case to give");
-    assert.equal(words.everyCaseNotedWords("Misuse", "Chloe"), "Every Misuse case here has a content note, so none can be given out. If Chloe asked for one, tick Asked for this one.");
+    assert.equal(
+      words.everyCaseNotedWords("Misuse", "Chloe"),
+      "Every Misuse case has a content note, so none is offered unless Chloe asked for one. If Chloe did, tick Asked for this one.",
+    );
+    assert.equal(words.everyCaseNotedWords("Misuse", "Chloe", true), "Every Misuse case has a content note.");
     assert.equal(
       words.notedCasesWords(2, "Misuse"),
       "2 Misuse cases have a content note, so they aren’t in the list to give out. To give one to somebody who asked for it, tick Asked for this one on their row.",
     );
+    assert.equal(words.notedCasesWords(1, "Misuse", true), "1 Misuse case has a content note, so it isn’t in the list to give out.");
+    // The week's word: a one-word title, lower-cased; anything else, "pathway".
+    const PHRASE = "one 80,000 Hours career review that fits you";
+    for (const [title, word] of [["Pathway", "pathway"], ["Pack", "pack"], ["Plan", "plan"], [PHRASE, "pathway"], ["", "pathway"]]) {
+      assert.equal(words.pickStaysWords(title, []), `Your case has been given, so your ${word} stays as it is.`, title);
+      assert.equal(words.pickedLedeWords(6, title), `In week 6 each person picks their own ${word}. You give out the case, from that ${word}’s list.`, title);
+      assert.equal(words.notPickedYetWords(title), `Hasn’t picked a ${word} yet`, title);
+      assert.equal(words.waitsForPackWords(title), `Waits for a ${word}`, title);
+      assert.equal(words.choosePackFirstWords(title, "Chloe"), `Choose Chloe’s ${word} first.`, title);
+      assert.equal(words.pickChangedLineWords(title), `The case they hold is from the ${word} they picked before. Give them one from this list, or Not given yet.`, title);
+      assert.equal(words.swapAcrossPicksWords("Aisha", "Chloe", title), `Aisha and Chloe haven’t picked the same ${word}, so their cases can’t be swapped.`, title);
+      assert.equal(words.pickLabelWords(title), word.charAt(0).toUpperCase() + word.slice(1), title);
+    }
     assert.equal(words.swapAcrossPicksWords("Aisha", "Chloe", "Pathway"), "Aisha and Chloe haven’t picked the same pathway, so their cases can’t be swapped.");
     assert.equal(words.swapNotedWords("Aisha", "Chloe"), "Aisha’s case has a content note and Chloe hasn’t asked for one, so they can’t be swapped.");
   });

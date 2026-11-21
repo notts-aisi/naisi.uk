@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
 import Select from "@/components/ui/Select";
 import { useHydrated } from "@/hooks/useHydrated";
-import { caseOptions, drawCaseOf, notedCasesFor, type DrawTalk } from "@/lib/courses/packsAndCases/model";
+import { askedAtOpen, caseOptions, drawCaseOf, notedCasesFor, untickedHolding, type DrawTalk } from "@/lib/courses/packsAndCases/model";
 import { swapRefusedWords } from "@/lib/courses/packsAndCases/swap";
 import { safeReturnPath } from "@/lib/safeReturnPath";
 import {
@@ -33,6 +33,7 @@ import {
   notedCasesWords,
   ownCaseGivenByWords,
   pickChangedLineWords,
+  pickLabelWords,
   picksOnWeekPageWords,
   savedDrawWords,
   swappedWords,
@@ -158,12 +159,7 @@ export default function DrawEditor({
   );
   // A row holding a case with a content note opens ticked: it was given because they asked.
   const [asked, setAsked] = useState<Asked>(() =>
-    Object.fromEntries(
-      people.map((person) => [
-        person.uid,
-        Object.fromEntries(talks.map((talk) => [talk.id, drawCaseOf(talk, initial[person.uid]?.cases[talk.id] ?? null)?.drawable === false])),
-      ]),
-    ),
+    Object.fromEntries(people.map((person) => [person.uid, askedAtOpen(talks, initial[person.uid] ?? { packs: {}, cases: {} })])),
   );
   const [swapError, setSwapError] = useState<string | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
@@ -225,7 +221,7 @@ export default function DrawEditor({
         talk.groups
           .map((group) => ({ group, count: group.cases.filter((item) => !item.drawable).length }))
           .filter(({ count }) => count > 0)
-          .map(({ group, count }) => notedCasesWords(count, talk.keyedBy && group.packId ? group.name : "")),
+          .map(({ group, count }) => notedCasesWords(count, talk.keyedBy && group.packId ? group.name : "", readOnly)),
       ),
     ),
   ];
@@ -308,12 +304,10 @@ export default function DrawEditor({
     setAsked((prev) => ({ ...prev, [uid]: { ...(prev[uid] ?? {}), [talkId]: on } }));
     if (on) return;
     const talk = talks.find((candidate) => candidate.id === talkId);
+    if (!talk) return;
     setValues((prev) => {
-      const held = talk ? drawCaseOf(talk, prev[uid]?.cases[talkId] ?? null) : null;
-      if (!held || held.drawable) return prev;
-      const next = copy(prev[uid]);
-      delete next.cases[talkId];
-      return { ...prev, [uid]: next };
+      const next = untickedHolding(talk, prev[uid] ?? { packs: {}, cases: {} });
+      return next === prev[uid] ? prev : { ...prev, [uid]: next };
     });
   }
 
@@ -505,7 +499,7 @@ export default function DrawEditor({
                     });
                   return (
                     <div key={block.id} className={styles.drawField}>
-                      <span className={styles.drawLabel}>{block.title}</span>
+                      <span className={styles.drawLabel}>{pickLabelWords(block.title)}</span>
                       {hiddenSet.has(person.uid) ? (
                         <p className={`${styles.drawPick} ${styles.drawPickMuted}`}>{PICKS_THEIR_OWN}</p>
                       ) : name ? (
@@ -543,10 +537,10 @@ export default function DrawEditor({
                         <label className={styles.drawLabel} htmlFor={id}>
                           {caseLabel}
                         </label>
-                        <Select id={id} value="" disabled onChange={() => undefined}>
+                        <Select id={id} value="" disabled aria-describedby={`${id}-line`} onChange={() => undefined}>
                           <option value="">{waits ? waitsForPackWords(keyTitle) : NOT_GIVEN_YET}</option>
                         </Select>
-                        <p className={styles.drawFieldLine}>
+                        <p id={`${id}-line`} className={styles.drawFieldLine}>
                           {waits ? picksOnWeekPageWords(first, weekNumber) : choosePackFirstWords(keyTitle, first)}
                         </p>
                       </div>
@@ -562,13 +556,16 @@ export default function DrawEditor({
                   const groupName = talk.groups.find((group) => talk.keyedBy !== null && group.packId === pack)?.name ?? "";
                   const nothingUnasked = options.cases.length === 0 && noted.length > 0 && !ticked && !stale;
                   const notedIds = new Set(noted.map((item) => item.id));
+                  const showsNote = shown && held !== null && !held.drawable && held.note !== "";
+                  // The line under the list and the case's content note, read out with the list.
+                  const described = [stale || nothingUnasked ? `${id}-line` : "", showsNote ? `${id}-note` : ""].filter(Boolean).join(" ") || undefined;
                   return (
                     <div key={talk.id} className={styles.drawField}>
                       <label className={styles.drawLabel} htmlFor={id}>
                         {caseLabel}
                       </label>
                       {nothingUnasked ? (
-                        <Select id={id} value="" disabled onChange={() => undefined}>
+                        <Select id={id} value="" disabled aria-describedby={described} onChange={() => undefined}>
                           <option value="">{NO_CASE_TO_GIVE}</option>
                         </Select>
                       ) : (
@@ -576,6 +573,7 @@ export default function DrawEditor({
                           id={id}
                           value={shown ? current : ""}
                           disabled={readOnly}
+                          aria-describedby={described}
                           onChange={(event) => setCase(person.uid, talk.id, event.target.value)}
                         >
                           {(!was.cases[talk.id] || !shown) && <option value="">{NOT_GIVEN_YET}</option>}
@@ -587,10 +585,20 @@ export default function DrawEditor({
                           ))}
                         </Select>
                       )}
-                      {stale && <p className={styles.drawFieldLine}>{pickChangedLineWords(keyTitle)}</p>}
-                      {nothingUnasked && <p className={styles.drawFieldLine}>{everyCaseNotedWords(groupName, first)}</p>}
-                      {shown && held && !held.drawable && held.note && (
-                        <p className={`${styles.caseNote} ${styles.drawCaseNote}`}>{held.note}</p>
+                      {stale && (
+                        <p id={`${id}-line`} className={styles.drawFieldLine}>
+                          {pickChangedLineWords(keyTitle)}
+                        </p>
+                      )}
+                      {nothingUnasked && (
+                        <p id={`${id}-line`} className={styles.drawFieldLine}>
+                          {everyCaseNotedWords(groupName, first, readOnly)}
+                        </p>
+                      )}
+                      {showsNote && (
+                        <p id={`${id}-note`} className={`${styles.caseNote} ${styles.drawCaseNote}`}>
+                          {held.note}
+                        </p>
                       )}
                       {noted.length > 0 && !readOnly && (
                         <label className={styles.drawAsked}>

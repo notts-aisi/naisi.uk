@@ -62,6 +62,10 @@ import {
  *    is ticked, sent with it in the same save (`asked: true`), for a
  *    facilitator, the lead and an admin alike; a case already held, left as
  *    it is, needs no tick again. The tick is not stored.
+ * A case that follows a pick and is left as it is is not checked again: the
+ * pick is never changed here, so somebody holding a case from a pick they
+ * have since changed ("Their pick changed") keeps it until the facilitator
+ * changes it, and a save touching the rest of their row goes through.
  * A FACILITATOR'S OWN PICK is their own work, read by the programme's lead
  * and admins only (`hidesOwnPick`): from the group's other facilitators the
  * case that follows it is refused whatever its value, before anything about
@@ -273,7 +277,11 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
           if (following.has(talkId) && hiddenUids.has(uid)) continue;
           const caseId = after.get(`${uid} ${talkId}`) ?? null;
           if (!caseId) continue;
-          const asked = askedFor.has(`${uid} ${talkId}`) || caseId === (stored.get(`${uid} ${talkId}`)?.caseId ?? null);
+          const held = caseId === (stored.get(`${uid} ${talkId}`)?.caseId ?? null);
+          // A case that follows a pick, left as it is: the pick is never changed here, so a case held from a
+          // pick since changed ("Their pick changed") stays until the facilitator changes it, and blocks nothing else.
+          if (held && following.has(talkId)) continue;
+          const asked = askedFor.has(`${uid} ${talkId}`) || held;
           if (!mayBeGiven(talk, caseId, (chooseOneId) => after.get(`${uid} ${chooseOneId}`) ?? null, { asked })) {
             const name = byUid.get(uid)?.name ?? "Somebody";
             throw new DrawError(`${name}’s case isn’t one their list offers. Choose one of its cases, or leave it not given yet.`, 400);

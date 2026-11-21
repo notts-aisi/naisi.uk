@@ -229,6 +229,27 @@ export function drawCaseOf(
   return null;
 }
 
+/** What a row of the draw holds: a pack per Choose one given out, a case per talk. */
+export type DrawHolding = { packs: Record<string, string>; cases: Record<string, string> };
+
+/**
+ * Each talk's "Asked for this one" as a row opens: ticked where the row holds
+ * a case with a content note, since that case was given because they asked.
+ * Nothing stores the tick.
+ */
+export function askedAtOpen(talks: readonly DrawTalk[], holding: DrawHolding): Record<string, boolean> {
+  return Object.fromEntries(talks.map((talk) => [talk.id, drawCaseOf(talk, holding.cases[talk.id] ?? null)?.drawable === false]));
+}
+
+/** A row once "Asked for this one" is unticked on a talk: a case with a content note is taken back; anything else stays. */
+export function untickedHolding(talk: DrawTalk, holding: DrawHolding): DrawHolding {
+  const held = drawCaseOf(talk, holding.cases[talk.id] ?? null);
+  if (!held || held.drawable) return holding;
+  const cases = { ...holding.cases };
+  delete cases[talk.id];
+  return { packs: { ...holding.packs }, cases };
+}
+
 /**
  * Whether `caseId` may be given to a person with these packs: the route's
  * check, the list's own rule. A case with a content note only with `asked`.

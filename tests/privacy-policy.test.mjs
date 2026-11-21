@@ -5529,11 +5529,13 @@ describe("the course hub passage", () => {
     // and admins, and a facilitator's own pick is left blank for their
     // co-facilitators: only the lead and admins see that one.
     assert.match(weekWork[0], /const seesOwnWork = viewer\.isAdmin \|\| viewer\.leadOf !== null;/);
-    assert.match(weekWork[0], /const hidden = picked && person\.facilitates && !seesOwnWork;/);
-    // The case that follows such a pick names the pick, so it is left blank with it.
-    assert.match(weekWork[0], /const keyedByPick = talk \? keyingChooseOne\(week\.blocks, talk\)\?\.givenBy === "fellow" : false;/);
-    assert.match(weekWork[0], /const caseHidden = keyedByPick && person\.facilitates && !seesOwnWork;/);
-    assert.match(weekWork[0], /const given = talk && !caseHidden \?/);
+    assert.match(weekWork[0], /const hidden = picked && person\.facilitates && person\.uid !== viewer\.uid && !seesOwnWork;/);
+    // The case that follows such a pick names the pick, so it is left blank
+    // with it; the facilitator themself sees both. Held by rendering the
+    // group page's table as that facilitator, a co-facilitator, the lead and
+    // an admin in tests/course-draw-picked.test.mjs.
+    assert.match(weekWork[0], /const caseHidden = keyedByPick && person\.facilitates && person\.uid !== viewer\.uid && !seesOwnWork;/);
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-draw-picked.test.mjs")));
     // THE DRAW READS A PICK the cases follow, for the case lists, and keeps a
     // facilitator's own from their co-facilitators: by one rule
     // (`hidesOwnPick`: a facilitator of the group, read by somebody else who

@@ -657,6 +657,7 @@ export default function BlockWeek({
                 },
                 picks,
                 askToSwap: payload.askToSwap ?? [],
+                askToSwapPicked: payload.askToSwapPicked ?? [],
                 blocks,
                 fillInReaders,
               })
@@ -689,7 +690,8 @@ export default function BlockWeek({
             participant={participant}
             canWrite={canWrite}
             picks={picks}
-            askToSwap={payload.askToSwap ?? []}
+            // A case that follows a pick is named to whoever can change it (`askToSwapPicked`).
+            askToSwap={(keying?.givenBy === "fellow" ? payload.askToSwapPicked : payload.askToSwap) ?? []}
             packId={keying && participant ? picks.packOf(keying.id) : null}
             variant="section"
             anchorId={anchor(block.id)}
@@ -1143,6 +1145,8 @@ type ChildContext = {
   picks: Picks;
   /** Who the person asks to switch a pack or swap a case. */
   askToSwap: readonly string[];
+  /** Who they ask to swap a case that follows a pack they picked: nobody when they facilitate their own group. */
+  askToSwapPicked: readonly string[];
   /** The week's blocks, for the Choose one a talk's cases are grouped by. */
   blocks: WeekBlock[];
   /** Who reads the reader's own boxes on a fill-in card titled so. */
@@ -1281,7 +1285,7 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             participant={ctx.learner}
             canWrite={ctx.canWrite}
             picks={ctx.picks}
-            askToSwap={ctx.askToSwap}
+            askToSwap={keying?.givenBy === "fellow" ? ctx.askToSwapPicked : ctx.askToSwap}
             packId={keying && ctx.learner ? ctx.picks.packOf(keying.id) : null}
             variant="part"
             anchorId={anchor(child.id)}

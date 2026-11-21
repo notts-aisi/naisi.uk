@@ -114,7 +114,8 @@ export async function loadWorkColumns(
   const chooseOne = chooseOnesOf(week.blocks)[0] ?? null;
   const givesCases = talksOf(week.blocks).some((talk) => talk.groups.some((caseGroup) => caseGroup.cases.length > 0));
   const [work, review] = await Promise.all([
-    chooseOne || givesCases ? weekWorkOf(db, run.id, week, people, viewer) : Promise.resolve(null),
+    // A facilitator's own pick and case are theirs to see; only their co-facilitators get blanks.
+    chooseOne || givesCases ? weekWorkOf(db, run.id, week, people, { ...viewer, uid: actor.uid }) : Promise.resolve(null),
     loadWrittenReview(db, actor, run, group, weekNumber, now),
   ]);
 

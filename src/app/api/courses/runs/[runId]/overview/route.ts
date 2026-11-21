@@ -596,6 +596,14 @@ export type OverviewPayload = {
    */
   askToSwap: string[];
   /**
+   * Who they ask to swap a case that follows a pack they PICKED: as
+   * `askToSwap`, but nobody for somebody who facilitates the group they take
+   * part in. That case is their own work, given by them, the programme's lead
+   * or an admin, never by a co-facilitator, so a co-facilitator is never named
+   * as somebody who can do it.
+   */
+  askToSwapPicked: string[];
+  /**
    * The caller's own calendar's taught weeks, in its order, with each week's
    * session and whether its page is open to them. See `OverviewWeekSchedule`.
    */
@@ -1134,6 +1142,7 @@ async function beforeGroupsPayload(
       : [],
     weekSchedule: [],
     askToSwap: [],
+    askToSwapPicked: [],
     programme: programme ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName } : null,
     shownCrest: shownCrests.get(run.id) ?? null,
     forkedWeekIds: [],
@@ -1848,6 +1857,13 @@ export async function GET(
     archivedGroups: liveEnrolment && differsByWeek(liveEnrolment) ? groupsOfWeeks(liveEnrolment).map(archivedOfRecord).filter((group) => group !== null) : [],
   });
 
+  // Who a person taking part asks to switch a pack or swap a case: their own group's other facilitators.
+  const askToSwap = readsOwnPicks && ownGroup
+      ? ownGroup.facilitatorUids
+          .filter((uid) => uid !== actor.uid)
+          .map((uid) => (nameByUid.get(uid) ?? "").trim().split(/\s+/)[0] ?? "")
+          .filter(Boolean)
+      : [];
   const payload: OverviewPayload = {
     run: {
       id: run.id,
@@ -1867,12 +1883,8 @@ export async function GET(
     currentWeek,
     weeks,
     weekSchedule,
-    askToSwap: readsOwnPicks && ownGroup
-      ? ownGroup.facilitatorUids
-          .filter((uid) => uid !== actor.uid)
-          .map((uid) => (nameByUid.get(uid) ?? "").trim().split(/\s+/)[0] ?? "")
-          .filter(Boolean)
-      : [],
+    askToSwap,
+    askToSwapPicked: ownGroup && facilitates.some((group) => group.id === ownGroup.id) ? [] : askToSwap,
     programme: programme
       ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName }
       : null,

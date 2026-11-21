@@ -68,7 +68,11 @@ import { closedWords } from "@/lib/courses/weekWork/words";
  * refused, read in the same transaction that writes: "Your case has been
  * given, so your pathway stays as it is. To switch, ask Rahul." Whom to ask
  * is named as their week page names them (`askToSwap` in the overview: their
- * own group's facilitators other than themselves, by first name). A
+ * own group's facilitators other than themselves, by first name). Somebody
+ * who facilitates the group they take part in is named nobody: a case that
+ * follows their own pick is theirs, the lead's or an admin's to change, never
+ * a co-facilitator's, and they take it back themselves on the pathways and
+ * cases page (`askToSwapPicked` in the overview, the same rule). A
  * facilitator who takes the case back frees the pick again.
  *
  * READY is the person's own mark and nobody else's: coursework gets no mark.
@@ -290,7 +294,9 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
     } catch (err) {
       if (err instanceof WorkClosedError) return NextResponse.json({ error: closedWords(err.at) }, { status: 409 });
       if (err instanceof PickStaysError) {
-        const names = await askNamesFor(db, ownGroup, actor.uid).catch(() => []);
+        // A facilitator of their own group asks nobody: their co-facilitators cannot change that case.
+        const ownCase = ownGroup !== null && facilitates.some((group) => group.id === ownGroup.id);
+        const names = ownCase ? [] : await askNamesFor(db, ownGroup, actor.uid).catch(() => []);
         return NextResponse.json({ error: pickStaysWords(chooseOne.title, names) }, { status: 409 });
       }
       console.error("[courses packs and cases] pick failed", runId, weekId, blockId, err);
