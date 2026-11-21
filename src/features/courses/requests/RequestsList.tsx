@@ -291,7 +291,7 @@ export default function RequestsList({
       )}
 
       {anyMessages && (
-        <section className={styles.card} aria-labelledby="requests-messages" data-testid="requests-messages">
+        <section className={styles.card} aria-labelledby="requests-messages">
           <h2 id="requests-messages" className={styles.cardTitle}>
             {T.MESSAGES_SECTION}
           </h2>
@@ -325,7 +325,7 @@ export default function RequestsList({
       )}
 
       {teamEmails !== null && (
-        <section className={styles.card} aria-label={T.EMAIL_ME_ABOUT_MESSAGES} data-testid="requests-email-me-team">
+        <section className={styles.card} aria-label={T.EMAIL_ME_ABOUT_MESSAGES}>
           <Switch
             checked={teamEmails}
             onChange={(next) => void switchTeamEmails(next)}

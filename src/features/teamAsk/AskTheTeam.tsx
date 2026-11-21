@@ -151,7 +151,7 @@ export default function AskTheTeam({ places, own }: { places: AskPlace[]; own: A
         ) : (
           <ul className={styles.rows} role="list">
             {own.map((row) => (
-              <li key={row.id} className={styles.row} data-testid="ask-row">
+              <li key={row.id} className={styles.row}>
                 <div className={styles.rowBody}>
                   <p className={styles.rowTitle}>{row.title}</p>
                   <p className={styles.line}>{row.line}</p>
