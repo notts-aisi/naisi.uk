@@ -6,6 +6,7 @@ import {
   listGroups,
   readRunRecords,
   weeksOf,
+  type RunRecords,
   type StandingFacilitator,
 } from "@/lib/courses/programmeAttendance";
 import { programmeLedBy, type LedProgramme } from "@/lib/courses/programmeLead";
@@ -221,6 +222,11 @@ export async function readDrawRoster(
 ): Promise<DrawRoster | null> {
   const records = await readRunRecords(db, runId);
   if (!records) return null;
+  return drawRosterOf(records, group, viewer, now);
+}
+
+/** The same, from the run's records a caller has read already (the programme's Overview). */
+export function drawRosterOf(records: RunRecords, group: CourseGroupDoc, viewer: { isAdmin: boolean }, now: Date): DrawRoster {
   const closesAt = workClosesAt(records.run, records.groups);
   const withGroup = records.groups.some((candidate) => candidate.id === group.id)
     ? records

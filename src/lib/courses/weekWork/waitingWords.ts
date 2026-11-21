@@ -21,7 +21,7 @@ import type { WaitingPart } from "./waiting";
 export const WAITING = "Waiting";
 
 /** What a part waits for, in a member's own words: "pathway", "plan", "case". */
-function wordOf(part: Pick<WaitingPart, "kind"> & { word?: string }): string {
+export function wordOf(part: Pick<WaitingPart, "kind"> & { word?: string }): string {
   return part.kind === "case" ? "case" : part.word || "pack";
 }
 
