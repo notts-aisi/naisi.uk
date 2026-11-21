@@ -1678,29 +1678,41 @@ export const DRAW_SLIPS = Object.freeze({
   ]),
 });
 
-/** A draw week's two blocks, as an editor publishes them: the pathway, then the case study. */
+/**
+ * A draw week's two blocks, as an editor publishes them: a part holding the
+ * pathway (a Choose one lives only inside a part: the week's reader drops one
+ * at the top level), then the case study, which may stand on its own.
+ */
 function drawBlocksOf(weekNumber) {
   const id = (key) => courseworkItemId(weekNumber, key);
   const run = (text, extra = {}) => ({ text, ...extra });
   const p = (text) => ({ type: "p", runs: [run(text)] });
+  const pathway = {
+    id: id("co"),
+    type: "chooseOne",
+    form: "table",
+    title: DRAW_SLIPS.chooseOneTitle,
+    givenBy: "facilitator",
+    kind: "read",
+    time: "",
+    noteHeading: "",
+    questions: [],
+    packs: DRAW_SLIPS.packs.map((pack) => ({
+      id: id(pack.key),
+      name: pack.name,
+      time: "20 minutes",
+      note: [],
+      read: [run("E2E Example, "), run(`“${pack.name}”`, { href: `https://example.com/e2e-${pack.key}-${weekNumber}` })],
+    })),
+  };
   return [
     {
-      id: id("co"),
-      type: "chooseOne",
-      form: "table",
-      title: DRAW_SLIPS.chooseOneTitle,
-      givenBy: "facilitator",
-      kind: "read",
-      time: "",
-      noteHeading: "",
-      questions: [],
-      packs: DRAW_SLIPS.packs.map((pack) => ({
-        id: id(pack.key),
-        name: pack.name,
-        time: "20 minutes",
-        note: [],
-        read: [run("E2E Example, "), run(`“${pack.name}”`, { href: `https://example.com/e2e-${pack.key}-${weekNumber}` })],
-      })),
+      id: id("pw"),
+      type: "part",
+      title: "Your pathway",
+      time: "About 20 minutes",
+      framing: [p("Your facilitator gives you a pathway at the end of the session before.")],
+      blocks: [pathway],
     },
     {
       id: id("cs"),

@@ -243,6 +243,11 @@ export const SAVE_ANYWAY = "Save anyway";
 /** The Week picker's label. */
 export const WEEK = "Week";
 
+/** Beside the Week picker once a week is chosen with the keyboard: "Open week 4". Not drawn on the boards. */
+export function openWeekWords(weekNumber: number): string {
+  return `Open week ${weekNumber}`;
+}
+
 /** A week in the Week picker: "Week 3 · Pathways and cases", or "Week 6" for one that gives nothing out. */
 export function drawWeekOptionWords(weekNumber: number, draw: WeekDraw | null): string {
   return draw && (draw.packs.length > 0 || draw.cases.length > 0) ? drawHeadingWords(weekNumber, draw) : `Week ${weekNumber}`;
@@ -299,17 +304,18 @@ export function setBeforeWords(weekNumber: number, handOut: { dateKey: string; s
 
 /** A week with no session before it, still to come. Not drawn on the boards. */
 export function noSessionBeforeWords(weekNumber: number): string {
-  return `Week ${weekNumber} has no session before it, so you can set these any time before its first session and change them afterwards.`;
+  return `Week ${weekNumber} has no session before it, so you can set its slips any time before its first session and change them afterwards.`;
 }
 
 /**
- * The session just before a week is called off: "Session 4 is called off,
- * so week 5’s slips go out at the end of session 3." Not drawn on the boards.
+ * The session just before a week still to come is called off: "Session 4 is
+ * called off, so week 5’s slips go out at the end of session 3." Not drawn on
+ * the boards.
  */
 export function handOutCalledOffWords(weekNumber: number, calledOff: number, handOut: number | null): string {
   return handOut !== null
     ? `Session ${calledOff} is called off, so week ${weekNumber}’s slips go out at the end of session ${handOut}.`
-    : `Session ${calledOff} is called off, so there is no session before week ${weekNumber} to hand these out at.`;
+    : `Session ${calledOff} is called off, so there is no session before week ${weekNumber} to hand its slips out at.`;
 }
 
 /** Once every session has ended: "Group C’s sessions have finished. This is what was given out." */
@@ -317,18 +323,56 @@ export function sessionsFinishedWords(groupName: string): string {
   return `${groupName}’s sessions have finished. This is what was given out.`;
 }
 
-/** Said before any change on a week whose session has started and not yet ended. Not drawn on the boards. */
-export const WEEK_NOW = "This is the week people are working on now. Its session has started.";
-
-/** Said before any change on a week whose session has been held: "This is a week that has met. Its session was on Tue 10 Nov." */
-export function weekMetWords(startsAt: Date, calledOff: boolean): string {
-  return `This is a week that has met. Its session ${calledOff ? "was due on" : "was on"} ${londonDayLabel(startsAt)}.`;
+/**
+ * WHICH WEEK THIS IS, for a week whose session has started or been held:
+ * said on the page before any change, and first in what Save asks.
+ *  - "Week 3 is the week people are working on now. Its session has started."
+ *  - its session called off: "Week 3 is the week people are working on now.
+ *    Its session on Tue 17 Nov is called off."
+ *  - "Week 2’s session was on Tue 10 Nov."
+ *  - its session called off: "Week 2’s session was due on Tue 10 Nov and was
+ *    called off."
+ * Not drawn on the boards.
+ */
+export function weekStandingWords(weekNumber: number, standing: "now" | "met", startsAt: Date, calledOff: boolean): string {
+  const day = londonDayLabel(startsAt);
+  if (standing === "now") {
+    return `Week ${weekNumber} is the week people are working on now. ${calledOff ? `Its session on ${day} is called off.` : "Its session has started."}`;
+  }
+  return calledOff ? `Week ${weekNumber}’s session was due on ${day} and was called off.` : `Week ${weekNumber}’s session was on ${day}.`;
 }
 
-/** The route's refusal of a save into such a week sent without the yes. Not drawn on the boards. */
-export function lateSaveRefusedWords(weekNumber: number, standing: "now" | "met"): string {
-  const why = standing === "now" ? `Week ${weekNumber} is the week people are working on now` : `Week ${weekNumber} has met`;
-  return `${why}, so this save needs a yes first. ${READY_TAKEN_BACK}`;
+/**
+ * WHAT A LATE SAVE CHANGES, after which week it is: for each Choose one the
+ * week gives out whose pack counts towards the week (a This week task covers
+ * it, so `weekDone` needs the pack the person holds ticked), "Changing a plan
+ * means that person’s week is done only once the new plan is ticked.", in the
+ * Choose one's own word; and, when the week gives out cases, the owner's
+ * sentence (a changed case clears that person's ready mark). Nothing for a
+ * Choose one no task counts: changing it changes only what the person reads.
+ */
+export function lateSaveChangesWords(input: { countedPackTitles: readonly string[]; givesCases: boolean }): string[] {
+  const words = [...new Set(input.countedPackTitles.map(titleWord))];
+  const lines = words.map((word) => `Changing ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} means that person’s week is done only once the new ${word} is ticked.`);
+  if (input.givesCases) lines.push(READY_TAKEN_BACK);
+  return lines;
+}
+
+/** The route's refusal of a save into such a week sent without the yes: which week, the yes, then what it changes. */
+export function lateSaveRefusedWords(ask: readonly string[]): string {
+  const [standing, ...changes] = ask;
+  return [standing, "This save needs a yes first.", ...changes].filter(Boolean).join(" ");
+}
+
+/**
+ * What Save asks after the route refused a save for want of a yes (the
+ * week's session started after the page was opened): the route's own lines,
+ * which week it is first, or its sentence when it sent no lines.
+ */
+export function askAfterRefusal(answer: { ask?: unknown; error?: unknown } | null): string[] {
+  const lines = Array.isArray(answer?.ask) ? answer.ask.filter((line): line is string => typeof line === "string" && line.trim() !== "") : [];
+  if (lines.length > 0) return lines;
+  return typeof answer?.error === "string" && answer.error.trim() ? [answer.error] : [DRAW_NOT_SAVED];
 }
 
 /** Under a week that gives nothing out: "Back to Group C". */

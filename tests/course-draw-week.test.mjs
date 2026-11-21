@@ -226,7 +226,7 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
     }
 
     const route = read("app", "api", "courses", "groups", "[groupId]", "draw", "route.ts");
-    assert.match(route, /const standing = drawWeekRule\(\{ sessions, givingWeeks: \[weekNumber\], now \}\)\.facts\.get\(weekNumber\)\?\.standing \?\? "ahead";/);
+    assert.match(route, /const facts = drawWeekRule\(\{ sessions, givingWeeks: \[weekNumber\], now \}\)\.facts\.get\(weekNumber\);/);
     assert.match(route, /const sessions = resolveSessions\(run, group, resolveGroupCalendar\(run, group, now\)\.calendar\);/);
     assert.doesNotMatch(route, /sessionRange\(|sessionInstants\(/, "the route works a session's time out for itself");
 
@@ -263,7 +263,7 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
       const page = await w.drawPage("rahul");
       assert.equal(pageWeek(page), week, `${clock}: the page`);
       assert.equal(cardWeek(await w.groupPage("rahul")), card, `${clock}: the card`);
-      const warned = page.text.includes(words.WEEK_NOW) || page.text.includes("This is a week that has met.");
+      const warned = page.html.includes('class="drawWarn"');
       assert.equal(warned, standing !== "ahead", `${clock}: the warning`);
       const blockId = idsOf(`w${week}`).given;
       const answer = await w.saveDraw("rahul", `w0${week}`, [["kofi", blockId, idsOf(`w${week}`).markets]]);
@@ -299,7 +299,16 @@ describe("3. saving late, read only once closed, any week by its address, and th
     let answer = await w.saveDraw("rahul", "w02", ONE(2));
     assert.deepEqual([answer.status, answer.body], [
       409,
-      { error: "Week 2 has met, so this save needs a yes first. Changing a case takes back that person’s Ready for my talk.", confirm: true },
+      {
+        error:
+          "Week 2’s session was on Tue 10 Nov. This save needs a yes first. Changing a pack means that person’s week is done only once the new pack is ticked. Changing a case takes back that person’s Ready for my talk.",
+        confirm: true,
+        ask: [
+          "Week 2’s session was on Tue 10 Nov.",
+          "Changing a pack means that person’s week is done only once the new pack is ticked.",
+          "Changing a case takes back that person’s Ready for my talk.",
+        ],
+      },
     ]);
     assert.deepEqual(w.records(), []);
     answer = await w.call("rahul", w.routes.draw.PUT, { groupId: B }, {
@@ -323,11 +332,7 @@ describe("3. saving late, read only once closed, any week by its address, and th
   test("the week people are working on now: from the start of its session, a yes", async () => {
     w.at("2026-11-17T18:30:00Z");
     let answer = await w.saveDraw("sofia", "w03", ONE(3));
-    assert.deepEqual([answer.status, answer.body.error, answer.body.confirm], [
-      409,
-      "Week 3 is the week people are working on now, so this save needs a yes first. Changing a case takes back that person’s Ready for my talk.",
-      true,
-    ]);
+    assert.deepEqual([answer.status, answer.body.confirm, answer.body.ask[0]], [409, true, "Week 3 is the week people are working on now. Its session has started."]);
     answer = await w.call("sofia", w.routes.draw.PUT, { groupId: B }, {
       course: true,
       body: { weekId: "w03", entries: ONE(3).map(([uid, blockId, value]) => ({ uid, blockId, value })), confirmed: true },
@@ -345,7 +350,7 @@ describe("3. saving late, read only once closed, any week by its address, and th
     assert.equal((await w.saveDraw("sofia", "w04", ONE(4))).status, 200);
     // The page says so before any change, and Save asks first.
     const page = await w.drawPage("rahul", B, 3);
-    assert.match(page.text, /This is the week people are working on now\. Its session has started\./);
+    assert.match(page.text, /Week 3 is the week people are working on now\. Its session has started\./);
     assert.match(page.html, /class="drawWarn"/);
     const week4 = await w.drawPage("rahul", B, 4);
     assert.doesNotMatch(week4.html, /class="drawWarn"/);
@@ -374,7 +379,7 @@ describe("3. saving late, read only once closed, any week by its address, and th
     w.at("2026-12-10T12:00:00Z");
     const open = await w.drawPage("rahul");
     assert.ok(open.text.includes("Group B’s sessions have finished. This is what was given out."));
-    assert.ok(open.text.includes("This is a week that has met. Its session was on Tue 24 Nov."));
+    assert.ok(open.text.includes("Week 4’s session was on Tue 24 Nov."));
     assert.match(open.html, />Save</);
   });
 
@@ -383,7 +388,7 @@ describe("3. saving late, read only once closed, any week by its address, and th
     const list = (page) => [...(/<select[^>]*>(.*?)<\/select>/.exec(page.html)?.[1] ?? "").matchAll(/<option value="\d+"( selected="")?>([^<]*)<\/option>/g)].map(([, chosen, label]) => `${chosen ? "*" : ""}${label}`);
     const week2 = await w.drawPage("rahul", B, 2);
     assert.deepEqual(list(week2), ["*Week 2 · Packs and cases", "Week 3 · Packs and cases", "Week 4 · Packs and cases"]);
-    assert.ok(week2.text.includes("This is a week that has met. Its session was on Tue 10 Nov."));
+    assert.ok(week2.text.includes("Week 2’s session was on Tue 10 Nov."));
     assert.ok(week2.text.includes("Weeks 2 to 4 give something out. Weeks 1, 5 and 6 don’t."));
     assert.match(week2.text, /Group B · after session 1/);
     const week9 = await w.drawPage("rahul", B, 9);
@@ -400,6 +405,77 @@ describe("3. saving late, read only once closed, any week by its address, and th
     const page = await w.drawPage("rahul", B, 4);
     assert.ok(page.text.includes("Session 3 is called off, so week 4’s slips go out at the end of session 2."));
     assert.match(page.text, /Group B · after session 2/);
+    // Once week 4 has met, the line is gone: the slips went out, and the page says when its session was.
+    w.at("2026-11-25T12:00:00Z");
+    const met = await w.drawPage("rahul", B, 4);
+    assert.ok(!met.text.includes("is called off, so week 4"));
+    assert.ok(met.text.includes("Week 4’s session was on Tue 24 Nov."));
+    // The evening called off itself: the week people are working on now, its session called off, never "started".
+    w.at("2026-11-17T18:30:00Z");
+    const off = await w.drawPage("rahul", B, 3);
+    assert.ok(off.text.includes("Week 3 is the week people are working on now. Its session on Tue 17 Nov is called off."), off.text);
+    assert.ok(!off.text.includes("Its session has started."));
+  });
+
+  test("a page opened before the session, saved after it started: what Save then asks is the route's, which week it is first", async () => {
+    // At 5:59pm week 3 is still to come: the page warns of nothing and Save would not ask.
+    w.at("2026-11-17T17:59:00Z");
+    const page = await w.drawPage("rahul", B, 3);
+    assert.doesNotMatch(page.html, /class="drawWarn"/);
+    // At 7:30pm the tab, left open, saves: refused, with the lines to ask.
+    w.at("2026-11-17T19:30:00Z");
+    const answer = await w.saveDraw("rahul", "w03", ONE(3));
+    assert.equal(answer.status, 409);
+    const asked = words.askAfterRefusal(answer.body);
+    assert.deepEqual(asked, [
+      "Week 3 is the week people are working on now. Its session has started.",
+      "Changing a pack means that person’s week is done only once the new pack is ticked.",
+      "Changing a case takes back that person’s Ready for my talk.",
+    ]);
+    assert.deepEqual(w.records(), []);
+    // The editor asks exactly those, never lines of its own.
+    const editor = read("features", "courses", "packsAndCases", "DrawEditor.tsx");
+    assert.match(editor, /if \(res\.status === 409 && answer\?\.confirm === true\) \{\s*\/\/[^\n]*\n\s*setAsk\(\{ kind: "confirm", lines: askAfterRefusal\(answer\), then \}\);/);
+    assert.match(editor, /\(ask\.kind === "leave" \? \[leavingUnsavedWords\(changedPeople\)\] : ask\.lines\)\.map/);
+    assert.doesNotMatch(editor, /READY_TAKEN_BACK/, "the editor says a sentence of its own instead of the lines it is handed");
+    // A refusal with no lines says the route's sentence, and with nothing at all the failed save's.
+    assert.deepEqual(words.askAfterRefusal({ error: "Week 3 is the week people are working on now." }), ["Week 3 is the week people are working on now."]);
+    assert.deepEqual(words.askAfterRefusal(null), [words.DRAW_NOT_SAVED]);
+  });
+
+  test("what a late save says it changes follows what the week gives out", async () => {
+    const plan = { packs: [{ id: "co-plan", title: "Plan", packs: [] }], cases: [] };
+    const blocks = (covered) => [
+      { id: "tw", type: "thisWeek", rows: covered ? [{ type: "task", what: "", time: "", when: "before", whenText: "", covers: ["co-plan"] }] : [], total: "", note: [] },
+      { id: "co-plan", type: "chooseOne", title: "Plan", givenBy: "facilitator", packs: [] },
+    ];
+    // A plan that counts towards the week, and no cases: the plan's sentence, not the case's.
+    const counted = w.lib.model.countedPackTitlesOf(blocks(true), plan);
+    assert.deepEqual(counted, ["Plan"]);
+    assert.deepEqual(words.lateSaveChangesWords({ countedPackTitles: counted, givesCases: false }), [
+      "Changing a plan means that person’s week is done only once the new plan is ticked.",
+    ]);
+    // A plan no task counts changes only what the person reads: nothing to say of it.
+    assert.deepEqual(w.lib.model.countedPackTitlesOf(blocks(false), plan), []);
+    // Cases alone: the owner's sentence alone. Both: both.
+    assert.deepEqual(words.lateSaveChangesWords({ countedPackTitles: [], givesCases: true }), ["Changing a case takes back that person’s Ready for my talk."]);
+    assert.deepEqual(words.lateSaveChangesWords({ countedPackTitles: ["Pathway"], givesCases: true }), [
+      "Changing a pathway means that person’s week is done only once the new pathway is ticked.",
+      "Changing a case takes back that person’s Ready for my talk.",
+    ]);
+  });
+
+  test("the Week picker opens a week on a deliberate choice, the ask is named by its sentences, and a save fetches the route's data again", () => {
+    const picker = read("features", "courses", "packsAndCases", "DrawWeekPicker.tsx");
+    // A pointer opens the week at once; the keyboard waits for Enter or the button beside it.
+    assert.match(picker, /onPointerDown=\{\(\) => \{\s*keyboard\.current = false;\s*\}\}/);
+    assert.match(picker, /onKeyDown=\{\(event\) => \{\s*keyboard\.current = true;\s*if \(event\.key === "Enter"\) \{\s*event\.preventDefault\(\);\s*open\(pending\);/);
+    assert.match(picker, /setPending\(chosen\);\s*if \(!keyboard\.current\) open\(chosen\);/);
+    assert.match(picker, /\{pending !== current && \(\s*<button type="button" className=\{facilitator\.buttonGhost\} onClick=\{\(\) => open\(pending\)\}>\s*\{openWeekWords\(pending\)\}/);
+    const editor = read("features", "courses", "packsAndCases", "DrawEditor.tsx");
+    assert.match(editor, /aria-labelledby=\{/);
+    assert.doesNotMatch(editor, /aria-label=\{ask\./, "the ask is announced by a button's word");
+    assert.match(editor, /if \(then\) go\(then\);\s*\/\/[^\n]*\n\s*else router\.refresh\(\);/);
   });
 
   test("the group page's card names the week it is about", async () => {
@@ -433,13 +509,20 @@ describe("3. saving late, read only once closed, any week by its address, and th
       words.setBeforeWords(5, { dateKey: "2026-12-02", startsAt: at("2026-12-02T15:00:00Z") }, "2026-11-10"),
       "Week 5’s slips go out at the session on Wed 2 Dec. You can set them early and change them afterwards.",
     );
-    assert.equal(words.noSessionBeforeWords(1), "Week 1 has no session before it, so you can set these any time before its first session and change them afterwards.");
-    assert.equal(words.handOutCalledOffWords(2, 1, null), "Session 1 is called off, so there is no session before week 2 to hand these out at.");
+    assert.equal(words.noSessionBeforeWords(1), "Week 1 has no session before it, so you can set its slips any time before its first session and change them afterwards.");
+    assert.equal(words.handOutCalledOffWords(2, 1, null), "Session 1 is called off, so there is no session before week 2 to hand its slips out at.");
     assert.equal(words.nothingGivenOutWords(6), "Nothing is given out in week 6.");
     assert.equal(words.sessionsFinishedWords("Group C"), "Group C’s sessions have finished. This is what was given out.");
-    assert.equal(words.WEEK_NOW, "This is the week people are working on now. Its session has started.");
-    assert.equal(words.weekMetWords(at("2026-11-10T18:00:00Z"), false), "This is a week that has met. Its session was on Tue 10 Nov.");
-    assert.equal(words.weekMetWords(at("2026-11-10T18:00:00Z"), true), "This is a week that has met. Its session was due on Tue 10 Nov.");
+    const tue = at("2026-11-10T18:00:00Z");
+    assert.equal(words.weekStandingWords(3, "now", tue, false), "Week 3 is the week people are working on now. Its session has started.");
+    assert.equal(words.weekStandingWords(3, "now", tue, true), "Week 3 is the week people are working on now. Its session on Tue 10 Nov is called off.");
+    assert.equal(words.weekStandingWords(2, "met", tue, false), "Week 2’s session was on Tue 10 Nov.");
+    assert.equal(words.weekStandingWords(2, "met", tue, true), "Week 2’s session was due on Tue 10 Nov and was called off.");
+    assert.equal(
+      words.lateSaveRefusedWords(["Week 2’s session was on Tue 10 Nov.", "Changing a case takes back that person’s Ready for my talk."]),
+      "Week 2’s session was on Tue 10 Nov. This save needs a yes first. Changing a case takes back that person’s Ready for my talk.",
+    );
+    assert.equal(words.openWeekWords(4), "Open week 4");
     assert.equal(words.givingWeeksWords([2, 3, 4, 5], [1, 6]), "Weeks 2 to 5 give something out. Weeks 1 and 6 don’t.");
     assert.equal(words.givingWeeksWords([3], [1, 2, 4, 5, 6]), "Week 3 gives something out. Weeks 1, 2 and 4 to 6 don’t.");
     assert.equal(words.givingWeeksWords([2, 4], [6]), "Weeks 2 and 4 give something out. Week 6 doesn’t.");

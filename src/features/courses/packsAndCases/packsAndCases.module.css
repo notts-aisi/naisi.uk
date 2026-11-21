@@ -596,6 +596,19 @@
   margin-top: 6px;
 }
 
+.drawWeekRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.drawWeekRow > select {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
 .drawWeekLabel {
   font-size: var(--text-sm);
   font-weight: 500;

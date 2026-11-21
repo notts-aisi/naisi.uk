@@ -15,10 +15,12 @@
  * the slips you handed out tonight." -> Fern gives Ada and Ben a pathway and
  * a case each and saves: "Saved. 2 of 3 have a pathway and a case." -> Ada's
  * week 4 page shows her pathway and her case, and nobody was emailed -> Fern
- * opens week 3 from the picker: "This is the week people are working on
- * now.", and Save asks "Changing a case takes back that person’s Ready for my
- * talk." before it changes anything -> Fern leaves with that change not
- * saved: asked first, and leaving without saving changes nothing.
+ * opens week 3 from the picker: its own editor, nothing from week 4 carried
+ * in, and "Week 3 is the week people are working on now. Its session has
+ * started."; Save asks that again, then "Changing a case takes back that
+ * person’s Ready for my talk.", before it changes anything -> Fern leaves with
+ * that change not saved: asked first, and leaving without saving changes
+ * nothing.
  *
  * ## How to run it
  *
@@ -70,24 +72,38 @@ const POLL_MS = 500;
 
 /**
  * THE DRAW'S WORDS, restated from src/lib/courses/packsAndCases/words.ts,
- * with their slots filled from the records.
+ * with their slots filled for the world this spec's fixture builds: weeks 3
+ * and 4 each give out a Choose one titled "Pathway" (`DRAW_SLIPS`) and a case
+ * study grouped by it, and no This week block, so no pack counts towards a
+ * week. So `drawTitleWords` says "Pathways and cases", `spreadTitleWords`
+ * "Pathways in Group A", `changeDrawWords` "Change pathways and cases",
+ * `drawHoldingWords` "a pathway and a case", and a late save asks the week's
+ * standing then the owner's sentence about a case, and no line about a
+ * pathway (`lateSaveChangesWords` says one only for a pack a task counts).
  */
 const WORDS = Object.freeze({
+  title: "Pathways and cases",
   cardTitle: (group) => `Pathways in ${group}`,
   cardWeek: (week) => `Week ${week}`,
+  notGiven: (names) => `Not given yet: ${names}`,
   change: "Change pathways and cases",
   option: (week) => `Week ${week} · Pathways and cases`,
+  hint: "Weeks 3 and 4 give something out. Weeks 1, 2, 5 and 6 don’t.",
   eyebrow: (group, session) => `${group} · after session ${session}`,
   tonight: "Copy in the slips you handed out tonight.",
   saved: (have, of, week) => `Saved. ${have} of ${of} have a pathway and a case. Each person sees theirs on their week ${week} page.`,
   foot: (week) => `Each person sees theirs on their week ${week} page. No email.`,
-  now: "This is the week people are working on now. Its session has started.",
+  notGivenYet: "Not given yet",
+  choosePathwayFirst: "Choose a pathway first",
+  now: (week) => `Week ${week} is the week people are working on now. Its session has started.`,
+  workingOnNow: /is the week people are working on now/,
   ask: "Changing a case takes back that person’s Ready for my talk.",
   saveAnyway: "Save anyway",
   cancel: "Cancel",
   leaving: (n) => `You’ve changed ${n === 1 ? "1 person" : `${n} people`} and haven’t saved.`,
   leave: "Leave without saving",
   yourCase: "Your case",
+  yourPathway: "Your pathway",
   ready: "Ready for my talk",
 });
 
@@ -257,6 +273,10 @@ test("course hub: the draw, copied in during the session that hands the slips ou
       const card = fernPage.locator('section[aria-labelledby="group-spread"]');
       await card.getByRole("heading", { name: WORDS.cardTitle(group.name), exact: true }).waitFor({ timeout: WAIT_MS });
       await card.getByText(WORDS.cardWeek(next), { exact: true }).waitFor({ timeout: WAIT_MS });
+      // Nobody has a pathway for next week yet: Fern takes part too, so the three of them.
+      const said = await textOf(card);
+      assert.ok(said.includes(WORDS.notGiven(`${ada.first}, ${ben.first} and ${fern.first}`)), `the card does not say who has nothing: ${said}`);
+      for (const pack of DRAW_SLIPS.packs) assert.ok(said.includes(pack.name), `the card has no tile for ${pack.name}: ${said}`);
       const link = card.getByRole("link", { name: new RegExp(`^${escapeRegExp(WORDS.change)}`) });
       assert.equal(new URL(await link.getAttribute("href"), origin).search, `?week=${next}`, "the card does not open the draw on next week");
       await Promise.all([fernPage.waitForURL((url) => url.pathname === drawPath, { timeout: WAIT_MS }), link.click()]);
@@ -266,14 +286,15 @@ test("course hub: the draw, copied in during the session that hands the slips ou
       activePage = fernPage;
       // The page without an address's week opens on the same week the card does.
       await fernPage.goto(`${origin}${drawPath}`, { waitUntil: "domcontentloaded" });
-      await fernPage.getByRole("heading", { level: 1, name: "Pathways and cases", exact: true }).waitFor({ timeout: WAIT_MS });
+      await fernPage.getByRole("heading", { level: 1, name: WORDS.title, exact: true }).waitFor({ timeout: WAIT_MS });
       const main = fernPage.locator("main");
       await main.getByText(WORDS.eyebrow(group.name, week), { exact: true }).waitFor({ timeout: WAIT_MS });
       const options = (await picker(fernPage).locator("option").allTextContents()).map(flat);
       assert.deepEqual(options, [WORDS.option(week), WORDS.option(next)]);
       assert.equal(await picker(fernPage).inputValue(), String(next), "the draw page is not on next week");
+      await main.getByText(WORDS.hint, { exact: true }).waitFor({ timeout: WAIT_MS });
       if (stillTonight()) await main.getByText(WORDS.tonight, { exact: true }).waitFor({ timeout: WAIT_MS });
-      assert.equal(await main.getByText(WORDS.now, { exact: true }).count(), 0, "next week is called the week people are working on now");
+      assert.equal(await main.getByText(WORDS.workingOnNow).count(), 0, "next week is called the week people are working on now");
       await main.getByText(WORDS.foot(next), { exact: true }).waitFor({ timeout: WAIT_MS });
     });
 
@@ -284,6 +305,10 @@ test("course hub: the draw, copied in during the session that hands the slips ou
         [ben, keepers],
       ]) {
         const box = personBox(fernPage, person);
+        // Grouped by pathway: no case is offered until the person has one.
+        const caseList = box.getByLabel("Case", { exact: true });
+        assert.ok(await caseList.isDisabled(), `${person.first}'s case list is open before they have a pathway`);
+        assert.equal(flat((await caseList.locator("option:checked").textContent()) ?? ""), WORDS.choosePathwayFirst);
         await box.getByLabel(DRAW_SLIPS.chooseOneTitle, { exact: true }).selectOption({ label: pack.name });
         await box.getByLabel("Case", { exact: true }).selectOption({ label: pack.cases[0].title });
       }
@@ -301,10 +326,13 @@ test("course hub: the draw, copied in during the session that hands the slips ou
       activePage = adaPage;
       await signIn(adaPage, ada);
       await adaPage.goto(`${origin}/learn/${enc(term.runId)}/weeks/${next}`, { waitUntil: "domcontentloaded" });
-      await adaPage.getByText(WORDS.yourCase, { exact: true }).first().waitFor({ timeout: WAIT_MS });
+      // Her case card names her case as its heading; the full list under it names cases in plain lines.
+      await adaPage.getByRole("heading", { level: 3, name: harbour.cases[0].title, exact: true }).waitFor({ timeout: WAIT_MS });
+      assert.equal(await adaPage.getByRole("heading", { level: 3, name: WORDS.notGivenYet, exact: true }).count(), 0, "Ada's case card still says not given yet");
       const words = await textOf(adaPage.locator("main"));
       const at = words.indexOf(WORDS.yourCase);
-      assert.ok(at >= 0 && words.indexOf(harbour.cases[0].title, at) > at, `Ada's week ${next} page does not show her case: ${words}`);
+      assert.ok(at >= 0 && words.indexOf(harbour.cases[0].title, at) > at, `Ada's week ${next} page does not show her case under Your case: ${words}`);
+      assert.ok(words.includes(WORDS.yourPathway), `Ada's pathway is not marked as hers: ${words}`);
       assert.ok(words.includes(WORDS.ready), "Ada's case has no ready box");
       if (mailIsCaught({ origin })) {
         // Her approval's email, and nothing from the draw.
@@ -320,19 +348,30 @@ test("course hub: the draw, copied in during the session that hands the slips ou
         picker(fernPage).selectOption(String(week)),
       ]);
       const main = fernPage.locator("main");
-      await main.getByText(WORDS.now, { exact: true }).waitFor({ timeout: WAIT_MS });
+      await main.getByText(WORDS.now(week), { exact: true }).waitFor({ timeout: WAIT_MS });
       assert.equal(await main.getByText(WORDS.tonight, { exact: true }).count(), 0, "the session's own week says tonight's slips go in here");
+      assert.equal(await picker(fernPage).inputValue(), String(week));
       const box = personBox(fernPage, ada);
-      await box.getByLabel(DRAW_SLIPS.chooseOneTitle, { exact: true }).selectOption({ label: keepers.name });
+      // Week 3's own editor, as week 3 is: nothing typed for week 4 is carried in.
+      const pathwayList = box.getByLabel(DRAW_SLIPS.chooseOneTitle, { exact: true });
+      assert.equal(await pathwayList.inputValue(), "", "Ada's week 3 pathway is not empty: something was carried over from week 4");
+      assert.equal(flat((await pathwayList.locator("option:checked").textContent()) ?? ""), WORDS.notGivenYet);
+      assert.ok(await box.getByLabel("Case", { exact: true }).isDisabled(), "Ada's week 3 case list is open with no pathway");
+      await main.getByText(WORDS.foot(week), { exact: true }).waitFor({ timeout: WAIT_MS });
+      await pathwayList.selectOption({ label: keepers.name });
       let puts = 0;
       const count = (request) => {
         if (request.method() === "PUT" && new URL(request.url()).pathname.endsWith(`/groups/${group.id}/draw`)) puts += 1;
       };
       fernPage.on("request", count);
       await fernPage.getByRole("button", { name: "Save", exact: true }).click();
-      await main.getByText(WORDS.ask, { exact: true }).waitFor({ timeout: WAIT_MS });
-      await main.getByRole("button", { name: WORDS.saveAnyway, exact: true }).waitFor({ timeout: WAIT_MS });
-      await main.getByRole("button", { name: WORDS.cancel, exact: true }).click();
+      // What Save asks, named by its own sentences: which week this is first, then what a changed case does.
+      const asked = main.getByRole("group", { name: new RegExp(`^${escapeRegExp(WORDS.now(week))}`) });
+      await asked.waitFor({ timeout: WAIT_MS });
+      const lines = (await asked.locator("p").allTextContents()).map(flat);
+      assert.deepEqual(lines, [WORDS.now(week), WORDS.ask], "Save asks something other than which week it is and what a changed case does");
+      await asked.getByRole("button", { name: WORDS.saveAnyway, exact: true }).waitFor({ timeout: WAIT_MS });
+      await asked.getByRole("button", { name: WORDS.cancel, exact: true }).click();
       await waitFor("the ask to go", async () => (await main.getByText(WORDS.ask, { exact: true }).count()) === 0);
       fernPage.off("request", count);
       assert.equal(puts, 0, "Save sent the change before it asked");
@@ -344,11 +383,12 @@ test("course hub: the draw, copied in during the session that hands the slips ou
       const main = fernPage.locator("main");
       // The way back to the group: the phone's bar or the laptop's breadcrumb, whichever this width shows.
       await main.getByRole("link", { name: group.name, exact: true }).filter({ visible: true }).first().click();
-      await main.getByText(WORDS.leaving(1), { exact: true }).waitFor({ timeout: WAIT_MS });
+      const leaving = main.getByRole("group", { name: WORDS.leaving(1), exact: true });
+      await leaving.waitFor({ timeout: WAIT_MS });
       assert.equal(new URL(fernPage.url()).pathname, drawPath, "the page left before it asked");
       await Promise.all([
         fernPage.waitForURL((url) => url.pathname === new URL(groupUrl).pathname, { timeout: WAIT_MS }),
-        main.getByRole("button", { name: WORDS.leave, exact: true }).click(),
+        leaving.getByRole("button", { name: WORDS.leave, exact: true }).click(),
       ]);
       const rows = await drawRows();
       assert.equal(rows.length, 4);

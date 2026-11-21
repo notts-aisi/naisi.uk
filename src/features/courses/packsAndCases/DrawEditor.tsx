@@ -11,13 +11,13 @@ import {
   DRAW_NOT_SAVED,
   LEAVE_WITHOUT_SAVING,
   NOT_GIVEN_YET,
-  READY_TAKEN_BACK,
   SAVE,
   SAVE_ANYWAY,
   SWAP_LABEL,
   SWAP_THEM,
   SWAP_TWO_PEOPLE,
   SWAP_WITH,
+  askAfterRefusal,
   choosePackFirstWords,
   leavingUnsavedWords,
   savedDrawWords,
@@ -46,11 +46,16 @@ import styles from "./packsAndCases.module.css";
  *    before then nothing is listening to it. Saved, it says how many have
  *    everything the week gives out: "Saved. 6 of 8 have a pathway and a
  *    case. Each person sees theirs on their week 3 page."
- *  - A WEEK THAT HAS MET, or the week people are working on now (`late`):
- *    Save first asks "Changing a case takes back that person’s Ready for my
- *    talk.", and the save carries the yes (`confirmed`), which the route
- *    requires. A save the route refuses for want of it (the session started
- *    after the page opened) asks the same.
+ *  - A WEEK WHOSE SESSION HAS STARTED OR BEEN HELD (`ask`, the page's lines):
+ *    Save first asks, which week it is first ("Week 3 is the week people are
+ *    working on now. Its session has started."), then what the save changes
+ *    ("Changing a case takes back that person’s Ready for my talk." on a week
+ *    that gives out cases), and the save carries the yes (`confirmed`), which
+ *    the route requires. A save the route refuses for want of it (the
+ *    session started after the page opened) asks the route's own lines
+ *    (`askAfterRefusal`), which week it is first, never the page's.
+ *  - Once saved, the route's data is fetched again (`router.refresh()`), so
+ *    the browser's Back never brings back what the page held before.
  *  - LEAVING WITH CHANGES NOT SAVED (a link, the Week picker): asked first,
  *    "You’ve changed 2 people and haven’t saved.", with Save and Leave
  *    without saving; closing or reloading the tab gets the browser's own ask.
@@ -77,14 +82,14 @@ type Props = {
   foot: string;
   /** What each person is given: "a pathway and a case". */
   holding: string;
-  /** The week's session has started or been held: Save asks first. */
-  late: boolean;
+  /** The week's session has started or been held: what Save asks first, which week it is first. Null for a week to come. */
+  ask: string[] | null;
   /** The programme has closed: nothing changes. */
   readOnly: boolean;
 };
 
 /** What Save is asking before it goes on: whether to leave unsaved, or to save into a week that has met. */
-type Ask = { kind: "leave"; href: string } | { kind: "confirm"; then: string | null } | null;
+type Ask = { kind: "leave"; href: string } | { kind: "confirm"; lines: string[]; then: string | null } | null;
 
 function copy(holding: Holding | undefined): Holding {
   return { packs: { ...(holding?.packs ?? {}) }, cases: { ...(holding?.cases ?? {}) } };
@@ -101,7 +106,7 @@ export default function DrawEditor({
   initial,
   foot,
   holding,
-  late: lateAtOpen,
+  ask: askAtOpen,
   readOnly,
 }: Props) {
   const formId = useId();
@@ -118,7 +123,7 @@ export default function DrawEditor({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [late, setLate] = useState(lateAtOpen);
+  const askId = useId();
   const [ask, setAsk] = useState<Ask>(null);
   const askRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -231,8 +236,8 @@ export default function DrawEditor({
   /** Save, asking first on a week that has met; `then` is where to go once saved. */
   function requestSave(then: string | null) {
     if (changes.length === 0 || saving || readOnly) return;
-    if (late) {
-      setAsk({ kind: "confirm", then });
+    if (askAtOpen && askAtOpen.length > 0) {
+      setAsk({ kind: "confirm", lines: askAtOpen, then });
       return;
     }
     void save(false, then);
@@ -250,11 +255,10 @@ export default function DrawEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weekId, entries: changes, ...(confirmed ? { confirmed: true } : {}) }),
       });
-      const answer = (await res.json().catch(() => null)) as (DrawSaved & { error?: string; confirm?: boolean }) | null;
+      const answer = (await res.json().catch(() => null)) as (DrawSaved & { error?: string; confirm?: boolean; ask?: unknown }) | null;
       if (res.status === 409 && answer?.confirm === true) {
-        // The week's session started after the page opened: ask, as for a week that has met.
-        setLate(true);
-        setAsk({ kind: "confirm", then });
+        // The week's session started after the page opened: ask what the route says, which week it is first.
+        setAsk({ kind: "confirm", lines: askAfterRefusal(answer), then });
         return;
       }
       if (!res.ok || !answer?.ok) throw new Error(answer?.error || DRAW_NOT_SAVED);
@@ -266,6 +270,8 @@ export default function DrawEditor({
       }).length;
       setMessage(savedDrawWords(weekNumber, have, people.length, holding));
       if (then) go(then);
+      // What the server holds now, so Back never brings back what the page held before the save.
+      else router.refresh();
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : DRAW_NOT_SAVED);
     } finally {
@@ -391,8 +397,19 @@ export default function DrawEditor({
       {!readOnly && (
         <div className={styles.drawFoot}>
           {ask && (
-            <div ref={askRef} tabIndex={-1} className={styles.drawAsk} role="group" aria-label={ask.kind === "leave" ? LEAVE_WITHOUT_SAVING : SAVE}>
-              <p className={styles.drawAskLine}>{ask.kind === "leave" ? leavingUnsavedWords(changedPeople) : READY_TAKEN_BACK}</p>
+            <div
+              ref={askRef}
+              tabIndex={-1}
+              className={styles.drawAsk}
+              role="group"
+              // Announced by its own sentences, never by a button's word.
+              aria-labelledby={(ask.kind === "leave" ? [`${askId}-0`] : ask.lines.map((_, index) => `${askId}-${index}`)).join(" ")}
+            >
+              {(ask.kind === "leave" ? [leavingUnsavedWords(changedPeople)] : ask.lines).map((line, index) => (
+                <p key={line} id={`${askId}-${index}`} className={styles.drawAskLine}>
+                  {line}
+                </p>
+              ))}
               <div className={styles.swapActions}>
                 {ask.kind === "leave" ? (
                   <>

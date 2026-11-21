@@ -6,9 +6,9 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
 import { drawWeekRule } from "@/lib/courses/packsAndCases/drawWeek";
-import { drawTalkOf, findPack, hasDraw, mayBeGiven } from "@/lib/courses/packsAndCases/model";
+import { countedPackTitlesOf, drawTalkOf, findPack, hasDraw, mayBeGiven } from "@/lib/courses/packsAndCases/model";
 import { drawClosed, drawGate, readDrawRoster, readGroupWeek } from "@/lib/courses/packsAndCases/readers";
-import { DRAW_NOT_SAVED, lateSaveRefusedWords } from "@/lib/courses/packsAndCases/words";
+import { DRAW_NOT_SAVED, lateSaveChangesWords, lateSaveRefusedWords, weekStandingWords } from "@/lib/courses/packsAndCases/words";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { isWeekItemId } from "@/lib/courses/weekBlocks/model";
 import { closedWords } from "@/lib/courses/weekWork/words";
@@ -52,10 +52,13 @@ import {
  * it, a save into a week whose session has started or been held (its
  * standing in `drawWeekRule`, the one rule the page and the group page's
  * card ask too) needs `confirmed: true`, which the page sends only once the
- * facilitator has said yes to "Changing a case takes back that person’s
- * Ready for my talk."; without it the save is refused 409 with `confirm:
- * true`, so a page opened before the session started asks then. A week still
- * to come needs no yes.
+ * facilitator has said yes to what Save asks: which week this is, then what
+ * the save changes ("Changing a case takes back that person’s Ready for my
+ * talk." on a week that gives out cases, `lateSaveChangesWords`); without it
+ * the save is refused 409 with `confirm:
+ * true` and `ask`, the lines the page's Save then asks, which week it is
+ * first, so a page opened before the session started asks then. A week
+ * still to come needs no yes.
  *
  * Nobody is emailed ("Each person sees theirs on their week 3 page. No
  * email."). The body is checked before anything is read; everything is
@@ -180,9 +183,14 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
 
   // A week whose session has started or been held: only with the facilitator's yes.
   const sessions = resolveSessions(run, group, resolveGroupCalendar(run, group, now).calendar);
-  const standing = drawWeekRule({ sessions, givingWeeks: [weekNumber], now }).facts.get(weekNumber)?.standing ?? "ahead";
-  if (standing !== "ahead" && body.confirmed !== true) {
-    return NextResponse.json({ error: lateSaveRefusedWords(weekNumber, standing), confirm: true }, { status: 409 });
+  const facts = drawWeekRule({ sessions, givingWeeks: [weekNumber], now }).facts.get(weekNumber);
+  if (facts && facts.standing !== "ahead" && facts.startsAt && body.confirmed !== true) {
+    // What the page's Save asks, the route's own answer: which week this is first, then what the save changes.
+    const ask = [
+      weekStandingWords(weekNumber, facts.standing, facts.startsAt, facts.startsCalledOff),
+      ...lateSaveChangesWords({ countedPackTitles: countedPackTitlesOf(week.blocks, week.draw), givesCases: week.draw.cases.length > 0 }),
+    ];
+    return NextResponse.json({ error: lateSaveRefusedWords(ask), confirm: true, ask }, { status: 409 });
   }
 
   const touched = [...new Set(entries.map((entry) => entry.uid))];

@@ -8,12 +8,11 @@ import weekly from "@/features/courses/weekly/weekly.module.css";
 import NotForYou from "@/features/courses/facilitator/NotForYou";
 import { getSessionUser } from "@/features/courses/runAccess";
 import { isAddressableId } from "@/lib/addressableId";
-import { drawTalkOf, hasDraw } from "@/lib/courses/packsAndCases/model";
+import { countedPackTitlesOf, drawTalkOf, hasDraw } from "@/lib/courses/packsAndCases/model";
 import { drawClosed, drawGate, readDrawRoster, readDrawState, readDrawWeeks } from "@/lib/courses/packsAndCases/readers";
 import {
   CASE,
   DRAW_LEDE,
-  WEEK_NOW,
   backToWords,
   drawEyebrowWords,
   drawFootWords,
@@ -22,11 +21,12 @@ import {
   drawWeekOptionWords,
   givingWeeksWords,
   handOutCalledOffWords,
+  lateSaveChangesWords,
   noSessionBeforeWords,
   nothingGivenOutWords,
   sessionsFinishedWords,
   setBeforeWords,
-  weekMetWords,
+  weekStandingWords,
 } from "@/lib/courses/packsAndCases/words";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { closedWords } from "@/lib/courses/weekWork/words";
@@ -54,12 +54,13 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * WHAT IT SAYS ABOUT THE WEEK, over the people: "Copy in the slips you
  * handed out tonight." on the hand-out night only; before the hand-out
  * session, when the slips go out; which session they go out at when the one
- * before the week is called off; and, before any change, that this is the
- * week people are working on now or a week that has met, where Save first
- * asks "Changing a case takes back that person’s Ready for my talk." (the
- * route refuses the save without that yes). Once every session has ended it
- * says so; once the programme has closed for work (`workClosesAt`) the page
- * is read only, with the members' own sentence, and the route refuses a save.
+ * before a week still to come is called off; and, before any change, which
+ * week this is when its session has started or been held, where Save first
+ * asks that again, then what the save changes (`lateSaveChangesWords`); the
+ * route refuses the save without that yes, and hands back what to ask. Once
+ * every session has ended it says so; once the programme has closed for work
+ * (`workClosesAt`) the page is read only, with the members' own sentence, and
+ * the route refuses a save.
  *
  * WHO (`drawGate`, the route's own gate, restated because a page's only
  * protection must not be a level above it): the group's live facilitators,
@@ -161,19 +162,26 @@ export default async function DrawPage({
   const lines: Array<{ text: string; warn?: boolean }> = [];
   if (course.finished) lines.push({ text: sessionsFinishedWords(groupName) });
   if (closed && closesAt) lines.push({ text: closedWords(closesAt) });
+  // Which week this is, once its session has started or been held: said before any change, and first in what Save asks.
+  const standingLine =
+    gives && facts && facts.standing !== "ahead" && facts.startsAt
+      ? weekStandingWords(weekNumber, facts.standing, facts.startsAt, facts.startsCalledOff)
+      : null;
+  const ask =
+    standingLine && week
+      ? [standingLine, ...lateSaveChangesWords({ countedPackTitles: countedPackTitlesOf(week.blocks, draw), givesCases: draw.cases.length > 0 })]
+      : null;
   if (gives && facts && !closed) {
-    if (facts.calledOff) {
-      lines.push({ text: handOutCalledOffWords(weekNumber, facts.calledOff.weekNumber, facts.handOut?.session.weekNumber ?? null) });
-    }
     if (facts.standing === "ahead") {
+      if (facts.calledOff) {
+        lines.push({ text: handOutCalledOffWords(weekNumber, facts.calledOff.weekNumber, facts.handOut?.session.weekNumber ?? null) });
+      }
       if (facts.handOutNight) lines.push({ text: DRAW_LEDE });
       else if (facts.handOut && now.getTime() < facts.handOut.startsAt.getTime()) {
         lines.push({ text: setBeforeWords(weekNumber, { dateKey: facts.handOut.session.dateKey, startsAt: facts.handOut.startsAt }, londonDateKey(now)) });
       } else if (!facts.handOut && facts.startsAt && !facts.calledOff) lines.push({ text: noSessionBeforeWords(weekNumber) });
-    } else if (facts.standing === "now") {
-      lines.push({ text: WEEK_NOW, warn: true });
-    } else if (facts.startsAt) {
-      lines.push({ text: weekMetWords(facts.startsAt, facts.startsCalledOff), warn: true });
+    } else if (standingLine) {
+      lines.push({ text: standingLine, warn: true });
     }
   }
 
@@ -203,7 +211,7 @@ export default async function DrawPage({
           <p className={styles.drawEyebrow}>{drawEyebrowWords(groupName, handOutSession)}</p>
           <h1 className={styles.drawTitle}>{title}</h1>
           {givingNumbers.length > 0 ? (
-            <DrawWeekPicker groupId={groupId} options={options} current={weekNumber} hint={hint} />
+            <DrawWeekPicker key={weekNumber} groupId={groupId} options={options} current={weekNumber} hint={hint} />
           ) : null}
           {lines.map((line) => (
             <p key={line.text} className={line.warn ? styles.drawWarn : styles.drawLede}>
@@ -230,7 +238,7 @@ export default async function DrawPage({
             foot={drawFootWords(weekNumber)}
             weekNumber={weekNumber}
             holding={drawHoldingWords(draw)}
-            late={facts !== null && facts.standing !== "ahead"}
+            ask={ask}
             readOnly={closed}
           />
         ) : (
