@@ -1699,10 +1699,15 @@ test(
             `${person.first}'s ticket is not the moved session's day and hours`,
           );
           const ticketSays = await textOf(ticket);
-          for (const expected of [MOVE.room, "Room changed this week", "The link is here, not in your emails, so it can’t be forwarded."]) {
+          // Moved for its week alone: the chip says so, and under the group
+          // line why, in the reason Fern typed, and the group's usual slot and room.
+          const usually = `Usually ${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][facilitated.weekday]}s, ${clockWords(facilitated.startTimeLocal)}${facilitated.room ? `, ${facilitated.room}` : ""}.`;
+          for (const expected of [MOVE.room, "Moved this week", `Why: ${MOVE.reason} ${usually}`, "The link is here, not in your emails, so it can’t be forwarded."]) {
             assert.ok(ticketSays.includes(expected), `${person.first}'s ticket does not say ${JSON.stringify(expected)}: ${ticketSays}`);
           }
-          assert.ok(!ticketSays.includes(facilitated.room), `${person.first}'s ticket still names the usual room: ${ticketSays}`);
+          assert.ok(!ticketSays.includes("Room changed this week"), `${person.first}'s ticket says the room changed as well as that it moved: ${ticketSays}`);
+          // The usual room is said only as the usual one, never as where the session is this week.
+          assert.equal(ticketSays.split(facilitated.room).length - 1, facilitated.room ? 1 : 0, `${person.first}'s ticket names the usual room as where it is: ${ticketSays}`);
           assert.equal(
             await ticket.getByRole("link", { name: "Join online", exact: true }).getAttribute("href"),
             facilitated.meetingUrl,

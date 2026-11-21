@@ -475,7 +475,7 @@ test(
       const said = await textOf(ticket);
       assert.ok(said.includes(group.room), `the ticket does not say ${group.name}'s room: ${said}`);
       if (facilitator) {
-        await ticket.getByText(`with ${facilitator.first}`, { exact: true }).waitFor({ timeout: WAIT_MS });
+        await ticket.getByText(`${group.name} with ${facilitator.first}`, { exact: true }).waitFor({ timeout: WAIT_MS });
       } else {
         assert.ok(!said.includes(fern.first), `the ticket of a group with no facilitator names ${fern.first}: ${said}`);
       }
