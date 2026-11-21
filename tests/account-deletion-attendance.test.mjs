@@ -560,6 +560,17 @@ test("a request to be excused goes with the account of the person who asked; one
   assert.deepEqual([...db.docs.keys()], ["decidedByThem"]);
 });
 
+test("a request to go to another session goes with the account of the person who asked; one an admin decided, replied to or took stays", async () => {
+  // Asked by and about the same person; who decided, replied or took it is
+  // named in fields the sweep never reads.
+  const db = makeRequestsDb({
+    theirs: { kind: "visit", askedByUid: "gone", subjectUid: "gone", decidedByUid: "admin", handlingUid: "admin", change: { weekNumber: 2, hostGroupId: "grpI", replies: [{ text: "Any news?", byUid: "admin" }] } },
+    actedOnByThem: { kind: "visit", askedByUid: "someone", subjectUid: "someone", decidedByUid: "gone", handlingUid: "gone", change: { weekNumber: 2, hostGroupId: "grpI", replies: [{ text: "Yes.", byUid: "gone" }] } },
+  });
+  assert.equal(await deleteCourseRequestsOf(db, "gone"), 1, "the request is counted once");
+  assert.deepEqual([...db.docs.keys()], ["actedOnByThem"]);
+});
+
 test("the cascade calls the requests sweep, and its summary counts it", () => {
   const cascade = readFileSync(join(SRC, "lib", "firestore", "accountDeletion.ts"), "utf8");
   assert.match(cascade, /summary\.courseRequestsDeleted = await deleteCourseRequestsOf\(db, uid\);/);

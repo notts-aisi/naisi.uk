@@ -2713,6 +2713,65 @@ of the groups the place belongs to, never a visit's host. The move page's
 "What will happen" names each visit from the move's week on: one to the group
 they move into goes, every other stays.
 
+
+## A member asks to go to another group's session for a week
+
+The person asks; an admin decides. Only admins decide these for now, through
+the gate requests to be excused use, and every sentence the person reads says
+"An admin decides." A programme's lead sees and decides none.
+
+**The record.** One `courseRequests` document of kind `visit`, read only by
+its own normaliser (`normalizeVisitRequest`, `src/lib/firestore/courseMemberRequests.ts`),
+which answers null for every other kind, as the other kinds' answer null for
+it. `groupId` and `sessionKey` are the person's own group's for that week;
+`change` holds the week, the host group, the host's session key and the
+host's session as offered (so the request's page can say it has moved since),
+and the replies sent without deciding. The shared base (who, the run, status,
+Take it, the decision, replies, `dismissedAt`, `adminsToldOn`, history) is
+`MemberRequestBase`, so a later kind adds its own `kind`, its own `change`
+reader and its own normaliser, and changes no stored row of this one.
+
+**What can be asked.** Only the week of the person's next session with their
+own group, still to come, and only somebody the staff visit could arrange a
+visit for (an active learner's told place, a run with more than one live group
+that is not an incubator, nobody who facilitates a live group of it). Nothing
+while a visit stands that week, a request to be excused about that session
+waits, or a request of this kind waits ("One request at a time"). The sessions
+offered and the places left are the staff visit's own (`memberSessionChoices`
+over `hostSessionRefusal` and `placesLeftInWeek`), in the order they start,
+full ones shown and not choosable. The ask route re-reads all of it in its
+transaction, and also asks the staff visit's plan, so a request never asks for
+what its approval would refuse at that moment.
+
+**Where it stands** is worked out at read time, never stored
+(`visitRequestStandingOf`, `src/lib/courses/visitRequest/standing.ts`): a
+stored `waiting` request CLOSES BY ITSELF once the earlier of the two sessions
+that week starts (the visit's own cancel deadline), and is GONE once the person
+no longer holds that place that week (taken off the run, left, or moved for
+good from that week or before). Neither is written, emailed or listed for
+staff; a closed one is a row "Not decided before Tue 17 Nov, 6pm" on the
+person's own list, a gone one is on no list. While the host's session is
+called off or marked as not held, the person's card says it can't go ahead and
+offers Withdraw.
+
+**Approving** calls `arrangeVisit` with the request's decision as a hook in
+the same transaction (`approves`): the request is read again there, and the
+visit and the decision are written together or not at all. The visit written
+is the staff visit's own, with the approver as `arrangedByUid` and no reason in
+the history rows; the count on the button and the over-the-limit warning are
+checked at the press, and staff's email limits apply. Staff arranging a visit
+themselves for a week the person's own request waits about are told to decide
+that request first.
+
+**What the person sees.** On the card (Home and the programme page): "Go to
+another session this week" for the week offered; while it waits, the request
+in place of every button with "Withdraw the request"; a decline at the top
+with "Dismiss" until dismissed or that week's session has passed; and, once
+approved, the visiting card with "Approved by Zach, Tue 10 Nov, 1:40pm" and
+the reply. "Your requests" lists these with their requests to be excused, one
+list, newest first. The form is at `/learn/[runId]/another-session` and says
+for itself when nothing can be asked.
+
 ## A programme's lead on the run their programme names
 
 Each programme's lead does, for their own programme, what an admin does from

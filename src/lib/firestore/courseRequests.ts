@@ -38,10 +38,11 @@ export const COURSE_REQUESTS_COLLECTION = "courseRequests";
 
 /**
  * What a request asks for, as this normaliser reads it. Being excused from a
- * week (`excused`) is stored in this collection with this shape, but read
- * only by its own normaliser (`./courseExcusedRequests.ts`), so every reader
- * built on this one skips it: a correction reader never approves one, and
- * never hands its reason to somebody who reads a correction's.
+ * week (`excused`) and going to another group's session for a week (`visit`)
+ * are stored in this collection with this shape, but read only by their own
+ * normalisers (`./courseExcusedRequests.ts`, `./courseMemberRequests.ts`), so
+ * every reader built on this one skips them: a correction reader never
+ * approves one, and never hands its reason to somebody who reads a correction's.
  */
 export type CourseRequestKind = "register-correction";
 
