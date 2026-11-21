@@ -486,6 +486,19 @@ describe("3. the board says what the records say, in the board's words", () => {
 // 4. One answer
 // ---------------------------------------------------------------------------
 
+describe("3b. an archived group is reached from under the board", () => {
+  test("the run's archived groups are listed under the board, each to its page, where it is restored", async () => {
+    await termOnTheBoard();
+    const before = await open(PeoplePage, "claudia");
+    assert.ok(!before.text.includes("Archived:"), "nothing is drawn while no group is archived");
+    world.db.poke(`courseGroups/${C}`, { archived: true });
+    const drawn = await open(PeoplePage, "claudia");
+    const name = world.db.read(`courseGroups/${C}`).name;
+    assert.ok(drawn.text.includes(`Archived: ${name}`), drawn.text.slice(-300));
+    assert.ok(drawn.html.includes(`href="${PAGE_PATH}/groups/${C}"`), "the archived group's name opens its page");
+  });
+});
+
 describe("4. the line, the number beside Publish and the People tab count with one function", () => {
   test("holding a place is the People tab's number, and still to place is who Publish waits for", async () => {
     await termOnTheBoard();

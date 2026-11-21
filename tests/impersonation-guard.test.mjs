@@ -215,6 +215,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/groups/[groupId]/check-in/close/route.ts", "closes a session's check-in for good, so nobody can answer it any more"],
   ["src/app/api/courses/groups/[groupId]/participant-notes/route.ts", "writes a private note about a named student"],
   ["src/app/api/courses/groups/[groupId]/email/route.ts", "sends email to a group"],
+  ["src/app/api/courses/groups/[groupId]/archive/route.ts", "archives or restores a group"],
   ["src/app/api/courses/groups/[groupId]/facilitators/route.ts", "appoints and removes facilitators"],
   ["src/app/api/courses/groups/[groupId]/notice/route.ts", "publishes a notice to a whole group"],
   ["src/app/api/courses/groups/[groupId]/notes/route.ts", "writes a note a group's facilitators share, in the writer's name"],

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { groupPagePath } from "@/lib/courses/groupPage/words";
-import styles from "./ArchivedGroupsLine.module.css";
+import styles from "./GroupsViews.module.css";
 
 /** "Archived:", before the run's archived groups on the Groups tab. */
 export const ARCHIVED_GROUPS = "Archived:";
@@ -21,12 +21,12 @@ export default function ArchivedGroupsLine({
 }) {
   if (groups.length === 0) return null;
   return (
-    <p className={styles.line} data-testid="archived-groups">
-      <span className={styles.label}>{ARCHIVED_GROUPS}</span>
+    <p className={styles.archivedLine} data-testid="archived-groups">
+      <span className={styles.archivedLabel}>{ARCHIVED_GROUPS}</span>
       {groups.map((group, index) => (
         <span key={group.id}>
           {index > 0 && ", "}
-          <Link href={groupPagePath(roundId, programmeId, group.id)} className={styles.link}>
+          <Link href={groupPagePath(roundId, programmeId, group.id)} className={styles.archivedLink}>
             {group.name}
           </Link>
         </span>
