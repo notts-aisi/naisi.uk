@@ -2464,7 +2464,10 @@ arranging one, and calling one off by staff or by the person. A move on the
 allocation board and a change of session on an open run keep every visit but
 one to the group they now belong to (a board move made mid-term, from the
 move's week on, as a staff move does); Remove and placing a facilitator
-delete the list, and Remove tells the host group's facilitators of each
+delete the list (Remove keeps each visit's week and host beside the removal,
+`visitsWhenRemoved`, so the host's register, which marked them like anybody
+else, is never the group they are listed under as having left: that is the
+last of their own groups whose register marked them), and Remove tells the host group's facilitators of each
 visit whose session has not started and is happening, with the visit's
 called-off email in its form without "as usual" (the person removed is sent
 nothing), counted in the confirmation before the press, the count sent back

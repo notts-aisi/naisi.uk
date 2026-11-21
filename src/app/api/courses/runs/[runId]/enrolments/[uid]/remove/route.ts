@@ -293,6 +293,12 @@ export async function POST(req: Request, ctx: Ctx) {
       // never counted by it, so removing one moves nothing.
       const heldOpenSeat = status === "active" && existing.selfEnrolled === true;
 
+      // The weeks they spent, or were to spend, at another group's session: kept beside the removal, so a
+      // host's register is never taken for the register of a group they belonged to (`listGroups`).
+      const visitsWhenRemoved = (normalizeCourseEnrolment(snap.id, existing).visits ?? []).map((each) => ({
+        weekNumber: each.weekNumber,
+        groupId: each.groupId,
+      }));
       tx.update(enrolmentRef, {
         status: "removed" satisfies CourseEnrolmentStatus,
         groupId: null,
@@ -312,6 +318,7 @@ export async function POST(req: Request, ctx: Ctx) {
         // And any one-week visit to another group's session still to come:
         // somebody taken off the run goes to no session of it.
         visits: FieldValue.delete(),
+        ...(visitsWhenRemoved.length > 0 ? { visitsWhenRemoved } : {}),
         // WHEN THEY WERE TAKEN OFF, in the field leaving writes, so the
         // programme's Overview, its Attendance tab and the register say
         // "Left Fri 13 Nov" for both kinds of leaving. Somebody who left by
