@@ -6,8 +6,10 @@
  * route answered), and its email reaches the people in the group that week.
  * So the week must be one in which the group has a session whose register
  * nobody has taken (`weekNoticeRefusal`): a session still to come, or one put
- * right after it started. A week whose register was taken, a week past the
- * group's last session and a week only another group has are refused in one
+ * right after it started, and then only by the person who changed it, from
+ * the record the change route wrote, within a day. A week whose register was
+ * taken, a week past the group's last session, a week only another group has
+ * and a session that has started with no such record are refused in one
  * sentence, before anything is posted or sent.
  *
  * The world is `tests/lib/sessionsWorld.mjs`: the AGI run in week 4 (Thu 19
@@ -59,6 +61,27 @@ describe("the page's own use", () => {
     assert.equal(world.mail.length, update.emailCount);
   });
 
+  test("It met at another time, after the session: the update about its week posts", async () => {
+    const { update, posted } = await changeThenPost("rahul", {
+      week: 3,
+      dateKey: "2026-11-17",
+      kind: "move",
+      metAtAnotherTime: true,
+      move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" },
+    });
+    assert.equal(update.weekNumber, 3);
+    assert.equal(posted.status, 200, JSON.stringify(posted.body));
+  });
+
+  test("It didn't happen, with no register taken, kept pace and pushed back: the update about its week posts", async () => {
+    for (const kind of ["cancel", "push"]) {
+      reset();
+      const { update, posted } = await changeThenPost("claudia", { week: 3, dateKey: "2026-11-17", kind });
+      assert.equal(update.weekNumber, 3, kind);
+      assert.equal(posted.status, 200, `${kind}: ${JSON.stringify(posted.body)}`);
+    }
+  });
+
   test("a session put right after it started (its draft register called off): the update about its week posts", async () => {
     // Week 3's register is a draft somebody marked, not finished.
     world.db.seed(registerPath(B, 3), { runId: RUN.agi, groupId: B, weekNumber: 3, occurrence: 1, records: { amara: "present" }, markedByUid: "rahul", pushedAt: null, held: true });
@@ -103,6 +126,35 @@ describe("a week the change route cannot have changed", () => {
     assert.deepEqual(updates(), []);
     // Group A's week 6 is Group A's to be told about.
     assert.equal((await aboutWeek("claudia", 6, A)).status, 200);
+  });
+
+  test("a session that has started, with no change on record: refused, and nobody moved out for good is emailed", async () => {
+    // Amara was in Group B in weeks 1 and 2 and is in Group A for good from week 3; week 2 has no register.
+    world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { groupId: A, groupsByWeek: [{ groupId: B, fromWeek: 1 }, { groupId: A, fromWeek: 3 }] });
+    world.mail.length = 0;
+    const before = everything();
+    for (const email of [false, true]) {
+      const answer = await ask.post("rahul", { to: "group", groupId: B, title: "About week 2", message: "A word about it.", email, ...(email ? { emailCount: 3 } : {}), withFacilitators: true, weekNumber: 2 });
+      assert.deepEqual([answer.status, answer.body], [400, { error: "Group B has no session in week 2 that can still change, so nothing was posted or sent." }]);
+    }
+    assert.equal(everything(), before);
+    assert.equal(world.mail.length, 0);
+  });
+
+  test("a change to a session that has started is told about by the person who made it, within a day", async () => {
+    const emailCount = await w.changeEmailsFor(B, "claudia");
+    const changed = await ask.change("claudia", B, { reason: "Nobody came.", week: 3, dateKey: "2026-11-17", kind: "cancel", tell: true, emailCount });
+    assert.equal(changed.status, 200, JSON.stringify(changed.body));
+    // Somebody else on the group's staff: refused.
+    for (const who of ["rahul", "zach"]) {
+      const answer = await aboutWeek(who, 3);
+      assert.equal(answer.status, 400, `${who}: ${JSON.stringify(answer.body)}`);
+    }
+    // The person who made it, a day and a minute later: refused; within the day: posted.
+    w.at("2026-11-20T10:01:00Z");
+    assert.equal((await aboutWeek("claudia", 3)).status, 400);
+    w.at("2026-11-20T09:59:00Z");
+    assert.equal((await aboutWeek("claudia", 3)).status, 200);
   });
 
   test("with no week, an update to the group is as before", async () => {

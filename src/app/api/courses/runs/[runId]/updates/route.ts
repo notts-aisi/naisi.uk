@@ -190,7 +190,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string 
   }
   // About one week: a week of this group the change route can have changed, or nothing is posted or sent.
   if (post.weekNumber !== null && group) {
-    const refused = await weekNoticeRefusal(db, run, group, post.weekNumber);
+    const refused = await weekNoticeRefusal(db, run, group, post.weekNumber, actor.uid, new Date());
     if (refused) return NextResponse.json({ error: refused }, { status: 400 });
   }
 

@@ -15,7 +15,8 @@ import { REFUSAL, tooLongWords } from "./words";
  * email reaches the people in the group THAT WEEK (`updateEmailAudience`'s
  * week), as the change route counted them. Refused with any other `to`, and
  * by the route for a week that is not one of the group's the change route can
- * have changed (`weekNoticeRefusal` in `./week.ts`).
+ * have changed, or, for a session that has started, one the poster did not
+ * change within the last day (`weekNoticeRefusal` in `./week.ts`).
  *
  * `to` is "everyone", "group" (with `groupId`) or "facilitators". `email` is
  * the "Also email it" switch, and `emailCount` the number its button showed:
