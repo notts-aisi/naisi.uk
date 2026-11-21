@@ -10,6 +10,7 @@ import {
   awayMarkRefusal,
   isRowForWeek,
   loadRegisterMembers,
+  rowsOfWeeks,
   marksExcused,
   readsFacilitatorRecord as readsFacilitatorRecordOf,
   registerSessionAccess,
@@ -836,13 +837,14 @@ export async function GET(
   const now = new Date();
   // Somebody GIVEN a session, and admitted no other way, reads that
   // session's register and nothing else of the group: no other column, no
-  // session still to come, nobody who left.
+  // session still to come, nobody who left, and nobody and nothing of
+  // another week.
   const onlyGiven = !gated.isAdmin && !gated.facilitates && !gated.leads;
 
   // The run's records too, for who left this group: the lead's grid works
   // that out from the whole run (somebody staff took off is listed where a
   // register last marked them), and the register asks the same function.
-  const [runSnap, { members, notYetTold }, runRecords] = await Promise.all([
+  const [runSnap, { members: groupRows, notYetTold }, runRecords] = await Promise.all([
     db.collection("courseRuns").doc(runId).get(),
     loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin, role: actor.role }),
     onlyGiven ? Promise.resolve(null) : readRunRecords(db, runId),
@@ -858,6 +860,9 @@ export async function GET(
   const columns = onlyGiven
     ? sessions.filter((session) => gated.givenSessions.includes(session.sessionKey))
     : columnsFor(run, group, sessions, requestedWeek);
+  // Somebody given a session opens that one register: the rows its week's
+  // column draws, and of every per-week field that week's alone (`rowsOfWeeks`).
+  const members = onlyGiven ? rowsOfWeeks(groupRows, columns.map((column) => column.weekNumber)) : groupRows;
 
   // Three `getAll`s, one round trip: the canonical week docs (titles only),
   // this group's forked copies of the same weeks, and the registers
