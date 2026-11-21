@@ -17,7 +17,7 @@
  *  6. what a change does to people already on the week, counted, and then done
  *  7. a group's own copy of the week
  *  8. the card draws each row with the answers it offers
- *  9. a facilitator's own pick is never put in front of their co-facilitators by a switch
+ *  9. a switch to given out is never refused for who has picked, a facilitator included
  * 10. the check's comparison and the week's history name who chooses
  *
  * On AGI Strategy's run in week 3 (`tests/lib/packsAndCasesWorld.mjs`): Group
@@ -576,66 +576,84 @@ describe("7. a group's own copy of the week", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 9. A facilitator's own pick stays theirs
+// 9. A switch to given out is never refused for who has picked
 // ---------------------------------------------------------------------------
 
-describe("9. a facilitator's own pick is never put in front of their co-facilitators by a switch", () => {
-  const ONE =
-    "This can’t be changed to given out yet. 1 person who facilitates their own group has picked one, and their pick is theirs alone: the group’s other facilitators would see it.";
+describe("9. a switch to given out is never refused for who has picked, a facilitator included", () => {
+  const WHOLE_RUN = " This counts everybody on the programme, so it can be a little high.";
+  const ONE = "1 person has picked one. They keep their pick and can no longer change it. Facilitators give one to everybody else.";
+  const TWO = "2 people have picked one. They keep their picks and can no longer change them. Facilitators give one to everybody else.";
 
-  test("the switch is refused before Save, in place of the count, and at Save, with nothing written; the block saves as picked", async () => {
+  /** The collections a request asks the course routes' database for, by name, while it runs. */
+  async function collectionsAsked(request) {
+    const view = world.courseDb;
+    const inner = view.collection;
+    const asked = [];
+    view.collection = (path) => {
+      asked.push(path);
+      return inner(path);
+    };
+    try {
+      return { answer: await request(), asked };
+    } finally {
+      view.collection = inner;
+    }
+  }
+
+  test("the check's switch saves over a facilitator's own pick, counting them; the pick is then their given pathway, on their co-facilitators' pathways and cases page", async () => {
     const markdown = await storePicked();
     // Farah facilitates Group B and takes part in it; Chloe only takes part.
     assert.equal((await w.pick("farah", W3.given, "w03", W3.markets)).status, 200);
     assert.equal((await w.pick("chloe", W3.given, "w03", W3.elections)).status, 200);
+    // While it is picked, no co-facilitator's page gives Farah's pick out.
+    for (const person of ["rahul", "sofia"]) assert.deepEqual(await packsOnTheDraw(person, B), [], `${person}'s draw gives nothing out while it is picked`);
     const row = rowOf(await paste("claudia", "POST", { markdown }), "Part 3: Your pack");
     const change = [{ place: row.place, kind: "chooseOne", givenBy: "facilitator" }];
     const checked = await paste("claudia", "POST", { markdown, whoChooses: change });
-    assert.equal(rowOf(checked, "Part 3: Your pack").people, ONE, "the check says so before Save, in place of the count");
-    assert.ok(checked.body.problems.includes(ONE), "and Save is off");
+    assert.equal(rowOf(checked, "Part 3: Your pack").people, TWO + WHOLE_RUN, "the count includes Farah, as it includes Chloe");
+    assert.deepEqual(checked.body.problems, [], "nothing stops Save");
     assert.doesNotMatch(JSON.stringify(checked.body), /farah|Farah/, "it names nobody");
-    const before = everything();
-    for (const person of ["claudia", "zach"]) {
-      const refused = await paste(person, "PUT", { markdown, whoChooses: change });
-      assert.deepEqual([refused.status, refused.body.error], [400, ONE], person);
+    const records = JSON.stringify(w.records().map((path) => world.db.read(path)));
+    const saved = await paste("claudia", "PUT", { markdown, whoChooses: change });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(storedChoices().get(W3.given).givenBy, "facilitator");
+    assert.equal(JSON.stringify(w.records().map((path) => world.db.read(path))), records, "the save writes no record: every pick is kept");
+    assert.equal(w.recordOf("farah", W3.given).packId, W3.markets, "Farah keeps hers, now as the pathway she is given");
+    for (const person of ["rahul", "sofia", "farah"]) {
+      assert.deepEqual((await packsOnTheDraw(person, B)).sort(), [W3.elections, W3.markets].sort(), `${person}'s draw: Chloe's pick and Farah's`);
     }
-    assert.equal(everything(), before, "nothing is written");
-    // Left as picked, the rest of the paste saves.
-    assert.equal((await paste("claudia", "PUT", { markdown })).status, 200);
-    assert.equal(storedChoices().get(W3.given).givenBy, "fellow");
-    for (const person of ["rahul", "sofia"]) assert.deepEqual(await packsOnTheDraw(person, B), [], `${person}'s draw shows no pick`);
+    // Once given out, Farah can no longer change it herself, as nobody can.
+    assert.equal((await w.pick("farah", W3.given, "w03", W3.technology)).status, 403);
   });
 
-  test("the same refusal when the pasted words make the change, and the switch back to picked lets it save", async () => {
+  test("the pasted words make the same change, and it saves the same", async () => {
     const copied = await storePicked();
     assert.equal((await w.pick("farah", W3.given, "w03", W3.markets)).status, 200);
     const markdown = copied.replace(`**Choose one** · picked by each person {#${W3.given}}`, `**Choose one** · given out by your facilitator {#${W3.given}}`);
     assert.notEqual(markdown, copied);
     const checked = await paste("claudia", "POST", { markdown });
     const row = rowOf(checked, "Part 3: Your pack");
-    assert.deepEqual([row.start, row.givenBy, row.people], ["facilitator", "facilitator", ONE]);
-    const before = everything();
-    const refused = await paste("claudia", "PUT", { markdown });
-    assert.deepEqual([refused.status, refused.body.error], [400, ONE]);
-    assert.equal(everything(), before);
-    const back = await paste("claudia", "PUT", { markdown, whoChooses: [{ place: row.place, kind: "chooseOne", givenBy: "fellow" }] });
-    assert.equal(back.status, 200, JSON.stringify(back.body));
-    assert.equal(storedChoices().get(W3.given).givenBy, "fellow");
+    assert.deepEqual([row.start, row.givenBy, row.people], ["facilitator", "facilitator", ONE + WHOLE_RUN]);
+    assert.deepEqual(checked.body.problems, []);
+    const saved = await paste("claudia", "PUT", { markdown });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(storedChoices().get(W3.given).givenBy, "facilitator");
+    assert.deepEqual(await packsOnTheDraw("rahul", B), [W3.markets], "Farah's pathway is on Rahul's draw");
   });
 
-  test("a facilitator who holds no place in the group is counted too: their pick is their own work as well", async () => {
+  test("a facilitator who holds no place in the group is counted as anybody is, and the switch saves", async () => {
     const markdown = await storePicked();
     assert.equal((await w.pick("rahul", W3.given, "w03", W3.markets)).status, 200);
     assert.equal((await w.pick("sofia", W3.given, "w03", W3.elections)).status, 200);
     const row = rowOf(await paste("zach", "POST", { markdown }), "Part 3: Your pack");
-    const refused = await paste("zach", "PUT", { markdown, whoChooses: [{ place: row.place, kind: "chooseOne", givenBy: "facilitator" }] });
-    assert.deepEqual(
-      [refused.status, refused.body.error],
-      [400, "This can’t be changed to given out yet. 2 people who facilitate their own group have picked one, and their picks are theirs alone: the group’s other facilitators would see them."],
-    );
+    const change = [{ place: row.place, kind: "chooseOne", givenBy: "facilitator" }];
+    assert.equal(rowOf(await paste("zach", "POST", { markdown, whoChooses: change }), "Part 3: Your pack").people, TWO + WHOLE_RUN);
+    const saved = await paste("zach", "PUT", { markdown, whoChooses: change });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.deepEqual((await packsOnTheDraw("sofia", B)).sort(), [W3.elections, W3.markets].sort(), "Rahul's pathway is on Sofia's draw, beside her own");
   });
 
-  test("allowed as before when only people who do not facilitate have picked, and no slips page a facilitator opens then carries a facilitator's own pick", async () => {
+  test("a pick on another block that is still picked stays its holder's: the draw gives out only the switched block's", async () => {
     const markdown = await storePicked();
     assert.equal((await w.pick("chloe", W3.given, "w03", W3.elections)).status, 200);
     assert.equal((await w.pick("kofi", W3.given, "w03", W3.markets)).status, 200);
@@ -652,7 +670,7 @@ describe("9. a facilitator's own pick is never put in front of their co-facilita
     assert.equal(late.status, 403);
   });
 
-  test("a group's own copy counts that group's facilitators and people alone", async () => {
+  test("a group's own copy counts that group's facilitators and people alone, and its switch saves over its facilitator's pick", async () => {
     await storePicked();
     // Farah facilitates Group B, not Group A.
     assert.equal((await w.pick("farah", W3.given, "w03", W3.markets)).status, 200);
@@ -662,18 +680,31 @@ describe("9. a facilitator's own pick is never put in front of their co-facilita
     const forA = rowOf(await pasteForGroup("claudia", "POST", { markdown: groupMarkdown, whoChooses: change }, A), "Part 3: Your pack");
     assert.equal(forA.people, "Nobody has picked one yet. Facilitators give one to everybody.", "nobody of Group A has picked");
     const forB = await pasteForGroup("claudia", "POST", { markdown: groupMarkdown, whoChooses: change }, B);
-    assert.equal(rowOf(forB, "Part 3: Your pack").people, ONE);
-    const before = everything();
-    const refusedB = await pasteForGroup("claudia", "PUT", { markdown: groupMarkdown, whoChooses: change }, B);
-    assert.deepEqual([refusedB.status, refusedB.body.error], [400, ONE]);
-    assert.equal(everything(), before, "Group B's copy is not made");
-    const savedA = await pasteForGroup("claudia", "PUT", { markdown: groupMarkdown, whoChooses: change }, A);
-    assert.equal(savedA.status, 200, JSON.stringify(savedA.body));
-    assert.deepEqual(await packsOnTheDraw("rahul", B), [], "Group B still reads the run's week, picked: Farah's pick is on no draw");
-    // The run's week, read for every group, is refused for Farah's pick.
-    const runRow = rowOf(await paste("claudia", "POST", { markdown: await copyOut() }), "Part 3: Your pack");
-    const forRun = await paste("claudia", "PUT", { markdown: await copyOut(), whoChooses: [{ place: runRow.place, kind: "chooseOne", givenBy: "facilitator" }] });
-    assert.deepEqual([forRun.status, forRun.body.error], [400, ONE]);
+    assert.equal(rowOf(forB, "Part 3: Your pack").people, ONE, "Group B's count is Farah, and no more");
+    assert.deepEqual(forB.body.problems, []);
+    const savedB = await pasteForGroup("claudia", "PUT", { markdown: groupMarkdown, whoChooses: change }, B);
+    assert.equal(savedB.status, 200, JSON.stringify(savedB.body));
+    const copy = world.db.read(`courseGroups/${B}/weeks/w03`);
+    assert.equal(who.choiceBlocks(copy.blocks).find((block) => block.id === W3.given).givenBy, "facilitator");
+    assert.equal(storedChoices().get(W3.given).givenBy, "fellow", "the run's week is never written");
+    assert.deepEqual(await packsOnTheDraw("rahul", B), [W3.markets], "Group B reads its own copy, given out: Farah's pathway is on Rahul's draw");
+    assert.equal(w.recordOf("farah", W3.given).packId, W3.markets);
+  });
+
+  test("a save that goes through never reads who holds a pack; a refused one counts them for its check", async () => {
+    const markdown = await storePicked();
+    assert.equal((await w.pick("farah", W3.given, "w03", W3.markets)).status, 200);
+    const row = rowOf(await paste("claudia", "POST", { markdown }), "Part 3: Your pack");
+    const change = [{ place: row.place, kind: "chooseOne", givenBy: "facilitator" }];
+    // A group's own copy: the save reads no pack or case record at all.
+    const groupMarkdown = (await pasteForGroup("claudia", "GET", undefined, B)).body.markdown;
+    const group = await collectionsAsked(() => pasteForGroup("claudia", "PUT", { markdown: groupMarkdown, whoChooses: change }, B));
+    assert.equal(group.answer.status, 200, JSON.stringify(group.answer.body));
+    assert.deepEqual(group.asked.filter((name) => name === "coursePacksAndCases"), [], "a group's save reads who holds a pack");
+    // The run's week: one read of the records, the work the save keeps (`readWeekWork`), and no live groups for it.
+    const run = await collectionsAsked(() => paste("claudia", "PUT", { markdown, whoChooses: change }));
+    assert.equal(run.answer.status, 200, JSON.stringify(run.answer.body));
+    assert.equal(run.asked.filter((name) => name === "coursePacksAndCases").length, 1, "the run's save reads who holds a pack as well as the work it keeps");
   });
 
   test("a paste carrying facilitator material is refused for that first, whatever it does to who chooses", async () => {
@@ -687,6 +718,9 @@ describe("9. a facilitator's own pick is never put in front of their co-facilita
       const run = await paste("claudia", "PUT", { markdown: material, whoChooses: change });
       assert.deepEqual([run.status, run.body.error], [400, MATERIAL], `the run's week, ${JSON.stringify(change)}`);
       assert.equal(run.body.problems[0], MATERIAL);
+      // The refusal answers with the check, counted: Farah's pick, when the change turns the block to given out.
+      const people = change.some((each) => each.givenBy === "facilitator") ? `${ONE}${WHOLE_RUN}` : null;
+      assert.equal(rowOf(run, "Part 3: Your pack").people, people, `the refused save's check, ${JSON.stringify(change)}`);
       const group = await pasteForGroup("claudia", "PUT", { markdown: material, whoChooses: change }, B);
       assert.deepEqual([group.status, group.body.error], [400, MATERIAL], `a group's copy, ${JSON.stringify(change)}`);
     }

@@ -8,7 +8,9 @@
  * work, progress and reminders" saying that three days and one day before
  * each of somebody's sessions we email them its day, time and place, how to
  * tell us they can't make it, and what is left of that week's work if
- * anything is (it no longer says they stop once the week is done), and
+ * anything is (it no longer says they stop once the week is done), "If you
+ * facilitate your own group." ending with the one exception for a week whose
+ * pathways or cases are given out, and
  * "What's changed in version 21" at the top with version 20's, 19's, 18's
  * and 17's lines kept under it, dated. Told on Home, not asked. Every other
  * word is v20's, so the sections below that name v15 to v20 hold v21's text,
@@ -222,7 +224,7 @@ const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
 const V20_FLAT = read("src/content/legal/privacy/v20.tsx").replace(/\s+/g, " ");
 /** "What's changed in version 21", as the page carries it (an apostrophe is `&apos;` in the source). */
 const CHANGED_21 =
-  "We now email everybody a reminder of each session&apos;s day, time and place three days and one day before it, where before we only emailed people with work left to do. Anonymous feedback from the second form is kept for up to two years and deleted by hand once a year, where before we said two years from the day it is sent. We now say that our database&apos;s recovery copies can hold the time at which something sent through an anonymous form arrived, for up to 14 days.";
+  "We now email everybody a reminder of each session&apos;s day, time and place three days and one day before it, where before we only emailed people with work left to do. Anonymous feedback from the second form is kept for up to two years and deleted by hand once a year, where before we said two years from the day it is sent. We now say that our database&apos;s recovery copies can hold the time at which something sent through an anonymous form arrived, for up to 14 days. We now say that in a week where facilitators give out pathways or cases, a group&apos;s other facilitators can see which ones a facilitator who also takes part in the group has.";
 /** v19, frozen: read by the version 19 describe, which proves v19 is v18 with its one change, and by the version 20 describe, which proves v20 is v19 with its changes. */
 const V19_FLAT = read("src/content/legal/privacy/v19.tsx").replace(/\s+/g, " ");
 /** v18, frozen: read by the version 18 describe, which proves v18 is v17 with its changes, and by the version 19 describe, which proves v19 is v18 with its one. */
@@ -286,9 +288,9 @@ describe("policy versions", () => {
   });
 
   test("privacy v21 is dated the day its words last changed", () => {
-    // Provisional: set again to the day v21 goes live, as v20's, v19's, v18's, v17's, v16's and v15's were.
+    // The day v21 reaches the site, as v20's, v19's, v18's, v17's, v16's and v15's were dated.
     const twentyOne = POLICIES.privacy.versions.find((v) => v.version === 21);
-    assert.equal(twentyOne?.lastUpdated, "19 November 2026");
+    assert.equal(twentyOne?.lastUpdated, "22 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 21).length, 1);
     const twenty = POLICIES.privacy.versions.find((v) => v.version === 20);
     assert.equal(twenty?.lastUpdated, "17 November 2026");
@@ -993,7 +995,8 @@ const MUST_NAME = [
   // CHANGED ON PURPOSE (v17): and, for a week spent at another group's
   // session, that group's facilitators.
   ["who reads somebody's work, and that the week's page says so", /<strong>Who reads it\.<\/strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators\. Nobody else taking part; the week&apos;s page says so\./],
-  ["a facilitator's own work is the lead's and admins' only", /If you facilitate a group, your own work is read by the lead and admins only\./],
+  // CHANGED ON PURPOSE (v21): apart from the one exception, a week whose pathways or cases are given out.
+  ["a facilitator's own work is the lead's and admins' only", /If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above\./],
   // Pairs for a session in pairs (Technical AI Safety's hands-on night).
   // §2g holds what each person sees of their pair to its code.
   ["what a person's partner sees in a session in pairs", /When a session is in pairs, your partner sees your first name and whether you are bringing a laptop\./],
@@ -4395,7 +4398,7 @@ describe("the course hub passage", () => {
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
-      " If you facilitate a group, your own work is read by the lead and admins only.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above.",
       " Your private notes on the material are read by your group&apos;s facilitators and admins (if you facilitate the group, by admins alone), and we use them to improve the course.",
       " A facilitator may read out a line of a reflection without saying whose it is.",
     ]) {
@@ -5479,7 +5482,7 @@ describe("the course hub passage", () => {
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
-      " If you facilitate a group, your own work is read by the lead and admins only.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
     }
@@ -5493,7 +5496,7 @@ describe("the course hub passage", () => {
         ["src/lib/courses/packsAndCases/readers.ts", "the readers, each read by id from the people a page may show it to"],
         ["src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts", "the person's own pick and ready box, in their own name only"],
         ["src/app/api/courses/groups/[groupId]/draw/route.ts", "the draw, typed in by the group's live facilitators, the programme's lead or an admin"],
-        ["src/lib/courses/weekEdit/counts.ts", "the week editor counts how many people have started a week, a pick among their work, and the paste's check how many hold a pack in a Choose one whose chooser it changes and how many of them facilitate, so a switch never shows a facilitator's own pick to their co-facilitators: numbers for the programme's lead or an admin, never whose"],
+        ["src/lib/courses/weekEdit/counts.ts", "the week editor counts how many people have started a week, a pick among their work, and the paste's check how many hold a pack in a Choose one whose chooser it changes, somebody who facilitates counted as anybody else: numbers for the programme's lead or an admin, never whose"],
         ["src/lib/firestore/courseDeletion.ts", "destroying a run deletes its records"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account deletes every record of theirs"],
       ]),
@@ -5694,7 +5697,7 @@ describe("the course hub passage", () => {
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
-      " If you facilitate a group, your own work is read by the lead and admins only.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
     }
@@ -6022,7 +6025,7 @@ describe("the course hub passage", () => {
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
-      " If you facilitate a group, your own work is read by the lead and admins only.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
     }
@@ -12335,6 +12338,11 @@ describe("v21 says the reminders before a session go to everybody due at it, and
   /** How long anonymous feedback from the second form is kept, as v21 says it: cleared by hand once a year (`src/lib/societyFeedback/admin.ts`, `clearBefore`). */
   const RETENTION_21 =
     "up to two years. Once a year an admin deletes by hand every entry more than a year old, so none is kept longer than two years.";
+  /** The end of "If you facilitate your own group.": v20's, and v21's with its one exception, as the owner is asked to approve it. */
+  const OWN_GROUP_20 =
+    "Your own work is read by the programme&apos;s lead and admins, not by the group&apos;s other facilitators, and they don&apos;t give you feedback on it. </p>";
+  const OWN_GROUP_21 =
+    "Your own work is read by the programme&apos;s lead and admins, not by the group&apos;s other facilitators, and they don&apos;t give you feedback on it. The one exception is a week where facilitators give out pathways or cases: the group&apos;s other facilitators can see which ones you have, including a pathway you picked yourself if the week was later changed to given out. </p>";
   const REMINDERS_21 =
     "<strong>Reminders.</strong> Three days and one day before each of your sessions we email you its day, time and place, how to tell us if you can&apos;t make it, and what&apos;s left of that week&apos;s work if anything is. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off.";
   /**
@@ -12361,6 +12369,12 @@ describe("v21 says the reminders before a session go to everybody due at it, and
       "<p> We also have a second form that never records who fills it in: an anonymous feedback form that any member can use at any time. It does not ask who you are, and we keep what you write, the day, and any programme, session or role you choose to name. Only admins read it, from the next day. Nobody can reply to it, so if you&apos;d like an answer, ask us directly instead. </p> " +
         "<p> Our database&apos;s recovery copies, which exist so that data can be restored after a fault, can hold the time at which something sent through either anonymous form arrived, for up to 14 days. We would only look at them if we had to. </p>",
     ],
+    ["a facilitator who takes part in their own group: the one exception, a week whose pathways or cases are given out", OWN_GROUP_20, OWN_GROUP_21],
+    [
+      "Who reads it. points a facilitator's own work at that exception",
+      " If you facilitate a group, your own work is read by the lead and admins only. Two things are narrower still.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above. Two things are narrower still.",
+    ],
   ];
 
   test("v21 is v20 with these changes and no others", () => {
@@ -12378,6 +12392,40 @@ describe("v21 says the reminders before a session go to everybody due at it, and
     assert.ok(section.includes(REMINDERS_21), "Reminders. is not in Your work, progress and reminders, in those words");
     assert.ok(!V20_FLAT.includes(REMINDERS_21));
     assert.ok(!V20_FLAT.includes("Three days and one day before each of your sessions"));
+  });
+
+  test("a facilitator who takes part in their own group: the one exception, word for word, and the code agrees", () => {
+    const passage = hubPassageOf("<strong>If you facilitate your own group.</strong>");
+    assert.ok(`${passage}</p>`.endsWith(OWN_GROUP_21), "If you facilitate your own group. no longer ends with the exception, in those words");
+    assert.ok(!V20_FLAT.includes("The one exception is a week where facilitators give out pathways or cases"));
+    // "Who reads it." says "apart from the one exception above": the exception comes first on the page.
+    const exception = PAGE_FLAT.indexOf("The one exception is a week where facilitators give out pathways or cases");
+    const pointer = PAGE_FLAT.indexOf("your own work is read by the lead and admins only, apart from the one exception above.");
+    assert.ok(exception !== -1 && pointer > exception, "Who reads it. no longer comes after the exception it points to as above");
+    // "the group's other facilitators can see which ones you have": the
+    // pathways and cases page reads every person's pack in a Choose one given
+    // out and their case in a talk given out, a facilitator's as anybody's,
+    // and hands them to the editor; only a talk whose cases follow a pick
+    // keeps a facilitator's row back ("Picks their own").
+    const readers = withoutComments(read("src/lib/courses/packsAndCases/readers.ts"));
+    const drawState = /export async function readDrawState\([\s\S]*?\n\}/.exec(readers);
+    const rows = /export function drawRowsFor\([\s\S]*?\n\}/.exec(readers);
+    assert.ok(drawState && rows, "could not find the draw's readers");
+    assert.match(drawState[0], /for \(const chooseOne of week\.draw\.packs\) \{\s*const pack = findPack\(chooseOne, records\.get\(`\$\{person\.uid\} \$\{chooseOne\.id\}`\)\?\.packId \?\? null\);\s*if \(pack\) packs\[chooseOne\.id\] = pack\.id;/);
+    assert.ok(!/facilitates/.test(drawState[0]), "the draw's state now asks who facilitates");
+    assert.match(rows[0], /const packs = \{ \.\.\.\(holding\?\.packs \?\? \{\}\) \};/);
+    assert.match(rows[0], /if \(following\.size > 0 && hidesOwnPick\(person, viewer\)\) \{/);
+    // "including a pathway you picked yourself if the week was later changed
+    // to given out": a pick and a pack given are one record, and the check on
+    // a pasted week never refuses the change for who has picked.
+    const paste = withoutComments(read("src/lib/courses/weekPaste.ts"));
+    assert.match(paste, /problems: \[\.\.\.read\.problems\],/);
+    for (const file of ["src/app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts", "src/app/api/courses/groups/[groupId]/weeks/[weekId]/blocks/route.ts"]) {
+      const route = withoutComments(read(file));
+      assert.ok(!/facilitat/i.test(route.slice(route.indexOf("export async function PUT("))), `${file}: the save now asks who facilitates`);
+    }
+    // Run through the routes and the pathways and cases page, as a co-facilitator.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-week-who-chooses.test.mjs")));
   });
 
   test("what changed is at the top, newest first, each earlier version's line under it with its date", () => {
@@ -12399,7 +12447,7 @@ describe("v21 says the reminders before a session go to everybody due at it, and
       assert.equal(acceptance.needsPolicyAcceptance(stored), false, stored);
     }
     // It changes how information is used, so Home's one short line says the policy changed, for a week from its date.
-    assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 21), { version: 21, lastUpdated: "19 November 2026", toldOnHome: true });
+    assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 21), { version: 21, lastUpdated: "22 November 2026", toldOnHome: true });
     // The week, the words and the dismissal are run in tests/policy-update-line.test.mjs.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
   });

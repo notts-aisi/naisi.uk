@@ -7,7 +7,6 @@ import { packHolders } from "@/lib/courses/weekEdit/counts";
 import { MAX_PASTE_CHARS, readPastedWeek, type PastedWeek } from "@/lib/courses/weekBlocks/paste";
 import {
   WHO_CHOOSES_REFUSAL,
-  facilitatorPickProblems,
   switchedChooseOnes,
   whoChoosesOf,
   whoChoosesWire,
@@ -126,41 +125,22 @@ export async function answersOnRemoved(
 
 /**
  * How many people hold a pack in each Choose one whose chooser the paste
- * changes, and how many of them facilitate a group (`packHolders`). `all`
- * counts every such block, for an answer the page shows; otherwise only the
- * blocks turned from picked to given out, which is all a save needs to
- * decide whether it is refused. `owners` as for `answersOnRemoved`;
- * `facilitators` is read only when a block turns to given out. Nothing is
+ * changes (`packHolders`), for the check to say what the change does to
+ * them. Never needed to decide a save, so a save reads it only to answer a
+ * refusal with the check. `owners` as for `answersOnRemoved`. Nothing is
  * read when no block's chooser changes.
  */
-export async function holdersFor(
-  db: Firestore,
-  runId: string,
-  read: PastedWeek,
-  options: { owners: ReadonlySet<string> | null; facilitators: () => Promise<ReadonlySet<string>>; all: boolean },
-): Promise<Map<string, Holders>> {
-  const switched = switchedChooseOnes(read.whoChooses, read.blocks);
-  const toGiven = switched.filter((block) => block.givenBy === "facilitator");
-  const blocks = options.all ? switched : toGiven;
-  if (blocks.length === 0) return new Map();
-  const facilitators = toGiven.length > 0 ? await options.facilitators() : new Set<string>();
-  return packHolders(db, runId, blocks, options.owners, facilitators);
-}
-
-/** Does `holders` already count every Choose one whose chooser the paste changes? */
-export function holdersCountAll(read: PastedWeek, holders: ReadonlyMap<string, Holders>): boolean {
-  return switchedChooseOnes(read.whoChooses, read.blocks).every((block) => holders.has(block.id));
+export async function holdersFor(db: Firestore, runId: string, read: PastedWeek, owners: ReadonlySet<string> | null): Promise<Map<string, Holders>> {
+  return packHolders(db, runId, switchedChooseOnes(read.whoChooses, read.blocks), owners);
 }
 
 /**
  * What "Read it" and a refused save show: the read, field by field, the
  * answers at stake, and who chooses each Choose one and Cases block, with how
  * many people hold a pack in each Choose one whose chooser the paste changes
- * (`holders`, by block id: `packHolders` in `src/lib/courses/weekEdit/counts.ts`).
- * `problems` adds what stops a save that the store decides: a Choose one
- * turned from picked to given out while somebody who facilitates a group
- * holds a pick in it. `wholeRun`: the counts are of everybody on the
- * programme (the run's own week), which the check says.
+ * (`holders`, by block id: `packHolders` in `src/lib/courses/weekEdit/counts.ts`;
+ * none given, no count is said). `wholeRun`: the counts are of everybody on
+ * the programme (the run's own week), which the check says.
  */
 export function pasteAnswer(
   read: PastedWeek,
@@ -176,7 +156,7 @@ export function pasteAnswer(
     title: read.title,
     found: read.found.map((row) => ({ state: row.state, label: row.label, detail: row.detail, indent: row.indent })),
     checks: [...read.checks],
-    problems: [...new Set([...read.problems, ...facilitatorPickProblems(read.whoChooses, holders)])],
+    problems: [...read.problems],
     removed: read.removed.map((item) => ({ id: item.id, kind: item.kind, label: item.label, answers: counts.get(item.id) ?? 0 })),
     answers,
     kept: read.kept,

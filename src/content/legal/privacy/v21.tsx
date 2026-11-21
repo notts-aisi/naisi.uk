@@ -2,7 +2,8 @@
  * Version 21 of the Privacy Policy: version 20 with the paragraph
  * "Reminders." in "Your work, progress and reminders" saying the reminders
  * before a session now go to everybody due at it, how long anonymous
- * feedback from the second form is kept, and "What's changed in
+ * feedback from the second form is kept, what a group's other facilitators
+ * see of a facilitator who takes part in it, and "What's changed in
  * version 21" at the top, with version 20's, version 19's, version 18's and
  * version 17's own lines kept under it and dated. Every other word is
  * version 20's.
@@ -32,7 +33,21 @@
  *     move, which stamps when each was written, and point-in-time recovery
  *     (7 days, to the minute) and the daily backups (14 days) keep copies of
  *     it. Version 20 did not speak of them.
- *  4. **What's changed** at the top says all three, and keeps version 20's, version
+ *  4. **A facilitator who takes part in their own group.** "If you
+ *     facilitate your own group." ends with the one exception to "not by the
+ *     group's other facilitators": in a week whose pathways or cases are
+ *     given out, the pathways and cases page (`/learn/draw/[groupId]`,
+ *     `readDrawState` and `drawRowsFor` in
+ *     `src/lib/courses/packsAndCases/readers.ts`) shows the group's other
+ *     facilitators which ones that facilitator has, including a pathway they
+ *     picked themselves before the week was changed to given out: the check
+ *     on a pasted week never refuses that change
+ *     (`src/lib/courses/weekBlocks/whoChooses.ts`). On a week whose pathway
+ *     each person picks, their pick and the case that follows it stay the
+ *     lead's and admins' ("Picks their own"), as in version 20. "Who reads
+ *     it." points its sentence about a facilitator's own work at that
+ *     exception ("apart from the one exception above").
+ *  5. **What's changed** at the top says all four, and keeps version 20's, version
  *     19's, version 18's and version 17's lines under it, each with its date.
  *
  * It changes how information is used (an email address and a place in a
@@ -117,7 +132,10 @@ export default function PrivacyContentV21({
               year, where before we said two years from the day it is sent. We
               now say that our database&apos;s recovery copies can hold the
               time at which something sent through an anonymous form arrived,
-              for up to 14 days.
+              for up to 14 days. We now say that in a week where facilitators
+              give out pathways or cases, a group&apos;s other facilitators can
+              see which ones a facilitator who also takes part in the group
+              has.
             </p>
             <p>
               <strong>What changed in version 20, on 17 November 2026:</strong> This
@@ -626,7 +644,11 @@ export default function PrivacyContentV21({
                 its people as well: on its register and counted for who
                 finished. Your own work is read by the programme&apos;s lead and
                 admins, not by the group&apos;s other facilitators, and they
-                don&apos;t give you feedback on it.
+                don&apos;t give you feedback on it. The one exception is a week
+                where facilitators give out pathways or cases: the group&apos;s
+                other facilitators can see which ones you have, including a
+                pathway you picked yourself if the week was later changed to
+                given out.
               </p>
             </section>
 
@@ -645,8 +667,8 @@ export default function PrivacyContentV21({
                 week you spend at another group&apos;s session, that
                 group&apos;s facilitators. Nobody else taking part; the
                 week&apos;s page says so. If you facilitate a group, your own
-                work is read by the lead and admins only. Two things are
-                narrower still. Your sealed predictions are read by you and
+                work is read by the lead and admins only, apart from the one
+                exception above. Two things are narrower still. Your sealed predictions are read by you and
                 admins alone, and each time an admin opens them we record it
                 first; if we can&apos;t record it, they stay closed. Your
                 private notes on the material are read by your group&apos;s
