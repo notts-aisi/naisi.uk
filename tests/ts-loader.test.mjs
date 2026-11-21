@@ -262,6 +262,11 @@ describe("the shared loader reads JSX", () => {
  */
 const USERS = new Map([
   [
+    "rich-text-link-href.test.mjs",
+    "runs the rich-text editor's link box rule, a .ts module, as a plain function, and reads a course email's seed " +
+      "wording, another .ts module, to hold that a link to one token is saved and read back as the token alone",
+  ],
+  [
     "course-offer.test.mjs",
     "loads the hub's own route, a .ts module, for the pure rule that decides an offer; the route's graph is the " +
       "hub's whole reach, which the shared loader compiles to one file a module",

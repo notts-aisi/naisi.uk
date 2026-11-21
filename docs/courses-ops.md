@@ -1697,12 +1697,36 @@ programme names" below).
   facilitates its one group), and the button's count leaves them out. Its
   wording is in Email designs as "You're facilitating", beside "Placed in a
   group".
+- **The facilitators' email links their guide (since November 2026).** A
+  second button, after "Open your group", opens the course's facilitator
+  guide: "Facilitator guide for week 1", to week 1's page of the guide,
+  when the email says week 1's guide is on the group page, and "Facilitator
+  guide", to the guide's front page, otherwise. It is the optional pair
+  `{guideUrl}` and `{guideButton}` in a paragraph of its own, so a run with
+  no course to link to loses the button and nothing else, and Publish is
+  never refused for it. Wording saved in Email designs before then has
+  neither and sends as saved, without the button. To add it, open "You're
+  facilitating" in Email designs and either press Reset to default, then
+  Save (and make any earlier changes again), or add a paragraph of its own
+  with a link whose address is `{guideUrl}` and whose words are
+  `{guideButton}`. Either is a change to the saved wording, so the next
+  Publish that sends email asks for a new test, as any wording change does.
+- **A link to a token is the token's own address.** In Email designs the
+  link box saves an address that is exactly one token, typed alone or after
+  the `https://` it starts with, as the token alone (`{groupUrl}`), and
+  adds `https://` to a bare domain as before. When a course email is
+  written, a link whose address is a scheme and then exactly one token whose
+  value is a whole address is sent with that value alone, so wording saved
+  as `https://{groupUrl}` links to the group page. The saved wording is not
+  changed, so the test before Publish reads it as it did.
 - **A changed wording needs a fresh test.** Saving either of the two emails
   a run sends in Email designs ("You're facilitating", and "Placed in a
   group" or, on a run an incubator names, "Placed on an incubator") locks
   its Publish again until somebody sends themselves a test. A test that this
   copy of the site held, or that went to an address on the do-not-email
-  list, reached nobody and does not count.
+  list, reached nobody and does not count. The one thing left out of the
+  comparison is the guide's button paragraph exactly as the default words
+  it, so adding it to the default in November 2026 locked no run's Publish.
 - **Do not destroy the form while its people are waiting for a group.**
   Until somebody is in a group, their member area knows they hold a place
   only from their application. Destroy the form in between and it tells

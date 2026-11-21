@@ -50,9 +50,10 @@ import {
  *  - `essential`: the group's name, its weekly time, its first and last
  *    session, how many are in it and the link to its page. The email exists
  *    to say these.
- *  - `optional`: where it meets, who else facilitates it, and who signs it.
- *    A group may have no room yet, one facilitator, or a run no programme
- *    names, and the paragraph that would have said so is left out. Exactly
+ *  - `optional`: where it meets, who else facilitates it, who signs it, and
+ *    the button to the course's facilitator guide. A group may have no room
+ *    yet, one facilitator, or a run no programme names, and the paragraph
+ *    that would have said so is left out. Exactly
  *    one of the two sign-offs is filled: the lead's (`{leadName}` with
  *    `{programmeName}`), or, when no lead stands, `{naisiSignOff}`, the
  *    group email's own `NAISI_SIGN_OFF`.
@@ -63,6 +64,19 @@ import {
  *
  * `{where}` and `{coFacilitators}` stay on the list for wording saved before
  * the board's, which uses them in paragraphs of their own.
+ *
+ * ## The button to the guide
+ *
+ * `{guideUrl}` and `{guideButton}` are a second button, after the one to the
+ * group page: the course's facilitator guide, which its facilitators may read
+ * from the moment they are named on a group (the guide's own gate). Its words
+ * are "Facilitator guide for week 1" when `{namesOnPage}` says week 1's guide
+ * is on the group page (`weekOneGuide`), and "Facilitator guide" otherwise,
+ * the words the group page's own links use; Publish points it at week 1's
+ * page of the guide or at its front page to match (`guideUrl`). Both are optional, so the
+ * paragraph goes when there is no guide to link to and Publish is never
+ * refused for it. Wording saved before November 2026 has neither, and sends
+ * as it was saved, without the button, until an admin adds them.
  *
  * ## The dates are the group's own
  *
@@ -106,6 +120,8 @@ export const FACILITATING_TOKEN_RULES = {
   place: "inline",
   placeNote: "inline",
   facilitatingWith: "inline",
+  guideUrl: "optional",
+  guideButton: "optional",
 } as const satisfies Record<string, PlacementTokenRule>;
 
 export type FacilitatingToken = keyof typeof FACILITATING_TOKEN_RULES;
@@ -151,9 +167,16 @@ export type FacilitatingFacts = {
    * goes: the group's next session is its week 1, and week 1 of the course's
    * facilitator guide has its session plan or its notes (Publish's plan asks
    * the guide, through the guide's own gate for the group's facilitators).
-   * Only then does `{namesOnPage}` say "and week 1’s guide".
+   * Only then does `{namesOnPage}` say "and week 1’s guide", and the
+   * guide's button "Facilitator guide for week 1".
    */
   weekOneGuide: boolean;
+  /**
+   * The course's facilitator guide, as a whole address, for the second
+   * button: week 1's page when `weekOneGuide`, its front page otherwise. Null when the site does not know its own address or the run has
+   * no course to link to: the button's paragraph is then left out.
+   */
+  guideUrl: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -207,6 +230,21 @@ export function namesOnPageSentence(count: number, weekOneGuide = false): string
   return count === 1 ? "Their name is on your group page." : "Their names are on your group page.";
 }
 
+/**
+ * The `{guideButton}` words: the guide for week 1 while the group page shows
+ * it (`FacilitatingFacts.weekOneGuide`), the guide itself otherwise. Only a
+ * strict `true` names the week, as for `{namesOnPage}`.
+ *
+ * The same words as the group page's own links to the guide
+ * (`src/lib/courses/facilitatorGuide/words.ts`), written here rather than
+ * imported: this module is reached by pages that write a week, and those may
+ * reach nothing of the guide's (`tests/course-facilitator-guide-guard.test.mjs`).
+ * `tests/course-hub-publish-facilitating-email.test.mjs` holds the two equal.
+ */
+export function guideButtonWords(weekOneGuide: boolean): string {
+  return weekOneGuide === true ? "Facilitator guide for week 1" : "Facilitator guide";
+}
+
 /** "You’re facilitating with Sofia.": the `{facilitatingWith}` sentence. Null for somebody facilitating alone. */
 export function facilitatingWithSentence(coFacilitators: string | null): string | null {
   const others = oneLine(coFacilitators);
@@ -254,6 +292,7 @@ function valuesOf(facts: FacilitatingFacts): Record<FacilitatingToken, EmailValu
   const size = facts.groupSize;
   const counted = size !== null && Number.isInteger(size) && size > 0;
   const lead = typed(facts.leadName);
+  const guide = typed(facts.guideUrl);
   return {
     firstName: always(firstWord(name)),
     preferredName: always(name),
@@ -277,6 +316,9 @@ function valuesOf(facts: FacilitatingFacts): Record<FacilitatingToken, EmailValu
     place: typed(placeInSentence(facts.where)),
     placeNote: placeNoteValue(facts.where),
     facilitatingWith: typed(facilitatingWithSentence(facts.coFacilitators)),
+    // The button's words go with its address: no address, no button.
+    guideUrl: guide,
+    guideButton: guide ? typed(guideButtonWords(facts.weekOneGuide === true)) : null,
   };
 }
 
@@ -303,7 +345,8 @@ export function composeFacilitatingEmail(
  * proof leaves out what a send would. Never used for a send. The board's
  * tokens follow from the same samples as a send's follow from its facts:
  * `{place}` and `{placeNote}` from `where`, `{facilitatingWith}` from
- * `coFacilitators`, `{namesOnPage}` from `groupSize`.
+ * `coFacilitators`, `{namesOnPage}` from `groupSize`, `{guideButton}` from
+ * `guideUrl`.
  */
 export function facilitatingFactsFromSample(sample: Readonly<Record<string, string | undefined>>): FacilitatingFacts {
   const said = (token: FacilitatingToken): string | null => oneLine(sample[token]) || null;
@@ -326,6 +369,7 @@ export function facilitatingFactsFromSample(sample: Readonly<Record<string, stri
     // A sample is no course, so there is no guide to point at: a proof says
     // the names alone, as a send does for a course whose guide lacks week 1.
     weekOneGuide: false,
+    guideUrl: said("guideUrl"),
   };
 }
 
@@ -357,6 +401,8 @@ const LACKS: Record<string, { lacks: string; set: string | null }> = {
   leadName: { lacks: "is on a run whose programme has no lead to sign the email", set: null },
   naisiSignOff: { lacks: "is on a run whose programme’s lead signs the email", set: null },
   programmeName: { lacks: "is on a run no programme names", set: null },
+  guideUrl: { lacks: "is on a run with no course whose facilitator guide the button could open", set: null },
+  guideButton: { lacks: "is on a run with no course whose facilitator guide the button could open", set: null },
 };
 
 /**

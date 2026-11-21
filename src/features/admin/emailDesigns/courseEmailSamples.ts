@@ -82,6 +82,7 @@ export const COURSE_FACILITATING_PREVIEW_SAMPLE = {
   coFacilitators: "Sam",
   leadName: "Jordan",
   programmeName: "AI Safety Fundamentals",
+  guideUrl: "https://naisi.uk/learn/facilitator-guide/ai-safety-fundamentals",
   // The board's tokens follow from the samples above, as a send's follow
   // from its facts (`facilitatingFactsFromSample`), so these are never read:
   // NAISI's sign-off from the lead, as on the placement email.
@@ -90,6 +91,9 @@ export const COURSE_FACILITATING_PREVIEW_SAMPLE = {
   place: "",
   placeNote: "",
   facilitatingWith: "",
+  // The guide button's words follow from `guideUrl`, and a sample is no
+  // course, so a preview says "Facilitator guide".
+  guideButton: "",
 } as const;
 
 /**

@@ -90,6 +90,18 @@ import { couldBeFollowed } from "./followable";
  * one, so no value can read as a token, and nobody's name can stop an email
  * being written. No markup is made here at all.
  *
+ * ## A link to a token is the token's own address
+ *
+ * Saved wording can hold a scheme in front of a token, as in
+ * `href="https://{groupUrl}"`. A link whose address is a scheme and then
+ * exactly one token of this email, whose value is itself a whole address, is
+ * written with that value alone (`withoutDoubledSchemes`), so the reader gets
+ * `https://naisi.uk/...` with one scheme.
+ * Only inside a link's address, and only when the token is all of the rest
+ * of it: `https://example.org/{x}`, and a token anywhere else, are filled as
+ * they always were. The saved wording is not changed, so Publish's test of
+ * the wording reads it as before.
+ *
  * ## This email never carries a meeting link
  *
  * An email can be forwarded, and a link to an online session lets whoever
@@ -500,6 +512,78 @@ type Filled = {
   emptied: boolean;
 };
 
+/** A letter of the alphabet, as a scheme or a token's name must begin. */
+function isLetter(ch: string): boolean {
+  return (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z");
+}
+
+/** A character a scheme may hold after its first letter. */
+function isSchemeChar(ch: string): boolean {
+  return isLetter(ch) || (ch >= "0" && ch <= "9") || ch === "+" || ch === "." || ch === "-";
+}
+
+/** A character a token's name may hold after its first letter. */
+function isNameChar(ch: string): boolean {
+  return isLetter(ch) || (ch >= "0" && ch <= "9") || ch === "_";
+}
+
+/**
+ * How long the scheme and its `://` are at the start of `text` ("https://"
+ * is 8), or 0 when it begins with none. A LOOP, NOT A PATTERN: one pass, so
+ * it is in step with the length of the text whatever the text holds.
+ */
+function schemeLength(text: string): number {
+  if (text.length === 0 || !isLetter(text[0])) return 0;
+  let at = 1;
+  while (at < text.length && isSchemeChar(text[at])) at += 1;
+  return text.startsWith("://", at) ? at + 3 : 0;
+}
+
+/** The name of the one token that is all of `text` ("{groupUrl}" is "groupUrl"), or null. A loop, as above. */
+function wholeToken(text: string): string | null {
+  if (text.length < 3 || text[0] !== "{" || text[text.length - 1] !== "}" || !isLetter(text[1])) return null;
+  for (let at = 2; at < text.length - 1; at += 1) if (!isNameChar(text[at])) return null;
+  return text.slice(1, -1);
+}
+
+/**
+ * A run of a rich-text block with each link whose address is a scheme and
+ * then exactly one token, whose value is itself a whole address, written to
+ * that token alone (`href="https://{groupUrl}"` becomes `href="{groupUrl}"`),
+ * so the value is the link's whole address once filled. Every other address,
+ * and everything outside an address, is left exactly as it was. See "A link
+ * to a token is the token's own address", at the top of this file.
+ *
+ * A LOOP, NOT A PATTERN: each address is found from where the last one
+ * ended, and read once.
+ */
+function withoutDoubledSchemes(html: string, values: Readonly<Record<string, Value | null>>, rules: TokenRules): string {
+  if (!html.includes("://{")) return html;
+  let out = "";
+  let from = 0;
+  for (;;) {
+    const attribute = html.indexOf("href=", from);
+    if (attribute < 0) break;
+    const quote = html[attribute + 5];
+    const start = attribute + 6;
+    if (quote !== '"' && quote !== "'") {
+      out += html.slice(from, start);
+      from = start;
+      continue;
+    }
+    // With no closing quote nothing after it is an address: the rest goes as it is.
+    const end = html.indexOf(quote, start);
+    if (end < 0) break;
+    const address = html.slice(start, end);
+    const scheme = schemeLength(address);
+    const name = scheme > 0 ? wholeToken(address.slice(scheme)) : null;
+    const value = name !== null && isRuleToken(rules, name) ? values[name] : null;
+    out += html.slice(from, start) + (value && schemeLength(value.text) > 0 ? `{${name}}` : address);
+    from = end;
+  }
+  return out + html.slice(from);
+}
+
 /**
  * Fill one unit: a subject, a heading, a caption, or one run of text in a
  * rich-text block. A token with no value becomes nothing, and the caller
@@ -518,7 +602,8 @@ function fillUnit(
   const absent = new Set<string>();
   let holdsEssential = false;
   let emptied = false;
-  const text = input.replace(TOKEN, (match, name: string) => {
+  const source = as === "html" ? withoutDoubledSchemes(input, values, rules) : input;
+  const text = source.replace(TOKEN, (match, name: string) => {
     if (!isRuleToken(rules, name)) {
       unknown.add(name);
       return match;

@@ -601,7 +601,9 @@ test(
      * "You’re facilitating", for one group, as the seed copy writes it: the
      * board's words since October 2026, the room inside the sentence that
      * says when the group meets (until then "Where: Room E1", a line of its
-     * own) and where the names are after the group's size.
+     * own) and where the names are after the group's size. Since November
+     * 2026 a second button, "Facilitator guide", follows "Open your group"
+     * and opens the course's facilitator guide.
      */
     function assertFacilitating(email, { group, size, test: isTest = false }) {
       const subject = `You’re facilitating ${group.name}: ${weeklySlotWords(group)}`;
@@ -615,18 +617,25 @@ test(
             ? "There is 1 person in the group. Their name is on your group page."
             : `There are ${size} people in the group. Their names are on your group page.`,
           "Open your group",
+          // No week 1 in the guide here, so the button names no week.
+          "Facilitator guide",
           // The programme has no lead, so NAISI signs it, as it signs the
           // group email (since 26 October 2026; until then nobody did).
           "Take the register on your phone during the session. NAISI",
         ],
         // One facilitator, and a programme with no lead to sign it. This world
         // loads no facilitator guide, so week 1's guide is never promised.
-        absent: ["You’re facilitating with", "lead, NAISI", "Where:", "week 1’s guide"],
+        absent: ["You’re facilitating with", "lead, NAISI", "Where:", "week 1’s guide", "guide for week 1"],
       });
       const groupPage = `${origin}${groupPagePath(group)}`;
       assert.ok(
         email.links.includes(groupPage),
         `the facilitators' email does not link to the group's page (${groupPage}): ${JSON.stringify(email.links)}`,
+      );
+      const guidePage = `${origin}/learn/facilitator-guide/${enc(state.courseId)}`;
+      assert.ok(
+        email.links.includes(guidePage),
+        `the facilitators' email does not link to the course's facilitator guide (${guidePage}): ${JSON.stringify(email.links)}`,
       );
     }
 
