@@ -463,7 +463,20 @@ After "Read it" the loader shows:
   change reaches a Choose one people already hold a pack in, the check
   counts them: picked to given keeps every pick and stops people changing
   theirs; given to picked makes what was given each person's own pick,
-  which they can change until their session for the week starts.
+  which they can change until their session for the week starts. On the
+  programme's own week the count is of everybody on the programme, and the
+  check says it can be a little high.
+- **A facilitator's own pick stays theirs.** While a Choose one is picked, a
+  pack picked by somebody who facilitates a group is read by the lead and
+  admins only; given out, the draw would show it to the group's other
+  facilitators. So a save that turns a Choose one from picked to given out
+  is refused while anybody who facilitates a live group of the run (on a
+  group's own copy, that group) has picked one, whether the check's switch
+  or the pasted words make the change. The check says so in place of the
+  count, Save stays off, and the route refuses in the same sentence. The
+  block can still be saved as picked.
+- **The comparison and the history** name a change of who chooses on a
+  Choose one or Cases block: "Who chooses changed."
 - **What stops a save**: another week's Markdown, a source with no https
   link, a Reflect with no prompt or more than two, a field over its cap, an
   id used twice, and the rest of the check, each in a sentence that says what

@@ -17,6 +17,8 @@
  *  6. what a change does to people already on the week, counted, and then done
  *  7. a group's own copy of the week
  *  8. the card draws each row with the answers it offers
+ *  9. a facilitator's own pick is never put in front of their co-facilitators by a switch
+ * 10. the check's comparison and the week's history name who chooses
  *
  * On AGI Strategy's run in week 3 (`tests/lib/packsAndCasesWorld.mjs`): Group
  * B meets tonight at 6pm with Chloe, Farah and Kofi; Claudia leads the
@@ -27,18 +29,20 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { A, NOW, RUN, W3, makePacksAndCasesWorld, textOf } from "./lib/packsAndCasesWorld.mjs";
+import { A, B, NOW, RUN, W3, makePacksAndCasesWorld, textOf } from "./lib/packsAndCasesWorld.mjs";
 import { syntheticGuideMarkdown } from "./lib/weekBlocksFixture.mjs";
 
 const w = await makePacksAndCasesWorld("__whoChooses");
 const { world, call, courseRoute, loadTs } = w;
 const blocksRoute = await courseRoute("runs", "[runId]", "weeks", "[weekId]", "blocks");
 const groupBlocksRoute = await courseRoute("groups", "[groupId]", "weeks", "[weekId]", "blocks");
+const historyRoute = await courseRoute("runs", "[runId]", "weeks", "[weekId]", "history");
+const saveRoute = await courseRoute("runs", "[runId]", "weeks", "[weekId]", "history", "[saveId]");
 const { readPastedWeek } = await loadTs(join("lib", "courses", "weekBlocks", "paste.ts"));
 const { readWeekMarkdown } = await loadTs(join("lib", "courses", "weekBlocks", "markdownRead.ts"));
 const { weekToMarkdown } = await loadTs(join("lib", "courses", "weekBlocks", "markdownWrite.ts"));
 const who = await loadTs(join("lib", "courses", "weekBlocks", "whoChooses.ts"));
-const { WHO_CHOOSES } = await loadTs(join("lib", "courses", "weekEdit", "pageWords.ts"));
+const { HISTORY_PAGE, WHO_CHOOSES } = await loadTs(join("lib", "courses", "weekEdit", "pageWords.ts"));
 const model = await loadTs(join("lib", "courses", "weekBlocks", "model.ts"));
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
@@ -72,6 +76,21 @@ function rowOf(answer, label, kind = "chooseOne") {
 }
 
 beforeEach(() => w.reset());
+
+/** Week 3's pack table stored as picked by each person, copied out. */
+async function storePicked() {
+  const blocks = structuredClone(world.db.read(W3_PATH).blocks);
+  who.choiceBlocks(blocks).find((block) => block.id === W3.given).givenBy = "fellow";
+  world.db.poke(W3_PATH, { blocks });
+  return copyOut();
+}
+
+/** The draw page's pack options chosen, for a Choose one's packs: what a facilitator opening it is shown. */
+async function packsOnTheDraw(person, groupId) {
+  const page = await w.drawPage(person, groupId, 3);
+  const packs = [W3.elections, W3.markets, W3.technology];
+  return [...page.html.matchAll(/<option value="([^"]+)" selected="">/g)].map((match) => match[1]).filter((value) => packs.includes(value));
+}
 
 // ---------------------------------------------------------------------------
 // Weeks written for the rules, every word made up
@@ -158,8 +177,10 @@ describe("1. the reader's rules, each named truthfully", () => {
     const cases = [
       [["Read one pack: choose one that fits you."], "fellow", "The pasted week doesn’t say, and the words before it say “choose one”, so a Choose one starts as picked by each person."],
       [["Pick one at the end of session 2, or read the one you were given."], "facilitator", "The pasted week doesn’t say, and the words before it say “pick one” but also “given”, so a Choose one starts as given out by your facilitator."],
-      [["Read your pack."], "facilitator", "The pasted week doesn’t say, and the words before it don’t ask people to choose one or pick one, so a Choose one starts as given out by your facilitator."],
-      [["Read your pack.", "", "**Choose one**"], "facilitator", "Its Choose one line doesn’t say who gives it out, and the words before it don’t ask people to choose one or pick one, so a Choose one starts as given out by your facilitator."],
+      [["Read your pack."], "facilitator", "The pasted week doesn’t say, and the words before it don’t say “choose one” or “pick one”, so a Choose one starts as given out by your facilitator."],
+      // The rule looks for those words only, and the line says so: a part that asks in other words is told just that.
+      [["Choose the pack that fits you."], "facilitator", "The pasted week doesn’t say, and the words before it don’t say “choose one” or “pick one”, so a Choose one starts as given out by your facilitator."],
+      [["Read your pack.", "", "**Choose one**"], "facilitator", "Its Choose one line doesn’t say “given out” or “picked by”, and the words before it don’t say “choose one” or “pick one”, so it starts as given out by your facilitator."],
     ];
     for (const [lines, givenBy, why] of cases) {
       const [row] = read(tableWeek(lines)).whoChooses;
@@ -227,7 +248,7 @@ describe("2. what the check offers", () => {
     assert.equal(cases.only, "Cases can only be given out: no page lets a member pick a case.");
     const picked = read(casesWeek("Your case study", "**Talk:** a 3-minute talk · picked by each person")).whoChooses[0];
     assert.equal(picked.can, "given");
-    assert.equal(picked.only, "As pasted, nobody would get a case: no page lets a member pick one. Choose Given out by your facilitator.");
+    assert.equal(picked.only, "As pasted, no more cases can be given out: no page lets a member pick one. Choose “Given out by your facilitator”.");
   });
 
   test("a change the check does not offer is a problem, in its own sentence, and changes nothing", () => {
@@ -237,7 +258,7 @@ describe("2. what the check offers", () => {
     const casesPicked = read(casesWeek("Your case study", ""), [{ place: 0, kind: "cases", givenBy: "fellow" }]);
     assert.ok(casesPicked.problems.includes("Cases can only be given out: no page lets a member pick a case."));
     assert.equal(who.choiceBlocks(casesPicked.blocks)[0].givenBy, "facilitator");
-    const elsewhere = "Who chooses was changed for a block this paste doesn’t offer the choice on. Read it again, then save.";
+    const elsewhere = "Who chooses was changed on a block where this paste can’t change it. Read it again, then save.";
     for (const override of [
       { place: 1, kind: "cases", givenBy: "facilitator" }, // the Talk line inside a part: no cases
       { place: 0, kind: "cases", givenBy: "fellow" }, // the list's place, the wrong kind
@@ -272,7 +293,7 @@ describe("3. the change travels with the paste", () => {
     const changed = await paste("claudia", "POST", { markdown, whoChooses: [change] });
     assert.equal(changed.status, 200, JSON.stringify(changed.body));
     const now = rowOf(changed, "Part 3: Your pack");
-    assert.deepEqual([now.start, now.givenBy, now.changed], ["facilitator", "fellow", "Changed from the pasted week. Copying the week out writes it in."]);
+    assert.deepEqual([now.start, now.givenBy, now.changed], ["facilitator", "fellow", "Changed from the pasted week. Once saved, Copy as Markdown writes it into the week’s words."]);
     assert.equal(everything(), unchanged, "Read it writes nothing");
     const saved = await paste("claudia", "PUT", { markdown, whoChooses: [change] });
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
@@ -459,7 +480,10 @@ describe("6. what a change does to people already on the week", () => {
     world.db.seed(`coursePacksAndCases/${RUN.agi}__farah__${W3.picked}`, { runId: RUN.agi, uid: "farah", weekId: "w03", weekNumber: 3, blockId: W3.picked, kind: "pack", packId: W3.atWork });
     const change = [{ place: row.place, kind: "chooseOne", givenBy: "facilitator" }];
     const checked = rowOf(await paste("claudia", "POST", { markdown, whoChooses: change }), "Part 3: Your pack");
-    assert.equal(checked.people, "2 people have picked one. They keep their picks and can no longer change them. Their facilitators give one to everybody else.");
+    assert.equal(
+      checked.people,
+      "2 people have picked one. They keep their picks and can no longer change them. Facilitators give one to everybody else. This counts everybody on the programme, so it can be a little high.",
+    );
     const records = JSON.stringify(w.records().map((path) => world.db.read(path)));
     assert.equal((await paste("claudia", "PUT", { markdown, whoChooses: change })).status, 200);
     assert.equal(JSON.stringify(w.records().map((path) => world.db.read(path))), records, "the save writes no record: every pick is kept");
@@ -478,7 +502,10 @@ describe("6. what a change does to people already on the week", () => {
     w.seedDraw("kofi", "w3", { pack: W3.markets });
     const change = [{ place: row.place, kind: "chooseOne", givenBy: "fellow" }];
     const checked = rowOf(await paste("claudia", "POST", { markdown, whoChooses: change }), "Part 3: Your pack");
-    assert.equal(checked.people, "2 people were given one. It becomes their own pick, which they can change until their session for the week starts. Facilitators can no longer give one out.");
+    assert.equal(
+      checked.people,
+      "2 people were given one. It becomes their own pick, which they can change until their session for the week starts. Facilitators can no longer give one out. This counts everybody on the programme, so it can be a little high.",
+    );
     assert.equal((await paste("claudia", "PUT", { markdown, whoChooses: change })).status, 200);
     assert.equal(w.recordOf("chloe", W3.given).packId, W3.elections, "what was given is kept");
     // Before tonight's 6pm session Chloe can change it; after it starts she can't.
@@ -500,7 +527,7 @@ describe("6. what a change does to people already on the week", () => {
     assert.equal(toPicked.people, "Nobody has been given one yet. Each person picks their own before their session for the week starts, and facilitators can no longer give one out.");
     const { markdown: picked, row: pickedRow } = await pickedTable();
     const toGiven = rowOf(await paste("claudia", "POST", { markdown: picked, whoChooses: [{ place: pickedRow.place, kind: "chooseOne", givenBy: "facilitator" }] }), "Part 3: Your pack");
-    assert.equal(toGiven.people, "Nobody has picked one yet. Their facilitators give one to everybody.");
+    assert.equal(toGiven.people, "Nobody has picked one yet. Facilitators give one to everybody.");
   });
 
   test("a week pasted with fresh ids reaches nobody's records, so there is nothing to count", async () => {
@@ -512,7 +539,7 @@ describe("6. what a change does to people already on the week", () => {
   });
 
   test("one person is counted in the singular", () => {
-    assert.equal(WHO_CHOOSES.nowGiven(1), "1 person has picked one. They keep their pick and can no longer change it. Their facilitators give one to everybody else.");
+    assert.equal(WHO_CHOOSES.nowGiven(1), "1 person has picked one. They keep their pick and can no longer change it. Facilitators give one to everybody else.");
     assert.equal(WHO_CHOOSES.nowPicked(1), "1 person was given one. It becomes their own pick, which they can change until their session for the week starts. Facilitators can no longer give one out.");
   });
 });
@@ -549,13 +576,165 @@ describe("7. a group's own copy of the week", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 9. A facilitator's own pick stays theirs
+// ---------------------------------------------------------------------------
+
+describe("9. a facilitator's own pick is never put in front of their co-facilitators by a switch", () => {
+  const ONE =
+    "This can’t be changed to given out yet. 1 person who facilitates their own group has picked one, and their pick is theirs alone: the group’s other facilitators would see it.";
+
+  test("the switch is refused before Save, in place of the count, and at Save, with nothing written; the block saves as picked", async () => {
+    const markdown = await storePicked();
+    // Farah facilitates Group B and takes part in it; Chloe only takes part.
+    assert.equal((await w.pick("farah", W3.given, "w03", W3.markets)).status, 200);
+    assert.equal((await w.pick("chloe", W3.given, "w03", W3.elections)).status, 200);
+    const row = rowOf(await paste("claudia", "POST", { markdown }), "Part 3: Your pack");
+    const change = [{ place: row.place, kind: "chooseOne", givenBy: "facilitator" }];
+    const checked = await paste("claudia", "POST", { markdown, whoChooses: change });
+    assert.equal(rowOf(checked, "Part 3: Your pack").people, ONE, "the check says so before Save, in place of the count");
+    assert.ok(checked.body.problems.includes(ONE), "and Save is off");
+    assert.doesNotMatch(JSON.stringify(checked.body), /farah|Farah/, "it names nobody");
+    const before = everything();
+    for (const person of ["claudia", "zach"]) {
+      const refused = await paste(person, "PUT", { markdown, whoChooses: change });
+      assert.deepEqual([refused.status, refused.body.error], [400, ONE], person);
+    }
+    assert.equal(everything(), before, "nothing is written");
+    // Left as picked, the rest of the paste saves.
+    assert.equal((await paste("claudia", "PUT", { markdown })).status, 200);
+    assert.equal(storedChoices().get(W3.given).givenBy, "fellow");
+    for (const person of ["rahul", "sofia"]) assert.deepEqual(await packsOnTheDraw(person, B), [], `${person}'s draw shows no pick`);
+  });
+
+  test("the same refusal when the pasted words make the change, and the switch back to picked lets it save", async () => {
+    const copied = await storePicked();
+    assert.equal((await w.pick("farah", W3.given, "w03", W3.markets)).status, 200);
+    const markdown = copied.replace(`**Choose one** · picked by each person {#${W3.given}}`, `**Choose one** · given out by your facilitator {#${W3.given}}`);
+    assert.notEqual(markdown, copied);
+    const checked = await paste("claudia", "POST", { markdown });
+    const row = rowOf(checked, "Part 3: Your pack");
+    assert.deepEqual([row.start, row.givenBy, row.people], ["facilitator", "facilitator", ONE]);
+    const before = everything();
+    const refused = await paste("claudia", "PUT", { markdown });
+    assert.deepEqual([refused.status, refused.body.error], [400, ONE]);
+    assert.equal(everything(), before);
+    const back = await paste("claudia", "PUT", { markdown, whoChooses: [{ place: row.place, kind: "chooseOne", givenBy: "fellow" }] });
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    assert.equal(storedChoices().get(W3.given).givenBy, "fellow");
+  });
+
+  test("a facilitator who holds no place in the group is counted too: their pick is their own work as well", async () => {
+    const markdown = await storePicked();
+    assert.equal((await w.pick("rahul", W3.given, "w03", W3.markets)).status, 200);
+    assert.equal((await w.pick("sofia", W3.given, "w03", W3.elections)).status, 200);
+    const row = rowOf(await paste("zach", "POST", { markdown }), "Part 3: Your pack");
+    const refused = await paste("zach", "PUT", { markdown, whoChooses: [{ place: row.place, kind: "chooseOne", givenBy: "facilitator" }] });
+    assert.deepEqual(
+      [refused.status, refused.body.error],
+      [400, "This can’t be changed to given out yet. 2 people who facilitate their own group have picked one, and their picks are theirs alone: the group’s other facilitators would see them."],
+    );
+  });
+
+  test("allowed as before when only people who do not facilitate have picked, and no co-facilitator's draw then carries a facilitator's own pick", async () => {
+    const markdown = await storePicked();
+    assert.equal((await w.pick("chloe", W3.given, "w03", W3.elections)).status, 200);
+    assert.equal((await w.pick("kofi", W3.given, "w03", W3.markets)).status, 200);
+    // A facilitator's pick on another block is not this block's.
+    assert.equal((await w.pick("farah", W3.picked, "w03", W3.atWork)).status, 200);
+    const row = rowOf(await paste("claudia", "POST", { markdown }), "Part 3: Your pack");
+    const saved = await paste("claudia", "PUT", { markdown, whoChooses: [{ place: row.place, kind: "chooseOne", givenBy: "facilitator" }] });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    for (const person of ["rahul", "sofia", "farah"]) {
+      assert.deepEqual((await packsOnTheDraw(person, B)).sort(), [W3.elections, W3.markets].sort(), `${person}'s draw: Chloe's and Kofi's picks, nobody else's`);
+    }
+    // And once given out, a facilitator can no longer pick one of their own.
+    const late = await w.pick("farah", W3.given, "w03", W3.technology);
+    assert.equal(late.status, 403);
+  });
+
+  test("a group's own copy counts that group's facilitators and people alone", async () => {
+    await storePicked();
+    // Farah facilitates Group B, not Group A.
+    assert.equal((await w.pick("farah", W3.given, "w03", W3.markets)).status, 200);
+    const groupMarkdown = (await pasteForGroup("claudia", "GET", undefined, A)).body.markdown;
+    const rowA = rowOf(await pasteForGroup("claudia", "POST", { markdown: groupMarkdown }, A), "Part 3: Your pack");
+    const change = [{ place: rowA.place, kind: "chooseOne", givenBy: "facilitator" }];
+    const forA = rowOf(await pasteForGroup("claudia", "POST", { markdown: groupMarkdown, whoChooses: change }, A), "Part 3: Your pack");
+    assert.equal(forA.people, "Nobody has picked one yet. Facilitators give one to everybody.", "nobody of Group A has picked");
+    const forB = await pasteForGroup("claudia", "POST", { markdown: groupMarkdown, whoChooses: change }, B);
+    assert.equal(rowOf(forB, "Part 3: Your pack").people, ONE);
+    const before = everything();
+    const refusedB = await pasteForGroup("claudia", "PUT", { markdown: groupMarkdown, whoChooses: change }, B);
+    assert.deepEqual([refusedB.status, refusedB.body.error], [400, ONE]);
+    assert.equal(everything(), before, "Group B's copy is not made");
+    const savedA = await pasteForGroup("claudia", "PUT", { markdown: groupMarkdown, whoChooses: change }, A);
+    assert.equal(savedA.status, 200, JSON.stringify(savedA.body));
+    assert.deepEqual(await packsOnTheDraw("rahul", B), [], "Group B still reads the run's week, picked: Farah's pick is on no draw");
+    // The run's week, read for every group, is refused for Farah's pick.
+    const runRow = rowOf(await paste("claudia", "POST", { markdown: await copyOut() }), "Part 3: Your pack");
+    const forRun = await paste("claudia", "PUT", { markdown: await copyOut(), whoChooses: [{ place: runRow.place, kind: "chooseOne", givenBy: "facilitator" }] });
+    assert.deepEqual([forRun.status, forRun.body.error], [400, ONE]);
+  });
+
+  test("given to picked is never refused: a pick is less widely seen than what was given", async () => {
+    const markdown = await copyOut();
+    w.seedDraw("farah", "w3", { pack: W3.markets });
+    const row = rowOf(await paste("claudia", "POST", { markdown }), "Part 3: Your pack");
+    const saved = await paste("claudia", "PUT", { markdown, whoChooses: [{ place: row.place, kind: "chooseOne", givenBy: "fellow" }] });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. The comparison and the history name who chooses
+// ---------------------------------------------------------------------------
+
+describe("10. the check's comparison and the week's history name who chooses", () => {
+  test("a paste that changes only who chooses says so, in the check and in the history", async () => {
+    const markdown = await copyOut();
+    const row = rowOf(await paste("claudia", "POST", { markdown }), "Part 3: Your pack");
+    const change = [{ place: row.place, kind: "chooseOne", givenBy: "fellow" }];
+    const checked = await paste("claudia", "POST", { markdown, whoChooses: change });
+    assert.deepEqual(
+      checked.body.comparison.rows.map((each) => [each.state, each.blockId, each.fields]),
+      [["changed", W3.given, "who chooses"]],
+    );
+    assert.equal(HISTORY_PAGE.fields("who chooses"), "Who chooses changed.");
+    assert.equal(HISTORY_PAGE.fields("link and title"), "Its link and title changed.", "the other blocks' words are as they were");
+    assert.equal((await paste("claudia", "PUT", { markdown, whoChooses: change })).status, 200);
+    const history = await call("claudia", historyRoute.GET, AT, { course: true });
+    assert.equal(history.status, 200, JSON.stringify(history.body));
+    const first = history.body.saves[history.body.saves.length - 1];
+    const compared = await call("claudia", saveRoute.GET, { ...AT, saveId: first.id }, { course: true });
+    assert.equal(compared.status, 200, JSON.stringify(compared.body));
+    assert.deepEqual(
+      compared.body.comparison.rows.map((each) => [each.state, each.fields]),
+      [["changed", "who chooses"]],
+      "the week as it was, against now",
+    );
+  });
+
+  test("a Cases block names it too, and a Choose one whose packs change names nothing new", async () => {
+    const { compareWeeks } = await loadTs(join("lib", "courses", "weekEdit", "compare.ts"));
+    const blocks = world.db.read(W3_PATH).blocks;
+    const flipped = structuredClone(blocks);
+    who.choiceBlocks(flipped).find((block) => block.id === W3.caseStudy).givenBy = "fellow";
+    const rows = compareWeeks({ title: "A", blocks }, { title: "A", blocks: flipped }).rows;
+    assert.deepEqual(rows.map((each) => [each.state, each.fields]), [["changed", "who chooses"]]);
+    const renamed = structuredClone(blocks);
+    who.choiceBlocks(renamed).find((block) => block.id === W3.given).packs[0].name = "Polls";
+    assert.deepEqual(compareWeeks({ title: "A", blocks }, { title: "A", blocks: renamed }).rows.map((each) => each.fields), [""]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 8. The card draws each row with the answers it offers
 // ---------------------------------------------------------------------------
 
 describe("8. the card's rows", () => {
   test("a table two radios, Cases read as picked one, a list and Cases given out none", async () => {
     const { WhoChoosesBlock } = await loadTs(join("features", "courses", "WeekBlocksLoader.tsx"));
-    const draw = (row) => renderToStaticMarkup(createElement(WhoChoosesBlock, { row, name: "who-0", disabled: false, onChoose() {} }));
+    const draw = (row) => renderToStaticMarkup(createElement(WhoChoosesBlock, { row, chosen: row.givenBy, name: "who-0", disabled: false, onChoose() {} }));
     const radios = (html) => [...html.matchAll(/<input[^>]*type="radio"[^>]*>/g)].map((match) => match[0]);
     const base = { place: 0, label: "Part 3: Your pathway", detail: "Choose one · 4 packs", why: "Why.", only: null, changed: null, people: null };
 
@@ -577,6 +756,23 @@ describe("8. the card's rows", () => {
     assert.equal(radios(picked).length, 1);
     assert.match(textOf(picked), /Given out by your facilitator/);
     assert.doesNotMatch(picked, /Picked by each person/);
+  });
+
+  test("a change of radio keeps the radios on and announces the count", async () => {
+    const { WhoChoosesBlock } = await loadTs(join("features", "courses", "WeekBlocksLoader.tsx"));
+    const row = { place: 0, kind: "chooseOne", label: "Part 3: Your pack", detail: "Choose one · 3 packs", start: "facilitator", givenBy: "facilitator", can: "both", why: "Why.", only: null, changed: null, people: null };
+    const quiet = renderToStaticMarkup(createElement(WhoChoosesBlock, { row, chosen: "fellow", name: "who-0", disabled: false, onChoose() {} }));
+    assert.match(quiet, /<p[^>]*role="status"[^>]*aria-live="polite"[^>]*><\/p>/, "the live region is there before the count arrives");
+    assert.doesNotMatch(quiet, /disabled/);
+    assert.match([...quiet.matchAll(/<input[^>]*type="radio"[^>]*>/g)][1][0], /checked/, "the radio the author chose shows chosen while the check reads again");
+    const counted = renderToStaticMarkup(createElement(WhoChoosesBlock, { row: { ...row, people: "Count." }, chosen: "fellow", name: "who-0", disabled: false, onChoose() {} }));
+    assert.match(counted, /role="status"[^>]*>Count\.<\/p>/);
+    // The read again for a radio turns nothing off, and an answer overtaken by a newer read is dropped.
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync(new URL("../src/features/courses/WeekBlocksLoader.tsx", import.meta.url), "utf8");
+    assert.match(source, /if \(again\) setRereading\(true\);\s*else setBusy\(true\);/);
+    assert.match(source, /if \(mine !== latest\.current\) return;/);
+    assert.match(source, /void readIt\(givenBy === row\.start \? others : \[\.\.\.others, \{ place: row\.place, kind: row\.kind, givenBy \}\], true\);/);
   });
 
   test("the lede says how many can be changed", () => {

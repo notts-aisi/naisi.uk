@@ -4,14 +4,16 @@ import { isAddressableId } from "@/lib/addressableId";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { weekToMarkdown } from "@/lib/courses/weekBlocks/markdownWrite";
 import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
-import { switchedChooseOnes } from "@/lib/courses/weekBlocks/whoChooses";
+import { liveGroupsOfRun } from "@/lib/courses/weeksTab/load";
 import { compareWeeks, comparisonLine, kindsIn } from "@/lib/courses/weekEdit/compare";
-import { packHolders, readWeekReach, readWeekWork, weekCounts } from "@/lib/courses/weekEdit/counts";
+import { readWeekReach, readWeekWork, weekCounts } from "@/lib/courses/weekEdit/counts";
 import { weekFingerprint } from "@/lib/courses/weekEdit/model";
 import { saveWeekBlocks } from "@/lib/courses/weekEdit/save";
 import { HISTORY_WORDS } from "@/lib/courses/weekEdit/words";
 import {
   answersOnRemoved,
+  holdersCountAll,
+  holdersFor,
   pasteAnswer,
   pasteBodyOf,
   readPasteAgainst,
@@ -62,7 +64,12 @@ import { emptyWeekFields, normalizeCourse, normalizeCourseRun, normalizeCourseWe
  * is sent with Read it and again with Save, applied to the paste as it is
  * read (`src/lib/courses/weekBlocks/whoChooses.ts`), after the gate like the
  * rest of the body. Where the change reaches a block people already hold a
- * pack in, the check counts them (`packHolders`).
+ * pack in, the check counts them (`packHolders`), everybody on the
+ * programme, which it says. A Choose one turned from picked to given out
+ * while somebody who facilitates a live group of the run has picked one is
+ * refused (400, in the check's own sentence), whether the switch or the
+ * pasted words turned it: that pick is theirs alone, and given out the draw
+ * would show it to their co-facilitators.
  *
  * THE CHECK SAYS WHAT CHANGES. "Read it" also answers what the pasted week
  * holds by kind (`kinds`) and how it differs from the live week, block by
@@ -151,9 +158,18 @@ function readAgainst(sent: PasteBody, loaded: Loaded) {
   return readPasteAgainst(sent, { blocks: loaded.week.blocks ?? null, weekNumber: loaded.weekNumber, dayBeforeTime: loaded.dayBeforeTime });
 }
 
-/** How many hold a pack in each Choose one whose chooser the paste changes: every row of the run, as the answers are counted. */
-function holdersOf(db: Firestore, runId: string, read: ReturnType<typeof readAgainst>) {
-  return packHolders(db, runId, switchedChooseOnes(read.whoChooses, read.blocks));
+/**
+ * How many hold a pack in each Choose one whose chooser the paste changes:
+ * every row of the run, as the answers are counted, and of them, how many
+ * facilitate a live group of the run. `all`: every such block, for an answer
+ * shown; otherwise the blocks turned to given out, which a save needs.
+ */
+function holdersOf(db: Firestore, runId: string, read: ReturnType<typeof readAgainst>, all: boolean) {
+  return holdersFor(db, runId, read, {
+    owners: null,
+    all,
+    facilitators: async () => new Set((await liveGroupsOfRun(db, runId)).flatMap((group) => group.facilitatorUids)),
+  });
 }
 
 export async function GET(_req: Request, ctx: Params) {
@@ -189,8 +205,8 @@ export async function POST(req: Request, ctx: Params) {
   const loaded = await load(db, gated.runId, gated.weekId);
   if (loaded instanceof NextResponse) return loaded;
   const read = readAgainst(sent, loaded);
-  const [counts, holders] = await Promise.all([answersOnRemoved(db, gated.runId, gated.weekId, read.removed), holdersOf(db, gated.runId, read)]);
-  const answer = pasteAnswer(read, counts, loaded.dayBeforeTime, holders);
+  const [counts, holders] = await Promise.all([answersOnRemoved(db, gated.runId, gated.weekId, read.removed), holdersOf(db, gated.runId, read, true)]);
+  const answer = pasteAnswer(read, counts, loaded.dayBeforeTime, holders, true);
   // What it holds by kind, and what it changes in the live week, block by block.
   const compared = compareWeeks(
     { title: loaded.week.title, blocks: loaded.week.blocks ?? [] },
@@ -226,10 +242,17 @@ export async function PUT(req: Request, ctx: Params) {
   const loaded = await load(db, gated.runId, gated.weekId);
   if (loaded instanceof NextResponse) return loaded;
   const read = readAgainst(sent, loaded);
-  const [counts, holders] = await Promise.all([answersOnRemoved(db, gated.runId, gated.weekId, read.removed), holdersOf(db, gated.runId, read)]);
-  const answer = pasteAnswer(read, counts, loaded.dayBeforeTime, holders);
-  if (read.problems.length > 0) return badRequest(read.problems[0], answer);
-  const unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
+  // The save counts only what decides whether it is refused (a Choose one
+  // turned to given out over a facilitator's own pick); a refusal, which the
+  // page shows as its check, counts the rest too.
+  const [counts, guard] = await Promise.all([answersOnRemoved(db, gated.runId, gated.weekId, read.removed), holdersOf(db, gated.runId, read, false)]);
+  let answer = pasteAnswer(read, counts, loaded.dayBeforeTime, guard, true);
+  let unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
+  if ((answer.problems.length > 0 || unconfirmed) && !holdersCountAll(read, guard)) {
+    answer = pasteAnswer(read, counts, loaded.dayBeforeTime, await holdersOf(db, gated.runId, read, true), true);
+    unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
+  }
+  if (answer.problems.length > 0) return badRequest(answer.problems[0], answer);
   if (unconfirmed) return NextResponse.json({ error: unconfirmed, ...answer }, { status: 409 });
   // What the paste keeps of people's work, counted before the save, and who it reaches.
   const [work, reach] = await Promise.all([

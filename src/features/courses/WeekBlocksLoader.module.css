@@ -226,6 +226,11 @@
   min-height: 44px;
 }
 
+/* The count a change brings, a live region kept in place while empty, taking no room then. */
+.chooserLive:empty {
+  margin-top: calc(-1 * var(--space-2));
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .found li {
     grid-template-columns: minmax(0, 1fr);

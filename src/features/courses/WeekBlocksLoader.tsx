@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -157,8 +157,12 @@ export default function WeekBlocksLoader({
   const [copied, setCopied] = useState<string | null>(null);
   /** This paste holds the week's lock (the Weeks page only). */
   const [holding, setHolding] = useState(false);
-  /** The author's changes to who chooses, which `read` was read with. */
+  /** The author's changes to who chooses: what the radios show and Save sends, set the moment a radio changes. */
   const [changes, setChanges] = useState<WhoChoosesChange[]>([]);
+  /** A read again for a change of who chooses is under way: the radios stay live, Save waits for its count. */
+  const [rereading, setRereading] = useState(false);
+  /** Each read's number, so an answer that lands after a newer read was asked for is dropped. */
+  const latest = useRef(0);
 
   const current = read !== null && readFor === markdown;
   const lockedOut = weekEdit?.lockedBy && !holding ? weekEdit.lockedBy : null;
@@ -204,31 +208,45 @@ export default function WeekBlocksLoader({
     }
   }
 
-  /** Read the paste with these changes to who chooses: none for Read it, which starts from the pasted words. */
-  async function readIt(next: WhoChoosesChange[] = []) {
-    setBusy(true);
+  /**
+   * Read the paste with these changes to who chooses: none for Read it, which
+   * starts from the pasted words. `again` is a read for a change of a radio:
+   * nothing is turned off meanwhile, so focus stays on the radio, and a
+   * failure leaves the check as it was.
+   */
+  async function readIt(next: WhoChoosesChange[] = [], again = false) {
+    const mine = ++latest.current;
+    if (again) setRereading(true);
+    else setBusy(true);
     setMessage(null);
+    setChanges(next);
     const answer = await send("POST", undefined, next);
+    // A newer read was asked for while this one was out: its answer wins.
+    if (mine !== latest.current) return;
     setBusy(false);
+    setRereading(false);
     if (!answer) return;
     if (answer.status !== 200) {
-      setRead(null);
+      if (!again) setRead(null);
       setMessage({ tone: "error", text: answer.body.error ?? "Couldn’t read that Markdown." });
       return;
     }
     setRead(answer.body);
     setReadFor(markdown);
-    setChanges(next);
   }
 
   /** The author changes who chooses one block: read again with it, so the check counts who it reaches. */
   function choose(row: WhoChoosesRow, givenBy: GivenBy) {
     const others = changes.filter((change) => change.place !== row.place);
-    void readIt(givenBy === row.start ? others : [...others, { place: row.place, kind: row.kind, givenBy }]);
+    void readIt(givenBy === row.start ? others : [...others, { place: row.place, kind: row.kind, givenBy }], true);
   }
 
+  /** Who chooses a block as the author has it now: their change, or the pasted words. */
+  const chosenFor = (row: WhoChoosesRow): GivenBy => changes.find((change) => change.place === row.place)?.givenBy ?? row.start;
+
   async function save() {
-    if (!read) return;
+    if (!read || rereading) return;
+    latest.current += 1;
     setBusy(true);
     setMessage(null);
     const answer = await send("PUT", read.answers > 0 ? read.answers : undefined, changes);
@@ -377,6 +395,7 @@ export default function WeekBlocksLoader({
                 <WhoChoosesBlock
                   key={row.place}
                   row={row}
+                  chosen={chosenFor(row)}
                   name={`who-chooses-${weekId}${idSuffix}-${row.place}`}
                   disabled={busy || lockedOut !== null}
                   onChoose={(givenBy) => choose(row, givenBy)}
@@ -460,7 +479,7 @@ export default function WeekBlocksLoader({
           <p className={styles.muted}>Due dates come from each group’s day: the written answer {read.due} its session.</p>
 
           <div className={styles.actions}>
-            <Button type="button" onClick={save} disabled={busy || read.problems.length > 0 || lockedOut !== null}>
+            <Button type="button" onClick={save} disabled={busy || rereading || read.problems.length > 0 || lockedOut !== null}>
               {pressLabel}
             </Button>
           </div>
@@ -479,12 +498,16 @@ export default function WeekBlocksLoader({
  */
 export function WhoChoosesBlock({
   row,
+  chosen,
   name,
   disabled,
   onChoose,
 }: {
   row: WhoChoosesRow;
+  /** Who chooses as the author has it now, which the radios show while the check reads it again. */
+  chosen: GivenBy;
   name: string;
+  /** Off only while the whole paste is read or saved, never for a read again of a change, so focus stays put. */
   disabled: boolean;
   onChoose: (givenBy: GivenBy) => void;
 }) {
@@ -505,7 +528,7 @@ export function WhoChoosesBlock({
               type="radio"
               name={name}
               value={givenBy}
-              checked={row.givenBy === givenBy}
+              checked={chosen === givenBy}
               disabled={disabled}
               onChange={() => onChoose(givenBy)}
             >
@@ -519,7 +542,10 @@ export function WhoChoosesBlock({
       <p className={styles.muted}>{row.why}</p>
       {row.only && <p className={styles.muted}>{row.only}</p>}
       {row.changed && <p className={styles.muted}>{row.changed}</p>}
-      {row.people && <p className={styles.checkLine}>{row.people}</p>}
+      {/* Always there, so a screen reader hears the count a change of radio brings. */}
+      <p className={`${styles.checkLine} ${styles.chooserLive}`} role="status" aria-live="polite">
+        {row.people ?? ""}
+      </p>
     </fieldset>
   );
 }

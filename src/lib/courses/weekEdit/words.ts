@@ -122,6 +122,7 @@ const FIELD_WORDS: Record<string, string> = {
   guidance: "guidance",
   words: "word range",
   due: "due rule",
+  givenBy: "who chooses",
 };
 
 /** "link and title", "time, note and kind". */
