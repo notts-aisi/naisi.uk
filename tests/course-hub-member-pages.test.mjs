@@ -75,7 +75,7 @@ describe("1. the programme home", () => {
         "Fellowship · Autumn 2026 AGI Strategy Fellowship Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia " +
         // "Add to calendar" under the room, as the programme page before the first session draws it: built
         // since the member's own calendar link.
-        "Tue 3 Nov Your first session · week 1 Tue 3 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
+        "Your first session · week 1 Tue 3 Nov, 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia Add to calendar " +
         "Before your first session 0 of 3 done Week 1 · Week 1 readings Thu 29 Oct to Wed 4 Nov " +
         "Week 1 reading one Reading 25 min Open Week 1 reading one " +
         "Week 1 talk Video 20 min Open Week 1 talk " +
@@ -106,7 +106,7 @@ describe("1. the programme home", () => {
       "My programmes AGI Strategy " +
         "Fellowship · Autumn 2026 AGI Strategy Fellowship Week 3 of 6 Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia " +
         // "Add to calendar" under the room, as the programme page draws it.
-        "Tue 17 Nov Tonight · week 3 Tue 17 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
+        "Tonight · week 3 Tue 17 Nov, 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia Add to calendar " +
         "This week 1 of 3 done Week 3 · Who decides what AGI means Thu 12 to Wed 18 Nov Open week 3 → " +
         // A week that is over is Done only when it is done: week 1's three, and not week 2's none (A3).
         "The 6 weeks Week 1 Week 1 readings Tue 3 Nov · Done 3 of 3 Week 2 Week 2 readings Tue 10 Nov · Not done 0 of 3 " +
@@ -151,7 +151,7 @@ describe("1. the programme home", () => {
     await w.asBrowser("chloe");
     const { text } = w.programmeHome("chloe");
     // "Add to calendar" closes the ticket, before "This week".
-    assert.match(text, /Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia Tue 17 Nov Tonight · week 3 Tue 17 Nov, 6pm to 8pm Room C21 Room changed this week Add to calendar This week/);
+    assert.match(text, /Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia Tonight · week 3 Room changed this week Tue 17 Nov, 6pm to 8pm Room C21 R S Group B with Rahul and Sofia Add to calendar This week/);
   });
 
   test("a session cancelled through Change a session: the notice, the next session covering both weeks, and the week says so", async () => {
@@ -163,8 +163,8 @@ describe("1. the programme home", () => {
     assert.match(text, /No session tonight Tue 17 Nov is cancelled\. Rahul and Sofia are both away\. Do week 3’s reading anyway\. On Tue 24 Nov you’ll talk about weeks 3 and 4 together\./);
     // A changed session: the ticket of the session covering both weeks names its
     // day and both weeks over the hours ("Tue 1 Dec · weeks 4 and 5", "6pm to
-    // 8pm"), so the day is said once under the stub's.
-    assert.match(text, /Tue 24 Nov Tue 24 Nov · weeks 3 and 4 6pm to 8pm Hallward B12/);
+    // 8pm"), so the day is said once.
+    assert.match(text, /On Tue 24 Nov you’ll talk about weeks 3 and 4 together\. Tue 24 Nov · weeks 3 and 4 6pm to 8pm Hallward B12/);
     assert.doesNotMatch(text, /Your next session/);
     assert.match(text, /Week 3 Who decides what AGI means Tue 17 Nov · Cancelled/);
   });
@@ -313,14 +313,16 @@ describe("3. Home's card", () => {
       home.text,
       "AGI Strategy · week 3 of 6 Hi Chloe. AGI Strategy Fellowship · Group B · week 3 of 6 " +
         // "Add to calendar" in the row under the card, as the member's Home draws it.
-        "Tue 17 Nov Tonight · week 3 Group B, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
+        "Tonight · week 3 Tue 17 Nov, 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia Add to calendar " +
         "Before tonight 0 of 3 done Week 3 · Who decides what AGI means " +
         "Week 3 reading one Reading 25 min Week 3 talk Video 20 min Week 3 reading two Reading 30 min Open week 3 → " +
         "Your group Group B CN Chloe (you) FH Farah KA Kofi R S Facilitators: Rahul and Sofia",
     );
     assert.equal((home.html.match(/type="checkbox"/g) ?? []).length, 3);
     // "Add to calendar" exists now, once and under the ticket. "Can’t make it"
-    // is the programme page's alone, never Home's.
+    // comes only with the server's answers for the card, which are not handed
+    // here (as while Home's read is on its way): tests/course-next-session-card.test.mjs
+    // hands them and draws it.
     assert.equal(home.text.match(/Add to calendar/g)?.length, 1);
     assert.doesNotMatch(home.text, /Your attendance|Can’t make it/);
   });
@@ -329,21 +331,21 @@ describe("3. Home's card", () => {
     at("2026-11-03T09:00:00Z");
     await w.asBrowser("chloe");
     const home = await w.homeCard("chloe");
-    assert.match(home.text, /^AGI Strategy · week 1 of 6 Hi Chloe\. .* Tue 3 Nov Tonight · your first session Group B, 6pm to 8pm .* Before tonight 0 of 3 done Week 1 · Week 1 readings /);
+    assert.match(home.text, /^AGI Strategy · week 1 of 6 Hi Chloe\. .* Tonight · your first session Tue 3 Nov, 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia .* Before tonight 0 of 3 done Week 1 · Week 1 readings /);
   });
 
   test("before the start: the first session, and its reading", async () => {
     at("2026-10-31T12:00:00Z");
     await w.asBrowser("chloe");
     const home = await w.homeCard("chloe");
-    assert.match(home.text, /Your first session · week 1 Group B, 6pm to 8pm .* Before your first session 0 of 3 done Week 1 · Week 1 readings/);
+    assert.match(home.text, /Your first session · week 1 Tue 3 Nov, 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia .* Before your first session 0 of 3 done Week 1 · Week 1 readings/);
   });
 
   test("the morning after a session: the next one, and its own week's reading", async () => {
     at("2026-11-18T09:00:00Z");
     await w.asBrowser("chloe");
     const home = await w.homeCard("chloe");
-    assert.match(home.text, /Tue 24 Nov Your next session · week 4 Group B, 6pm to 8pm .* Before your session 0 of 3 done Week 4 · Week 4 readings/);
+    assert.match(home.text, /Your next session · week 4 Tue 24 Nov, 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia .* Before your session 0 of 3 done Week 4 · Week 4 readings/);
   });
 });
 
