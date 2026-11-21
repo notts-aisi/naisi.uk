@@ -1,0 +1,35 @@
+/* The run's archived groups, one line under the Groups tab's board. */
+
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-ui);
+  color: var(--color-text-muted);
+}
+
+.label {
+  font-weight: 500;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 36rem) {
+  .line {
+    margin-top: var(--space-3);
+  }
+}

@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import { archiveRefusal, restoreRefusal } from "@/lib/courses/groupArchive/plan";
 import { readGroupArchiveFacts } from "@/lib/courses/groupArchive/read";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { ARCHIVE_REFUSAL } from "@/lib/courses/groupArchive/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -11,7 +12,8 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveCourse } from "@/lib/firestore/users";
 
 /**
- * ARCHIVE OR RESTORE ONE GROUP, from the run editor's group card.
+ * ARCHIVE OR RESTORE ONE GROUP, from the run editor's group card and from
+ * the group's own page under its programme's Groups tab.
  *
  *   PATCH { archived: true | false }
  *
@@ -19,13 +21,16 @@ import { canApproveCourse } from "@/lib/firestore/users";
  * `firestore.rules` pins the field against every browser, admins included,
  * so the checks below cannot be stepped round.
  *
- * WHO: exactly who could flip the switch while it wrote client-direct, the
- * group's update rule: an admin, an `approveCourse` holder, one of the run's
- * track leads and one of the group's named facilitators, each on an approved
- * account. View-as is refused first, then the session. An admin or an
- * approver is decided on the session alone; anybody else is asked of the
- * group and its run, so a missing group is one 403 for them and a 404 for an
- * admin or an approver, who are told it is not there.
+ * WHO: whoever could flip the run editor's switch while it wrote
+ * client-direct (the group's update rule: an admin, an `approveCourse`
+ * holder, one of the run's track leads and one of the group's named
+ * facilitators, each on an approved account), and the lead of the programme
+ * that names the run, who runs the group from its page (`runStaffingOf`,
+ * which asks the forms and the lead's standing). View-as is refused first,
+ * then the session. An admin or an approver is decided on the session alone;
+ * anybody else is asked of the group and its run, so a missing group is one
+ * 403 for them and a 404 for an admin or an approver, who are told it is not
+ * there.
  *
  * WHAT IS CHECKED (`src/lib/courses/groupArchive/plan.ts`): archiving is
  * refused while anybody still holds a place in the group, somebody moved
@@ -74,8 +79,11 @@ export async function PATCH(
     if (group && isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids)) {
       admitted = true;
     } else if (group && typeof group.runId === "string" && isAddressableId(group.runId)) {
+      // The run's track leads, and the lead of the programme that names it.
       const runSnap = await db.collection("courseRuns").doc(group.runId).get();
-      admitted = runSnap.exists && isNamedWithStanding(actor, "courseRuns.trackLeadUids", runSnap.data()?.trackLeadUids);
+      admitted =
+        runSnap.exists &&
+        doesTrackLeadWork(await runStaffingOf(db, actor, { id: group.runId, trackLeadUids: runSnap.data()?.trackLeadUids }));
     }
   }
   if (!admitted) return NextResponse.json({ error: "Forbidden" }, { status: 403 });

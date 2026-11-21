@@ -2251,13 +2251,22 @@ before.
 
 ## Archiving a group
 
-The Archived switch on a group's card in the run editor goes through
-`PATCH /api/courses/groups/[groupId]/archive`, and nothing else changes
+A group is archived from two places, both through
+`PATCH /api/courses/groups/[groupId]/archive`: the Archived switch on its card
+in the run editor, and Archive, the last part of "How Group B meets" on the
+group's own page under its programme's Groups tab. Nothing else changes
 `courseGroups.archived`: `firestore.rules` pins the field against every
 browser write, an admin's included (`groupArchivedUnchanged`), and a group is
-born not archived. Who may press it is who could before: an admin, an
-`approveCourse` holder, one of the run's track leads and one of the group's
-facilitators, each on an approved account.
+born not archived. The route admits who could flip the switch before (an
+admin, an `approveCourse` holder, one of the run's track leads and one of the
+group's facilitators, each on an approved account) and the lead of the
+programme that names the run (`runStaffingOf`), who runs the group from its
+page.
+
+An archived group's page opens on "This group is archived." and Restore, and
+nothing else; the Groups tab lists the run's archived groups under its board
+("Archived:"), each to its page, so a group archived by mistake is put back
+from there or from the run editor's switch.
 
 **What archiving keeps.** The group stays on the run for the record, with its
 registers, its history and its places as they are; nothing is moved, counted
