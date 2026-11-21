@@ -2570,22 +2570,22 @@ export const ROUTES = {
   },
   "/api/courses/groups/[groupId]/draw": {
     PUT: {
-      expect: signedIn(400),
+      expect: adminOnly(404),
       why:
-        "View-as is refused first, then the session, then the body is checked before anything is read, " +
-        "so every signed-in persona meets the same 400 on an empty one. Who may type the draw (the " +
-        "group's live facilitators, the lead of the programme that names the run, and admins) is asked " +
-        "once a valid body arrives, before the run's people or the week are read.",
+        "View-as is refused first, then the session, then the draw's gate (`openDrawGroup`: the group's live " +
+        "facilitators, the lead of the programme that names the run, and admins) before the body is read. A " +
+        "group that is not there gets the 403 a group the caller has no part in gets, so a request tells " +
+        "nobody which groups exist; an admin, admitted to every group, alone is told it is not there.",
     },
   },
   "/api/courses/groups/[groupId]/pairs": {
     PUT: {
-      expect: signedIn(400),
+      expect: adminOnly(404),
       why:
-        "View-as is refused first, then the session, then the body is checked before anything is read, " +
-        "so every signed-in persona meets the same 400 on an empty one. Who may type the pairs (the " +
-        "group's live facilitators, the lead of the programme that names the run, and admins, the " +
-        "draw's own gate) is asked once a valid body arrives, before the run's people or the week are read.",
+        "View-as is refused first, then the session, then the draw's own gate (`openDrawGroup`: the group's " +
+        "live facilitators, the lead of the programme that names the run, and admins) before the body is " +
+        "read. A group that is not there gets the 403 a group the caller has no part in gets, so a request " +
+        "tells nobody which groups exist; an admin, admitted to every group, alone is told it is not there.",
     },
   },
   "/api/courses/groups/[groupId]/shared-notes": {
@@ -7119,37 +7119,29 @@ export const REAL_ROUTES = {
   },
   "/api/courses/groups/[groupId]/draw": {
     PUT: {
-      realDrive: {
-        body: { weekId: "w01", entries: [{ uid: "e2e-battery-person", blockId: "e2e-battery-block", value: null }] },
-        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
-      },
       another: {
         anonymous: c(401, NO_SESSION),
-        "*": c(403, "Neither a live facilitator of the group, the lead of the programme naming its run, nor an admin: refused before the week is read."),
-        admin: c(ACTS, "An admin opens any group's draw, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        "*": c(403, "Neither a live facilitator of the group, the lead of the programme naming its run, nor an admin: refused before the body is read."),
+        admin: c(400, "An admin opens any group's draw, so admitted; then the body is checked, and an empty one says no week."),
       },
       theirs: {
-        lead: c(ACTS, "Leads the programme naming the group's run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
-        facilitator: c(ACTS, "A live facilitator of the group, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
-        participant: c(403, "Holds a place in the run's other group, facilitates none and leads nothing: refused before the week is read."),
+        lead: c(400, "Leads the programme naming the group's run, so admitted; then the body is checked, and an empty one says no week."),
+        facilitator: c(400, "A live facilitator of the group, so admitted; then the body is checked, and an empty one says no week."),
+        participant: c(403, "Holds a place in the run's other group, facilitates none and leads nothing: refused before the body is read."),
       },
     },
   },
   "/api/courses/groups/[groupId]/pairs": {
     PUT: {
-      realDrive: {
-        body: { weekId: "w01", blockId: "e2e-battery-block", entries: [{ uid: "e2e-battery-person", pair: 1, laptop: false }] },
-        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
-      },
       another: {
         anonymous: c(401, NO_SESSION),
-        "*": c(403, "Neither a live facilitator of the group, the lead of the programme naming its run, nor an admin: refused before the week is read."),
-        admin: c(ACTS, "An admin opens any group's pairs, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        "*": c(403, "Neither a live facilitator of the group, the lead of the programme naming its run, nor an admin: refused before the body is read."),
+        admin: c(400, "An admin opens any group's pairs, so admitted; then the body is checked, and an empty one says no week."),
       },
       theirs: {
-        lead: c(ACTS, "Leads the programme naming the group's run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
-        facilitator: c(ACTS, "A live facilitator of the group, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
-        participant: c(403, "Holds a place in the run's other group, facilitates none and leads nothing: refused before the week is read."),
+        lead: c(400, "Leads the programme naming the group's run, so admitted; then the body is checked, and an empty one says no week."),
+        facilitator: c(400, "A live facilitator of the group, so admitted; then the body is checked, and an empty one says no week."),
+        participant: c(403, "Holds a place in the run's other group, facilitates none and leads nothing: refused before the body is read."),
       },
     },
   },

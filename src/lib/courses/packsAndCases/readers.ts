@@ -16,7 +16,7 @@ import { isBlockWeek, type CasesBlock, type ChooseOneBlock, type WeekBlock } fro
 import { facilitatingOnRunOf } from "@/lib/courses/writtenAnswers/access";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
-import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import {
   COURSE_PACKS_AND_CASES_COLLECTION,
   normalizeCoursePackCase,
@@ -166,6 +166,31 @@ export async function drawGate(db: Firestore, actor: SessionUser, group: CourseG
   if (isAdmin || facilitates) return { ok: true, isAdmin, leadOf: null, facilitates };
   const leadOf = await programmeLedBy(db, actor, group.runId);
   return leadOf ? { ok: true, isAdmin: false, leadOf, facilitates: false } : { ok: false };
+}
+
+/** What a route of the draw or the pairs is told about the group in its address, once the caller is known. */
+export type OpenedDrawGroup =
+  | { ok: true; group: CourseGroupDoc; gate: Extract<DrawGate, { ok: true }> }
+  | { ok: false; status: 403 | 404; error: string };
+
+/**
+ * THE GROUP A ROUTE OF THE DRAW OR THE PAIRS IS ABOUT, BEHIND ITS GATE
+ * (`drawGate`), asked before the body is read: a group that is not there and
+ * a group the caller has no part in get the one 403, so a request tells
+ * nobody which groups exist, as the registers' routes answer. Only an admin,
+ * who is admitted to every group, is told that one is not there.
+ */
+export async function openDrawGroup(db: Firestore, actor: SessionUser, groupId: string): Promise<OpenedDrawGroup> {
+  const snap = await db.collection("courseGroups").doc(groupId).get();
+  if (!snap.exists) {
+    return actor.role === "admin"
+      ? { ok: false, status: 404, error: "That group isn’t on this programme." }
+      : { ok: false, status: 403, error: "Forbidden" };
+  }
+  const group = normalizeCourseGroup(snap.id, snap.data() ?? {});
+  const gate = await drawGate(db, actor, group);
+  if (!gate.ok) return { ok: false, status: 403, error: "Forbidden" };
+  return { ok: true, group, gate };
 }
 
 /** One person in a group's draw. */

@@ -5517,9 +5517,10 @@ describe("the course hub passage", () => {
     assert.match(readers, /!group\.archived && isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\);/);
     assert.match(readers, /const leadOf = await programmeLedBy\(db, actor, group\.runId\);/);
     assert.ok(!/isTrackLead|trackLeadUids|admissionsReviewer/.test(readers), "the draw's gate now admits a run's track lead or a reviewer");
-    for (const file of ["src/app/api/courses/groups/[groupId]/draw/route.ts", "src/app/(app)/learn/draw/[groupId]/page.tsx"]) {
-      assert.match(read(file), /await drawGate\(db, (?:actor|user), group\)/, `${file} no longer asks the draw's gate`);
-    }
+    // The route asks it through `openDrawGroup`, which answers a group that is not there as one that is not theirs.
+    assert.match(readers, /export async function openDrawGroup\([\s\S]*?const gate = await drawGate\(db, actor, group\);\s*if \(!gate\.ok\) return \{ ok: false, status: 403, error: "Forbidden" \};/);
+    assert.match(read("src/app/(app)/learn/draw/[groupId]/page.tsx"), /await drawGate\(db, user, group\)/, "the draw page no longer asks the draw's gate");
+    assert.match(read("src/app/api/courses/groups/[groupId]/draw/route.ts"), /const opened = await openDrawGroup\(db, actor, groupId\);/, "the draw's route no longer asks the draw's gate");
     // What the draw hands staff holds packs and cases, never the ready box:
     // the draw's state, the spread and This week's work's cells.
     const drawState = /export async function readDrawState\([\s\S]*?\n\}/.exec(readers);
@@ -5644,9 +5645,8 @@ describe("the course hub passage", () => {
     // live facilitators, the programme's lead and admins), asked by the route
     // and the pairs page; the group page's own gate (its live facilitators and
     // admins) for its card.
-    for (const file of ["src/app/api/courses/groups/[groupId]/pairs/route.ts", "src/app/(app)/learn/pairs/[groupId]/page.tsx"]) {
-      assert.match(read(file), /const gate = await drawGate\(db, (?:actor|user), group\);/, `${file} no longer asks the draw's gate`);
-    }
+    assert.match(read("src/app/(app)/learn/pairs/[groupId]/page.tsx"), /const gate = await drawGate\(db, user, group\);/, "the pairs page no longer asks the draw's gate");
+    assert.match(read("src/app/api/courses/groups/[groupId]/pairs/route.ts"), /const opened = await openDrawGroup\(db, actor, groupId\);/, "the pairs route no longer asks the draw's gate");
     assert.match(
       read("src/app/(app)/learn/[runId]/group/[groupId]/page.tsx"),
       /const pairsWeek = pairsFor\?\.week \? await readGroupPairs\(db, runId, groupId, pairsFor\.week, drawList\) : null;/,

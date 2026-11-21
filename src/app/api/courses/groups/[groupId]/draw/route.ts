@@ -9,8 +9,8 @@ import { drawWeekRule } from "@/lib/courses/packsAndCases/drawWeek";
 import { countedPackTitlesOf, drawTalkOf, findPack, hasDraw, mayBeGiven } from "@/lib/courses/packsAndCases/model";
 import {
   drawClosed,
-  drawGate,
   hidesOwnPick,
+  openDrawGroup,
   readDrawRoster,
   readGroupWeek,
   seesFacilitatorsOwnWork,
@@ -26,7 +26,6 @@ import {
 import { resolveSessions } from "@/lib/courses/sessions";
 import { isWeekItemId } from "@/lib/courses/weekBlocks/model";
 import { closedWords } from "@/lib/courses/weekWork/words";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import {
   COURSE_PACKS_AND_CASES_COLLECTION,
   normalizeCoursePackCase,
@@ -45,9 +44,12 @@ import {
  * sent, so two facilitators copying slips in at once overwrite only the
  * people both of them changed.
  *
- * WHO (`drawGate`): the group's live facilitators, the lead of the programme
- * that names the run, and admins. Not another group's facilitator, not the
- * run's track leads, not a reviewer, not a fellow. View-as is refused first.
+ * WHO (`drawGate`, through `openDrawGroup`): the group's live facilitators,
+ * the lead of the programme that names the run, and admins. Not another
+ * group's facilitator, not the run's track leads, not a reviewer, not a
+ * fellow. View-as is refused first, then the session, then the gate, before
+ * the body is read: a group that is not there and a group the caller has no
+ * part in get the one 403 (an admin alone is told it is not there).
  *
  * WHAT MAY BE GIVEN, checked against the week the group reads (its own copy
  * when it has one, the run's otherwise) and the people in its draw (the
@@ -89,8 +91,9 @@ import {
  * still to come needs no yes.
  *
  * Nobody is emailed ("Each person sees theirs on their week 3 page. No
- * email."). The body is checked before anything is read; everything is
- * checked before anything is written, and the writes are one transaction.
+ * email."). The body is checked before the run's people or the week are
+ * read; everything is checked before anything is written, and the writes are
+ * one transaction.
  */
 
 /** Week doc ids are "w01".."w60" (`weekDocId`). */
@@ -129,7 +132,13 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  // ---- The body, before any document is read --------------------------------
+  // ---- Who: the group's live facilitators, the programme's lead, admins -----
+  // Asked before the body is read: a group that is not there gets the answer a group that is not theirs gets.
+  const opened = await openDrawGroup(db, actor, groupId);
+  if (!opened.ok) return NextResponse.json({ error: opened.error }, { status: opened.status });
+  const { group, gate } = opened;
+
+  // ---- The body ---------------------------------------------------------------
   let body: { weekId?: unknown; entries?: unknown; confirmed?: unknown };
   try {
     body = (await req.json()) as typeof body;
@@ -167,12 +176,6 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
     entries.push({ uid, blockId, value, asked: entry?.asked === true });
   }
 
-  // ---- Who: the group's live facilitators, the programme's lead, admins -----
-  const groupSnap = await db.collection("courseGroups").doc(groupId).get();
-  if (!groupSnap.exists) return NextResponse.json({ error: "That group isn’t on this programme." }, { status: 404 });
-  const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
-  const gate = await drawGate(db, actor, group);
-  if (!gate.ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const groupName = group.name.trim() || "This group";
   if (group.archived) {
     return NextResponse.json({ error: `${groupName} is archived, so nothing on it changes.` }, { status: 409 });
