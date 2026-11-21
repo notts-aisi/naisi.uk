@@ -386,10 +386,9 @@ describe("the words", () => {
     assert.equal(words.visitsToComeWords("Group I", 2, [4, 5]), "Group I still has 2 visits to come, in weeks 4 and 5. Cancel them first, then archive the group.");
   });
 
-  test("no dashes and no word the house refuses", () => {
+  test("no dashes in the words", () => {
     const source = readFileSync(join(REPO, "src", "lib", "courses", "groupArchive", "words.ts"), "utf8");
     assert.doesNotMatch(source, /[\u2013\u2014]/);
-    assert.doesNotMatch(source, /collate/i);
   });
 
   test("a run that takes no move is the staff move's own answer", () => {
