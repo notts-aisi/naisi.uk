@@ -171,6 +171,8 @@ export async function makeMemberPagesWorld(key = "__memberPages", { recordTickRo
     // The browser's data hooks: each hands its component what a suite set.
     ["./useRunOverview", `export function useRunOverview() { return { data: ${handle}.overview, error: null, loading: false, reload() {} }; }\nexport default useRunOverview;`],
     ["@/features/courses/useRunOverview", `export function useRunOverview() { return { data: ${handle}.overview, error: null, loading: false, reload() {} }; }`],
+    // Home's answers for the next session's card: what a suite set (the next-session route's own answer), and none until it does.
+    ["@/features/courses/nextSession/useNextSessionAnswers", `export function useNextSessionAnswers() { return { answers: ${handle}.nextSession ?? null, reload() {} }; }`],
     ["./useSyncTasks", "export function useSyncTasks() {}"],
     ["@/features/courses/useRunProgress", `export function useRunProgress() { return { byItemId: ${handle}.progress, loading: false, error: null }; }`],
     ["./useWeek", useWeekStub],
@@ -220,6 +222,7 @@ export async function makeMemberPagesWorld(key = "__memberPages", { recordTickRo
     overview: await courseRoute("runs", "[runId]", "overview"),
     roster: await courseRoute("groups", "[groupId]", "roster"),
     me: await courseRoute("me"),
+    nextSession: await courseRoute("runs", "[runId]", "next-session"),
   };
   const pages = {
     week: (await loadTs(join("app", "(app)", "learn", "[runId]", "weeks", "[n]", "page.tsx"))).default,
@@ -243,6 +246,7 @@ export async function makeMemberPagesWorld(key = "__memberPages", { recordTickRo
   function reset(seed = memberSeed()) {
     made.reset(seed, { now: () => new Date() });
     ui.overview = null;
+    ui.nextSession = null;
     ui.roster = null;
     ui.weekDocs = {};
     ui.progress = new Map();
@@ -289,6 +293,17 @@ export async function makeMemberPagesWorld(key = "__memberPages", { recordTickRo
     return answer;
   }
 
+  /**
+   * What the next session's card can be told, as Home's route answers `who`,
+   * handed to Home's card; and the same answers, for the programme page's
+   * props. Answers the route's own answer.
+   */
+  async function answersFor(who) {
+    const answer = await call(who, routes.nextSession.GET, { runId: RUN.agi }, { course: true });
+    ui.nextSession = answer.status === 200 ? answer.body : null;
+    return answer;
+  }
+
   /** The programme home as `who` sees it, in words. */
   function programmeHome(who, props = {}) {
     const html = renderToStaticMarkup(
@@ -331,5 +346,5 @@ export async function makeMemberPagesWorld(key = "__memberPages", { recordTickRo
     }
   }
 
-  return { ...made, ui, routes, pages, components, lib, reset, overview, rosterOf, asBrowser, programmeHome, weekPage, homeCard, weekShell };
+  return { ...made, ui, routes, pages, components, lib, reset, overview, rosterOf, asBrowser, answersFor, programmeHome, weekPage, homeCard, weekShell };
 }
