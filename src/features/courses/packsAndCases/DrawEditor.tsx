@@ -6,6 +6,7 @@ import InitialsChip from "@/components/ui/InitialsChip";
 import Select from "@/components/ui/Select";
 import { useHydrated } from "@/hooks/useHydrated";
 import { caseOptions, drawCaseOf, notedCasesFor, type DrawTalk } from "@/lib/courses/packsAndCases/model";
+import { swapRefusedWords } from "@/lib/courses/packsAndCases/swap";
 import { safeReturnPath } from "@/lib/safeReturnPath";
 import {
   ASKED_FOR_THIS_ONE,
@@ -34,8 +35,6 @@ import {
   pickChangedLineWords,
   picksOnWeekPageWords,
   savedDrawWords,
-  swapAcrossPicksWords,
-  swapNotedWords,
   swappedWords,
   waitsForPackWords,
 } from "@/lib/courses/packsAndCases/words";
@@ -318,32 +317,18 @@ export default function DrawEditor({
     });
   }
 
-  /** Why two people's slips cannot be swapped, or null: only what a facilitator gives moves, never a pick. */
-  function swapRefused(a: string, b: string): string | null {
-    const nameA = nameOf.get(a) ?? "";
-    const nameB = nameOf.get(b) ?? "";
-    for (const talk of talks) {
-      const caseA = values[a]?.cases[talk.id] ?? null;
-      const caseB = values[b]?.cases[talk.id] ?? null;
-      if (followsPick(talk)) {
-        if (hiddenSet.has(a)) return ownCaseGivenByWords(nameA);
-        if (hiddenSet.has(b)) return ownCaseGivenByWords(nameB);
-        const keyedBy = talk.keyedBy as string;
-        const pickA = picks[a]?.[keyedBy] ?? null;
-        const pickB = picks[b]?.[keyedBy] ?? null;
-        if ((caseA || caseB) && (!pickA || pickA !== pickB)) {
-          return swapAcrossPicksWords(nameA, nameB, titleOf.get(keyedBy) ?? "Pack");
-        }
-      }
-      if (drawCaseOf(talk, caseA)?.drawable === false && !askedOf(b, talk.id)) return swapNotedWords(nameA, nameB);
-      if (drawCaseOf(talk, caseB)?.drawable === false && !askedOf(a, talk.id)) return swapNotedWords(nameB, nameA);
-    }
-    return null;
-  }
-
   function swap() {
     if (!swapA || !swapB || swapA === swapB) return;
-    const refused = swapRefused(swapA, swapB);
+    const refused = swapRefusedWords(swapA, swapB, {
+      talks,
+      pickedIds: new Set(pickedById.keys()),
+      titleOf: (chooseOneId) => titleOf.get(chooseOneId) ?? "Pack",
+      nameOf: (uid) => nameOf.get(uid) ?? "",
+      caseOf: (uid, talkId) => values[uid]?.cases[talkId] ?? null,
+      pickOf: (uid, chooseOneId) => picks[uid]?.[chooseOneId] ?? null,
+      askedOf,
+      hidden: (uid) => hiddenSet.has(uid),
+    });
     if (refused) {
       setSwapError(refused);
       return;

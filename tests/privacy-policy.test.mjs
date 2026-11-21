@@ -5530,6 +5530,44 @@ describe("the course hub passage", () => {
     // co-facilitators: only the lead and admins see that one.
     assert.match(weekWork[0], /const seesOwnWork = viewer\.isAdmin \|\| viewer\.leadOf !== null;/);
     assert.match(weekWork[0], /const hidden = picked && person\.facilitates && !seesOwnWork;/);
+    // The case that follows such a pick names the pick, so it is left blank with it.
+    assert.match(weekWork[0], /const keyedByPick = talk \? keyingChooseOne\(week\.blocks, talk\)\?\.givenBy === "fellow" : false;/);
+    assert.match(weekWork[0], /const caseHidden = keyedByPick && person\.facilitates && !seesOwnWork;/);
+    assert.match(weekWork[0], /const given = talk && !caseHidden \?/);
+    // THE DRAW READS A PICK the cases follow, for the case lists, and keeps a
+    // facilitator's own from their co-facilitators: by one rule
+    // (`hidesOwnPick`: a facilitator of the group, read by somebody else who
+    // is neither the lead nor an admin), asked by every reader of the draw.
+    assert.match(drawState[0], /const blocks = \[\.\.\.week\.draw\.packs, \.\.\.week\.draw\.picked, \.\.\.week\.draw\.cases\];/);
+    assert.match(
+      readers,
+      /export function hidesOwnPick\(person: DrawPerson, viewer: \{ uid: string; seesOwnWork: boolean \}\): boolean \{\s*return person\.facilitates && person\.uid !== viewer\.uid && !viewer\.seesOwnWork;\s*\}/,
+    );
+    assert.match(readers, /if \(gate\.isAdmin \|\| gate\.leadOf\) return true;\s*return \(await programmeLedBy\(db, actor, group\.runId\)\) !== null;/);
+    //  - the draw page hands its editor what `drawRowsFor` keeps, never the state: a hidden row carries no pick and no case that follows one;
+    const rows = /export function drawRowsFor\([\s\S]*?\n\}/.exec(readers);
+    assert.ok(rows, "could not find what the draw page hands its editor");
+    assert.match(rows[0], /if \(following\.size > 0 && hidesOwnPick\(person, viewer\)\) \{\s*for \(const talkId of following\) delete cases\[talkId\];/);
+    assert.match(rows[0], /rows\.picks\[person\.uid\] = \{\};\s*rows\.hidden\.push\(person\.uid\);/);
+    const drawPageSource = withoutComments(read("src/app/(app)/learn/draw/[groupId]/page.tsx"));
+    assert.match(drawPageSource, /const rows = week && gives \? drawRowsFor\(week, people, state, \{ uid: user\.uid, seesOwnWork \}\) : null;/);
+    assert.match(drawPageSource, /initial=\{rows\.initial\}\s*picks=\{rows\.picks\}\s*hidden=\{rows\.hidden\}/);
+    assert.ok(!/state\.get\(/.test(drawPageSource), "the draw page hands its editor the draw's state itself");
+    //  - the draw's route refuses that case from a co-facilitator before the pick is looked at, and never checks a save against it;
+    const drawRoute = withoutComments(read("src/app/api/courses/groups/[groupId]/draw/route.ts"));
+    assert.match(drawRoute, /if \(following\.has\(entry\.blockId\) && hiddenUids\.has\(entry\.uid\)\) \{[\s\S]{0,160}return NextResponse\.json\(\{ error: ownCaseGivenByWords\(name\) \}, \{ status: 403 \}\);/);
+    assert.ok(drawRoute.indexOf("hiddenUids.has(entry.uid)") < drawRoute.indexOf("db.runTransaction("), "the route reads the pick before it refuses a co-facilitator");
+    assert.match(drawRoute, /if \(following\.has\(talkId\) && hiddenUids\.has\(uid\)\) continue;/);
+    //  - the group page's card reads only packs given out and who has a case (`spreadOf`, `everybodyHasTheirs`), never a pick.
+    const spread = /export function spreadOf\([\s\S]*?\n\}/.exec(readers);
+    const everybody = /export function everybodyHasTheirs\([\s\S]*?\n\}/.exec(readers);
+    assert.ok(spread && everybody, "could not find the card's readers");
+    for (const body of [spread[0], everybody[0]]) assert.ok(!/\.picked\b/.test(body), "the group page's card now reads a pick");
+    // A pick stays once a case that follows it is given, read in the transaction that writes it.
+    assert.match(
+      read("src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts"),
+      /if \(current && current !== packId\) \{[\s\S]*?if \(held\) throw new PickStaysError\(\);/,
+    );
     // A person reads their own, by their own uid: the overview asks for the caller's.
     assert.match(
       read("src/app/api/courses/runs/[runId]/overview/route.ts"),
