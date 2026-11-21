@@ -781,7 +781,7 @@ const NOT_COVERED = {
   },
   "/api/courses/requests/ask": {
     reason:
-      "Ask the team: a member sending the people running NAISI a message. tests/course-ask-the-team.test.mjs executes it as a member, an admin, signed out and waiting, with the daily limit of five, the topics offered, the 2,000 characters, a message that belongs to no programme and the admins' email only for an admin who switched it on, under its cap. No browser spec signs in as a member and sends one.",
+      "Ask the team: a member sending the people running NAISI a message. tests/course-ask-the-team.test.mjs executes it as a member, an admin, signed out and waiting, with the daily limit of five, the topics offered, the 2,000 characters, a message that belongs to no programme and the admins' email only for an admin who switched it on, under its cap; tests/course-ask-access-needs.test.mjs executes the access form's ask through it, with its refusals, the tick, the shared daily limit and an answer that never carries the words. No browser spec signs in as a member and sends one.",
     coverWhen:
       "When a browser spec signs in as a member, opens Ask the team from the foot of a page, sends a message and reads it under Your requests. A message belongs to no run, so that spec's teardown has to delete it by askedByUid: a world's teardown deletes courseRequests by runId.",
   },
@@ -795,9 +795,15 @@ const NOT_COVERED = {
       "Ask the team: an admin replying to a message, which closes it and emails the person. tests/course-ask-the-team.test.mjs executes it as an admin, the sender, a lead and signed out, with the reply's rules, a second reply refused, the email's words and the reply then shown on the member's page. No browser spec replies to one.",
     coverWhen: "When a browser spec signs in as an admin, replies to a message a member sent, and the member reads the reply on Ask the team.",
   },
+  "/api/courses/requests/[requestId]/team/open": {
+    reason:
+      "Ask the team, access needs: an admin opening what a member wrote, which records the opening in the same transaction. tests/course-ask-access-needs.test.mjs executes it as signed out, the sender, another member, the group's facilitator, the programme's lead, a view-as session, an admin who sent the ask and another admin, with a record that cannot be written (no words returned), and searches for the words in every answer, the pages it draws (the request page, Ask the team, the programme page, My programmes) and the register, roster and overview it reads for each caller, every email rendered as HTML and plain text, the email log rows a real send writes, every log line and every stored document but the ask. No browser spec opens one.",
+    coverWhen:
+      "When a browser spec signs in as a member, sends an access-needs ask from Ask the team, and an admin then opens it on its request's page and reads the words. The ask belongs to no run, so that spec's teardown has to delete it, and its record of the opening, by uid.",
+  },
   "/(app)/ask-the-team": {
     reason:
-      "Ask the team, the member's page: tests/course-ask-the-team.test.mjs draws it as a member with no place, a member with a told place (the way to another session and to the programme page) and with their own messages waiting and replied. No browser spec opens it.",
+      "Ask the team, the member's page: tests/course-ask-the-team.test.mjs draws it as a member with no place, a member with a told place (the way to another session and to the programme page) and with their own messages waiting and replied; tests/course-ask-access-needs.test.mjs draws it with an access-needs ask waiting and replied, listed as Access needs alone, never its words. No browser spec opens it.",
     coverWhen: "When a browser spec signs in as a member, opens Ask the team from the foot of a page, sends a message and reads it under Your requests.",
   },
   "/api/courses/runs/[runId]/requests/visit": {

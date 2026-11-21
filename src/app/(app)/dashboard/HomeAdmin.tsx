@@ -192,6 +192,8 @@ type Facts = {
   movesWaiting?: number;
   /** How many of them are messages to the team. */
   messagesWaiting?: number;
+  /** How many of them are access asks to the team: counted in the line as messages to the team. */
+  accessWaiting?: number;
 };
 
 export default function HomeAdmin({
@@ -211,6 +213,7 @@ export default function HomeAdmin({
   correctionsWaiting = 0,
   movesWaiting = 0,
   messagesWaiting = 0,
+  accessWaiting = 0,
 }: Facts) {
   const pending = usePendingCount();
   const bounces = useBounces();
@@ -254,7 +257,7 @@ export default function HomeAdmin({
         excused: excusedWaiting,
         visits: visitsWaiting,
         moves: movesWaiting,
-        messages: messagesWaiting,
+        messages: messagesWaiting + accessWaiting,
       }),
       action: "Open",
       href: REQUESTS_PATH,

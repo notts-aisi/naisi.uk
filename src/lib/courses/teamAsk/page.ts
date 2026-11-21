@@ -4,7 +4,15 @@ import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
 import type { SessionUser } from "@/lib/firebase/session";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
-import { normalizeTeamMessage, type TeamMessageDoc, type TeamMessageEvent, type TeamTopic } from "@/lib/firestore/courseTeamAsks";
+import {
+  normalizeAccessNeeds,
+  normalizeTeamMessage,
+  type AccessNeedsDoc,
+  type AccessNeedsEvent,
+  type TeamMessageDoc,
+  type TeamMessageEvent,
+  type TeamTopic,
+} from "@/lib/firestore/courseTeamAsks";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { placesThisTermOf } from "./places";
 import { excerptOf } from "./words";
@@ -19,6 +27,12 @@ import { excerptOf } from "./words";
  * carries the start of what they wrote; the page carries all of it, shown as
  * plain text. Neither is read by Home's count beyond the row's kind and
  * state, or by any email.
+ *
+ * AN ACCESS ASK (`access-needs`) has a row and a page here too, built from
+ * `normalizeAccessNeeds`, which holds neither what was written nor the tick:
+ * the row says "Access needs" and when, and the page offers "Open what Elena
+ * wrote", a press that reads them through `./openAccessNeeds.ts` and records
+ * the opening. Nothing in this file can show them.
  */
 
 export type Loaded<T> = { status: "ok"; view: T } | { status: "none" };
@@ -167,6 +181,98 @@ export async function loadTeamMessagePage(db: Firestore, actor: SessionUser, req
       history: message.history.map((entry) => ({ what: entry.what, by: named(entry.byUid), at: entry.at.toISOString() })),
       canReply: waiting && !yours,
       canTake: waiting && !yours && message.handlingUid !== actor.uid,
+      yours,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Access needs: a row and a page, neither with what was written
+// ---------------------------------------------------------------------------
+
+/** An access ask as a row of the Requests page: who, and when, never what they wrote. */
+export type AccessNeedsRow = Omit<TeamMessageRow, "kind" | "topic" | "about"> & { kind: "access-needs" };
+
+/** The rows of these access asks, for an admin: those waiting, and those replied to since `since`. */
+export async function accessNeedsRows(db: Firestore, asks: readonly AccessNeedsDoc[], viewer: SessionUser, since: Date): Promise<AccessNeedsRow[]> {
+  if (viewer.role !== "admin" || asks.length === 0) return [];
+  const shown = asks.filter(
+    (each) => each.status === "waiting" || (each.status === "replied" && each.decidedAt !== null && each.decidedAt.getTime() >= since.getTime()),
+  );
+  const uids = new Set<string>();
+  for (const each of shown) for (const uid of [each.subjectUid, each.handlingUid ?? "", each.decidedByUid ?? ""]) if (uid) uids.add(uid);
+  const { named } = await namesFor(db, viewer, uids);
+  return shown.map((ask) => ({
+    id: ask.id,
+    kind: "access-needs" as const,
+    status: ask.status,
+    state: ask.status === "replied" ? "replied" : ask.handlingUid ? "handling" : "waiting",
+    askedBy: named(ask.askedByUid),
+    askedAt: ask.askedAt ? ask.askedAt.toISOString() : null,
+    subject: named(ask.subjectUid),
+    programme: { roundId: null, programmeId: null, name: "" },
+    runId: "",
+    group: { id: "", name: "" },
+    weekNumber: 0,
+    occurrence: 1,
+    dateKey: "",
+    from: "",
+    to: "",
+    handling: ask.handlingUid ? { ...named(ask.handlingUid), at: ask.handlingAt ? ask.handlingAt.toISOString() : null } : null,
+    mine: ask.handlingUid === viewer.uid,
+    decidedBy: ask.decidedByUid ? named(ask.decidedByUid) : null,
+    decidedAt: ask.decidedAt ? ask.decidedAt.toISOString() : null,
+  }));
+}
+
+/**
+ * One access ask's page, as its first render draws it: the person, their
+ * places, Handling, the reply, the replies and the history, and whether the
+ * reader may open it. NEVER what they wrote and never the tick: the page asks
+ * for those by a press (`POST .../team/open`), which records the opening.
+ */
+export type AccessNeedsPageView = Omit<TeamMessagePageView, "kind" | "topic" | "words" | "history"> & {
+  kind: "access-needs";
+  history: { what: AccessNeedsEvent; by: Named; at: string }[];
+  /** The reader may open what they wrote: an admin, and not the sender. */
+  canOpen: boolean;
+};
+
+export async function loadAccessNeedsPage(db: Firestore, actor: SessionUser, requestId: string): Promise<Loaded<AccessNeedsPageView>> {
+  if (actor.role !== "admin") return { status: "none" };
+  if (!isAddressableId(requestId) || requestId.length > 128) return { status: "none" };
+  const snap = await db.collection(COURSE_REQUESTS_COLLECTION).doc(requestId).get();
+  const ask = snap.exists ? normalizeAccessNeeds(snap.id, snap.data() ?? {}) : null;
+  if (!ask) return { status: "none" };
+  const uids = new Set<string>([ask.subjectUid]);
+  for (const uid of [ask.handlingUid, ask.decidedByUid]) if (uid) uids.add(uid);
+  for (const reply of ask.replies) uids.add(reply.byUid);
+  for (const entry of ask.history) uids.add(entry.byUid);
+  const [{ named, firstNames }, places] = await Promise.all([
+    namesFor(db, actor, uids),
+    placesThisTermOf(db, ask.subjectUid, { isAdmin: true, role: actor.role }, { withFacilitators: true }),
+  ]);
+  const waiting = ask.status === "waiting";
+  const yours = ask.askedByUid === actor.uid;
+  return {
+    status: "ok",
+    view: {
+      id: ask.id,
+      kind: "access-needs",
+      status: ask.status,
+      askedAt: ask.askedAt ? ask.askedAt.toISOString() : null,
+      subject: named(ask.subjectUid),
+      subjectFirstName: firstNames.get(ask.subjectUid) ?? "",
+      places: places.map((place) => ({ programmeName: place.programmeName, groupName: place.groupName, facilitatorNames: place.facilitatorNames })),
+      replies: ask.replies.map((reply) => ({ text: reply.text, by: named(reply.byUid), at: reply.at.toISOString() })),
+      decidedBy: ask.decidedByUid ? named(ask.decidedByUid) : null,
+      decidedAt: ask.decidedAt ? ask.decidedAt.toISOString() : null,
+      handling: ask.handlingUid ? { ...named(ask.handlingUid), at: ask.handlingAt ? ask.handlingAt.toISOString() : null } : null,
+      mine: ask.handlingUid === actor.uid,
+      history: ask.history.map((entry) => ({ what: entry.what, by: named(entry.byUid), at: entry.at.toISOString() })),
+      canOpen: !yours,
+      canReply: waiting && !yours,
+      canTake: waiting && !yours && ask.handlingUid !== actor.uid,
       yours,
     },
   };

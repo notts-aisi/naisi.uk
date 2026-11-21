@@ -1475,6 +1475,14 @@ const USERS = new Map([
       "Firebase handles the cascade's graph imports are stubbed so that nothing reaches a project",
   ],
   [
+    "course-ask-access-needs.test.mjs",
+    "it runs the account deletion cascade over an access-needs ask and the records of its openings, beside the " +
+      "leaving world's routes, because which documents go with the account and which records of an opening stay is " +
+      "decided by the cascade's steps over both collections together. `firebase-admin/firestore` is stubbed with the " +
+      "cascade store's sentinels, and `server-only`, `next/server` and the Firebase handles the cascade's graph " +
+      "imports are stubbed so that nothing reaches a project",
+  ],
+  [
     "course-explainers.test.mjs",
     "it drives scheduling and cancelling an explainer, its page, the review's list, both kinds of session ticket, " +
       "Home, the overview, \"Week N is open\" and the week's page on the facilitator week's world, and runs the " +

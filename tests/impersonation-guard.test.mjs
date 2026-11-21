@@ -198,6 +198,10 @@ const MUST_GUARD = [
   ["src/app/api/courses/requests/[requestId]/move/take/route.ts", "says who is dealing with a request to change group for good, in their name"],
   ["src/app/api/courses/requests/[requestId]/move/withdraw/route.ts", "withdraws a request to change group for good, in the asker's name"],
   ["src/app/api/courses/requests/[requestId]/move/dismiss/route.ts", "dismisses the message that a request to change group for good was declined, in the asker's name"],
+  [
+    "src/app/api/courses/requests/[requestId]/team/open/route.ts",
+    "opens what a member wrote in an access-needs ask and records the opening in the opener's name, so a view-as session would record a member opening it",
+  ],
   ["src/app/api/courses/groups/[groupId]/attendance/push/route.ts", "locks a register, rewrites every member's attendance record and mails the group"],
   [
     "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts",

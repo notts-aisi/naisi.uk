@@ -4,10 +4,10 @@ import { londonDateKey } from "@/lib/courses/weekPlan";
 import { excusedRequestUrl } from "@/lib/email/excusedEmail";
 import type { SessionUser } from "@/lib/firebase/session";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
-import { TEAM_MESSAGE_KIND, TEAM_MESSAGE_LIMITS } from "@/lib/firestore/courseTeamAsks";
+import { ACCESS_NEEDS_KIND, ACCESS_TOPIC, TEAM_MESSAGE_KIND, TEAM_MESSAGE_LIMITS } from "@/lib/firestore/courseTeamAsks";
 import { ADMIN_EMAILS_A_DAY, adminsToldTodayIn, askerNameForAdmins, emailAdminsWords } from "../excused/alert";
 import type { AskPress } from "./model";
-import { ASK_REFUSAL, newMessageEmailWords } from "./words";
+import { ASK_REFUSAL, accessNeedsEmailWords, newMessageEmailWords } from "./words";
 
 /**
  * SENDING THE TEAM A MESSAGE: the send route's work.
@@ -32,6 +32,14 @@ import { ASK_REFUSAL, newMessageEmailWords } from "./words";
  * (`adminsToldTodayIn` with no run, which only these messages have) email
  * the admins, and later ones that day wait on the Requests page. NEVER what
  * they wrote.
+ *
+ * ACCESS NEEDS go through here too, from the access form alone (`topic:
+ * "access"`): one document of kind `access-needs`, holding what would help
+ * and the tick, counted under the same daily limit and the same cap, and the
+ * admins' email says only that somebody sent one and when, and that opening
+ * it is recorded: not who, because its subject is kept in the email log. The
+ * answer is the id and the time, as for a message: never the words, which
+ * nothing but `./openAccessNeeds.ts` reads back.
  */
 
 export type TeamAskOutcome = { ok: true; request: { id: string; askedAt: string } } | { ok: false; status: 429; error: string };
@@ -48,12 +56,17 @@ export async function sendTeamMessage(db: Firestore, user: SessionUser, press: A
     const today = await tx.get(
       db.collection(COURSE_REQUESTS_COLLECTION).where("askedByUid", "==", user.uid).where("askedOn", "==", todayKey).limit(READ_FOR_LIMIT),
     );
-    const sentToday = today.docs.filter((doc) => doc.data()?.kind === TEAM_MESSAGE_KIND).length;
+    // Messages and access asks share the limit: both are things sent to the team.
+    const sentToday = today.docs.filter((doc) => {
+      const kind = doc.data()?.kind;
+      return kind === TEAM_MESSAGE_KIND || kind === ACCESS_NEEDS_KIND;
+    }).length;
     if (sentToday >= TEAM_MESSAGE_LIMITS.aDay) return { ok: false, status: 429, error: ASK_REFUSAL.tooMany };
     const adminsToldToday = await adminsToldTodayIn(tx, db, user.uid, "", todayKey);
     tellsAdmins = adminsToldToday < ADMIN_EMAILS_A_DAY;
+    const access = press.topic === ACCESS_TOPIC;
     tx.create(requestRef, {
-      kind: TEAM_MESSAGE_KIND,
+      kind: access ? ACCESS_NEEDS_KIND : TEAM_MESSAGE_KIND,
       runId: "",
       groupId: "",
       roundId: null,
@@ -64,7 +77,10 @@ export async function sendTeamMessage(db: Firestore, user: SessionUser, press: A
       askedByUid: user.uid,
       askedAt: now,
       askedOn: todayKey,
-      change: { topic: press.topic, words: press.words, replies: [] },
+      change:
+        press.topic === ACCESS_TOPIC
+          ? { words: press.words, tellFacilitator: press.tellFacilitator, replies: [] }
+          : { topic: press.topic, words: press.words, replies: [] },
       ...(tellsAdmins ? { adminsToldOn: todayKey } : {}),
       status: "waiting",
       handlingUid: null,
@@ -81,11 +97,15 @@ export async function sendTeamMessage(db: Firestore, user: SessionUser, press: A
   // outside its transaction: a failed send never fails the message.
   if (outcome.ok && tellsAdmins) {
     try {
-      const personName = await askerNameForAdmins(db, user.uid);
+      // An access ask's alert names nobody (its subject is kept in the email log), so no name is read for it.
+      const personName = press.topic === ACCESS_TOPIC ? "" : await askerNameForAdmins(db, user.uid);
       await emailAdminsWords(db, {
         runId: "",
         askerUid: user.uid,
-        words: newMessageEmailWords({ personName, topic: press.topic, askedAt: now, now }),
+        words:
+          press.topic === ACCESS_TOPIC
+            ? accessNeedsEmailWords({ askedAt: now, now })
+            : newMessageEmailWords({ personName, topic: press.topic, askedAt: now, now }),
         link: excusedRequestUrl(process.env.NEXT_PUBLIC_APP_URL ?? "", outcome.request.id),
         which: "team",
       });

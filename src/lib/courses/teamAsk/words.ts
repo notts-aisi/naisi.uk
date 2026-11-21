@@ -65,6 +65,39 @@ export const TOPIC_SHORT: Record<TeamTopic, string> = {
   else: "Something else",
 };
 
+// ---------------------------------------------------------------------------
+// Access needs: the topic, its own form, and what the member's list says
+// ---------------------------------------------------------------------------
+
+/**
+ * The access form. It asks what would help, never why: nothing here invites
+ * a condition or a diagnosis.
+ */
+export const ACCESS_WORDS = {
+  /** The topic on the main form, and its line. */
+  topic: "Access needs",
+  topicLine: "Only admins read it.",
+  /** The way back to the main form. */
+  back: ASK_THE_TEAM,
+  heading: "Access needs",
+  onlyAdmins: "Only admins read this: not your facilitator, not the programme’s lead. We record each time an admin opens it.",
+  label: "What would help?",
+  /** Above the box. */
+  hint: "Say what would help. You don’t need to tell us why, or anything about your health.",
+  tick: "You may tell my facilitator what’s needed, but not why",
+  tickLine: "Off unless you tick it.",
+  send: "Send to admins",
+} as const;
+
+/** The access form's refusals. */
+export const ACCESS_REFUSAL = {
+  empty: "Write what would help first.",
+  long: "What you wrote is longer than 2,000 characters. Shorten it, then press Send to admins again.",
+} as const;
+
+/** An access ask's title on the member's own list: never what they wrote. */
+export const ACCESS_ROW_TITLE = ACCESS_WORDS.topic;
+
 /** A row's chip on the member's page. */
 export const OWN_CHIP = { waiting: "Waiting", replied: "Replied" } as const;
 
@@ -125,7 +158,11 @@ export const MESSAGES_SECTION = "Something’s wrong, something else";
 
 /** The section's line in "Who sees what". */
 export const MESSAGES_WHO_SEES =
-  "Messages to the team are for admins only: no programme’s lead or facilitator sees them. A new one emails an admin only if they switch it on above. Replying emails the person and closes the message.";
+  "Messages to the team, access needs among them, are for admins only: no programme’s lead or facilitator sees them. A new one emails an admin only if they switch it on above. Replying emails the person and closes the message.";
+
+/** The access section of the Requests page, and its tag. Its rows never carry what was written. */
+export const ACCESS_SECTION = "Access needs";
+export const ADMINS_ONLY = "Admins only";
 
 /** The second switch, off unless switched on. */
 export const EMAIL_ME_ABOUT_MESSAGES = "Email me about messages to the team";
@@ -139,6 +176,38 @@ export function messageTitleWords(name: string, topic: TeamTopic): string {
   const who = name.trim() || "NAISI member";
   return `${who}: ${topic === "site" ? "something’s wrong on the site" : "something else"}`;
 }
+
+/** An access ask's page heading: "Elena Rossi: access needs". */
+export function accessTitleWords(name: string): string {
+  return `${name.trim() || "NAISI member"}: access needs`;
+}
+
+/** Before an admin opens an access ask. */
+export function accessOpenLineWords(firstName: string): string {
+  return `Only admins can open what ${firstName.trim() || "they"} wrote, and each opening is recorded.`;
+}
+
+/** The button that opens it, and records the opening. */
+export function accessOpenButtonWords(firstName: string): string {
+  return `Open what ${firstName.trim() || "they"} wrote`;
+}
+
+/** After opening, the tick as the admin reads it. */
+export function accessTickWords(firstName: string, tellFacilitator: boolean): string {
+  const who = firstName.trim() || "They";
+  return tellFacilitator
+    ? `${who} says you may tell the facilitator what’s needed, but not why.`
+    : `${who} hasn’t said you may tell the facilitator.`;
+}
+
+/** Under the reply box of an access ask: a reply is not behind the opening. */
+export const ACCESS_REPLY_GENERAL = "Keep the reply general. It is emailed, and other admins see it without opening what was written.";
+
+/** The opening could not be read and recorded together, so nothing is shown. */
+export const ACCESS_DIDNT_OPEN = "That didn’t open. Try again.";
+
+/** The open route's refusal of the sender. */
+export const ACCESS_OWN = "You sent this, so another admin opens it.";
 
 /** The person block with no place this term. */
 export const NO_PLACE_THIS_TERM = "Not on a programme this term.";
@@ -173,10 +242,11 @@ export function repliedSaidWords(firstName: string, emailed: string): string {
 /** The message is the reader's own: another admin answers it. */
 export const YOURS = "You sent this, so another admin replies to it.";
 
-/** A line of a message's history: "Marcus sent this", "Zach took it", "Zach replied". */
-export function historyWords(what: "asked" | "taken" | "replied", byName: string): string {
+/** A line of a message's history: "Marcus sent this", "Zach took it", "Zach replied", and on an access ask "Zach opened it". */
+export function historyWords(what: "asked" | "taken" | "replied" | "opened", byName: string): string {
   const who = byName.trim().split(/\s+/)[0] || "Somebody";
   if (what === "asked") return `${who} sent this`;
+  if (what === "opened") return `${who} opened it`;
   return what === "taken" ? `${who} took it` : `${who} replied`;
 }
 
@@ -237,17 +307,34 @@ export function newMessageEmailWords(input: { personName: string; topic: TeamTop
 }
 
 /**
+ * "Somebody sent the admins a message about access needs": to each admin
+ * who switched on "Email me about messages to the team". When, and the way
+ * to its page, where opening it is recorded. NEVER what they wrote, nothing
+ * of the tick, and NOT WHO: the subject is kept in the email log, which
+ * outlives the account, so neither it nor the body names the person. Their
+ * name is on the request's page.
+ */
+export function accessNeedsEmailWords(input: { askedAt: Date; now: Date }): ExcusedEmailWords {
+  return {
+    subject: "Somebody sent the admins a message about access needs",
+    before: [`Somebody sent the admins a message about access needs ${whenAsked(input.askedAt, input.now)}.`],
+    quote: null,
+    after: ["What they wrote is on the request’s page, for admins only, and isn’t in this email. Opening it is recorded."],
+    button: "Open the request",
+    footnote: "You get this because you switched on emails about messages to the team. You can switch it off on the Requests page.",
+  };
+}
+
+/**
  * "About your message to the team": the reply, to the person who sent it.
- * The reply in quotes, never their own message.
+ * The reply in quotes, never their own message. THE SAME WORDS FOR AN ACCESS
+ * ASK, subject and body, so nothing in the email, its preview or its plain
+ * text part says "access needs".
  */
 export function replyEmailWords(input: { replierFirstName: string; reply: string; askedAt: Date | null; now: Date }): ExcusedEmailWords {
   const replier = input.replierFirstName.trim() || "An admin";
-  const sent =
-    input.askedAt === null
-      ? ""
-      : londonDayLabel(input.askedAt) === londonDayLabel(input.now)
-        ? " today"
-        : ` on ${londonDayLabel(input.askedAt)}`;
+  const sameDay = input.askedAt !== null && londonDayLabel(input.askedAt) === londonDayLabel(input.now);
+  const sent = input.askedAt === null ? "" : sameDay ? " today" : ` on ${londonDayLabel(input.askedAt)}`;
   return {
     subject: "About your message to the team",
     before: [`${replier} replied to the message you sent the team${sent}.`],

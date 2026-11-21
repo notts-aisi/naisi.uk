@@ -163,7 +163,10 @@ describe("1. Sending", () => {
     assert.equal((await ask(null, { topic: "site", words: "x" })).status, 401);
     assert.equal((await ask("pat", { topic: "site", words: "x" })).status, 403);
     assert.equal((await ask("chloe", {})).body.error, "Choose what it’s about first.");
-    assert.equal((await ask("chloe", { topic: "access", words: "x" })).body.error, "That choice isn’t on the form any more. Reload the page and choose again.");
+    // A topic the form does not write here: "One week at another session" is a link to its own form,
+    // and access needs come from the access form (tests/course-ask-access-needs.test.mjs).
+    assert.equal((await ask("chloe", { topic: "visit", words: "x" })).body.error, "That choice isn’t on the form any more. Reload the page and choose again.");
+    assert.equal((await ask("chloe", { topic: "move", words: "x" })).body.error, "That choice isn’t on the form any more. Reload the page and choose again.");
     assert.equal((await ask("chloe", { topic: "site", words: "  " })).body.error, "Write your message first.");
     assert.equal(
       (await ask("chloe", { topic: "site", words: "a".repeat(2001) })).body.error,
@@ -199,7 +202,7 @@ describe("2. No reader of another kind, and no run, sees one", () => {
     assert.equal(waiting.visits, 0);
     assert.equal(waiting.corrections, 0);
     // Every kind counted by itself, and together they are the whole count.
-    assert.equal(waiting.corrections + waiting.excused + waiting.visits + waiting.messages, waiting.count);
+    assert.equal(waiting.corrections + waiting.excused + waiting.visits + waiting.moves + waiting.messages + waiting.access, waiting.count);
     assert.equal(
       pageWords.requestsWaitingLine({ corrections: waiting.corrections, excused: waiting.excused, visits: waiting.visits, messages: waiting.messages }),
       "Somebody has sent the team a message.",
@@ -331,8 +334,9 @@ describe("4. The member's page", () => {
     }
     assert.match(page.html, new RegExp(`href="/learn/${RUN.agi}/another-session"`));
     assert.match(page.html, new RegExp(`href="/learn/${RUN.agi}"`));
-    // Only the topics whose flows exist.
-    for (const later of ["Access needs", "Changing group for good", "Can’t make any session this week"]) assert.ok(!page.text.includes(later), later);
+    // Only the topics whose flows exist: access needs, with its line, among them.
+    assert.ok(page.text.includes("Access needs Only admins read it."));
+    for (const later of ["Changing group for good", "Can’t make any session this week"]) assert.ok(!page.text.includes(later), later);
     // Newest first.
     assert.ok(page.text.indexOf("Something else: Is there") < page.text.indexOf("Something’s wrong: Week 2"));
   });
@@ -416,7 +420,7 @@ describe("5. Since the review", () => {
     assert.ok(text.includes("When somebody sends the team a message: who, what it’s about and when, never what they wrote."));
     assert.ok(
       text.includes(
-        "Messages to the team are for admins only: no programme’s lead or facilitator sees them. A new one emails an admin only if they switch it on above. Replying emails the person and closes the message.",
+        "Messages to the team, access needs among them, are for admins only: no programme’s lead or facilitator sees them. A new one emails an admin only if they switch it on above. Replying emails the person and closes the message.",
       ),
     );
     // The switch is drawn before the line that says it is above.
@@ -430,6 +434,6 @@ describe("5. Since the review", () => {
     const leadText = textOf(renderToStaticMarkup(createElement(RequestsList, { view: lead.view, emailMe: null, emailMeTeam: null })));
     assert.ok(!leadText.includes("Something’s wrong, something else"));
     assert.ok(!leadText.includes("Email me about messages to the team"));
-    assert.ok(!leadText.includes("Messages to the team are for admins only"));
+    assert.ok(!leadText.includes("Messages to the team, access needs among them, are for admins only"));
   });
 });

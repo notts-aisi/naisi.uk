@@ -6,7 +6,7 @@ import { REQUEST_REFUSAL } from "@/lib/courses/registerCorrection/words";
 import { sendTeamReplyEmail, type TeamReplyEmailOutcome } from "@/lib/email/teamAskEmail";
 import type { SessionUser } from "@/lib/firebase/session";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
-import { TEAM_MESSAGE_LIMITS, normalizeTeamMessage, withTeamEvent, type TeamMessageDoc } from "@/lib/firestore/courseTeamAsks";
+import { TEAM_MESSAGE_LIMITS, normalizeTeamAsk, withTeamAskEvent, type TeamAskDoc } from "@/lib/firestore/courseTeamAsks";
 import { EXCUSED_REFUSAL } from "../excused/words";
 import { parseReply } from "./model";
 import { REPLY_REFUSAL, replyEmailWords } from "./words";
@@ -23,6 +23,11 @@ import { REPLY_REFUSAL, replyEmailWords } from "./words";
  *    a second is refused. Replies are kept as a list, so a later round can
  *    allow several and a close of its own by changing `closesOnReply` and
  *    the one refusal below.
+ *
+ * AN ACCESS ASK is taken and replied to the same way, through its own
+ * normaliser (`normalizeTeamAsk` reads either kind), which holds neither what
+ * was written nor the tick: nothing here reads them. Its reply email is any
+ * message's, word for word, so it never says "access needs".
  *
  * WHO IS TOLD WHAT A MESSAGE IS: anybody who is not an admin is refused
  * before anything is read, with one 403 whatever the id; an admin is told a
@@ -51,19 +56,19 @@ function caught(err: unknown): { ok: false; status: number; error: string } {
 const closesOnReply = true;
 
 /** An admin, for a message somebody else sent; anybody else learns nothing of it. */
-async function forAdmin(db: Firestore, actor: SessionUser, requestId: string, own: string): Promise<Outcome<TeamMessageDoc>> {
+async function forAdmin(db: Firestore, actor: SessionUser, requestId: string, own: string): Promise<Outcome<TeamAskDoc>> {
   if (actor.role !== "admin") return fail(403, "Forbidden");
   if (!isAddressableId(requestId) || requestId.length > 128) return fail(404, EXCUSED_REFUSAL.notFound);
   const snap = await db.collection(COURSE_REQUESTS_COLLECTION).doc(requestId).get();
-  const message = snap.exists ? normalizeTeamMessage(snap.id, snap.data() ?? {}) : null;
+  const message = snap.exists ? normalizeTeamAsk(snap.id, snap.data() ?? {}) : null;
   if (!message) return fail(404, EXCUSED_REFUSAL.notFound);
   if (message.askedByUid === actor.uid) return fail(403, own);
   return { ok: true, value: message };
 }
 
-async function freshIn(tx: Transaction, db: Firestore, id: string): Promise<TeamMessageDoc> {
+async function freshIn(tx: Transaction, db: Firestore, id: string): Promise<TeamAskDoc> {
   const snap = await tx.get(db.collection(COURSE_REQUESTS_COLLECTION).doc(id));
-  const message = snap.exists ? normalizeTeamMessage(snap.id, snap.data() ?? {}) : null;
+  const message = snap.exists ? normalizeTeamAsk(snap.id, snap.data() ?? {}) : null;
   if (!message) throw new Refused(409, EXCUSED_REFUSAL.notFound);
   return message;
 }
@@ -79,7 +84,7 @@ export async function takeTeamMessage(db: Firestore, actor: SessionUser, request
       tx.update(db.collection(COURSE_REQUESTS_COLLECTION).doc(fresh.id), {
         handlingUid: actor.uid,
         handlingAt: now,
-        history: withTeamEvent(fresh.history, "taken", actor.uid, now),
+        history: withTeamAskEvent(fresh, "taken", actor.uid, now),
         updatedAt: now,
       });
     });
@@ -115,7 +120,7 @@ export async function replyToTeamMessage(db: Firestore, actor: SessionUser, requ
         "change.replies": replies,
         reply,
         ...(closesOnReply ? { status: "replied", decidedByUid: actor.uid, decidedAt: now } : {}),
-        history: withTeamEvent(fresh.history, "replied", actor.uid, now),
+        history: withTeamAskEvent(fresh, "replied", actor.uid, now),
         updatedAt: now,
       });
     });
@@ -130,6 +135,7 @@ export async function replyToTeamMessage(db: Firestore, actor: SessionUser, requ
       name: person.firstName,
       actorUid: actor.uid,
       requestId: found.value.id,
+      // The same words for an access ask as for any message: nothing in the email says access needs.
       words: replyEmailWords({ replierFirstName: replier.firstName, reply, askedAt: found.value.askedAt, now }),
     });
   }
