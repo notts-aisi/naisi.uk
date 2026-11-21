@@ -1,0 +1,452 @@
+/**
+ * WHICH WEEK THE SLIPS BEING HANDED OUT ARE FOR, and what the draw does about
+ * a week that has met:
+ *
+ *  1. THE RULE (`src/lib/courses/packsAndCases/drawWeek.ts`) over built
+ *     worlds, through the one session resolver with each group's own
+ *     calendar: a session about to start, in progress and just over; a moved
+ *     session; a pushed-back plan; a break week; two sessions a week; a
+ *     hand-out session called off; week 1; after the last session; a course
+ *     that gives nothing out; everybody already has theirs; the bound of two.
+ *  2. THE GUARD: the draw's page, its route and the group page's card ask
+ *     the one rule and work no week out for themselves, held in the source
+ *     and by driving the three over one world at a run of clock times.
+ *  3. THE ROUTE AND THE PAGE: read only once the programme has closed; a yes
+ *     for a save into the week people are working on now or a week that has
+ *     met, and none for a week to come; `?week=` for any week; the Week
+ *     picker's list; and every sentence word for word.
+ *
+ * Parts 2 and 3 run in `tests/lib/packsAndCasesWorld.mjs` (AGI Strategy,
+ * Group B meeting on Tuesdays at 6pm, the clock at noon on Tue 17 Nov 2026),
+ * with week 4 written as blocks too, so weeks 2, 3 and 4 give something out.
+ */
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { after, before, beforeEach, describe, mock, test } from "node:test";
+import { B, NOW, RUN, W3, blockWeekDoc, idsOf, makePacksAndCasesWorld, packsSeed, weekBlocksFor } from "./lib/packsAndCasesWorld.mjs";
+import { walkSource } from "./lib/functionScan.mjs";
+
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
+const read = (...parts) => readFileSync(join(SRC, ...parts), "utf8");
+
+const w = await makePacksAndCasesWorld("__drawWeek");
+const { drawWeekRule, DRAW_WEEKS_READ } = await w.loadTs(join("lib", "courses", "packsAndCases", "drawWeek.ts"));
+const { resolveSessions } = await w.loadTs(join("lib", "courses", "sessions.ts"));
+const { normalizeCourseGroup } = await w.loadTs(join("lib", "firestore", "courseGroups.ts"));
+const { normalizeCourseRun } = await w.loadTs(join("lib", "firestore", "courses.ts"));
+const words = w.lib.words;
+
+before(() => mock.timers.enable({ apis: ["Date"], now: NOW }));
+after(() => mock.timers.reset());
+
+// ---------------------------------------------------------------------------
+// 1. The rule
+// ---------------------------------------------------------------------------
+
+/** Six taught weeks from Mon 2 Nov 2026; a group on Wednesdays, 3pm to 5pm (London is on GMT all month). */
+const SIX = [1, 2, 3, 4, 5, 6].map((n) => ({ kind: "week", weekNumber: n, weekId: `w0${n}` }));
+
+function sessionsOf({ plan = SIX, group = {}, extra = null } = {}) {
+  const run = normalizeCourseRun("run-1", { startDate: "2026-11-02", weekPlan: plan });
+  const normal = normalizeCourseGroup("grp-1", {
+    runId: "run-1",
+    name: "Group C",
+    session: { weekday: 3, startTimeLocal: "15:00", durationMinutes: 120, location: "Portland A21" },
+    ...group,
+  });
+  return resolveSessions(run, extra ? { ...normal, extraSession: extra } : normal);
+}
+
+const at = (iso) => new Date(iso);
+const GIVING = [2, 3, 4, 5];
+
+function rule(sessions, now, everybodyHas = undefined, givingWeeks = GIVING) {
+  return drawWeekRule({ sessions, givingWeeks, now: at(now), everybodyHas });
+}
+
+describe("1. which week the slips are for", () => {
+  test("a session about to start, in progress and just over: from its start, the week its slips are for", () => {
+    const sessions = sessionsOf();
+    // Before session 2: week 2 is still to come, and somebody has not got theirs.
+    let answer = rule(sessions, "2026-11-11T14:59:00Z");
+    assert.deepEqual([answer.weekNumber, answer.ahead, answer.toRead], [2, true, [2, 3]]);
+    assert.equal(answer.facts.get(2).standing, "ahead");
+    // ... unless everybody has, when it is week 3, set before the session that hands them out.
+    answer = rule(sessions, "2026-11-11T14:59:00Z", new Map([[2, true]]));
+    assert.equal(answer.weekNumber, 3);
+    assert.equal(answer.facts.get(3).handOutNight, false);
+    // From the first second of session 2: week 3, never session 2's own week, and it is the hand-out night.
+    for (const now of ["2026-11-11T15:00:00Z", "2026-11-11T16:30:00Z", "2026-11-11T17:00:00Z"]) {
+      answer = rule(sessions, now);
+      assert.equal(answer.weekNumber, 3, now);
+      assert.equal(answer.facts.get(2).standing, "now", now);
+      assert.equal(answer.facts.get(3).handOutNight, true, now);
+      assert.equal(answer.facts.get(3).handOut.session.weekNumber, 2, now);
+    }
+    // Just over: week 2 has met; still the hand-out night until midnight, and not the next morning.
+    answer = rule(sessions, "2026-11-11T17:00:01Z");
+    assert.deepEqual([answer.weekNumber, answer.facts.get(2).standing, answer.facts.get(3).handOutNight], [3, "met", true]);
+    answer = rule(sessions, "2026-11-12T09:00:00Z");
+    assert.deepEqual([answer.weekNumber, answer.facts.get(3).handOutNight], [3, false]);
+  });
+
+  test("a moved session: the week starts, and its slips go out, when it meets that week", () => {
+    // Session 2 moved to Tue 10 Nov at 6pm: week 3's slips go out then.
+    let sessions = sessionsOf({ group: { sessionOverrides: { w02: { weekday: 2, startTimeLocal: "18:00" } } } });
+    let answer = rule(sessions, "2026-11-10T18:30:00Z");
+    assert.equal(answer.weekNumber, 3);
+    assert.equal(answer.facts.get(3).handOutNight, true);
+    assert.equal(answer.facts.get(3).handOut.startsAt.toISOString(), "2026-11-10T18:00:00.000Z");
+    // On the Wednesday it would have met, it has already met.
+    assert.equal(rule(sessions, "2026-11-11T15:30:00Z").facts.get(2).standing, "met");
+    // Session 3 moved to Thu 19 Nov at 10am: on Wednesday afternoon week 3 is still to come.
+    sessions = sessionsOf({ group: { sessionOverrides: { w03: { weekday: 4, startTimeLocal: "10:00" } } } });
+    answer = rule(sessions, "2026-11-18T15:30:00Z");
+    assert.deepEqual([answer.weekNumber, answer.facts.get(3).standing], [3, "ahead"]);
+    answer = rule(sessions, "2026-11-19T10:30:00Z");
+    assert.deepEqual([answer.weekNumber, answer.facts.get(4).handOutNight, answer.facts.get(4).handOut.session.weekNumber], [4, true, 3]);
+  });
+
+  test("a pushed-back plan and a break week: the week after the break is handed out at the session before the break", () => {
+    const withBreak = [...SIX.slice(0, 2), { kind: "break", label: "Reading week" }, ...SIX.slice(2)];
+    for (const sessions of [sessionsOf({ group: { paceWeekPlan: withBreak } }), sessionsOf({ plan: withBreak })]) {
+      // In the break week (Wed 18 Nov), week 3 is still to come: it meets Wed 25 Nov.
+      const answer = rule(sessions, "2026-11-18T15:30:00Z");
+      assert.equal(answer.weekNumber, 3);
+      assert.equal(answer.facts.get(3).startsAt.toISOString(), "2026-11-25T15:00:00.000Z");
+      assert.equal(answer.facts.get(3).handOut.session.weekNumber, 2);
+      assert.equal(answer.facts.get(3).calledOff, null);
+    }
+  });
+
+  test("two sessions a week: the slips go out at the last one before the week, and the week is on until its last session ends", () => {
+    const sessions = sessionsOf({ extra: { weekday: 5, startTimeLocal: "12:00", durationMinutes: 60, location: "", meetingUrl: null, notes: "" } });
+    // Wednesday's session of week 2 has started: week 3, whose slips go out at Friday's.
+    let answer = rule(sessions, "2026-11-11T16:00:00Z");
+    assert.equal(answer.weekNumber, 3);
+    assert.deepEqual([answer.facts.get(3).handOut.session.occurrence, answer.facts.get(3).handOutNight], [2, false]);
+    assert.equal(rule(sessions, "2026-11-12T09:00:00Z").facts.get(2).standing, "now");
+    answer = rule(sessions, "2026-11-13T12:30:00Z");
+    assert.deepEqual([answer.weekNumber, answer.facts.get(3).handOutNight], [3, true]);
+    assert.equal(rule(sessions, "2026-11-13T13:00:01Z").facts.get(2).standing, "met");
+  });
+
+  test("a hand-out session called off: the slips go out at the last session held before the week, and the facts say which is off", () => {
+    const sessions = sessionsOf({ group: { sessionChanges: { w04: { kind: "cancelled", reason: "Strike", dateKey: "2026-11-25" } } } });
+    const answer = rule(sessions, "2026-11-18T15:30:00Z", new Map([[4, true]]));
+    assert.equal(answer.weekNumber, 5);
+    const five = answer.facts.get(5);
+    assert.deepEqual([five.handOut.session.weekNumber, five.calledOff.weekNumber, five.handOutNight], [3, 4, true]);
+    // The evening called off is when week 4 was due to begin: from then it is no week still to come.
+    assert.equal(rule(sessions, "2026-11-25T15:30:00Z").weekNumber, 5);
+    assert.equal(rule(sessions, "2026-11-25T15:30:00Z").facts.get(4).startsCalledOff, true);
+    assert.equal(words.handOutCalledOffWords(5, 4, 3), "Session 4 is called off, so week 5’s slips go out at the end of session 3.");
+  });
+
+  test("week 1 has no session before it: no hand-out session, set before the first session", () => {
+    const answer = rule(sessionsOf(), "2026-11-01T12:00:00Z", undefined, [1, 3]);
+    assert.equal(answer.weekNumber, 1);
+    assert.deepEqual([answer.facts.get(1).handOut, answer.facts.get(1).calledOff, answer.facts.get(1).handOutNight], [null, null, false]);
+    assert.equal(answer.facts.get(3).handOut.session.weekNumber, 2);
+  });
+
+  test("after the last session: the last week that gave something out, no longer to come", () => {
+    const answer = rule(sessionsOf(), "2026-12-10T12:00:00Z");
+    assert.deepEqual([answer.weekNumber, answer.ahead, answer.toRead], [5, false, []]);
+    assert.ok(GIVING.every((n) => answer.facts.get(n).standing === "met"));
+  });
+
+  test("a course that gives nothing out has no answer", () => {
+    const answer = rule(sessionsOf(), "2026-11-11T16:00:00Z", undefined, []);
+    assert.deepEqual([answer.weekNumber, answer.ahead, answer.toRead, answer.facts.size], [null, false, [], 0]);
+  });
+
+  test("everybody already has theirs: the first week still to come, and never further than the next two that give something out", () => {
+    const sessions = sessionsOf();
+    assert.equal(DRAW_WEEKS_READ, 2);
+    let answer = rule(sessions, "2026-11-11T16:00:00Z", new Map([[3, true], [4, true]]));
+    assert.deepEqual([answer.weekNumber, answer.ahead, answer.toRead], [3, true, [3, 4]]);
+    // Week 5 is missing slips, but it is the third week to come: not read, never the answer.
+    answer = rule(sessions, "2026-11-11T16:00:00Z", new Map([[3, true], [4, true], [5, false]]));
+    assert.equal(answer.weekNumber, 3);
+    answer = rule(sessions, "2026-11-11T16:00:00Z", new Map([[3, true], [4, false]]));
+    assert.equal(answer.weekNumber, 4);
+  });
+
+  test("a group with no time set: nothing can be dated, so every week is still to come", () => {
+    const sessions = sessionsOf({ group: { session: { weekday: -1, startTimeLocal: "", durationMinutes: 0 } } });
+    const answer = rule(sessions, "2026-11-11T16:00:00Z");
+    assert.deepEqual([answer.weekNumber, answer.facts.get(2).standing, answer.facts.get(2).startsAt, answer.facts.get(2).handOut], [2, "ahead", null, null]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. The guard: one rule, asked by the page, the route and the card
+// ---------------------------------------------------------------------------
+
+/** The world with week 4 written as blocks too: weeks 2, 3 and 4 give something out. */
+function weekFourSeed(over = {}) {
+  return packsSeed({ [`courseRuns/${RUN.agi}/weeks/w04`]: blockWeekDoc(4, "Who decides, again?", weekBlocksFor("w4")), ...over });
+}
+const W4 = idsOf("w4");
+
+/** The week a draw page opened without `?week=` is about: its picker's chosen option. */
+function pageWeek(page) {
+  const picker = /<select[^>]*>(.*?)<\/select>/.exec(page.html);
+  const chosen = picker && /<option value="(\d+)" selected="">/.exec(picker[1]);
+  return chosen ? Number(chosen[1]) : null;
+}
+
+/** The week the group page's card opens the draw on, or null with no card. */
+function cardWeek(group) {
+  const link = new RegExp(`href="/learn/draw/${B}\\?week=(\\d+)"`).exec(group.html);
+  return link ? Number(link[1]) : null;
+}
+
+describe("2. one rule, asked by the draw page, its route and the group page's card", () => {
+  test("the rule is written once, and each of the three asks it and works no week out for itself", () => {
+    const rulesWritten = [];
+    for (const file of walkSource(SRC)) {
+      if (/function drawWeekRule\b|const drawWeekRule\b/.test(readFileSync(file, "utf8"))) rulesWritten.push(file.slice(SRC.length + 1));
+    }
+    assert.deepEqual(rulesWritten, [join("lib", "courses", "packsAndCases", "drawWeek.ts")]);
+
+    const readers = read("lib", "courses", "packsAndCases", "readers.ts");
+    assert.match(readers, /const first = drawWeekRule\(\{ sessions, givingWeeks, now \}\);/);
+    assert.match(readers, /const rule = drawWeekRule\(\{ sessions, givingWeeks, now, everybodyHas \}\);/);
+    assert.match(readers, /const sessions = resolveSessions\(run, group, resolveGroupCalendar\(run, group, now\)\.calendar\);/);
+
+    const page = read("app", "(app)", "learn", "draw", "[groupId]", "page.tsx");
+    assert.match(page, /const course = await readDrawWeeks\(db, \{ run, group, people, now \}\);/);
+    assert.match(page, /: \(course\.rule\.weekNumber \?\? course\.fallbackWeek\);/);
+    for (const own of [/sessionRange\(/, /resolveSessions\(/, /\.next\?\.weekNumber/, /readGroupWeek\(/, /from "@\/lib\/courses\/sessions"/]) {
+      assert.doesNotMatch(page, own, `the draw page works a week out for itself: ${own}`);
+    }
+
+    const route = read("app", "api", "courses", "groups", "[groupId]", "draw", "route.ts");
+    assert.match(route, /const standing = drawWeekRule\(\{ sessions, givingWeeks: \[weekNumber\], now \}\)\.facts\.get\(weekNumber\)\?\.standing \?\? "ahead";/);
+    assert.match(route, /const sessions = resolveSessions\(run, group, resolveGroupCalendar\(run, group, now\)\.calendar\);/);
+    assert.doesNotMatch(route, /sessionRange\(|sessionInstants\(/, "the route works a session's time out for itself");
+
+    const group = read("app", "(app)", "learn", "[runId]", "group", "[groupId]", "page.tsx");
+    assert.match(group, /const course = group\.archived \? null : await readDrawWeeks\(db, \{ run: access\.run, group, people: drawList, now \}\);/);
+    assert.match(group, /const drawCard = course \? drawCardOf\(course, drawList\) : null;/);
+    assert.match(group, /changeHref=\{`\/learn\/draw\/\$\{encodeURIComponent\(groupId\)\}\?week=\$\{drawCard\.week\.weekNumber\}`\}/);
+    assert.doesNotMatch(group, /readGroupWeek\(|readDrawState\(|spreadOf\(/, "the group page reads a draw of its own choosing");
+
+    // Nothing else in the tree links to the draw page on a week of its own choosing.
+    const linking = [];
+    for (const file of walkSource(SRC)) {
+      if (/\/learn\/draw\/[^"'`]*\?week=/.test(readFileSync(file, "utf8"))) linking.push(file.slice(SRC.length + 1));
+    }
+    assert.deepEqual(linking.sort(), [
+      join("app", "(app)", "learn", "[runId]", "group", "[groupId]", "page.tsx"),
+      join("features", "courses", "packsAndCases", "DrawWeekPicker.tsx"),
+    ]);
+  });
+
+  test("over one world at a run of clock times, the page opens on the week the card names, and the route asks a yes exactly where the page warns", async () => {
+    const table = [
+      // [clock, the week, the card's week (null: no card), the week's standing]
+      ["2026-11-17T12:00:00Z", 3, 3, "ahead"],
+      ["2026-11-17T18:00:00Z", 4, 4, "ahead"],
+      ["2026-11-17T20:01:00Z", 4, 4, "ahead"],
+      ["2026-11-18T09:00:00Z", 4, 4, "ahead"],
+      ["2026-11-24T18:30:00Z", 4, null, "now"],
+      ["2026-12-10T12:00:00Z", 4, null, "met"],
+    ];
+    for (const [clock, week, card, standing] of table) {
+      w.reset(weekFourSeed());
+      w.at(clock);
+      const page = await w.drawPage("rahul");
+      assert.equal(pageWeek(page), week, `${clock}: the page`);
+      assert.equal(cardWeek(await w.groupPage("rahul")), card, `${clock}: the card`);
+      const warned = page.text.includes(words.WEEK_NOW) || page.text.includes("This is a week that has met.");
+      assert.equal(warned, standing !== "ahead", `${clock}: the warning`);
+      const blockId = idsOf(`w${week}`).given;
+      const answer = await w.saveDraw("rahul", `w0${week}`, [["kofi", blockId, idsOf(`w${week}`).markets]]);
+      assert.equal(answer.status === 409 && answer.body.confirm === true, standing !== "ahead", `${clock}: the route`);
+    }
+  });
+
+  test("everybody has week 3's: the page and the card move on to week 4, set before the session that hands its slips out", async () => {
+    w.reset(weekFourSeed());
+    for (const uid of ["chloe", "farah", "kofi", "rahul", "sofia"]) {
+      const elections = uid !== "kofi";
+      w.seedDraw(uid, "w3", { pack: elections ? W3.elections : W3.markets, caseId: elections ? W3.surprise : W3.crash });
+    }
+    const page = await w.drawPage("rahul");
+    assert.equal(pageWeek(page), 4);
+    assert.equal(cardWeek(await w.groupPage("rahul")), 4);
+    assert.match(page.text, /Week 4’s slips go out at Tuesday’s session\. You can set them early and change them afterwards\./);
+    assert.match(page.text, /Group B · after session 3/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. The route and the page
+// ---------------------------------------------------------------------------
+
+describe("3. saving late, read only once closed, any week by its address, and the words", () => {
+  beforeEach(() => w.reset(weekFourSeed()));
+
+  const ONE = (week) => [["kofi", idsOf(`w${week}`).given, idsOf(`w${week}`).markets]];
+
+  test("a week that has met needs a yes: refused without it, saved with it; a week to come needs none", async () => {
+    // Week 2 met on Tue 10 Nov.
+    let answer = await w.saveDraw("rahul", "w02", ONE(2));
+    assert.deepEqual([answer.status, answer.body], [
+      409,
+      { error: "Week 2 has met, so this save needs a yes first. Changing a case takes back that person’s Ready for my talk.", confirm: true },
+    ]);
+    assert.deepEqual(w.records(), []);
+    answer = await w.call("rahul", w.routes.draw.PUT, { groupId: B }, {
+      course: true,
+      body: { weekId: "w02", entries: ONE(2).map(([uid, blockId, value]) => ({ uid, blockId, value })), confirmed: true },
+    });
+    assert.deepEqual([answer.status, answer.body], [200, { ok: true, saved: 1 }]);
+    // Only a strict true is a yes.
+    answer = await w.call("rahul", w.routes.draw.PUT, { groupId: B }, {
+      course: true,
+      body: { weekId: "w02", entries: [{ uid: "chloe", blockId: idsOf("w2").given, value: idsOf("w2").markets }], confirmed: "yes" },
+    });
+    assert.equal(answer.status, 409);
+    // Weeks 3 and 4 are to come at noon on the 17th.
+    for (const week of [3, 4]) {
+      answer = await w.saveDraw("rahul", `w0${week}`, ONE(week));
+      assert.equal(answer.status, 200, `week ${week}`);
+    }
+  });
+
+  test("the week people are working on now: from the start of its session, a yes", async () => {
+    w.at("2026-11-17T18:30:00Z");
+    let answer = await w.saveDraw("sofia", "w03", ONE(3));
+    assert.deepEqual([answer.status, answer.body.error, answer.body.confirm], [
+      409,
+      "Week 3 is the week people are working on now, so this save needs a yes first. Changing a case takes back that person’s Ready for my talk.",
+      true,
+    ]);
+    answer = await w.call("sofia", w.routes.draw.PUT, { groupId: B }, {
+      course: true,
+      body: { weekId: "w03", entries: ONE(3).map(([uid, blockId, value]) => ({ uid, blockId, value })), confirmed: true },
+    });
+    assert.equal(answer.status, 200);
+    // A changed case still takes back the ready mark: the save writes what it always wrote.
+    w.seedDraw("chloe", "w3", { pack: W3.elections, caseId: W3.surprise, ready: true });
+    answer = await w.call("sofia", w.routes.draw.PUT, { groupId: B }, {
+      course: true,
+      body: { weekId: "w03", entries: [{ uid: "chloe", blockId: W3.caseStudy, value: null }], confirmed: true },
+    });
+    assert.equal(answer.status, 200);
+    assert.deepEqual([w.recordOf("chloe", W3.caseStudy).caseId, w.recordOf("chloe", W3.caseStudy).ready], [null, false]);
+    // Week 4 is the week the slips are for: no yes.
+    assert.equal((await w.saveDraw("sofia", "w04", ONE(4))).status, 200);
+    // The page says so before any change, and Save asks first.
+    const page = await w.drawPage("rahul", B, 3);
+    assert.match(page.text, /This is the week people are working on now\. Its session has started\./);
+    assert.match(page.html, /class="drawWarn"/);
+    const week4 = await w.drawPage("rahul", B, 4);
+    assert.doesNotMatch(week4.html, /class="drawWarn"/);
+  });
+
+  test("once the programme has closed the page is read only and the route refuses a save, in the members' sentence", async () => {
+    // The run's last session is Wed 9 Dec; it closes at the end of Wed 23 Dec.
+    w.at("2026-12-24T12:00:00Z");
+    const closed = "The programme closed at the end of Wed 23 Dec, so this week can’t change now.";
+    const answer = await w.call("rahul", w.routes.draw.PUT, { groupId: B }, {
+      course: true,
+      body: { weekId: "w04", entries: ONE(4).map(([uid, blockId, value]) => ({ uid, blockId, value })), confirmed: true },
+    });
+    assert.deepEqual([answer.status, answer.body], [409, { error: closed }]);
+    assert.deepEqual(w.records(), []);
+    const page = await w.drawPage("rahul");
+    assert.equal(pageWeek(page), 4);
+    assert.ok(page.text.includes("Group B’s sessions have finished. This is what was given out."));
+    assert.ok(page.text.includes(closed));
+    assert.doesNotMatch(page.html, />Save</);
+    assert.doesNotMatch(page.html, /Swap two people/);
+    // Every list is shown and none takes a press, the picker aside (held until the page is live).
+    const lists = [...page.html.matchAll(/<select([^>]*)>/g)].slice(1);
+    assert.ok(lists.length > 0 && lists.every(([, attrs]) => / disabled=""/.test(attrs)));
+    // Before then, after the last session, it is still a week that has met: open, with a yes.
+    w.at("2026-12-10T12:00:00Z");
+    const open = await w.drawPage("rahul");
+    assert.ok(open.text.includes("Group B’s sessions have finished. This is what was given out."));
+    assert.ok(open.text.includes("This is a week that has met. Its session was on Tue 24 Nov."));
+    assert.match(open.html, />Save</);
+  });
+
+  test("`?week=` opens any week, and the Week picker lists every week that gives something out, past ones too", async () => {
+    w.at("2026-11-24T18:30:00Z");
+    const list = (page) => [...(/<select[^>]*>(.*?)<\/select>/.exec(page.html)?.[1] ?? "").matchAll(/<option value="\d+"( selected="")?>([^<]*)<\/option>/g)].map(([, chosen, label]) => `${chosen ? "*" : ""}${label}`);
+    const week2 = await w.drawPage("rahul", B, 2);
+    assert.deepEqual(list(week2), ["*Week 2 · Packs and cases", "Week 3 · Packs and cases", "Week 4 · Packs and cases"]);
+    assert.ok(week2.text.includes("This is a week that has met. Its session was on Tue 10 Nov."));
+    assert.ok(week2.text.includes("Weeks 2 to 4 give something out. Weeks 1, 5 and 6 don’t."));
+    assert.match(week2.text, /Group B · after session 1/);
+    const week9 = await w.drawPage("rahul", B, 9);
+    assert.deepEqual(list(week9), ["Week 2 · Packs and cases", "Week 3 · Packs and cases", "Week 4 · Packs and cases", "*Week 9"]);
+    assert.ok(week9.text.includes("Nothing is given out in week 9."));
+    assert.ok(week9.text.includes("Back to Group B"));
+    // Week 1 has no session before it: the eyebrow names the group alone.
+    const week1 = await w.drawPage("rahul", B, 1);
+    assert.match(week1.html, /<p class="drawEyebrow">Group B<\/p>/);
+  });
+
+  test("a hand-out session called off: the page says which session the slips go out at", async () => {
+    w.world.db.poke(`courseGroups/${B}`, { sessionChanges: { w03: { kind: "cancelled", reason: "Room closed", dateKey: "2026-11-17" } } });
+    const page = await w.drawPage("rahul", B, 4);
+    assert.ok(page.text.includes("Session 3 is called off, so week 4’s slips go out at the end of session 2."));
+    assert.match(page.text, /Group B · after session 2/);
+  });
+
+  test("the group page's card names the week it is about", async () => {
+    w.at("2026-11-17T18:30:00Z");
+    const group = await w.groupPage("rahul");
+    assert.match(group.text, /Packs in Group B Week 4 /);
+    assert.match(group.html, new RegExp(`href="/learn/draw/${B}\\?week=4"`));
+    void W4;
+  });
+
+  test("every sentence the draw says, word for word", () => {
+    assert.equal(words.DRAW_LEDE, "Copy in the slips you handed out tonight.");
+    assert.equal(words.savedDrawWords(3, 6, 8, "a pathway and a case"), "Saved. 6 of 8 have a pathway and a case. Each person sees theirs on their week 3 page.");
+    assert.equal(words.savedDrawWords(5, 1, 8, "a plan"), "Saved. 1 of 8 has a plan. Each person sees theirs on their week 5 page.");
+    assert.equal(words.drawHoldingWords({ packs: [{ title: "Pathway" }], cases: [{}] }), "a pathway and a case");
+    assert.equal(words.drawHoldingWords({ packs: [{ title: "Plan" }], cases: [] }), "a plan");
+    assert.equal(words.drawHoldingWords({ packs: [], cases: [{}] }), "a case");
+    assert.equal(words.drawHoldingWords({ packs: [{ title: "Example" }], cases: [] }), "an example");
+    assert.equal(words.DRAW_NOT_SAVED, "That didn’t save, so nothing has changed. Try again.");
+    assert.equal(words.leavingUnsavedWords(2), "You’ve changed 2 people and haven’t saved.");
+    assert.equal(words.leavingUnsavedWords(1), "You’ve changed 1 person and haven’t saved.");
+    assert.equal(words.LEAVE_WITHOUT_SAVING, "Leave without saving");
+    assert.equal(words.READY_TAKEN_BACK, "Changing a case takes back that person’s Ready for my talk.");
+    assert.equal(words.SAVE_ANYWAY, "Save anyway");
+    assert.equal(words.WEEK, "Week");
+    assert.equal(
+      words.setBeforeWords(3, { dateKey: "2026-11-11", startsAt: at("2026-11-11T15:00:00Z") }, "2026-11-10"),
+      "Week 3’s slips go out at Wednesday’s session. You can set them early and change them afterwards.",
+    );
+    assert.equal(
+      words.setBeforeWords(5, { dateKey: "2026-12-02", startsAt: at("2026-12-02T15:00:00Z") }, "2026-11-10"),
+      "Week 5’s slips go out at the session on Wed 2 Dec. You can set them early and change them afterwards.",
+    );
+    assert.equal(words.noSessionBeforeWords(1), "Week 1 has no session before it, so you can set these any time before its first session and change them afterwards.");
+    assert.equal(words.handOutCalledOffWords(2, 1, null), "Session 1 is called off, so there is no session before week 2 to hand these out at.");
+    assert.equal(words.nothingGivenOutWords(6), "Nothing is given out in week 6.");
+    assert.equal(words.sessionsFinishedWords("Group C"), "Group C’s sessions have finished. This is what was given out.");
+    assert.equal(words.WEEK_NOW, "This is the week people are working on now. Its session has started.");
+    assert.equal(words.weekMetWords(at("2026-11-10T18:00:00Z"), false), "This is a week that has met. Its session was on Tue 10 Nov.");
+    assert.equal(words.weekMetWords(at("2026-11-10T18:00:00Z"), true), "This is a week that has met. Its session was due on Tue 10 Nov.");
+    assert.equal(words.givingWeeksWords([2, 3, 4, 5], [1, 6]), "Weeks 2 to 5 give something out. Weeks 1 and 6 don’t.");
+    assert.equal(words.givingWeeksWords([3], [1, 2, 4, 5, 6]), "Week 3 gives something out. Weeks 1, 2 and 4 to 6 don’t.");
+    assert.equal(words.givingWeeksWords([2, 4], [6]), "Weeks 2 and 4 give something out. Week 6 doesn’t.");
+    assert.equal(words.givingWeeksWords([1, 2, 3, 4, 5, 6], []), "Weeks 1 to 6 give something out.");
+    assert.equal(words.drawWeekOptionWords(3, { packs: [{ title: "Pathway" }], cases: [{}] }), "Week 3 · Pathways and cases");
+    assert.equal(words.drawWeekOptionWords(6, null), "Week 6");
+    assert.equal(words.drawCardWeekWords(4), "Week 4");
+    assert.equal(words.backToWords("Group C"), "Back to Group C");
+  });
+});

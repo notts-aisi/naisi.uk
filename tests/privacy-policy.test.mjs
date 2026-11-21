@@ -5604,7 +5604,7 @@ describe("the course hub passage", () => {
     }
     assert.match(
       read("src/app/(app)/learn/[runId]/group/[groupId]/page.tsx"),
-      /const pairsWeek = drawWeek \? await readGroupPairs\(db, runId, groupId, drawWeek, drawList\) : null;/,
+      /const pairsWeek = nextWeek \? await readGroupPairs\(db, runId, groupId, nextWeek, drawList\) : null;/,
     );
     // Each person sees their own pair alone: the week page asks for the
     // session's own person, and the reader hands on one pair's first names
