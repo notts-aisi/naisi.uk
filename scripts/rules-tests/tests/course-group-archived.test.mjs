@@ -9,6 +9,14 @@
  * so no browser write changes the field at all, an admin's included, and no
  * group is created archived.
  *
+ * WHO COULD, AND NOW CANNOT. Before the pin, everybody the group's update
+ * rule admits could flip the field from a browser: an admin, an approver, the
+ * run's track lead and the group's own facilitator. None of them can now.
+ * The route admits only an admin, an approver and the lead of the programme
+ * that names the run; a facilitator and a track lead are refused there too
+ * (tests/course-group-archive.test.mjs). A course drafter and a member never
+ * could.
+ *
  * Everything else a browser could write to a group before stands as it was:
  * an admin's, an approver's, a track lead's and a facilitator's saves of the
  * group card still pass, including one that sends `archived` unchanged.

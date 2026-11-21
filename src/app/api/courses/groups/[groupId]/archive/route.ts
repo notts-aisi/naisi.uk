@@ -3,10 +3,9 @@ import { FieldValue } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import { archiveRefusal, restoreRefusal } from "@/lib/courses/groupArchive/plan";
 import { readGroupArchiveFacts } from "@/lib/courses/groupArchive/read";
-import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
+import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { ARCHIVE_REFUSAL } from "@/lib/courses/groupArchive/words";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveCourse } from "@/lib/firestore/users";
@@ -21,16 +20,16 @@ import { canApproveCourse } from "@/lib/firestore/users";
  * `firestore.rules` pins the field against every browser, admins included,
  * so the checks below cannot be stepped round.
  *
- * WHO: whoever could flip the run editor's switch while it wrote
- * client-direct (the group's update rule: an admin, an `approveCourse`
- * holder, one of the run's track leads and one of the group's named
- * facilitators, each on an approved account), and the lead of the programme
- * that names the run, who runs the group from its page (`runStaffingOf`,
- * which asks the forms and the lead's standing). View-as is refused first,
- * then the session. An admin or an approver is decided on the session alone;
- * anybody else is asked of the group and its run, so a missing group is one
- * 403 for them and a 404 for an admin or an approver, who are told it is not
- * there.
+ * WHO: an admin, an `approveCourse` holder (the people the run editor's
+ * switch serves) and the lead of the programme that names the group's run,
+ * who runs the group from its page (`programmeLedBy`, which asks the forms
+ * and the lead's standing). Nobody else: a group's own facilitators and a
+ * run's track leads, whom the group's update rule once let flip the field
+ * client-direct, are refused as anybody is. View-as is refused first, then
+ * the session. An admin or an approver is decided on the session alone;
+ * anybody else is asked whether they lead the programme naming the group's
+ * run, so a missing group is one 403 for them and a 404 for an admin or an
+ * approver, who are told it is not there.
  *
  * WHAT IS CHECKED (`src/lib/courses/groupArchive/plan.ts`): archiving is
  * refused while anybody still holds a place in the group, somebody moved
@@ -68,23 +67,16 @@ export async function PATCH(
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
   // WHO, before the body and before the group is said to be there or not.
-  // An admin and an approver hold it whatever the group is; a track lead
-  // and a facilitator hold it of this group, read only to ask.
-  const approves = canApproveCourse(actor);
-  let admitted = approves;
+  // An admin and an approver hold it whatever the group is; the lead of the
+  // programme that names the group's run holds it of this group, read only
+  // to ask. A facilitator of the group and a run's track lead hold nothing
+  // here: they are refused as anybody else is.
+  let admitted = canApproveCourse(actor);
   const groupRef = isAddressableId(groupId) ? db.collection("courseGroups").doc(groupId) : null;
   if (!admitted && groupRef) {
     const groupSnap = await groupRef.get();
-    const group = groupSnap.exists ? (groupSnap.data() ?? {}) : null;
-    if (group && isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids)) {
-      admitted = true;
-    } else if (group && typeof group.runId === "string" && isAddressableId(group.runId)) {
-      // The run's track leads, and the lead of the programme that names it.
-      const runSnap = await db.collection("courseRuns").doc(group.runId).get();
-      admitted =
-        runSnap.exists &&
-        doesTrackLeadWork(await runStaffingOf(db, actor, { id: group.runId, trackLeadUids: runSnap.data()?.trackLeadUids }));
-    }
+    const runId = groupSnap.exists ? groupSnap.data()?.runId : null;
+    admitted = typeof runId === "string" && isAddressableId(runId) && (await programmeLedBy(db, actor, runId)) !== null;
   }
   if (!admitted) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

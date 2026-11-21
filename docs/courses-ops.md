@@ -2257,11 +2257,13 @@ in the run editor, and Archive, the last part of "How Group B meets" on the
 group's own page under its programme's Groups tab. Nothing else changes
 `courseGroups.archived`: `firestore.rules` pins the field against every
 browser write, an admin's included (`groupArchivedUnchanged`), and a group is
-born not archived. The route admits who could flip the switch before (an
-admin, an `approveCourse` holder, one of the run's track leads and one of the
-group's facilitators, each on an approved account) and the lead of the
-programme that names the run (`runStaffingOf`), who runs the group from its
-page.
+born not archived. The route admits an admin, an `approveCourse` holder (the
+people the run editor's switch serves) and the lead of the programme that
+names the run (`programmeLedBy`), who runs the group from its page. Nobody
+else: a group's own facilitators and a run's track leads, whom the group's
+rule once let flip the field from a browser, are refused. In the run editor
+the switch is disabled for a course drafter who cannot approve, with a line
+saying who archives a group.
 
 An archived group's page opens on "This group is archived." and Restore, and
 nothing else; the Groups tab lists the run's archived groups under its board

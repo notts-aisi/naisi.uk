@@ -16,10 +16,10 @@
  *
  * ## What this guards
  *
- *  1. WHO: an admin, an approveCourse holder, the run's track lead, the lead
- *     of the programme that names the run and the group's facilitator; never
- *     a facilitator of another group, a course drafter, a member or a view-as
- *     session. Refused before the body is read.
+ *  1. WHO: an admin, an approveCourse holder and the lead of the programme
+ *     that names the run; never the group's own facilitator, the run's track
+ *     lead, a course drafter, a member or a view-as session. Refused before
+ *     the body is read.
  *  2. ARCHIVING IS REFUSED, in one sentence and with nothing written, while
  *     anybody still holds a place in the group (three sentences: the plain
  *     one, a run with no other group, a run that takes no move), somebody
@@ -132,9 +132,9 @@ describe("1. who may archive or restore a group", () => {
   const CASES = [
     ["zach", 400, "an admin"],
     ["paula", 400, "an approveCourse holder"],
-    ["yusuf", 400, "the run's track lead"],
+    ["yusuf", 403, "the run's track lead"],
     ["claudia", 400, "the lead of the programme that names the run"],
-    ["rahul", 400, "a facilitator of the group"],
+    ["rahul", 403, "a facilitator of the group"],
     ["tom", 403, "a facilitator of another group"],
     ["dara", 403, "a draftCourse holder on nothing"],
     ["tess", 403, "the lead of another programme"],
@@ -165,9 +165,24 @@ describe("1. who may archive or restore a group", () => {
     assert.equal((await archive("zach", "a/b")).status, 404);
   });
 
-  test("a facilitator on an account no longer approved is refused", async () => {
-    w.reset(seed({ ...finishedD(), "users/tom": userDoc(session("tom", "rejected", false, "Tom Fletcher")) }));
-    assert.equal((await archive("tom", D)).status, 403);
+  test("a group's own facilitator and the run's track lead are refused, even where the archive would go through", async () => {
+    w.reset(seed(finishedD()));
+    const before = everything();
+    for (const who of ["tom", "yusuf"]) {
+      const answer = await archive(who, D);
+      assert.equal(answer.status, 403, `${who}: ${JSON.stringify(answer.body)}`);
+      assert.equal(answer.body.error, "Forbidden");
+    }
+    w.reset(seed({ [`courseGroups/${D}`]: groupD({ archived: true }) }));
+    for (const who of ["tom", "yusuf"]) assert.equal((await restore(who, D)).status, 403, who);
+    assert.equal(stored(D).archived, true);
+    w.reset(seed(finishedD()));
+    assert.equal(everything(), before);
+  });
+
+  test("a programme's lead on an account no longer approved is refused", async () => {
+    w.reset(seed({ ...finishedD(), "users/claudia": userDoc(session("claudia", "rejected", true, "Claudia Reyes")) }));
+    assert.equal((await archive("claudia", D)).status, 403);
     assert.equal(stored(D).archived, false);
   });
 });
@@ -268,7 +283,7 @@ describe("3. archiving once nothing is lost", () => {
   test("writes the field and updatedAt, and nothing else anywhere", async () => {
     w.reset(seed(finishedD()));
     const before = JSON.parse(everything());
-    const answer = await archive("tom", D);
+    const answer = await archive("paula", D);
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
     assert.deepEqual(answer.body, { ok: true, archived: true });
     const after = JSON.parse(everything());
@@ -340,7 +355,7 @@ describe("4. the transaction decides on what it read", () => {
 describe("5. restoring", () => {
   test("goes through for an archived group whose facilitators hold no place elsewhere", async () => {
     w.reset(seed({ [`courseGroups/${D}`]: groupD({ archived: true }) }));
-    const answer = await restore("yusuf", D);
+    const answer = await restore("claudia", D);
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
     assert.equal(stored(D).archived, false);
   });
@@ -640,6 +655,12 @@ describe("7. the run editor and the group's page call the route", () => {
       assert.ok(editor.includes(said), said);
     }
     assert.match(editor, /await setGroupArchived\(group\.id, next\);/);
+    // A course drafter reaches the editor and the route refuses them: the switch is disabled, and says who.
+    assert.match(editor, /disabled=\{disabled \|\| !canArchive\}/);
+    assert.match(editor, /"Only an admin or somebody who can approve courses archives or restores a group\."/);
+    const runEditor = read("features", "courses", "RunEditor.tsx");
+    assert.match(runEditor, /const canArchiveGroups = role !== null && canApproveCourse\(\{ role, permissions \}\);/);
+    assert.match(runEditor, /canArchive=\{canArchiveGroups\}/);
     const mutations = read("features", "courses", "courseMutations.ts");
     assert.match(mutations, /\/api\/courses\/groups\/\$\{encodeURIComponent\(groupId\)\}\/archive/);
     assert.doesNotMatch(mutations, /out\.archived|archived: boolean;\s*\}>;/);

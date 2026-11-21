@@ -1,9 +1,9 @@
 /**
  * THE WORDS OF ARCHIVING AND RESTORING A GROUP, from the run editor's group
  * card and the group's own page: each refusal is one sentence, read by
- * whoever may archive the group (an admin, a course approver, the run's
- * track leads, the lead of the programme that names the run, the group's
- * facilitators), naming the group as the card prints it and the real numbers.
+ * whoever may archive the group (an admin, a course approver, the lead of the
+ * programme that names the run), naming the group as the card prints it and
+ * the real numbers.
  *
  * Pure: no reads, no clock.
  */

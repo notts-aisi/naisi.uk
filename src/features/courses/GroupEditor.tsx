@@ -63,6 +63,9 @@ type ToastRun = (
   opts?: { savingMessage?: string; successMessage?: string },
 ) => Promise<void>;
 
+/** Under the Archived switch, for a course drafter, whom the archive route refuses. */
+const ARCHIVE_IS_AN_APPROVERS = "Only an admin or somebody who can approve courses archives or restores a group.";
+
 /** A sensible first slot for a brand-new group: Tuesday evening, 90 minutes. */
 const DEFAULT_SESSION: GroupSession = {
   weekday: 2,
@@ -118,6 +121,12 @@ type Props = {
   goneOut?: boolean;
   /** The group's own page under its programme's Groups tab; null when no programme names the run. */
   groupPageHref?: string | null;
+  /**
+   * An admin or a course approver, whom the archive route admits from here.
+   * A course drafter reaches this card too; for them the switch is disabled
+   * and a line says who archives a group.
+   */
+  canArchive?: boolean;
 };
 
 export default function GroupEditor({
@@ -129,6 +138,7 @@ export default function GroupEditor({
   disabled,
   goneOut = false,
   groupPageHref = null,
+  canArchive = true,
 }: Props) {
   const fieldId = useId();
 
@@ -399,10 +409,11 @@ export default function GroupEditor({
         <Switch
           checked={group.archived}
           onChange={toggleArchived}
-          disabled={disabled}
+          disabled={disabled || !canArchive}
           label="Archived"
           description="Archived groups stay on the run for the record but drop out of allocation."
         />
+        {!canArchive && <p className={styles.hint}>{ARCHIVE_IS_AN_APPROVERS}</p>}
       </div>
 
       {error && <p className={styles.error}>{error}</p>}
