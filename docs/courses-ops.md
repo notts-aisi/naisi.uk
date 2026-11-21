@@ -2260,10 +2260,9 @@ browser write, an admin's included (`groupArchivedUnchanged`), and a group is
 born not archived. The route admits an admin, an `approveCourse` holder (the
 people the run editor's switch serves) and the lead of the programme that
 names the run (`programmeLedBy`), who runs the group from its page. Nobody
-else: a group's own facilitators and a run's track leads, whom the group's
-rule once let flip the field from a browser, are refused. In the run editor
-the switch is disabled for a course drafter who cannot approve, with a line
-saying who archives a group.
+else: a group's own facilitators and a run's track leads are refused. In the
+run editor the switch is disabled for a course drafter who cannot approve,
+with a line saying who archives a group.
 
 An archived group's page opens on "This group is archived." and Restore, and
 nothing else; the Groups tab lists the run's archived groups under its board
@@ -2284,30 +2283,38 @@ refuses, in one sentence that names the group and writes nothing (409), while:
 - anybody still holds a place in it (a learner who has not left, as the Groups
   tab counts them): "Group I still has 3 people in it. Move them to another
   group first, then archive it." Where nobody can be moved (the run is over,
-  cancelled or archived) or the run has no other group that still meets (an
-  incubator's one group), the sentence says so instead and the group stays as
-  it is: its people's attendance and who finished read only a group that
-  still meets;
+  by its status or because its last session has ended, or it is cancelled or
+  archived) the sentence says to archive the run instead; where the run has
+  no other group that still meets (an incubator's one group) it says the
+  group stays as it is. Either way its people's attendance and who finished
+  read only a group that still meets;
+- a freed place offered in its name is not answered yet;
 - somebody moved to another group from a week still to come is in it until
   then (their record of groups by week names it for a session that has not
   started);
 - a one-week visit to one of its sessions is still to come;
-- a register of a session that has started is neither finished nor marked as
-  not having happened, a register nobody opened included ("Group I’s register
+- a register of a session that has started, in a week somebody's place still
+  names for this group (the week they belonged to it, or a visit to it), is
+  neither finished nor marked as not having happened, a register nobody
+  opened included ("Group I’s register
   for week 2 isn’t finished. Finish it, or say the session didn’t happen, then
   archive the group: an unfinished register counts for nothing once a group
-  is archived."). A session called off is not asked about.
+  is archived."). A session called off is not asked about, and nor is a week
+  nobody's place names: once nobody holds a place in it, an archived group's
+  register is read for nobody else, so an emptied or spare group archives
+  without its later sessions being called off.
 
 So closing a term by archiving its groups works for a group nobody is in any
 more; a group whose people are still in it at the end of a term stays as it
-is. A session still to come given to somebody to cover is no reason to refuse
+is, and the term is put away by archiving the run. A session still to come given to somebody to cover is no reason to refuse
 once nobody is due at it, and the group's facilitators simply stop seeing a
 group nobody is in.
 
 **Restoring** is refused while one of the group's facilitators holds a place
 in another group of the run, because a facilitator who holds a place sits in
-the group they facilitate and no other: take them off the group's
-facilitators first. Both directions are refused on a run being destroyed. The
+the group they facilitate and no other: an admin takes them off the group's
+facilitators in the run editor first (the sentence tells anybody else to ask
+an admin). Both directions are refused on a run being destroyed. The
 checks are read once, then read again inside the transaction that writes, so
 a change in between is answered rather than archived over.
 

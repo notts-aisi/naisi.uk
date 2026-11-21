@@ -22,10 +22,12 @@
  *     the body is read.
  *  2. ARCHIVING IS REFUSED, in one sentence and with nothing written, while
  *     anybody still holds a place in the group (three sentences: the plain
- *     one, a run with no other group, a run that takes no move), somebody
- *     moved from a week still to come is in it until then, a visit to one of
- *     its sessions is still to come, or a register of a session that has
- *     started is neither finished nor said not to have happened.
+ *     one, a run with no other group, a run that is over by its status or by
+ *     the clock), a freed place offered in its name is not answered,
+ *     somebody moved from a week still to come is in it until then, a visit
+ *     to one of its sessions is still to come, or a register of a session
+ *     that has started, in a week somebody's place names for the group, is
+ *     neither finished nor said not to have happened.
  *  3. ALLOWED once none of that holds: the write is `archived` and
  *     `updatedAt`, nothing else in the database moves, and a move or a visit
  *     in a week that has met is no reason to refuse.
@@ -46,7 +48,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { CAST, RUN, makeSessionsWorld, updatesSeed } from "./lib/sessionsWorld.mjs";
-import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
+import { applicationPath, session, userDoc } from "./lib/applicationsSmallTerm.mjs";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -99,6 +101,10 @@ const register = (groupId, n, over = {}) => ({
 const finishedD = () =>
   Object.fromEntries([1, 2, 3].map((n) => [registerPath(D, n), register(D, n)]));
 const placePath = (uid) => `courseEnrolments/${RUN.agi}__${uid}`;
+/** Bea, in Group D for weeks 1 to 3 and moved to Group A from week 4: the weeks her place names for D. */
+const beaInDUntilWeek4 = () => ({
+  [placePath("bea")]: { ...updatesSeed()[placePath("bea")], groupsByWeek: [{ groupId: D, fromWeek: 1 }, { groupId: A, fromWeek: 4 }] },
+});
 
 function seed(over = {}) {
   const base = updatesSeed();
@@ -198,16 +204,49 @@ describe("2. archiving is refused while it would lose something", () => {
     assert.equal(words.stillHasPeopleWords("Group I", 1), "Group I still has 1 person in it. Move them to another group first, then archive it.");
   });
 
+  const CLOSED_FOR_APPROVERS =
+    "Group B still has 4 people in it, and nobody can be moved on this run any more, so it stays as it is: " +
+    "to put the term away, archive the run instead, under Archive in the run editor.";
+  const CLOSED_FOR_THE_LEAD =
+    "Group B still has 4 people in it, and nobody can be moved on this run any more, so it stays as it is: " +
+    "to put the term away, ask an admin to archive the run instead.";
+
   test("people still in the group on a run that takes no move any more", async () => {
     for (const over of [{ status: "completed" }, { status: "cancelled" }, { archived: true }]) {
       w.reset(seed({ [`courseRuns/${RUN.agi}`]: { ...updatesSeed()[`courseRuns/${RUN.agi}`], ...over } }));
-      await refusedWith(
-        "zach",
-        B,
-        { archived: true },
-        "Group B still has 4 people in it, and nobody can be moved on this run any more, so it stays as it is: " +
-          "archiving it would take their attendance and who finished off the record.",
-      );
+      await refusedWith("zach", B, { archived: true }, CLOSED_FOR_APPROVERS);
+      await refusedWith("paula", B, { archived: true }, CLOSED_FOR_APPROVERS);
+      await refusedWith("claudia", B, { archived: true }, CLOSED_FOR_THE_LEAD);
+    }
+  });
+
+  test("people still in the group once the run's last session has ended, its status still running", async () => {
+    w.at("2026-12-20T10:00:00Z");
+    assert.ok(!["completed", "cancelled"].includes(w.run().status) && !w.run().archived, "its status says nothing is over");
+    await refusedWith("zach", B, { archived: true }, CLOSED_FOR_APPROVERS);
+    await refusedWith("claudia", B, { archived: true }, CLOSED_FOR_THE_LEAD);
+  });
+
+  test("a freed place offered in the group's name and not answered", async () => {
+    const offered = (uid, over = {}) => ({
+      ...world.db.read(applicationPath(uid)),
+      result: { kind: "no-offer", programmeId: null, publishedAt: new Date("2026-10-09T13:20:00Z"), email: "sent", emailedAt: new Date("2026-10-09T13:20:00Z") },
+      invitation: { programmeId: "agi-strategy", replyBy: "2026-11-25", response: null, respondedAt: null, lastReminderOn: null },
+      freedPlace: { groupId: D, offeredAt: new Date("2026-11-18T10:00:00Z"), email: "sent", emailedAt: new Date("2026-11-18T10:00:00Z"), emailClaimedAt: null },
+      status: "invited",
+      ...over,
+    });
+    const at = { ...finishedD(), [applicationPath("wen")]: offered("wen") };
+    w.reset(seed(at));
+    await refusedWith("zach", D, { archived: true }, "Group D has 1 freed place offered and not answered yet. Archive it once that person has answered.");
+    assert.equal(words.freedOffersWords("Group D", 2), "Group D has 2 freed places offered and not answered yet. Archive it once they have answered.");
+    // Answered no, or withdrawn: nothing waits on the group.
+    for (const over of [
+      { invitation: { programmeId: "agi-strategy", replyBy: "2026-11-25", response: "declined", respondedAt: new Date("2026-11-19T09:00:00Z"), lastReminderOn: null } },
+      { status: "withdrawn" },
+    ]) {
+      w.reset(seed({ ...finishedD(), [applicationPath("wen")]: offered("wen", over) }));
+      assert.equal((await archive("zach", D)).status, 200, JSON.stringify(over));
     }
   });
 
@@ -233,7 +272,7 @@ describe("2. archiving is refused while it would lose something", () => {
       "zach",
       D,
       { archived: true },
-      "Group D is still 1 person’s group for weeks 4 and 5, before their move to another group. Move them from the first of those weeks or earlier, then archive it.",
+      "Group D is still 1 person’s group for weeks 4 and 5, before their move to another group. Archive it once those sessions have met and their registers are finished.",
     );
   });
 
@@ -244,10 +283,36 @@ describe("2. archiving is refused while it would lose something", () => {
         [placePath("bea")]: { ...updatesSeed()[placePath("bea")], visits: [{ weekNumber: 5, groupId: D, arrangedByUid: "claudia", arrangedAt: new Date("2026-11-18T10:00:00Z") }] },
       }),
     );
-    await refusedWith("zach", D, { archived: true }, "Group D still has 1 visit to come, in week 5. Cancel it first, then archive the group.");
+    await refusedWith(
+      "zach",
+      D,
+      { archived: true },
+      "Group D still has 1 visit to come, in week 5. Cancel it, or archive the group once that session has met and its register is finished.",
+    );
+  });
+
+  test("an emptied or spare group nobody's place names archives with no register opened", async () => {
+    const answer = await archive("zach", D);
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+  });
+
+  test("a register is asked about only for a week somebody's place names for the group, a visit included", async () => {
+    w.reset(
+      seed({
+        [placePath("tariq")]: { ...updatesSeed()[placePath("tariq")], visits: [{ weekNumber: 2, groupId: D, arrangedByUid: "claudia", arrangedAt: new Date("2026-11-01T10:00:00Z") }] },
+      }),
+    );
+    await refusedWith(
+      "zach",
+      D,
+      { archived: true },
+      "Group D’s register for week 2 isn’t finished. Finish it, or say the session didn’t happen, then archive the group: " +
+        "an unfinished register counts for nothing once a group is archived.",
+    );
   });
 
   test("registers of sessions that have met: none opened", async () => {
+    w.reset(seed(beaInDUntilWeek4()));
     await refusedWith(
       "zach",
       D,
@@ -260,6 +325,7 @@ describe("2. archiving is refused while it would lose something", () => {
   test("one register left a draft; one finished and one said not to have happened count as done", async () => {
     w.reset(
       seed({
+        ...beaInDUntilWeek4(),
         [registerPath(D, 1)]: register(D, 1),
         [registerPath(D, 2)]: register(D, 2, { held: false, pushedAt: null }),
         [registerPath(D, 3)]: register(D, 3, { pushedAt: null }),
@@ -318,7 +384,15 @@ describe("3. archiving once nothing is lost", () => {
   test("a session called off is not asked about", async () => {
     // Group D's week 3 (Mon 16 Nov) was called off through Change a session; weeks 1 and 2 are finished.
     const calledOff = { w03: { kind: "cancelled", dateKey: "2026-11-16", reason: "Room flooded.", byUid: "claudia", at: new Date("2026-11-15T10:00:00Z") } };
-    w.reset(seed({ [registerPath(D, 1)]: register(D, 1), [registerPath(D, 2)]: register(D, 2), [`courseGroups/${D}`]: groupD({ sessionChanges: calledOff }) }));
+    // Bea's place names weeks 1 to 3 for Group D, so week 3 would be asked about if it had met.
+    w.reset(
+      seed({
+        ...beaInDUntilWeek4(),
+        [registerPath(D, 1)]: register(D, 1),
+        [registerPath(D, 2)]: register(D, 2),
+        [`courseGroups/${D}`]: groupD({ sessionChanges: calledOff }),
+      }),
+    );
     assert.ok(w.sessionsOf(D).find((each) => each.weekNumber === 3)?.cancelled, "week 3 reads as called off");
     const answer = await archive("zach", D);
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
@@ -346,6 +420,25 @@ describe("4. the transaction decides on what it read", () => {
     assert.equal(answer.body.error, "Group D still has 1 person in it. Move them to another group first, then archive it.");
     assert.equal(stored(D).archived, false);
   });
+
+  test("a visit arranged between the two reads is answered, not archived over", async () => {
+    w.reset(seed(finishedD()));
+    world.db.beforeCommit = () =>
+      world.db.poke(placePath("bea"), { visits: [{ weekNumber: 5, groupId: D, arrangedByUid: "claudia", arrangedAt: new Date("2026-11-19T10:00:00Z") }] });
+    const answer = await archive("zach", D);
+    assert.equal(answer.status, 409, JSON.stringify(answer.body));
+    assert.match(answer.body.error, /^Group D still has 1 visit to come, in week 5\./);
+    assert.equal(stored(D).archived, false);
+  });
+
+  test("a register reopened between the two reads, for a week somebody's place names, is answered", async () => {
+    w.reset(seed({ ...finishedD(), ...beaInDUntilWeek4() }));
+    world.db.beforeCommit = () => world.db.poke(registerPath(D, 2), { pushedAt: null });
+    const answer = await archive("zach", D);
+    assert.equal(answer.status, 409, JSON.stringify(answer.body));
+    assert.match(answer.body.error, /^Group D’s register for week 2 isn’t finished\./);
+    assert.equal(stored(D).archived, false);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -367,8 +460,18 @@ describe("5. restoring", () => {
       D,
       { archived: false },
       "Group D can’t be restored while 1 of its facilitators holds a place in Group C: a facilitator who holds a place " +
-        "sits in the group they facilitate. Take them off Group D’s facilitators first, then restore it.",
+        "sits in the group they facilitate. Take them off Group D’s facilitators in the run editor first, then restore it.",
     );
+    // Anybody else who may restore is told to ask an admin, who alone changes an archived group's facilitators.
+    for (const who of ["paula", "claudia"]) {
+      await refusedWith(
+        who,
+        D,
+        { archived: false },
+        "Group D can’t be restored while 1 of its facilitators holds a place in Group C: a facilitator who holds a place " +
+          "sits in the group they facilitate. Ask an admin to take them off Group D’s facilitators in the run editor, then restore it.",
+      );
+    }
   });
 
   test("both are refused on a run being destroyed", async () => {
@@ -394,11 +497,11 @@ describe("the words", () => {
     assert.equal(words.weeksWords([1, 2, 4]), "weeks 1, 2 and 4");
     assert.equal(words.groupName("  "), "Untitled group");
     assert.equal(
-      words.facilitatorSitsElsewhereWords("Group I", 2, ["Group J", "Group K"]),
+      words.facilitatorSitsElsewhereWords("Group I", 2, ["Group J", "Group K"], true),
       "Group I can’t be restored while 2 of its facilitators hold places in Group J and Group K: a facilitator who holds a place " +
-        "sits in the group they facilitate. Take them off Group I’s facilitators first, then restore it.",
+        "sits in the group they facilitate. Take them off Group I’s facilitators in the run editor first, then restore it.",
     );
-    assert.equal(words.visitsToComeWords("Group I", 2, [4, 5]), "Group I still has 2 visits to come, in weeks 4 and 5. Cancel them first, then archive the group.");
+    assert.equal(words.visitsToComeWords("Group I", 2, [4, 5]), "Group I still has 2 visits to come, in weeks 4 and 5. Cancel them, or archive the group once those sessions have met and their registers are finished.");
   });
 
   test("no dashes in the words", () => {
@@ -617,6 +720,55 @@ describe("6. nothing else writes a group's archived", () => {
     }
   });
 
+  /**
+   * THE BACKSTOP, for a writer the walk above cannot follow (a group document
+   * built by a function in another module): every object literal with an
+   * `archived` key whose value is not `false`, in a file that names
+   * `courseGroups`, is listed here with what it is. A new one fails until
+   * somebody says it is not a group's archived being written.
+   */
+  const ARCHIVED_VALUES_BESIDE_GROUPS = {
+    "src/app/api/courses/groups/[groupId]/archive/route.ts": "the archive route's own answer and its one write, after the checks",
+    "src/app/api/courses/me/route.ts": "a run's archived, read into the member hub's answer",
+    "src/app/api/courses/runs/[runId]/archive/route.ts": "archives a run, not a group",
+    "src/app/api/courses/runs/[runId]/overview/route.ts": "whether a session's group is still one of the run's, in the run home's view",
+    "src/features/courses/courseMutations.ts": "the body the run editor sends to the archive route",
+    "src/lib/courses/explainers/schedule.ts": "archives an explainer's tasks, and counts them",
+    "src/lib/courses/facilitatingMenuRead.ts": "a run's archived, read into the facilitating menu",
+    "src/lib/courses/roomWords.ts": "a refusal sentence, keyed by why",
+    "src/lib/courses/sessionChange/didNotHappen.ts": "archives the register follow-up task",
+    "src/lib/firestore/courseDeletion.ts": "marks a run archived as its destroy begins",
+    "src/lib/firestore/courseGroups.ts": "the group normaliser, reading the stored field",
+    "src/lib/firestore/courses.ts": "a course status's label, and the run normaliser reading the stored field",
+    "src/lib/scheduler/jobs/nextWeekEmail.ts": "archives a held next-week email's task",
+  };
+
+  test("the backstop: every archived value beside a group, in a file the walk might not follow, is listed with what it is", () => {
+    const found = new Set();
+    for (const top of ["src", "scripts"]) {
+      for (const file of sourceFiles(join(REPO, top))) {
+        const path = relative(REPO, file).split("\\").join("/");
+        if (path.startsWith("scripts/rules-tests/")) continue;
+        const text = readFileSync(file, "utf8");
+        if (!text.includes("courseGroups") || !text.includes("archived")) continue;
+        const kind = file.endsWith(".tsx") ? ts.ScriptKind.TSX : file.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
+        const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind);
+        const visit = (node) => {
+          if (ts.isObjectLiteralExpression(node)) {
+            for (const p of node.properties) {
+              const named = p.name && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) && p.name.text === "archived";
+              if (named && !(ts.isPropertyAssignment(p) && unwrap(p.initializer).kind === ts.SyntaxKind.FalseKeyword)) found.add(path);
+            }
+          }
+          ts.forEachChild(node, visit);
+        };
+        visit(sf);
+      }
+    }
+    assert.deepEqual([...found].filter((path) => !(path in ARCHIVED_VALUES_BESIDE_GROUPS)).sort(), [], "an archived value beside a group, not listed");
+    assert.deepEqual(Object.keys(ARCHIVED_VALUES_BESIDE_GROUPS).filter((path) => !found.has(path)), [], "listed, and no longer there");
+  });
+
   test("the guard sees the forms a writer takes", () => {
     const fixtures = [
       ['const ref = db.collection("courseGroups").doc(id); await ref.update({ archived: true });', "group"],
@@ -657,7 +809,7 @@ describe("7. the run editor and the group's page call the route", () => {
     assert.match(editor, /await setGroupArchived\(group\.id, next\);/);
     // A course drafter reaches the editor and the route refuses them: the switch is disabled, and says who.
     assert.match(editor, /disabled=\{disabled \|\| !canArchive\}/);
-    assert.match(editor, /"Only an admin or somebody who can approve courses archives or restores a group\."/);
+    assert.match(editor, /"Only an admin or somebody who can approve courses archives or restores a group here; the programme’s lead does it from the group’s page\."/);
     const runEditor = read("features", "courses", "RunEditor.tsx");
     assert.match(runEditor, /const canArchiveGroups = role !== null && canApproveCourse\(\{ role, permissions \}\);/);
     assert.match(runEditor, /canArchive=\{canArchiveGroups\}/);

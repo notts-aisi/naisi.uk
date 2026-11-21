@@ -64,41 +64,61 @@ export function stillHasPeopleOnlyGroupWords(name: string, count: number): strin
 }
 
 /**
- * Somebody still holds a place in the group, and the run takes no move any
- * more (it is over, cancelled or archived): archiving would take them off
- * the record of the run.
+ * Somebody still holds a place in the group, and the run is over (by its
+ * status or because its last session has ended): archiving would take their
+ * attendance and who finished off the record, so the sentence says to
+ * archive the run instead, as the run editor's Archive does. `archivesRuns`
+ * is an admin or a course approver; the programme's lead asks an admin.
  */
-export function stillHasPeopleRunClosedWords(name: string, count: number): string {
+export function stillHasPeopleRunClosedWords(name: string, count: number, archivesRuns: boolean): string {
+  const instead = archivesRuns ? "archive the run instead, under Archive in the run editor" : "ask an admin to archive the run instead";
   return (
     `${groupName(name)} still has ${peopleWords(count)} in it, and nobody can be moved on this run any more, ` +
-    "so it stays as it is: archiving it would take their attendance and who finished off the record."
+    `so it stays as it is: to put the term away, ${instead}.`
   );
+}
+
+/**
+ * A freed place offered in the group's name and not answered yet: "Group D
+ * has 1 freed place offered and not answered yet. Archive it once that
+ * person has answered."
+ */
+export function freedOffersWords(name: string, count: number): string {
+  return count === 1
+    ? `${groupName(name)} has 1 freed place offered and not answered yet. Archive it once that person has answered.`
+    : `${groupName(name)} has ${count} freed places offered and not answered yet. Archive it once they have answered.`;
 }
 
 /**
  * Somebody moved to another group from a week still to come is in this one
  * until then: "Group I is still 2 people’s group for week 4, before their
- * move to another group. Move them from that week or earlier, then archive
- * it."
+ * move to another group. Archive it once that session has met and its
+ * register is finished." A move's week is the staff move's to choose, not
+ * the presser's, so the sentence says when archiving will go through.
  */
 export function movingLaterWords(name: string, count: number, weeks: readonly number[]): string {
   const whose = count === 1 ? "1 person’s" : `${count} people’s`;
-  const those = weeks.length === 1 ? "that week" : "the first of those weeks";
+  const once =
+    weeks.length === 1 ? "that session has met and its register is finished" : "those sessions have met and their registers are finished";
   return (
     `${groupName(name)} is still ${whose} group for ${weeksWords(weeks)}, before their move to another group. ` +
-    `Move them from ${those} or earlier, then archive it.`
+    `Archive it once ${once}.`
   );
 }
 
 /**
  * A one-week visit to one of the group's sessions still to come: "Group I
- * still has 2 visits to come, in week 5. Cancel them first, then archive the
- * group."
+ * still has 2 visits to come, in week 5. Cancel them, or archive the group
+ * once that session has met and its register is finished." A visit cannot be
+ * cancelled once the visitor's own session that week has started, so the
+ * sentence says the other way through too.
  */
 export function visitsToComeWords(name: string, count: number, weeks: readonly number[]): string {
   const visits = count === 1 ? "1 visit" : `${count} visits`;
   const them = count === 1 ? "it" : "them";
-  return `${groupName(name)} still has ${visits} to come, in ${weeksWords(weeks)}. Cancel ${them} first, then archive the group.`;
+  const once =
+    weeks.length === 1 ? "that session has met and its register is finished" : "those sessions have met and their registers are finished";
+  return `${groupName(name)} still has ${visits} to come, in ${weeksWords(weeks)}. Cancel ${them}, or archive the group once ${once}.`;
 }
 
 /**
@@ -123,11 +143,20 @@ export function unfinishedRegistersWords(name: string, weeks: readonly number[])
  * facilitator who holds a place sits in the group they facilitate. Take them
  * off Group I’s facilitators first, then restore it."
  */
-export function facilitatorSitsElsewhereWords(name: string, count: number, otherGroups: readonly string[]): string {
+export function facilitatorSitsElsewhereWords(
+  name: string,
+  count: number,
+  otherGroups: readonly string[],
+  changesFacilitators: boolean,
+): string {
   const group = groupName(name);
   const who = count === 1 ? "1 of its facilitators holds a place" : `${count} of its facilitators hold places`;
+  // Only an admin can take a facilitator off an archived group: in the run editor.
+  const next = changesFacilitators
+    ? `Take them off ${group}’s facilitators in the run editor first, then restore it.`
+    : `Ask an admin to take them off ${group}’s facilitators in the run editor, then restore it.`;
   return (
     `${group} can’t be restored while ${who} in ${andList(otherGroups.map(groupName))}: ` +
-    `a facilitator who holds a place sits in the group they facilitate. Take them off ${group}’s facilitators first, then restore it.`
+    `a facilitator who holds a place sits in the group they facilitate. ${next}`
   );
 }

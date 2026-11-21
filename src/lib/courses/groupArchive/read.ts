@@ -1,6 +1,10 @@
 import "server-only";
 import type { DocumentReference, DocumentSnapshot, Firestore, Query, QuerySnapshot, Transaction } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
+import { isInTerm } from "@/lib/applications/decisions";
+import { normaliseApplication } from "@/lib/applications/normalise";
+import { standingOf } from "@/lib/applications/status/standing";
+import { APPLICATIONS_COLLECTION } from "@/lib/firestore/admissionApplications";
 import type { RegisterState } from "@/lib/courses/unmarkedRegisters";
 import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
 import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
@@ -13,10 +17,10 @@ import { startedSessions, type GroupArchiveFacts } from "./plan";
  * transaction and again inside it, so the decision the press writes on is
  * the one made of what the transaction read.
  *
- * The group, its run, the run's groups and every place on the run (two
- * queries of one equality each, so no declared index), and the registers of
- * the group's sessions that have started, addressed by id. Null when the
- * group is not there.
+ * The group, its run, the run's groups, every place on the run and the
+ * freed places offered in the group's name (three queries of one equality
+ * each, so no declared index), and the registers of the group's sessions
+ * that have started, addressed by id. Null when the group is not there.
  */
 export async function readGroupArchiveFacts(
   db: Firestore,
@@ -33,13 +37,22 @@ export async function readGroupArchiveFacts(
 
   const runId = isAddressableId(group.runId) ? group.runId : "";
   if (!runId) {
-    return { group, run: null, destroying: false, runGroups: [group], places: [], registers: new Map() };
+    return { group, run: null, destroying: false, runGroups: [group], places: [], registers: new Map(), freedOffers: 0 };
   }
-  const [runSnap, groupsSnap, placesSnap] = await Promise.all([
+  const [runSnap, groupsSnap, placesSnap, offersSnap] = await Promise.all([
     get(db.collection("courseRuns").doc(runId)),
     list(db.collection("courseGroups").where("runId", "==", runId)),
     list(db.collection("courseEnrolments").where("runId", "==", runId)),
+    // The freed places offered in this group's name: one equality on a map
+    // field, so no declared index.
+    list(db.collection(APPLICATIONS_COLLECTION).where("freedPlace.groupId", "==", group.id)),
   ]);
+  // Offered and not answered yet: still in the term, and the invitation
+  // standing (`standingOf`). One accepted is a place the board seats.
+  const freedOffers = offersSnap.docs
+    .map((doc) => normaliseApplication(doc.id, doc.data()))
+    .filter((application) => application !== null && application.freedPlace?.groupId === group.id)
+    .filter((application) => application !== null && isInTerm(application) && standingOf(application).kind === "invitation").length;
   const run = runSnap.exists ? normalizeCourseRun(runSnap.id, runSnap.data() ?? {}) : null;
   const destroying = runSnap.exists && runSnap.data()?.destroying === true;
   const runGroups = groupsSnap.docs
@@ -67,5 +80,5 @@ export async function readGroupArchiveFacts(
     }
   }
 
-  return { group, run, destroying, runGroups, places, registers };
+  return { group, run, destroying, runGroups, places, registers, freedOffers };
 }

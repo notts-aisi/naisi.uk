@@ -7145,7 +7145,7 @@ export const REAL_ROUTES = {
         anonymous: c(401, NO_SESSION),
         "*": c(403, "Neither leads the programme naming the group's run nor approves courses: refused before the body is read."),
         admin: c(400, "An admin archives any group, so admitted, then the body is checked: an empty one says neither archive nor restore."),
-        approveCourse: c(400, "A course approver archives any group, as the group's rule let them, so admitted, then the body is checked."),
+        approveCourse: c(400, "A course approver archives any group, so admitted, then the body is checked."),
       },
       theirs: {
         lead: c(400, "Leads the programme that names the group's run and runs the group from its page, so admitted, then the body is checked."),

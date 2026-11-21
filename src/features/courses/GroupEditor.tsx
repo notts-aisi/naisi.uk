@@ -64,7 +64,8 @@ type ToastRun = (
 ) => Promise<void>;
 
 /** Under the Archived switch, for a course drafter, whom the archive route refuses. */
-const ARCHIVE_IS_AN_APPROVERS = "Only an admin or somebody who can approve courses archives or restores a group.";
+const ARCHIVE_IS_AN_APPROVERS =
+  "Only an admin or somebody who can approve courses archives or restores a group here; the programme’s lead does it from the group’s page.";
 
 /** A sensible first slot for a brand-new group: Tuesday evening, 90 minutes. */
 const DEFAULT_SESSION: GroupSession = {

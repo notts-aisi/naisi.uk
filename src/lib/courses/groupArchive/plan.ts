@@ -1,4 +1,5 @@
 import { isRegisterUnmarked, type RegisterState } from "@/lib/courses/unmarkedRegisters";
+import { runEndOf } from "@/lib/courses/finishing/runEnd";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import {
   enrolmentHasLeft,
@@ -11,6 +12,7 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
 import {
   ARCHIVE_REFUSAL,
   facilitatorSitsElsewhereWords,
+  freedOffersWords,
   movingLaterWords,
   stillHasPeopleOnlyGroupWords,
   stillHasPeopleRunClosedWords,
@@ -32,21 +34,27 @@ import {
  *     and who has not left, as the Groups tab counts them. Their attendance,
  *     who finished and their sessions to come all read the group they are
  *     in, and only from a group that still meets. The sentence says what can
- *     be done: move them, unless the run has no other group that still meets
- *     or takes no move any more (`runTakesNoMove`), when it says why it stays.
+ *     be done: move them, unless the run has no other group that still meets,
+ *     or is over (`runIsClosed`: by its status, or by the clock once its last
+ *     session has ended), when it says to archive the run instead.
+ *  1b. A FREED PLACE OFFERED IN ITS NAME AND NOT ANSWERED: the email named
+ *     this group's weekly time.
  *  2. SOMEBODY MOVED TO ANOTHER GROUP FROM A WEEK STILL TO COME is in this
  *     group until then (their record of groups by week names it for a week
  *     whose session has not started): archiving would take those sessions
  *     from them.
  *  3. A ONE-WEEK VISIT to one of its sessions still to come: the visitor
  *     would have nowhere to go that week.
- *  4. A REGISTER OF A SESSION THAT HAS STARTED is neither finished nor marked
- *     as not having happened (`isRegisterUnmarked`, the register chase's own
- *     test, so a register nobody opened is unfinished too): an archived
- *     group's facilitators lose its register, the chase stops, and an
- *     unfinished register of an archived group counts for nothing
- *     (`countsFromArchivedGroup`). A session called off counts for nothing
- *     either way and is not asked about.
+ *  4. A REGISTER OF A SESSION THAT HAS STARTED, IN A WEEK SOMEBODY'S PLACE
+ *     NAMES FOR THIS GROUP (the week they belonged to it, or a visit to it),
+ *     is neither finished nor marked as not having happened
+ *     (`isRegisterUnmarked`, the register chase's own test, so a register
+ *     nobody opened is unfinished too): an archived group's facilitators lose
+ *     its register, the chase stops, and an unfinished register of an
+ *     archived group counts for nothing (`countsFromArchivedGroup`). A week
+ *     nobody's place names is read for nobody once the group is archived, so
+ *     a session that met with nobody due at it is not asked about; nor is a
+ *     session called off.
  *
  * Allowed, because nothing is lost once those four hold: the group's
  * facilitators no longer see a group nobody is in (nobody is told, and
@@ -57,7 +65,8 @@ import {
  * Restoring is refused while one of the group's facilitators holds a place
  * in another group of the run, because a facilitator who holds a place sits
  * in the group they facilitate and no other, and the doors that appoint
- * facilitators and move people refuse to make that state.
+ * facilitators and move people refuse to make that state. Where a sentence
+ * says what to do next, it says it to whoever is pressing (`ArchiveViewer`).
  *
  * Both are refused on a run being destroyed: its groups belong to the
  * destroy until it ends.
@@ -78,6 +87,8 @@ export type GroupArchiveFacts = {
   places: readonly CourseEnrolmentDoc[];
   /** This group's registers of the sessions that have started, by session key. Absent is a register nobody opened. */
   registers: ReadonlyMap<string, RegisterState>;
+  /** Freed places offered in this group's name and not answered yet (`freedPlace.groupId`, an invitation standing). */
+  freedOffers: number;
 };
 
 /**
@@ -127,18 +138,39 @@ function weeksToCome(run: CourseRunDoc, group: CourseGroupDoc, now: Date): numbe
 
 const sortedWeeks = (weeks: Iterable<number>) => [...new Set(weeks)].sort((a, b) => a - b);
 
+/**
+ * WHO IS PRESSING, for the one part of a sentence that differs: what to do
+ * next. An admin takes a facilitator off a group in the run editor; an admin
+ * or a course approver archives a run; the programme's lead asks an admin.
+ */
+export type ArchiveViewer = "admin" | "approver" | "lead";
+
+/**
+ * A run that is over for archiving's purpose: one that takes no move by its
+ * status (`runTakesNoMove`), or whose last session has ended by the clock
+ * (`runEndOf`), which is how a term ends whatever its status says, since
+ * nothing moves a run to completed by itself.
+ */
+export function runIsClosed(run: CourseRunDoc, runGroups: readonly CourseGroupDoc[], now: Date): boolean {
+  return runTakesNoMove(run) || runEndOf(run, runGroups, now).over;
+}
+
 /** Why archiving the group would lose something, in one sentence, or null when it may be archived. */
-export function archiveRefusal(facts: GroupArchiveFacts, now: Date): string | null {
+export function archiveRefusal(facts: GroupArchiveFacts, now: Date, viewer: ArchiveViewer = "admin"): string | null {
   const { group, run } = facts;
   if (facts.destroying) return ARCHIVE_REFUSAL.destroying;
 
   const inGroup = placesInGroup(facts).length;
   if (inGroup > 0) {
-    if (run && runTakesNoMove(run)) return stillHasPeopleRunClosedWords(group.name, inGroup);
+    if (run && runIsClosed(run, facts.runGroups, now)) return stillHasPeopleRunClosedWords(group.name, inGroup, viewer !== "lead");
     const others = facts.runGroups.filter((each) => each.id !== group.id && !each.archived && each.runId === group.runId);
     if (run && others.length === 0) return stillHasPeopleOnlyGroupWords(group.name, inGroup);
     return stillHasPeopleWords(group.name, inGroup);
   }
+
+  // A freed place offered in this group's name and not answered: the email
+  // named this group's weekly time, and the board could not seat them in it.
+  if (facts.freedOffers > 0) return freedOffersWords(group.name, facts.freedOffers);
 
   // A group that names no run that is there has no sessions to lose.
   if (!run) return null;
@@ -168,7 +200,18 @@ export function archiveRefusal(facts: GroupArchiveFacts, now: Date): string | nu
   }
   if (visits > 0) return visitsToComeWords(group.name, visits, sortedWeeks(visitWeeks));
 
+  // Only the weeks somebody's place still names for this group, as the week
+  // they belonged to it or a visit to it: once nobody holds a place in it,
+  // an archived group's register is read for nobody else, so a session that
+  // met with nobody due at it loses nothing.
+  const named = new Set<number>();
+  for (const session of startedSessions(run, group, now)) {
+    if (elsewhere.some((place) => ownGroupForWeek(place, session.weekNumber) === group.id || visitInWeek(place, session.weekNumber)?.groupId === group.id)) {
+      named.add(session.weekNumber);
+    }
+  }
   const unfinished = startedSessions(run, group, now)
+    .filter((session) => named.has(session.weekNumber))
     .filter((session) => isRegisterUnmarked(facts.registers.get(session.sessionKey) ?? { exists: false, held: true, pushedAt: null }))
     .map((session) => session.weekNumber);
   if (unfinished.length > 0) return unfinishedRegistersWords(group.name, sortedWeeks(unfinished));
@@ -177,7 +220,7 @@ export function archiveRefusal(facts: GroupArchiveFacts, now: Date): string | nu
 }
 
 /** Why restoring the group would break a rule the site holds elsewhere, in one sentence, or null when it may be restored. */
-export function restoreRefusal(facts: GroupArchiveFacts): string | null {
+export function restoreRefusal(facts: GroupArchiveFacts, viewer: ArchiveViewer = "admin"): string | null {
   const { group } = facts;
   if (facts.destroying) return ARCHIVE_REFUSAL.destroying;
 
@@ -193,5 +236,5 @@ export function restoreRefusal(facts: GroupArchiveFacts): string | null {
   if (sitsElsewhere.length === 0) return null;
   const names = new Map(facts.runGroups.map((each) => [each.id, each.name] as const));
   const otherGroups = [...new Set(sitsElsewhere.map((place) => names.get(place.groupId ?? "") ?? "another group"))];
-  return facilitatorSitsElsewhereWords(group.name, sitsElsewhere.length, otherGroups);
+  return facilitatorSitsElsewhereWords(group.name, sitsElsewhere.length, otherGroups, viewer === "admin");
 }
