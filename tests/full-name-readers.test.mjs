@@ -440,6 +440,11 @@ const READERS = new Map([
     ],
     why: "a request to be excused, for admins alone: the person, who decided, replied and acted on it, and the register's setters, named for the reader",
   }],
+  ["src/lib/courses/teamAsk/page.ts", {
+    who: "rule",
+    proof: ['names.set(snap.id, nameForViewer(viewer, accountNamesOf(data), "NAISI member"));'],
+    why: "a message to the team, for admins alone (both loaders answer anybody else nothing): the sender, who has it and who replied, named for the reader",
+  }],
   ["src/lib/courses/visitRequest/page.ts", {
     who: "rule",
     proof: [

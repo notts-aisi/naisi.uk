@@ -158,7 +158,7 @@ const MUST_GUARD = [
     "src/app/api/courses/groups/[groupId]/excused/route.ts",
     "asks to be excused from sessions of the caller's own group, with a reason only admins read, in the asker's name, and emails the admins that it has arrived",
   ],
-  ["src/app/api/courses/requests/emails/route.ts", "switches the caller’s own email about new requests to be excused or to go to another session on or off, on their own user document"],
+  ["src/app/api/courses/requests/emails/route.ts", "switches the caller’s own email about new requests to be excused or to go to another session, or about messages to the team, on or off, on their own user document"],
   ["src/app/api/courses/requests/[requestId]/excused/withdraw/route.ts", "withdraws a request to be excused, or a week of it, in the asker's name"],
   [
     "src/app/api/courses/requests/[requestId]/excused/approve/route.ts",
@@ -182,6 +182,9 @@ const MUST_GUARD = [
   ["src/app/api/courses/requests/[requestId]/visit/take/route.ts", "says who is dealing with a request to go to another session, in their name"],
   ["src/app/api/courses/requests/[requestId]/visit/withdraw/route.ts", "withdraws a request to go to another session, in the asker's name"],
   ["src/app/api/courses/requests/[requestId]/visit/dismiss/route.ts", "dismisses the message that a request to go to another session was declined, in the asker's name"],
+  ["src/app/api/courses/requests/ask/route.ts", "sends the team a message, in the sender's name, and emails the admins who switched that on"],
+  ["src/app/api/courses/requests/[requestId]/team/take/route.ts", "says who is dealing with a message to the team, in their name"],
+  ["src/app/api/courses/requests/[requestId]/team/reply/route.ts", "replies to a message to the team, closing it and emailing the person, in the replier's name"],
   ["src/app/api/courses/groups/[groupId]/attendance/push/route.ts", "locks a register, rewrites every member's attendance record and mails the group"],
   [
     "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts",

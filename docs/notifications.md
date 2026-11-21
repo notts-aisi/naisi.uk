@@ -304,6 +304,26 @@ that closes by itself because nobody decided it before the session email
 nobody. The switch's route takes `{ on, which? }`, `which` naming a key of
 `REQUEST_EMAIL_SWITCHES` and the existing one when left out.
 
+**A message to the team, to the admins, has a second switch, off unless
+switched on.** When a member sends the team a message from Ask the team
+(`src/lib/courses/teamAsk/ask.ts`), only an admin who switched on "Email me
+about messages to the team" on the Requests page is emailed
+(`users/{uid}.requestEmails.team`, OFF unless a stored `true`; the switch
+above and its default are unchanged), through the same send
+(`emailAdminsWords`, `which: "team"`), never the sender: who, what it is about
+and when, and the way to its page. NEVER what they wrote. Its rows carry
+`kind: "course-request"` with an empty `referenceId`, because a message
+belongs to no run. The same cap holds: the first three messages by one
+person in one London day email the admins (`adminsToldTodayIn` with no run,
+which only these messages have); the rest wait on the Requests page. A
+member may send five a London day, counted in the send's own transaction
+from the messages themselves. **The reply is transactional**: an admin's
+reply is stored on the message, closes it, and is emailed to the person
+through its own door (`src/lib/email/teamAskEmail.ts`, `kind: "team-reply"`),
+whatever their settings, with the reply and never their own message. It is
+not sent through Messages and is not listed in Sent. Taking a message emails
+nobody.
+
 **Joining online, to a group's facilitators, is transactional.** When
 somebody presses "Joining online" for a session on their programme page
 (`src/lib/courses/joiningOnline/seat.ts`), each of the group's facilitators

@@ -848,7 +848,7 @@ export async function readPointerProbe(page, { target }) {
  * THE FOOT OF A SIGNED-IN PAGE, and the page's own words without it.
  *
  * `AppShell` closes `<main>` with a `<footer>` of its own after the page
- * (one link, "Anonymous feedback"), so every signed-in page's `<main>` ends
+ * (two links, "Ask the team" and "Anonymous feedback"), so every signed-in page's `<main>` ends
  * with the same words whatever the page is. A spec that reads what a page
  * says "and nothing else" reads it through `pageOwnText`, which is the text
  * content of `<main>` with that last `<footer>` taken out and nothing else

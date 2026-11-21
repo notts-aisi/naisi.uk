@@ -779,6 +779,26 @@ const NOT_COVERED = {
       "Course hub: what Home's card for a member's next session can be told, the programme page's own server answers. tests/course-next-session-card.test.mjs executes it as the person, another member, a facilitator with no place, an admin and signed out, and draws Home's card and the programme page's from the same world and compares them. The browser specs that open Home as a member were changed with it and have not been run since.",
     coverWhen: "When a browser spec that signs in as a member and opens Home passes with this route answering its card.",
   },
+  "/api/courses/requests/ask": {
+    reason:
+      "Ask the team: a member sending the people running NAISI a message. tests/course-ask-the-team.test.mjs executes it as a member, an admin, signed out and waiting, with the daily limit of five, the topics offered, the 2,000 characters, a message that belongs to no programme and the admins' email only for an admin who switched it on, under its cap. No browser spec signs in as a member and sends one.",
+    coverWhen: "When a browser spec signs in as a member, opens Ask the team from the foot of a page, sends a message and reads it under Your requests.",
+  },
+  "/api/courses/requests/[requestId]/team/take": {
+    reason:
+      "Ask the team: an admin saying they are dealing with a message. tests/course-ask-the-team.test.mjs executes it as an admin, the sender, a lead and signed out. No browser spec takes one.",
+    coverWhen: "When a browser spec signs in as an admin and presses Take it on a message to the team.",
+  },
+  "/api/courses/requests/[requestId]/team/reply": {
+    reason:
+      "Ask the team: an admin replying to a message, which closes it and emails the person. tests/course-ask-the-team.test.mjs executes it as an admin, the sender, a lead and signed out, with the reply's rules, a second reply refused, the email's words and the reply then shown on the member's page. No browser spec replies to one.",
+    coverWhen: "When a browser spec signs in as an admin, replies to a message a member sent, and the member reads the reply on Ask the team.",
+  },
+  "/(app)/ask-the-team": {
+    reason:
+      "Ask the team, the member's page: tests/course-ask-the-team.test.mjs draws it as a member with no place, a member with a told place (the way to another session and to the programme page) and with their own messages waiting and replied. No browser spec opens it.",
+    coverWhen: "When a browser spec signs in as a member, opens Ask the team from the foot of a page, sends a message and reads it under Your requests.",
+  },
   "/api/courses/runs/[runId]/requests/visit": {
     reason:
       "Course hub: a member asking to go to another group's session in the week of their next session, from their own form. tests/course-visit-request.test.mjs executes it as the person, somebody with no place, a facilitator and signed out, with one request at a time, a full session, nothing to ask and the admins' email under its cap. No browser spec signs in as a member and asks.",
@@ -2328,7 +2348,7 @@ const NOT_COVERED = {
   },
   "/(app)/anonymous-feedback": {
     reason:
-      "The members' form; tests/society-feedback.test.mjs renders it with this term's programmes, the roles and its words, without asking who is reading, and without the pointer to Ask the team.",
+      "The members' form; tests/society-feedback.test.mjs renders it with this term's programmes, the roles and its words and the pointer to Ask the team, without asking who is reading.",
     coverWhen:
       "When a fixture can find the entry its member sent without anything naming the sender (a marker in the words, deleted by teardown from the waiting place), so a spec can sign a member in, open the form from the foot of Home, send it and read the thanks.",
   },

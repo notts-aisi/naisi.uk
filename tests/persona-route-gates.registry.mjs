@@ -2358,6 +2358,33 @@ export const ROUTES = {
         "checked. Its answer is { ok, status, replied, emailed }.",
     },
   },
+  "/api/courses/requests/ask": {
+    POST: {
+      expect: everyone(400, { anonymous: 401, pending: 403, rejected: 403 }),
+      why:
+        "Sending the team a message from Ask the team: view-as is refused first, then the session, then anybody " +
+        "without an approved account, then the body (a topic the form offers and the message) is checked before " +
+        "anything is read, so every approved persona meets the same 400 on an empty one. Only the caller's own " +
+        "messages today are read once a whole body arrives. Its answer is { ok, request }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/team/take": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Taking a message to the team: view-as first, then anybody but an admin is one 403 before anything is " +
+        "read, and an admin is told a missing message is missing. Its answer is { ok, handlingUid }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/team/reply": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Replying to a message to the team, which closes it and emails the person: view-as first, then anybody " +
+        "but an admin is one 403 before anything is read, and an admin is told a missing message is missing, " +
+        "before the reply is checked. Its answer is { ok, status, emailed }.",
+    },
+  },
   "/api/courses/runs/[runId]/requests/visit": {
     POST: {
       expect: signedIn(400),
@@ -5886,6 +5913,13 @@ export const PAGES = {
       "page, never a redirect that says which: the one that says it is not for them, the same page " +
       "everybody but the group's live facilitators, the programme's lead and admins is given once it " +
       "exists, and for an admin, whom the page admits to every group, the fixed one that says it can't be opened.",
+  },
+  "/(app)/ask-the-team": {
+    expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "The authed shell: a stranger is sent to sign in, a pending account to the waiting page and a rejected one " +
+      "home by the layout. Every approved account is drawn the form and its own messages, read by the session's " +
+      "uid alone, with the way to another session for somebody holding a told place this term.",
   },
   "/(app)/anonymous-feedback": {
     expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),

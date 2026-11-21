@@ -565,7 +565,16 @@ describe("4. the admins' page: from the next day, by day, by programme, read onl
     }
     assert.ok(!/nothing is kept/i.test(text));
 
-    assert.ok(!text.includes("Ask the team") && !text.includes("ask the team"), "the form points to Ask the team, which does not exist");
+    // The board's pointer to Ask the team, for somebody who would like an answer: a link, and nothing about the reader.
+    assert.ok(
+      text.includes(`${words.FORM_WORDS.intro} ${words.FORM_WORDS.answerBefore} ${words.FORM_WORDS.askTheTeam} ${words.FORM_WORDS.answerAfter}`),
+      `the form does not point to Ask the team: ${text}`,
+    );
+    assert.match(html, /<a href="\/ask-the-team"[^>]*>ask the team<\/a>/);
+    assert.equal(words.FORM_WORDS.answerBefore, "If you’d like an answer,");
+    assert.equal(words.FORM_WORDS.answerAfter, "instead.");
+    assert.equal(words.SENT_WORDS.answer, "If you’d like an answer, ask the team: you’ll get a reply.");
+    assert.equal(words.SENT_WORDS.askTheTeam, "Ask the team");
   });
 });
 

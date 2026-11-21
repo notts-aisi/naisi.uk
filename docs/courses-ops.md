@@ -4117,6 +4117,48 @@ people who decide it: the line now and whether it still says what was asked,
 the reason, who finished the register and when, what approving does (the
 line, the figures, nobody emailed), who has it and its history.
 
+Messages to the team are an admin's alone: their own section of the
+Requests page ("Something’s wrong, something else", `teamMessageRows`), their
+own page (`loadTeamMessagePage`, `TeamMessagePage`), their own count in
+Home's line ("Somebody has sent the team a message."), and a reply as their
+`replied` state, counted as done this week. A programme's lead the tree
+admits is sent no row and drawn the calm "That request isn't here" on the
+page. See "Ask the team" below.
+
+### Ask the team
+
+A signed-in member sends the people running NAISI a message from
+`/ask-the-team`, reached from the foot of every signed-in page (before
+Anonymous feedback), from "Need something?" on a learner's programme page and
+from the anonymous form's two pointers. Signed out there is nothing: the
+public footer already gives the society's address.
+
+- **The topics are only those whose flows exist.** "One week at another
+  session" is a link to that programme's own form
+  (`/learn/[runId]/another-session`), shown for a told learner's place on a
+  live run, with "Which programme?" first for somebody holding two; it
+  decides nothing. "Something’s wrong on the site" and "Something else" are
+  written here. Changing group for good, a week with no session and access
+  needs each add their own topic with their own flow.
+- **The record** (`src/lib/firestore/courseTeamAsks.ts`): one `courseRequests`
+  document of kind `team-message` with `runId: ""`, so it belongs to no
+  programme and no reader of a run or of another kind sees it; its own
+  status `replied`; the words up to 2,000 characters, shown as plain text;
+  `replies` a list, though one reply answers a message and closes it today.
+  It goes only with the account (`deleteCourseRequestsOf`).
+- **The send** (`POST /api/courses/requests/ask`, `{ topic, words }`): view-as
+  first, then signed out, then an approved account, then the body, then five a
+  London day counted from the messages themselves in the send's own
+  transaction (`askedByUid`, `askedOn`: two equalities, no declared index).
+- **Staff** (`POST /api/courses/requests/[requestId]/team/take` and
+  `/team/reply`): admins only, never their own message, one 403 for anybody
+  else before anything is read. A reply is one paragraph, no link, up to 600
+  characters, stored on the message and emailed (docs/notifications.md).
+- **The member's list** (`ownTeamMessages`, `askedByUid` alone): their own
+  messages, newest first, "Waiting" or "Replied" with the reply in quotes.
+  Requests about sessions and groups stay on the programme page, and the list
+  says so.
+
 ### A group's attendance across every week
 
 `loadGroupAttendance` (`src/lib/courses/groupAttendance/load.ts`), for the
