@@ -163,6 +163,11 @@ const READS_REQUESTS = new Map([
   ["src/lib/courses/teamAsk/openAccessNeeds.ts", "THE ONE OPENING: an admin's press, recorded in the transaction that hands the document to accessNeedsWordsOf"],
   ["src/lib/courses/teamAsk/own.ts", "the member's own list, through normalizeTeamMessage and normalizeAccessNeeds"],
   ["src/lib/courses/teamAsk/page.ts", "a message's and an access ask's row and page for admins, through their normalisers"],
+  ["src/lib/courses/moveRequest/ask.ts", "asking to change group writes the request; it reads the person's requests only through readChangeFacts, by their kinds' normalisers"],
+  ["src/lib/courses/moveRequest/decide.ts", "deciding a request to change group reads it through normalizeMoveRequest, and the run, place and groups through their own"],
+  ["src/lib/courses/moveRequest/facts.ts", "a person's requests on one run, through normalizeVisitRequest and normalizeMoveRequest, which answer null for an access ask"],
+  ["src/lib/courses/moveRequest/page.ts", "a request to change group as admins read it, through normalizeMoveRequest"],
+  ["src/lib/courses/moveRequest/standing.ts", "which requests to change group still stand, through normalizeMoveRequest, on one real run"],
   ["src/lib/courses/visit/plan.ts", "what approving a visit will do, reading requests through their kinds' normalisers"],
   ["src/lib/courses/visitRequest/ask.ts", "asking to go to another session writes the request; it reads none back whole"],
   ["src/lib/courses/visitRequest/decide.ts", "deciding a visit request, through normalizeVisitRequest handed in as `reader`"],
@@ -180,6 +185,7 @@ const HANDED_TO = new Map([
   ["normalizeCourseRequest", KIND_FIRST],
   ["normalizeExcusedRequest", KIND_FIRST],
   ["normalizeVisitRequest", KIND_FIRST],
+  ["normalizeMoveRequest", KIND_FIRST],
   ["normalizeTeamMessage", KIND_FIRST],
   ["normalizeAccessNeeds", "the access normaliser, which has no field for the words or the tick (point 2)"],
   ["normalizeTeamAsk", "a message's or an access ask's normaliser, one after the other; neither holds an access ask's words"],
@@ -195,6 +201,7 @@ const HANDED_TO = new Map([
   ["readDestroyMarker", "a run's destroy marker"],
   ["assertPassLeaseFree", "a run's document, checked for a destroy pass in progress"],
   ["excuseLineOf", "a register's document, for one person's line"],
+  ["onlineWordGone", "excused/decide.ts hands it a register's document, from courseAttendance, to take a joining-online word off"],
   ["notHeldIn", "a register's document, for whether a session was held"],
   ["accountNamesOf", "an account, from users, for a name"],
   ["firstNameOfUser", "an account, from users, for a first name"],
@@ -403,7 +410,7 @@ describe("every raw read of the requests collection", () => {
 const REQUEST_NORMALISERS = new Map([
   ["src/lib/firestore/courseRequests.ts", "register corrections"],
   ["src/lib/firestore/courseExcusedRequests.ts", "requests to be excused"],
-  ["src/lib/firestore/courseMemberRequests.ts", "requests to go to another session"],
+  ["src/lib/firestore/courseMemberRequests.ts", "requests to go to another session and to change group"],
   [NORMALISERS, "messages to the team and access asks (the access normaliser holds no words, point 2)"],
 ]);
 const WORDS_READER = "src/lib/firestore/courseAccessNeedsWords.ts";

@@ -61,6 +61,8 @@ const words = await w.loadTs(join("lib", "courses", "teamAsk", "words.ts"));
 const MemberText = (await w.loadTs(join("components", "ui", "MemberText.tsx"))).default;
 const { withAccessEvent } = await w.loadTs(join("lib", "firestore", "courseTeamAsks.ts"));
 const requestPage = (await w.loadTs(join("app", "(app)", "admin", "admissions", "requests", "[requestId]", "page.tsx"))).default;
+const changeGroupPage = (await w.loadTs(join("app", "(app)", "learn", "[runId]", "change-group", "page.tsx"))).default;
+const anotherSessionPage = (await w.loadTs(join("app", "(app)", "learn", "[runId]", "another-session", "page.tsx"))).default;
 const pageWords = await w.loadTs(join("lib", "courses", "registerCorrection", "pageWords.ts"));
 
 /** What a member writes, planted so a search can find it anywhere it should not be. */
@@ -536,6 +538,9 @@ describe("5. The words reach nothing but the opening's answer", () => {
       // roster, and the programme's overview.
       keep(`programme page as ${name}`, await w.draw(w.pages.home, who, { runId: RUN.agi }));
       keep(`my programmes as ${name}`, await w.draw(w.pages.programmes, who, {}));
+      // A member's own forms that list their requests on the run: changing group, and another session.
+      keep(`change group as ${name}`, await w.draw(changeGroupPage, who, { runId: RUN.agi }));
+      keep(`another session as ${name}`, await w.draw(anotherSessionPage, who, { runId: RUN.agi }));
       keep(`register as ${name}`, await call(who, w.routes.register.GET, { groupId: B }, { course: true }));
       keep(`roster as ${name}`, await call(who, w.routes.roster.GET, { groupId: B }, { course: true }));
       keep(`overview as ${name}`, await call(who, w.routes.overview.GET, { runId: RUN.agi }, { course: true }));
@@ -590,6 +595,9 @@ describe("5. The words reach nothing but the opening's answer", () => {
     const drawn = seen.filter(([where]) => where.startsWith("request page as zach"))[0][1];
     assert.ok(drawn.includes("Open what Chloe wrote"), "the admin's request page was not drawn, so its search is about nothing");
     assert.ok(seen.find(([where]) => where === "register as rahul")[1].includes("Chloe"), "the facilitator's register was not read, so its search is about nothing");
+    for (const page of ["change group as chloe", "another session as chloe"]) {
+      assert.ok(JSON.parse(seen.find(([where]) => where === page)[1]).html.length > 200, `${page} was not drawn, so its search is about nothing`);
+    }
     assert.ok(seen.length > 120);
     const leaks = seen.filter(([, text]) => text.includes("Qx7")).map(([where]) => where);
     assert.deepEqual(leaks, [], "the words reached somewhere other than the opening's answer");
