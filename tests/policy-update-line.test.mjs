@@ -147,8 +147,8 @@ describe("a week from a told version's date, on the real policy list", () => {
     assert.equal(from17, "2026-11-12");
     assert.equal(from18, "2026-11-13");
     assert.equal(from20, "2026-11-17");
-    // Provisional: set again to the day version 21 goes live.
-    assert.equal(from21, "2026-11-19");
+    // The day version 21 reaches the site.
+    assert.equal(from21, "2026-11-22");
   });
 
   test("every day from the day before version 17's date to the day after version 21's last: nothing, version 17's line, version 18's, version 20's, version 21's, nothing", () => {
@@ -183,9 +183,9 @@ describe("a week from a told version's date, on the real policy list", () => {
     assert.equal(told(end20, "00:00"), 21);
     assert.equal(last(end21), 21);
     assert.equal(told(end21, "00:00"), null);
-    // 25 November 2026 is the last day anybody is shown a line for these versions.
-    assert.equal(told("2026-11-25", "23:59"), 21);
-    assert.equal(told("2026-11-26", "00:00"), null);
+    // 28 November 2026 is the last day anybody is shown a line for these versions.
+    assert.equal(told("2026-11-28", "23:59"), 21);
+    assert.equal(told("2026-11-29", "00:00"), null);
   });
 
   test("version 19, which is not told on Home, neither shows a line of its own nor ends version 18's", () => {
@@ -553,7 +553,7 @@ describe("the browser suite reads the same rule", () => {
   // own files, in plain JavaScript; held here to the product's function, so the two cannot drift apart.
   test("which version's line is due: the fixture's answer is the product's, every day around the told weeks and either side of each midnight", async () => {
     const { policyLineAt } = await import("../scripts/e2e-fixtures/member-journey.mjs");
-    for (let day = "2026-11-10"; day <= "2026-11-28"; day = dayAt(day, 1)) {
+    for (let day = "2026-11-10"; day <= "2026-11-30"; day = dayAt(day, 1)) {
       for (const clock of ["00:00", "00:11", "12:00", "23:49", "23:59"]) {
         const at = londonAt(day, clock);
         assert.equal(policyLineAt(at).version, updateLine.policyUpdateLine(at)?.version ?? null, `${day} ${clock}`);
@@ -566,20 +566,20 @@ describe("the browser suite reads the same rule", () => {
   test("it holds Home to neither answer only within ten minutes of a midnight at which the answer changes", async () => {
     const { policyLineAt } = await import("../scripts/e2e-fixtures/member-journey.mjs");
     const settled = (day, clock) => policyLineAt(londonAt(day, clock)).settled;
-    // Version 21's week ends with 25 November.
-    assert.equal(settled("2026-11-25", "23:49"), true);
-    assert.equal(settled("2026-11-25", "23:51"), false);
-    assert.equal(settled("2026-11-26", "00:09"), false);
-    assert.equal(settled("2026-11-26", "00:11"), true);
+    // Version 21's week ends with 28 November.
+    assert.equal(settled("2026-11-28", "23:49"), true);
+    assert.equal(settled("2026-11-28", "23:51"), false);
+    assert.equal(settled("2026-11-29", "00:09"), false);
+    assert.equal(settled("2026-11-29", "00:11"), true);
     // Version 17's line gives way to version 18's at the start of 13 November.
     assert.equal(settled("2026-11-12", "23:55"), false);
     assert.equal(settled("2026-11-13", "00:05"), false);
     // Version 18's line gives way to version 20's at the start of 17 November.
     assert.equal(settled("2026-11-16", "23:55"), false);
     assert.equal(settled("2026-11-17", "00:05"), false);
-    // Version 20's line gives way to version 21's at the start of 19 November.
-    assert.equal(settled("2026-11-18", "23:55"), false);
-    assert.equal(settled("2026-11-19", "00:05"), false);
+    // Version 20's line gives way to version 21's at the start of 22 November.
+    assert.equal(settled("2026-11-21", "23:55"), false);
+    assert.equal(settled("2026-11-22", "00:05"), false);
     // A midnight inside a week changes nothing, and nor does the end of an earlier version's week inside a later one's.
     assert.equal(settled("2026-11-15", "23:59"), true);
     assert.equal(settled("2026-11-16", "00:00"), true);

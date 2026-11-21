@@ -286,9 +286,9 @@ describe("policy versions", () => {
   });
 
   test("privacy v21 is dated the day its words last changed", () => {
-    // Provisional: set again to the day v21 goes live, as v20's, v19's, v18's, v17's, v16's and v15's were.
+    // The day v21 reaches the site, as v20's, v19's, v18's, v17's, v16's and v15's were dated.
     const twentyOne = POLICIES.privacy.versions.find((v) => v.version === 21);
-    assert.equal(twentyOne?.lastUpdated, "19 November 2026");
+    assert.equal(twentyOne?.lastUpdated, "22 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 21).length, 1);
     const twenty = POLICIES.privacy.versions.find((v) => v.version === 20);
     assert.equal(twenty?.lastUpdated, "17 November 2026");
@@ -12399,7 +12399,7 @@ describe("v21 says the reminders before a session go to everybody due at it, and
       assert.equal(acceptance.needsPolicyAcceptance(stored), false, stored);
     }
     // It changes how information is used, so Home's one short line says the policy changed, for a week from its date.
-    assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 21), { version: 21, lastUpdated: "19 November 2026", toldOnHome: true });
+    assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 21), { version: 21, lastUpdated: "22 November 2026", toldOnHome: true });
     // The week, the words and the dismissal are run in tests/policy-update-line.test.mjs.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
   });
