@@ -37,7 +37,7 @@ export const DRAW_STEPS = [
   "the admin approves everybody who signs in on this journey",
   "the admin names the running course run on the programme's Settings tab and hands its people over",
   "the admin appoints a facilitator to the group",
-  "during the session the group page's card is about next week, and opens the draw on it",
+  "during the session the group page's card is about next week, pinned under the session card, and opens the draw on it",
   "the draw page is about next week, its Week picker lists every week that gives something out, and it says tonight's slips go in here",
   "the facilitator copies two people's slips in and saves, and the page says how many have theirs",
   "a member reads their pathway and case on that week's page, and nobody was emailed",

@@ -805,6 +805,7 @@ const READS_A_PROPERTY_CALLED_COURSE = new Map([
   ["src/features/courses/fetchCourses.ts", { of: "a course", why: "the server lookups those public pages are built from" }],
   ["src/features/courses/CourseDangerZone.tsx", { of: "a course", why: "the course an admin is archiving or destroying, handed in as a prop" }],
   ["src/features/courses/useDestroy.ts", { of: "a course", why: "a destroy's manifest, which names the course it is for" }],
+  ["src/lib/courses/drawCard/model.ts", { of: "a course", why: "the pathways and cases card's model: every week of the course as a group reads it (`readDrawWeeks`), handed in as `course`" }],
 ]);
 
 /**
