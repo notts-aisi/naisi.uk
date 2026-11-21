@@ -931,6 +931,7 @@ describe("5. This week's work: the pathway and case columns", () => {
         const name = w.world.db.read(`users/${uid}`).profile.preferredName;
         return { uid, firstName: name.split(" ")[0], name };
       }),
+      new Set(group.facilitatorUids),
     );
     const out = await w.lib.readers.weekWorkOf(w.world.courseDb, RUN.agi, week, people, viewer);
     return { packTitle: out.packTitle, cells: Object.fromEntries([...out.cells].map(([uid, cell]) => [uid, [cell.pack, cell.case]])) };
@@ -946,7 +947,7 @@ describe("5. This week's work: the pathway and case columns", () => {
     assert.deepEqual(facilitator.cells.kofi, [null, null]);
     // Nothing of a ready mark travels: a cell is a pack's name and a case's title.
     const week = await w.lib.readers.readGroupWeek(w.world.courseDb, RUN.agi, B, 3);
-    const chloe = { uid: "chloe", name: "Chloe Nguyen", firstName: "Chloe", facilitates: false };
+    const chloe = { uid: "chloe", name: "Chloe Nguyen", firstName: "Chloe", facilitates: false, ownWork: false };
     const out = await w.lib.readers.weekWorkOf(w.world.courseDb, RUN.agi, week, [chloe], { isAdmin: false, leadOf: null });
     assert.deepEqual(Object.keys(out.cells.get("chloe")).sort(), ["case", "pack"]);
   });

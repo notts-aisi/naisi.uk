@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { facilitatesOnRun } from "@/lib/courses/writtenAnswers/access";
 import { seesSessionLink } from "@/lib/courses/meetingLink/audience";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { londonDateKey, type CurrentWeek, type WeekPlanEntry } from "@/lib/courses/weekPlan";
@@ -1917,7 +1918,8 @@ export async function GET(
     weeks,
     weekSchedule,
     askToSwap,
-    askToSwapPicked: ownGroup && facilitates.some((group) => group.id === ownGroup.id) ? [] : askToSwap,
+    // A case that follows the pick of somebody who facilitates a live group of the run is named to nobody.
+    askToSwapPicked: ownGroup && facilitatesOnRun(actor.uid, groups) ? [] : askToSwap,
     programme: programme
       ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName }
       : null,

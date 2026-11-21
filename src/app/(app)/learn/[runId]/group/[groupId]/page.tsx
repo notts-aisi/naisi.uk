@@ -46,6 +46,7 @@ import { joiningOnlineBox } from "@/lib/courses/meetingLink/box";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { facilitatorExplainerOn } from "@/lib/courses/explainers/readers";
 import { drawPeople, readDrawWeeks } from "@/lib/courses/packsAndCases/readers";
+import { facilitatingOnRunOf } from "@/lib/courses/writtenAnswers/access";
 import { drawCardModel } from "@/lib/courses/drawCard/model";
 import type { GroupWeekWorkView } from "@/lib/courses/groupWeekWork/view";
 import { pairsCardWeek } from "@/lib/courses/pairs/cardWeek";
@@ -481,7 +482,7 @@ export default async function GroupHomePage({
   // who take part. The card says what is next on any course with a Choose
   // one or a Cases block; a facilitator of the group is named on it only to
   // themself and admins (this page does not admit the programme's lead).
-  const drawList = drawPeople(model.people, model.facilitators);
+  const drawList = drawPeople(model.people, model.facilitators, facilitatingOnRunOf(group, runGroups));
   const course = group.archived ? null : await readDrawWeeks(db, { run: access.run, group, people: drawList, now });
   const drawCard = course
     ? drawCardModel({ course, people: drawList, viewer: { uid: access.user.uid, isAdmin: access.isAdmin, lead: false }, now })

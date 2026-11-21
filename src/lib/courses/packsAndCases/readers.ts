@@ -13,6 +13,7 @@ import { programmeLedBy, type LedProgramme } from "@/lib/courses/programmeLead";
 import { resolveSessions, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { workClosesAt } from "@/lib/courses/weekWork/closes";
 import { isBlockWeek, type CasesBlock, type ChooseOneBlock, type WeekBlock } from "@/lib/courses/weekBlocks/model";
+import { facilitatingOnRunOf } from "@/lib/courses/writtenAnswers/access";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -50,9 +51,16 @@ import { chooseOnesOf, drawOf, findCase, findPack, hasDraw, keyingChooseOne, tal
  *    them.
  *  - THIS WEEK'S WORK, for the group page's table (`weekWorkOf`): each
  *    person's pack and case. A pack the person picked themselves is their own
- *    coursework, so a facilitator of the group who picked one is left blank
- *    for their co-facilitators and shown to the lead and admins, and so is
+ *    coursework, so somebody who facilitates and picked one is left blank
+ *    for the group's facilitators and shown to the lead and admins, and so is
  *    the case that follows it, which names it.
+ *
+ * WHOSE PICK IS A FACILITATOR'S OWN: anybody in the draw who facilitates a
+ * live group of the run, this one or another, holding a place here or not
+ * (`facilitatingOnRunOf`, the one answer every reader of a person's work
+ * asks, given to `drawPeople` as `ownWork`). `hidesOwnPick` is the one place
+ * that turns it into what a viewer is kept from, and every reader here asks
+ * it (`tests/course-draw-own-work.test.mjs`).
  *
  * "Ready for my talk" reaches no page but the person's own.
  *
@@ -169,6 +177,12 @@ export type DrawPerson = {
   firstName: string;
   /** A facilitator of the group, who takes part in it too. */
   facilitates: boolean;
+  /**
+   * Facilitates a live group of the run, this one or another
+   * (`facilitatingOnRunOf`): their own pick, and the case that follows it,
+   * are a facilitator's own work, read by the lead and admins only.
+   */
+  ownWork: boolean;
 };
 
 /**
@@ -182,24 +196,31 @@ export type DrawPerson = {
  * the committee, `name` is the full name ("Priya Shah (Pri)", the names
  * rule), whose first word is not the name they go by. A row with only a
  * name is named by the name people go by, so its first word is.
+ *
+ * `runFacilitators` is `facilitatingOnRunOf(group, liveGroups)`: whose work
+ * is a facilitator's own (`ownWork`). The group's own facilitators are among
+ * them whatever the set says.
  */
 export function drawPeople(
   people: ReadonlyArray<{ uid: string; name: string; firstName?: string }>,
   facilitators: readonly StandingFacilitator[],
+  runFacilitators: ReadonlySet<string>,
 ): DrawPerson[] {
   const byUid = new Map<string, DrawPerson>();
   const facilitating = new Set(facilitators.map((person) => person.uid));
   for (const person of people) {
+    const facilitates = facilitating.has(person.uid);
     byUid.set(person.uid, {
       uid: person.uid,
       name: person.name,
       firstName: person.firstName?.trim() || (person.name.trim().split(/\s+/)[0] ?? person.name),
-      facilitates: facilitating.has(person.uid),
+      facilitates,
+      ownWork: facilitates || runFacilitators.has(person.uid),
     });
   }
   for (const person of facilitators) {
     if (byUid.has(person.uid)) continue;
-    byUid.set(person.uid, { uid: person.uid, name: person.name, firstName: person.firstName, facilitates: true });
+    byUid.set(person.uid, { uid: person.uid, name: person.name, firstName: person.firstName, facilitates: true, ownWork: true });
   }
   return [...byUid.values()].sort((a, b) => a.name.localeCompare(b.name, "en-GB") || a.uid.localeCompare(b.uid));
 }
@@ -236,9 +257,11 @@ export function drawRosterOf(records: RunRecords, group: CourseGroupDoc, viewer:
     ? records
     : { ...records, groups: [...records.groups, { ...group, name: group.name.trim() || "Untitled group" }] };
   const listed = listGroups(withGroup, viewer, now, weeksOf(withGroup)).find((entry) => entry.group.id === group.id);
-  if (!listed) return { people: drawPeople([], facilitatorsOf(withGroup, group)), run: records.run, closesAt };
+  // Whose work is a facilitator's own: anybody who facilitates a live group of the run, this one or another.
+  const runFacilitators = facilitatingOnRunOf(group, records.groups);
+  if (!listed) return { people: drawPeople([], facilitatorsOf(withGroup, group), runFacilitators), run: records.run, closesAt };
   const taking = listed.people.filter(({ row }) => row.left === null).map(({ row }) => ({ uid: row.uid, name: row.name }));
-  return { people: drawPeople(taking, listed.facilitators), run: records.run, closesAt };
+  return { people: drawPeople(taking, listed.facilitators, runFacilitators), run: records.run, closesAt };
 }
 
 /** The group's people for the draw alone. Null when the run is gone or being destroyed. */
@@ -272,11 +295,12 @@ export async function seesFacilitatorsOwnWork(
 
 /**
  * Whether a person's own pick, and the case that follows it, are kept from
- * this viewer: a facilitator of the group, read by somebody who is not them
- * and does not read a facilitator's own work.
+ * this viewer: somebody who facilitates a live group of the run, this one or
+ * another (`ownWork`), read by somebody who is not them and does not read a
+ * facilitator's own work. The one place the draw decides it.
  */
 export function hidesOwnPick(person: DrawPerson, viewer: { uid: string; seesOwnWork: boolean }): boolean {
-  return person.facilitates && person.uid !== viewer.uid && !viewer.seesOwnWork;
+  return person.ownWork && person.uid !== viewer.uid && !viewer.seesOwnWork;
 }
 
 /** The talks of a week's draw whose cases follow a pack each person picks. */
@@ -568,9 +592,10 @@ export type WeekWorkCells = { pack: string | null; case: string | null };
  * column headers are the Choose one's title ("Pathway") and "Case".
  *
  * A pack the person PICKED (a Choose one they choose themselves) is their own
- * coursework: when they facilitate the group too, their co-facilitators get
- * an empty cell, and the lead and admins see it (`viewer.isAdmin` or
- * `viewer.leadOf`), and so does that facilitator themself (`viewer.uid`).
+ * coursework: when they facilitate a live group of the run, this one or
+ * another (`hidesOwnPick`), the group's facilitators get an empty cell, and
+ * the lead and admins see it (`viewer.isAdmin` or `viewer.leadOf`), and so
+ * does that person themself (`viewer.uid`).
  * The case that follows such a pick names it, so it is kept back with it. A
  * pack or case GIVEN OUT is the draw, seen by everybody the draw is shown to.
  */
@@ -587,6 +612,7 @@ export async function weekWorkOf(
   const pairs = people.flatMap((person) => blocks.map((block) => ({ uid: person.uid, blockId: block.id })));
   const records = pairs.length > 0 ? await readPackCaseRecords(db, runId, pairs) : new Map<string, CoursePackCaseDoc>();
   const seesOwnWork = viewer.isAdmin || viewer.leadOf !== null;
+  const reader = { uid: viewer.uid ?? "", seesOwnWork };
   // A case that follows a pick names the pick: kept back with it.
   const keyedByPick = talk ? keyingChooseOne(week.blocks, talk)?.givenBy === "fellow" : false;
   const cells = new Map<string, WeekWorkCells>();
@@ -594,11 +620,11 @@ export async function weekWorkOf(
     let pack: string | null = null;
     if (chooseOne) {
       const picked = chooseOne.givenBy === "fellow";
-      const hidden = picked && person.facilitates && person.uid !== viewer.uid && !seesOwnWork;
+      const hidden = picked && hidesOwnPick(person, reader);
       const found = hidden ? null : findPack(chooseOne, records.get(`${person.uid} ${chooseOne.id}`)?.packId ?? null);
       pack = found ? found.name : null;
     }
-    const caseHidden = keyedByPick && person.facilitates && person.uid !== viewer.uid && !seesOwnWork;
+    const caseHidden = keyedByPick && hidesOwnPick(person, reader);
     const given = talk && !caseHidden ? findCase(talk, records.get(`${person.uid} ${talk.id}`)?.caseId ?? null) : null;
     cells.set(person.uid, { pack, case: given ? given.item.title : null });
   }
