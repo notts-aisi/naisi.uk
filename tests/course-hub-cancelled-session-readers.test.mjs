@@ -174,6 +174,18 @@ const READERS = {
       "that have started and were not called off through Change a session are read for a register that says it did " +
       "not happen; the week rule reads a called-off session as no meeting by its own flag, and a not-held one the same way",
   },
+  "lib/courses/visitRequest/own.ts": {
+    kind: "asks",
+    proof: [
+      "return data ? !normalizeCourseAttendance(id, data).held : false;",
+      'each.dateKey !== "" && !each.cancelled',
+    ],
+    why:
+      "a person's own request to go to another session: the host register's held is read only to tell the one rule " +
+      "(`visitRequestStandingOf`, which asks the host session's own `cancelled` first) that the session did not happen, " +
+      "so the card says the request can't go ahead; a declined message lasts until their own session that week ends, " +
+      "and a session of theirs called off through Change a session is none",
+  },
   "lib/courses/visit/card.ts": {
     kind: "asks",
     proof: [

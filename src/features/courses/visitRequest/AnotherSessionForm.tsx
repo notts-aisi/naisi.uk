@@ -61,7 +61,7 @@ export default function AnotherSessionForm({
   // Said once, in the form's place: the programme page, read again, shows the request waiting.
   if (sent) {
     return (
-      <p className={excuse.line} role="status" data-testid="another-session-sent">
+      <p className={excuse.line} role="status">
         {SENT_DECIDED}
       </p>
     );
@@ -74,7 +74,7 @@ export default function AnotherSessionForm({
         event.preventDefault();
         void send();
       }}
-      data-testid="another-session-form"
+     
     >
       <p className={excuse.line}>{form.intro}</p>
       <fieldset className={styles.choices}>
@@ -120,7 +120,7 @@ export default function AnotherSessionForm({
         />
       </label>
       <div className={styles.actions}>
-        <button type="submit" className={excuse.primary} disabled={!hydrated || locked || busy || form.noneWithAPlace} data-testid="another-session-send">
+        <button type="submit" className={excuse.primary} disabled={!hydrated || locked || busy || form.noneWithAPlace}>
           {busy ? O.SENDING : SEND_THE_REQUEST}
         </button>
       </div>

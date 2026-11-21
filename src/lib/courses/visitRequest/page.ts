@@ -280,7 +280,7 @@ export async function loadVisitRequestPage(db: Firestore, actor: SessionUser, re
       reason: request.reason,
       asksFor,
       movedSince: moved && hostNow ? movedSinceWords(host?.name ?? "", { dateKey: hostNow.dateKey, startTimeLocal: hostNow.session.startTimeLocal }, personFirstName) : null,
-      closed: standing.state === "closed" ? closedStaffWords(standing.closedAt) : standing.state === "gone" ? goneStaffWords(personFirstName) : null,
+      closed: standing.state === "closed" ? closedStaffWords(standing.lapse) : standing.state === "gone" ? goneStaffWords(personFirstName) : null,
       approving,
       replies: request.replies.map((reply) => ({ text: reply.text, by: named(reply.byUid), at: reply.at.toISOString() })),
       reply: request.reply,

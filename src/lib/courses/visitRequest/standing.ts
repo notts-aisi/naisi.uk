@@ -64,12 +64,10 @@ export type VisitRequestStanding =
       /** The host's session that week as it is now; null with none. */
       hostSession: ResolvedSession | null;
       ownSession: ResolvedSession | null;
-      /** When it closes by itself: the earlier of the two starts. */
-      closesAt: Date | null;
       /** The host's session that week is not happening: it can't go ahead. */
       cantGoAhead: boolean;
     }
-  | { state: "closed"; closedAt: SessionWhen | null }
+  | { state: "closed"; lapse: SessionWhen | null }
   | { state: "gone" }
   | { state: "approved" | "declined" | "withdrawn" };
 
@@ -114,9 +112,9 @@ export function visitRequestStandingOf(input: {
   // The visit's own rule: until the earlier of the two sessions starts. A
   // host session that is not happening is no session to go by.
   const deadline = cancelDeadline({ host: host ?? home, hostSession: hostHappening ? hostSession : null, home, ownSession });
-  if (deadline.until === null) return { state: "closed", closedAt: null };
-  if (now.getTime() >= deadline.until.getTime()) return { state: "closed", closedAt: deadline.first ? whenOf(deadline.first.session) : null };
-  return { state: "waiting", home, host, hostSession, ownSession, closesAt: deadline.until, cantGoAhead: !hostHappening };
+  if (deadline.until === null) return { state: "closed", lapse: null };
+  if (now.getTime() >= deadline.until.getTime()) return { state: "closed", lapse: deadline.first ? whenOf(deadline.first.session) : null };
+  return { state: "waiting", home, host, hostSession, ownSession, cantGoAhead: !hostHappening };
 }
 
 /** Whether a request still waits for a decision, live: stored waiting, and neither closed by itself nor gone. */

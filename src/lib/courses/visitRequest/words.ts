@@ -164,14 +164,14 @@ export function rowLineWords(input: {
   askedAt: Date | null;
   now: Date;
   /** For a request closed by itself: when the earlier session started. */
-  closedAt: { dateKey: string; startTimeLocal: string } | null;
+  lapse: { dateKey: string; startTimeLocal: string } | null;
 }): string {
   const who = line(input.by) || "an admin";
   switch (input.state) {
     case "waiting":
       return input.askedAt ? `Sent ${dayAndClock(input.askedAt)}` : ROW_CHIP.waiting;
     case "closed": {
-      const when = input.closedAt ? sessionWhenWords(input.closedAt.dateKey, input.closedAt.startTimeLocal) : "";
+      const when = input.lapse ? sessionWhenWords(input.lapse.dateKey, input.lapse.startTimeLocal) : "";
       return when ? `Not decided before ${when}` : "Not decided in time";
     }
     case "withdrawn":
@@ -220,8 +220,8 @@ export function movedSinceWords(hostName: string, now: { dateKey: string; startT
 }
 
 /** A request nobody decided before the earlier session started, on its page and from the routes. */
-export function closedStaffWords(closedAt: { dateKey: string; startTimeLocal: string } | null): string {
-  const when = closedAt ? sessionWhenWords(closedAt.dateKey, closedAt.startTimeLocal) : "";
+export function closedStaffWords(lapse: { dateKey: string; startTimeLocal: string } | null): string {
+  const when = lapse ? sessionWhenWords(lapse.dateKey, lapse.startTimeLocal) : "";
   return `Nobody decided this before ${when || "the session"}, so it closed by itself. Nobody was emailed.`;
 }
 

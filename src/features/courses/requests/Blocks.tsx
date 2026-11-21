@@ -27,14 +27,14 @@ export function HandlingBlock({
   onTake: () => void;
 }) {
   return (
-    <section className={styles.card} aria-labelledby="request-handling" data-testid="request-handling">
+    <section className={styles.card} aria-labelledby="request-handling">
       <h2 id="request-handling" className={styles.cardTitle}>
         {title}
       </h2>
       <p className={styles.line}>{`${P.handlingWords(handling, mine)}.`}</p>
       {canTake && (
         <div className={styles.actions}>
-          <Button variant="secondary" onClick={onTake} disabled={busy} data-testid="request-take">
+          <Button variant="secondary" onClick={onTake} disabled={busy}>
             {P.TAKE_IT}
           </Button>
         </div>

@@ -153,7 +153,7 @@ export default function RequestsList({ view, emailMe = null }: { view: RequestsP
       </div>
 
       {anyVisits && (
-        <section className={styles.card} aria-labelledby="requests-visits" data-testid="requests-visits">
+        <section className={styles.card} aria-labelledby="requests-visits">
           <h2 id="requests-visits" className={styles.cardTitle}>
             {V.MOVES_AND_VISITS}
           </h2>

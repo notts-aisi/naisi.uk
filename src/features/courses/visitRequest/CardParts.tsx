@@ -36,7 +36,7 @@ export function GoToAnotherSession({ runId, locked = false }: { runId: string; l
     );
   }
   return (
-    <Link className={styles.goLink} href={`/learn/${encodeURIComponent(runId)}/another-session`} data-testid="another-session-open">
+    <Link className={styles.goLink} href={`/learn/${encodeURIComponent(runId)}/another-session`}>
       {GO_TO_ANOTHER_SESSION}
     </Link>
   );
@@ -74,7 +74,7 @@ export function VisitRequestWaiting({ waiting, locked = false }: { waiting: NonN
     );
   }
   return (
-    <div className={excuse.state} data-state="visit-waiting" data-testid="visit-request-waiting">
+    <div className={excuse.state} data-state="visit-waiting">
       <div className={styles.headRow}>
         <span className={`${excuse.chip} ${excuse.chipWaiting}`}>{WAITING}</span>
         <span className={excuse.small}>{waiting.sent}</span>
@@ -82,7 +82,7 @@ export function VisitRequestWaiting({ waiting, locked = false }: { waiting: NonN
       <p className={excuse.line}>{waiting.line}</p>
       {waiting.reply && <p className={excuse.small}>{waiting.reply}</p>}
       <div className={excuse.withdraw}>
-        <button type="button" className={excuse.secondary} onClick={() => void press()} disabled={!hydrated || locked || busy} data-testid="visit-request-withdraw">
+        <button type="button" className={excuse.secondary} onClick={() => void press()} disabled={!hydrated || locked || busy}>
           {busy ? O.WITHDRAWING : O.WITHDRAW_THE_REQUEST}
         </button>
         <p className={excuse.problem} role="status">
@@ -118,7 +118,7 @@ export function VisitRequestDeclined({ declined, locked = false, className }: { 
   if (gone) return null;
   return (
     <div className={className}>
-      <section className={styles.message} data-testid="visit-request-declined">
+      <section className={styles.message}>
         <p className={excuse.line}>{declined.line}</p>
         <button type="button" className={excuse.secondary} onClick={() => void press()} disabled={!hydrated || locked || busy}>
           {DISMISS}

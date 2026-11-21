@@ -153,7 +153,7 @@ async function firstNameOf(db: Firestore, uid: string): Promise<{ firstName: str
 /** Refuses anything but a request still waiting, live: decided, withdrawn, closed by itself, or gone with the place. */
 function stillWaiting(request: VisitRequestDoc, standing: VisitRequestStanding, personFirstName: string): void {
   if (request.status !== "waiting") throw new Refused(409, notWaitingWords(request.status));
-  if (standing.state === "closed") throw new Refused(409, closedStaffWords(standing.closedAt));
+  if (standing.state === "closed") throw new Refused(409, closedStaffWords(standing.lapse));
   if (standing.state === "gone") throw new Refused(409, goneStaffWords(personFirstName));
 }
 

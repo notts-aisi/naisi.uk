@@ -99,7 +99,7 @@ export default function VisitRequestPage({ view }: { view: VisitRequestPageView 
 
       <div className={styles.columns}>
         <div className={styles.main}>
-          <section className={styles.card} aria-labelledby="visit-person" data-testid="visit-request-person">
+          <section className={styles.card} aria-labelledby="visit-person">
             <h2 id="visit-person" className={styles.cardTitle}>
               {view.subject.name}
             </h2>
@@ -169,19 +169,19 @@ export default function VisitRequestPage({ view }: { view: VisitRequestPageView 
                   rows={3}
                   onChange={(event) => setReply(event.target.value.replace(/[\r\n]+/g, " "))}
                   disabled={off}
-                  data-testid="visit-request-reply-text"
+                 
                 />
               </label>
               <div className={styles.actions}>
                 {approving?.ok && (
-                  <Button onClick={() => void act("approve")} disabled={off} data-testid="visit-request-approve">
+                  <Button onClick={() => void act("approve")} disabled={off}>
                     {busy === "approve" ? R.SAVING : approving.button}
                   </Button>
                 )}
-                <Button variant="secondary" onClick={() => void act("decline")} disabled={off || !reply.trim()} data-testid="visit-request-decline">
+                <Button variant="secondary" onClick={() => void act("decline")} disabled={off || !reply.trim()}>
                   {busy === "decline" ? R.SAVING : V.DECLINE_AND_SEND_THE_REPLY}
                 </Button>
-                <Button variant="secondary" onClick={() => void act("reply")} disabled={off || !reply.trim()} data-testid="visit-request-reply">
+                <Button variant="secondary" onClick={() => void act("reply")} disabled={off || !reply.trim()}>
                   {busy === "reply" ? R.SAVING : REPLY_WITHOUT_DECIDING}
                 </Button>
               </div>

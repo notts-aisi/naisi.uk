@@ -71,7 +71,7 @@ export default async function AnotherSessionPage({ params }: { params: Promise<{
           ) : waiting ? (
             <VisitRequestWaiting waiting={waiting} locked={locked} />
           ) : (
-            <p className={`${styles.text} ${styles.lede}`} data-testid="another-session-nothing">
+            <p className={`${styles.text} ${styles.lede}`}>
               {ASK_REFUSAL.nothingToAsk}
             </p>
           )}

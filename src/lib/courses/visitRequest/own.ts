@@ -152,7 +152,7 @@ export function ownRowsOf(
           at: state === "withdrawn" ? request.withdrawnAt : request.decidedAt,
           askedAt: request.askedAt,
           now,
-          closedAt: standing.state === "closed" ? standing.closedAt : null,
+          lapse: standing.state === "closed" ? standing.lapse : null,
         }),
         state,
         reply,
