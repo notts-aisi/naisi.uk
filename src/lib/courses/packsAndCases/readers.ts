@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { resolveGroupCalendar, resolveWeekDoc, resolveWeekDocs } from "@/lib/courses/groupResolve";
+import { resolveGroupCalendar, resolveWeekDoc, resolveWeekDocs, type ResolvedWeekEntry } from "@/lib/courses/groupResolve";
 import {
   facilitatorsOf,
   listGroups,
@@ -225,7 +225,11 @@ export async function readDrawRoster(
   return drawRosterOf(records, group, viewer, now);
 }
 
-/** The same, from the run's records a caller has read already (the programme's Overview). */
+/**
+ * The same, from the run's records a caller has read already (the programme's
+ * Overview): the pathways and cases page's people, which the group page's card
+ * counts too, for every reader either admits.
+ */
 export function drawRosterOf(records: RunRecords, group: CourseGroupDoc, viewer: { isAdmin: boolean }, now: Date): DrawRoster {
   const closesAt = workClosesAt(records.run, records.groups);
   const withGroup = records.groups.some((candidate) => candidate.id === group.id)
@@ -345,9 +349,39 @@ export async function readDrawWeeks(
   input: { run: CourseRunDoc; group: CourseGroupDoc; people: readonly DrawPerson[]; now: Date },
 ): Promise<DrawWeeks> {
   const { run, group, people, now } = input;
+  const course = drawWeeksFrom({ run, group, entries: await resolveWeekDocs(db, run.id, group.id), now });
+  const { sessions, weeks } = course;
+  const givingWeeks = course.giving.map((week) => week.weekNumber);
+  // Once to learn which weeks decide it (`drawWeeksFrom`), then with whether everybody has theirs in each.
+  const read = await Promise.all(
+    course.rule.toRead.map(async (n) => {
+      const week = weeks.get(n) as GroupWeek;
+      return [n, await readDrawState(db, run.id, week, people)] as const;
+    }),
+  );
+  const states = new Map<number, DrawState>(read);
+  const everybodyHas = new Map(read.map(([n, state]) => [n, everybodyHasTheirs(weeks.get(n) as GroupWeek, people, state)]));
+  const rule = drawWeekRule({ sessions, givingWeeks, now, everybodyHas });
+  return { ...course, rule, states };
+}
+
+/**
+ * The same with nothing read: every week of the course as the group reads it,
+ * from the week entries a caller has read already (`resolveWeekDocs`), with
+ * the rule asked once, nobody's draw read (`states` empty) and so nobody
+ * known to have theirs. For the programme's Overview, which reads the run's
+ * weeks once for all its groups, and then reads only the draw it needs.
+ */
+export function drawWeeksFrom(input: {
+  run: CourseRunDoc;
+  group: CourseGroupDoc;
+  entries: readonly ResolvedWeekEntry[];
+  now: Date;
+}): DrawWeeks {
+  const { run, group, entries, now } = input;
   const sessions = resolveSessions(run, group, resolveGroupCalendar(run, group, now).calendar);
   const weeks = new Map<number, GroupWeek>();
-  for (const entry of await resolveWeekDocs(db, run.id, group.id)) {
+  for (const entry of entries) {
     const match = WEEK_ID.exec(entry.week.id);
     const weekNumber = match ? Number(match[1]) : 0;
     if (weekNumber < 1 || !isBlockWeek(entry.week)) continue;
@@ -363,17 +397,7 @@ export async function readDrawWeeks(
   const taught = planned.length > 0 ? planned : [...weeks.keys()].sort((a, b) => a - b);
   const giving = taught.map((n) => weeks.get(n)).filter((week): week is GroupWeek => Boolean(week && hasDraw(week.draw)));
   const givingWeeks = giving.map((week) => week.weekNumber);
-  // Once to learn which weeks decide it, then with whether everybody has theirs in each.
   const first = drawWeekRule({ sessions, givingWeeks, now });
-  const read = await Promise.all(
-    first.toRead.map(async (n) => {
-      const week = weeks.get(n) as GroupWeek;
-      return [n, await readDrawState(db, run.id, week, people)] as const;
-    }),
-  );
-  const states = new Map<number, DrawState>(read);
-  const everybodyHas = new Map(read.map(([n, state]) => [n, everybodyHasTheirs(weeks.get(n) as GroupWeek, people, state)]));
-  const rule = drawWeekRule({ sessions, givingWeeks, now, everybodyHas });
   const range = sessionRange(sessions, now);
   return {
     sessions,
@@ -382,8 +406,8 @@ export async function readDrawWeeks(
     weeks,
     taught,
     giving,
-    rule,
-    states,
+    rule: first,
+    states: new Map(),
   };
 }
 

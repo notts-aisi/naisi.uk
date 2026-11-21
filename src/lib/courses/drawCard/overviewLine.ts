@@ -1,10 +1,9 @@
 import { drawWeekRule, type DrawWeekFacts } from "../packsAndCases/drawWeek";
 import type { DrawPerson, DrawWeeks } from "../packsAndCases/readers";
-import { joinNames } from "../packsAndCases/words";
+import { joinNames, pickWord } from "../packsAndCases/words";
 import type { ResolvedSession } from "../sessions";
 import { handOutOf } from "../weekWork/handOut";
-import { givenOutOf, waitingOf, type WaitingPart } from "../weekWork/waiting";
-import { wordOf } from "../weekWork/waitingWords";
+import { waitingOf, type WaitingPart } from "../weekWork/waiting";
 import { COPY_IN_THE_SLIPS } from "./words";
 
 /**
@@ -21,8 +20,9 @@ import { COPY_IN_THE_SLIPS } from "./words";
  *  - THE SESSION is the rule's hand-out session, and whether it has ended is
  *    the member's own week page's answer (`handOutOf`), so a session called
  *    off names the one held before it, and week 1 has none;
- *  - THE PEOPLE are the people the card counts (`drawRosterOf`, the card's
- *    roster reader, from the records the Overview read);
+ *  - THE PEOPLE are the pathways and cases page's (`drawRosterOf`, the page's
+ *    roster reader, from the records the Overview read), whom the group
+ *    page's card counts too, for every reader either admits;
  *  - "HAS NOT GOT THEIRS" is the Waiting piece's one decision (`waitingOf`):
  *    a part the facilitator gives out that they have not got. It agrees with
  *    the card's draw (`everybodyHasTheirs`) on every pack and case given out,
@@ -59,11 +59,11 @@ export function mayBeAfterHandOut(sessions: readonly ResolvedSession[], now: Dat
 
 /**
  * From the course's weeks as the group reads them, before any slip is read:
- * whether one of the weeks the rule would read is past its hand-out session.
- * No: no slip is read for the group.
+ * the weeks the rule would read (`toRead`) whose hand-out session has ended,
+ * the only weeks a line can be about. None: no slip is read for the group.
  */
-export function slipsMayBeWaiting(dates: DrawWeeks, now: Date): boolean {
-  return dates.rule.toRead.some((n) => {
+export function pastHandOutToRead(dates: DrawWeeks, now: Date): number[] {
+  return dates.rule.toRead.filter((n) => {
     const facts = dates.rule.facts.get(n);
     return facts !== undefined && pastItsHandOut(dates.sessions, facts, now);
   });
@@ -105,16 +105,20 @@ export function slipsWaitingOf(input: { weeks: DrawWeeks; people: readonly DrawP
     })
     .filter((parts) => parts.length > 0);
   if (waiting.length === 0) return null;
-  const given = givenOutOf(week.blocks);
-  const order = [...given.packs.map((pack) => wordOf({ kind: "pack", word: pack.word })), "case"];
-  const said = waiting.map((parts) => new Set(parts.map(wordOf)));
+  // Each Choose one by the word the pathways and cases page calls it by (`pickWord`): its title when that is one
+  // plain word, "pathway" otherwise, so a title written as a phrase never lands inside the sentence.
+  const packWords = new Map(week.draw.packs.map((chooseOne) => [chooseOne.id, pickWord(chooseOne.title)]));
+  const wordOfPart = (part: WaitingPart) => (part.kind === "case" ? "case" : (packWords.get(part.id) ?? "pathway"));
+  const order = [...week.draw.packs.map((chooseOne) => packWords.get(chooseOne.id) ?? "pathway"), "case"];
+  const said = waiting.map((parts) => new Set(parts.map(wordOfPart)));
   const things = [...new Set(order)].filter((word) => said.some((words) => words.has(word)));
   return { weekNumber: n, people: waiting, things, every: said.every((words) => things.every((word) => words.has(word))) };
 }
 
 /**
  * "Group C: 2 people are waiting for week 3’s case." (the owner's sentence),
- * "1 person is waiting", the week's own word for a pack ("pathway", "plan"),
+ * "1 person is waiting", the week's own word for a pack as the pathways and
+ * cases page says it ("pathway", "plan"; "pathway" for a title that is a phrase),
  * "pathway and case" when everybody waiting waits for both, and "pathway or
  * case" when some wait for one and some for the other.
  */

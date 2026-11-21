@@ -13,13 +13,18 @@
  *     has theirs (gone), once the week's session starts (gone); a hand-out
  *     session called off; week 1; a pathway each person picks, not picked
  *     (not counted) and picked with no case (counted); one person and
- *     several; pathway, case and both; two groups at once; and the way to
+ *     several; pathway, plan, case and both, and a title that is a phrase or
+ *     starts with capitals; two groups at once; and the way to
  *     the group's pathways and cases page on the rule's week, which is the
  *     week the group page's card opens it on.
- *  2. THE READS: nothing read for a group between sessions of a week that
- *     gives nothing out but the course's weeks, nothing at all for a group in
- *     its session, the draw only for a group past a hand-out session, and a
- *     read that fails for one group leaving the other's line and the page.
+ *  2. THE READS: the run's weeks once for the whole view, each group's own
+ *     copies only for a group between sessions, nothing for a group in its
+ *     session, the draw only of a week past its hand-out session, a group's
+ *     own copy that gives out what the run's week does not, and a read that
+ *     fails for one group leaving the other's line and the page. A course
+ *     that gives nothing out, and a week where everybody has theirs, draw
+ *     Needs attention and the page exactly as with the slips read answering
+ *     nothing.
  *  3. WHO: the lead and an admin, each counting the people the card counts
  *     for them; a reviewer, the lead of another programme and everybody else
  *     refused as before, with nothing of the draw read.
@@ -36,7 +41,7 @@ import { join } from "node:path";
 import { describe, mock, test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { A, AGI, ROUND } from "./lib/hubAttendanceWorld.mjs";
-import { B, C, NOW, RUN, W2, W3, blockWeekDoc, makePacksAndCasesWorld, packsSeed, textOf, weekBlocksFor } from "./lib/packsAndCasesWorld.mjs";
+import { B, C, D, NOW, RUN, W2, W3, blockWeekDoc, makePacksAndCasesWorld, packsSeed, textOf, weekBlocksFor } from "./lib/packsAndCasesWorld.mjs";
 
 const w = await makePacksAndCasesWorld("__overviewSlips");
 const PROGRAMME = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)");
@@ -214,6 +219,11 @@ describe("1. the line, from the end of the session that hands the slips out to t
     assert.equal(lineFor((await overview("claudia")).model, "Group B"), "Group B: 5 people are waiting for week 3’s pathway.");
     w.reset(packsSeed(weekThree({ "w3-co-1": { title: "Plan" }, "w3-cs-1": { givenBy: "fellow" } })));
     assert.equal(lineFor((await overview("claudia")).model, "Group B"), "Group B: 5 people are waiting for week 3’s plan.");
+    // A title written as a phrase, or one that starts with capitals, is called a pathway, as the pathways and cases page calls it.
+    for (const title of ["One career review that fits you", "AI pathway"]) {
+      w.reset(packsSeed(weekThree({ "w3-co-1": { title } })));
+      assert.equal(lineFor((await overview("claudia")).model, "Group B"), "Group B: 5 people are waiting for week 3’s pathway and case.", title);
+    }
     // A pathway and a case: some wait for both, one for the case alone.
     w.reset(packsSeed(weekThree({ "w3-co-1": { title: "Pathway" } })));
     assert.equal(lineFor((await overview("claudia")).model, "Group B"), "Group B: 5 people are waiting for week 3’s pathway and case.");
@@ -289,6 +299,7 @@ describe("2. what the line reads", () => {
   const DRAW_BLOCK = new RegExp(`__(?:${W3.given}|${W3.caseStudy})$`);
   const draws = (log) => log.filter((entry) => Array.isArray(entry) && entry.length > 0 && entry.every((path) => path.startsWith("coursePacksAndCases/") && DRAW_BLOCK.test(path)));
   const queries = (log) => log.filter((entry) => typeof entry === "string" && entry.startsWith("query "));
+  const runWeekQueries = (log) => queries(log).filter((entry) => entry === `query courseRuns/${RUN.agi}/weeks`).length;
   const weekQueries = (log, groupId) => queries(log).filter((entry) => entry === `query courseGroups/${groupId}/weeks`).length;
 
   test("in a hand-out week: the course's weeks for each group between sessions, and the draw only for the groups past a hand-out session", async () => {
@@ -297,9 +308,10 @@ describe("2. what the line reads", () => {
     // Groups B and C are past the session that hands week 3's slips out: one read each of their people's draw, by id.
     const people = draws(log).map((batch) => [...new Set(batch.map((path) => path.split("__").at(-2)))].sort());
     assert.deepEqual(people, [["chloe", "farah", "kofi", "rahul", "sofia"], ["hamza", "tom"]]);
-    // Every group between sessions: the course's weeks, the run's and the group's own copies, once each.
-    for (const groupId of [A, B, C]) assert.equal(weekQueries(log, groupId), 1, groupId);
-    assert.equal(queries(log).filter((entry) => entry === `query courseRuns/${RUN.agi}/weeks`).length, 4);
+    // The run's weeks once for the four groups, and each group's own copies once (all four are between sessions).
+    assert.equal(runWeekQueries(log), 1);
+    for (const groupId of [A, B, C, D]) assert.equal(weekQueries(log, groupId), 1, groupId);
+    assert.equal(queries(log).length, 5);
   });
 
   test("in any other week: the course's weeks for each group between sessions and no slip; nothing at all for a group in its session", async () => {
@@ -311,8 +323,9 @@ describe("2. what the line reads", () => {
     assert.deepEqual(slipsOf(model), []);
     assert.ok(model.sessions.some((session) => session.groupId === A && session.state === "today"));
     assert.equal(weekQueries(log, A), 0);
-    for (const groupId of [B, C]) assert.equal(weekQueries(log, groupId), 1, groupId);
-    assert.equal(queries(log).filter((entry) => entry === `query courseRuns/${RUN.agi}/weeks`).length, 3);
+    assert.equal(runWeekQueries(log), 1);
+    for (const groupId of [B, C, D]) assert.equal(weekQueries(log, groupId), 1, groupId);
+    assert.equal(queries(log).length, 4);
   });
 
   test("a read that fails for one group draws no line for it, logs, and leaves the other's line and the page whole", async () => {
@@ -328,21 +341,75 @@ describe("2. what the line reads", () => {
     }
   });
 
-  test("a course that gives nothing out reads no slip and says nothing, and nor does a week where everybody has theirs", async () => {
+  test("a group's own copy of a week is read over the run's weeks read once, and can give out what the run's week does not", async () => {
+    const { resolveWeekDocs } = await w.loadTs(join("lib", "courses", "groupResolve.ts"));
+    const legacy = (n) => ({ weekNumber: n, title: `Week ${n} readings`, summary: "", published: true });
+    // The run's weeks give nothing out; Group B's own copy of week 3 gives out a pack and a case.
+    w.reset(
+      packsSeed({
+        [`courseRuns/${RUN.agi}/weeks/w02`]: legacy(2),
+        [`courseRuns/${RUN.agi}/weeks/w03`]: legacy(3),
+        [`courseGroups/${B}/weeks/w03`]: { ...blockWeekDoc(3, "How sure are you, again?", weekBlocksFor("w3")), forkedByUid: "claudia" },
+      }),
+    );
+    // Handed the run's weeks, the resolver answers as it does reading them itself, and queries only the group's copies.
+    const runWeeks = await resolveWeekDocs(w.world.db, RUN.agi, null);
+    const { result, log } = await watched(() => resolveWeekDocs(w.world.db, RUN.agi, B, { runWeeks }));
+    assert.deepEqual(result, await resolveWeekDocs(w.world.db, RUN.agi, B));
+    assert.deepEqual(log.filter((entry) => typeof entry === "string" && entry.startsWith("query ")), [`query courseGroups/${B}/weeks`]);
+    const drawn = await overview("claudia");
+    assert.deepEqual(slipsOf(drawn.model).map((item) => item.title), ["Group B: 5 people are waiting for week 3’s pack and case."]);
+  });
+
+  test("in a hand-out week, only the weeks past their hand-out session have their draw read", async () => {
+    // Weeks 2, 3 and 4 give something out. At noon on Tue 17 Nov Group B's rule reads weeks 3 and 4; only week 3's
+    // hand-out session (Tue 10 Nov) is over, so week 4's draw is not read for Group B. Group A met in week 3 on
+    // Thu 12 Nov, so its week 4 is past its hand-out session, and is read.
+    w.reset(packsSeed({ [`courseRuns/${RUN.agi}/weeks/w04`]: blockWeekDoc(4, "Who decides, again?", weekBlocksFor("w4")) }));
+    const { log, model } = await overview("claudia");
+    const batches = log.filter((entry) => Array.isArray(entry) && entry.length > 0 && entry.every((path) => path.startsWith("coursePacksAndCases/")));
+    const ofB = batches.filter((batch) => batch.some((path) => path.includes("__chloe__")) && batch.every((path) => DRAW_BLOCK.test(path) || /__w4-(?:co-1|cs-1)$/.test(path)));
+    assert.equal(ofB.length, 1);
+    assert.ok(ofB[0].every((path) => DRAW_BLOCK.test(path)), "week 4's draw was read for Group B");
+    assert.ok(batches.some((batch) => batch.every((path) => /__(?:amara|dev|bea|tariq|sofia)__w4-(?:co-1|cs-1)$/.test(path))));
+    assert.equal(lineFor(model, "Group A"), "Group A: 5 people are waiting for week 4’s pack and case.");
+    assert.equal(lineFor(model, "Group B"), "Group B: 5 people are waiting for week 3’s pack and case.");
+  });
+
+  test("a course that gives nothing out reads the run's weeks once and each group's copies, no slip, and Needs attention is exactly as it is with the slips read answering nothing", async () => {
     // Weeks written before blocks: nothing is given out.
     const legacy = (n) => ({ weekNumber: n, title: `Week ${n} readings`, summary: "", published: true });
-    w.reset(packsSeed({ [`courseRuns/${RUN.agi}/weeks/w01`]: legacy(1), [`courseRuns/${RUN.agi}/weeks/w02`]: legacy(2), [`courseRuns/${RUN.agi}/weeks/w03`]: legacy(3) }));
-    let drawn = await overview("zach");
-    assert.deepEqual(draws(drawn.log), []);
-    assert.deepEqual(slipsOf(drawn.model), []);
-    assert.ok(!drawn.html.includes("/learn/draw/") && !drawn.text.includes("waiting for week"));
-    // Everybody in Group B and Group C has week 3's.
-    w.reset();
-    everybodyInB(3);
-    for (const uid of ["hamza", "tom", "una"]) w.seedDraw(uid, "w3", { pack: W3.markets, caseId: W3.crash });
-    drawn = await overview("zach");
-    assert.deepEqual(slipsOf(drawn.model), []);
-    assert.ok(!drawn.html.includes("/learn/draw/") && !drawn.text.includes("waiting for week"));
+    const errors = mock.method(console, "error", () => {});
+    try {
+      for (const [seed, then] of [
+        [packsSeed({ [`courseRuns/${RUN.agi}/weeks/w01`]: legacy(1), [`courseRuns/${RUN.agi}/weeks/w02`]: legacy(2), [`courseRuns/${RUN.agi}/weeks/w03`]: legacy(3) }), () => {}],
+        // A week where everybody in Group B and Group C has week 3's.
+        [packsSeed(), () => {
+          everybodyInB(3);
+          for (const uid of ["hamza", "tom", "una"]) w.seedDraw(uid, "w3", { pack: W3.markets, caseId: W3.crash });
+        }],
+      ]) {
+        for (const who of ["claudia", "zach"]) {
+          w.reset(seed);
+          then();
+          const drawn = await overview(who);
+          assert.deepEqual(slipsOf(drawn.model), []);
+          assert.equal(runWeekQueries(drawn.log), 1);
+          // The same page with the slips read answering nothing: its one shared read refused, so no group has a line.
+          const nothing = await overview(who, { fail: `courseRuns/${RUN.agi}/weeks` });
+          assert.deepEqual(drawn.model.attention, nothing.model.attention, who);
+          assert.equal(drawn.html, nothing.html, who);
+        }
+      }
+      const legacyRun = await (async () => {
+        w.reset(packsSeed({ [`courseRuns/${RUN.agi}/weeks/w01`]: legacy(1), [`courseRuns/${RUN.agi}/weeks/w02`]: legacy(2), [`courseRuns/${RUN.agi}/weeks/w03`]: legacy(3) }));
+        return overview("zach");
+      })();
+      assert.deepEqual(draws(legacyRun.log), []);
+      assert.equal(queries(legacyRun.log).length, 5);
+    } finally {
+      errors.mock.restore();
+    }
   });
 });
 

@@ -306,8 +306,16 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
     // and the week, the session's end and who waits each asked of what answers them.
     const overviewReads = read("lib", "courses", "drawCard", "overviewReads.ts");
     assert.match(overviewReads, /const sessions = resolveSessions\(run, group, resolveGroupCalendar\(run, group, now\)\.calendar\);/);
-    assert.match(overviewReads, /const dates = await readDrawWeeks\(db, \{ run, group, people: \[\], now \}\);/);
-    assert.equal([...overviewReads.matchAll(/readDrawWeeks\(/g)].length, 1, "the Overview's reads ask for the course's weeks twice");
+    // The run's weeks once for every group, each group's own copies over them, and the course's weeks built by
+    // the half of `readDrawWeeks` that reads nothing (`drawWeeksFrom`), so the week rule is asked as the card asks it.
+    assert.match(overviewReads, /runWeeks = await resolveWeekDocs\(db, run\.id, null\);/);
+    assert.match(overviewReads, /const entries = await resolveWeekDocs\(db, run\.id, group\.id, \{ runWeeks \}\);/);
+    assert.equal([...overviewReads.matchAll(/resolveWeekDocs\(/g)].length, 2, "the Overview's reads ask for the course's weeks a third way");
+    assert.match(overviewReads, /const dates = drawWeeksFrom\(\{ run, group, entries, now \}\);/);
+    assert.doesNotMatch(overviewReads, /readDrawWeeks\(|drawWeekRule\(/, "the Overview's reads ask the rule a second way");
+    assert.match(overviewReads, /const toRead = pastHandOutToRead\(dates, now\);/);
+    assert.match(readers, /const course = drawWeeksFrom\(\{ run, group, entries: await resolveWeekDocs\(db, run\.id, group\.id\), now \}\);/);
+    assert.match(readers, /course\.rule\.toRead\.map\(/);
     assert.match(overviewReads, /const \{ people \} = drawRosterOf\(records, group, viewer, now\);/);
     assert.match(overviewReads, /slipsWaitingOf\(\{ weeks: withDraws\(dates, states, people, now\), people, now \}\)/);
     assert.match(readers, /if \(!records\) return null;\s*return drawRosterOf\(records, group, viewer, now\);/);
