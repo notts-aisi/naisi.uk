@@ -167,7 +167,9 @@ const GROUP_TIME_CHANGES = [
  * What the pages still write to a group once its run's groups have gone out,
  * in the shapes they write it. The group card in the run editor saves the
  * name, the capacity, the campus and the room, the link and the notes by
- * dotted path (`updateGroup`); its archive switch writes `archived`.
+ * dotted path (`updateGroup`). Its archive switch goes through a route,
+ * and no browser changes `archived` at all: course-group-archived.test.mjs
+ * holds that refusal for every writer, before and after the groups go out.
  */
 const GROUP_KEPT_WRITES = [
   ["the room", () => ({ "session.location": "Trent Building A44", updatedAt: serverTimestamp() })],
@@ -176,7 +178,6 @@ const GROUP_KEPT_WRITES = [
   ["the name", () => ({ name: "Group A (Tue)", updatedAt: serverTimestamp() })],
   ["the capacity", () => ({ capacity: 10, updatedAt: serverTimestamp() })],
   ["the campus", () => ({ campus: "jubilee", updatedAt: serverTimestamp() })],
-  ["the archive switch", () => ({ archived: true, updatedAt: serverTimestamp() })],
   [
     "the group card's save once the groups have gone out",
     () => ({

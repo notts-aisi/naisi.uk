@@ -52,6 +52,10 @@ import styles from "./GroupEditor.module.css";
  * rules — assigning a facilitator also upserts a `role:"facilitator"`
  * enrolment, which no client write can do. The card saves both in one gesture
  * and lets the toast report whichever half fails.
+ *
+ * The Archived switch is a route too (`setGroupArchived`), and `archived` is
+ * pinned in rules: archiving is refused while it would lose something, and a
+ * refusal's one sentence is what the toast shows, as for a failed save.
  */
 
 type ToastRun = (

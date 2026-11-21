@@ -2249,6 +2249,62 @@ A move before the term (nobody told, or no session of the group started),
 Remove, and somebody changing their own session on an open run, are as
 before.
 
+## Archiving a group
+
+The Archived switch on a group's card in the run editor goes through
+`PATCH /api/courses/groups/[groupId]/archive`, and nothing else changes
+`courseGroups.archived`: `firestore.rules` pins the field against every
+browser write, an admin's included (`groupArchivedUnchanged`), and a group is
+born not archived. Who may press it is who could before: an admin, an
+`approveCourse` holder, one of the run's track leads and one of the group's
+facilitators, each on an approved account.
+
+**What archiving keeps.** The group stays on the run for the record, with its
+registers, its history and its places as they are; nothing is moved, counted
+again or sent, and nobody is told. From then on it has no session to come, no
+reminder, no calendar entry, no register its facilitators can take and no
+block of the Attendance tab, and of its registers only the finished ones of a
+session held count, for the people whose record of groups by week names that
+week (`countsFromArchivedGroup`, above).
+
+**When a group may be archived.** Only when that loses nothing. The route
+refuses, in one sentence that names the group and writes nothing (409), while:
+
+- anybody still holds a place in it (a learner who has not left, as the Groups
+  tab counts them): "Group I still has 3 people in it. Move them to another
+  group first, then archive it." Where nobody can be moved (the run is over,
+  cancelled or archived) or the run has no other group that still meets (an
+  incubator's one group), the sentence says so instead and the group stays as
+  it is: its people's attendance and who finished read only a group that
+  still meets;
+- somebody moved to another group from a week still to come is in it until
+  then (their record of groups by week names it for a session that has not
+  started);
+- a one-week visit to one of its sessions is still to come;
+- a register of a session that has started is neither finished nor marked as
+  not having happened, a register nobody opened included ("Group I’s register
+  for week 2 isn’t finished. Finish it, or say the session didn’t happen, then
+  archive the group: an unfinished register counts for nothing once a group
+  is archived."). A session called off is not asked about.
+
+So closing a term by archiving its groups works for a group nobody is in any
+more; a group whose people are still in it at the end of a term stays as it
+is. A session still to come given to somebody to cover is no reason to refuse
+once nobody is due at it, and the group's facilitators simply stop seeing a
+group nobody is in.
+
+**Restoring** is refused while one of the group's facilitators holds a place
+in another group of the run, because a facilitator who holds a place sits in
+the group they facilitate and no other: take them off the group's
+facilitators first. Both directions are refused on a run being destroyed. The
+checks are read once, then read again inside the transaction that writes, so
+a change in between is answered rather than archived over.
+
+`tests/course-group-archive.test.mjs` presses the route as every kind of
+caller and in each of these states, and holds that nothing else in `src` or
+`scripts` writes the field; `scripts/rules-tests/tests/course-group-archived.test.mjs`
+holds the pin.
+
 ## A person's page, for the team, and a facilitator's cut of it
 
 One page per person on a programme, at
