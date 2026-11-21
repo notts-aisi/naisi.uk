@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import GuideDocumentView from "@/features/courses/facilitatorGuide/GuideDocumentView";
 import { GuideHead, GuideRefused } from "@/features/courses/facilitatorGuide/GuideFrame";
 import { PrintablesCard, PrintablesLink } from "@/features/courses/facilitatorGuide/PrintablesDownloads";
@@ -12,13 +13,23 @@ import {
   parseGuidePage,
   slotKey,
 } from "@/lib/courses/facilitatorGuide/model";
+import {
+  groupPagePath,
+  homeGroupOf,
+  registerPath,
+  registerRowsFor,
+  type GuideGroup,
+  type GuideSession,
+} from "@/lib/courses/facilitatorGuide/nextSession";
 import { printablesBySession, sectionsOfSession } from "@/lib/courses/facilitatorGuide/printables";
 import { readSessionCount } from "@/lib/courses/facilitatorGuide/sessionCount";
 import { readGuideIndex, readGuidePage } from "@/lib/courses/facilitatorGuide/store";
+import { groupsOfReader } from "@/lib/courses/facilitatorGuide/weekRows";
 import {
   BACK_TO_GUIDE,
   BACK_TO_THE_GUIDE,
   FACILITATOR_GUIDE,
+  GROUP_FALLBACK,
   GUIDE_NO_SUCH_PAGE,
   ON_THIS_PAGE,
   documentEmptyWords,
@@ -26,6 +37,7 @@ import {
   guideWeekEmptyWords,
   weekWords,
 } from "@/lib/courses/facilitatorGuide/words";
+import { TAKE_THE_REGISTER } from "@/lib/courses/facilitatorPageWords";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 
@@ -50,6 +62,19 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * there. Somebody it admits is told plainly when a page has nothing in it.
  * Drawn on the server; what reaches the page is titles and blocks, never a
  * document as stored.
+ *
+ * UNDER A WEEK'S TITLE, for a facilitator alone (an admin who facilitates
+ * too), so the plan and the register are one tap apart during a session: a
+ * row for each of their groups whose session that week is the group's next
+ * one or is in progress, in meeting order, with "Take the register" at that
+ * session and the group's own page by its name (`registerRowsFor`). Never a
+ * register of a session that is over, called off or further ahead: a
+ * finished register is put right from the group's page. With no such group,
+ * one row with the group the reader meets with next (or last met). The
+ * groups are the ones the gate read to let a facilitator in, at no read of
+ * their own; for an admin, the page asks the same question of the course's
+ * groups (`groupsOfReader`). A week with nothing loaded draws only its
+ * sentence.
  */
 
 export const dynamic = "force-dynamic";
@@ -117,6 +142,13 @@ export default async function FacilitatorGuidePage({ params }: { params: Promise
   }
 
   const heading = guideForWeekWords(page.weekNumber);
+  // The reader's groups whose register for this week is theirs to take now,
+  // each its own row; else the group they meet with next, alone.
+  const now = new Date();
+  const groups = documents.length > 0 ? await groupsOfReader(db, user, reader) : [];
+  const registers = registerRowsFor(groups, page.weekNumber, now);
+  const home = homeGroupOf(groups, now);
+  const rows: { group: GuideGroup; session: GuideSession | null }[] = registers.length > 0 ? registers : home ? [{ group: home, session: null }] : [];
   // This session's printables, beside the first document the page shows (its
   // plan, or its notes when only those are loaded), when there is anything
   // to print for it. A week with something loaded is a week the guide has,
@@ -129,6 +161,18 @@ export default async function FacilitatorGuidePage({ params }: { params: Promise
   return (
     <div className={styles.page}>
       <GuideHead back={back} eyebrow={reader.courseTitle} heading={heading} barTitle={weekWords(page.weekNumber)} />
+      {rows.map(({ group, session }) => (
+        <div key={group.groupId} className={styles.actions} role="group" aria-label={group.name.trim() || GROUP_FALLBACK}>
+          {session && (
+            <Link href={registerPath(group, session)} className={facilitator.buttonGhost}>
+              {TAKE_THE_REGISTER}
+            </Link>
+          )}
+          <Link href={groupPagePath(group)} className={facilitator.buttonGhost}>
+            {group.name.trim() || GROUP_FALLBACK}
+          </Link>
+        </div>
+      ))}
       {documents.length === 0 ? (
         <section className={`${styles.card} ${styles.empty}`} aria-label={heading}>
           <p className={styles.cardLine}>{guideWeekEmptyWords(page.weekNumber)}</p>

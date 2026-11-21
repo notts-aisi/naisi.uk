@@ -1,12 +1,13 @@
 import "server-only";
 
-import type { Firestore } from "firebase-admin/firestore";
+import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
-import { normalizeCourse } from "@/lib/firestore/courses";
+import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { normalizeCourse, normalizeCourseRun } from "@/lib/firestore/courses";
+import { guideGroupOf, type GuideGroup } from "./nextSession";
 
 /**
  * WHO MAY READ A COURSE'S FACILITATOR GUIDE: the one gate.
@@ -36,9 +37,17 @@ import { normalizeCourse } from "@/lib/firestore/courses";
  * id is not one, or the caller is not one of the three. The pages turn it
  * into one calm sentence, so nobody learns which courses exist.
  *
+ * WHAT A FACILITATOR IS HANDED BACK BESIDE IT: their own live groups on the
+ * course, the very groups and runs the facilitators' door read to let them
+ * in, projected to named fields (`GuideGroup`, `./nextSession.ts`: the
+ * group's id, run and name and its sessions by week, day and clock; never a
+ * meeting link, a room or anybody's name). The guide's pages draw the
+ * reader's next session and the way back to their group from them, at no
+ * read the gate does not already make.
+ *
  * Reads: the course, then (for anybody who is not an admin) the course's
- * groups and their runs by one equality each, then the course's runs and the
- * forms for a lead. No query needs a composite index.
+ * groups by one equality and the runs those groups name, then the course's
+ * runs and the forms for a lead. No query needs a composite index.
  */
 
 declare const MINTED_HERE: unique symbol;
@@ -49,6 +58,12 @@ export type GuideReader = {
   readonly courseTitle: string;
   /** Which of the three doors let them in. */
   readonly as: "admin" | "facilitator" | "lead";
+  /**
+   * Through the facilitators' door only: the caller's own live groups on the
+   * course, in meeting order, as named fields. Absent through every other
+   * door, the facilitators' door asked for a group included.
+   */
+  readonly groups?: readonly GuideGroup[];
   readonly [MINTED_HERE]: true;
 };
 
@@ -58,8 +73,8 @@ export type GuideWriter = {
   readonly [MINTED_HERE]: true;
 };
 
-function mintReader(courseId: string, courseTitle: string, as: GuideReader["as"]): GuideReader {
-  return { courseId, courseTitle, as } as GuideReader;
+function mintReader(courseId: string, courseTitle: string, as: GuideReader["as"], groups?: readonly GuideGroup[]): GuideReader {
+  return (groups ? { courseId, courseTitle, as, groups } : { courseId, courseTitle, as }) as GuideReader;
 }
 
 /** The course, while it is there and not being destroyed. */
@@ -71,23 +86,58 @@ async function liveCourse(db: Firestore, courseId: string): Promise<{ title: str
   return { title: normalizeCourse(snap.id, raw).title };
 }
 
-/** Does this caller facilitate a live group on a live run of this course? */
-async function facilitatesOnCourse(db: Firestore, user: SessionUser, courseId: string): Promise<boolean> {
+/**
+ * The live groups on a live run of this course that this caller facilitates:
+ * empty when there are none, which is when the facilitators' door is shut.
+ * Each in the named fields the guide's pages use (`guideGroupOf`), in
+ * meeting order.
+ *
+ * Exported for the guide's pages to ask about an admin, whom the gate lets
+ * in before it reads any group: it decides nobody's way in.
+ */
+export async function ownGroupsOnCourse(db: Firestore, user: SessionUser, courseId: string): Promise<GuideGroup[]> {
   const groups = await db.collection("courseGroups").where("courseId", "==", courseId).get();
-  const runIds = new Set<string>();
+  const named: CourseGroupDoc[] = [];
   for (const doc of groups.docs) {
     const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
     if (group.archived || !isNamedWithStanding(user, "courseGroups.facilitatorUids", group.facilitatorUids)) continue;
-    if (isAddressableId(group.runId)) runIds.add(group.runId);
+    if (isAddressableId(group.runId)) named.push(group);
   }
   // The group's run, read again: it has to be a run of this very course, and
-  // one still there. A group's own `courseId` is not taken on trust.
+  // one still there. A group's own `courseId` is not taken on trust. Each run
+  // once, however many of the caller's groups it holds. A run whose read
+  // fails is passed over, as one that fails its bars is: the answer is
+  // decided by the runs that could be read, so a failed read of one run
+  // never turns away somebody another run lets in, and lets nobody in.
+  const runIds = [...new Set(named.map((group) => group.runId))];
+  const own: GuideGroup[] = [];
   for (const runId of runIds) {
-    const run = await db.collection("courseRuns").doc(runId).get();
+    let run: DocumentSnapshot;
+    try {
+      run = await db.collection("courseRuns").doc(runId).get();
+    } catch {
+      continue;
+    }
     const raw = run.data() ?? {};
-    if (run.exists && raw.courseId === courseId && raw.destroying !== true) return true;
+    if (!run.exists || raw.courseId !== courseId || raw.destroying === true) continue;
+    for (const group of named.filter((each) => each.runId === runId).sort(compareGroupsByMeeting)) {
+      own.push(projected(runId, raw, group));
+    }
   }
-  return false;
+  return own;
+}
+
+/**
+ * One group in the named fields the guide's pages use. A run or a group the
+ * session resolver cannot read lends the group no sessions, never a refusal:
+ * who the door lets in is decided above, by the group and its run alone.
+ */
+function projected(runId: string, raw: Record<string, unknown>, group: CourseGroupDoc): GuideGroup {
+  try {
+    return guideGroupOf(normalizeCourseRun(runId, raw), group);
+  } catch {
+    return { groupId: group.id, runId, name: group.name, weekCount: 0, sessions: [] };
+  }
 }
 
 /** Does this caller lead a programme that names a live run of this course? */
@@ -113,7 +163,8 @@ export async function facilitatorGuideReader(
   const course = await liveCourse(db, courseId);
   if (!course) return null;
   if (user.role === "admin") return mintReader(courseId, course.title, "admin");
-  if (await facilitatesOnCourse(db, user, courseId)) return mintReader(courseId, course.title, "facilitator");
+  const groups = await ownGroupsOnCourse(db, user, courseId);
+  if (groups.length > 0) return mintReader(courseId, course.title, "facilitator", groups);
   if (await leadsOnCourse(db, user, courseId)) return mintReader(courseId, course.title, "lead");
   return null;
 }
