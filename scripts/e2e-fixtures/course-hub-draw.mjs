@@ -81,16 +81,12 @@ export const SPEC = {
     ],
   },
   /**
-   * Passed end to end on Sat 21 November 2026, in local mode against the
-   * harness's own server (`npm run e2e:browser -- --local --spec
-   * course-hub-draw`), on d5143cf6: all nine steps ran, and the fixture
-   * manifest read zero after teardown. CHANGED SINCE: its fourth step now
-   * finds the group page's card by its test id and checks it is pinned
-   * straight under the session card, its words on the evening and past
-   * midnight, its link, and that nothing in it is cut off at a phone's width.
-   * Not run as it now stands, so unverified until it passes again.
+   * VERIFIED on Sat 21 November 2026: in local mode, against the harness's own
+   * server (`npm run e2e:browser -- --local --spec course-hub-draw`): all nine
+   * steps ran as they stand, the group page's pinned card among them, and the
+   * fixture manifest read zero after teardown.
    */
-  status: "unverified",
+  status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerms({ runId, suppress, onState, points: ["draw-night"] }),
   countRows: countTerms,
   teardown: teardownTerms,

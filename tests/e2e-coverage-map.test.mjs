@@ -1992,12 +1992,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a run Publish has told, with a group's facilitator signed in.",
   },
-  "/api/courses/groups/[groupId]/draw": {
-    reason:
-      "Course hub: the draw typed into the pathways and cases page: who may type it, the case lists, the content note kept out, swaps and what a save clears are executed by tests/course-hub-packs-and-cases.test.mjs and tests/course-draw-week.test.mjs as every kind of caller. course-hub-draw passed end to end on 21 Nov 2026 and has changed since (its group page step now checks the pinned card), so it counts for nothing until it passes again.",
-    coverWhen:
-      "When course-hub-draw passes again as it now stands and is marked verified: it copies two slips in on the draw page during the session that hands them out, a member reads their case, and a save into the session's own week asks first.",
-  },
   "/api/courses/groups/[groupId]/pairs": {
     reason:
       "Course hub: pairs and laptops typed for a session in pairs (Technical AI Safety's hands-on night): who may type them, who can be in a pair, the sizes a save refuses, the laptop check that never refuses and what a save writes are executed by tests/course-hub-pairs.test.mjs as every kind of caller; typed in a browser on the preview kit at 390 and 1440.",
@@ -2076,12 +2070,6 @@ const NOT_COVERED = {
       "Learn hub: /(app)/learn/[runId]/progress is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
-  },
-  "/(app)/learn/draw/[groupId]": {
-    reason:
-      "Course hub: the pathways and cases page, drawn as each kind of caller and with its lists held word for word by tests/course-hub-packs-and-cases.test.mjs and tests/course-draw-week.test.mjs, and its one calm page for everybody else held byte for byte by tests/course-hub-not-for-you.test.mjs. course-hub-draw passed end to end on 21 Nov 2026 and has changed since, so it counts for nothing until it passes again.",
-    coverWhen:
-      "When course-hub-draw passes again as it now stands and is marked verified: it opens the page from the group page's pinned card during the session, on next week, and copies the slips in.",
   },
   "/(app)/learn/pairs/[groupId]": {
     reason:
