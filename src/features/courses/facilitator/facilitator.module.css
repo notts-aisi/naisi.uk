@@ -2267,8 +2267,8 @@
   }
 }
 
-/* === The spread: "Pathways in Group B", drawn by
-   src/features/courses/packsAndCases/PathwaySpread.tsx === */
+/* === The spread's tiles and links, which the pairs card and the pairs page
+   draw each pair with (src/features/courses/pairs/) === */
 
 .spreadTiles {
   list-style: none;
@@ -2443,6 +2443,157 @@
   clear: both;
   min-width: 0;
   padding-left: calc(4.5rem + 10px);
+}
+
+/* === The pathways and cases card on the group page, and the rows that point
+   to it at the session that hands the slips out (the register, Home and the
+   guide's week), drawn by src/features/courses/groupPage/DrawCard.tsx and
+   src/features/courses/register/HandOutRow.tsx. One column at every width:
+   nothing in it sits in a row that turns into a column. === */
+
+.drawCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Pinned under the session card, from the start of the hand-out session
+   until everybody has theirs. */
+.drawCardPinned {
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-soft);
+}
+
+.drawCardMeta {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.drawCardLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.drawCardSaid {
+  color: var(--color-text);
+}
+
+.drawCardButton {
+  width: 100%;
+  white-space: normal;
+  text-align: center;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.drawRows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.drawRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 0;
+}
+
+.drawRow + .drawRow {
+  border-top: 1px solid var(--color-border);
+}
+
+.drawRowName {
+  font-size: var(--text-base);
+  line-height: 1.45;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.drawRowPeople {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.drawLinkRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.drawLinkRow:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.drawLinkText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.drawLinkTitle {
+  font-size: var(--text-base);
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.drawLinkSub {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.drawLinkChevron {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+/* The register's row: the words, and the way to the page beside them, which
+   wraps under them when the two do not fit; the button never asks for the
+   whole row. */
+.handOutRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  margin-top: var(--space-4);
+}
+
+.handOutText {
+  flex: 1 1 8.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.handOutAction {
+  flex: none;
+  max-width: 100%;
 }
 
 /* === Mobile === */

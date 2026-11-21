@@ -378,7 +378,7 @@ export function drawWeekOptionWords(weekNumber: number, draw: WeekDraw | null): 
 }
 
 /** "Weeks 2 to 5", "Weeks 2 and 4", "Week 3", "Weeks 1 to 3, 5 and 6". */
-function weeksWords(weeks: readonly number[]): string {
+export function weeksWords(weeks: readonly number[]): string {
   const sorted = [...new Set(weeks)].sort((a, b) => a - b);
   const runs: string[] = [];
   let count = 0;

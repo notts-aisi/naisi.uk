@@ -1,4 +1,6 @@
+import { Suspense, type ReactNode } from "react";
 import { redirect } from "next/navigation";
+import HandOutRowLoader from "@/features/courses/register/HandOutRowLoader";
 import RegisterPageBody, { sessionParamOf } from "@/features/courses/register/RegisterPageBody";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
@@ -15,6 +17,7 @@ import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
 import { GUIDE_READ_FAILED, guideLinksView, guideReadOfIndex, type GuideLinksView } from "@/lib/courses/facilitatorGuide/links";
 import { registerGuideWeek } from "@/lib/courses/facilitatorGuide/registerWeek";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
+import { readHandOutDates } from "@/lib/courses/drawCard/reads";
 import { resolveSessions } from "@/lib/courses/sessions";
 
 /**
@@ -52,6 +55,20 @@ import { resolveSessions } from "@/lib/courses/sessions";
  * group's facilitators and admins, whom the guide admits, and nothing for
  * anybody else. The programme's lead's first name, for the sentence about
  * who loads a week, is read only when a sentence is drawn.
+ *
+ * THE ROW TO THE PATHWAYS AND CASES PAGE, beside the check-in, at the
+ * session that hands the slips out (from its start to the end of its
+ * evening, while somebody has not got theirs), on the week the slips are for.
+ * The page asks only whether tonight can be such an evening at all
+ * (`readHandOutDates`: the course's weeks, two queries, beside the register's
+ * own reads; on any other evening, and on a course that gives nothing out,
+ * nothing more is read and the register is handed nothing). On such an
+ * evening the row is its own server component (`HandOutRowLoader`) inside a
+ * `Suspense` that shows nothing while it waits, so the register is drawn and
+ * sent without waiting for the row's reads, and the row arrives after. The
+ * row asks the pathways and cases page's own gate (`drawGate`), NEVER the
+ * register's: somebody given one session and a run's track lead are not
+ * offered it. A read that fails draws nothing.
  */
 
 export const dynamic = "force-dynamic";
@@ -131,6 +148,21 @@ export default async function GroupRegisterPage({
     return guideLinksView({ read: GUIDE_READ_FAILED, courseId: access.run.courseId, weekNumber: null, knownReader, leadFirstName: null });
   });
 
+  // Whether tonight can be a hand-out evening, read beside the register's own
+  // reads; only then the row, streamed in its own slot.
+  const handOut: Promise<ReactNode> = readHandOutDates(db, { run: access.run, group: gated.group, now })
+    .then((dates) =>
+      dates ? (
+        <Suspense fallback={null}>
+          <HandOutRowLoader user={access.user} group={gated.group} runId={runId} dates={dates} session={session} now={now} />
+        </Suspense>
+      ) : null,
+    )
+    .catch((err: unknown) => {
+      console.error("[register page] the pathways and cases row's read failed", groupId, err);
+      return null;
+    });
+
   // Called, not mounted: the page answers with the tree the body draws.
   return RegisterPageBody({
     gated,
@@ -141,5 +173,6 @@ export default async function GroupRegisterPage({
     reportHref: `${groupPath}/report`,
     didntHappen: opensGroupPage ? { href: groupPath, words: DIDNT_HAPPEN_MOVED_FACILITATOR } : null,
     guide,
+    handOut,
   });
 }

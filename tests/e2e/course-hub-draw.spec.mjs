@@ -10,7 +10,10 @@
  *
  * -> the admin approves Fern and Ada -> names the running run and hands its
  * people over -> appoints Fern to the group -> during the session, Fern's
- * group page card says "Week 4" and opens the draw on week 4 -> the draw page
+ * group page card is pinned straight under the session card, asks for week
+ * 4's pathways and cases to be given out (past midnight: names week 4 and who
+ * is waiting), nothing in it is cut off on a phone, and it opens the draw on
+ * week 4 -> the draw page
  * is about week 4, its Week picker lists weeks 3 and 4, and it says "Copy in
  * the slips you handed out tonight." -> Fern gives Ada and Ben a pathway and
  * a case each and saves: "Saved. 2 of 3 have a pathway and a case." -> Ada's
@@ -39,8 +42,11 @@ import assert from "node:assert/strict";
 import { assertTarget, hasAdminCredentials, loadSecrets } from "../../scripts/e2e/lib/env.mjs";
 import { readUserDoc } from "../../scripts/e2e/lib/firestore.mjs";
 import {
+  DEFAULT_VIEWPORT,
+  PHONE_VIEWPORT,
   approvePendingApplicant,
   createStepRecorder,
+  cutOffBy,
   newIdentityPage,
   openBrowser,
   signInWithPassword,
@@ -83,10 +89,14 @@ const POLL_MS = 500;
  */
 const WORDS = Object.freeze({
   title: "Pathways and cases",
-  cardTitle: (group) => `Pathways in ${group}`,
+  // The group page's card, from src/lib/courses/drawCard/words.ts.
+  cardTitle: "Pathways and cases",
+  giveOut: (week) => `Give out week ${week}’s pathways and cases before people leave.`,
+  giveOutLine: "Then copy the slips in, so each person sees theirs.",
   cardWeek: (week) => `Week ${week}`,
   notGiven: (names) => `Not given yet: ${names}`,
-  change: "Change pathways and cases",
+  waiting: (names) => `${names} are waiting for theirs.`,
+  copyIn: "Copy in the slips",
   option: (week) => `Week ${week} · Pathways and cases`,
   hint: "Weeks 3 and 4 give something out. Weeks 1, 2, 5 and 6 don’t.",
   eyebrow: (group, session) => `${group} · after session ${session}`,
@@ -266,19 +276,49 @@ test("course hub: the draw, copied in during the session that hands the slips ou
       assert.deepEqual((await okBody(saved, "Saving the facilitators")).facilitatorUids, [fern.uid]);
     });
 
-    await step("during the session the group page's card is about next week, and opens the draw on it", async () => {
+    await step("during the session the group page's card is about next week, pinned under the session card, and opens the draw on it", async () => {
       activePage = fernPage;
       await signIn(fernPage, fern);
       await fernPage.goto(groupUrl, { waitUntil: "domcontentloaded" });
-      const card = fernPage.locator('section[aria-labelledby="group-spread"]');
-      await card.getByRole("heading", { name: WORDS.cardTitle(group.name), exact: true }).waitFor({ timeout: WAIT_MS });
-      await card.getByText(WORDS.cardWeek(next), { exact: true }).waitFor({ timeout: WAIT_MS });
-      // Nobody has a pathway for next week yet: Fern takes part too, so the three of them.
-      const said = await textOf(card);
-      assert.ok(said.includes(WORDS.notGiven(`${ada.first}, ${ben.first} and ${fern.first}`)), `the card does not say who has nothing: ${said}`);
-      for (const pack of DRAW_SLIPS.packs) assert.ok(said.includes(pack.name), `the card has no tile for ${pack.name}: ${said}`);
-      const link = card.getByRole("link", { name: new RegExp(`^${escapeRegExp(WORDS.change)}`) });
+      const card = fernPage.getByTestId("draw-card");
+      // Nobody has a pathway for next week yet. On the session's evening the
+      // card asks for them to be given out; past midnight it names the week
+      // and who is waiting: Fern takes part too, so the three of them.
+      if (stillTonight()) {
+        await card.getByRole("heading", { name: WORDS.giveOut(next), exact: true }).waitFor({ timeout: WAIT_MS });
+        await card.getByText(WORDS.giveOutLine, { exact: true }).waitFor({ timeout: WAIT_MS });
+      } else {
+        await card.getByRole("heading", { name: WORDS.cardTitle, exact: true }).waitFor({ timeout: WAIT_MS });
+        await card.getByText(WORDS.cardWeek(next), { exact: true }).waitFor({ timeout: WAIT_MS });
+        const said = await textOf(card);
+        const names = `${ada.first}, ${ben.first} and ${fern.first}`;
+        assert.ok(said.includes(WORDS.notGiven(names)), `the card does not say who has nothing: ${said}`);
+        assert.ok(said.includes(WORDS.waiting(names)), `the card does not say who is waiting: ${said}`);
+      }
+      assert.equal(await card.getAttribute("data-pinned"), "true", "the card is not pinned while the slips are being handed out");
+      // Pinned straight under the session card, before Before the session, in the markup's order.
+      const order = await card.evaluate((drawn) => {
+        const session = document.querySelector('[data-testid="session-card"]');
+        const before = document.querySelector('[aria-labelledby="before-the-session"]');
+        const follows = (a, b) => Boolean(a && b && a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+        return { afterSession: follows(session, drawn), beforeTheSession: before ? follows(drawn, before) : true };
+      });
+      assert.deepEqual(order, { afterSession: true, beforeTheSession: true }, "the pinned card is not straight under the session card");
+      const link = card.getByRole("link", { name: WORDS.copyIn, exact: true });
       assert.equal(new URL(await link.getAttribute("href"), origin).search, `?week=${next}`, "the card does not open the draw on next week");
+      // On a phone, nothing in the card is cut off by it: asked at the phone's
+      // own width, on a fresh load, then back to the width the rest assumes.
+      try {
+        await fernPage.setViewportSize(PHONE_VIEWPORT);
+        await fernPage.reload({ waitUntil: "domcontentloaded" });
+        await link.waitFor({ timeout: WAIT_MS });
+        const cutOff = await cutOffBy(card);
+        assert.deepEqual(cutOff, [], `on a phone the card cuts off ${cutOff.join(", ")}`);
+      } finally {
+        await fernPage.setViewportSize(DEFAULT_VIEWPORT);
+        await fernPage.reload({ waitUntil: "domcontentloaded" });
+        await link.waitFor({ timeout: WAIT_MS });
+      }
       await Promise.all([fernPage.waitForURL((url) => url.pathname === drawPath, { timeout: WAIT_MS }), link.click()]);
     });
 

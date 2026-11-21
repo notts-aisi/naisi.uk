@@ -232,19 +232,112 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
 
     const group = read("app", "(app)", "learn", "[runId]", "group", "[groupId]", "page.tsx");
     assert.match(group, /const course = group\.archived \? null : await readDrawWeeks\(db, \{ run: access\.run, group, people: drawList, now \}\);/);
-    assert.match(group, /const drawCard = course \? drawCardOf\(course, drawList\) : null;/);
-    assert.match(group, /changeHref=\{`\/learn\/draw\/\$\{encodeURIComponent\(groupId\)\}\?week=\$\{drawCard\.week\.weekNumber\}`\}/);
-    assert.doesNotMatch(group, /readGroupWeek\(|readDrawState\(|spreadOf\(/, "the group page reads a draw of its own choosing");
+    assert.match(group, /drawCardModel\(\{ course, people: drawList, viewer: \{ uid: access\.user\.uid, isAdmin: access\.isAdmin, lead: false \}, now \}\)/);
+    assert.doesNotMatch(group, /readGroupWeek\(|readDrawState\(|spreadOf\(|drawWeekRule\(/, "the group page reads a draw of its own choosing");
 
-    // Nothing else in the tree links to the draw page on a week of its own choosing.
+    // The card's model, and every other reader of the slips' week: each asks
+    // the rule through what `readDrawWeeks` read, and none works a session's
+    // time out for itself.
+    const model = read("lib", "courses", "drawCard", "model.ts");
+    assert.match(model, /const \{ rule \} = course;/);
+    assert.match(model, /const n = rule\.weekNumber;/);
+    assert.match(model, /const facts = rule\.facts\.get\(n\);/);
+    const reads = read("lib", "courses", "drawCard", "reads.ts");
+    assert.match(reads, /const dates = await readDrawWeeks\(db, \{ run, group, people: \[\], now \}\);/);
+    assert.match(reads, /return slipsTonightOf\(\{ course: withDraws\(dates, states, people, now\), people, now \}\);/);
+    assert.match(reads, /const sessions = resolveSessions\(run, group, resolveGroupCalendar\(run, group, now\)\.calendar\);/);
+    assert.match(reads, /const after = weekAfter\(sessions, pageWeek\);/);
+    // The week queries are made once: `readDrawWeeks` once in the slips' reads.
+    assert.equal([...reads.matchAll(/readDrawWeeks\(/g)].length, 1, "the slips' reads ask for the course's weeks twice");
+
+    // No caller works a week, a session's time or "tonight" out by hand. The
+    // card's model keeps the two such things it needs in two named helpers
+    // beside the rule (`handOutStarted`, `weekAfter`), each written once and
+    // left out of the scan; everything else asks the rule's facts.
+    const uncommented = (code) => code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const helper = (name) => new RegExp(`export function ${name}\\([^)]*\\)[^{]*\\{[\\s\\S]*?\\n\\}\\n`);
+    for (const name of ["handOutStarted", "weekAfter"]) {
+      assert.equal([...model.matchAll(new RegExp(`export function ${name}\\(`, "g"))].length, 1, `the card's model no longer has one ${name}`);
+    }
+    const BY_HAND = [
+      [/sessionInstants\(/, "a session's time from the resolver"],
+      [/sessionRange\(/, "the next session"],
+      [/\b\w*[wW]eek\w*\s*[+-]\s*\d\b|\bn\s*[+-]\s*\d\b|\)\s*[+-]\s*\d\b/, "a week by arithmetic"],
+      [/londonDateKey\(\s*now\s*\)\s*[!=]==|[!=]==\s*londonDateKey\(\s*now\s*\)/, "tonight, by the day's date"],
+      [/\.getTime\(\)\s*[<>]=?[^;\n]*startsAt|startsAt[^;\n]*\.getTime\(\)\s*[<>]=?/, "a session's start, by its instant"],
+    ];
+    const summary = read("app", "api", "courses", "groups", "[groupId]", "summary", "route.ts");
+    for (const [file, code] of [
+      ["the card's model", uncommented(model).replace(helper("handOutStarted"), "").replace(helper("weekAfter"), "")],
+      ["the slips' reads", uncommented(reads)],
+      ["the pairs card's week", uncommented(read("lib", "courses", "pairs", "cardWeek.ts"))],
+      ["the card", uncommented(read("features", "courses", "groupPage", "DrawCard.tsx"))],
+      ["the register page", uncommented(read("app", "(app)", "learn", "[runId]", "group", "[groupId]", "register", "page.tsx"))],
+      ["the register's row", uncommented(read("features", "courses", "register", "HandOutRowLoader.tsx"))],
+      // The summary's one `sessionRange` is the explainer's next session, held below and left out here.
+      ["the group summary route", uncommented(summary).replace("const next = sessionRange(resolveSessions(run, group, resolveGroupCalendar(run, group, now).calendar), now).next;", "")],
+      ["the guide's week page", uncommented(read("app", "(app)", "learn", "facilitator-guide", "[courseId]", "[doc]", "page.tsx"))],
+      ["Home", uncommented(read("app", "(app)", "dashboard", "HomeFacilitator.tsx"))],
+    ]) {
+      for (const [shape, what] of BY_HAND) assert.doesNotMatch(code, shape, `${file} works out ${what} for itself`);
+    }
+    assert.match(summary, /const next = sessionRange\(resolveSessions\(run, group, resolveGroupCalendar\(run, group, now\)\.calendar\), now\)\.next;\s*const \[line, writtenQueue, explainer, slips\]/);
+    // The scan sees what it claims to: each shape is caught where it is written.
+    for (const [shape, sample] of [
+      [BY_HAND[2][0], "readGroupWeek(db, runId, groupId, pageWeek + 1)"],
+      [BY_HAND[2][0], "const later = n + 1;"],
+      [BY_HAND[2][0], "(range.next?.weekNumber ?? 0) + 1"],
+      [BY_HAND[3][0], "londonDateKey(now) === session.dateKey"],
+      [BY_HAND[4][0], "now.getTime() >= facts.handOut.startsAt.getTime()"],
+    ]) {
+      assert.match(sample, shape, sample);
+    }
+    assert.match(read("app", "(app)", "learn", "[runId]", "group", "[groupId]", "register", "page.tsx"), /readHandOutDates\(db, \{ run: access\.run, group: gated\.group, now \}\)/);
+    assert.match(read("features", "courses", "register", "HandOutRowLoader.tsx"), /const slips = await slipsTonightFrom\(db, \{ runId, dates, people: roster\.people, now \}\);/);
+    assert.match(summary, /\? readSlipsTonight\(db, \{ run, group, now, people: async \(\) => drawPeople\(model\.people, model\.facilitators\) \}\)/);
+    assert.match(read("app", "(app)", "learn", "facilitator-guide", "[courseId]", "[doc]", "page.tsx"), /readGuideSlips\(db, \{ groups, pageWeek: page\.weekNumber, now \}\)/);
+
+    // Every file that asks the rule, and why.
+    const asking = [];
+    for (const file of walkSource(SRC)) {
+      if (/\bdrawWeekRule\(/.test(readFileSync(file, "utf8"))) asking.push(file.slice(SRC.length + 1));
+    }
+    assert.deepEqual(asking.sort(), [
+      // The rule itself.
+      join("lib", "courses", "packsAndCases", "drawWeek.ts"),
+      // The pathways and cases page and the group page's card, through `readDrawWeeks`.
+      join("lib", "courses", "packsAndCases", "readers.ts"),
+      // The route's standing of the week saved into.
+      join("app", "api", "courses", "groups", "[groupId]", "draw", "route.ts"),
+      // The card's states: the next week to come, and the guide's card.
+      join("lib", "courses", "drawCard", "model.ts"),
+      // The pairs card: the next week in pairs still to come.
+      join("lib", "courses", "pairs", "cardWeek.ts"),
+    ].sort());
+
+    // Nothing else in the tree links to the draw page on a week of its own
+    // choosing: each link takes its week from the rule's answer.
     const linking = [];
     for (const file of walkSource(SRC)) {
       if (/\/learn\/draw\/[^"'`]*\?week=/.test(readFileSync(file, "utf8"))) linking.push(file.slice(SRC.length + 1));
     }
     assert.deepEqual(linking.sort(), [
-      join("app", "(app)", "learn", "[runId]", "group", "[groupId]", "page.tsx"),
+      join("app", "(app)", "dashboard", "HomeFacilitator.tsx"),
+      join("app", "(app)", "learn", "facilitator-guide", "[courseId]", "[doc]", "page.tsx"),
+      join("features", "courses", "groupPage", "DrawCard.tsx"),
       join("features", "courses", "packsAndCases", "DrawWeekPicker.tsx"),
-    ]);
+      join("features", "courses", "register", "HandOutRow.tsx"),
+    ].sort());
+    const card = read("features", "courses", "groupPage", "DrawCard.tsx");
+    assert.deepEqual(
+      [...card.matchAll(/weekHref\(([^)]*)\)/g)].map(([, arg]) => arg).sort(),
+      // The rule's week (taken from the model, below) in each phase, and the week before it, when everybody has that one's.
+      ["model.earlier.weekNumber", "weekNumber", "weekNumber", "weekNumber", "weekNumber"],
+    );
+    assert.match(card, /const \{ weekNumber, draw, facts, phase \} = model;/);
+    assert.match(read("app", "(app)", "dashboard", "HomeFacilitator.tsx"), /\?week=\$\{known\.slips\.weekNumber\}/);
+    assert.match(read("app", "(app)", "learn", "facilitator-guide", "[courseId]", "[doc]", "page.tsx"), /\?week=\$\{entry\.weekNumber\}/);
+    assert.match(read("features", "courses", "register", "HandOutRowLoader.tsx"), /<HandOutRow groupId=\{group\.id\} weekNumber=\{slips\.weekNumber\} draw=\{slips\.draw\} \/>/);
   });
 
   test("over one world at a run of clock times, the page opens on the week the card names, and the route asks a yes exactly where the page warns", async () => {
@@ -481,7 +574,7 @@ describe("3. saving late, read only once closed, any week by its address, and th
   test("the group page's card names the week it is about", async () => {
     w.at("2026-11-17T18:30:00Z");
     const group = await w.groupPage("rahul");
-    assert.match(group.text, /Packs in Group B Week 4 /);
+    assert.match(group.text, /Give out week 4’s packs and cases before people leave\. /);
     assert.match(group.html, new RegExp(`href="/learn/draw/${B}\\?week=4"`));
     void W4;
   });

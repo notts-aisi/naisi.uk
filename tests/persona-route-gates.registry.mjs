@@ -2610,11 +2610,13 @@ export const ROUTES = {
   "/api/courses/groups/[groupId]/summary": {
     GET: {
       expect: adminOnly(404),
-      fields: ["groupId", "expected", "notYetTold", "toReview", "writtenToGive", "writtenWeeks", "writtenNext", "nextEmail", "leftRecently", "coFacilitators", "whosComing", "write", "explainer"],
+      fields: ["groupId", "expected", "notYetTold", "toReview", "writtenToGive", "writtenWeeks", "writtenNext", "nextEmail", "leftRecently", "coFacilitators", "whosComing", "write", "explainer", "slips"],
       why:
         "What a facilitator's Home says about their group, behind the group page's own gate: a live " +
         "facilitator of the group or an admin. A missing group and one that is not the caller's collapse " +
-        "onto one 403 for a non-admin, and an admin is told the group is missing.",
+        "onto one 403 for a non-admin, and an admin is told the group is missing. `slips` (the week whose " +
+        "pathways and cases are being handed out tonight) is worked out for a facilitator of the group " +
+        "alone, and is absent at any other time.",
     },
   },
   "/api/courses/groups/[groupId]/weeks/[weekId]": {
