@@ -190,8 +190,9 @@ export default function TicketExcuse({
   return (
     <>
       {block}
-      {online}
+      {/* "Can't make it" first, then "I'm joining online", as the card is drawn. */}
       {entry}
+      {online}
       {open && (
         <ExcuseSheet
           open={open}
