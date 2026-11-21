@@ -5517,9 +5517,10 @@ describe("the course hub passage", () => {
     assert.match(readers, /!group\.archived && isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\);/);
     assert.match(readers, /const leadOf = await programmeLedBy\(db, actor, group\.runId\);/);
     assert.ok(!/isTrackLead|trackLeadUids|admissionsReviewer/.test(readers), "the draw's gate now admits a run's track lead or a reviewer");
-    for (const file of ["src/app/api/courses/groups/[groupId]/draw/route.ts", "src/app/(app)/learn/draw/[groupId]/page.tsx"]) {
-      assert.match(read(file), /await drawGate\(db, (?:actor|user), group\)/, `${file} no longer asks the draw's gate`);
-    }
+    // The route asks it through `openDrawGroup`, which answers a group that is not there as one that is not theirs.
+    assert.match(readers, /export async function openDrawGroup\([\s\S]*?const gate = await drawGate\(db, actor, group\);\s*if \(!gate\.ok\) return \{ ok: false, status: 403, error: "Forbidden" \};/);
+    assert.match(read("src/app/(app)/learn/draw/[groupId]/page.tsx"), /await drawGate\(db, user, group\)/, "the draw page no longer asks the draw's gate");
+    assert.match(read("src/app/api/courses/groups/[groupId]/draw/route.ts"), /const opened = await openDrawGroup\(db, actor, groupId\);/, "the draw's route no longer asks the draw's gate");
     // What the draw hands staff holds packs and cases, never the ready box:
     // the draw's state, the spread and This week's work's cells.
     const drawState = /export async function readDrawState\([\s\S]*?\n\}/.exec(readers);
@@ -5532,21 +5533,23 @@ describe("the course hub passage", () => {
     // and admins, and a facilitator's own pick is left blank for their
     // co-facilitators: only the lead and admins see that one.
     assert.match(weekWork[0], /const seesOwnWork = viewer\.isAdmin \|\| viewer\.leadOf !== null;/);
-    assert.match(weekWork[0], /const hidden = picked && person\.facilitates && person\.uid !== viewer\.uid && !seesOwnWork;/);
+    assert.match(weekWork[0], /const reader = \{ uid: viewer\.uid \?\? "", seesOwnWork \};/);
+    assert.match(weekWork[0], /const hidden = picked && hidesOwnPick\(person, reader\);/);
     // The case that follows such a pick names the pick, so it is left blank
     // with it; the facilitator themself sees both. Held by rendering the
     // group page's table as that facilitator, a co-facilitator, the lead and
     // an admin in tests/course-draw-picked.test.mjs.
-    assert.match(weekWork[0], /const caseHidden = keyedByPick && person\.facilitates && person\.uid !== viewer\.uid && !seesOwnWork;/);
+    assert.match(weekWork[0], /const caseHidden = keyedByPick && hidesOwnPick\(person, reader\);/);
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-draw-picked.test.mjs")));
     // THE DRAW READS A PICK the cases follow, for the case lists, and keeps a
     // facilitator's own from their co-facilitators: by one rule
-    // (`hidesOwnPick`: a facilitator of the group, read by somebody else who
-    // is neither the lead nor an admin), asked by every reader of the draw.
+    // (`hidesOwnPick`: somebody who facilitates a live group of the run, this
+    // one or another, read by somebody else who is neither the lead nor an
+    // admin), asked by every reader of the draw.
     assert.match(drawState[0], /const blocks = \[\.\.\.week\.draw\.packs, \.\.\.week\.draw\.picked, \.\.\.week\.draw\.cases\];/);
     assert.match(
       readers,
-      /export function hidesOwnPick\(person: DrawPerson, viewer: \{ uid: string; seesOwnWork: boolean \}\): boolean \{\s*return person\.facilitates && person\.uid !== viewer\.uid && !viewer\.seesOwnWork;\s*\}/,
+      /export function hidesOwnPick\(person: DrawPerson, viewer: \{ uid: string; seesOwnWork: boolean \}\): boolean \{\s*return person\.ownWork && person\.uid !== viewer\.uid && !viewer\.seesOwnWork;\s*\}/,
     );
     assert.match(readers, /if \(gate\.isAdmin \|\| gate\.leadOf\) return true;\s*return \(await programmeLedBy\(db, actor, group\.runId\)\) !== null;/);
     //  - the draw page hands its editor what `drawRowsFor` keeps, never the state: a hidden row carries no pick and no case that follows one;
@@ -5642,9 +5645,8 @@ describe("the course hub passage", () => {
     // live facilitators, the programme's lead and admins), asked by the route
     // and the pairs page; the group page's own gate (its live facilitators and
     // admins) for its card.
-    for (const file of ["src/app/api/courses/groups/[groupId]/pairs/route.ts", "src/app/(app)/learn/pairs/[groupId]/page.tsx"]) {
-      assert.match(read(file), /const gate = await drawGate\(db, (?:actor|user), group\);/, `${file} no longer asks the draw's gate`);
-    }
+    assert.match(read("src/app/(app)/learn/pairs/[groupId]/page.tsx"), /const gate = await drawGate\(db, user, group\);/, "the pairs page no longer asks the draw's gate");
+    assert.match(read("src/app/api/courses/groups/[groupId]/pairs/route.ts"), /const opened = await openDrawGroup\(db, actor, groupId\);/, "the pairs route no longer asks the draw's gate");
     assert.match(
       read("src/app/(app)/learn/[runId]/group/[groupId]/page.tsx"),
       /const pairsWeek = pairsFor\?\.week \? await readGroupPairs\(db, runId, groupId, pairsFor\.week, drawList\) : null;/,

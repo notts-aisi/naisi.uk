@@ -2169,7 +2169,12 @@ this page's rule gives (`moveWeekFor`, the one function both ask): every
 week before it stays with the old group, the record is extended, or folded
 back when the person returns to a group before an earlier move took effect,
 and a visit to the group moved into from that week on goes in the same
-write. It EMAILS NOBODY and is held to no limit: the next Publish sends
+write. It is made by an admin or the programme's lead, as on this page
+(`movesForGoodMidTerm`): a run's track lead, who places people on the board
+before their group has met, is refused it in the preview and at the press,
+nothing written, in one sentence that says who to ask ("Leo has already met
+with Group C, so only an admin or the programme’s lead can move Leo now. Ask
+one of them."). It EMAILS NOBODY and is held to no limit: the next Publish sends
 "You’ve moved", as for any move on the board, so `toldGroupId` and
 Publish's markers are left as the board leaves them. One row on each group's
 History ("Leo Park moved to Group F from week 3 on the Groups tab, to be
@@ -2464,7 +2469,10 @@ arranging one, and calling one off by staff or by the person. A move on the
 allocation board and a change of session on an open run keep every visit but
 one to the group they now belong to (a board move made mid-term, from the
 move's week on, as a staff move does); Remove and placing a facilitator
-delete the list, and Remove tells the host group's facilitators of each
+delete the list (Remove keeps each visit's week and host beside the removal,
+`visitsWhenRemoved`, so the host's register, which marked them like anybody
+else, is never the group they are listed under as having left: that is the
+last of their own groups whose register marked them), and Remove tells the host group's facilitators of each
 visit whose session has not started and is happening, with the visit's
 called-off email in its form without "as usual" (the person removed is sent
 nothing), counted in the confirmation before the press, the count sent back
@@ -5405,6 +5413,15 @@ The group's own page still changes one week with a move, as before. Its notice
 (and the dialog's) now posts its week with the update (`weekNumber` on the
 updates route, for an update to one group only), so the update reaches the
 people the change route counted: with nobody moved, the same people as before.
+The updates route takes that week only when it is one the change route can
+have changed: a week in which the group has a session whose register nobody
+has taken (`weekNoticeRefusal` in `src/lib/courses/updates/week.ts`), and,
+for a session that has started, only from the record the change route wrote
+for that week (`sessionChanges[weekId]`), by the person posting, within a day
+of the change. Any other week (a session that met and was marked, a session
+that has started with no such record, a week past the group's last session,
+a week only another group has) is refused in one sentence before anything is
+posted or sent.
 
 ### The week's page: Save
 

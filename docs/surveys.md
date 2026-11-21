@@ -1645,7 +1645,9 @@ Nothing is logged, and the answer is `{ ok: true }` with no id. Three limits
 keep floods out, all counts in the server's memory alone: per address 30 a
 minute and 30 an hour (the address is read for those two keys and nothing
 else), so one address cannot use up the whole form's allowance, and 300 an hour
-for the whole form. No captcha. The browser sends its sign-in (only members may
+for the whole form. Only a caller who may send is counted: the session is read
+first, and somebody signed out or not a member is refused before any limit
+moves. No captcha. The browser sends its sign-in (only members may
 send) and no referrer, and keeps nothing: the installed app's relaunch record
 (`recordLastRoute`, `NOT_RECORDED`) never keeps this page's address.
 

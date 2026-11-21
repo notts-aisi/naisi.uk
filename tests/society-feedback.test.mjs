@@ -304,6 +304,24 @@ describe("2. only a member sends, and every refusal writes nothing", () => {
     at(t, new Date(NOW.getTime() + 61 * 60_000).toISOString());
     assert.equal((await sendAs("amara", { words: "An hour on" }, { ip })).status, 200);
   });
+
+  test("a caller who may not send is refused before any limit is counted: no counter moves, and each member's send counts once", async (t) => {
+    clock(t);
+    reset();
+    const ip = "192.0.2.202";
+    // Forty signed-out presses and as many from an account still waiting, from one address: each refused as who they are, never as too many.
+    for (let i = 0; i < 40; i += 1) {
+      assert.equal((await sendAs(null, { words: `Out ${i}` }, { ip })).status, 401);
+      assert.equal((await sendAs("waiting", { words: `Waiting ${i}` }, { ip })).status, 403);
+    }
+    // The members behind that address still have the whole minute's 30, each send counted once.
+    for (let i = 0; i < 30; i += 1) assert.equal((await sendAs("amara", { words: `Member ${i}` }, { ip })).status, 200);
+    const refused = await sendAs("dev", { words: "The thirty-first" }, { ip });
+    assert.deepEqual([refused.status, refused.body.error], [429, words.REFUSAL_WORDS.tooMany]);
+    // Signed out is still told it is signed out, at the limit too.
+    assert.equal((await sendAs(null, { words: "Out again" }, { ip })).status, 401);
+    assert.equal(waitingPaths().length, 30);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -562,6 +562,35 @@ export type RegisterMember = MirrorMember & {
 export { isRowForWeek };
 
 /**
+ * THE ROWS OF SOME WEEKS ALONE, for a reader who opens only those weeks'
+ * registers (somebody given one session of the group): everybody those
+ * weeks' columns draw, as the whole register draws them there, and of each
+ * per-week field only those weeks. That is the rows of one of `weeks`
+ * (`isRowForWeek`, joined by then), and a member of the group away at
+ * another group's session in one of them ("At Group F this week"). The weeks
+ * they were in the group become those weeks, the week they joined the first
+ * of them, and a visit to or from another group is kept only for one of
+ * them. Nothing about any other week is left.
+ */
+export function rowsOfWeeks(members: readonly RegisterMember[], weeks: readonly number[]): RegisterMember[] {
+  const shown = [...new Set(weeks)].sort((a, b) => a - b);
+  const out: RegisterMember[] = [];
+  for (const member of members) {
+    const own = shown.filter((week) => week >= member.joinedWeekNumber && isRowForWeek(member, week));
+    const awayAt = (member.awayAt ?? []).filter((visit) => shown.includes(visit.weekNumber));
+    if (own.length === 0 && awayAt.length === 0) continue;
+    const first = Math.min(...own, ...awayAt.map((visit) => visit.weekNumber));
+    const row: RegisterMember = { uid: member.uid, displayName: member.displayName, joinedWeekNumber: first };
+    if (member.inGroupWeeks) row.inGroupWeeks = own.map((week) => ({ fromWeek: week, untilWeek: week + 1 }));
+    const visitingFrom = (member.visitingFrom ?? []).filter((visit) => shown.includes(visit.weekNumber));
+    if (visitingFrom.length > 0) row.visitingFrom = visitingFrom;
+    if (awayAt.length > 0) row.awayAt = awayAt;
+    out.push(row);
+  }
+  return out;
+}
+
+/**
  * EVERY ENROLMENT ON THE GROUP WHOSE ATTENDANCE IS READ DOWNSTREAM, for the
  * rollup recompute. Not the register's rows: those are the ACTIVE members,
  * because they are who a facilitator can mark.

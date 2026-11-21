@@ -14,6 +14,7 @@ import { drawTitleWords } from "@/lib/courses/packsAndCases/words";
 import { resolveSessions, sessionRange } from "@/lib/courses/sessions";
 import { updateAudienceCounts } from "@/lib/courses/updates/audience";
 import { loadRunGroups } from "@/lib/courses/updates/readers";
+import { facilitatingOnRunOf } from "@/lib/courses/writtenAnswers/access";
 import {
   firstSessionDayOf,
   isBeforeFirstSessionDay,
@@ -159,7 +160,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
     facilitatorExplainerOn(db, actor, run.id, group.id, next?.sessionKey),
     // The group's people as the group page puts them in the draw; a read that fails says nothing.
     facilitates
-      ? readSlipsTonight(db, { run, group, now, people: async () => drawPeople(model.people, model.facilitators) }).catch((err: unknown) => {
+      ? readSlipsTonight(db, { run, group, now, people: async () => drawPeople(model.people, model.facilitators, facilitatingOnRunOf(group, await loadRunGroups(db, run.id))) }).catch((err: unknown) => {
           console.error("[group summary] the slips read failed", group.id, err);
           return null;
         })

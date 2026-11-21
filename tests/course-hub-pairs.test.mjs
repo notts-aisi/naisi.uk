@@ -321,7 +321,7 @@ describe("2. typing the pairs", () => {
     assert.deepEqual(w.records(), []);
   });
 
-  test("the body is checked before anything is read; a week with no session in pairs, or changed since the page opened, refuses", async () => {
+  test("the gate is asked first, then the body; a week with no session in pairs, or changed since the page opened, refuses", async () => {
     const bad = [
       { weekId: "w3", blockId: W3_SESSION, entries: [{ uid: "chloe", pair: 1, laptop: false }] },
       { weekId: "w03", blockId: "", entries: [{ uid: "chloe", pair: 1, laptop: false }] },
@@ -334,11 +334,11 @@ describe("2. typing the pairs", () => {
       { weekId: "w03", blockId: W3_SESSION, entries: [{ uid: "chloe", pair: 1, laptop: false }, { uid: "chloe", pair: 2, laptop: false }] },
     ];
     for (const body of bad) {
-      // A member with no role meets the same 400 as a facilitator: nothing was read to tell them apart.
-      for (const who of ["nobody", "rahul"]) {
-        const answer = await w.call(who, w.routes.pairs.PUT, { groupId: B }, { course: true, body });
-        assert.equal(answer.status, 400, `${who} ${JSON.stringify(body)}: ${JSON.stringify(answer.body)}`);
-      }
+      // A member with no role is refused by the gate whatever the body; a facilitator meets the body's 400.
+      const refused = await w.call("nobody", w.routes.pairs.PUT, { groupId: B }, { course: true, body });
+      assert.deepEqual([refused.status, refused.body], [403, { error: "Forbidden" }], `nobody ${JSON.stringify(body)}`);
+      const answer = await w.call("rahul", w.routes.pairs.PUT, { groupId: B }, { course: true, body });
+      assert.equal(answer.status, 400, `rahul ${JSON.stringify(body)}: ${JSON.stringify(answer.body)}`);
     }
     const notJson = await w.call("rahul", w.routes.pairs.PUT, { groupId: B }, { course: true });
     assert.equal(notJson.status, 400);
@@ -890,7 +890,8 @@ describe("6. who sees what, and every file that addresses the record", () => {
     // The gates, as the page and the route ask them, and the shell's reader asked for the session's own person.
     const code = (file) => readFileSync(join(SRC, file), "utf8");
     assert.match(code("app/(app)/learn/pairs/[groupId]/page.tsx"), /const gate = await drawGate\(db, user, group\);\s*if \(!gate\.ok\) return <NotForYou page="pairs" \/>;\s*(?:\/\/[^\n]*\n\s*)*if \(group\.archived\) return <NotForYou page="pairs" admitted \/>;/);
-    assert.match(code("app/api/courses/groups/[groupId]/pairs/route.ts"), /const gate = await drawGate\(db, actor, group\);\s*if \(!gate\.ok\) return NextResponse\.json\(\{ error: "Forbidden" \}, \{ status: 403 \}\);/);
+    assert.match(code("app/api/courses/groups/[groupId]/pairs/route.ts"), /const opened = await openDrawGroup\(db, actor, groupId\);\s*if \(!opened\.ok\) return NextResponse\.json\(\{ error: opened\.error \}, \{ status: opened\.status \}\);/);
+    assert.match(code("lib/courses/packsAndCases/readers.ts"), /const gate = await drawGate\(db, actor, group\);\s*if \(!gate\.ok\) return \{ ok: false, status: 403, error: "Forbidden" \};/);
     assert.match(code("app/(app)/learn/[runId]/weeks/[n]/page.tsx"), /return await readOwnPairs\(db, access\.user, access\.run\.id, access\.groups, access\.enrolment, weekNumber, new Date\(\)\);/);
     assert.match(
       code("app/(app)/learn/[runId]/group/[groupId]/page.tsx"),

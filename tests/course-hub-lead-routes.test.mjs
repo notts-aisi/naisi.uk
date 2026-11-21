@@ -171,13 +171,17 @@ const ROUTES = [
   {
     name: "POST remove somebody from the run",
     ask: (who, o) => call(who, routes.remove.POST, { runId: RUN.agi, uid: "amara" }, { course: true, ...o }),
-    expect: { zach: 200, claudia: 200, yusuf: 200 },
+    // Amara's row came from the form, so it is the admin's and the lead's (`rowIsServedTo`): the track lead passes
+    // the gate and is answered as for a uid with no place (tests/course-remove-served-rows.test.mjs holds a row
+    // the track lead is served).
+    expect: { zach: 200, claudia: 200, yusuf: 404 },
   },
   {
     name: "POST put somebody back on the run",
     ask: (who, o) => call(who, more.reinstate.POST, { runId: RUN.agi, uid: "amara" }, { course: true, ...o }),
-    expect: "as the admin, for the admin, the lead and the track lead",
-    passes: ["zach", "claudia", "yusuf"],
+    // Amara's row came from the form, so it is the admin's and the lead's (`rowIsServedTo`): the track lead passes
+    // the gate and is answered as for a uid with no place (tests/course-reinstate-served-rows.test.mjs).
+    expect: { zach: 200, claudia: 200, yusuf: 404 },
   },
   {
     name: "POST a group's facilitators",

@@ -392,7 +392,8 @@ type RunLeaver = {
  *
  * Somebody a register marked comes first, as the grid lists them (its
  * groups in order, names within), in the group whose register last marked
- * them; then everybody no register marked, by name, in the group their seat
+ * them, of the groups that were theirs (never a one-week visit's host,
+ * `listGroups`); then everybody no register marked, by name, in the group their seat
  * names (none once staff took them off, which clears it). Then the most
  * recent first. The grid, its CSV and the facilitators' register keep their
  * own rule (`isListed`): a row there is somebody a register marked.
@@ -695,8 +696,8 @@ export async function buildProgrammeOverview(
     if (enrolment.status === "withdrawn" && enrolment.dropOutReason) {
       sentences.push(`${first} said: “${enrolment.dropOutReason}”`);
     }
-    // The register they are off: the group a register last marked them in,
-    // or the group their seat names. A removal clears the seat's group, so
+    // The register they are off: the group of theirs a register last marked
+    // them in, or the group their seat names. A removal clears the seat's group, so
     // somebody taken off before any register marked them is off none.
     if (entry && leftDateKey && enrolment.droppedOutAt) {
       const leftAt = enrolment.droppedOutAt.getTime();

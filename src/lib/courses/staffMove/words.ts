@@ -544,6 +544,16 @@ export function midTermToPoolWords(firstName: string, fromName: string): string 
   );
 }
 
+/**
+ * NOT DRAWN AS A LINE OF ITS OWN: the board shows it as the refusal of a
+ * move made mid-term by somebody who is neither an admin nor the programme's
+ * lead (a run's track lead), naming who to ask.
+ */
+export function midTermLeadOnlyWords(firstName: string, fromName: string): string {
+  const first = line(firstName) || "They";
+  return `${first} has already met with ${groupName(fromName)}, so only an admin or the programme’s lead can move ${first} now. Ask one of them.`;
+}
+
 /** A move on the board whose week changed between the question and the press: "The move is now from week 4. Move Leo again to see what it does." */
 export function boardWeekChangedWords(firstName: string, weekNumber: number): string {
   return `The move is now from week ${weekNumber}. Move ${line(firstName) || "them"} again to see what it does.`;

@@ -36,6 +36,7 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { workClosesAt } from "@/lib/courses/weekWork/closes";
 import { WorkClosedError, assertWeekTakesWork, logWork, ownSessionSource, weekStateIn } from "@/lib/courses/weekWork/own";
 import { closedWords } from "@/lib/courses/weekWork/words";
+import { facilitatesOnRun } from "@/lib/courses/writtenAnswers/access";
 
 /**
  * A PERSON'S OWN PACK AND TALK: `PUT` with `{ weekId, packId }` picks a
@@ -69,11 +70,13 @@ import { closedWords } from "@/lib/courses/weekWork/words";
  * given, so your pathway stays as it is. To switch, ask Rahul." Whom to ask
  * is named as their week page names them (`askToSwap` in the overview: their
  * own group's facilitators other than themselves, by first name). Somebody
- * who facilitates the group they take part in is named nobody: a case that
- * follows their own pick is theirs, the lead's or an admin's to change, never
- * a co-facilitator's, and they take it back themselves on the pathways and
- * cases page (`askToSwapPicked` in the overview, the same rule). A
- * facilitator who takes the case back frees the pick again.
+ * who facilitates a live group of the run, the one they take part in or
+ * another, is named nobody: a case that follows their own pick is theirs, the
+ * lead's or an admin's to change, never a facilitator's of their group
+ * (`askToSwapPicked` in the overview, the same rule), and somebody who
+ * facilitates the group they take part in takes it back themselves on the
+ * pathways and cases page. A facilitator who takes the case back frees the
+ * pick again.
  *
  * READY is the person's own mark and nobody else's: coursework gets no mark.
  * On a talk with cases it waits for a case to be given; a talk with none (a
@@ -294,8 +297,9 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
     } catch (err) {
       if (err instanceof WorkClosedError) return NextResponse.json({ error: closedWords(err.at) }, { status: 409 });
       if (err instanceof PickStaysError) {
-        // A facilitator of their own group asks nobody: their co-facilitators cannot change that case.
-        const ownCase = ownGroup !== null && facilitates.some((group) => group.id === ownGroup.id);
+        // Somebody who facilitates a live group of the run, this one or another, asks nobody: the case that
+        // follows their own pick is theirs, the lead's or an admin's to change, never their group's facilitators'.
+        const ownCase = ownGroup !== null && facilitatesOnRun(actor.uid, liveGroups);
         const names = ownCase ? [] : await askNamesFor(db, ownGroup, actor.uid).catch(() => []);
         return NextResponse.json({ error: pickStaysWords(chooseOne.title, names) }, { status: 409 });
       }

@@ -9,11 +9,12 @@ import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { formatRunStartShort } from "@/lib/courses/window";
 import {
+  GROUPS_BY_WEEK_LIMITS,
   courseEnrolmentId,
   normalizeCourseEnrolment,
   type CourseEnrolmentStatus,
 } from "@/lib/firestore/courseEnrolments";
-import { courseApplicationId } from "@/lib/firestore/courseApplications";
+import { courseApplicationId, normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseRunChannel, normalizeCourseRun } from "@/lib/firestore/courses";
 import { unsubscribe } from "@/lib/firestore/subscriptions";
@@ -28,7 +29,13 @@ import { removalChangedWords } from "@/lib/courses/visit/words";
  * group's `memberCount` decrement.
  *
  * WHO MAY REMOVE: admins ∪ the run's `trackLeadUids` ∪ the lead of the
- * programme that names the run (`runStaffingOf`): the allocation gate.
+ * programme that names the run (`runStaffingOf`): the allocation gate. And
+ * of the people on the run, only somebody whose row the board serves the
+ * caller (`rowIsServedTo`): a row the application form placed is an admin's
+ * and the programme lead's, so a run's track lead is answered about such a
+ * person as about a uid with no place on the run, before anything about them
+ * is read, by the preview and the press alike. Somebody with no row on the
+ * run's list (an open run's own sign-up) is anybody's on the gate, as before.
  *
  * It records WHEN (`droppedOutAt`, the field leaving writes), so the
  * programme's Overview, its Attendance tab and the group's register say the
@@ -170,12 +177,21 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // The body first: a malformed one gets the one answer, whoever the uid is.
+  const body = await readBody(req);
+  if (!body) return NextResponse.json({ error: "Expected no body, or a JSON object." }, { status: 400 });
+
+  // A person whose row the board does not serve this caller is answered as a uid with no place, before
+  // anything about them is read: the preview's visits and the press's emails alike.
+  const rowSnap = await db.collection("courseApplications").doc(courseApplicationId(runId, uid)).get();
+  const row = rowSnap.exists ? normalizeCourseApplication(rowSnap.id, rowSnap.data() ?? {}) : null;
+  if (row && !rowIsServedTo(row, staffing)) {
+    return NextResponse.json({ error: "Enrolment not found" }, { status: 404 });
+  }
+
   const enrolmentRef = db
     .collection("courseEnrolments")
     .doc(courseEnrolmentId(runId, uid));
-
-  const body = await readBody(req);
-  if (!body) return NextResponse.json({ error: "Expected no body, or a JSON object." }, { status: 400 });
 
   if (body.preview) {
     // What a press would do about their visits, read now: writes nothing.
@@ -293,6 +309,18 @@ export async function POST(req: Request, ctx: Ctx) {
       // never counted by it, so removing one moves nothing.
       const heldOpenSeat = status === "active" && existing.selfEnrolled === true;
 
+      // The weeks they spent, or were to spend, at another group's session: kept beside the removal, so a
+      // host's register is never taken for the register of a group they belonged to (`listGroups`). A place
+      // removed before, put back and removed again keeps the weeks its first removal kept too.
+      const stored = normalizeCourseEnrolment(snap.id, existing);
+      const visitsWhenRemoved = [
+        ...(stored.visitsWhenRemoved ?? []),
+        ...(stored.visits ?? []).map((each) => ({ weekNumber: each.weekNumber, groupId: each.groupId })),
+      ]
+        .filter((each, at, all) => all.findIndex((other) => other.weekNumber === each.weekNumber && other.groupId === each.groupId) === at)
+        .sort((a, b) => a.weekNumber - b.weekNumber)
+        // Within the stored list's bound, the latest weeks kept: the latest mark is the one asked.
+        .slice(-GROUPS_BY_WEEK_LIMITS.entries);
       tx.update(enrolmentRef, {
         status: "removed" satisfies CourseEnrolmentStatus,
         groupId: null,
@@ -312,6 +340,7 @@ export async function POST(req: Request, ctx: Ctx) {
         // And any one-week visit to another group's session still to come:
         // somebody taken off the run goes to no session of it.
         visits: FieldValue.delete(),
+        ...(visitsWhenRemoved.length > 0 ? { visitsWhenRemoved } : {}),
         // WHEN THEY WERE TAKEN OFF, in the field leaving writes, so the
         // programme's Overview, its Attendance tab and the register say
         // "Left Fri 13 Nov" for both kinds of leaving. Somebody who left by

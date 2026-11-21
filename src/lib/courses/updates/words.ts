@@ -225,6 +225,16 @@ export const REFUSAL = {
   noTestAddress: "Your account has no email address on file to send a test to.",
 } as const;
 
+/**
+ * NOT DRAWN: an update about one week that is not a week of the group the
+ * change route can have changed (`weekNoticeRefusal`). The pages that post
+ * the week only ever send one that is.
+ */
+export function weekNotOpenWords(groupName: string, weekNumber: number): string {
+  const group = groupName.trim() || "This group";
+  return `${group} has no session in week ${weekNumber} that can still change, so nothing was posted or sent.`;
+}
+
 /** "You’ve sent 10 tests in the last hour. Try again shortly." */
 export function tooManyTestsWords(limit: number): string {
   return `You’ve sent ${countWords(limit)} tests in the last hour. Try again shortly.`;

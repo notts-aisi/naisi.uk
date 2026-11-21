@@ -57,7 +57,9 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
  *    no part, and is nobody's row. Both kinds keep the day they went
  *    (`droppedOutAt`; a row removed before Remove recorded it has none, and
  *    reads "Left"). A withdrawn row keeps its group; a removed row does not,
- *    so it is listed in the group whose register last marked it.
+ *    so it is listed in the group whose register last marked it, of the
+ *    groups that were theirs: a week they spent at another group's session
+ *    (`visitsWhenRemoved`) never lists them under that week's host.
  *  - ONE ROW A PERSON, in the group they are in now, whichever groups their
  *    weeks were spent in. Each week's cell reads the register of the group
  *    they were in THAT week (`groupForWeek`): somebody moved from Group C to
@@ -708,13 +710,20 @@ export function listGroups(
   const over = runEndOf(records.run, records.groups, now).over;
 
   // A removed row has no group on it any more: it belongs where a register
-  // last marked it.
+  // of a group of their own last marked it. A host's register marks a
+  // visitor like anybody else, so a week they spent at another group's
+  // session (`visitsWhenRemoved`, kept by Remove) never makes the host theirs.
   const removedHome = new Map<string, string>();
   for (const enrolment of records.enrolments) {
     if (enrolment.status !== "removed") continue;
+    const visited = enrolment.visitsWhenRemoved ?? [];
     let best: { groupId: string; week: number } | null = null;
     for (const group of records.groups) {
-      const week = lastMarkedWeek(sessionsByGroup.get(group.id) ?? new Map(), enrolment.uid);
+      const sessions = sessionsByGroup.get(group.id) ?? new Map<number, GroupSessionFacts>();
+      const own = visited.some((visit) => visit.groupId === group.id)
+        ? new Map([...sessions].filter(([week]) => !visited.some((visit) => visit.groupId === group.id && visit.weekNumber === week)))
+        : sessions;
+      const week = lastMarkedWeek(own, enrolment.uid);
       if (week > 0 && (!best || week > best.week)) best = { groupId: group.id, week };
     }
     if (best) removedHome.set(enrolment.uid, best.groupId);

@@ -29,11 +29,20 @@ import { REFUSAL_WORDS } from "@/lib/societyFeedback/words";
  * Three limits keep floods out, each a count in this server's memory alone,
  * never stored: per address, 30 a minute and 30 an hour (the address is read
  * for those two keys and nothing else), so one address cannot use up the
- * whole form's allowance; and 300 an hour for the whole form.
+ * whole form's allowance; and 300 an hour for the whole form. Each counts
+ * only a caller who may send: the session is read first, and somebody signed
+ * out or not a member is refused before any limit is counted.
  */
 export async function POST(req: Request) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
+
+  // The one read of the session: a yes or a no, before anything is counted,
+  // so a caller who may not send spends nobody's allowance. `user` is used on
+  // these two lines and nowhere else in this handler: never in a limit's key.
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: REFUSAL_WORDS.notMember }, { status: 401 });
+  if (!isMemberRole(user.role)) return NextResponse.json({ error: REFUSAL_WORDS.notMember }, { status: 403 });
 
   // Each per-address limit answers in words that are true of it: the minute's
   // says a minute, the hour's says the last hour.
@@ -51,12 +60,6 @@ export async function POST(req: Request) {
       { status: 429, headers: { "Retry-After": String(hourly.retryAfterSeconds) } },
     );
   }
-
-  // The one read of the session: a yes or a no. `user` is used on these two
-  // lines and nowhere else in this handler.
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: REFUSAL_WORDS.notMember }, { status: 401 });
-  if (!isMemberRole(user.role)) return NextResponse.json({ error: REFUSAL_WORDS.notMember }, { status: 403 });
 
   let raw = "";
   try {

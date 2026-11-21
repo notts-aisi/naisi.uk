@@ -12,6 +12,7 @@ import { openLeadDoor } from "@/lib/courses/facilitatorWeek/leadDoor";
 import { loadGroupWeek, loadGroupWeekBoxes } from "@/lib/courses/facilitatorWeek/readers";
 import { loadWorkColumns } from "@/lib/courses/facilitatorWeek/workColumns";
 import { drawPeople } from "@/lib/courses/packsAndCases/readers";
+import { facilitatingOnRunOf, liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import { ATTENDANCE, NO_WEEK_TO_SHOW, groupWeekTitleWords, noGroupsWords, ownCountedApartLine } from "@/lib/courses/facilitatorWeek/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -92,7 +93,7 @@ export default async function LeadGroupWeekPage({
         actor: user,
         viewer: { isAdmin: viewer === "admin", leadOf: viewer === "lead" ? { roundId, programmeId } : null },
         weekNumber: week.weekNumber,
-        people: drawPeople(model.people, model.facilitators),
+        people: drawPeople(model.people, model.facilitators, facilitatingOnRunOf(group, await liveGroupsOf(db, run.id))),
         reviewHref: (uid, n) => readingAnswerHref(`/admin/admissions/forms/${round}/programmes/${programmeKey}/coursework`, uid, n),
         now,
       })

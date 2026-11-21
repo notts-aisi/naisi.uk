@@ -247,6 +247,15 @@ export type OneWeekVisit = {
  */
 export const GROUPS_BY_WEEK_LIMITS = { entries: 60, week: 60 } as const;
 
+/**
+ * A WEEK SOMEBODY STAFF TOOK OFF THE RUN SPENT AT ANOTHER GROUP'S SESSION:
+ * the week and the host, from the visits their place carried when Remove
+ * deleted them. Kept so that a host's register, which marks a visitor like
+ * anybody else, is never read as the register of a group they belonged to
+ * (`listGroups`, which lists somebody removed in a group of their own).
+ */
+export type RemovedVisit = { weekNumber: number; groupId: string };
+
 export type CourseEnrolmentDoc = {
   /** Firestore doc id: `courseEnrolmentId(runId, uid)`. */
   id: string;
@@ -383,6 +392,14 @@ export type CourseEnrolmentDoc = {
    * belong to that week, or in a week before they joined, reads as none.
    */
   visits?: OneWeekVisit[];
+  /**
+   * THE VISITS THE PLACE CARRIED WHEN STAFF REMOVED IT (see
+   * `RemovedVisit`), written by Remove alone in the write that deletes
+   * `visits`, in week order. Absent on a place with no visit then, on every
+   * place removed before it was kept, and on a stored value that is not a
+   * whole list.
+   */
+  visitsWhenRemoved?: RemovedVisit[];
   /**
    * The person's answer to "can you make this time?" (see
    * `StoredTimeAnswer`). Absent until they answer, and on a stored value
@@ -656,6 +673,21 @@ function asVisits(
   return kept.length > 0 ? kept : undefined;
 }
 
+/** The visits Remove kept, read whole or not at all, in week order; undefined for none. */
+function asRemovedVisits(v: unknown): RemovedVisit[] | undefined {
+  if (!Array.isArray(v) || v.length === 0 || v.length > GROUPS_BY_WEEK_LIMITS.entries) return undefined;
+  const out: RemovedVisit[] = [];
+  for (const item of v) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return undefined;
+    const entry = item as Raw;
+    const week = entry.weekNumber;
+    if (!isGroupId(entry.groupId)) return undefined;
+    if (typeof week !== "number" || !Number.isInteger(week) || week < 1 || week > GROUPS_BY_WEEK_LIMITS.week) return undefined;
+    out.push({ weekNumber: week, groupId: entry.groupId });
+  }
+  return out.sort((a, b) => a.weekNumber - b.weekNumber);
+}
+
 function tsToDate(v: unknown): Date | null {
   if (!v) return null;
   if (v instanceof Date) return v;
@@ -779,5 +811,7 @@ export function normalizeCourseEnrolment(id: string, data: Raw): CourseEnrolment
   if (groupsByWeek) doc.groupsByWeek = groupsByWeek;
   const visits = asVisits(data.visits, doc);
   if (visits) doc.visits = visits;
+  const visitsWhenRemoved = asRemovedVisits(data.visitsWhenRemoved);
+  if (visitsWhenRemoved) doc.visitsWhenRemoved = visitsWhenRemoved;
   return doc;
 }

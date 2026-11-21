@@ -181,13 +181,23 @@ const READERS = {
     proof: ['where("status", "==", "pending")', "getCountFromServer("],
     why: "an admin's count of pending applications. A row from the form is never pending, and a count names nobody",
   },
-  "app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": {
-    kind: "no-content",
-    proof: ["appSnap.data()?.email"],
+  "app/api/courses/runs/[runId]/enrolments/[uid]/reinstate/route.ts": {
+    kind: "staff",
+    asks: 1,
     why:
-      "takes the address off a row to drop a mailing-list entry when the account has gone. A row from the form " +
-      "carries no address, and nothing of the row is sent back. Where the seat's place came from, to give it back on " +
-      "the form, is leaving's own answer (lib/courses/leaving.ts, listed there)",
+      "putting somebody back on an open run, for an admin, the run's track leads or the lead of the programme that " +
+      "names it, reads the person's row first and answers a row it does not serve the caller as a uid with no place, " +
+      "as Remove does, before their seat is read",
+  },
+  "app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": {
+    kind: "staff",
+    asks: 1,
+    why:
+      "Remove, for an admin, the run's track leads or the lead of the programme that names it, reads the person's row " +
+      "first and answers a row it does not serve the caller as a uid with no place, before the preview lists their " +
+      "visits or the press emails a host. After the removal it takes the address off the row to drop a mailing-list " +
+      "entry when the account has gone; a row from the form carries no address. Where the seat's place came from, to " +
+      "give it back on the form, is leaving's own answer (lib/courses/leaving.ts, listed there)",
   },
   "lib/firestore/accountDeletion.ts": {
     kind: "no-content",

@@ -299,7 +299,7 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
     }
     assert.match(read("app", "(app)", "learn", "[runId]", "group", "[groupId]", "register", "page.tsx"), /readHandOutDates\(db, \{ run: access\.run, group: gated\.group, now \}\)/);
     assert.match(read("features", "courses", "register", "HandOutRowLoader.tsx"), /const slips = await slipsTonightFrom\(db, \{ runId, dates, people: roster\.people, now \}\);/);
-    assert.match(summary, /\? readSlipsTonight\(db, \{ run, group, now, people: async \(\) => drawPeople\(model\.people, model\.facilitators\) \}\)/);
+    assert.match(summary, /\? readSlipsTonight\(db, \{ run, group, now, people: async \(\) => drawPeople\(model\.people, model\.facilitators, facilitatingOnRunOf\(group, await loadRunGroups\(db, run\.id\)\)\) \}\)/);
     assert.match(read("app", "(app)", "learn", "facilitator-guide", "[courseId]", "[doc]", "page.tsx"), /readGuideSlips\(db, \{ groups, pageWeek: page\.weekNumber, now \}\)/);
     // The Overview's line: the course's weeks through `readDrawWeeks` once, the card's people from the records it
     // read (the same reader `readDrawRoster` answers through), the rule asked again with the draw (`withDraws`),

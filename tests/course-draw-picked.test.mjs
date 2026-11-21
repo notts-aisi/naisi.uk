@@ -306,7 +306,7 @@ describe("1b. who else reads a facilitator's own pick", () => {
     }
     // The table's reader, as each: the lead and an admin see both cells, Farah sees her own, a co-facilitator sees blanks.
     const week = await w.lib.readers.readGroupWeek(w.world.courseDb, RUN.agi, B, 3);
-    const farah = { uid: "farah", name: "Farah Hussain", firstName: "Farah", facilitates: true };
+    const farah = { uid: "farah", name: "Farah Hussain", firstName: "Farah", facilitates: true, ownWork: true };
     const cellFor = async (viewer) => {
       const out = await w.lib.readers.weekWorkOf(w.world.courseDb, RUN.agi, week, [farah], viewer);
       const cell = out.cells.get("farah");
