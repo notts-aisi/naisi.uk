@@ -6,7 +6,7 @@ import { readPlaceToRestore, restorePlaces, type PlaceToRestore } from "@/lib/ap
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { joinedWeekFor } from "@/lib/courses/groupResolve";
-import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
+import { doesTrackLeadWork, readsTimeAnswers, runStaffingOf } from "@/lib/courses/runStaffing";
 import {
   courseApplicationId,
   normalizeCourseApplication,
@@ -303,7 +303,8 @@ export async function POST(req: Request, ctx: Ctx) {
         out.push({ ...blank, refusal: await poolRefusalOf(uid) });
         continue;
       }
-      const planned = await planBoardMove(db, run, uid, groupId, now);
+      // The question names a "most weeks" tick only to a reader of time answers.
+      const planned = await planBoardMove(db, run, uid, groupId, now, true, readsTimeAnswers(staffing));
       if (planned.kind === "mid-term") out.push({ ...blank, fromWeek: planned.weekNumber, words: planned.words });
       else if (planned.kind === "refused") out.push({ ...blank, refusal: planned.refusal });
       else out.push(blank);

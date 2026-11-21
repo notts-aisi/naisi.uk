@@ -162,9 +162,19 @@ async function groupsOfRun(db: Firestore, runId: string): Promise<CourseGroupDoc
  * refusal in its sentence. The caller has already decided the person is one
  * it may place, and the group one of the run's that still meets. The
  * question is worded only when `ask` (the preview): the press needs the week
- * alone, and is spared the reads of what is left behind.
+ * alone, and is spared the reads of what is left behind. `timeAnswers` is
+ * the caller's `readsTimeAnswers`: the question names a "most weeks" tick to
+ * a reader of time answers alone (`leftBehindOf`).
  */
-export async function planBoardMove(db: Firestore, run: CourseRunDoc, uid: string, toGroupId: string, now: Date, ask = true): Promise<BoardMovePlan> {
+export async function planBoardMove(
+  db: Firestore,
+  run: CourseRunDoc,
+  uid: string,
+  toGroupId: string,
+  now: Date,
+  ask: boolean,
+  timeAnswers: boolean,
+): Promise<BoardMovePlan> {
   const placeSnap = await db.collection("courseEnrolments").doc(courseEnrolmentId(run.id, uid)).get();
   if (!placeSnap.exists) return { kind: "plain" };
   const place = normalizeCourseEnrolment(placeSnap.id, placeSnap.data() ?? {});
@@ -186,7 +196,7 @@ export async function planBoardMove(db: Firestore, run: CourseRunDoc, uid: strin
   if (!ask) return { kind: "mid-term", weekNumber: week.weekNumber, words: "", personName: person.name, firstName: person.firstName };
   const weeks = weeksThatCome(place.joinedWeekNumber, week.weekNumber);
   // What stays on the old group from week N on, as the move page says it.
-  const leftBehind = await leftBehindOf(db, { run, from, place }, week.weekNumber);
+  const leftBehind = await leftBehindOf(db, { run, from, place }, week.weekNumber, { timeAnswers });
   const words = boardMoveConfirmWords({
     name: person.name,
     firstName: person.firstName,
@@ -225,7 +235,8 @@ export async function saveBoardMove(
   input: { run: CourseRunDoc; uid: string; toGroupId: string; fromWeek: number | null; actor: SessionUser; now: Date },
 ): Promise<BoardMoveSaved> {
   const refused = (refusal: BoardRefusal): BoardMoveSaved => ({ ok: false, refusal });
-  const planned = await planBoardMove(db, input.run, input.uid, input.toGroupId, input.now, false);
+  // The press words nothing, so reads no time answer.
+  const planned = await planBoardMove(db, input.run, input.uid, input.toGroupId, input.now, false, false);
   if (planned.kind === "refused") return refused(planned.refusal);
   // Not mid-term any longer (a race with another press): the board is out of date.
   if (planned.kind === "plain") return refused({ reason: "changed", words: MOVE_REFUSAL.changed });

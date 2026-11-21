@@ -525,12 +525,22 @@ async function weeksWrittenFrom(db: Firestore, runId: string, uid: string, weekN
  * "most weeks" tick about one of its sessions, and a request to be excused
  * still waiting about one. The move page's line and the board's question
  * both read it here (`leftBehindWords`).
+ *
+ * A "most weeks" tick is part of the person's time answer, so it is read
+ * only for a reader of time answers (`timeAnswers`, which the caller asks of
+ * `readsTimeAnswers`): for anybody else that session is read as any other,
+ * by its register's line.
  */
-export async function leftBehindOf(db: Firestore, facts: Pick<MoveFacts, "run" | "from" | "place">, weekNumber: number): Promise<LeftBehind[]> {
+export async function leftBehindOf(
+  db: Firestore,
+  facts: Pick<MoveFacts, "run" | "from" | "place">,
+  weekNumber: number,
+  reader: { timeAnswers: boolean },
+): Promise<LeftBehind[]> {
   const { run, from, place } = facts;
   const later = resolveSessions(run, from).filter((session) => session.weekNumber >= weekNumber);
   const ticked = new Set(
-    place.timeAnswer?.kind === "mostWeeks" && place.timeAnswer.forGroupId === from.id ? place.timeAnswer.sessionKeys : [],
+    reader.timeAnswers && place.timeAnswer?.kind === "mostWeeks" && place.timeAnswer.forGroupId === from.id ? place.timeAnswer.sessionKeys : [],
   );
   const out: LeftBehind[] = [];
   const registers = later.length ? await db.getAll(...later.map((s) => db.collection("courseAttendance").doc(attendanceDocId(run.id, from.id, s.weekNumber, s.occurrence)))) : [];
@@ -585,7 +595,8 @@ export async function planMove(
   const [feedback, differ, leftBehind, writtenAhead] = await Promise.all([
     readOwnFeedback(db, facts.run.id, person.uid),
     copiesDiffer(db, facts.run.id, from, to, weeks),
-    leftBehindOf(db, facts, weekNumber),
+    // The move page and its route admit the programme's lead and admins alone, who read time answers (`readsTimeAnswers`).
+    leftBehindOf(db, facts, weekNumber, { timeAnswers: true }),
     // Weeks from N on already written in on the old group's copy, whose copy differs in the new group.
     weeksWrittenFrom(db, facts.run.id, person.uid, weekNumber).then((written) => copiesDiffer(db, facts.run.id, from, to, written)),
   ]);
