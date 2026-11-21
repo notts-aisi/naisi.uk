@@ -214,6 +214,8 @@ export default async function DrawPage({
 
         {week && gives ? (
           <DrawEditor
+            // A week of its own each: opening another week starts its editor afresh.
+            key={week.weekId}
             groupId={groupId}
             weekId={week.weekId}
             people={people.map((person) => ({ uid: person.uid, name: person.name, firstName: person.firstName }))}

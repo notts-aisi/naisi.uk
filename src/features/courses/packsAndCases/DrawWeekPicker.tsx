@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useId } from "react";
 import Select from "@/components/ui/Select";
 import { useHydrated } from "@/hooks/useHydrated";
@@ -37,12 +38,13 @@ export default function DrawWeekPicker({
 }) {
   const id = useId();
   const hydrated = useHydrated();
+  const router = useRouter();
 
   function open(weekNumber: number) {
     if (weekNumber === current) return;
     const href = `/learn/draw/${encodeURIComponent(groupId)}?week=${weekNumber}`;
     const go = window.dispatchEvent(new CustomEvent(DRAW_LEAVE_EVENT, { cancelable: true, detail: { href } }));
-    if (go) window.location.assign(href);
+    if (go) router.push(href);
   }
 
   return (

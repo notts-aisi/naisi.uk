@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
 import Select from "@/components/ui/Select";
@@ -120,13 +121,14 @@ export default function DrawEditor({
   const [late, setLate] = useState(lateAtOpen);
   const [ask, setAsk] = useState<Ask>(null);
   const askRef = useRef<HTMLDivElement>(null);
-  // Set once the facilitator has chosen to go, so the tab's own ask does not follow.
+  const router = useRouter();
+  // Set once the facilitator has chosen to go, so neither ask follows them out.
   const going = useRef(false);
 
   /** Opens another address, past the ask about changes not saved. */
   function go(href: string) {
     going.current = true;
-    window.location.assign(href);
+    router.push(href);
   }
 
   const titleOf = new Map(packs.map((block) => [block.id, block.title]));
@@ -158,7 +160,7 @@ export default function DrawEditor({
       event.returnValue = "";
     };
     const onClick = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (going.current || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const link = (event.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
       if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
       const to = new URL(link.href, window.location.href);
@@ -167,6 +169,7 @@ export default function DrawEditor({
       setAsk({ kind: "leave", href: to.pathname + to.search + to.hash });
     };
     const onLeave = (event: Event) => {
+      if (going.current) return;
       const href = (event as CustomEvent<{ href?: string }>).detail?.href;
       if (!href) return;
       event.preventDefault();
