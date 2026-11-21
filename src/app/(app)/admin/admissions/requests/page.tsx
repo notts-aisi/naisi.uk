@@ -40,9 +40,9 @@ export default async function RequestsPage() {
   }
   // An admin's own switch for the email about new requests to be excused:
   // drawn for admins alone, who are the only people emailed about one.
-  const emailMe =
-    loaded.view.viewer === "admin" && db
-      ? wantsRequestEmails((await db.collection("users").doc(user.uid).get()).data() ?? {})
-      : null;
-  return <RequestsList view={loaded.view} emailMe={emailMe} />;
+  // And the second, about messages to the team, off unless they switch it on.
+  const own = loaded.view.viewer === "admin" && db ? ((await db.collection("users").doc(user.uid).get()).data() ?? {}) : null;
+  const emailMe = own ? wantsRequestEmails(own) : null;
+  const emailMeTeam = own ? wantsRequestEmails(own, "team") : null;
+  return <RequestsList view={loaded.view} emailMe={emailMe} emailMeTeam={emailMeTeam} />;
 }

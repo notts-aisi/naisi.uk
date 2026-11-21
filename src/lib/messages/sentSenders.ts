@@ -52,7 +52,11 @@ export const SENT_KINDS: Record<EmailSendKind, SentEntry> = {
   "course-nudge": { listed: { label: "Weekly course email", byPerson: false } },
   "course-notice": { listed: { label: "Room notice", byPerson: true } },
   "course-enrolment": { notListed: "Somebody joining or leaving a run: their own confirmation." },
-  "course-request": { notListed: "One email to each admin who decides them, saying a request to be excused, or to go to another group’s session for a week, has arrived. Never the reason." },
+  "course-request": {
+    notListed:
+      "One email to each admin who decides them, saying a request to be excused, or to go to another group’s session for a week, has arrived, or a message to the team for an admin who switched that on. Never the reason, never what they wrote.",
+  },
+  "team-reply": { notListed: "A reply to one person’s own message to the team." },
   "course-joining-online": {
     notListed: "One email to each of a group’s facilitators, saying somebody in the group is joining a session online. Never the meeting link.",
   },

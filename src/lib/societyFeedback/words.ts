@@ -75,6 +75,10 @@ export const FOOTER_LINK = "Anonymous feedback";
 export const FORM_WORDS = {
   title: "Anonymous feedback",
   intro: "Tell us anything about NAISI. We don’t keep who sent it, so we can’t reply.",
+  /** After the intro, with "ask the team" a link to Ask the team. */
+  answerBefore: "If you’d like an answer,",
+  askTheTeam: "ask the team",
+  answerAfter: "instead.",
   programmeLabel: "What’s it about? (optional)",
   programmeNone: "Not about a programme",
   sessionLabel: "Which session? (optional)",
@@ -94,6 +98,8 @@ export const FORM_WORDS = {
 export const SENT_WORDS = {
   title: "Thanks: it’s sent",
   body: "We don’t keep who sent it, so we can’t reply to it. Admins will read it from tomorrow.",
+  answer: "If you’d like an answer, ask the team: you’ll get a reply.",
+  askTheTeam: "Ask the team",
   more: "Send more feedback",
 } as const;
 

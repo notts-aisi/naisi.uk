@@ -32,6 +32,12 @@ import { ATTENDANCE_STATUSES } from "./courseAttendance";
  * `subjectUid`), as the privacy policy keeps requests "while your account
  * exists". The correction a request led to stays in the group's history, as
  * every `courseAudit` row does, with a `requestId` that then names nothing.
+ *
+ * A MESSAGE TO THE TEAM HAS NO RUN (`kind: "team-message"`,
+ * `./courseTeamAsks.ts`): its `runId` is `""`, so no run's cascade or
+ * per-run reader ever finds it, and it goes only with the account, by the
+ * same two equalities. It has a status of its own, `replied`, which only its
+ * own normaliser reads.
  */
 
 export const COURSE_REQUESTS_COLLECTION = "courseRequests";

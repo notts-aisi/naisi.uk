@@ -3,6 +3,7 @@ import { clockWords, dayWords, namesWords, peopleWords } from "@/lib/courses/ses
 import { cameBy, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import { didNotHappenLines } from "@/lib/courses/registerCover/pageWords";
 import { VISITS_LABEL } from "@/lib/courses/groupPage/model";
+import { messagesWaitingWords } from "@/lib/courses/teamAsk/words";
 import { linesWords, lineWords } from "./words";
 
 /**
@@ -716,7 +717,7 @@ export function handlingWords(handling: { name: string } | null, mine: boolean):
 }
 
 /** A row's state chip. */
-export function stateChip(state: "waiting" | "handling" | "approved" | "declined" | "withdrawn"): string {
+export function stateChip(state: "waiting" | "handling" | "approved" | "declined" | "withdrawn" | "replied"): string {
   switch (state) {
     case "waiting":
       return "Waiting";
@@ -728,6 +729,8 @@ export function stateChip(state: "waiting" | "handling" | "approved" | "declined
       return "Declined";
     case "withdrawn":
       return "Withdrawn";
+    case "replied":
+      return "Replied";
   }
 }
 
@@ -811,13 +814,15 @@ export function requestsWaitingTitle(count: number): string {
  * kind adds its own count and sentence; nothing is ever counted as a
  * correction because it is not something else.
  */
-export function requestsWaitingLine(counts: { corrections: number; excused?: number; visits?: number }): string {
+export function requestsWaitingLine(counts: { corrections: number; excused?: number; visits?: number; messages?: number }): string {
   const corrections = Math.max(counts.corrections, 0);
   const excused = Math.max(counts.excused ?? 0, 0);
   const visits = Math.max(counts.visits ?? 0, 0);
+  const messages = Math.max(counts.messages ?? 0, 0);
   const lines: string[] = [];
   if (visits > 0) lines.push(visits === 1 ? "Somebody has asked to go to another group’s session." : `${visits} requests to go to another session are waiting.`);
   if (excused > 0) lines.push(excused === 1 ? "Somebody has asked to be excused from a week." : `${excused} requests to be excused are waiting.`);
+  if (messages > 0) lines.push(messagesWaitingWords(messages));
   if (corrections > 0) {
     lines.push(
       corrections === 1 ? "A facilitator has asked for a line of a register to be corrected." : `Facilitators have asked for ${corrections} lines of registers to be corrected.`,

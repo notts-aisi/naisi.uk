@@ -1,7 +1,9 @@
 import { Refusal } from "@/features/applications/editor/Refusals";
 import ExcusedRequestPage from "@/features/courses/requests/ExcusedRequestPage";
 import RequestPage from "@/features/courses/requests/RequestPage";
+import TeamMessagePage from "@/features/courses/requests/TeamMessagePage";
 import VisitRequestPage from "@/features/courses/requests/VisitRequestPage";
+import { loadTeamMessagePage } from "@/lib/courses/teamAsk/page";
 import { loadVisitRequestPage } from "@/lib/courses/visitRequest/page";
 import { loadExcusedRequestPage } from "@/lib/courses/excused/page";
 import { BACK_TO_REQUESTS, REQUEST_NOT_HERE, REQUEST_NOT_HERE_LINE } from "@/lib/courses/registerCorrection/pageWords";
@@ -19,7 +21,8 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * A REQUEST TO BE EXCUSED is an admin's alone (`loadExcusedRequestPage`,
  * which answers everybody else `none`): its reason, how often the person has
  * been excused and its decisions are never drawn for a programme's lead. So
- * is a REQUEST TO GO TO ANOTHER SESSION (`loadVisitRequestPage`). The loaders
+ * is a REQUEST TO GO TO ANOTHER SESSION (`loadVisitRequestPage`), and a
+ * MESSAGE TO THE TEAM (`loadTeamMessagePage`). The loaders
  * are tried in turn, each answering `none` for a kind it does not read.
  *
  * Anybody else, and an id that names nothing, is shown the same calm "not
@@ -39,6 +42,8 @@ export default async function OneRequestPage({ params }: { params: Promise<{ req
     if (excused.status === "ok") return <ExcusedRequestPage view={excused.view} />;
     const visit = await loadVisitRequestPage(db, user, requestId, new Date());
     if (visit.status === "ok") return <VisitRequestPage view={visit.view} />;
+    const message = await loadTeamMessagePage(db, user, requestId);
+    if (message.status === "ok") return <TeamMessagePage view={message.view} />;
   }
   if (!loaded || loaded.status === "none") {
     return (

@@ -71,8 +71,12 @@ const MAX_ADMINS = 50;
  * requests to go to another session are both on `excused`, on unless an
  * admin stored false, so the one switch an admin already has covers both. A
  * later kind adds its own key here, with its own default.
+ *
+ * Messages to the team (`src/lib/courses/teamAsk/ask.ts`) are on `team`, OFF
+ * unless an admin stored true: "Email me about messages to the team", the
+ * second switch on the Requests page.
  */
-export const REQUEST_EMAIL_SWITCHES = { excused: { on: true } } as const;
+export const REQUEST_EMAIL_SWITCHES = { excused: { on: true }, team: { on: false } } as const;
 
 export type RequestEmailSwitch = keyof typeof REQUEST_EMAIL_SWITCHES;
 

@@ -48,12 +48,13 @@ export async function requestsWaitingFor(db: Firestore, user: SessionUser, now: 
 /**
  * How many requests wait for somebody, and how many of each kind, each
  * counted by itself: register corrections, requests to be excused and to go
- * to another session (those two an admin's alone). A kind with no count here
- * is in `count` and in no line of Home's words until it brings its own.
+ * to another session, and messages to the team (those three an admin's
+ * alone). A kind with no count here is in `count` and in no line of Home's
+ * words until it brings its own.
  */
-export type RequestsWaiting = { count: number; corrections: number; excused: number; visits: number };
+export type RequestsWaiting = { count: number; corrections: number; excused: number; visits: number; messages: number };
 
-export const NO_REQUESTS_WAITING: RequestsWaiting = { count: 0, corrections: 0, excused: 0, visits: 0 };
+export const NO_REQUESTS_WAITING: RequestsWaiting = { count: 0, corrections: 0, excused: 0, visits: 0, messages: 0 };
 
 /**
  * How many requests about one run wait for somebody to decide them, as the

@@ -13,7 +13,8 @@ import { getCurrentUser } from "@/lib/firebase/session";
  *
  * The body is `{ on, which? }`: `on` true or false, and `which` the switch
  * (`REQUEST_EMAIL_SWITCHES`), the existing `excused` when left out, so a body
- * of `{ on }` does what it always did. It writes one field on the caller's own
+ * of `{ on }` does what it always did. `which: "team"` is the second switch,
+ * "Email me about messages to the team", off unless switched on. It writes one field on the caller's own
  * user document, `requestEmails.<which>`, and nothing else; there is no
  * way to spell another person here. Admins only: nobody else is emailed
  * about a request, so nobody else has the switch.
