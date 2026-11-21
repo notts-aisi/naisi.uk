@@ -1,6 +1,8 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { freedPlaceWindow, lastDayLabel } from "@/lib/applications/freedPlaces/rules";
+import { slipsWaitingLink, slipsWaitingWords } from "@/lib/courses/drawCard/overviewLine";
+import { readSlipsWaiting } from "@/lib/courses/drawCard/overviewReads";
 import { namesInWords } from "@/lib/courses/facilitatingEmail";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { londonClockLabel, londonDayAndClock, londonDayLabel } from "@/lib/courses/londonLabels";
@@ -65,6 +67,13 @@ import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
  *  - a register not finished once its session has ended, with the
  *    reminder's and the task's real times from the settings their jobs read
  *    (it goes when the register is finished, or marked as not held);
+ *  - a group's slips not all copied in once the session that hands them out
+ *    has ended (`./drawCard/overviewLine.ts`: the week, the session and the
+ *    people are the group page's card's, and who waits is the Waiting
+ *    piece's), with the way to the group's pathways and cases page on that
+ *    week (it goes when everybody has theirs, or when that week's session
+ *    starts). After the registers' lines, as it too follows a session that
+ *    has ended, and before the leavers, which say what has happened;
  *  - somebody who left, whether or not a register marked them, with what
  *    they said when they gave a reason (it goes if they are put back).
  *
@@ -148,7 +157,7 @@ export type OverviewSession = {
 };
 
 export type OverviewAttention = {
-  kind: "absent" | "week" | "register" | "left";
+  kind: "absent" | "week" | "register" | "slips" | "left";
   title: string;
   detail: string;
   link: { href: string; label: string } | null;
@@ -418,8 +427,10 @@ function leaversOfRun(records: RunRecords, listed: readonly ListedGroup[], viewe
 
 /**
  * THE OVERVIEW. Reads the week docs it needs, the reminder markers of the
- * registers not finished and the settings the chase reads; everything else
- * comes from the records the Attendance tab reads.
+ * registers not finished, the settings the chase reads and, for a group past
+ * the session that hands a week's slips out, that course's weeks and draw
+ * (`readSlipsWaiting`); everything else comes from the records the
+ * Attendance tab reads.
  */
 export async function buildProgrammeOverview(
   db: Firestore,
@@ -433,7 +444,12 @@ export async function buildProgrammeOverview(
   const attendance: RunAttendance = buildRunAttendance(records, viewer, now);
   const listed = listGroups(records, viewer, now, weeksOf(records));
   const ending = attendance.ending;
-  const [config, lead] = await Promise.all([readCoursesConfig(db), readRunLead(db, records.run.id)]);
+  // The slips not copied in read beside the settings and the lead: nothing for a group not past a hand-out session.
+  const [config, lead, slips] = await Promise.all([
+    readCoursesConfig(db),
+    readRunLead(db, records.run.id),
+    readSlipsWaiting(db, { records, viewer, now }),
+  ]);
   const todayKey = londonDateKey(now);
   const tomorrowKey = addDaysToKey(todayKey, 1);
   const attendanceHref = (groupId?: string) =>
@@ -657,6 +673,18 @@ export async function buildProgrammeOverview(
         },
       });
     }
+  }
+
+  // A group's slips not all copied in after the session that hands them out, in the order every tab lists its groups.
+  for (const entry of listed) {
+    const waiting = slips.get(entry.group.id);
+    if (!waiting) continue;
+    attention.push({
+      kind: "slips",
+      title: slipsWaitingWords(entry.group.name, waiting),
+      detail: "",
+      link: slipsWaitingLink(entry.group.id, waiting),
+    });
   }
 
   // Somebody who left, the most recent first.

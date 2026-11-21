@@ -40,7 +40,7 @@ function isOneWord(title: string): boolean {
  * "pathway", so a title written as a phrase ("one 80,000 Hours career review
  * that fits you") never lands inside a sentence.
  */
-function pickWord(title: string): string {
+export function pickWord(title: string): string {
   return isOneWord(title) ? titleWord(title) : "pathway";
 }
 

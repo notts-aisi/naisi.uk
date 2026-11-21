@@ -516,24 +516,36 @@ export async function resolveWeekDoc(
  * week its members may hold progress against (the exact orphaning the
  * schedule-change suite documents). Consumers that only want plan-listed
  * weeks filter by their resolved calendar, not in here.
+ *
+ * `read.runWeeks`: the run's own weeks as this answered them with no group
+ * (`resolveWeekDocs(db, runId, null)`), for a caller resolving many groups of
+ * one run at once (the programme's Overview), so the run's weeks are queried
+ * once and only each group's copies here. Left out, both are queried, as
+ * always.
  */
 export async function resolveWeekDocs(
   db: Firestore,
   runId: string,
   groupId: string | null,
+  read: { runWeeks?: readonly ResolvedWeekEntry[] } = {},
 ): Promise<ResolvedWeekEntry[]> {
-  const canonicalQuery = db
-    .collection("courseRuns")
-    .doc(runId)
-    .collection("weeks")
-    .get();
+  const canonicalQuery = read.runWeeks
+    ? null
+    : db
+        .collection("courseRuns")
+        .doc(runId)
+        .collection("weeks")
+        .get();
   const forkQuery = groupId
     ? db.collection("courseGroups").doc(groupId).collection("weeks").get()
     : null;
   const [canonicalSnap, forkSnap] = await Promise.all([canonicalQuery, forkQuery]);
 
   const byId = new Map<string, ResolvedWeekEntry>();
-  for (const doc of canonicalSnap.docs) {
+  for (const entry of read.runWeeks ?? []) {
+    if (entry.source === "run") byId.set(entry.week.id, entry);
+  }
+  for (const doc of canonicalSnap?.docs ?? []) {
     byId.set(doc.id, {
       source: "run",
       week: normalizeCourseWeek(doc.id, doc.data() ?? {}),
