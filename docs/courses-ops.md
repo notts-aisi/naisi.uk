@@ -5811,19 +5811,46 @@ talk; the code is `src/lib/courses/packsAndCases/`.
 
 ### Typing in the draw
 
-1. **After the session**, the group page shows the spread for the week the
-   group meets next ("Pathways in Group B": each pathway with who has it,
-   and who has nothing yet) and links to the draw page, "Change pathways and
-   cases" (`/learn/draw/<group>?week=<n>`).
-2. **Copy the slips in.** Each person in the group has a row, the group's
+1. **Which week.** A week's slips are handed out at the session before it
+   (the last session held before that week's first, so a session called off
+   moves the hand-out to the one before it; week 1 has none). The group page,
+   the draw page and the draw's route ask one rule
+   (`src/lib/courses/packsAndCases/drawWeek.ts`): the earliest week still to
+   come that gives something out and where somebody has not got theirs,
+   looking no further than the next two such weeks. From the start of the
+   hand-out session that is next week, never the session's own. With no
+   such week still to come, the draw page opens on the last week that gave
+   something out, and the group page shows no card.
+2. **The card.** While that week is still to come, the group page shows its
+   spread ("Pathways in Group B" over "Week 4": each pathway with who has it,
+   and who has nothing yet) and links to the draw page on it, "Change
+   pathways and cases" (`/learn/draw/<group>?week=<n>`).
+3. **The draw page** opens on the same week without `?week=`; the address
+   still opens any week. Its Week picker lists every week that gives
+   something out, past ones too ("Week 3 · Pathways and cases"). It says
+   "Copy in the slips you handed out tonight." on the hand-out night only,
+   and before the hand-out session when the slips go out.
+4. **Copy the slips in.** Each person in the group has a row, the group's
    facilitators included (they take part too): their pathway, then their
    case. A case list offers only that pathway's cases. A case with a content
    note is never in a list: it stays out of the draw.
-3. **Swaps** go through the group's facilitators: "Swap two people" swaps
+5. **Swaps** go through the group's facilitators: "Swap two people" swaps
    everything two people have; Save keeps it. Changing somebody's pathway
    takes back a case the new one does not offer.
-4. **Save** writes only what changed. Nobody is emailed: each person sees
+6. **Save** writes only what changed. Nobody is emailed: each person sees
    theirs on that week's page.
+7. **A week whose session has started or been held.** The page says which
+   week it is before any change ("Week 3 is the week people are working on
+   now. Its session has started." or "Week 2's session was on Tue 10 Nov."),
+   and Save asks again, with what the save changes: "Changing a case takes
+   back that person's Ready for my talk." on a week that gives out cases, and
+   for a pathway or plan that counts towards the week, that the person's
+   week is done only once the new one is ticked. The route refuses such a
+   save without that yes, and a page opened before the session started asks
+   then, in the route's own words. A group with no session time set has no
+   dates, so its weeks all count as still to come and Save never asks.
+8. **Once the programme closes** for work (`workClosesAt`), the draw is read
+   only: the page shows the lists with no Save, and the route refuses a save.
 
 ### Who sees what
 

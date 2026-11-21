@@ -4,9 +4,14 @@ import { isAddressableId } from "@/lib/addressableId";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { drawTalkOf, findPack, hasDraw, mayBeGiven } from "@/lib/courses/packsAndCases/model";
-import { drawGate, readDrawPeople, readGroupWeek } from "@/lib/courses/packsAndCases/readers";
+import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
+import { drawWeekRule } from "@/lib/courses/packsAndCases/drawWeek";
+import { countedPackTitlesOf, drawTalkOf, findPack, hasDraw, mayBeGiven } from "@/lib/courses/packsAndCases/model";
+import { drawClosed, drawGate, readDrawRoster, readGroupWeek } from "@/lib/courses/packsAndCases/readers";
+import { DRAW_NOT_SAVED, lateSaveChangesWords, lateSaveRefusedWords, weekStandingWords } from "@/lib/courses/packsAndCases/words";
+import { resolveSessions } from "@/lib/courses/sessions";
 import { isWeekItemId } from "@/lib/courses/weekBlocks/model";
+import { closedWords } from "@/lib/courses/weekWork/words";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import {
   COURSE_PACKS_AND_CASES_COLLECTION,
@@ -17,7 +22,7 @@ import {
 
 /**
  * THE DRAW, TYPED IN: `PUT`
- * with `{ weekId, entries: [{ uid, blockId, value }] }` gives each person
+ * with `{ weekId, entries: [{ uid, blockId, value }], confirmed? }` gives each person
  * named a pack in a Choose one a facilitator gives out, or a case in a talk
  * they give out, or takes one back (`value: null`, "Not given yet"). At the
  * end of a session the facilitator hands out next week's packs and cases on
@@ -40,6 +45,20 @@ import {
  *  - never a case with a content note: it stays out of the draw.
  * A case changed or taken back clears the person's "Ready for my talk",
  * which was for the case they had.
+ *
+ * WHEN: until the programme closes for work (`workClosesAt`, the moment
+ * every member's week turns read only); after it the draw is read only and a
+ * save is refused 409 with the members' own sentence (`closedWords`). Before
+ * it, a save into a week whose session has started or been held (its
+ * standing in `drawWeekRule`, the one rule the page and the group page's
+ * card ask too) needs `confirmed: true`, which the page sends only once the
+ * facilitator has said yes to what Save asks: which week this is, then what
+ * the save changes ("Changing a case takes back that person’s Ready for my
+ * talk." on a week that gives out cases, `lateSaveChangesWords`); without it
+ * the save is refused 409 with `confirm:
+ * true` and `ask`, the lines the page's Save then asks, which week it is
+ * first, so a page opened before the session started asks then. A week
+ * still to come needs no yes.
  *
  * Nobody is emailed ("Each person sees theirs on their week 3 page. No
  * email."). The body is checked before anything is read; everything is
@@ -83,7 +102,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
   // ---- The body, before any document is read --------------------------------
-  let body: { weekId?: unknown; entries?: unknown };
+  let body: { weekId?: unknown; entries?: unknown; confirmed?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -127,14 +146,21 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
 
   // ---- What may be given, to whom --------------------------------------------
   const now = new Date();
-  const [people, week] = await Promise.all([
-    readDrawPeople(db, group.runId, group, { isAdmin: gate.isAdmin }, now),
+  const [roster, week] = await Promise.all([
+    readDrawRoster(db, group.runId, group, { isAdmin: gate.isAdmin }, now),
     readGroupWeek(db, group.runId, groupId, weekNumber),
   ]);
-  if (!people) return NextResponse.json({ error: "That group isn’t on this programme." }, { status: 404 });
+  if (!roster) return NextResponse.json({ error: "That group isn’t on this programme." }, { status: 404 });
+  const { people, run, closesAt } = roster;
   if (!week || !hasDraw(week.draw)) {
     return NextResponse.json({ error: `Nothing is given out in week ${weekNumber}. Reload the page.` }, { status: 404 });
   }
+
+  // ---- When: read only once the programme closes ------------------------------
+  if (closesAt && drawClosed(closesAt, now)) {
+    return NextResponse.json({ error: closedWords(closesAt) }, { status: 409 });
+  }
+
   const byUid = new Map(people.map((person) => [person.uid, person]));
   const packsById = new Map(week.draw.packs.map((chooseOne) => [chooseOne.id, chooseOne]));
   const talks = new Map(week.draw.cases.map((talk) => [talk.id, drawTalkOf(week.blocks, talk)]));
@@ -153,6 +179,18 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
     if (!talks.has(entry.blockId)) {
       return NextResponse.json({ error: `That isn’t given out in week ${weekNumber}. Reload the page.` }, { status: 400 });
     }
+  }
+
+  // A week whose session has started or been held: only with the facilitator's yes.
+  const sessions = resolveSessions(run, group, resolveGroupCalendar(run, group, now).calendar);
+  const facts = drawWeekRule({ sessions, givingWeeks: [weekNumber], now }).facts.get(weekNumber);
+  if (facts && facts.standing !== "ahead" && facts.startsAt && body.confirmed !== true) {
+    // What the page's Save asks, the route's own answer: which week this is first, then what the save changes.
+    const ask = [
+      weekStandingWords(weekNumber, facts.standing, facts.startsAt, facts.startsCalledOff),
+      ...lateSaveChangesWords({ countedPackTitles: countedPackTitlesOf(week.blocks, week.draw), givesCases: week.draw.cases.length > 0 }),
+    ];
+    return NextResponse.json({ error: lateSaveRefusedWords(ask), confirm: true, ask }, { status: 409 });
   }
 
   const touched = [...new Set(entries.map((entry) => entry.uid))];
@@ -231,6 +269,6 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
   } catch (err) {
     if (err instanceof DrawError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error("[courses draw] save failed", groupId, weekId, err);
-    return NextResponse.json({ error: "Couldn’t save the draw just now. Try again." }, { status: 500 });
+    return NextResponse.json({ error: DRAW_NOT_SAVED }, { status: 500 });
   }
 }

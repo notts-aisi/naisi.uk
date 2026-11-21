@@ -261,6 +261,7 @@ export const TERM_POINTS = Object.freeze([
   "six-months-on",
   "check-in",
   "whole-term",
+  "draw-night",
 ]);
 
 /** The form's one programme at the first three points. Fixed: a programme id is unique on its own form. */
@@ -506,6 +507,7 @@ export function laterPlanOf(point) {
   if (point === "coursework") return COURSEWORK;
   if (point === "check-in") return CHECK_IN_DAY;
   if (point === "whole-term") return WHOLE_TERM;
+  if (point === "draw-night") return DRAW_NIGHT;
   return null;
 }
 
@@ -1656,8 +1658,85 @@ export function courseworkWeekDoc({ state, weekNumber, at }) {
           },
         ],
       },
+      // A week whose slips a facilitator hands out at the session before it.
+      ...(state.drawWeeks?.includes(weekNumber) ? drawBlocksOf(weekNumber) : []),
     ],
   };
+}
+
+/**
+ * THE SLIPS A FACILITATOR HANDS OUT for one week of the draw point, by the
+ * key their ids end in: a pathway each person is given (a Choose one given
+ * out by the facilitator) and a case study whose cases are grouped by
+ * pathway, given out too. Every word made up; every address reserved.
+ */
+export const DRAW_SLIPS = Object.freeze({
+  chooseOneTitle: "Pathway",
+  packs: Object.freeze([
+    Object.freeze({ key: "pk1", name: "The harbour", cases: Object.freeze([Object.freeze({ key: "ca1", title: "The storm of 1987" }), Object.freeze({ key: "ca2", title: "The lamp that failed" })]) }),
+    Object.freeze({ key: "pk2", name: "The keepers", cases: Object.freeze([Object.freeze({ key: "ca3", title: "The last keeper" })]) }),
+  ]),
+});
+
+/**
+ * A draw week's two blocks, as an editor publishes them: a part holding the
+ * pathway (a Choose one lives only inside a part: the week's reader drops one
+ * at the top level), then the case study, which may stand on its own.
+ */
+function drawBlocksOf(weekNumber) {
+  const id = (key) => courseworkItemId(weekNumber, key);
+  const run = (text, extra = {}) => ({ text, ...extra });
+  const p = (text) => ({ type: "p", runs: [run(text)] });
+  const pathway = {
+    id: id("co"),
+    type: "chooseOne",
+    form: "table",
+    title: DRAW_SLIPS.chooseOneTitle,
+    givenBy: "facilitator",
+    kind: "read",
+    time: "",
+    noteHeading: "",
+    questions: [],
+    packs: DRAW_SLIPS.packs.map((pack) => ({
+      id: id(pack.key),
+      name: pack.name,
+      time: "20 minutes",
+      note: [],
+      read: [run("E2E Example, "), run(`“${pack.name}”`, { href: `https://example.com/e2e-${pack.key}-${weekNumber}` })],
+    })),
+  };
+  return [
+    {
+      id: id("pw"),
+      type: "part",
+      title: "Your pathway",
+      time: "About 20 minutes",
+      framing: [p("Your facilitator gives you a pathway at the end of the session before.")],
+      blocks: [pathway],
+    },
+    {
+      id: id("cs"),
+      type: "cases",
+      heading: "Your case study",
+      intro: [p("You get a case from your pathway at the end of the session before.")],
+      talk: { minutes: 3, name: "talk" },
+      prepare: [],
+      givenBy: "facilitator",
+      groupLabel: DRAW_SLIPS.chooseOneTitle,
+      startLabel: "Start here",
+      groups: DRAW_SLIPS.packs.map((pack) => ({
+        name: pack.name,
+        packId: id(pack.key),
+        cases: pack.cases.map((item) => ({
+          id: id(item.key),
+          title: item.title,
+          what: [run("Made up for the harness.")],
+          start: [run("A summary", { href: `https://example.org/e2e-${item.key}-${weekNumber}` })],
+          contentNote: "",
+        })),
+      })),
+    },
+  ];
 }
 
 /**
@@ -1971,6 +2050,8 @@ export async function seedTerm({
     ...(laterPlan?.notes ? { notes: laterPlan.notes.map((entry) => ({ ...entry })) } : {}),
     // Weeks that count their work: each opens with This week (`courseworkWeekDoc`).
     ...(laterPlan?.thisWeek ? { thisWeek: true } : {}),
+    // Weeks whose slips a facilitator hands out: each carries a pathway and its cases (`drawBlocksOf`).
+    ...(laterPlan?.drawWeeks ? { drawWeeks: [...laterPlan.drawWeeks] } : {}),
   };
 
   // Published BEFORE the first write and filled in place from here on.
@@ -2630,6 +2711,8 @@ export async function countTerm(state) {
   // The week you submit: a submitted or reopened week, and the log every tick, box, submit and reopen writes.
   counts.courseWeekWork = (await fixtureQuery("courseWeekWork").where("runId", "==", runId).get()).size;
   counts.courseWorkLog = (await fixtureQuery("courseWorkLog").where("runId", "==", runId).get()).size;
+  // The draw: the pathway and case each person was given, typed in by a facilitator.
+  counts.coursePacksAndCases = (await fixtureQuery("coursePacksAndCases").where("runId", "==", runId).get()).size;
   // A facilitator's session reports, one a writer and session.
   counts.courseSessionReports = (
     await fixtureQuery("courseSessionReports").where("runId", "==", runId).get()
@@ -2776,6 +2859,8 @@ export async function teardownTerm(state) {
   // The week you submit's rows, written by the routes a spec drives.
   await deleteQuery(fixtureQuery("courseWeekWork").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseWorkLog").where("runId", "==", runId));
+  // The draw's records, written by the draw route a facilitator presses.
+  await deleteQuery(fixtureQuery("coursePacksAndCases").where("runId", "==", runId));
   // The session reports a facilitator sent.
   await deleteQuery(fixtureQuery("courseSessionReports").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("tasks").where("sourceRef.cohortId", "==", runId));
@@ -3030,6 +3115,37 @@ export const CHECK_IN_DAY = Object.freeze({
   facilitated: "A",
   published: 3,
   blockWeeks: true,
+  earlierUpdate: false,
+});
+
+/**
+ * THE NIGHT A FACILITATOR HANDS OUT NEXT WEEK'S SLIPS ("draw-night"). The
+ * check-in point's fellowship and day, with one group of two, Ada and Ben,
+ * whose week 3 session started half an hour before the seed
+ * (`SESSION_UNDER_WAY`): the seed's day is day 15 of the plan, week 3's
+ * session day, so the session under way hands out week 4's slips. Weeks 1 to
+ * 4 are published and written as blocks, and weeks 3 and 4 each give out a
+ * pathway and a case study grouped by it (`DRAW_SLIPS`), so week 3 is the week
+ * people are working on now and week 4 the one the slips are for. Weeks 1 and
+ * 2's registers are finished, both present. Fern is the account the admin
+ * appoints to the group on the real page, and takes part in its draw like
+ * anybody. Nobody has been given anything.
+ */
+export const DRAW_NIGHT = Object.freeze({
+  daysIn: 15,
+  programme: FELLOWSHIP,
+  groups: Object.freeze([
+    Object.freeze({ key: "A", name: "Group A", dayAfterStart: 1, startTimeLocal: SESSION_UNDER_WAY, room: "Room E1", online: false }),
+  ]),
+  people: Object.freeze(["ada", "ben"].map((key) => Object.freeze({ key, first: key[0].toUpperCase() + key.slice(1), canMake: Object.freeze(["A"]) }))),
+  facilitator: FACILITATOR_PLAN,
+  places: Object.freeze({ ada: "A", ben: "A" }),
+  marks: Object.freeze({ A: Object.freeze({ 1: Object.freeze({ ada: "present", ben: "present" }), 2: Object.freeze({ ada: "present", ben: "present" }) }) }),
+  unfinished: null,
+  facilitated: "A",
+  published: 4,
+  blockWeeks: true,
+  drawWeeks: Object.freeze([3, 4]),
   earlierUpdate: false,
 });
 

@@ -385,7 +385,7 @@ function selects(html) {
 }
 
 describe("3. the draw", () => {
-  test("the draw page: the week of the group's next session, a row per person and their facilitators, as the board draws it", async () => {
+  test("the draw page: the week the slips are for, with the Week picker, a row per person and their facilitators, as the board draws it", async () => {
     w.seedDraw("chloe", "w3", { pack: W3.elections, caseId: W3.surprise });
     const page = await w.drawPage("rahul");
     assert.equal(page.to, null);
@@ -393,8 +393,11 @@ describe("3. the draw", () => {
       "Group B",
       "Packs and cases",
       "Group B · after session 2",
+      "Packs and cases",
+      "Week",
+      "Week 2 · Packs and cases",
       "Week 3 · Packs and cases",
-      "Copy in the slips you handed out tonight.",
+      "Weeks 2 and 3 give something out. Weeks 1 and 4 to 6 don’t.",
       "Swap two people",
       "Chloe Nguyen",
       "Farah Hussain",
@@ -404,20 +407,31 @@ describe("3. the draw", () => {
       "Save",
       "Each person sees theirs on their week 3 page. No email.",
     ]);
+    // Week 3's slips went out at last Tuesday's session, so "tonight" is not said at noon on the 17th.
+    assert.doesNotMatch(page.text, /handed out tonight/);
     const lists = selects(page.html);
-    assert.equal(lists.length, 10, "a pack and a case for each of five people");
+    assert.equal(lists.length, 11, "the Week picker, then a pack and a case for each of five people");
+    // The picker: every week that gives something out, on week 3, held until the page is live.
+    assert.deepEqual(lists[0], { disabled: true, options: ["Week 2 · Packs and cases", "*Week 3 · Packs and cases"] });
     // Chloe has both: no "Not given yet", and one case for Elections (the other has a content note).
-    assert.deepEqual(lists[0].options, ["*Elections", "Markets", "Technology"]);
-    assert.deepEqual(lists[1].options, ["*The surprise result, 2016"]);
+    assert.deepEqual(lists[1].options, ["*Elections", "Markets", "Technology"]);
+    assert.deepEqual(lists[2].options, ["*The surprise result, 2016"]);
     // Farah has nothing yet: "Not given yet", and "Choose a pack first" for the case, which takes no press.
-    assert.deepEqual(lists[2].options, ["*Not given yet", "Elections", "Markets", "Technology"]);
-    assert.deepEqual(lists[3], { disabled: true, options: ["*Choose a pack first"] });
+    assert.deepEqual(lists[3].options, ["*Not given yet", "Elections", "Markets", "Technology"]);
+    assert.deepEqual(lists[4], { disabled: true, options: ["*Choose a pack first"] });
     // Labels are real, one per select.
     assert.equal((page.html.match(/<label class="drawLabel" for="/g) ?? []).length, 10);
+    assert.equal((page.html.match(/<label class="drawWeekLabel" for="/g) ?? []).length, 1);
     // Nobody who left, and nobody of another group.
     assert.doesNotMatch(page.text, /Sam Whitfield|Omar Haddad|Amara Okafor/);
     // Save waits for the page to be live.
     assert.match(page.html, /<button type="button" class="buttonPrimary saveButton" disabled="">Save<\/button>/);
+
+    // On the hand-out night, during session 2 (Tue 10 Nov, 6pm to 8pm), the page is about week 3 and says "tonight".
+    w.at("2026-11-10T19:00:00Z");
+    const night = await w.drawPage("rahul");
+    inOrder(night.text, ["Group B · after session 2", "Week 3 · Packs and cases", "Copy in the slips you handed out tonight.", "Swap two people"]);
+    assert.deepEqual(selects(night.html)[0].options, ["Week 2 · Packs and cases", "*Week 3 · Packs and cases"]);
   });
 
   test("a case with a content note is never in the draw: no list offers it, and the route refuses it", async () => {
@@ -615,7 +629,10 @@ describe("3. the draw", () => {
     assert.equal(answer.status, 400);
     assert.deepEqual(w.records(), []);
     const page = await w.drawPage("rahul", B, 1);
-    assert.match(page.text, /Week 1 Nothing is given out in week 1\./);
+    // Opened by its address: the picker holds it beside every week that gives something out, then the sentence and the way back.
+    inOrder(page.text, ["Week", "Week 1", "Week 2 · Packs and cases", "Week 3 · Packs and cases", "Nothing is given out in week 1.", "Back to Group B"]);
+    assert.deepEqual(selects(page.html)[0].options, ["*Week 1", "Week 2 · Packs and cases", "Week 3 · Packs and cases"]);
+    assert.doesNotMatch(page.html, />Save</);
   });
 
   test("who reaches the draw page: the group's facilitators, the lead by its address, and admins; everybody else signed in is told the page is not theirs", async () => {
@@ -659,7 +676,9 @@ describe("3. the draw", () => {
     assert.equal(words.changeDrawWords({ packs: [{ title: "Pathway" }], cases: [{}] }), "Change pathways and cases");
     assert.equal(words.spreadTitleWords({ packs: [{ title: "Pathway" }], cases: [] }, "Group B"), "Pathways in Group B");
     assert.equal(words.choosePackFirstWords("Pathway"), "Choose a pathway first");
-    assert.equal(words.drawEyebrowWords("Group B", 3), "Group B · after session 2");
+    // The eyebrow names the hand-out session the rule finds; none, as for week 1, names the group alone.
+    assert.equal(words.drawEyebrowWords("Group B", 2), "Group B · after session 2");
+    assert.equal(words.drawEyebrowWords("Group B", null), "Group B");
     assert.equal(words.drawFootWords(3), "Each person sees theirs on their week 3 page. No email.");
     void D;
   });

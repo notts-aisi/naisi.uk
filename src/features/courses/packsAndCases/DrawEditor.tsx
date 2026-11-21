@@ -1,23 +1,31 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useId, useRef, useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
 import Select from "@/components/ui/Select";
 import { useHydrated } from "@/hooks/useHydrated";
 import { caseOptions, type DrawTalk } from "@/lib/courses/packsAndCases/model";
+import { safeReturnPath } from "@/lib/safeReturnPath";
 import {
   CANCEL,
+  DRAW_NOT_SAVED,
+  LEAVE_WITHOUT_SAVING,
   NOT_GIVEN_YET,
   SAVE,
+  SAVE_ANYWAY,
   SWAP_LABEL,
   SWAP_THEM,
   SWAP_TWO_PEOPLE,
   SWAP_WITH,
+  askAfterRefusal,
   choosePackFirstWords,
+  leavingUnsavedWords,
   savedDrawWords,
   swappedWords,
 } from "@/lib/courses/packsAndCases/words";
 import type { DrawSaved } from "@/app/api/courses/groups/[groupId]/draw/route";
+import { DRAW_LEAVE_EVENT } from "./DrawWeekPicker";
 import facilitator from "../facilitator/facilitator.module.css";
 import styles from "./packsAndCases.module.css";
 
@@ -36,7 +44,24 @@ import styles from "./packsAndCases.module.css";
  *    pathway does not offer.
  *  - "Swap two people" swaps everything two people have; Save keeps it.
  *  - Save sends only what changed, and is held until the page has hydrated:
- *    before then nothing is listening to it.
+ *    before then nothing is listening to it. Saved, it says how many have
+ *    everything the week gives out: "Saved. 6 of 8 have a pathway and a
+ *    case. Each person sees theirs on their week 3 page."
+ *  - A WEEK WHOSE SESSION HAS STARTED OR BEEN HELD (`ask`, the page's lines):
+ *    Save first asks, which week it is first ("Week 3 is the week people are
+ *    working on now. Its session has started."), then what the save changes
+ *    ("Changing a case takes back that person’s Ready for my talk." on a week
+ *    that gives out cases), and the save carries the yes (`confirmed`), which
+ *    the route requires. A save the route refuses for want of it (the
+ *    session started after the page opened) asks the route's own lines
+ *    (`askAfterRefusal`), which week it is first, never the page's.
+ *  - Once saved, the route's data is fetched again (`router.refresh()`), so
+ *    the browser's Back never brings back what the page held before.
+ *  - LEAVING WITH CHANGES NOT SAVED (a link, the Week picker): asked first,
+ *    "You’ve changed 2 people and haven’t saved.", with Save and Leave
+ *    without saving; closing or reloading the tab gets the browser's own ask.
+ *  - READ ONLY once the programme has closed (`readOnly`): the lists are
+ *    shown, nothing can be changed and there is no Save.
  *
  * Handed the fields it draws, never the week: names, the packs' ids and
  * names, and the talks as the draw needs them (`DrawTalk`).
@@ -56,13 +81,35 @@ type Props = {
   caseLabel: string;
   initial: Record<string, Holding>;
   foot: string;
+  /** What each person is given: "a pathway and a case". */
+  holding: string;
+  /** The week's session has started or been held: what Save asks first, which week it is first. Null for a week to come. */
+  ask: string[] | null;
+  /** The programme has closed: nothing changes. */
+  readOnly: boolean;
 };
+
+/** What Save is asking before it goes on: whether to leave unsaved, or to save into a week that has met. */
+type Ask = { kind: "leave"; href: string } | { kind: "confirm"; lines: string[]; then: string | null } | null;
 
 function copy(holding: Holding | undefined): Holding {
   return { packs: { ...(holding?.packs ?? {}) }, cases: { ...(holding?.cases ?? {}) } };
 }
 
-export default function DrawEditor({ groupId, weekId, weekNumber, people, packs, talks, caseLabel, initial, foot }: Props) {
+export default function DrawEditor({
+  groupId,
+  weekId,
+  weekNumber,
+  people,
+  packs,
+  talks,
+  caseLabel,
+  initial,
+  foot,
+  holding,
+  ask: askAtOpen,
+  readOnly,
+}: Props) {
   const formId = useId();
   const hydrated = useHydrated();
   const [saved, setSaved] = useState<Record<string, Holding>>(() =>
@@ -77,6 +124,18 @@ export default function DrawEditor({ groupId, weekId, weekNumber, people, packs,
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const askId = useId();
+  const [ask, setAsk] = useState<Ask>(null);
+  const askRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  // Set once the facilitator has chosen to go, so neither ask follows them out.
+  const going = useRef(false);
+
+  /** Opens another address, past the ask about changes not saved. */
+  function go(href: string) {
+    going.current = true;
+    router.push(href);
+  }
 
   const titleOf = new Map(packs.map((block) => [block.id, block.title]));
   const nameOf = new Map(people.map((person) => [person.uid, person.firstName || person.name]));
@@ -94,6 +153,51 @@ export default function DrawEditor({ groupId, weekId, weekNumber, people, packs,
         .map((talk) => ({ uid: person.uid, blockId: talk.id, value: now?.cases[talk.id] || null })),
     ];
   });
+
+  const changedPeople = new Set(changes.map((change) => change.uid)).size;
+  const dirty = !readOnly && changes.length > 0;
+
+  // Leaving with changes not saved: a link, the Week picker, or the tab itself.
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (going.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const onClick = (event: MouseEvent) => {
+      if (going.current || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = (event.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
+      // Only a path on this site is asked about (`safeReturnPath`, the one place that is decided); any other link goes as it would.
+      const href = safeReturnPath(link.getAttribute("href"));
+      if (!href) return;
+      event.preventDefault();
+      setAsk({ kind: "leave", href });
+    };
+    const onLeave = (event: Event) => {
+      if (going.current) return;
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
+      if (!href) return;
+      event.preventDefault();
+      setAsk({ kind: "leave", href });
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("click", onClick, true);
+    window.addEventListener(DRAW_LEAVE_EVENT, onLeave);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("click", onClick, true);
+      window.removeEventListener(DRAW_LEAVE_EVENT, onLeave);
+    };
+  }, [dirty]);
+
+  // What Save is asking comes into view, and takes the focus.
+  useEffect(() => {
+    if (!ask) return;
+    askRef.current?.scrollIntoView?.({ block: "nearest" });
+    askRef.current?.focus();
+  }, [ask]);
 
   function setPack(uid: string, blockId: string, packId: string) {
     setMessage(null);
@@ -131,23 +235,47 @@ export default function DrawEditor({ groupId, weekId, weekNumber, people, packs,
     setSwapOpen(false);
   }
 
-  async function save() {
-    if (changes.length === 0 || saving) return;
+  /** Save, asking first on a week that has met; `then` is where to go once saved. */
+  function requestSave(then: string | null) {
+    if (changes.length === 0 || saving || readOnly) return;
+    if (askAtOpen && askAtOpen.length > 0) {
+      setAsk({ kind: "confirm", lines: askAtOpen, then });
+      return;
+    }
+    void save(false, then);
+  }
+
+  async function save(confirmed: boolean, then: string | null) {
+    if (changes.length === 0 || saving || readOnly) return;
     setSaving(true);
+    setAsk(null);
     setMessage(null);
     setError(null);
     try {
       const res = await fetch(`/api/courses/groups/${encodeURIComponent(groupId)}/draw`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekId, entries: changes }),
+        body: JSON.stringify({ weekId, entries: changes, ...(confirmed ? { confirmed: true } : {}) }),
       });
-      const answer = (await res.json().catch(() => null)) as (DrawSaved & { error?: string }) | null;
-      if (!res.ok || !answer?.ok) throw new Error(answer?.error || "Couldn’t save the draw just now. Try again.");
-      setSaved(Object.fromEntries(people.map((person) => [person.uid, copy(values[person.uid])])));
-      setMessage(savedDrawWords(weekNumber));
+      const answer = (await res.json().catch(() => null)) as (DrawSaved & { error?: string; confirm?: boolean; ask?: unknown }) | null;
+      if (res.status === 409 && answer?.confirm === true) {
+        // The week's session started after the page opened: ask what the route says, which week it is first.
+        setAsk({ kind: "confirm", lines: askAfterRefusal(answer), then });
+        return;
+      }
+      if (!res.ok || !answer?.ok) throw new Error(answer?.error || DRAW_NOT_SAVED);
+      const kept = Object.fromEntries(people.map((person) => [person.uid, copy(values[person.uid])]));
+      setSaved(kept);
+      const have = people.filter((person) => {
+        const now = kept[person.uid];
+        return packs.every((block) => Boolean(now?.packs[block.id])) && talks.every((talk) => Boolean(now?.cases[talk.id]));
+      }).length;
+      setMessage(savedDrawWords(weekNumber, have, people.length, holding));
+      if (then) go(then);
+      // What the server holds now, so Back never brings back what the page held before the save.
+      else router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn’t save the draw just now. Try again.");
+      setError(err instanceof Error && err.message ? err.message : DRAW_NOT_SAVED);
     } finally {
       setSaving(false);
     }
@@ -155,7 +283,7 @@ export default function DrawEditor({ groupId, weekId, weekNumber, people, packs,
 
   return (
     <div className={styles.draw}>
-      {people.length > 1 && (
+      {people.length > 1 && !readOnly && (
         <div className={styles.swap}>
           {!swapOpen ? (
             <button type="button" className={`${facilitator.buttonGhost} ${styles.swapButton}`} onClick={() => setSwapOpen(true)}>
@@ -219,7 +347,7 @@ export default function DrawEditor({ groupId, weekId, weekNumber, people, packs,
                       <label className={styles.drawLabel} htmlFor={id}>
                         {block.title}
                       </label>
-                      <Select id={id} value={current} onChange={(event) => setPack(person.uid, block.id, event.target.value)}>
+                      <Select id={id} value={current} disabled={readOnly} onChange={(event) => setPack(person.uid, block.id, event.target.value)}>
                         {(!was.packs[block.id] || !current) && <option value="">{NOT_GIVEN_YET}</option>}
                         {block.packs.map((pack) => (
                           <option key={pack.id} value={pack.id}>
@@ -245,7 +373,12 @@ export default function DrawEditor({ groupId, weekId, weekNumber, people, packs,
                           <option value="">{choosePackFirstWords(titleOf.get(options.chooseOneId) ?? "Pack")}</option>
                         </Select>
                       ) : (
-                        <Select id={id} value={offered ? current : ""} onChange={(event) => setCase(person.uid, talk.id, event.target.value)}>
+                        <Select
+                          id={id}
+                          value={offered ? current : ""}
+                          disabled={readOnly}
+                          onChange={(event) => setCase(person.uid, talk.id, event.target.value)}
+                        >
                           {(!was.cases[talk.id] || !offered) && <option value="">{NOT_GIVEN_YET}</option>}
                           {options.cases.map((item) => (
                             <option key={item.id} value={item.id}>
@@ -263,27 +396,74 @@ export default function DrawEditor({ groupId, weekId, weekNumber, people, packs,
         })}
       </ul>
 
-      <div className={styles.drawFoot}>
-        {message && (
-          <p className={styles.line} role="status">
-            {message}
-          </p>
-        )}
-        {error && (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
-        <button
-          type="button"
-          className={`${facilitator.buttonPrimary} ${styles.saveButton}`}
-          onClick={() => void save()}
-          disabled={!hydrated || saving || changes.length === 0}
-        >
-          {SAVE}
-        </button>
-        <p className={styles.drawFootLine}>{foot}</p>
-      </div>
+      {!readOnly && (
+        <div className={styles.drawFoot}>
+          {ask && (
+            <div
+              ref={askRef}
+              tabIndex={-1}
+              className={styles.drawAsk}
+              role="group"
+              // Announced by its own sentences, never by a button's word.
+              aria-labelledby={(ask.kind === "leave" ? [`${askId}-0`] : ask.lines.map((_, index) => `${askId}-${index}`)).join(" ")}
+            >
+              {(ask.kind === "leave" ? [leavingUnsavedWords(changedPeople)] : ask.lines).map((line, index) => (
+                <p key={line} id={`${askId}-${index}`} className={styles.drawAskLine}>
+                  {line}
+                </p>
+              ))}
+              <div className={styles.swapActions}>
+                {ask.kind === "leave" ? (
+                  <>
+                    <button type="button" className={facilitator.buttonPrimary} onClick={() => requestSave(ask.href)} disabled={saving}>
+                      {SAVE}
+                    </button>
+                    <button
+                      type="button"
+                      className={facilitator.buttonGhost}
+                      onClick={() => {
+                        const href = ask.href;
+                        setAsk(null);
+                        go(href);
+                      }}
+                    >
+                      {LEAVE_WITHOUT_SAVING}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" className={facilitator.buttonPrimary} onClick={() => void save(true, ask.then)} disabled={saving}>
+                      {SAVE_ANYWAY}
+                    </button>
+                    <button type="button" className={facilitator.buttonGhost} onClick={() => setAsk(null)}>
+                      {CANCEL}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          {message && (
+            <p className={styles.line} role="status">
+              {message}
+            </p>
+          )}
+          {error && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+          <button
+            type="button"
+            className={`${facilitator.buttonPrimary} ${styles.saveButton}`}
+            onClick={() => requestSave(null)}
+            disabled={!hydrated || saving || changes.length === 0}
+          >
+            {SAVE}
+          </button>
+          <p className={styles.drawFootLine}>{foot}</p>
+        </div>
+      )}
     </div>
   );
 }

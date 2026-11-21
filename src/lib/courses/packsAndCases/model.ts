@@ -7,6 +7,7 @@ import {
   type Pack,
   type WeekBlock,
 } from "../weekBlocks/model";
+import { weekTaskNeeds } from "../weekBlocks/progress";
 
 /**
  * PACKS, CASES AND TALKS IN A WEEK WRITTEN AS BLOCKS:
@@ -76,6 +77,17 @@ export function drawOf(blocks: readonly WeekBlock[]): WeekDraw {
     packs: chooseOnesOf(blocks).filter((block) => block.givenBy === "facilitator" && block.packs.length > 0),
     cases: talksOf(blocks).filter((block) => block.givenBy === "facilitator" && casesIn(block).length > 0),
   };
+}
+
+/**
+ * The titles of the Choose ones a week gives out whose pack counts towards
+ * the week: a This week task covers it, so the week is done only once the
+ * pack the person holds is ticked (`weekDone`). What a late save into the
+ * week says it changes (`lateSaveChangesWords`).
+ */
+export function countedPackTitlesOf(blocks: readonly WeekBlock[], draw: WeekDraw): string[] {
+  const counted = new Set(weekTaskNeeds(blocks).flatMap((needs) => needs.chooseOneIds));
+  return draw.packs.filter((chooseOne) => counted.has(chooseOne.id)).map((chooseOne) => chooseOne.title);
 }
 
 /** Whether a facilitator gives anything out for this week. */

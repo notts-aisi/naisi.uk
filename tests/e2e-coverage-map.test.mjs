@@ -1992,12 +1992,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a run Publish has told, with a group's facilitator signed in.",
   },
-  "/api/courses/groups/[groupId]/draw": {
-    reason:
-      "Course hub: the draw typed into the group page: who may type it, the case lists, the content note kept out, swaps and what a save clears are executed by tests/course-hub-packs-and-cases.test.mjs as every kind of caller; typed in a browser on the preview kit at 390 and 1440.",
-    coverWhen:
-      "When a browser spec signs in a group's facilitator after a session, copies the slips in on the draw page and a member of the group reads their case on their week page.",
-  },
   "/api/courses/groups/[groupId]/pairs": {
     reason:
       "Course hub: pairs and laptops typed for a session in pairs (Technical AI Safety's hands-on night): who may type them, who can be in a pair, the sizes a save refuses, the laptop check that never refuses and what a save writes are executed by tests/course-hub-pairs.test.mjs as every kind of caller; typed in a browser on the preview kit at 390 and 1440.",
@@ -2076,12 +2070,6 @@ const NOT_COVERED = {
       "Learn hub: /(app)/learn/[runId]/progress is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
-  },
-  "/(app)/learn/draw/[groupId]": {
-    reason:
-      "Course hub: the draw's page, drawn as each kind of caller and with its lists held word for word by tests/course-hub-packs-and-cases.test.mjs, and its one calm page for everybody else held byte for byte, for a real, an archived and a made-up group, by tests/course-hub-not-for-you.test.mjs; photographed on the preview kit at 390 and 1440.",
-    coverWhen:
-      "When the browser spec that copies the slips in drives the page.",
   },
   "/(app)/learn/pairs/[groupId]": {
     reason:

@@ -1,25 +1,35 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import DrawEditor from "@/features/courses/packsAndCases/DrawEditor";
+import DrawWeekPicker from "@/features/courses/packsAndCases/DrawWeekPicker";
 import styles from "@/features/courses/packsAndCases/packsAndCases.module.css";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import NotForYou from "@/features/courses/facilitator/NotForYou";
 import { getSessionUser } from "@/features/courses/runAccess";
 import { isAddressableId } from "@/lib/addressableId";
-import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
-import { drawTalkOf, hasDraw } from "@/lib/courses/packsAndCases/model";
-import { drawGate, readDrawPeople, readDrawState, readGroupWeek } from "@/lib/courses/packsAndCases/readers";
+import { countedPackTitlesOf, drawTalkOf, hasDraw } from "@/lib/courses/packsAndCases/model";
+import { drawClosed, drawGate, readDrawRoster, readDrawState, readDrawWeeks } from "@/lib/courses/packsAndCases/readers";
 import {
   CASE,
   DRAW_LEDE,
+  backToWords,
   drawEyebrowWords,
   drawFootWords,
-  drawHeadingWords,
+  drawHoldingWords,
   drawTitleWords,
+  drawWeekOptionWords,
+  givingWeeksWords,
+  handOutCalledOffWords,
+  lateSaveChangesWords,
+  noSessionBeforeWords,
   nothingGivenOutWords,
+  sessionsFinishedWords,
+  setBeforeWords,
+  weekStandingWords,
 } from "@/lib/courses/packsAndCases/words";
-import { resolveSessions, sessionRange } from "@/lib/courses/sessions";
+import { londonDateKey } from "@/lib/courses/weekPlan";
+import { closedWords } from "@/lib/courses/weekWork/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
@@ -34,8 +44,23 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * case with a content note. "Swap two people" swaps two rows. Save writes
  * what changed (`/api/courses/groups/[groupId]/draw`); nobody is emailed.
  *
- * WHICH WEEK: `?week=3`, or else the week of the group's next session, which
- * is the week whose slips were handed out at the end of the last one.
+ * WHICH WEEK: `?week=3`, any week, or else the week the slips being handed
+ * out are for (`drawWeekRule`, through `readDrawWeeks`: the one rule the
+ * route and the group page's card ask too), so from the start of the session
+ * that hands them out the page is about next week, never that session's own.
+ * The Week picker lists every week of the course that gives something out,
+ * past ones too, each by its number and what it gives out.
+ *
+ * WHAT IT SAYS ABOUT THE WEEK, over the people: "Copy in the slips you
+ * handed out tonight." on the hand-out night only; before the hand-out
+ * session, when the slips go out; which session they go out at when the one
+ * before a week still to come is called off; and, before any change, which
+ * week this is when its session has started or been held, where Save first
+ * asks that again, then what the save changes (`lateSaveChangesWords`); the
+ * route refuses the save without that yes, and hands back what to ask. Once
+ * every session has ended it says so; once the programme has closed for work
+ * (`workClosesAt`) the page is read only, with the members' own sentence, and
+ * the route refuses a save.
  *
  * WHO (`drawGate`, the route's own gate, restated because a page's only
  * protection must not be a level above it): the group's live facilitators,
@@ -90,21 +115,19 @@ export default async function DrawPage({
   if (!runSnap?.exists || (runSnap.data() ?? {}).destroying === true) return <NotForYou page="draw" admitted />;
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  // The week: asked for, or the week of the group's next session.
+  // The people, when the programme closes, and every week of the course with the week the slips are for.
   const now = new Date();
+  const roster = await readDrawRoster(db, run.id, group, { isAdmin: gate.isAdmin }, now);
+  if (!roster) return <NotForYou page="draw" admitted />;
+  const { people, closesAt } = roster;
+  const course = await readDrawWeeks(db, { run, group, people, now });
   const asked = typeof query.week === "string" && /^\d{1,2}$/.test(query.week) ? Number(query.week) : 0;
-  const sessions = resolveSessions(run, group, resolveGroupCalendar(run, group, now).calendar);
-  const weekNumber =
-    asked >= 1 && asked <= 60
-      ? asked
-      : (sessionRange(sessions, now).next?.weekNumber ?? sessions[sessions.length - 1]?.weekNumber ?? 1);
-
-  const [people, week] = await Promise.all([
-    readDrawPeople(db, run.id, group, { isAdmin: gate.isAdmin }, now),
-    readGroupWeek(db, run.id, groupId, weekNumber),
-  ]);
-  if (!people) return <NotForYou page="draw" admitted />;
-  const state = week && hasDraw(week.draw) ? await readDrawState(db, run.id, week, people) : new Map();
+  const weekNumber = asked >= 1 && asked <= 60 ? asked : (course.rule.weekNumber ?? course.fallbackWeek);
+  const week = course.weeks.get(weekNumber) ?? null;
+  const gives = week !== null && hasDraw(week.draw);
+  const state = week && gives ? (course.states.get(weekNumber) ?? (await readDrawState(db, run.id, week, people))) : new Map();
+  const facts = gives ? (course.rule.facts.get(weekNumber) ?? null) : null;
+  const closed = closesAt !== null && drawClosed(closesAt, now);
 
   const groupName = group.name.trim() || "Group";
   // A facilitator and an admin go back to the group's page; a lead to their programme's Groups.
@@ -117,8 +140,50 @@ export default async function DrawPage({
         };
 
   const draw = week?.draw ?? { packs: [], cases: [] };
-  // A week that gives nothing out is named by its number.
-  const title = hasDraw(draw) ? drawTitleWords(draw) : `Week ${weekNumber}`;
+  // What the course gives out, for a week that gives nothing: the first week that does, or the week's number.
+  const courseDraw = course.giving[0]?.draw ?? null;
+  const title = gives ? drawTitleWords(draw) : courseDraw ? drawTitleWords(courseDraw) : `Week ${weekNumber}`;
+  // The session the slips go out at: the rule's, once the week has a date; with no dates, the session before it.
+  const handOutSession = facts?.startsAt ? (facts.handOut?.session.weekNumber ?? null) : weekNumber >= 2 ? weekNumber - 1 : null;
+
+  // The Week picker: every week that gives something out, and the week shown when it gives nothing.
+  const givingNumbers = course.giving.map((each) => each.weekNumber);
+  const options = course.giving.map((each) => ({ weekNumber: each.weekNumber, label: drawWeekOptionWords(each.weekNumber, each.draw) }));
+  if (!givingNumbers.includes(weekNumber)) {
+    options.push({ weekNumber, label: drawWeekOptionWords(weekNumber, gives ? draw : null) });
+    options.sort((a, b) => a.weekNumber - b.weekNumber);
+  }
+  const hint = givingWeeksWords(
+    givingNumbers,
+    course.taught.filter((n) => !givingNumbers.includes(n)),
+  );
+
+  // What the page says about the week, over the people.
+  const lines: Array<{ text: string; warn?: boolean }> = [];
+  if (course.finished) lines.push({ text: sessionsFinishedWords(groupName) });
+  if (closed && closesAt) lines.push({ text: closedWords(closesAt) });
+  // Which week this is, once its session has started or been held: said before any change, and first in what Save asks.
+  const standingLine =
+    gives && facts && facts.standing !== "ahead" && facts.startsAt
+      ? weekStandingWords(weekNumber, facts.standing, facts.startsAt, facts.startsCalledOff)
+      : null;
+  const ask =
+    standingLine && week
+      ? [standingLine, ...lateSaveChangesWords({ countedPackTitles: countedPackTitlesOf(week.blocks, draw), givesCases: draw.cases.length > 0 })]
+      : null;
+  if (gives && facts && !closed) {
+    if (facts.standing === "ahead") {
+      if (facts.calledOff) {
+        lines.push({ text: handOutCalledOffWords(weekNumber, facts.calledOff.weekNumber, facts.handOut?.session.weekNumber ?? null) });
+      }
+      if (facts.handOutNight) lines.push({ text: DRAW_LEDE });
+      else if (facts.handOut && now.getTime() < facts.handOut.startsAt.getTime()) {
+        lines.push({ text: setBeforeWords(weekNumber, { dateKey: facts.handOut.session.dateKey, startsAt: facts.handOut.startsAt }, londonDateKey(now)) });
+      } else if (!facts.handOut && facts.startsAt && !facts.calledOff) lines.push({ text: noSessionBeforeWords(weekNumber) });
+    } else if (standingLine) {
+      lines.push({ text: standingLine, warn: true });
+    }
+  }
 
   return (
     // The page is the facilitator pages' size container, at the width the
@@ -143,13 +208,22 @@ export default async function DrawPage({
           <Link href={back.href} className={`${facilitator.crumb} ${facilitator.crumbDesk}`}>
             {back.label}
           </Link>
-          <p className={styles.drawEyebrow}>{drawEyebrowWords(groupName, weekNumber)}</p>
-          <h1 className={styles.drawTitle}>{week && hasDraw(draw) ? drawHeadingWords(weekNumber, draw) : `Week ${weekNumber}`}</h1>
-          {week && hasDraw(draw) && <p className={styles.drawLede}>{DRAW_LEDE}</p>}
+          <p className={styles.drawEyebrow}>{drawEyebrowWords(groupName, handOutSession)}</p>
+          <h1 className={styles.drawTitle}>{title}</h1>
+          {givingNumbers.length > 0 ? (
+            <DrawWeekPicker key={weekNumber} groupId={groupId} options={options} current={weekNumber} hint={hint} />
+          ) : null}
+          {lines.map((line) => (
+            <p key={line.text} className={line.warn ? styles.drawWarn : styles.drawLede}>
+              {line.text}
+            </p>
+          ))}
         </header>
 
-        {week && hasDraw(draw) ? (
+        {week && gives ? (
           <DrawEditor
+            // A week of its own each: opening another week starts its editor afresh.
+            key={week.weekId}
             groupId={groupId}
             weekId={week.weekId}
             people={people.map((person) => ({ uid: person.uid, name: person.name, firstName: person.firstName }))}
@@ -163,9 +237,17 @@ export default async function DrawPage({
             initial={Object.fromEntries(people.map((person) => [person.uid, state.get(person.uid) ?? { packs: {}, cases: {} }]))}
             foot={drawFootWords(weekNumber)}
             weekNumber={weekNumber}
+            holding={drawHoldingWords(draw)}
+            ask={ask}
+            readOnly={closed}
           />
         ) : (
-          <p className={weekly.cardLine}>{nothingGivenOutWords(weekNumber)}</p>
+          <>
+            <p className={weekly.cardLine}>{nothingGivenOutWords(weekNumber)}</p>
+            <Link href={back.href} className={weekly.cardLink}>
+              {backToWords(back.label)}
+            </Link>
+          </>
         )}
       </div>
     </div>

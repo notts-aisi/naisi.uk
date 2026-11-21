@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { resolveWeekDoc } from "@/lib/courses/groupResolve";
+import { resolveGroupCalendar, resolveWeekDoc, resolveWeekDocs } from "@/lib/courses/groupResolve";
 import {
   facilitatorsOf,
   listGroups,
@@ -9,6 +9,8 @@ import {
   type StandingFacilitator,
 } from "@/lib/courses/programmeAttendance";
 import { programmeLedBy, type LedProgramme } from "@/lib/courses/programmeLead";
+import { resolveSessions, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
+import { workClosesAt } from "@/lib/courses/weekWork/closes";
 import { isBlockWeek, type CasesBlock, type ChooseOneBlock, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -19,8 +21,9 @@ import {
   packCaseRecordId,
   type CoursePackCaseDoc,
 } from "@/lib/firestore/coursePacksAndCases";
-import { weekDocId } from "@/lib/firestore/courses";
-import { chooseOnesOf, drawOf, findCase, findPack, talksOf, type WeekDraw } from "./model";
+import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
+import { drawWeekRule, type DrawWeekRule } from "./drawWeek";
+import { chooseOnesOf, drawOf, findCase, findPack, hasDraw, talksOf, type WeekDraw } from "./model";
 
 /**
  * THE READERS OF `coursePacksAndCases`, on the server,
@@ -196,8 +199,33 @@ export function drawPeople(
 
 /**
  * The group's people for the draw, from the run's records as the group page
- * reads them. Null when the run is gone or being destroyed.
+ * reads them, with the run those records were read with and when its
+ * programme closes for work (`workClosesAt`, from the run's live groups: the
+ * moment every member's week turns read only). Null when the run is gone or
+ * being destroyed.
  */
+export type DrawRoster = { people: DrawPerson[]; run: CourseRunDoc; closesAt: Date | null };
+
+export async function readDrawRoster(
+  db: Firestore,
+  runId: string,
+  group: CourseGroupDoc,
+  viewer: { isAdmin: boolean },
+  now: Date,
+): Promise<DrawRoster | null> {
+  const records = await readRunRecords(db, runId);
+  if (!records) return null;
+  const closesAt = workClosesAt(records.run, records.groups);
+  const withGroup = records.groups.some((candidate) => candidate.id === group.id)
+    ? records
+    : { ...records, groups: [...records.groups, { ...group, name: group.name.trim() || "Untitled group" }] };
+  const listed = listGroups(withGroup, viewer, now, weeksOf(withGroup)).find((entry) => entry.group.id === group.id);
+  if (!listed) return { people: drawPeople([], facilitatorsOf(withGroup, group)), run: records.run, closesAt };
+  const taking = listed.people.filter(({ row }) => row.left === null).map(({ row }) => ({ uid: row.uid, name: row.name }));
+  return { people: drawPeople(taking, listed.facilitators), run: records.run, closesAt };
+}
+
+/** The group's people for the draw alone. Null when the run is gone or being destroyed. */
 export async function readDrawPeople(
   db: Firestore,
   runId: string,
@@ -205,15 +233,12 @@ export async function readDrawPeople(
   viewer: { isAdmin: boolean },
   now: Date,
 ): Promise<DrawPerson[] | null> {
-  const records = await readRunRecords(db, runId);
-  if (!records) return null;
-  const withGroup = records.groups.some((candidate) => candidate.id === group.id)
-    ? records
-    : { ...records, groups: [...records.groups, { ...group, name: group.name.trim() || "Untitled group" }] };
-  const listed = listGroups(withGroup, viewer, now, weeksOf(withGroup)).find((entry) => entry.group.id === group.id);
-  if (!listed) return drawPeople([], facilitatorsOf(withGroup, group));
-  const taking = listed.people.filter(({ row }) => row.left === null).map(({ row }) => ({ uid: row.uid, name: row.name }));
-  return drawPeople(taking, listed.facilitators);
+  return (await readDrawRoster(db, runId, group, viewer, now))?.people ?? null;
+}
+
+/** Whether a programme has closed for work at `now`: after it, the draw is read only. */
+export function drawClosed(closesAt: Date | null, now: Date): boolean {
+  return closesAt !== null && now.getTime() >= closesAt.getTime();
 }
 
 /** A week of a group, as the group reads it, with its draw. Null when the week is not one written as blocks. */
@@ -237,6 +262,110 @@ export async function readGroupWeek(
   const { week } = await resolveWeekDoc(db, runId, groupId, weekId);
   if (!week || !isBlockWeek(week)) return null;
   return { weekId, weekNumber, title: week.title, blocks: week.blocks, draw: drawOf(week.blocks) };
+}
+
+/** Week doc ids are "w01".."w60" (`weekDocId`). */
+const WEEK_ID = /^w(\d{2})$/;
+
+/**
+ * EVERY WEEK OF THE COURSE AS THE GROUP READS IT, AND WHICH WEEK THE SLIPS ARE
+ * FOR (`drawWeekRule`): the group's sessions from the one resolver with the
+ * group's own calendar, the course's weeks written as blocks (the run's, with
+ * the group's own copies over them: two queries), and the draw of the weeks
+ * the rule asks about, at most two (`DRAW_WEEKS_READ`).
+ *
+ *  - `weeks`: every week written as blocks, by number, whether or not the
+ *    group's plan lists it, so an address names any week.
+ *  - `taught`: the weeks the group's plan teaches, in order (every week
+ *    written, for a run with no plan yet).
+ *  - `giving`: the taught weeks that give something out, in order.
+ *  - `states`: the draw as stored for each week the rule read.
+ *  - `finished`: every session of the group has ended.
+ *  - `fallbackWeek`: the week a page opens on for a course that gives nothing
+ *    out (the rule has no answer): the next session's, else the last one's.
+ */
+export type DrawWeeks = {
+  sessions: ResolvedSession[];
+  finished: boolean;
+  fallbackWeek: number;
+  weeks: Map<number, GroupWeek>;
+  taught: number[];
+  giving: GroupWeek[];
+  rule: DrawWeekRule;
+  states: Map<number, DrawState>;
+};
+
+export async function readDrawWeeks(
+  db: Firestore,
+  input: { run: CourseRunDoc; group: CourseGroupDoc; people: readonly DrawPerson[]; now: Date },
+): Promise<DrawWeeks> {
+  const { run, group, people, now } = input;
+  const sessions = resolveSessions(run, group, resolveGroupCalendar(run, group, now).calendar);
+  const weeks = new Map<number, GroupWeek>();
+  for (const entry of await resolveWeekDocs(db, run.id, group.id)) {
+    const match = WEEK_ID.exec(entry.week.id);
+    const weekNumber = match ? Number(match[1]) : 0;
+    if (weekNumber < 1 || !isBlockWeek(entry.week)) continue;
+    weeks.set(weekNumber, {
+      weekId: weekDocId(weekNumber),
+      weekNumber,
+      title: entry.week.title,
+      blocks: entry.week.blocks,
+      draw: drawOf(entry.week.blocks),
+    });
+  }
+  const planned = [...new Set(sessions.map((session) => session.weekNumber))].sort((a, b) => a - b);
+  const taught = planned.length > 0 ? planned : [...weeks.keys()].sort((a, b) => a - b);
+  const giving = taught.map((n) => weeks.get(n)).filter((week): week is GroupWeek => Boolean(week && hasDraw(week.draw)));
+  const givingWeeks = giving.map((week) => week.weekNumber);
+  // Once to learn which weeks decide it, then with whether everybody has theirs in each.
+  const first = drawWeekRule({ sessions, givingWeeks, now });
+  const read = await Promise.all(
+    first.toRead.map(async (n) => {
+      const week = weeks.get(n) as GroupWeek;
+      return [n, await readDrawState(db, run.id, week, people)] as const;
+    }),
+  );
+  const states = new Map<number, DrawState>(read);
+  const everybodyHas = new Map(read.map(([n, state]) => [n, everybodyHasTheirs(weeks.get(n) as GroupWeek, people, state)]));
+  const rule = drawWeekRule({ sessions, givingWeeks, now, everybodyHas });
+  const range = sessionRange(sessions, now);
+  return {
+    sessions,
+    finished: range.next === null && range.lastDateKey !== "",
+    fallbackWeek: range.next?.weekNumber ?? sessions[sessions.length - 1]?.weekNumber ?? 1,
+    weeks,
+    taught,
+    giving,
+    rule,
+    states,
+  };
+}
+
+/**
+ * THE GROUP PAGE'S CARD: the week the slips being handed out are for, while
+ * it is still to come, with its spread, from what `readDrawWeeks` already
+ * read (the rule's week is always one it read). Null when no week still to
+ * come gives anything out.
+ */
+export function drawCardOf(course: DrawWeeks, people: readonly DrawPerson[]): { week: GroupWeek; spread: Spread } | null {
+  const n = course.rule.weekNumber;
+  if (n === null || !course.rule.ahead) return null;
+  const week = course.weeks.get(n);
+  const state = course.states.get(n);
+  if (!week || !state || !hasDraw(week.draw)) return null;
+  return { week, spread: spreadOf(week, people, state) };
+}
+
+/** Whether everybody in the draw has a pack in each Choose one and a case in each talk the week gives out. */
+export function everybodyHasTheirs(week: GroupWeek, people: readonly DrawPerson[], state: DrawState): boolean {
+  return people.every((person) => {
+    const holding = state.get(person.uid);
+    return (
+      week.draw.packs.every((chooseOne) => Boolean(holding?.packs[chooseOne.id])) &&
+      week.draw.cases.every((talk) => Boolean(holding?.cases[talk.id]))
+    );
+  });
 }
 
 /** What each person has in a week's draw: a pack per Choose one given out, a case per talk given out. */
