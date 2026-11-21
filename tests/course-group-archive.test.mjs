@@ -114,7 +114,6 @@ const press = (who, groupId, body, options = {}) => w.call(who, route.PATCH, { g
 const archive = (who, groupId) => press(who, groupId, { archived: true });
 const restore = (who, groupId) => press(who, groupId, { archived: false });
 const stored = (groupId) => world.db.read(`courseGroups/${groupId}`);
-const withPlace = (uid, over) => ({ ...world.db.read(placePath(uid)), ...over });
 
 /** The press is refused with exactly this sentence, and the database is as it was. */
 async function refusedWith(who, groupId, body, sentence) {
