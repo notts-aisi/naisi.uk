@@ -23,7 +23,7 @@ import styles from "./weekly.module.css";
  * which decides everything again): the register keeps their word, never as a
  * mark, and the group's facilitators are asked for a meeting link for that
  * week. Nothing asks why, and nobody is emailed. Once said, the ticket says
- * so and where the link is, with "I'll be in the room after all" to take it
+ * so and where the link is, with "I'll be in the room instead" to take it
  * back while the session has not started. A refusal is the route's own
  * sentence.
  *

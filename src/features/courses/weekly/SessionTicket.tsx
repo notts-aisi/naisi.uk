@@ -29,7 +29,9 @@ import styles from "./weekly.module.css";
  * carries the link in the same row, said to be for anybody joining online
  * (`facts.joinFor`). "Can’t make it" and "Joining online" (`cantMakeIt`) sit
  * beside Add to calendar on the programme page's ticket, for somebody taking
- * part in the group, until the session starts; Home's ticket has neither.
+ * part in the group, until the session starts. The next session's card on
+ * Home and the programme page is `NextSessionCard`; this ticket is the
+ * team's page's.
  *
  * A session an admin scheduled an explainer for says so under the room
  * ("Your session starts with a 10-minute explainer on ..."), from the
