@@ -478,6 +478,8 @@ test(
         await ticket.getByText(`${group.name} with ${facilitator.first}`, { exact: true }).waitFor({ timeout: WAIT_MS });
       } else {
         assert.ok(!said.includes(fern.first), `the ticket of a group with no facilitator names ${fern.first}: ${said}`);
+        // The group line is the group's name alone.
+        await ticket.getByText(group.name, { exact: true }).waitFor({ timeout: WAIT_MS });
       }
       // The way to join is here, on the site, for the group's own people.
       const join = ticket.getByRole("link", { name: "Join online", exact: true });
