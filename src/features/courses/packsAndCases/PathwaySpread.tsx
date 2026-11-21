@@ -7,7 +7,8 @@ import weekly from "@/features/courses/weekly/weekly.module.css";
 
 /**
  * THE SPREAD ON THE GROUP PAGE (the facilitator's group page's
- * "Pathways in Group B"): a tile per pathway of the week's draw, with how
+ * "Pathways in Group B", over the week it is about: "Week 4"): a tile per
+ * pathway of the week's draw, with how
  * many have it and who, so every pathway has somebody; who has nothing yet;
  * and "Change pathways and cases", the way to the draw page. A week that
  * gives out cases alone says who has no case yet.
@@ -21,11 +22,14 @@ import weekly from "@/features/courses/weekly/weekly.module.css";
  */
 export default function PathwaySpread({
   title,
+  week,
   spread,
   changeHref,
   changeLabel,
 }: {
   title: string;
+  /** The week the card is about: "Week 4". */
+  week: string;
   spread: Spread;
   changeHref: string;
   changeLabel: string;
@@ -38,6 +42,7 @@ export default function PathwaySpread({
           {title}
         </h2>
       </div>
+      <p className={weekly.cardLine}>{week}</p>
       {spread.tiles.length > 0 && (
         <ul className={styles.spreadTiles} role="list">
           {spread.tiles.map((tile) => (

@@ -1,3 +1,5 @@
+import { londonDayLabel } from "../londonLabels";
+import { daysBetween, isValidDateKey } from "../weekPlan";
 import type { CasesBlock, ChooseOneBlock } from "../weekBlocks/model";
 import type { WeekDraw } from "./model";
 
@@ -163,9 +165,14 @@ export function drawTitleWords(draw: WeekDraw): string {
   return capital(joinNames(parts.map((part, index) => (index === 0 ? part : lower(part)))));
 }
 
-/** "Group B · after session 2": the eyebrow over the draw (uppercase by the stylesheet). */
-export function drawEyebrowWords(groupName: string, weekNumber: number): string {
-  return weekNumber >= 2 ? `${groupName} · after session ${weekNumber - 1}` : groupName;
+/**
+ * "Group B · after session 2": the eyebrow over the draw (uppercase by the
+ * stylesheet), naming the session the slips are handed out at
+ * (`drawWeekRule`'s hand-out session, which after an evening called off is
+ * an earlier one); the group alone with none, as for week 1.
+ */
+export function drawEyebrowWords(groupName: string, handOutSession: number | null): string {
+  return handOutSession !== null && handOutSession >= 1 ? `${groupName} · after session ${handOutSession}` : groupName;
 }
 
 /** "Week 3 · Pathways and cases". */
@@ -203,12 +210,133 @@ export function swappedWords(first: string, second: string): string {
   return `${first} and ${second} swapped. Save to keep it.`;
 }
 
-/** After Save: not drawn on the board; listed for the designers. */
-export function savedDrawWords(weekNumber: number): string {
-  return `Saved. Each person sees theirs on their week ${weekNumber} page.`;
+/** "a pathway and a case", "a plan", "a case": what each person is given in a week's draw. */
+export function drawHoldingWords(draw: { packs: ReadonlyArray<{ title: string }>; cases: readonly unknown[] }): string {
+  const things = [...new Set(draw.packs.map((chooseOne) => titleWord(chooseOne.title)))].map(
+    (word) => `${/^[aeiou]/i.test(word) ? "an" : "a"} ${word}`,
+  );
+  if (draw.cases.length > 0) things.push("a case");
+  return joinNames(things);
 }
 
-/** A week with nothing to give out. Not drawn on the board; listed for the designers. */
+/** After Save: "Saved. 6 of 8 have a pathway and a case. Each person sees theirs on their week 3 page." */
+export function savedDrawWords(weekNumber: number, have: number, total: number, holding: string): string {
+  return `Saved. ${have} of ${total} ${have === 1 ? "has" : "have"} ${holding}. Each person sees theirs on their week ${weekNumber} page.`;
+}
+
+/** A save that failed, on the page and from the route. */
+export const DRAW_NOT_SAVED = "That didn’t save, so nothing has changed. Try again.";
+
+/** Leaving with changes not saved: "You’ve changed 2 people and haven’t saved." */
+export function leavingUnsavedWords(people: number): string {
+  return `You’ve changed ${people === 1 ? "1 person" : `${people} people`} and haven’t saved.`;
+}
+
+export const LEAVE_WITHOUT_SAVING = "Leave without saving";
+
+/** Asked before a save into a week whose session has started or been held. */
+export const READY_TAKEN_BACK = "Changing a case takes back that person’s Ready for my talk.";
+
+/** The confirmation's own button. Not drawn on the boards. */
+export const SAVE_ANYWAY = "Save anyway";
+
+/** The Week picker's label. */
+export const WEEK = "Week";
+
+/** A week in the Week picker: "Week 3 · Pathways and cases", or "Week 6" for one that gives nothing out. */
+export function drawWeekOptionWords(weekNumber: number, draw: WeekDraw | null): string {
+  return draw && (draw.packs.length > 0 || draw.cases.length > 0) ? drawHeadingWords(weekNumber, draw) : `Week ${weekNumber}`;
+}
+
+/** "Weeks 2 to 5", "Weeks 2 and 4", "Week 3", "Weeks 1 to 3, 5 and 6". */
+function weeksWords(weeks: readonly number[]): string {
+  const sorted = [...new Set(weeks)].sort((a, b) => a - b);
+  const runs: string[] = [];
+  let count = 0;
+  for (let at = 0; at < sorted.length; ) {
+    let end = at;
+    while (end + 1 < sorted.length && sorted[end + 1] === sorted[end] + 1) end += 1;
+    if (end - at >= 2) {
+      runs.push(`${sorted[at]} to ${sorted[end]}`);
+      count += 2;
+    } else {
+      for (let k = at; k <= end; k += 1) {
+        runs.push(String(sorted[k]));
+        count += 1;
+      }
+    }
+    at = end + 1;
+  }
+  return `${count === 1 ? "Week" : "Weeks"} ${joinNames(runs)}`;
+}
+
+/** Under the Week picker: "Weeks 2 to 5 give something out. Weeks 1 and 6 don’t." */
+export function givingWeeksWords(giving: readonly number[], notGiving: readonly number[]): string {
+  if (giving.length === 0) return "";
+  const one = new Set(giving).size === 1;
+  const first = `${weeksWords(giving)} ${one ? "gives" : "give"} something out.`;
+  if (notGiving.length === 0) return first;
+  return `${first} ${weeksWords(notGiving)} ${new Set(notGiving).size === 1 ? "doesn’t" : "don’t"}.`;
+}
+
+/** "Wednesday" for a "YYYY-MM-DD" date key. */
+function weekdayOfKey(dateKey: string): string {
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  return days[new Date(`${dateKey}T00:00:00Z`).getUTCDay()] ?? "";
+}
+
+/**
+ * Before the session that hands a week's slips out: "Week 3’s slips go out
+ * at Wednesday’s session. You can set them early and change them
+ * afterwards." A session more than six days away is named by its date: "at
+ * the session on Wed 2 Dec".
+ */
+export function setBeforeWords(weekNumber: number, handOut: { dateKey: string; startsAt: Date }, todayKey: string): string {
+  const near = isValidDateKey(handOut.dateKey) && isValidDateKey(todayKey) && daysBetween(todayKey, handOut.dateKey) <= 6;
+  const when = near ? `${weekdayOfKey(handOut.dateKey)}’s session` : `the session on ${londonDayLabel(handOut.startsAt)}`;
+  return `Week ${weekNumber}’s slips go out at ${when}. You can set them early and change them afterwards.`;
+}
+
+/** A week with no session before it, still to come. Not drawn on the boards. */
+export function noSessionBeforeWords(weekNumber: number): string {
+  return `Week ${weekNumber} has no session before it, so you can set these any time before its first session and change them afterwards.`;
+}
+
+/**
+ * The session just before a week is called off: "Session 4 is called off,
+ * so week 5’s slips go out at the end of session 3." Not drawn on the boards.
+ */
+export function handOutCalledOffWords(weekNumber: number, calledOff: number, handOut: number | null): string {
+  return handOut !== null
+    ? `Session ${calledOff} is called off, so week ${weekNumber}’s slips go out at the end of session ${handOut}.`
+    : `Session ${calledOff} is called off, so there is no session before week ${weekNumber} to hand these out at.`;
+}
+
+/** Once every session has ended: "Group C’s sessions have finished. This is what was given out." */
+export function sessionsFinishedWords(groupName: string): string {
+  return `${groupName}’s sessions have finished. This is what was given out.`;
+}
+
+/** Said before any change on a week whose session has started and not yet ended. Not drawn on the boards. */
+export const WEEK_NOW = "This is the week people are working on now. Its session has started.";
+
+/** Said before any change on a week whose session has been held: "This is a week that has met. Its session was on Tue 10 Nov." */
+export function weekMetWords(startsAt: Date, calledOff: boolean): string {
+  return `This is a week that has met. Its session ${calledOff ? "was due on" : "was on"} ${londonDayLabel(startsAt)}.`;
+}
+
+/** The route's refusal of a save into such a week sent without the yes. Not drawn on the boards. */
+export function lateSaveRefusedWords(weekNumber: number, standing: "now" | "met"): string {
+  const why = standing === "now" ? `Week ${weekNumber} is the week people are working on now` : `Week ${weekNumber} has met`;
+  return `${why}, so this save needs a yes first. ${READY_TAKEN_BACK}`;
+}
+
+/** Under a week that gives nothing out: "Back to Group C". */
+export function backToWords(label: string): string {
+  return `Back to ${label}`;
+}
+
+/** A week with nothing to give out: "Nothing is given out in week 6." */
 export function nothingGivenOutWords(weekNumber: number): string {
   return `Nothing is given out in week ${weekNumber}.`;
 }
@@ -216,6 +344,11 @@ export function nothingGivenOutWords(weekNumber: number): string {
 // ---------------------------------------------------------------------------
 // The group page: the spread
 // ---------------------------------------------------------------------------
+
+/** The week the group page's card is about, under its title: "Week 3". */
+export function drawCardWeekWords(weekNumber: number): string {
+  return `Week ${weekNumber}`;
+}
 
 /** "Pathways in Group B"; "Cases in Group B" for a week that gives out cases alone. */
 export function spreadTitleWords(draw: WeekDraw, groupName: string): string {

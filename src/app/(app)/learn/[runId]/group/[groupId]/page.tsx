@@ -45,9 +45,8 @@ import { seesSessionLink } from "@/lib/courses/meetingLink/audience";
 import { joiningOnlineBox } from "@/lib/courses/meetingLink/box";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { facilitatorExplainerOn } from "@/lib/courses/explainers/readers";
-import { hasDraw } from "@/lib/courses/packsAndCases/model";
-import { drawPeople, readDrawState, readGroupWeek, spreadOf } from "@/lib/courses/packsAndCases/readers";
-import { changeDrawWords, spreadTitleWords } from "@/lib/courses/packsAndCases/words";
+import { drawCardOf, drawPeople, readDrawWeeks } from "@/lib/courses/packsAndCases/readers";
+import { changeDrawWords, drawCardWeekWords, spreadTitleWords } from "@/lib/courses/packsAndCases/words";
 import { readGroupPairs } from "@/lib/courses/pairs/readers";
 import { loadGroupWeek, loadGroupWeekBoxes } from "@/lib/courses/facilitatorWeek/readers";
 import { loadWorkColumns } from "@/lib/courses/facilitatorWeek/workColumns";
@@ -109,9 +108,13 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * fill-in boxes are opened there ("Read it"), the page names them to the
  * first-read route, so the day each was first read is kept, never who.
  *
- * THE SPREAD ("Pathways in Group B"): the draw of the week of the
- * group's next session, each pathway with who has it, and the way to the draw
- * page (`/learn/draw/[groupId]`), where the slips are copied in.
+ * THE SPREAD ("Pathways in Group B", "Week 4"): the draw of the week the
+ * slips being handed out are for (`drawWeekRule`, through `readDrawWeeks`,
+ * the one rule the draw page and its route ask too), while that week is still
+ * to come: so from the start of the session that hands them out it is about
+ * next week, never that session's own. Each pathway with who has it, and the
+ * way to the draw page (`/learn/draw/[groupId]`) on that week, where the
+ * slips are copied in.
  *
  * THE PAIRS ("Pairs in Group B"): when the week of the group's next session
  * asks for pairs (its In the session block says people are paired), each
@@ -464,16 +467,16 @@ export default async function GroupHomePage({
     now,
   });
 
-  // The draw of the week the group meets next: the slips handed out
-  // at the end of the last session are that week's. Everybody in the group
-  // is in it, its facilitators too, who take part.
-  const drawWeek = !group.archived && range.next ? await readGroupWeek(db, runId, groupId, range.next.weekNumber) : null;
+  // Every week of the course as the group reads it, and the draw of the week
+  // the slips being handed out are for, while it is still to come. Everybody
+  // in the group is in it, its facilitators too, who take part.
   const drawList = drawPeople(model.people, model.facilitators);
-  const spread =
-    drawWeek && hasDraw(drawWeek.draw) ? spreadOf(drawWeek, drawList, await readDrawState(db, runId, drawWeek, drawList)) : null;
-  // The pairs of the same week, when it asks for them: everybody in the
-  // group's pairs, its facilitators too, who take part.
-  const pairsWeek = drawWeek ? await readGroupPairs(db, runId, groupId, drawWeek, drawList) : null;
+  const course = group.archived ? null : await readDrawWeeks(db, { run: access.run, group, people: drawList, now });
+  const drawCard = course ? drawCardOf(course, drawList) : null;
+  // The pairs of the week the group meets next, when it asks for them:
+  // everybody in the group's pairs, its facilitators too, who take part.
+  const nextWeek = course && range.next ? (course.weeks.get(range.next.weekNumber) ?? null) : null;
+  const pairsWeek = nextWeek ? await readGroupPairs(db, runId, groupId, nextWeek, drawList) : null;
 
   // This week's work's Pathway, Written answer and Case columns,
   // for the week it shows, through the packs' and the written answers' own
@@ -597,15 +600,15 @@ export default async function GroupHomePage({
   // the field for its link), who has said what about the next session, the
   // week's pathways and cases, and its pairs. The left of the laptop's two
   // columns; on a phone, straight under the session.
-  const spreadCard =
-    drawWeek && spread ? (
-      <PathwaySpread
-        title={spreadTitleWords(drawWeek.draw, groupName)}
-        spread={spread}
-        changeHref={`/learn/draw/${encodeURIComponent(groupId)}?week=${drawWeek.weekNumber}`}
-        changeLabel={changeDrawWords(drawWeek.draw)}
-      />
-    ) : null;
+  const spreadCard = drawCard ? (
+    <PathwaySpread
+      title={spreadTitleWords(drawCard.week.draw, groupName)}
+      week={drawCardWeekWords(drawCard.week.weekNumber)}
+      spread={drawCard.spread}
+      changeHref={`/learn/draw/${encodeURIComponent(groupId)}?week=${drawCard.week.weekNumber}`}
+      changeLabel={changeDrawWords(drawCard.week.draw)}
+    />
+  ) : null;
   const pairsCard = pairsWeek ? (
     <PairsCard
       groupName={groupName}
