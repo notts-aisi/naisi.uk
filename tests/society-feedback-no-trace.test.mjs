@@ -161,6 +161,9 @@ describe("1. the form's files log nothing and read nothing of the request but wh
     assert.match(route, /rateLimit\(`society-feedback:ip:\$\{clientIp\(req\)\}`, 30, 60_000\)/);
     assert.match(route, /rateLimit\(`society-feedback:ip-hour:\$\{clientIp\(req\)\}`, 30, 3_600_000\)/);
     assert.match(route, /rateLimit\("society-feedback:all", 300, 3_600_000\)/);
+    // The session is read, and a caller who may not send refused, before any limit is counted.
+    const refusedAt = route.indexOf("if (!isMemberRole(user.role)) return");
+    assert.ok(refusedAt > 0 && refusedAt < route.indexOf("rateLimit("), "a limit is counted before the session is read");
   });
 
   test("the form's page and its form read nothing of the reader: no session, no cookie, no header", () => {
