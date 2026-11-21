@@ -1,6 +1,7 @@
 import { allBlocks, partsOf, type ChooseOneBlock, type WeekBlock } from "../weekBlocks/model";
 import { isCounted, taskDone, type DoneState, type TaskNeeds } from "../weekBlocks/progress";
 import type { DueBy, WeekDue } from "./sessionDue";
+import { asIfGiven, type WaitingPart } from "./waiting";
 
 export type { DueBy, WeekDue };
 
@@ -223,6 +224,27 @@ export function weekDone(input: {
   );
 }
 
+/**
+ * ALL THAT IS LEFT WAITS ON THE FACILITATOR'S SLIP (`./waiting.ts`): the
+ * week is not done (`weekDone`, as strict as ever), and it would be once
+ * every waiting part is given and its reading ticked. Such a person is not
+ * reminded, as somebody done is not, and staff pages say they are waiting.
+ * False for a week that is done, and for one with nothing waiting. Nothing
+ * reads it as done.
+ */
+export function onlyWaitingLeft(input: {
+  tasks: readonly TaskNeeds[];
+  state: Pick<DoneState, "isTicked" | "packOf" | "isWritten" | "isSent">;
+  submitted: boolean;
+  asks?: TaskNeeds;
+  parts: readonly WaitingPart[];
+}): boolean {
+  if (input.parts.length === 0) return false;
+  const { tasks, state, submitted, asks } = input;
+  if (weekDone({ tasks, state, submitted, asks })) return false;
+  return weekDone({ tasks, state: asIfGiven(state, input.parts), submitted, asks });
+}
+
 /** When each thing a week counts was done, for `weekDoneAt`: null for not done. */
 export type DoneTimes = {
   /** When this reading or step was ticked (its tick's own time). */
@@ -291,6 +313,14 @@ export type PersonWeekProgress = {
   doneAt: Date | null;
   /** Something ticked, written or picked this week. */
   started: boolean;
+  /**
+   * WHAT WAITS ON THE FACILITATOR'S SLIP (`./waiting.ts`), present only when
+   * something does: the parts, and whether they are all that is left
+   * (`onlyWaitingLeft`: not done, and done once they are given). Absent for
+   * a week that gives nothing out and for somebody who has theirs, so such a
+   * week reads exactly as it always did.
+   */
+  waiting?: { parts: WaitingPart[]; only: boolean };
 };
 
 /** A person's week from what they did, through `taskDone`, the one count. */
@@ -305,16 +335,23 @@ export function personWeekProgress(input: {
   touched: boolean;
   /** Everything the week asks to be written (`weekWritingNeeds`), for a week whose tasks count nothing. */
   asks?: TaskNeeds;
+  /** The parts of their week that wait on the facilitator's slip (`waitingOf`, `./waiting.ts`): none, for a week that gives nothing out. */
+  waiting: readonly WaitingPart[];
 }): PersonWeekProgress {
+  const parts = input.waiting ?? [];
   const countedTasks = input.tasks.filter(isCounted);
   const done = countedTasks.filter((needs) => taskDone(needs, input.state)).length;
-  const isDone = weekDone({ tasks: input.tasks, state: input.state, submitted: input.submittedAt !== null, asks: input.asks });
+  const submitted = input.submittedAt !== null;
+  const isDone = weekDone({ tasks: input.tasks, state: input.state, submitted, asks: input.asks });
   return {
     done,
     of: countedTasks.length,
     weekDone: isDone,
     doneAt: isDone && input.times ? weekDoneAt({ tasks: input.tasks, times: input.times, submittedAt: input.submittedAt, asks: input.asks }) : null,
     started: input.touched || done > 0,
+    ...(parts.length > 0
+      ? { waiting: { parts: [...parts], only: onlyWaitingLeft({ tasks: input.tasks, state: input.state, submitted, asks: input.asks, parts }) } }
+      : {}),
   };
 }
 

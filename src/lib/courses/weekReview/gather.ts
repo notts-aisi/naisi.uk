@@ -8,6 +8,7 @@ import { weekReportsForReview } from "@/lib/courses/sessionReports/readers";
 import { partsOf } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { personWeekProgress, sessionHasStarted, weekAsksForWriting, weekWritingNeeds } from "@/lib/courses/weekWork/model";
+import { waitingOf } from "@/lib/courses/weekWork/waiting";
 import { loadPeopleWeekFacts, loadRunWeekStates } from "@/lib/courses/weekWork/readers";
 import { REVIEW_FOLLOW_UP_TASK_SOURCE } from "@/lib/firestore/courseTasks";
 import { SOMETHING_ELSE } from "@/lib/firestore/courseSessionReports";
@@ -210,6 +211,8 @@ export async function gatherWeekReview(db: Firestore, opened: WeekReviewDoor, no
    * a week that locked before it was submitted used to say): "locked" to the
    * facts, "open" otherwise. A week the old Submit was pressed for counts as
    * finished, as a submitted week always did; otherwise the week done by then.
+   * Somebody all of whose week that is left waits on the facilitator's slip
+   * (`onlyWaitingLeft`) is waiting, not behind: never "locked".
    */
   const standingOf = (uid: string): "open" | "locked" => {
     const due = states.dueOf(uid, weekNumber);
@@ -218,7 +221,16 @@ export async function gatherWeekReview(db: Firestore, opened: WeekReviewDoor, no
     if (submittedAt) return "open";
     const own = started.get(uid);
     if (!own) return "locked";
-    const progress = personWeekProgress({ tasks, state: own.state, times: own.times, submittedAt, touched: own.touched, asks });
+    const progress = personWeekProgress({
+      tasks,
+      state: own.state,
+      times: own.times,
+      submittedAt,
+      touched: own.touched,
+      asks,
+      waiting: waitingOf(opened.blocks, own.state),
+    });
+    if (progress.waiting?.only) return "open";
     return progress.weekDone && progress.doneAt !== null && progress.doneAt.getTime() <= due.at.getTime() ? "open" : "locked";
   };
   const metGroups = new Set(opened.groups.filter((each) => each.met).map((each) => each.group.id));

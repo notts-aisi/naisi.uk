@@ -1295,3 +1295,177 @@ describe("14. somebody visiting another group's session for one week", () => {
     assert.deepEqual(programmePageShowsSession(place, GROUP.a), neither);
   });
 });
+
+describe("15. never what the person cannot do: a part waiting on the facilitator's slip", async () => {
+  const { syntheticWeekBlocks } = await import("./lib/weekBlocksFixture.mjs");
+  const { weekLeft } = await lib("courses", "weekEmails", "model.ts");
+  const { weekLeftWords } = await lib("courses", "weekEmails", "words.ts");
+  // The synthetic week: a pack the facilitator gives out (co-1), a case study given out (cs-1), a Choose one each person picks.
+  const blocks = syntheticWeekBlocks();
+  const tasks = weekTaskNeeds(blocks);
+  const asks = weekWritingNeeds(blocks);
+  const ticks = [...new Set(tasks.flatMap((needs) => needs.tickIds))];
+  /** Everything they can do done, or nothing; the pack and the case as given. */
+  const stateOf = ({ done = true, pack = null, caseId = null, ready = true } = {}) => ({
+    isTicked: (id) => done && (ticks.includes(id) || id === pack),
+    isWritten: () => done,
+    isSent: () => done,
+    packOf: (id) => (id === "co-1" ? pack : id === "co-2" ? "pk-4" : null),
+    isReady: (id) => done && ready && caseId !== null && id === "cs-1",
+    caseOf: (id) => (id === "cs-1" ? caseId : null),
+    answerOf: () => ({ words: done ? 250 : 0, emptyBoxes: 0 }),
+  });
+  const states = { stateOf: () => ({ kind: "open", due: { at: new Date("2026-10-27T18:00:00Z"), by: "session" }, closesAt: null, submittedAt: null }) };
+  const verdict = (state, notComing) =>
+    sessionReminderVerdict({
+      uid: "amara",
+      covered: [2],
+      belongs: () => true,
+      weeks: [{ weekNumber: 2, blocks, tasks, writes: weekAsksForWriting(blocks), asks, facts: new Map([["amara", { state }]]) }],
+      weekStates: states,
+      notComing,
+    });
+
+  test("all that is left waits on the slip: the reminder of the session goes with no list, and the one about what is left is not sent", () => {
+    for (const given of [{}, { caseId: "ca-1" }]) {
+      assert.deepEqual(verdict(stateOf(given), false), { send: "session", weeks: [2], left: [] }, JSON.stringify(given));
+      assert.deepEqual(verdict(stateOf(given), true), { send: false, why: "excused" }, JSON.stringify(given));
+    }
+  });
+
+  test("the pathway waits, the case is given and they have not said they are ready: reminded, with the talk, as before", () => {
+    const state = stateOf({ caseId: "ca-1", ready: false });
+    for (const notComing of [false, true]) {
+      const sent = verdict(state, notComing);
+      const weeks = notComing ? sent.weeks : sent.left;
+      assert.equal(sent.send, notComing ? "left" : "session");
+      assert.deepEqual(weekLeftWords(weeks[0].left), ["You haven’t said you’re ready for your talk yet."]);
+    }
+  });
+
+  test("something else is left: it is listed, and never the pack or the talk not given", () => {
+    const sent = verdict(stateOf({ done: false }), false);
+    assert.equal(sent.send, "session");
+    const lines = weekLeftWords(sent.left[0].left);
+    assert.ok(lines.length > 0);
+    assert.ok(!lines.includes("You haven’t been given your pack yet."), lines.join(" | "));
+    assert.ok(!lines.includes("You haven’t said you’re ready for your talk yet."), lines.join(" | "));
+    // Given, they are the person's to do again, and listed as they always were.
+    const given = weekLeftWords(weekLeft({ blocks, tasks, state: stateOf({ done: false, pack: "pk-1", caseId: "ca-1" }) }));
+    assert.ok(given.includes("Your pack’s reading isn’t ticked."), given.join(" | "));
+    assert.ok(given.includes("You haven’t said you’re ready for your talk yet."), given.join(" | "));
+  });
+
+  test("a week whose packs and cases nobody gives out lists as it always did, the talk and the pick among it", () => {
+    // Every Choose one and talk picked by each person: nothing waits on a facilitator.
+    const picked = JSON.parse(JSON.stringify(blocks).replace(/"givenBy":"facilitator"/g, '"givenBy":"fellow"'));
+    const lines = weekLeftWords(weekLeft({ blocks: picked, tasks, state: stateOf({ done: false }) }));
+    assert.ok(lines.includes("You haven’t chosen your pack yet."), lines.join(" | "));
+    assert.ok(lines.includes("You haven’t said you’re ready for your talk yet."), lines.join(" | "));
+  });
+});
+
+describe("16. the job, for somebody not coming with only a slip left", () => {
+  /** Week 2 with a third task: a pathway Group B's facilitators give out, and a case study whose case they give out too. */
+  function withSlips() {
+    const week = blockWeek(2);
+    const [thisWeek, ...parts] = week.blocks;
+    const slips = {
+      id: "n2-p3",
+      type: "part",
+      title: "Your pathway",
+      time: "About 20 minutes",
+      framing: [],
+      blocks: [
+        {
+          id: "n2-co",
+          type: "chooseOne",
+          form: "table",
+          title: "Pathway",
+          givenBy: "facilitator",
+          kind: "read",
+          time: "",
+          noteHeading: "",
+          questions: [],
+          packs: [
+            { id: "n2-pk1", name: "The harbour", time: "", note: [], read: [{ text: "A harbour reading", href: "https://reading.example.com/h" }] },
+            { id: "n2-pk2", name: "The keepers", time: "", note: [], read: [{ text: "A keepers reading", href: "https://reading.example.com/k" }] },
+          ],
+        },
+      ],
+    };
+    const study = {
+      id: "n2-cs",
+      type: "cases",
+      heading: "Your case study",
+      intro: [],
+      talk: { minutes: 3, name: "talk" },
+      prepare: [],
+      givenBy: "facilitator",
+      groupLabel: "",
+      startLabel: "",
+      groups: [{ name: "", packId: null, cases: [{ id: "n2-ca1", title: "The storm of 1987", what: [], start: [], contentNote: "" }] }],
+      note: [],
+    };
+    const rows = [
+      ...thisWeek.rows,
+      { type: "task", what: "Your pathway", time: "About 20 minutes", when: "before", whenText: "", covers: ["n2-p3"] },
+      { type: "task", what: "Your case study", time: "About 20 minutes", when: "atSession", whenText: "", covers: ["n2-cs"] },
+    ];
+    return { ...week, blocks: [{ ...thisWeek, rows }, ...parts, slips, study] };
+  }
+  const given = (uid, blockId, fields) =>
+    world.db.seed(`coursePacksAndCases/${RUN}__${uid}__${blockId}`, {
+      runId: RUN,
+      uid,
+      weekId: "w02",
+      weekNumber: 2,
+      blockId,
+      kind: blockId === "n2-co" ? "pack" : "talk",
+      packId: null,
+      caseId: null,
+      ready: false,
+      ...fields,
+    });
+
+  beforeEach(() => reset(seedBlocks({ [`courseRuns/${RUN}/weeks/w02`]: withSlips() })));
+
+  async function notComing(uid) {
+    at("2026-10-21T12:00:00Z");
+    const said = await pressedBefore(world.db, GROUP.b, uid, () =>
+      call(uid, cantMakeIt.POST, { groupId: GROUP.b }, { body: { sessionKey: "w02", cantMakeIt: true } }),
+    );
+    assert.equal(said.status, 200, JSON.stringify(said.body));
+  }
+
+  test("everything of theirs done, the pathway and the case not given yet: nothing is sent, and the marker says excused", async () => {
+    await finishWeek("chloe", 2);
+    await notComing("chloe");
+    await runJob(DUE.b2three);
+    assert.equal(mailTo("chloe").length, 0);
+    assert.equal(marker("chloe", 3).skippedReason, "excused");
+  });
+
+  test("the case given and not marked ready: the reminder about what is left goes, with the talk, and never the pathway", async () => {
+    await finishWeek("chloe", 2);
+    given("chloe", "n2-cs", { caseId: "n2-ca1" });
+    await notComing("chloe");
+    await runJob(DUE.b2three);
+    const [message] = mailTo("chloe");
+    assert.ok(message, "somebody with something of their own still to do is reminded, as before");
+    const text = await textOf(message);
+    assert.match(text, /Week 2 isn’t finished yet: \* You haven’t said you’re ready for your talk yet\./);
+    assert.doesNotMatch(text, /been given your pathway/);
+    assert.ok(marker("chloe", 3).sentAt instanceof Date);
+  });
+
+  test("coming to the session with only the slips left: the reminder of the session, with no list", async () => {
+    await finishWeek("amara", 2);
+    await runJob(DUE.b2three);
+    const [message] = mailTo("amara");
+    assert.ok(message);
+    const text = await textOf(message);
+    assert.ok(text.includes(B2()));
+    assert.doesNotMatch(text, /isn’t finished yet|been given your|ready for your talk/);
+  });
+});

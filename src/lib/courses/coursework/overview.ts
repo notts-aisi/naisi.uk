@@ -153,7 +153,8 @@ export function courseworkRows(input: CourseworkRowsInput): CourseworkRow[] {
     return {
       ...person,
       cells,
-      notDone: cells.some((cell) => cell.reached && cell.done === false),
+      // Waiting on the facilitator's slip is not "not done".
+      notDone: cells.some((cell) => cell.reached && cell.done === false && !cell.onlyWaiting),
       late: cells.some((cell) => cell.done === true && cell.doneLateMs !== null),
       unread: cells.some((cell) => cell.flags.unread),
       noFeedback: cells.some((cell) => cell.flags.noFeedback),

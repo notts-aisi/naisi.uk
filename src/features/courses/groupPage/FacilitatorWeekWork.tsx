@@ -13,7 +13,8 @@ import styles from "./GroupPage.module.css";
 
 /**
  * THE CHOSEN WEEK'S WORK ON A FACILITATOR'S GROUP PAGE, phone first: "4 of 6
- * have done week 1", the week's bar, Remind for everybody whose week isn't
+ * have done week 1", how many are waiting for a slip from them ("2 are
+ * waiting for a case from you."), the week's bar, Remind for everybody whose week isn't
  * done (a sheet on a phone, a side panel at a computer, the same preview and
  * button as the programme's page), and what is true of the automatic
  * reminders. Who each person is and where their week stands is This week's
@@ -46,6 +47,8 @@ export default function FacilitatorWeekWork({ groupId, work }: { groupId: string
       <h2 id="fac-week-work" className={styles.cardTitle}>
         {R.haveDoneTitle(doneCount(counts), work.rows.length, work.weekNumber)}
       </h2>
+      {/* How many are waiting for a slip from the facilitator, neither done nor not done: "2 are waiting for a case from you." */}
+      {work.waiting && <p className={styles.cardLine}>{work.waiting}</p>}
       <WorkBar label={R.weekLabel(work.weekNumber)} buckets={buckets} quietLabel />
       {said && (
         <p className={styles.said} role="status">

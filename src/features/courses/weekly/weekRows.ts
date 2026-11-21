@@ -3,6 +3,7 @@ import { WEEK_STATE_WORDS, sessionDayWords } from "@/lib/courses/memberPageWords
 import { dayWords } from "@/lib/courses/sessionChange/words";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { handedTasksDone } from "@/lib/courses/weekBlocks/progress";
+import { onlyWaitingTasksLeft } from "@/lib/courses/weekWork/waiting";
 
 /**
  * THE WEEKS OF A PROGRAMME, AS ITS HOME LISTS THEM: every taught week of the reader's own calendar, each with
@@ -19,6 +20,11 @@ import { handedTasksDone } from "@/lib/courses/weekBlocks/progress";
  *  - NOT DONE: open, its session over, and somebody taking part has not done
  *    everything it counts ("Tue 3 Nov · Not done", beside "0 of 1"). Never a
  *    tick beside a count that says otherwise.
+ *  - WAITING: open, its session over and not called off, and everything left
+ *    of it a task that waits on the facilitator's slip
+ *    (`onlyWaitingTasksLeft`): "Tue 3 Nov · Waiting", beside the same count
+ *    every other state shows ("1 of 2"). Never Done until the slip arrives
+ *    and is done too.
  *  - CURRENT: open, not over, and this week by the calendar.
  *  - NEXT: open, not over, and the week of the group's next session, when
  *    that is not this week's (before the first session, week 1).
@@ -28,7 +34,7 @@ import { handedTasksDone } from "@/lib/courses/weekBlocks/progress";
  *    run is open to (Zach, 27 October 2026), so nothing says when one opens.
  */
 
-export type WeekRowState = "done" | "notDone" | "current" | "next" | "open" | "shut";
+export type WeekRowState = "done" | "notDone" | "waiting" | "current" | "next" | "open" | "shut";
 
 export type WeekRow = {
   weekNumber: number;
@@ -90,14 +96,19 @@ export function weekRowsOf(
     // A week written as blocks counts This week's tasks. A tick is done when
     // `doneOf` counts it, so the one predicate both kinds of week read is it.
     const tasks = (doc?.thisWeek?.rows ?? []).flatMap((row) => (row.type === "task" ? [row] : []));
-    const byTasks = doc?.thisWeek ? handedTasksDone(tasks, (id) => doneOf([id]) > 0) : null;
+    const isTicked = (id: string) => doneOf([id]) > 0;
+    const byTasks = doc?.thisWeek ? handedTasksDone(tasks, isTicked) : null;
     const of = byTasks ? (byTasks.of > 0 ? byTasks : null) : countable.length > 0 ? { done: doneOf(countable), of: countable.length } : null;
     // Done only when done: the count beside the week, for somebody taking part.
     const allDone = !takesPart || of === null || of.done >= of.of;
+    // WAITING: the session is over, it was not called off, and everything left
+    // is a task that waits on the facilitator's slip. Only the state word
+    // changes: the count beside the week is every task, as it always was.
+    const waits = over && takesPart && !allDone && !schedule.cancelled && onlyWaitingTasksLeft(tasks, isTicked);
 
     let state: WeekRowState;
     if (!schedule.open) state = "shut";
-    else if (over) state = allDone ? "done" : "notDone";
+    else if (over) state = allDone ? "done" : waits ? "waiting" : "notDone";
     else if (thisWeek) state = "current";
     else if (nextSessionWeek === schedule.weekNumber) state = "next";
     else state = "open";
@@ -107,7 +118,7 @@ export function weekRowsOf(
     if (schedule.cancelled) {
       // A cancelled session says so, done or not: nobody met that evening.
       when = day ? `${day} · ${WEEK_STATE_WORDS.cancelled}` : WEEK_STATE_WORDS.cancelled;
-    } else if (state === "done" || state === "notDone") {
+    } else if (state === "done" || state === "notDone" || state === "waiting") {
       const word = WEEK_STATE_WORDS[state];
       when = day ? `${day} · ${word}` : word;
     } else if ((state === "current" || state === "next") && today) {

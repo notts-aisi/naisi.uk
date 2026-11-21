@@ -337,13 +337,19 @@ describe("2. Choose one on the week page", () => {
       const answer = await w.call("chloe", (await w.courseRoute("runs", "[runId]", "reflections", "[promptId]")).PUT, { runId: RUN.agi, promptId }, { course: true, body: { weekId: "w03", text: "Written." } });
       assert.equal(answer.status, 200);
     }
+    // Chloe's case is not given yet: its task's row says Waiting, and every task is counted, as it always was.
     const home = await w.programmeHome("chloe", [...needs.tickIds]);
     assert.match(home.text, /This week 0 of 3 done/, "the pack is not ticked yet");
+    assert.match(home.text, /Waiting: Your case talk Waiting for your case Waiting/);
     const done = await w.programmeHome("chloe", [...needs.tickIds, W3.elections]);
     assert.match(done.text, /This week 1 of 3 done/);
     // The week page counts it the same way, from the pack it was handed.
     assert.match((await w.weekPage("chloe", 3, [...needs.tickIds])).text, /This week 0 of 3 done/);
     assert.match((await w.weekPage("chloe", 3, [...needs.tickIds, W3.elections])).text, /This week 1 of 3 done/);
+    // Once the case is given, nothing about the count changes: the talk's row is open again, with Not ready yet.
+    w.seedDraw("chloe", "w3", { pack: W3.elections, caseId: W3.surprise });
+    assert.match((await w.programmeHome("chloe", [...needs.tickIds])).text, /This week 0 of 3 done/);
+    assert.doesNotMatch((await w.programmeHome("chloe", [...needs.tickIds])).text, /Waiting for your case/);
     // Home lists Chloe's pack among the rows to tick, and no other pack.
     const card = await w.homeCard("chloe");
     assert.match(card.text, /Elections/);
@@ -782,7 +788,20 @@ describe("4. Your case study", () => {
   test("before a case is given: \"Not given yet\", when it is given out, and no ready box to press", async () => {
     w.ui.hydrated = true;
     const { html, text } = await w.weekPage("kofi", 3);
-    inOrder(text, ["Your case: Not given yet", "Not ready yet", "Your case study", "Your case", "Not given yet", "Given out at the end of session 2.", "Ready for my talk"]);
+    // Kofi has done nothing: "Parts 1 to 3" still holds readings to tick beside the pack, so its row is open, as it
+    // always was; the case study holds nothing but the case, so its row says Waiting. Every task is counted.
+    inOrder(text, [
+      "This week 0 of 3 done",
+      "Not done yet: Parts 1 to 3",
+      "Waiting: Your case study",
+      "Waiting for your case Waiting",
+      "Your case study",
+      "Your case",
+      "Not given yet",
+      "Given out at the end of session 2.",
+      "Ready for my talk",
+    ]);
+    assert.doesNotMatch(text, /Your case: Not given yet|Not ready yet|Waiting for your pack/);
     assert.doesNotMatch(text, /Given out at the end of session 2\. To swap/);
     assert.match(html, /type="checkbox" class="tickInput" disabled=""/);
     assert.doesNotMatch(html, /caseGroupMine/);

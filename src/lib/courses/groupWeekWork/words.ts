@@ -11,6 +11,7 @@ import {
   lateAfterSessionWords,
   yourWords,
 } from "../weekWork/words";
+import { WAITING } from "../weekWork/waitingWords";
 import { namesAnd, numberWords } from "../writtenAnswerWords";
 import type { Bucket, LastReminded, PieceKey, PieceState, WorkFilterKey } from "./model";
 
@@ -51,6 +52,7 @@ export const BUCKET_LABEL: Record<Bucket, string> = {
   "done-on-time": DONE_ON_TIME,
   "done-late": DONE_LATE,
   done: DONE,
+  waiting: WAITING,
   started: STARTED,
   "not-started": NOT_STARTED,
   "joined-late": JOINED_LATE,
@@ -98,6 +100,7 @@ export function doneMeansWords(pieces: ReadonlyArray<{ key: PieceKey; title: str
 
 /** What one piece of one person's week says in the table. */
 export function pieceCellWords(piece: PieceState): string {
+  if (piece.bucket === "waiting") return WAITING;
   if (piece.key === "readings" || piece.key === "steps") return `${piece.done} of ${piece.of}`;
   const done = piece.bucket === "done-on-time" || piece.bucket === "done-late" || piece.bucket === "done";
   if (piece.key === "written") {

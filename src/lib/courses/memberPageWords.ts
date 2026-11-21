@@ -213,6 +213,8 @@ export const WEEK_STATE_WORDS = {
    * confirm.
    */
   notDone: "Not done",
+  /** A week whose session is over, everything else done, and a part waiting on the facilitator's slip ("Tue 3 Nov · Waiting"). */
+  waiting: "Waiting",
   current: "This week",
   next: "Next",
   /** A published week that is not this week or next: open to read ahead. */

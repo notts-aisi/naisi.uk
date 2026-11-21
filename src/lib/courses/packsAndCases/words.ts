@@ -23,7 +23,7 @@ export function joinNames(names: readonly string[], word: "and" | "or" = "and"):
 }
 
 /** A Choose one's title as a word inside a sentence: "pathway", "plan", "pack". */
-function titleWord(title: string): string {
+export function titleWord(title: string): string {
   const word = title.trim();
   return word ? word.charAt(0).toLowerCase() + word.slice(1) : "pack";
 }
@@ -87,8 +87,15 @@ export function packMetaWords(time: string, sources: number): string {
   return [time.trim(), count].filter(Boolean).join(" · ");
 }
 
-/** "Given out at the end of session 2." for week 3; nothing for week 1, which no session comes before. */
-function givenOutWords(weekNumber: number): string {
+/**
+ * "Given out at the end of session 2." for week 3; nothing for week 1, which
+ * no session comes before. `handOut`, when the page knows it, is the session
+ * that really hands the week's slips out (`drawWeekRule`): its week's number,
+ * so a called-off session names the one before it; null for none (every
+ * session before the week called off), which says nothing.
+ */
+function givenOutWords(weekNumber: number, handOut?: number | null): string {
+  if (handOut !== undefined) return handOut === null ? "" : `Given out at the end of session ${handOut}.`;
   return weekNumber >= 2 ? `Given out at the end of session ${weekNumber - 1}.` : "";
 }
 
@@ -102,8 +109,8 @@ function askWords(verb: "switch" | "swap", askNames: readonly string[]): string 
  * Under a Choose one a facilitator gives out: "Given out at the end
  * of session 2. Only your pathway counts. To switch, ask Rahul or Sofia."
  */
-export function givenPacksLineWords(weekNumber: number, title: string, askNames: readonly string[]): string {
-  return [givenOutWords(weekNumber), `Only your ${titleWord(title)} counts.`, askWords("switch", askNames)]
+export function givenPacksLineWords(weekNumber: number, title: string, askNames: readonly string[], handOut?: number | null): string {
+  return [givenOutWords(weekNumber, handOut), `Only your ${titleWord(title)} counts.`, askWords("switch", askNames)]
     .filter(Boolean)
     .join(" ");
 }
@@ -147,8 +154,8 @@ export const NOT_GIVEN_YET = "Not given yet";
 export const START_HERE = "Start here";
 
 /** Under the case a person was given: "Given out at the end of session 2. To swap, ask Rahul or Sofia." */
-export function givenCaseLineWords(weekNumber: number, askNames: readonly string[]): string {
-  return [givenOutWords(weekNumber), askWords("swap", askNames)].filter(Boolean).join(" ");
+export function givenCaseLineWords(weekNumber: number, askNames: readonly string[], handOut?: number | null): string {
+  return [givenOutWords(weekNumber, handOut), askWords("swap", askNames)].filter(Boolean).join(" ");
 }
 
 /** The person's own mark: "Ready for my talk", "Ready for my pitch". */

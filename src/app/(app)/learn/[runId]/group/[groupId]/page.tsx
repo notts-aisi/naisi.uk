@@ -47,6 +47,7 @@ import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { facilitatorExplainerOn } from "@/lib/courses/explainers/readers";
 import { drawPeople, readDrawWeeks } from "@/lib/courses/packsAndCases/readers";
 import { drawCardModel } from "@/lib/courses/drawCard/model";
+import type { GroupWeekWorkView } from "@/lib/courses/groupWeekWork/view";
 import { pairsCardWeek } from "@/lib/courses/pairs/cardWeek";
 import { readGroupPairs } from "@/lib/courses/pairs/readers";
 import { loadGroupWeek, loadGroupWeekBoxes } from "@/lib/courses/facilitatorWeek/readers";
@@ -650,6 +651,13 @@ export default async function GroupHomePage({
       {pairsCard}
     </>
   );
+  // Who is waiting for a slip is the pathways and cases card's to say for the
+  // week it is about ("Daniel and Chloe are waiting for theirs.", a
+  // facilitator counted without a name): the week's work card then leaves its
+  // own count of them out, so the page never says it twice, two ways. For any
+  // other week the work card says it (`waitingCountWords`).
+  const workBesideCard = (work: GroupWeekWorkView, card: typeof drawCard): GroupWeekWorkView =>
+    card?.kind === "week" && card.weekNumber === work.weekNumber && work.waiting ? { ...work, waiting: undefined } : work;
   // The week and the group's news: who has done the week the row of weeks
   // chose, with Remind (an incubator's group has no week card, as on the
   // programme's page); the updates; then how the group meets, its row of
@@ -657,7 +665,7 @@ export default async function GroupHomePage({
   // one. The right of the laptop's two columns.
   const weekCards = (
     <>
-      {meets?.work && !meets.incubator && <FacilitatorWeekWork groupId={groupId} work={meets.work} />}
+      {meets?.work && !meets.incubator && <FacilitatorWeekWork groupId={groupId} work={workBesideCard(meets.work, drawCard)} />}
       <StaffUpdatesSection updates={staffUpdateRows(updates)} headingId="group-updates" />
       {meets && (
         <FacilitatorMeets

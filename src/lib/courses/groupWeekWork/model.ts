@@ -8,6 +8,8 @@ import {
   type PersonWeekProgress,
   type WeekDue,
 } from "../weekWork/model";
+import type { WaitingPart } from "../weekWork/waiting";
+import { WAITING } from "../weekWork/waitingWords";
 import { DONE, DONE_LATE, DONE_ON_TIME, JOINED_LATE, NOT_STARTED, personWeekWords } from "../weekWork/words";
 
 /**
@@ -39,15 +41,24 @@ import { DONE, DONE_LATE, DONE_ON_TIME, JOINED_LATE, NOT_STARTED, personWeekWord
 /** One piece of a week, as the card's bars and the table's columns split it. */
 export type PieceKey = "readings" | "steps" | "reflection" | "boxes" | "written";
 
-/** Where one person's week, or one piece of it, stands. */
-export type Bucket = "done-on-time" | "done-late" | "done" | "started" | "not-started" | "joined-late";
+/**
+ * Where one person's week, or one piece of it, stands. `waiting`: all that is
+ * left of it waits on the facilitator's slip (`weekWork/waiting.ts`), so it is
+ * neither done nor not done.
+ */
+export type Bucket = "done-on-time" | "done-late" | "done" | "waiting" | "started" | "not-started" | "joined-late";
 
 /** The buckets in the order the bars draw them. */
-export const BUCKETS: readonly Bucket[] = ["done-on-time", "done-late", "done", "started", "not-started", "joined-late"];
+export const BUCKETS: readonly Bucket[] = ["done-on-time", "done-late", "done", "waiting", "started", "not-started", "joined-late"];
 
 /** Whether a bucket is one of the three ways of being done. */
 export function isDoneBucket(bucket: Bucket): boolean {
   return bucket === "done-on-time" || bucket === "done-late" || bucket === "done";
+}
+
+/** Whether a bucket says not done: neither done, nor waiting on the facilitator's slip. */
+export function isNotDoneBucket(bucket: Bucket): boolean {
+  return !isDoneBucket(bucket) && bucket !== "waiting";
 }
 
 /** One piece of a week, and the ids that make it up. */
@@ -149,9 +160,16 @@ function doneBucket(doneAt: Date | null, due: WeekDue): { bucket: Bucket; lateMs
   return late > 0 ? { bucket: "done-late", lateMs: late } : { bucket: "done-on-time", lateMs: null };
 }
 
-/** Where one piece of one person's week stands. */
-export function pieceStateOf(piece: WeekPiece, facts: PersonFacts, due: WeekDue): PieceState {
+/**
+ * Where one piece of one person's week stands. A pack in it that waits on
+ * the facilitator's slip (`waiting`, from `waitingOf`) is in neither of its
+ * numbers, and a piece whose every other thing is done is `waiting`, neither
+ * done nor not done.
+ */
+export function pieceStateOf(piece: WeekPiece, facts: PersonFacts, due: WeekDue, waiting: readonly WaitingPart[] = []): PieceState {
   const { state, times } = facts;
+  const waits = new Set(waiting.map((part) => part.id));
+  let waited = false;
   const packOf = state.packOf ?? (() => null);
   const timePackOf = times.packOf ?? packOf;
   let done = 0;
@@ -169,6 +187,10 @@ export function pieceStateOf(piece: WeekPiece, facts: PersonFacts, due: WeekDue)
       }
     }
     for (const id of piece.chooseOneIds) {
+      if (waits.has(id)) {
+        waited = true;
+        continue;
+      }
       of += 1;
       const pack = packOf(id);
       if (pack !== null) touched = true;
@@ -201,6 +223,7 @@ export function pieceStateOf(piece: WeekPiece, facts: PersonFacts, due: WeekDue)
     }
   }
   const savedAt = latestKnown(savedTimes);
+  if (waited && done === of) return { key: piece.key, bucket: "waiting", done, of, doneAt: null, savedAt, lateMs: null, unsent };
   if (of > 0 && done === of) {
     const doneAt = latestOf(doneTimes);
     const { bucket, lateMs } = doneBucket(doneAt, due);
@@ -240,6 +263,7 @@ function bucketOfWords(text: string): Bucket {
   if (text === DONE_ON_TIME) return "done-on-time";
   if (text === DONE_LATE) return "done-late";
   if (text === DONE) return "done";
+  if (text === WAITING) return "waiting";
   if (text === JOINED_LATE) return "joined-late";
   if (text === NOT_STARTED) return "not-started";
   return "started";
@@ -254,9 +278,12 @@ export function personWeekStateOf(input: {
   /** When they first pressed the week's old Submit, or null. */
   submittedAt: Date | null;
   due: WeekDue;
+  /** The parts of their week that wait on the facilitator's slip (`waitingOf`, on the copy they work in). */
+  waiting: readonly WaitingPart[];
 }): PersonWeekState {
   const { tasks, asks, pieces, facts, submittedAt, due } = input;
-  const progress = personWeekProgress({ tasks, state: facts.state, times: facts.times, submittedAt, touched: facts.touched, asks });
+  const waiting = input.waiting ?? [];
+  const progress = personWeekProgress({ tasks, state: facts.state, times: facts.times, submittedAt, touched: facts.touched, asks, waiting });
   const words = personWeekWords({ progress, doneAt: progress.doneAt, due });
   const bucket = bucketOfWords(words.text);
   const lateMs = bucket === "done-late" && progress.doneAt && due.at ? progress.doneAt.getTime() - due.at.getTime() : null;
@@ -269,7 +296,7 @@ export function personWeekStateOf(input: {
     detail,
     bucket,
     lateMs,
-    pieces: pieces.map((piece) => pieceStateOf(piece, facts, due)),
+    pieces: pieces.map((piece) => pieceStateOf(piece, facts, due, waiting)),
   };
 }
 
@@ -281,7 +308,7 @@ export type BucketCounts = Record<Bucket, number>;
 
 /** How many of the buckets given are in each bucket. The one count every bar and chip is drawn from. */
 export function countBuckets(buckets: readonly Bucket[]): BucketCounts {
-  const out: BucketCounts = { "done-on-time": 0, "done-late": 0, done: 0, started: 0, "not-started": 0, "joined-late": 0 };
+  const out: BucketCounts = { "done-on-time": 0, "done-late": 0, done: 0, waiting: 0, started: 0, "not-started": 0, "joined-late": 0 };
   for (const bucket of buckets) out[bucket] += 1;
   return out;
 }
@@ -294,17 +321,21 @@ export function doneCount(counts: BucketCounts): number {
 /** One filter of the people table, and who it keeps. */
 export type WorkFilterKey = "everyone" | "week" | PieceKey | "late";
 
-/** The rows a filter keeps: everyone, those whose week (or one piece) is not done, or those done late. */
+/**
+ * The rows a filter keeps: everyone, those whose week (or one piece) is not
+ * done, or those done late. Waiting on the facilitator's slip is not "not
+ * done": such a row is in neither.
+ */
 export function filterRows<R extends { week: { bucket: Bucket }; pieces: ReadonlyArray<{ key: PieceKey; bucket: Bucket }> }>(
   rows: readonly R[],
   filter: WorkFilterKey,
 ): R[] {
   if (filter === "everyone") return [...rows];
-  if (filter === "week") return rows.filter((row) => !isDoneBucket(row.week.bucket));
+  if (filter === "week") return rows.filter((row) => isNotDoneBucket(row.week.bucket));
   if (filter === "late") return rows.filter((row) => row.week.bucket === "done-late");
   return rows.filter((row) => {
     const piece = row.pieces.find((each) => each.key === filter);
-    return piece !== undefined && !isDoneBucket(piece.bucket);
+    return piece !== undefined && isNotDoneBucket(piece.bucket);
   });
 }
 
@@ -322,6 +353,8 @@ export type NotReminded =
   | "not-told"
   /** Their week is done. */
   | "done"
+  /** A part waits on the facilitator's slip and nothing else is on their list: nothing of theirs to chase. */
+  | "waiting"
   /** Told their group after this week's session: nothing of theirs in it is late, and it is never chased. */
   | "joined-late"
   /** No session to be due at: no group. */
@@ -334,8 +367,10 @@ export type NotReminded =
  * never the presser, never somebody who facilitates a live group of the run
  * (`facilitatorUids`: this group's or another's, since their own work is read
  * by the programme's lead and admins only), never somebody Publish has not
- * told, never somebody whose week is done, never somebody told their group
- * after the week's session ("Joined late"), and nobody at all once the
+ * told, never somebody whose week is done, never somebody with a part
+ * waiting on the facilitator's slip and nothing else on their list
+ * (`nothingLeftButSlips`), never somebody told their group after the week's
+ * session ("Joined late"), and nobody at all once the
  * programme has closed. Whether they can be emailed (an address, not
  * suppressed) is the notice audience's, asked apart.
  */
@@ -345,6 +380,8 @@ export function notRemindedBecause(input: {
   facilitatorUids: readonly string[];
   told: boolean;
   weekDone: boolean;
+  /** A part waits on the facilitator's slip and nothing else is on their list (`nothingLeftButSlips`). */
+  nothingLeftButSlips: boolean;
   due: WeekDue;
   closed: boolean;
 }): NotReminded | null {
@@ -355,6 +392,7 @@ export function notRemindedBecause(input: {
   if (input.due.by === "joined-late") return "joined-late";
   if (input.due.by === "no-group") return "no-group";
   if (input.weekDone) return "done";
+  if (input.nothingLeftButSlips) return "waiting";
   return null;
 }
 

@@ -20,6 +20,7 @@ import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import {
   WEEK_REMINDER_DAYS,
+  nothingLeftButSlips,
   reminderPlaceOf,
   weekEmailSendAt,
   weekLeft,
@@ -31,6 +32,7 @@ import {
   type ReminderWeek,
 } from "@/lib/courses/weekEmails/words";
 import { weekAsksForWriting, weekDone, weekWritingNeeds } from "@/lib/courses/weekWork/model";
+import { waitingOf } from "@/lib/courses/weekWork/waiting";
 import {
   loadPeopleWeekFacts,
   loadRunWeekStates,
@@ -124,7 +126,14 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  * The one meaning of done (`weekDone`, `src/lib/courses/weekWork/model.ts`):
  * submitted, when the week asks for anything written, and every reading and
  * step its tasks count ticked. Done no longer stops the reminder: it stops
- * the list. Only weeks written as blocks and published have a list: a week
+ * the list.
+ *
+ * NEVER WHAT THEY CANNOT DO (`src/lib/courses/weekWork/waiting.ts`): a part
+ * the facilitator gives out and has not given yet (a pathway, plan or pack;
+ * a case) is never listed (`weekLeft` leaves it out), and a week where a
+ * part waits and nothing else is on that list has no list, as a week done
+ * has none (`nothingLeftButSlips`, decided from the list itself). So somebody not coming with nothing else left is not
+ * sent the reminder about what is left at all. Only weeks written as blocks and published have a list: a week
  * written before blocks has no Submit and no lock. A session whose weeks have
  * none of them written as blocks and published is reminded about by nobody,
  * as before. A session that covers two weeks (the one after a cancelled
@@ -358,6 +367,8 @@ export function sessionReminderVerdict(input: {
     if (!week || !own) continue;
     // The one meaning of done: a week done has nothing to list.
     if (weekDone({ tasks: week.tasks, state: own.state, submitted: state.submittedAt !== null, asks: week.asks })) continue;
+    // Nor one where a part waits on the facilitator's slip and nothing else is on the list: nothing of theirs to chase.
+    if (nothingLeftButSlips(weekLeft({ blocks: week.blocks, tasks: week.tasks, state: own.state }), waitingOf(week.blocks, own.state))) continue;
     remind.push({
       weekNumber: week.weekNumber,
       left: weekLeft({ blocks: week.blocks, tasks: week.tasks, state: own.state }),

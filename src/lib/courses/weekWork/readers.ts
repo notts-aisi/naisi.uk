@@ -18,12 +18,14 @@ import {
 } from "@/lib/firestore/courseWeekWork";
 import { differsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
 import { copyGroupIdFor } from "@/lib/courses/weekCopy";
+import { findCase } from "@/lib/courses/packsAndCases/model";
 import { readPackCaseRecords, recordBlocksOf } from "@/lib/courses/packsAndCases/readers";
 import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { instantOf, isWordCountedAnswer } from "@/lib/courses/writtenAnswers/model";
 import { boxIsWritten, isOwnBoxResponse } from "@/lib/firestore/courseExercises";
 import { workClosesAt } from "./closes";
+import { waitingOf } from "./waiting";
 import { NO_GROUP, groupSessionAt, weekDueEndsAt, weekDueOf, type SessionSource, type WeekDue } from "./sessionDue";
 import {
   personWeekProgress,
@@ -234,6 +236,7 @@ export async function loadPeopleWeekFacts(
   const out = new Map<string, PersonWeekFacts>();
   if (uids.size === 0) return out;
   const recordBlocks = recordBlocksOf(blocks);
+  const talks = new Map(recordBlocks.flatMap((block) => (block.type === "cases" ? [[block.id, block] as const] : [])));
   const [{ rows, ticks }, records] = await Promise.all([
     input.read ? Promise.resolve(input.read) : readWeekRows(db, runId, weekNumber),
     readPackCaseRecords(
@@ -292,6 +295,11 @@ export async function loadPeopleWeekFacts(
     const record = (blockId: string) => records.get(`${uid} ${blockId}`) ?? null;
     if (recordBlocks.some((block) => record(block.id)?.packId || record(block.id)?.ready)) own.touched = true;
     const packOf = (id: string) => record(id)?.packId ?? null;
+    // The case given in a talk, only while that case is still in the talk: as the person's own page reads it (`ownPicksOf`).
+    const caseOf = (id: string) => {
+      const talk = talks.get(id);
+      return talk ? (findCase(talk, record(id)?.caseId ?? null)?.item.id ?? null) : null;
+    };
     out.set(uid, {
       state: {
         isTicked: (id) => own.ticked.has(id),
@@ -299,6 +307,7 @@ export async function loadPeopleWeekFacts(
         isSent: (id) => own.sent.has(id),
         packOf,
         isReady: (id) => record(id)?.ready === true,
+        caseOf,
         // Counts only: no word of an answer is read here, so an answer in
         // boxes with words in some of them reads as having none empty.
         answerOf: (id) => ({ words: own.words.get(id) ?? 0, emptyBoxes: 0 }),
@@ -340,7 +349,15 @@ export async function loadPeopleWeekProgress(
   for (const [uid, own] of facts) {
     out.set(
       uid,
-      personWeekProgress({ tasks, state: own.state, times: own.times, submittedAt: input.submittedAt(uid), touched: own.touched, asks }),
+      personWeekProgress({
+        tasks,
+        state: own.state,
+        times: own.times,
+        submittedAt: input.submittedAt(uid),
+        touched: own.touched,
+        asks,
+        waiting: waitingOf(input.blocks, own.state),
+      }),
     );
   }
   return out;
