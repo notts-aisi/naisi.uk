@@ -3,7 +3,17 @@ import type { Firestore } from "firebase-admin/firestore";
 import { COURSE_FIELD_LIMITS } from "@/lib/firestore/courses";
 import { dayBeforeWords } from "@/lib/courses/weekBlocks/markdownWrite";
 import type { WeekBlock, WeekItem } from "@/lib/courses/weekBlocks/model";
+import { packHolders } from "@/lib/courses/weekEdit/counts";
 import { MAX_PASTE_CHARS, readPastedWeek, type PastedWeek } from "@/lib/courses/weekBlocks/paste";
+import {
+  WHO_CHOOSES_REFUSAL,
+  facilitatorPickProblems,
+  switchedChooseOnes,
+  whoChoosesOf,
+  whoChoosesWire,
+  type Holders,
+  type WhoChoosesOverride,
+} from "@/lib/courses/weekBlocks/whoChooses";
 
 /**
  * A PASTED WEEK, READ AND COUNTED: the one set of checks behind both routes
@@ -18,11 +28,15 @@ import { MAX_PASTE_CHARS, readPastedWeek, type PastedWeek } from "@/lib/courses/
  * the same count of answers on whatever the paste would take out.
  */
 
-/** What a request to read or save a paste carries, or the sentence that says what is wrong with it. */
-export type PasteBody = { markdown: string; confirmAnswers: number | null };
+/**
+ * What a request to read or save a paste carries, or the sentence that says
+ * what is wrong with it. `whoChooses` is the author's change to who chooses
+ * a block, by place, sent with Read it and again with Save; none when absent.
+ */
+export type PasteBody = { markdown: string; confirmAnswers: number | null; whoChooses: WhoChoosesOverride[] };
 
 export async function pasteBodyOf(req: Request): Promise<PasteBody | { error: string }> {
-  let body: { markdown?: unknown; confirmAnswers?: unknown };
+  let body: { markdown?: unknown; confirmAnswers?: unknown; whoChooses?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -38,19 +52,22 @@ export async function pasteBodyOf(req: Request): Promise<PasteBody | { error: st
   if (confirm !== undefined && confirm !== null && !(typeof confirm === "number" && Number.isInteger(confirm) && confirm >= 0)) {
     return { error: "The number of answers to confirm has to be a whole number." };
   }
-  return { markdown: body.markdown, confirmAnswers: typeof confirm === "number" ? confirm : null };
+  const whoChooses = whoChoosesOf(body.whoChooses);
+  if (whoChooses === null) return { error: WHO_CHOOSES_REFUSAL.shape };
+  return { markdown: body.markdown, confirmAnswers: typeof confirm === "number" ? confirm : null, whoChooses };
 }
 
 /** The week a paste is read against: the blocks stored now (null for a week written before blocks), its number and the course's day-before time. */
 export type PasteTarget = { blocks: WeekBlock[] | null; weekNumber: number; dayBeforeTime: string | null };
 
-/** The paste, read against the week as stored, with the title's cap held too. */
-export function readPasteAgainst(markdown: string, target: PasteTarget): PastedWeek {
+/** The paste, read against the week as stored, with the author's changes to who chooses and the title's cap held too. */
+export function readPasteAgainst(sent: Pick<PasteBody, "markdown" | "whoChooses">, target: PasteTarget): PastedWeek {
   const read = readPastedWeek({
-    markdown,
+    markdown: sent.markdown,
     weekNumber: target.weekNumber,
     stored: target.blocks,
     dayBeforeTime: target.dayBeforeTime,
+    whoChooses: sent.whoChooses,
   });
   if (read.title.length > COURSE_FIELD_LIMITS.weekTitle) {
     read.problems.push(`The title is ${read.title.length} characters; the most is ${COURSE_FIELD_LIMITS.weekTitle}.`);
@@ -107,8 +124,51 @@ export async function answersOnRemoved(
   return counts;
 }
 
-/** What "Read it" and a refused save show: the read, field by field, and the answers at stake. */
-export function pasteAnswer(read: PastedWeek, counts: Map<string, number>, dayBeforeTime: string | null) {
+/**
+ * How many people hold a pack in each Choose one whose chooser the paste
+ * changes, and how many of them facilitate a group (`packHolders`). `all`
+ * counts every such block, for an answer the page shows; otherwise only the
+ * blocks turned from picked to given out, which is all a save needs to
+ * decide whether it is refused. `owners` as for `answersOnRemoved`;
+ * `facilitators` is read only when a block turns to given out. Nothing is
+ * read when no block's chooser changes.
+ */
+export async function holdersFor(
+  db: Firestore,
+  runId: string,
+  read: PastedWeek,
+  options: { owners: ReadonlySet<string> | null; facilitators: () => Promise<ReadonlySet<string>>; all: boolean },
+): Promise<Map<string, Holders>> {
+  const switched = switchedChooseOnes(read.whoChooses, read.blocks);
+  const toGiven = switched.filter((block) => block.givenBy === "facilitator");
+  const blocks = options.all ? switched : toGiven;
+  if (blocks.length === 0) return new Map();
+  const facilitators = toGiven.length > 0 ? await options.facilitators() : new Set<string>();
+  return packHolders(db, runId, blocks, options.owners, facilitators);
+}
+
+/** Does `holders` already count every Choose one whose chooser the paste changes? */
+export function holdersCountAll(read: PastedWeek, holders: ReadonlyMap<string, Holders>): boolean {
+  return switchedChooseOnes(read.whoChooses, read.blocks).every((block) => holders.has(block.id));
+}
+
+/**
+ * What "Read it" and a refused save show: the read, field by field, the
+ * answers at stake, and who chooses each Choose one and Cases block, with how
+ * many people hold a pack in each Choose one whose chooser the paste changes
+ * (`holders`, by block id: `packHolders` in `src/lib/courses/weekEdit/counts.ts`).
+ * `problems` adds what stops a save that the store decides: a Choose one
+ * turned from picked to given out while somebody who facilitates a group
+ * holds a pick in it. `wholeRun`: the counts are of everybody on the
+ * programme (the run's own week), which the check says.
+ */
+export function pasteAnswer(
+  read: PastedWeek,
+  counts: Map<string, number>,
+  dayBeforeTime: string | null,
+  holders: ReadonlyMap<string, Holders> = new Map(),
+  wholeRun = false,
+) {
   const answers = [...counts.values()].reduce((sum, n) => sum + n, 0);
   return {
     /** The course's day-before rule in words ("by noon the day before"), for the line under the found list. */
@@ -116,12 +176,13 @@ export function pasteAnswer(read: PastedWeek, counts: Map<string, number>, dayBe
     title: read.title,
     found: read.found.map((row) => ({ state: row.state, label: row.label, detail: row.detail, indent: row.indent })),
     checks: [...read.checks],
-    problems: [...read.problems],
+    problems: [...new Set([...read.problems, ...facilitatorPickProblems(read.whoChooses, holders)])],
     removed: read.removed.map((item) => ({ id: item.id, kind: item.kind, label: item.label, answers: counts.get(item.id) ?? 0 })),
     answers,
     kept: read.kept,
     minted: read.minted,
     blockCount: read.blocks.length,
+    whoChooses: read.whoChooses.map((row) => whoChoosesWire(row, holders, wholeRun)),
   };
 }
 

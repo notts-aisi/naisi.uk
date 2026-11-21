@@ -6,7 +6,7 @@ import { instantOf } from "@/lib/courses/writtenAnswers/model";
 import { normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "@/lib/firestore/coursePacksAndCases";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
-import { allBlocks, weekItems, type WeekBlock } from "../weekBlocks/model";
+import { allBlocks, weekItems, type ChooseOneBlock, type WeekBlock } from "../weekBlocks/model";
 import type { SaveReach } from "./history";
 
 /**
@@ -24,11 +24,13 @@ import type { SaveReach } from "./history";
  *    (a reflection box, a fill-in box, a written answer), and of the written
  *    answers, the ones sent;
  *  - picks: `coursePacksAndCases` rows of this week (a pack picked or given,
- *    a case given, a talk marked ready).
+ *    a case given, a talk marked ready); and, for the paste's check, how
+ *    many people hold a pack in a Choose one whose chooser the paste changes
+ *    (`packHolders`).
  *
  * Every row of the run is counted, a group with its own copy of the week
- * included: none exists on the live site, and a count that can only be too
- * high never tells an editor a change touches nobody when it touches some.
+ * included: a count that can only be too high never tells an editor a
+ * change touches nobody when it touches some, and the paste's check says so.
  */
 
 /** Distinct people per item id. */
@@ -92,6 +94,50 @@ export async function readWeekWork(db: Firestore, runId: string, weekId: string,
     if (uid && row.weekId === weekId) work.started.add(uid);
   }
   return work;
+}
+
+/** How many people hold a pack in one Choose one, and how many of them facilitate a group of the run. */
+export type PackHolders = { people: number; facilitating: number };
+
+/**
+ * How many people hold a pack in each of `blocks` (Choose ones whose chooser
+ * a paste changes), by block id, every block asked for named (0 when nobody):
+ * picked by them or given out to them, which is one record either way. A
+ * record whose pack is no longer in its block holds none, as every reader
+ * reads it. `owners` narrows the count to the people who read the week being
+ * pasted, as `answersOnRemoved` does: null for the run's own week (every row
+ * of the run, which can only over-count), a group's people and facilitators
+ * for a group's own copy. `facilitating` counts the holders in
+ * `facilitators`: a pick by somebody who facilitates is their own work, read
+ * by the lead and admins only, which a switch to given out would put on the
+ * draw in front of their co-facilitators. Nothing is read when no block is
+ * asked for. Numbers for the check; never whose.
+ */
+export async function packHolders(
+  db: Firestore,
+  runId: string,
+  blocks: readonly ChooseOneBlock[],
+  owners: ReadonlySet<string> | null = null,
+  facilitators: ReadonlySet<string> = new Set(),
+): Promise<Map<string, PackHolders>> {
+  const holders = new Map<string, PackHolders>();
+  if (blocks.length === 0) return holders;
+  const packs = new Map(blocks.map((block) => [block.id, new Set(block.packs.map((pack) => pack.id))]));
+  const people = new Map<string, Set<string>>(blocks.map((block) => [block.id, new Set<string>()]));
+  const snap = await db.collection(COURSE_PACKS_AND_CASES_COLLECTION).where("runId", "==", runId).get();
+  for (const doc of snap.docs) {
+    const row = doc.data() ?? {};
+    const uid = typeof row.uid === "string" ? row.uid : "";
+    const blockId = typeof row.blockId === "string" ? row.blockId : "";
+    const ids = packs.get(blockId);
+    if (!uid || !ids || row.kind !== "pack" || typeof row.packId !== "string" || !ids.has(row.packId)) continue;
+    if (owners !== null && !owners.has(uid)) continue;
+    people.get(blockId)?.add(uid);
+  }
+  for (const [blockId, set] of people) {
+    holders.set(blockId, { people: set.size, facilitating: [...set].filter((uid) => facilitators.has(uid)).length });
+  }
+  return holders;
 }
 
 /** What people have done on one block, by count: people who ticked it, answers in it, people who sent it. */

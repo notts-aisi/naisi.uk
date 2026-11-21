@@ -149,7 +149,7 @@ describe("2. Read it", () => {
     assert.equal(answer.body.title, "How sure are you?");
     assert.deepEqual(
       Object.keys(answer.body).sort(),
-      ["answers", "blockCount", "checks", "comparison", "comparisonLine", "due", "found", "kept", "kinds", "minted", "problems", "removed", "title"],
+      ["answers", "blockCount", "checks", "comparison", "comparisonLine", "due", "found", "kept", "kinds", "minted", "problems", "removed", "title", "whoChooses"],
       "built field by field: no blocks, no stored document",
     );
     assert.equal(everything(), before, "Read it writes nothing");

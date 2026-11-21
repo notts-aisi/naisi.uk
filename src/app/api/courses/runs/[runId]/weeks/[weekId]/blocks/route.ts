@@ -4,6 +4,7 @@ import { isAddressableId } from "@/lib/addressableId";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { weekToMarkdown } from "@/lib/courses/weekBlocks/markdownWrite";
 import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
+import { liveGroupsOfRun } from "@/lib/courses/weeksTab/load";
 import { compareWeeks, comparisonLine, kindsIn } from "@/lib/courses/weekEdit/compare";
 import { readWeekReach, readWeekWork, weekCounts } from "@/lib/courses/weekEdit/counts";
 import { weekFingerprint } from "@/lib/courses/weekEdit/model";
@@ -11,12 +12,15 @@ import { saveWeekBlocks } from "@/lib/courses/weekEdit/save";
 import { HISTORY_WORDS } from "@/lib/courses/weekEdit/words";
 import {
   answersOnRemoved,
+  holdersCountAll,
+  holdersFor,
   pasteAnswer,
   pasteBodyOf,
   readPasteAgainst,
   unconfirmedAnswers,
   type PasteBody,
 } from "@/lib/courses/weekPaste";
+import { facilitatorPickProblems } from "@/lib/courses/weekBlocks/whoChooses";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -55,6 +59,18 @@ import { emptyWeekFields, normalizeCourse, normalizeCourseRun, normalizeCourseWe
  * paste with a problem is refused (400). A paste that takes out items with
  * answers is refused (409) until the body confirms the count it was shown,
  * so a count that has grown since "Read it" asks again.
+ *
+ * WHO CHOOSES. The check lists each Choose one and Cases block with who
+ * chooses and why (`whoChooses`), and the author may change it: the change
+ * is sent with Read it and again with Save, applied to the paste as it is
+ * read (`src/lib/courses/weekBlocks/whoChooses.ts`), after the gate like the
+ * rest of the body. Where the change reaches a block people already hold a
+ * pack in, the check counts them (`packHolders`), everybody on the
+ * programme, which it says. A Choose one turned from picked to given out
+ * while somebody who facilitates a live group of the run has picked one is
+ * refused (400, in the check's own sentence), whether the switch or the
+ * pasted words turned it: that pick is theirs alone, and given out the draw
+ * would show it to their co-facilitators.
  *
  * THE CHECK SAYS WHAT CHANGES. "Read it" also answers what the pasted week
  * holds by kind (`kinds`) and how it differs from the live week, block by
@@ -138,9 +154,23 @@ function isAlreadyExists(err: unknown): boolean {
   return code === 6 || code === "already-exists" || code === "ALREADY_EXISTS";
 }
 
-/** The paste, read against the week as stored. */
-function readAgainst(markdown: string, loaded: Loaded) {
-  return readPasteAgainst(markdown, { blocks: loaded.week.blocks ?? null, weekNumber: loaded.weekNumber, dayBeforeTime: loaded.dayBeforeTime });
+/** The paste, read against the week as stored, with the author's changes to who chooses. */
+function readAgainst(sent: PasteBody, loaded: Loaded) {
+  return readPasteAgainst(sent, { blocks: loaded.week.blocks ?? null, weekNumber: loaded.weekNumber, dayBeforeTime: loaded.dayBeforeTime });
+}
+
+/**
+ * How many hold a pack in each Choose one whose chooser the paste changes:
+ * every row of the run, as the answers are counted, and of them, how many
+ * facilitate a live group of the run. `all`: every such block, for an answer
+ * shown; otherwise the blocks turned to given out, which a save needs.
+ */
+function holdersOf(db: Firestore, runId: string, read: ReturnType<typeof readAgainst>, all: boolean) {
+  return holdersFor(db, runId, read, {
+    owners: null,
+    all,
+    facilitators: async () => new Set((await liveGroupsOfRun(db, runId)).flatMap((group) => group.facilitatorUids)),
+  });
 }
 
 export async function GET(_req: Request, ctx: Params) {
@@ -175,9 +205,9 @@ export async function POST(req: Request, ctx: Params) {
   if (sent instanceof NextResponse) return sent;
   const loaded = await load(db, gated.runId, gated.weekId);
   if (loaded instanceof NextResponse) return loaded;
-  const read = readAgainst(sent.markdown, loaded);
-  const counts = await answersOnRemoved(db, gated.runId, gated.weekId, read.removed);
-  const answer = pasteAnswer(read, counts, loaded.dayBeforeTime);
+  const read = readAgainst(sent, loaded);
+  const [counts, holders] = await Promise.all([answersOnRemoved(db, gated.runId, gated.weekId, read.removed), holdersOf(db, gated.runId, read, true)]);
+  const answer = pasteAnswer(read, counts, loaded.dayBeforeTime, holders, true);
   // What it holds by kind, and what it changes in the live week, block by block.
   const compared = compareWeeks(
     { title: loaded.week.title, blocks: loaded.week.blocks ?? [] },
@@ -212,11 +242,22 @@ export async function PUT(req: Request, ctx: Params) {
   if (sent instanceof NextResponse) return sent;
   const loaded = await load(db, gated.runId, gated.weekId);
   if (loaded instanceof NextResponse) return loaded;
-  const read = readAgainst(sent.markdown, loaded);
-  const counts = await answersOnRemoved(db, gated.runId, gated.weekId, read.removed);
-  const answer = pasteAnswer(read, counts, loaded.dayBeforeTime);
+  const read = readAgainst(sent, loaded);
+  // The save counts only what decides whether it is refused (a Choose one
+  // turned to given out over a facilitator's own pick); a refusal, which the
+  // page shows as its check, counts the rest too.
+  const [counts, guard] = await Promise.all([answersOnRemoved(db, gated.runId, gated.weekId, read.removed), holdersOf(db, gated.runId, read, false)]);
+  let answer = pasteAnswer(read, counts, loaded.dayBeforeTime, guard, true);
+  let unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
+  if ((answer.problems.length > 0 || unconfirmed) && !holdersCountAll(read, guard)) {
+    answer = pasteAnswer(read, counts, loaded.dayBeforeTime, await holdersOf(db, gated.runId, read, true), true);
+    unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
+  }
+  // What the paste itself holds stops it first: another week, facilitator material, a broken block.
   if (read.problems.length > 0) return badRequest(read.problems[0], answer);
-  const unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
+  // Then a Choose one turned to given out over a facilitator's own pick, which the store decides.
+  const pickRefusal = facilitatorPickProblems(read.whoChooses, guard)[0];
+  if (pickRefusal) return badRequest(pickRefusal, answer);
   if (unconfirmed) return NextResponse.json({ error: unconfirmed, ...answer }, { status: 409 });
   // What the paste keeps of people's work, counted before the save, and who it reaches.
   const [work, reach] = await Promise.all([
