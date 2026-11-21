@@ -107,6 +107,26 @@ describe("a visitor marked on the host's register, then removed from the run", (
     assert.equal(grid.omar, B);
   });
 
+  test("put back and removed again with another visit: the weeks the first removal kept are kept too", async () => {
+    await arrange("chloe", 3, C);
+    at("2026-11-18T15:00:00Z");
+    world.db.seed(registerPath(C, 3), { ...read(registerPath(C, 2)), weekNumber: 3, records: { hamza: "present", chloe: "present" } });
+    await remove("chloe");
+    // Put back in Group B on the board, then told, and sent to Group C's week 4 session.
+    const placed = await w.join.place("zach", [{ uid: "chloe", groupId: B }]);
+    assert.equal(placed.status, 200, JSON.stringify(placed.body));
+    assert.equal(read(seatPath("chloe")).status, "active");
+    world.db.poke(seatPath("chloe"), { allocatedEmailAt: new Date("2026-11-18T15:30:00Z"), toldGroupId: B });
+    await arrange("chloe", 4, C);
+    await remove("chloe");
+    assert.deepEqual(read(seatPath("chloe")).visitsWhenRemoved, [
+      { weekNumber: 3, groupId: C },
+      { weekNumber: 4, groupId: C },
+    ]);
+    // Group C's register still never lists her as its leaver.
+    assert.equal((await leaversOf("tom", C)).chloe, undefined);
+  });
+
   test("a place removed before the visits were kept reads as it always has, by the last register that marked it", async () => {
     // A removal written before Remove kept the visits: no record of them, so the latest mark decides.
     world.db.seed(registerPath(C, 3), { ...read(registerPath(C, 2)), weekNumber: 3, records: { hamza: "present", chloe: "present" } });

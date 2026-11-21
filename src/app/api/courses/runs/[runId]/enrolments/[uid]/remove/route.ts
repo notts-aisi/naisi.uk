@@ -9,6 +9,7 @@ import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { formatRunStartShort } from "@/lib/courses/window";
 import {
+  GROUPS_BY_WEEK_LIMITS,
   courseEnrolmentId,
   normalizeCourseEnrolment,
   type CourseEnrolmentStatus,
@@ -309,11 +310,17 @@ export async function POST(req: Request, ctx: Ctx) {
       const heldOpenSeat = status === "active" && existing.selfEnrolled === true;
 
       // The weeks they spent, or were to spend, at another group's session: kept beside the removal, so a
-      // host's register is never taken for the register of a group they belonged to (`listGroups`).
-      const visitsWhenRemoved = (normalizeCourseEnrolment(snap.id, existing).visits ?? []).map((each) => ({
-        weekNumber: each.weekNumber,
-        groupId: each.groupId,
-      }));
+      // host's register is never taken for the register of a group they belonged to (`listGroups`). A place
+      // removed before, put back and removed again keeps the weeks its first removal kept too.
+      const stored = normalizeCourseEnrolment(snap.id, existing);
+      const visitsWhenRemoved = [
+        ...(stored.visitsWhenRemoved ?? []),
+        ...(stored.visits ?? []).map((each) => ({ weekNumber: each.weekNumber, groupId: each.groupId })),
+      ]
+        .filter((each, at, all) => all.findIndex((other) => other.weekNumber === each.weekNumber && other.groupId === each.groupId) === at)
+        .sort((a, b) => a.weekNumber - b.weekNumber)
+        // Within the stored list's bound, the latest weeks kept: the latest mark is the one asked.
+        .slice(-GROUPS_BY_WEEK_LIMITS.entries);
       tx.update(enrolmentRef, {
         status: "removed" satisfies CourseEnrolmentStatus,
         groupId: null,
