@@ -157,9 +157,13 @@ export function registerRowTitleWords(weekNumber: number, draw: WeekDraw): strin
 
 export const REGISTER_ROW_LINE = "Hand out the slips, then copy them in.";
 
-/** Home's card, on the evening of the session: "After Wednesday’s session". */
+/**
+ * Home's card, from the start of the session that hands the slips out:
+ * "Slips from Wednesday’s session". It shows while that session is still on,
+ * so it does not say "after".
+ */
 export function homeSlipsTitleWords(handOutDateKey: string): string {
-  return `After ${weekdayOfKey(handOutDateKey)}’s session`;
+  return `Slips from ${weekdayOfKey(handOutDateKey)}’s session`;
 }
 
 /** Home's line: "Copy in the pathways and cases you hand out for week 3." */

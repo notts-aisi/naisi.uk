@@ -63,6 +63,8 @@ type Props = {
    * session."), or null: not the first part waiting, or no words for it.
    */
   waitingLine?: string | null;
+  /** That line is said already, under a part above, so this one's own line does not say when again. */
+  waitingSaidAbove?: boolean;
   isDone: (itemId: string) => boolean;
   canTick: boolean;
   rows: ReadonlyMap<string, CourseProgressDoc>;
@@ -154,13 +156,15 @@ function PackReading({ pack }: { pack: Pack }) {
 }
 
 function GivenPacks(props: Props) {
-  const { block, weekNumber, participant, picks, askToSwap, handOutSession, waitingLine = null } = props;
+  const { block, weekNumber, participant, picks, askToSwap, handOutSession, waitingLine = null, waitingSaidAbove = false } = props;
   const own = participant ? picks.packOf(block.id) : null;
   const ownPack = own ? (block.packs.find((pack) => pack.id === own) ?? null) : null;
+  // While the person's own waits and the page says when the slips go out, the line here does not say it too.
+  const whenIsSaid = participant && !ownPack && (waitingLine !== null || waitingSaidAbove);
   return (
     <div className={styles.packs}>
       <p className={styles.eyebrow}>{packsEyebrowWords(block.title)}</p>
-      <p className={styles.line}>{givenPacksLineWords(weekNumber, block.title, askToSwap, handOutSession)}</p>
+      <p className={styles.line}>{givenPacksLineWords(weekNumber, block.title, askToSwap, handOutSession, whenIsSaid)}</p>
       {participant && (
         // "Your pathway": the pack given, or "Not given yet" while it waits on the facilitator's slip.
         <div className={styles.caseCard}>

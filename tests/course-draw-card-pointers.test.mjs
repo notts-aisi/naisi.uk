@@ -215,7 +215,7 @@ describe("2. Home, through the group summary: one fact, for the group's facilita
       assert.deepEqual(answer.body.slips, { weekNumber: 4, handOutDateKey: "2026-11-17", title: "Packs and cases" }, who);
     }
     const home = await w.home("rahul");
-    assert.match(home.text, /After Tuesday’s session Copy in the packs and cases you hand out for week 4\. Packs and cases/);
+    assert.match(home.text, /Slips from Tuesday’s session Copy in the packs and cases you hand out for week 4\. Packs and cases/);
     assert.match(home.html, new RegExp(`href="/learn/draw/${B}\\?week=4"`));
   });
 

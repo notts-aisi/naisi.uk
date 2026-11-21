@@ -108,9 +108,19 @@ function askWords(verb: "switch" | "swap", askNames: readonly string[]): string 
 /**
  * Under a Choose one a facilitator gives out: "Given out at the end
  * of session 2. Only your pathway counts. To switch, ask Rahul or Sofia."
+ * While the person's own pathway waits on the facilitator's slip and the
+ * page says when the slips go out (`waitingLineWords`), `whenIsSaid` leaves
+ * the first sentence out: the page would say it twice, and in the past
+ * tense before it has happened.
  */
-export function givenPacksLineWords(weekNumber: number, title: string, askNames: readonly string[], handOut?: number | null): string {
-  return [givenOutWords(weekNumber, handOut), `Only your ${titleWord(title)} counts.`, askWords("switch", askNames)]
+export function givenPacksLineWords(
+  weekNumber: number,
+  title: string,
+  askNames: readonly string[],
+  handOut?: number | null,
+  whenIsSaid = false,
+): string {
+  return [whenIsSaid ? "" : givenOutWords(weekNumber, handOut), `Only your ${titleWord(title)} counts.`, askWords("switch", askNames)]
     .filter(Boolean)
     .join(" ");
 }
@@ -277,9 +287,13 @@ export function ownCaseGivenByWords(firstName: string): string {
 /** The tick on a row that lets a case with a content note be given: the person asked for one. */
 export const ASKED_FOR_THIS_ONE = "Asked for this one";
 
-/** A case with a content note in a list, once the row is ticked. Not drawn on the boards. */
+/**
+ * A case with a content note in a list, once the row is ticked: "The close
+ * call, 2019 (note)". Short, because a phone cuts a long line of a list off
+ * and the note itself is drawn in full under the list. Not drawn on the boards.
+ */
 export function notedCaseOptionWords(title: string): string {
-  return `${title} (content note)`;
+  return `${title} (note)`;
 }
 
 /** The case list of a row whose every case has a content note, until it is ticked. */
@@ -287,26 +301,28 @@ export const NO_CASE_TO_GIVE = "No case to give";
 
 /**
  * A row whose every case has a content note, until it is ticked: "Every
- * Misuse case has a content note, so none is offered unless Chloe asked for
- * one. If Chloe did, tick Asked for this one." On a page that is read only,
- * which draws no tick, the first part alone: "Every Misuse case has a content
- * note."
+ * case in Misuse has a content note, so none is offered unless Chloe asked
+ * for one. If Chloe did, tick Asked for this one." On a page that is read
+ * only, which draws no tick, the first part alone: "Every case in Misuse has
+ * a content note." The pathway's name comes after "in", so it reads whatever
+ * the pathway is called ("Every case in The harbour ...").
  */
 export function everyCaseNotedWords(groupName: string, firstName: string, readOnly = false): string {
   const group = groupName.trim();
-  const every = `Every ${group ? `${group} ` : ""}case has a content note`;
+  const every = `Every case${group ? ` in ${group}` : ""} has a content note`;
   if (readOnly) return `${every}.`;
   return `${every}, so none is offered unless ${firstName} asked for one. If ${firstName} did, tick ${ASKED_FOR_THIS_ONE}.`;
 }
 
 /**
- * Under the people: "2 Misuse cases have a content note, so they aren’t in
+ * Under the people: "2 cases in Misuse have a content note, so they aren’t in
  * the list to give out." and, where the page draws the tick, how to give one
- * to somebody who asked.
+ * to somebody who asked. The pathway's name comes after "in", so it reads
+ * whatever the pathway is called ("1 case in The harbour has ...").
  */
 export function notedCasesWords(count: number, groupName: string, readOnly = false): string {
   const group = groupName.trim();
-  const cases = `${count} ${group ? `${group} ` : ""}${count === 1 ? "case has" : "cases have"}`;
+  const cases = `${count} ${count === 1 ? "case" : "cases"}${group ? ` in ${group}` : ""} ${count === 1 ? "has" : "have"}`;
   const line = `${cases} a content note, so ${count === 1 ? "it isn’t" : "they aren’t"} in the list to give out.`;
   return readOnly ? line : `${line} To give one to somebody who asked for it, tick ${ASKED_FOR_THIS_ONE} on their row.`;
 }

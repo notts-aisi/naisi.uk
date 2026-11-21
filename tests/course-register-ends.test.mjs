@@ -281,7 +281,7 @@ describe("Push attendance, while next week's email is not on its schedule", () =
     const done = await finish("rahul", GROUP.b, 1);
     assert.equal(done.body.sent, MEMBERS_B.length, "the push lane sends it, as it always has");
     const text = await textOf(mailTo("amara")[0]);
-    assert.match(text, /Your next session is Tue 27 Oct at 6pm\. Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page\./);
+    assert.match(text, /Your next session is Tue 27 Oct at 6pm\. Room to be confirmed: it’ll be on your programme page as soon as it’s booked\./);
     assert.doesNotMatch(text, /Room C20/);
   });
 });
@@ -427,7 +427,7 @@ describe("Week N is open on its schedule", () => {
     assert.doesNotMatch(linked, /zoom\.example\.com/, "a link is never printed as a room");
     assert.match(
       linked,
-      /Your next session is Tue 27 Oct at 6pm\. Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page\./,
+      /Your next session is Tue 27 Oct at 6pm\. Room to be confirmed: it’ll be on your programme page as soon as it’s booked\./,
       "it says where it is as a room not booked does",
     );
     // What told the lead and the admins while it was held still tells them: one card on their boards, once.
@@ -451,7 +451,7 @@ describe("Week N is open on its schedule", () => {
     await runJob(nextWeekEmailJob, AT.groupBDue);
     for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1, `${uid}: a room not booked yet holds nothing`);
     assert.equal(read(`tasks/${heldEmailTaskId(RUN, GROUP.b, "w02")}`), undefined, "and raises no card");
-    assert.match(await textOf(mailTo("amara")[0]), /Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page\./);
+    assert.match(await textOf(mailTo("amara")[0]), /Room to be confirmed: it’ll be on your programme page as soon as it’s booked\./);
   });
 
   test("never a meeting link: an online week says Online", async () => {

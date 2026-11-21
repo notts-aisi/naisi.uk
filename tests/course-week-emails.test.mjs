@@ -704,7 +704,7 @@ describe("5. on the schedule, a fact the email carries that is empty holds it wh
     const email = words.weekOpenEmailWords({ ...OPEN, where: "", roomToBeConfirmed: true }, "Priya");
     assert.deepEqual(email.paragraphs, [
       "Week 3 of AGI Strategy is open: Power and incentives. Your next session is Wed 18 Nov at 3pm.",
-      "Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page.",
+      "Room to be confirmed: it’ll be on your programme page as soon as it’s booked.",
     ]);
   });
 

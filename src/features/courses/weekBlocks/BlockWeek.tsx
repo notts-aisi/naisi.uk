@@ -1311,6 +1311,7 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             askToSwap={ctx.askToSwap}
             handOutSession={ctx.handOutSession}
             waitingLine={ctx.waitingLineOf(child.id)}
+            waitingSaidAbove={ctx.waitingSaidAbove(child.id)}
             isDone={ctx.ticks.isDone}
             canTick={ctx.ticks.canTick}
             rows={ctx.ticks.byItemId}
