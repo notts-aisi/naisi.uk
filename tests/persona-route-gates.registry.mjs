@@ -2902,9 +2902,10 @@ export const ROUTES = {
     POST: {
       expect: signedIn(404),
       why:
-        "Session required, then the document is read and its own membership decides. The " +
-        "battery's id addresses nothing, so every signed-in persona is told that the document " +
-        "is missing.",
+        "Session required, then the run, the run's staff gate, then the person's row on the run's list, " +
+        "whose row from the form is answered to a caller it is not served (`rowIsServedTo`) as a uid with " +
+        "no place, then the document is read and its own membership decides. The battery's ids address " +
+        "nothing, so every signed-in persona is told that the run or the document is missing.",
     },
   },
   "/api/courses/runs/[runId]/enrolments/[uid]/remove": {
@@ -7426,7 +7427,7 @@ export const REAL_ROUTES = {
   "/api/courses/runs/[runId]/enrolments/[uid]/reinstate": {
     POST: runStaff(
       "Putting somebody back on the run",
-      c(ACTS, "Admitted, and it takes no body: the place is already active, so the press is idempotent, but it would still put them on the run's cohort list."),
+      c(ACTS, "Admitted, and served the person's row (an admin and the lead are served every row), and it takes no body: the place is already active, so the press is idempotent, but it would still put them on the run's cohort list."),
     ),
   },
   "/api/courses/runs/[runId]/enrolments/[uid]/remove": {

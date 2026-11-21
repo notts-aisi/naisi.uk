@@ -181,6 +181,14 @@ const READERS = {
     proof: ['where("status", "==", "pending")', "getCountFromServer("],
     why: "an admin's count of pending applications. A row from the form is never pending, and a count names nobody",
   },
+  "app/api/courses/runs/[runId]/enrolments/[uid]/reinstate/route.ts": {
+    kind: "staff",
+    asks: 1,
+    why:
+      "putting somebody back on an open run, for an admin, the run's track leads or the lead of the programme that " +
+      "names it, reads the person's row first and answers a row it does not serve the caller as a uid with no place, " +
+      "as Remove does, before their seat is read",
+  },
   "app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": {
     kind: "staff",
     asks: 1,
