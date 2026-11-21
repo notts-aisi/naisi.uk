@@ -29,7 +29,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, mock, test } from "node:test";
 import { walkSource } from "./lib/functionScan.mjs";
-import { B, NOW, RUN, W3, makePacksAndCasesWorld, packsSeed, weekBlocksFor } from "./lib/packsAndCasesWorld.mjs";
+import { B, NOW, RUN, W2, W3, blockWeekDoc, makePacksAndCasesWorld, packsSeed, weekBlocksFor } from "./lib/packsAndCasesWorld.mjs";
 import { weekOneBlocks } from "./lib/weekBlocksPageWorld.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
@@ -97,7 +97,7 @@ const BOTH = person({ pack: W3.elections, caseId: W3.surprise });
 
 describe("1. the one decision", () => {
   test("what a facilitator gives out: the pack given out and the case study, never a Choose one each person picks or a pitch with no cases", () => {
-    assert.deepEqual(waiting.givenOutOf(BLOCKS), { packs: [{ id: W3.given, word: "pack" }], cases: [W3.caseStudy] });
+    assert.deepEqual(waiting.givenOutOf(BLOCKS), { packs: [{ id: W3.given, word: "pack" }], cases: [{ id: W3.caseStudy, picksFirst: null }] });
     assert.deepEqual(waiting.givenOutOf(WEEK_ONE), { packs: [], cases: [] });
   });
 
@@ -114,6 +114,19 @@ describe("1. the one decision", () => {
     assert.deepEqual(waiting.waitingParts(given, { packOf: () => null }), [{ kind: "pack", id: W3.given, word: "pack" }]);
     // A week that gives nothing out never waits on anybody.
     assert.deepEqual(waiting.waitingOf(WEEK_ONE, NEITHER), []);
+  });
+
+  test("a pathway each person picks never waits; the case that follows it waits once they have picked", () => {
+    // The week as a week of picked pathways: the pathway is each person's own pick, the cases still given out.
+    const picked = JSON.parse(JSON.stringify(BLOCKS).replace(/"givenBy":"facilitator"/, '"givenBy":"fellow"'));
+    assert.equal(picked.flatMap((block) => (block.type === "part" ? block.blocks : [block])).find((block) => block.id === W3.given).givenBy, "fellow");
+    assert.deepEqual(waiting.givenOutOf(picked), { packs: [], cases: [{ id: W3.caseStudy, picksFirst: W3.given }] });
+    // Not picked yet: nothing waits on the facilitator, the pick is theirs to make.
+    assert.deepEqual(waiting.waitingOf(picked, NEITHER), []);
+    // Picked, and no case yet: the case waits.
+    assert.deepEqual(waiting.waitingOf(picked, PACK_ONLY), [{ kind: "case", id: W3.caseStudy }]);
+    // Picked, and the case given: nothing waits.
+    assert.deepEqual(waiting.waitingOf(picked, BOTH), []);
   });
 
   test("the word is the Choose one's own: pathway, plan, pack", () => {
@@ -580,14 +593,41 @@ describe("5. the member's week page, in each state the design draws", () => {
     assert.doesNotMatch(arrived.week, /Waiting for your case/);
   });
 
+  test("a week of picked pathways, end to end: no Waiting before the pick; the case waits once picked; given, the card names whom to ask", async () => {
+    const picked = JSON.parse(JSON.stringify(weekBlocksFor("w3")).replace(/"givenBy":"facilitator"/, '"givenBy":"fellow"'));
+    w.reset(ONE_FACILITATOR(packsSeed({ [`courseRuns/${RUN.agi}/weeks/w03`]: blockWeekDoc(3, "How sure are you, again?", picked) })));
+    // Not picked yet: the pick is Kofi's own to make, so nothing says Waiting.
+    const before = (await w.weekPage("kofi", 3)).text;
+    assert.doesNotMatch(before, /Waiting for your|hasn’t copied in|gives these out/);
+    // Picked: the case that follows it waits on Rahul's slip.
+    const chose = await w.pick("kofi", W3.given, "w03", W3.elections);
+    assert.equal(chose.status, 200, JSON.stringify(chose.body));
+    const waits = (await w.weekPage("kofi", 3)).text;
+    assert.ok(waits.includes("Waiting for your case Waiting"), waits);
+    assert.ok(waits.includes("Your case Not given yet Rahul hasn’t copied in your slip yet."), waits);
+    assert.doesNotMatch(waits, /Waiting for your pack/);
+    // Given: the card names whom to ask to swap, and nothing says Waiting.
+    w.seedDraw("kofi", "w3", { caseId: W3.surprise });
+    const given = (await w.weekPage("kofi", 3)).text;
+    assert.ok(given.includes("To swap, ask Rahul."), given);
+    assert.doesNotMatch(given, /Waiting for your|hasn’t copied in/);
+  });
+
   test("the group page says how many are waiting, to the group's facilitator", async () => {
+    // Week 3 is the week the pathways and cases card is about: the card says who is waiting, and the week's
+    // work card does not say it a second way.
     const { text } = await w.groupPage("rahul");
-    assert.ok(text.includes("0 of 3 have done week 3 3 are waiting for a pack and a case from you."), text);
+    assert.ok(text.includes("are waiting for theirs."), text);
+    assert.ok(text.includes("0 of 3 have done week 3 Week 3"), text);
+    assert.doesNotMatch(text, /are waiting for a pack and a case/);
+    // Week 2, chosen on the row of weeks, is not the card's week: the work card says how many wait for its slips.
+    const weekTwo = (who) => w.draw(w.pages.group, who, { runId: RUN.agi, groupId: B }, { week: "2" });
+    assert.ok((await weekTwo("rahul")).text.includes("0 of 3 have done week 2 3 are waiting for a pack and a case from you."));
     // Given to one of them: two are still waiting, and nothing else changes.
-    w.seedDraw("kofi", "w3", { pack: W3.elections, caseId: W3.surprise });
-    assert.ok((await w.groupPage("rahul")).text.includes("0 of 3 have done week 3 2 are waiting for a pack and a case from you."));
+    w.seedDraw("kofi", "w2", { pack: W2.elections, caseId: W2.surprise });
+    assert.ok((await weekTwo("rahul")).text.includes("0 of 3 have done week 2 2 are waiting for a pack and a case from you."));
     // To an admin who is not the group's facilitator, the plain form.
-    assert.ok((await w.groupPage("zach")).text.includes("2 are waiting for a pack and a case."));
+    assert.ok((await weekTwo("zach")).text.includes("2 are waiting for a pack and a case."));
   });
 
   test("when the slips go out, from the draw's rule over a real group's sessions", async () => {

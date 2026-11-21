@@ -313,6 +313,8 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
       join("lib", "courses", "drawCard", "model.ts"),
       // The pairs card: the next week in pairs still to come.
       join("lib", "courses", "pairs", "cardWeek.ts"),
+      // A member's own week page: which session hands their week's slips out ("gives these out at the end of week 2's session").
+      join("lib", "courses", "weekWork", "handOut.ts"),
     ].sort());
 
     // Nothing else in the tree links to the draw page on a week of its own

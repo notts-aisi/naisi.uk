@@ -344,7 +344,12 @@ export default function BlockWeek({
   const handOutSession = handOut === null || handOut.kind === "undated" ? undefined : handOut.kind === "session" ? handOut.weekNumber : null;
   // The line under the first part that waits, in the design's words, or none where it has none.
   const firstWaiting = waiting[0] ?? null;
-  const waitingLine = waitingLineWords(handOut, payload.askToSwap ?? []);
+  // Named as the card beside it names whoever to ask: a case that follows a pathway the person picked
+  // by `askToSwapPicked` (nobody when they facilitate their own group), everything else by `askToSwap`.
+  const firstWaitingTalk =
+    firstWaiting?.kind === "case" ? (allBlocks(blocks).find((each): each is CasesBlock => each.type === "cases" && each.id === firstWaiting.id) ?? null) : null;
+  const followsPick = firstWaitingTalk !== null && keyingChooseOne(blocks, firstWaitingTalk)?.givenBy === "fellow";
+  const waitingLine = waitingLineWords(handOut, (followsPick ? payload.askToSwapPicked : payload.askToSwap) ?? []);
   const waitingLineOf = (blockId: string): string | null => (firstWaiting?.id === blockId ? waitingLine : null);
   // A later part waiting says nothing more when the first one carries the line.
   const waitingSaidAbove = (blockId: string): boolean =>
