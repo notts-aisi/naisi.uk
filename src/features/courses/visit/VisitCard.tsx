@@ -82,7 +82,7 @@ export default function VisitCard({
   return (
     <section className={weekly.ticket} aria-labelledby={`${ids}-chip`}>
       <div className={weekly.visitBody}>
-        <div className={weekly.cardHead}>
+        <div className={weekly.nextHead}>
           {label && <p className={weekly.ticketEyebrow}>{label}</p>}
           <span id={`${ids}-chip`} className={weekly.visitChip}>
             {visit.chip}

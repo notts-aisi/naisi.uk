@@ -51,6 +51,7 @@ export default function NextSessionCard({
   home = false,
   calendar = false,
   answers = null,
+  next = true,
 }: {
   facts: TicketFacts;
   /** "Your next session · week 2", "Tonight · week 3". */
@@ -75,6 +76,12 @@ export default function NextSessionCard({
   calendar?: boolean;
   /** The buttons for this session (`TicketExcuse`, `TicketAnswers`), or nothing. */
   answers?: ReactNode;
+  /**
+   * Their next session. False for their own group's session under a visit
+   * that comes first, which a screen reader then hears by its label
+   * ("Week 5"), so only one card is called their next session.
+   */
+  next?: boolean;
 }) {
   // An online session's card carries Join online in Add to calendar's
   // place; a session in a room keeps it, whatever link it has.
@@ -89,21 +96,21 @@ export default function NextSessionCard({
   const inPerson = facts.mode === "in-person" ? <span className={styles.plainChip}>In person this week</span> : null;
 
   return (
-    <section className={home ? `${styles.ticket} ${styles.ticketHome}` : styles.ticket} aria-label="Your next session">
+    <section className={home ? `${styles.ticket} ${styles.ticketHome}` : styles.ticket} aria-label={next ? "Your next session" : eyebrow}>
       <div className={styles.ticketBody}>
-        <div className={styles.cardHead}>
+        <div className={styles.nextHead}>
           <p className={styles.ticketEyebrow}>{eyebrow}</p>
           {chip}
           {inPerson}
         </div>
         <h2 className={styles.ticketWhen}>{heading}</h2>
         {saidOnline ? (
-          <p className={`${styles.ticketRoom} ${styles.cardLine}`}>{onlineLine}</p>
+          <p className={`${styles.ticketRoom} ${styles.nextLine}`}>{onlineLine}</p>
         ) : (
           <>
-            {facts.place && <p className={`${styles.ticketRoom} ${styles.cardLine}`}>{facts.place}</p>}
+            {facts.place && <p className={`${styles.ticketRoom} ${styles.nextLine}`}>{facts.place}</p>}
             {groupLine && (
-              <p className={`${styles.ticketWith} ${styles.cardLine}`}>
+              <p className={`${styles.ticketWith} ${styles.nextLine}`}>
                 {facilitators.length > 0 && (
                   <span className={styles.faces} aria-hidden="true">
                     {facilitators.map((person) => (
@@ -116,7 +123,8 @@ export default function NextSessionCard({
             )}
           </>
         )}
-        {why && <p className={styles.ticketNote}>{why}</p>}
+        {/* Once they have said they are joining online, the card is about joining it, as drawn: no Why line. */}
+        {why && !saidOnline && <p className={styles.ticketNote}>{why}</p>}
         {facts.missing && <p className={styles.ticketNote}>{facts.missing}</p>}
         {facts.explainer && <p className={styles.ticketExplainer}>{memberLineWords(facts.explainer.minutes, facts.explainer.topic)}</p>}
         {((offerCalendar && !home) || answers) && (

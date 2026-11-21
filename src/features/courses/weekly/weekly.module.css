@@ -2486,16 +2486,18 @@ a.weekItem:focus-visible {
 }
 
 /* The card for a person's next session, on Home and on the programme page:
-   its label and its chip on one row, then a line each. */
-.cardHead {
+   its label with its chip beside it, then a line each. Names of their own,
+   so no other card's head changes. */
+.nextHead {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 10px;
+  justify-content: flex-start;
+  gap: 6px 8px;
   min-width: 0;
 }
 
-.cardLine {
+.nextLine {
   margin: 0;
 }
 
