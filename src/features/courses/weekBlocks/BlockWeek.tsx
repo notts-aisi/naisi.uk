@@ -67,6 +67,8 @@ import {
   type DoneState,
   type TaskNeeds,
 } from "@/lib/courses/weekBlocks/progress";
+import { taskWaitsOn, waitingOf, type WaitingPart } from "@/lib/courses/weekWork/waiting";
+import { WAITING, waitingForWords, waitingLineWords } from "@/lib/courses/weekWork/waitingWords";
 import {
   FILL_IN_DRAFT,
   draftFilledWords,
@@ -333,7 +335,25 @@ export default function BlockWeek({
     isSent: (answerId) => Boolean(ownRows.byId.get(answerId)?.written?.firstSentAt),
     packOf: (chooseOneId) => (participant ? picks.packOf(chooseOneId) : null),
     isReady: (talkId) => participant && picks.isReady(talkId),
+    caseOf: (talkId) => (participant ? picks.caseOf(talkId) : null),
   };
+  // What of the reader's own week waits on their facilitator's slip (`waitingOf`): never for somebody only reading.
+  const waiting = participant ? waitingOf(blocks, state) : [];
+  // When the week's slips go out, from the one rule the draw asks, for "Given out at the end of session 2.".
+  const handOut = participant ? (overviewWeek?.handOut ?? null) : null;
+  const handOutSession = handOut === null || handOut.kind === "undated" ? undefined : handOut.kind === "session" ? handOut.weekNumber : null;
+  // The line under the first part that waits, in the design's words, or none where it has none.
+  const firstWaiting = waiting[0] ?? null;
+  // Named as the card beside it names whoever to ask: a case that follows a pathway the person picked
+  // by `askToSwapPicked` (nobody when they facilitate their own group), everything else by `askToSwap`.
+  const firstWaitingTalk =
+    firstWaiting?.kind === "case" ? (allBlocks(blocks).find((each): each is CasesBlock => each.type === "cases" && each.id === firstWaiting.id) ?? null) : null;
+  const followsPick = firstWaitingTalk !== null && keyingChooseOne(blocks, firstWaitingTalk)?.givenBy === "fellow";
+  const waitingLine = waitingLineWords(handOut, (followsPick ? payload.askToSwapPicked : payload.askToSwap) ?? []);
+  const waitingLineOf = (blockId: string): string | null => (firstWaiting?.id === blockId ? waitingLine : null);
+  // A later part waiting says nothing more when the first one carries the line.
+  const waitingSaidAbove = (blockId: string): boolean =>
+    waitingLine !== null && firstWaiting !== null && firstWaiting.id !== blockId && waiting.some((part) => part.id === blockId);
 
   // The week's seven days and its session, in the reader's own calendar.
   const schedule = payload.weekSchedule.find((entry) => entry.weekNumber === weekNumber) ?? null;
@@ -350,8 +370,19 @@ export default function BlockWeek({
   const prev = at > 0 ? taught[at - 1] : null;
   const next = at >= 0 && at < taught.length - 1 ? taught[at + 1] : null;
 
-  // Names from records, for who reads what.
-  const facilitatorNames = (payload.group?.facilitatorNames ?? []).map((name) => firstName(name) || name);
+  // Names from records, for who reads what: the group's facilitators, and in
+  // a week of a one-week visit the host's facilitators the reading rule lets
+  // read that week (the server's `visitReaders`), in the same sentences.
+  // Where one of the host's readers shares a first name with one of their own
+  // group's facilitators, both are named in full, so neither is dropped.
+  const visitWeekReaders = payload.visitReaders?.find((entry) => entry.weekNumber === weekNumber) ?? null;
+  const hostReaderFirsts = visitWeekReaders?.firstNames ?? [];
+  const groupFacilitatorNames = (payload.group?.facilitatorNames ?? []).map((name) => {
+    const first = firstName(name) || name;
+    return hostReaderFirsts.includes(first) ? name : first;
+  });
+  const hostReaderNames = visitWeekReaders?.names ?? [];
+  const facilitatorNames = [...groupFacilitatorNames, ...hostReaderNames];
 
   // This week, and its count.
   const thisWeekBlock = blocks.find((block): block is ThisWeekBlock => block.type === "thisWeek") ?? null;
@@ -360,7 +391,7 @@ export default function BlockWeek({
   const answerReaders: AnswerReaders =
     overviewWeek?.thisWeek?.answersReadBy === "lead"
       ? { kind: "lead", leadName: leadFirstName }
-      : { kind: "facilitators", names: facilitatorNames };
+      : { kind: "facilitators", names: groupFacilitatorNames, ...(hostReaderNames.length > 0 ? { alsoRead: hostReaderNames } : {}) };
   // Whose work this is, for the lines under the boxes and the ticks: a
   // facilitator's own work is read by the programme's lead and admins and
   // never by a co-facilitator (`readsFacilitatorsOwnWork`), and nobody
@@ -539,6 +570,7 @@ export default function BlockWeek({
             blocks={blocks}
             learner={participant}
             state={state}
+            waiting={waiting}
             draftOf={draftOf}
             counts={counts}
             first={first}
@@ -625,7 +657,7 @@ export default function BlockWeek({
                   ? { access: facilitatorReflectionsReadByWords(leadFirstName), readOut: null }
                   : {
                       access: reflectionsReadByWords(facilitatorNames, leadFirstName),
-                      readOut: readOutWords(facilitatorNames),
+                      readOut: readOutWords(groupFacilitatorNames),
                     },
                 ticksLine: ownWorkIsTheLeads
                   ? facilitatorTicksSeenByWords(leadFirstName)
@@ -646,6 +678,10 @@ export default function BlockWeek({
                 },
                 picks,
                 askToSwap: payload.askToSwap ?? [],
+                askToSwapPicked: payload.askToSwapPicked ?? [],
+                handOutSession,
+                waitingLineOf,
+                waitingSaidAbove,
                 blocks,
                 fillInReaders,
               })
@@ -678,7 +714,11 @@ export default function BlockWeek({
             participant={participant}
             canWrite={canWrite}
             picks={picks}
-            askToSwap={payload.askToSwap ?? []}
+            // A case that follows a pick is named to whoever can change it (`askToSwapPicked`).
+            askToSwap={(keying?.givenBy === "fellow" ? payload.askToSwapPicked : payload.askToSwap) ?? []}
+            handOutSession={handOutSession}
+            waitingLine={waitingLineOf(block.id)}
+            waitingSaidAbove={waitingSaidAbove(block.id)}
             packId={keying && participant ? picks.packOf(keying.id) : null}
             variant="section"
             anchorId={anchor(block.id)}
@@ -841,6 +881,7 @@ function ThisWeekBox({
   blocks,
   learner,
   state,
+  waiting,
   draftOf,
   counts,
   first,
@@ -859,6 +900,8 @@ function ThisWeekBox({
   blocks: WeekBlock[];
   learner: boolean;
   state: DoneState;
+  /** What of the reader's week waits on the facilitator's slip (`waitingOf`). */
+  waiting: readonly WaitingPart[];
   /** "Draft" for a task whose fill-in boxes are started and not done, else null. */
   draftOf: (needs: TaskNeeds, done: boolean) => string | null;
   counts: { done: number; of: number };
@@ -899,19 +942,23 @@ function ThisWeekBox({
             );
           }
           const needs = taskNeeds(blocks, row);
+          // A task waiting on the facilitator's slip (the slip the one thing
+          // left in it) says "Waiting" in place of not done. It stays in the
+          // count, not done, as it always was.
+          const waits = learner ? taskWaitsOn(needs, waiting, state) : null;
           // A task with nothing anybody could finish is left out of the count,
           // so it carries no mark that says done or not done.
           const counted = isCounted(needs);
           const done = learner && counted && taskDone(needs, state);
           const fromOverview = rows[index];
           const due = fromOverview && fromOverview.type === "task" && fromOverview.what === row.what ? fromOverview.due : null;
-          const talk = learner && needs.talkIds.length > 0 ? talkLine(needs.talkIds[0]) : null;
+          const talk = learner && !waits && needs.talkIds.length > 0 ? talkLine(needs.talkIds[0]) : null;
           return (
             <li key={index} className={styles.task}>
               {!counted ? <NoneMark /> : learner && done ? <DoneMark /> : <OpenMark />}
               <div className={styles.taskBody}>
                 <p className={styles.taskWhat}>
-                  {learner && counted && <span className={styles.srOnly}>{done ? TASK_MARK_WORDS.done : TASK_MARK_WORDS.notDone}: </span>}
+                  {learner && counted && <span className={styles.srOnly}>{waits ? WAITING : done ? TASK_MARK_WORDS.done : TASK_MARK_WORDS.notDone}: </span>}
                   {row.what}
                 </p>
                 <p className={styles.taskMeta}>
@@ -926,7 +973,12 @@ function ThisWeekBox({
                   </p>
                 )}
                 {talk && !talk.ready && <p className={styles.taskWhen}>{NOT_READY_YET}</p>}
-                {needs.answerIds.length > 0 ? (
+                {waits && (
+                  <p className={styles.taskWhen}>
+                    <span>{waitingForWords(waits)}</span> <span className={weekly.plainChip}>{WAITING}</span>
+                  </p>
+                )}
+                {waits ? null : needs.answerIds.length > 0 ? (
                   answerLine(needs.answerIds, due?.dateKey ?? null)
                 ) : done ? (
                   <p className={styles.taskDone}>{tickedLine(needs) ?? TASK_DONE}</p>
@@ -1132,13 +1184,21 @@ type ChildContext = {
   picks: Picks;
   /** Who the person asks to switch a pack or swap a case. */
   askToSwap: readonly string[];
+  /** Who they ask to swap a case that follows a pack they picked: nobody when they facilitate their own group. */
+  askToSwapPicked: readonly string[];
+  /** The session that hands the week's slips out, for "Given out at the end of session 2." (`givenOutWords`). */
+  handOutSession: number | null | undefined;
+  /** The line under a part that waits on the facilitator's slip, by the part's block id: only the first such part has one. */
+  waitingLineOf: (blockId: string) => string | null;
+  /** Whether that line is said already under an earlier part, so this one says nothing more. */
+  waitingSaidAbove: (blockId: string) => boolean;
   /** The week's blocks, for the Choose one a talk's cases are grouped by. */
   blocks: WeekBlock[];
   /** Who reads the reader's own boxes on a fill-in card titled so. */
   fillInReaders: (title: string) => string;
 };
 
-type AnswerReaders = { kind: "facilitators"; names: string[] } | { kind: "lead"; leadName: string | null };
+type AnswerReaders = { kind: "facilitators"; names: string[]; alsoRead?: string[] } | { kind: "lead"; leadName: string | null };
 
 /**
  * One block of a part, drawn; sources that follow one another share one card,
@@ -1249,6 +1309,9 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             canWrite={ctx.canWrite}
             picks={ctx.picks}
             askToSwap={ctx.askToSwap}
+            handOutSession={ctx.handOutSession}
+            waitingLine={ctx.waitingLineOf(child.id)}
+            waitingSaidAbove={ctx.waitingSaidAbove(child.id)}
             isDone={ctx.ticks.isDone}
             canTick={ctx.ticks.canTick}
             rows={ctx.ticks.byItemId}
@@ -1270,7 +1333,10 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             participant={ctx.learner}
             canWrite={ctx.canWrite}
             picks={ctx.picks}
-            askToSwap={ctx.askToSwap}
+            askToSwap={keying?.givenBy === "fellow" ? ctx.askToSwapPicked : ctx.askToSwap}
+            handOutSession={ctx.handOutSession}
+            waitingLine={ctx.waitingLineOf(child.id)}
+            waitingSaidAbove={ctx.waitingSaidAbove(child.id)}
             packId={keying && ctx.learner ? ctx.picks.packOf(keying.id) : null}
             variant="part"
             anchorId={anchor(child.id)}

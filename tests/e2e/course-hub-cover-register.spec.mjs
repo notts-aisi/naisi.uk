@@ -141,6 +141,39 @@ const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const flat = (text) => text.replace(/\s+/g, " ").trim();
 const textOf = async (locator) => flat((await locator.textContent()) ?? "");
 
+/**
+ * The group page's one calm page, as somebody signed in whom it does not
+ * admit reads it: a 200 at the address asked, never a redirect, with the
+ * heading, who the page is for (its facilitators and admins: the group page
+ * admits no lead), what to do if that is wrong, the one way on to My
+ * programmes, and nothing of the group.
+ */
+async function assertGroupNotForYou(pg, origin, path, group, who) {
+  const response = await pg.goto(`${origin}${path}`, { waitUntil: "domcontentloaded" });
+  assert.equal(response?.status(), 200, `${who} opened ${path} and was answered ${response?.status()}`);
+  const calm = pg.getByTestId("not-for-you");
+  await calm.waitFor({ timeout: WAIT_MS });
+  assert.equal(new URL(pg.url()).pathname, path, `${who} was moved off the group's page to ${new URL(pg.url()).pathname}`);
+  // Each piece on its own: `textContent` runs the elements together with no
+  // space between them, so the whole is never compared as one string.
+  assert.equal(await textOf(calm.getByRole("heading", { level: 1 })), "This page isn’t for your account");
+  const lines = calm.locator("p");
+  assert.equal(await lines.count(), 2, `${who} reads ${await lines.count()} sentences`);
+  assert.equal(await textOf(lines.nth(0)), "It’s for a group’s facilitators and admins.", `${who} is told the page is for somebody else`);
+  assert.equal(
+    await textOf(lines.nth(1)),
+    "If you facilitate this group and can’t open it, ask the team and we’ll put it right.",
+    `${who} reads other words`,
+  );
+  const ways = calm.getByRole("link");
+  assert.equal(await ways.count(), 1, `${who} is offered ${await ways.count()} links`);
+  assert.equal(await textOf(ways.first()), "My programmes");
+  assert.equal(await ways.first().getAttribute("href"), "/learn");
+  const main = await textOf(pg.locator("main"));
+  assert.ok(!main.includes(group.name), `${who} is shown the group's name`);
+  assert.equal(await pg.getByRole("link", { name: "Take the register" }).count(), 0, `${who} is offered the group's register`);
+}
+
 /** One email, read out of Mailpit whole. */
 async function readEmail(summary) {
   const message = await getMessage(summary.ID);
@@ -459,10 +492,11 @@ test(
         const stored = await storedRegister(groupA, 4);
         assert.equal(stored?.setBy?.[ada.uid]?.byUid, ola.uid);
 
-        for (const path of [`/learn/${enc(state.runId)}/group/${enc(groupA.id)}`, `${learnRegisterPath}?session=w03`]) {
-          await olaPage.goto(`${origin}${path}`, { waitUntil: "domcontentloaded" });
-          await olaPage.waitForURL((url) => url.pathname === "/learn", { timeout: WAIT_MS });
-        }
+        // The group's page is not Ola's: its one calm page, where it used to send Ola to My programmes without a word.
+        await assertGroupNotForYou(olaPage, origin, `/learn/${enc(state.runId)}/group/${enc(groupA.id)}`, groupA, "Ola, given one session,");
+        // Another week's register still sends Ola to My programmes.
+        await olaPage.goto(`${origin}${learnRegisterPath}?session=w03`, { waitUntil: "domcontentloaded" });
+        await olaPage.waitForURL((url) => url.pathname === "/learn", { timeout: WAIT_MS });
       });
 
       await step("the facilitator opens that register and reads who set each line, and nothing about their own record", async () => {

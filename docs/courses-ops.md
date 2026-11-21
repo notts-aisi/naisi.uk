@@ -244,7 +244,7 @@ Marker families and where they live:
 | `stagerel__` | `{roundId}__{stageId}__{uid}` | application stage release notices (one per recipient; the `{roundId}__{stageId}` form, with no uid, is the stale verdict for a whole stage) |
 | `unmarked__` | `{groupId}__{sessionKey}` | unmarked-register follow-ups |
 | `regremind__` | `{groupId}__{sessionKey}__{uid}` | the one reminder each facilitator gets about an unfinished register |
-| `weekremind__` | `{groupId}__{sessionKey}__{uid}__{3\|1}` | one person's reminder, 3 days or 1 day before a session, that their week is not done |
+| `weekremind__` | `{groupId}__{sessionKey}__{uid}__{3\|1}` | one person's reminder, 3 days or 1 day before a session they are due at |
 | `breakret__` | `{runId}__{groupId}__{slotStartKey}` | back-after-the-break notices |
 | `wsremind__` | `{circulationId}__{uid}__{dueKey}` | worksheet due-soon reminders (not a courses job, but it shares this collection, so an operator sweeping markers meets it here) |
 | `evannounce__` | `{eventId}__{email\|push}__{recipientKey}` | queued new-event announcements (not a courses job either; one marker per recipient per leg, and `recipientKey` is `u{uid}` for a member or `g{hash}` for a guest row, never an address) |
@@ -609,37 +609,101 @@ stops anybody getting a second email about the same session.
 #### `courses-week-reminders`
 
 "Reminders before a session": 3 days and 1 day before each of a group's
-sessions, at 9am in London, one email to each person holding a place in the
-group whose week is not done, listing what is left of it (the lines the check
-before Submit names, and "Week 3 isn't submitted."). **Ships switched off.**
-A notice (docs/notifications.md, surface `course-week-reminder`): it reaches
-them whatever they unsubscribed from, and says why above its words.
+sessions, at 9am in London, one email to each person due at it: that week's
+day, time and place, how to say they can't make it, what a certificate needs
+where the run has a rule, and what is left of their week if anything is (the
+lines the check before Submit names). **Ships switched off.** A notice
+(docs/notifications.md, surface `course-week-reminder`): it reaches them
+whatever they unsubscribed from, and says why above its words.
 
 | | |
 | --- | --- |
 | Marker | `schedulerMarkers/weekremind__{groupId}__{sessionKey}__{uid}__{3\|1}`, one per person per reminder |
 | Due | from 9am on its day for 12 hours (`maxLateHours`), and never once the session has started |
-| Weeks | each week the session covers (two, for the session after a cancelled one), written as blocks and published |
+| Who | every active learner whose session that week is the session's group's (somebody on a one-week visit at the host's, never their own group's) and who has been told their group; never a facilitator |
+| Weeks | each week the session covers (two, for the session after a cancelled one); a session none of whose weeks is written as blocks and published is reminded about by nobody |
 | Runs scanned | status `applications-open`, `applications-closed` or `running`; archived groups skipped |
 | `maxPerTick` | 100 |
 
+**Who is sent what** is decided in one place, `sessionReminderVerdict` in
+`src/lib/scheduler/jobs/weekReminders.ts`:
+
+- Everybody due at the session gets the reminder of the session. Its first
+  sentence is that week's, from the resolver every reader of a session uses:
+  "Group C's week 5 session is on Thu 26 Nov, 6pm to 8pm, in Portland A21
+  (University Park), with Rahul." A week with its own room says that room; a
+  moved week its new day, time and room; a week with no room, or whose room
+  was cleared for that week on a group with a usual room, says the room is
+  still to be confirmed and will be on their programme page as soon as it's
+  booked, never the usual room; a week held online (its own
+  mode, or the Online campus, the rule the rooms pages use) says "online",
+  and that the link is on their programme page only when one is set for that
+  week and passes the card's own check (the link the programme page's
+  session card shows). Never a meeting
+  link. The
+  facilitators named are the group's who still stand behind the role, by first
+  name; an incubator's people are told of no group and no facilitator ("Your
+  week 5 session is ..."). Then "Can't make it?", then the certificate
+  sentence (`certificateNeedsFor`, worked out from the same facts the
+  programme page uses, so the two say the same; never a count of what they
+  missed), then what is left of each week the session covers for them that is
+  not done, each with its own list. A week that is done has no list; the
+  reminder still goes. Somebody moved to another group from a later week is
+  reminded by the group they are leaving for the weeks before, but their
+  programme page shows the new group's card, so their email leaves out
+  "Can't make it?" and the link sentence (`programmePageShowsSession`).
+  Somebody on a one-week visit is reminded of the HOST's session that week
+  alone, once at each of the two moments, and never of their own group's
+  session that week: the host's day, time and place and the host's
+  facilitators, about the visit's week alone, judged on their own group's copy.
+  Their page shows the visit's card for that session, so the reminder says the
+  link is on their programme page as the card shows the host's link, and says
+  "Can't make it?" where the card offers it (never to somebody who
+  facilitates their own group, whose own Can't make it is the instant one);
+  where the page draws no visit card (their own group no longer meets, or the
+  host's register already says the session was not held) it says neither.
+  An excusal for their own group's session is no excusal from the host's:
+  they are reminded of it. Who is not coming is asked of the host's session,
+  its register and its requests. The certificate sentence reads each week's
+  session's group, the host's register for the visit's week, as their
+  programme page does.
+  Its button is "Open your programme page", for
+  everybody, to the run's own page. The line above its words says why it
+  reached them in its own words (`sessionReminderReason`, naming the
+  programme); the reminder about what is left keeps the reminders' own line,
+  and its own button to the week.
+- Somebody who will not be at the session is never told to come to it: an
+  excusal for the session that stands (an approved request, or their line
+  marked excused, as the register reads it with `excusalStandsFor`), or a word
+  in advance that they can't make it (the programme page's `cantMakeItState`:
+  "Most weeks, not all", or a word said before requests). With something of
+  the week left they are sent the reminder about what is left, in its own
+  words ("Your AGI Strategy session is on ..."); with nothing left, nothing. A
+  request still waiting for an admin, or declined, is no excusal: they are
+  reminded of the session.
+
 **Done is the one meaning** (`weekDone`, "The week stays open"): every
 reading and step its tasks count ticked, and either the old Submit pressed or
-everything written it counts written and sent. It is asked as each reminder goes, so somebody who finishes
-after the 3-day reminder is not sent the 1-day one. A session that is
-cancelled has no reminders; the session after it reminds about both weeks,
-each with its own list. A moved session is reminded about on its new date.
+everything written it counts written and sent. It is asked as each reminder
+goes, so somebody who finishes after the 3-day reminder is sent the 1-day one
+with no list. A session that is cancelled has no reminders; the session after
+it reminds about both weeks. A moved session is reminded about on its new date.
 
-Somebody claimed and not mailed is stamped on their marker with why: `done`;
-`locked` (the programme has closed, so nothing listed could be done in it now;
-`submitted` on a marker written while weeks locked at Submit); `joined-late`
-(the session started before they were told their group, or they have none); `stale`
-(the reminder is more than 12 hours late; stamped once, within a day of going
-stale, and then left alone); and the notice audience's own reasons,
-`no-account`, `no-address`, `same-inbox` and `suppressed`. Somebody who left
-the programme holds no place and is not considered at all.
+Somebody claimed and not mailed is stamped on their marker with why:
+`excused` (not coming, and nothing of the week left); `locked` (the programme
+has closed, so nothing could be done in it now; `submitted` on a marker
+written while weeks locked at Submit); `joined-late` (the session started
+before they were told their group, or they have none); `stale` (the reminder
+is more than 12 hours late; stamped once, within a day of going stale, and
+then left alone); and the notice audience's own reasons, `no-account`,
+`no-address`, `same-inbox` and `suppressed`. `done` is no longer a reason; it
+is on markers written before everybody due at a session was reminded.
+Somebody who left the programme holds no place and is not considered at all.
 
-Prove it on dev with **Run now** on a run with a session 1 or 3 days away.
+**Proving it on dev.** Run now emails REAL people: every person due at a
+session 1 or 3 days away on every live run of the dev project. Prove it only
+on a run the test harness made, whose people are the harness's own
+addresses.
 
 #### `courses-register-reminders`
 
@@ -1161,7 +1225,7 @@ the transport itself.
 | --- | --- | --- |
 | "Week N is open", while the schedule is off | the group's facilitator, by pushing the register | after every session, about the next one |
 | "Week N is open", while the schedule is on | the `courses-next-week-email` job | 6 days before each session at 9am, the first included |
-| The reminders before a session | the `courses-week-reminders` job | 3 days and 1 day before each session at 9am, to the people whose week is not done |
+| The reminders before a session | the `courses-week-reminders` job | 3 days and 1 day before each session at 9am, to everybody due at it, with what is left of their week if anything is |
 | Remind, by hand | the group's facilitators, the programme's lead, admins, on the group's page | any week whose work is open, before its session or after it, to the people whose week is not done |
 | Resend the week's email | an admin, on a finished register | recovery |
 
@@ -1517,13 +1581,15 @@ programme names" below).
   facilitators, its register and its check-in. Their card on the board and
   in Circles says they were moved since they were told and will be emailed
   at the next Publish, which sends them "You’ve moved" (their new group,
-  when it next meets counted from the press, where, its facilitators, and
-  that it replaces the group they were told about), tells the new group's
+  the first session of it they are due at counted from the press, where,
+  its facilitators, and that it replaces the group they were told about), tells the new group's
   facilitators who has joined and the old group's who is no longer in it,
   and lists them on its own ("Raj: moved to Group H, was Group D"), with
   "Send a test to me" sending the first "You’ve moved" too. A swap and a
   swap back before the press owes nothing, and Publish never sends somebody
-  told the first email again.
+  told the first email again. A move made once a session of their group has
+  started keeps the weeks already met: see "A move on the board, mid-term"
+  under "Moving somebody to another group mid-term" below.
 - **A run has to start with no applications of its own.** A run that
   already took applications through its own page cannot be named. Make a
   new run for the term.
@@ -1631,12 +1697,36 @@ programme names" below).
   facilitates its one group), and the button's count leaves them out. Its
   wording is in Email designs as "You're facilitating", beside "Placed in a
   group".
+- **The facilitators' email links their guide (since November 2026).** A
+  second button, after "Open your group", opens the course's facilitator
+  guide: "Facilitator guide for week 1", to week 1's page of the guide,
+  when the email says week 1's guide is on the group page, and "Facilitator
+  guide", to the guide's front page, otherwise. It is the optional pair
+  `{guideUrl}` and `{guideButton}` in a paragraph of its own, so a run with
+  no course to link to loses the button and nothing else, and Publish is
+  never refused for it. Wording saved in Email designs before then has
+  neither and sends as saved, without the button. To add it, open "You're
+  facilitating" in Email designs and either press Reset to default, then
+  Save (and make any earlier changes again), or add a paragraph of its own
+  with a link whose address is `{guideUrl}` and whose words are
+  `{guideButton}`. Either is a change to the saved wording, so the next
+  Publish that sends email asks for a new test, as any wording change does.
+- **A link to a token is the token's own address.** In Email designs the
+  link box saves an address that is exactly one token, typed alone or after
+  the `https://` it starts with, as the token alone (`{groupUrl}`), and
+  adds `https://` to a bare domain as before. When a course email is
+  written, a link whose address is a scheme and then exactly one token whose
+  value is a whole address is sent with that value alone, so wording saved
+  as `https://{groupUrl}` links to the group page. The saved wording is not
+  changed, so the test before Publish reads it as it did.
 - **A changed wording needs a fresh test.** Saving either of the two emails
   a run sends in Email designs ("You're facilitating", and "Placed in a
   group" or, on a run an incubator names, "Placed on an incubator") locks
   its Publish again until somebody sends themselves a test. A test that this
   copy of the site held, or that went to an address on the do-not-email
-  list, reached nobody and does not count.
+  list, reached nobody and does not count. The one thing left out of the
+  comparison is the guide's button paragraph exactly as the default words
+  it, so adding it to the default in November 2026 locked no run's Publish.
 - **Do not destroy the form while its people are waiting for a group.**
   Until somebody is in a group, their member area knows they hold a place
   only from their application. Destroy the form in between and it tells
@@ -1741,7 +1831,11 @@ keeps their record, and no place on the form goes back after the end.
 Their facilitators' register lists them last, read only, with the marks
 they had, "Left" and the day, and refuses a mark for them; the lead's
 Attendance tab, its CSV and the Overview say the same. **Remove** records
-the day too, so both kinds of leaving show it, and it gives a place the
+the day too, so both kinds of leaving show it, deletes every one-week visit
+on their place (for each whose session has not started and is happening,
+the host group's facilitators are sent the visit's called-off email, counted
+in the confirmation before the press; see "A one-week visit to another
+group's session"), and it gives a place the
 application form gave them back, exactly as leaving does and with no
 reason (nothing goes back after the run's last session). Their application
 page then says "Taken off the programme" and the day, and the form's count
@@ -1786,8 +1880,9 @@ Group F's.
 
 **Written by one thing.** The record is written only by `moveFromWeek`
 (`src/lib/courses/moveFromWeek.ts`), which sets the group and the record in one
-transaction, and the one thing that calls it is the staff move made mid-term
-(below; a test fails if anything else does). A place with no record reads
+transaction, and the two things that call it are the staff move made
+mid-term and a move made mid-term on the allocation board (below; a test
+fails if anything else does). A place with no record reads
 exactly as it always has: the group it is in now, for every week. That
 includes everybody moved before the record existed, whose earlier weeks read
 the group they are in now, as they did.
@@ -1797,19 +1892,39 @@ the group they are in now, as they did.
 for a week: the record's last entry from that week or earlier, the first
 entry's group for a week before it, and the place's group when there is no
 record. The helpers in `src/lib/courses/groupsByWeek.ts` are made of it. It
-answers the group the record names whether or not that group still meets; a
-week in a group that no longer meets has no session, no register and no mark
-for anybody reading it.
+answers the group the record names whether or not that group still meets. A
+week in a group that no longer meets (it is archived) has no session to come,
+no reminder, no calendar entry and nothing to be excused from, and work in it
+reads as undated. But where that group's register for the week was finished
+and does not say the session didn't happen (and the session was not called
+off), the session happened: for the people whose record gives them that week
+it counts as held and their mark on it is their mark, dated as that group's
+session was, on the rollup on their place, their own attendance on the run
+home, their row of the Attendance tab and its download, a group page's grid
+where they are a row, who finished, what a certificate counts, and their
+own excused weeks (the week, what was asked and how it was decided, with
+nothing offered about it)
+(`countsFromArchivedGroup`, `src/lib/courses/archivedWeeks.ts`). An admin's
+correction of that register still reaches their figures. A register of an
+archived group never finished, or saying the session didn't happen, counts
+for nothing, and an archived group is still no block of the Attendance tab,
+with no figures of its own; the programme's figure for a week (the tab's
+footer, the Overview's chart, the lead's overview) counts those marks once,
+and a line on that register of somebody whose record does not name it counts
+nowhere. Nothing reads an archived group's registers for somebody whose
+record does not name it.
 
 **Kept true.** The normaliser reads a record whole or not at all: every entry a
 group id and a whole week, weeks rising, and the last group the place's group.
 A record that contradicts the place reads as none. The writer keeps it that
 way, and every other writer of a place's group deletes the record whenever it
-changes the group: a move on the allocation board (to another group, or to
-none), Remove, somebody changing the session of a seat they took on an open
+changes the group: a move on the allocation board (to another group or to
+none, before the term or of a place nobody has told), Remove, somebody changing the session of a seat they took on an open
 run, and placing a facilitator who holds a place in the group they facilitate.
 Each of those is a move for every week, so the place then reads the group it
-is in now for every week, as every such move always has. A write that leaves
+is in now for every week, as every such move always has. A move on the board
+to ANOTHER group of a told place, once a session of its group has started,
+is not one of them: it goes through the writer (below). A write that leaves
 the group where it is (a press on the board that changes nothing, reinstate,
 Publish) keeps the record. Deleting an account and destroying a run delete the
 place whole; an account's marks are cleared from every register of the run,
@@ -1914,9 +2029,26 @@ met that week (and when to come back), the old group has no session left, the
 old group has no session set at all, the old group still has a session to
 come in a week before N (its weeks met out of order, or a second session of a
 week whose first has started: move them after that session), or the new
-group has no session that week. When the old group's week N is called off
-and it keeps pace, the move is from the week after, though the new group may
-meet in week N: they have no session that week either way. Likewise a week of
+group has no session that week. When the new group has met week N and
+calling off the old group's week N session, keeping pace, would let the move
+go ahead now, the refusal says so ("If Group C’s week 2 session is called
+off with “Cancel and keep pace”, Leo can be moved now, from week 3."): the
+rule is asked again with that session called off (`ifCalledOff`), so it is
+never said when another session still to come, or a new group's week already
+met, would refuse it all the same. A week nobody met with the old group
+counts too: between the last week the old group met and week N, a week whose
+old session is dated and called off (keeping pace) or marked as not held on
+its register is one the person never met, and the move is from the EARLIEST
+such week whose new group's session has not started (`readNotHeld` reads
+the registers). Old group's week 3 called off on Tuesday, new group meets on
+Saturday, moved on Thursday: from week 3, and the page says why in place of
+the session they skip ("Group C’s week 3 session on Tue 17 Nov was called
+off, so Leo is with Group F from week 3."). The new group's week 3 already
+started: from week 4, and week 3 counts for nobody. Held: from week 4. A
+session of the old group still to come is never left behind the move's
+week, so when the new group has met week N and the old group's week N is
+still to come, it is refused as before, never moved from the week after.
+Likewise a week of
 the old group with no time set, between its last week met and the next dated
 one, stays with the old group: it has no session for anybody to go to, and
 the rule is left as it is. The press sends back the week and the
@@ -1947,6 +2079,15 @@ from week 3" to each of the old group's, each with standing and an address,
 never the person moved and never whoever pressed; somebody who facilitates
 both groups is told once, as the new group's. One function decides who, for
 the page's count and the send alike. Never the reason, never a meeting link.
+
+**How often it emails** is held to two stored counters
+(`src/lib/courses/staffMove/limits.ts`, the notice lane's `courseNudges`
+counters): four moves of one person on one run in a day, and forty moves by
+one presser in a day. Both are read and claimed in the move's own transaction, so past
+either the move is refused in one sentence (429), nothing is written or
+claimed and nobody is emailed, and a move changed under the press (409)
+claims nothing; the page and the preview read the same counters and say the
+same sentence before the press. Every move counts, whoever it emails.
 
 **Who reads whose work is the group now, at once**: the new group's
 facilitators read every week with its feedback, the old group's read nothing
@@ -1986,9 +2127,9 @@ column draws no row for a week spent elsewhere). "Week N is open"'s line
 about an earlier week not done judges each person's week on the copy they
 read it on, so a week finished on the old group's version is never called
 not done because the new group's asks something more. The reminders before
-a session remind somebody about a week the session covers only when that
-week was this group's for them (`belongsTo`): a week spent in another group
-was due at that group's session, finished or not. The Coursework tab reads
+a session remind somebody about a week the session covers only when their
+work for that week was due at this group's session (`dueWith`): a week spent
+in another group was due at that group's session, finished or not. The Coursework tab reads
 the copies of a group archived since that somebody's record names, so a week
 spent there keeps its answers; such a week has no session for anybody
 reading it, so it reads as undated there, as everywhere. The run's questions
@@ -2017,11 +2158,560 @@ to be excused still waiting about one. The page names each before the press;
 none of them applies once they move, and a waiting request is declined with a
 line on the Requests page.
 
-**The allocation board refuses a place with weeks in two groups**: moving it
-there to another group is refused in one sentence ("Leo was moved mid-term and
-has weeks with two groups. Use Move on Leo’s row, which keeps them."), as a
-full group is reported. Taking it out of every group, Remove, a place with no
-record, and somebody changing their own session on an open run, are as before.
+**A move on the board, mid-term** (People in groups, Circles and the run's
+own board, all through `POST /api/courses/runs/[runId]/allocate`;
+`src/lib/courses/staffMove/board.ts`). A move to another group of a place
+Publish has told, once it has met (a session of a group it belongs to has
+started and was neither called off nor marked as not held on its register,
+the week rule's own test of a week met), or a place that already has a
+record, goes through `moveFromWeek` from the week
+this page's rule gives (`moveWeekFor`, the one function both ask): every
+week before it stays with the old group, the record is extended, or folded
+back when the person returns to a group before an earlier move took effect,
+and a visit to the group moved into from that week on goes in the same
+write. It is made by an admin or the programme's lead, as on this page
+(`movesForGoodMidTerm`): a run's track lead, who places people on the board
+before their group has met, is refused it in the preview and at the press,
+nothing written, in one sentence that says who to ask ("Leo has already met
+with Group C, so only an admin or the programme’s lead can move Leo now. Ask
+one of them."). It EMAILS NOBODY and is held to no limit: the next Publish sends
+"You’ve moved", as for any move on the board, so `toldGroupId` and
+Publish's markers are left as the board leaves them. One row on each group's
+History ("Leo Park moved to Group F from week 3 on the Groups tab, to be
+told at the next Publish." and "Leo Park moved here from Group C, from week
+3, on the Groups tab, to be told at the next Publish."), no reason. Before
+the press every board asks the same question, through one shared piece of
+code (`askMidTermMoves` in `src/features/courses/askMidTermMoves.ts`, called
+by the run's own board, People in groups and Circles), from the route's
+preview (`preview: true`, which writes nothing and answers only for people
+the caller may place): "Move Leo Park to Group F from week 3? Weeks 1 and 2
+stay with Group C, where Leo met. Nobody is emailed now: Leo sees Group F
+straight away, and the next Publish emails them that they have moved."
+Between the weeks and the last sentence it says what stays behind on the old
+group from week N on, in this page's own sentence for it (`leftBehindOf` and
+`leftBehindWords`, shared): a line excusing them, a "Most weeks, not all"
+tick, a request still waiting. Several moves in one press are asked in one
+confirmation. A move the preview already knows will be refused (no week by
+the rule, or out of every group once the person has met) is said by each of
+the three boards before the press, in its sentence, and is never pressed;
+the rest of the press goes ahead. The press sends the week back (`fromWeek`); a
+week that no longer holds is refused ("The move is now from week 4. Move Leo
+again to see what it does."), nothing written. When the rule offers no week
+the move is refused in this page's sentence for it, prefixed "Leo Park
+wasn’t moved."; so is a move out of a group that no longer meets. Several
+people in one press are each decided on their own, after the chunk of plain
+moves they came in, so one refusal never loses another's move.
+
+*A seat such a move frees is free before it is taken.* Every capacity check
+reads the count its own transaction read, so no group is ever over its
+capacity at any commit, and a move made mid-term frees its seat only once it
+is written. So a press goes in rounds: the plain placements in their chunks,
+then the moves made mid-term one by one, then every placement of the press
+still refused because its group was full (in that round or an earlier one),
+into a group a move made mid-term has just left, is tried again the same
+way, until a round makes no such move. It always ends: a round follows only
+one in which a move made mid-term was written, and nobody's move is written
+twice, so there is at most one round more than there are such moves. Moving
+a told person out of a full group mid-term and placing somebody else into
+it in one press works, in either order, and so does a chain (Amara from A to
+full B, Chloe from B to C, Una from C to full A) in whatever order the board
+sends it. A move that is refused frees nothing, so nobody is placed
+into its seat. A press with no move made mid-term is one round, exactly as
+before. Two people swapped between two full groups are refused, before the
+term and after, as the board always has: neither can go first. What one move
+made mid-term costs: outside a transaction, the place, the run's groups (one
+equality), the person's account and the registers of their own sessions that
+have started; then one transaction reading the place, the run, the run's
+groups and those registers again, and writing the place, two counts and two
+History rows. And the chunk the move came in reads, for each told place
+moved out of its group, the registers of its sessions that have started, to
+know whether it has met. Each move is its own commit, so a press cut off part way (a
+request that runs out of time) keeps every move written before it stopped,
+the board shows the error and, once reloaded, where everybody is; pressing
+again makes the rest, and a move already made is "already exactly where they
+are", nothing to do.
+
+*Never into no group mid-term.* A place in no group keeps no record of the
+weeks it met: every week reads its group, and it has none. So a told person
+who has met (a session of their own started and was neither called off nor
+marked as not held), or who has a record, is never taken out of every group
+by the board, on any of its three views: the move is refused, before the
+press and at it, with nothing written ("Amara has already met with Group A,
+so Amara can’t be taken out of every group: the weeks met with Group A
+would be lost. Move Amara straight to the new group instead, or take Amara
+off the run."). Before the term, for somebody nobody has told, and for
+somebody whose only past sessions were called off or not held (they met
+nobody), the pool works as always. Somebody ALREADY in that state (told, in no group, mid-term,
+taken out before this was refused) has no weeks left to keep: placing them in
+a group is the board's plain move, for every week, as it always was.
+
+A move before the term (nobody told, or no session of the group started),
+Remove, and somebody changing their own session on an open run, are as
+before.
+
+## A person's page, for the team, and a facilitator's cut of it
+
+One page per person on a programme, at
+`.../programmes/[programmeId]/people/[uid]`, reached from their name on the
+People tab and, for somebody holding a place, on the Coursework tab and its
+list of what waits for feedback. Read by `loadTeamPersonPage`
+(`src/lib/courses/personPage/load.ts`); the words are turned out by the pure
+functions beside it (`model.ts`, `words.ts`). NOTHING ON IT WRITES: Move is
+its own page, and the notes write through their own routes.
+
+**Who opens it.** The programme's own gate (`loadProgrammeRun`, from the form,
+before anything else is read): an admin or the programme's lead. A reviewer is
+told it is the lead's and an admin's; anybody with no role on the programme,
+the lead of another programme among them, is told there is no programme here.
+Then the person must be a row of the People tab for this reader
+(`loadProgrammePeople`, whose rows are the people whose application the reader
+may open); anybody else, whether or not the account exists, gets one calm
+sentence. The admin tree is closed in a view-as session, as everywhere under
+`/admin`.
+
+**Somebody the Coursework tab has no row for.** The tab's rows are the people
+holding a place, the facilitators of the run's live groups, and anybody placed
+in one of them; the reading view of a week opens only for a row. Somebody who
+LEFT the run gave the form's place back in the same act (the People tab lists
+them under Gave their place back, "Left the programme"), and their seat is
+withdrawn or removed, so they are no row: the tab shows nothing of their work
+and the reading view refuses them. The Attendance tab still lists them with
+the marks a register kept. So their page, like the page of somebody who gave
+a place back before the run or is invited, is the head (no group) and their
+attendance, and nothing else.
+
+**Each section, and who it is read for.** A section a reader may not see is
+not read for them, and its key is absent from what the page is handed.
+
+- *The head*: the name as the Coursework tab names them to this reader, their
+  group and its weekly time (a placement Publish has not told shows to admins
+  alone, marked "Not told yet", as the Coursework tab shows it), and where
+  their place stands in the People tab's words. "Goes by" (the name on their
+  account they go by) and "Joined" (the month their account was approved as
+  a member, `users.approvedAt`; where none is on record, the month it was
+  made, `createdAt`; with neither, nothing), for an admin and the lead. Their
+  account's address (`users.email`) with "(admins only)" beside it, for an
+  ADMIN ALONE: it is put in the view only for an admin, never sent to a lead
+  or a facilitator. "Visit another group for one week" and "Move to another
+  group", drawn exactly where the People tab offers them: one decision on the
+  server (`movingLinks` in `src/lib/applications/people/model.ts`, which sets
+  `visitHref` and `moveHref` together), drawn by the tab's More menu and here.
+- *The strip of section links* at the top: one link to each section this
+  reader is handed, in the page's order, and none for a section that is not
+  there.
+- *Coursework*, week by week: the Coursework tab's own reads and cell
+  (`readRunCoursework` with nobody's words, `courseworkRows`), each week on
+  the copy the person worked in (`readsGroupIdFor`): its state, readings
+  ticked, the last save of its reflections, the written answer's first send
+  and whether it was late, and who gave feedback when, with its email. A week
+  of a one-week visit that stands, to a session still happening, says where
+  its work was due: "Due at Group F, Thu 5 Nov, 5pm: a visit" (the cell's own
+  due moment, which is the host's session for that week). Nobody's words: "Read week N" opens the reading view of that week. The
+  "Team rating" column is read only for a reader `mayRateWorkOf` admits
+  (`readsWorkRatings`: an admin, or the programme's lead while they stand;
+  never on their own work), as the number and who gave it, never the comment;
+  for anybody else the column is not there.
+- *Attendance*, counts only: in the room and online, from the one record of a
+  person's attendance (`buildRunAttendance`, each week off the register of the
+  group they were in that week, a group archived since among them where its
+  register was finished and says the session was held, dated as that session
+  was), and a line per week: what the register says,
+  "Not marked" for a session that happened with no mark, "Didn’t happen", and
+  the next session alone, "Tomorrow, with Group C" (or "Today, ...", or "With
+  Group C" on another day) with the chip "Coming". A third count, "Visits to
+  another group": the visits' sessions they came to, off the host's register
+  (each also counted in the room or online). A visit week's line names the
+  host's session ("At Group F’s session, in the room") with the chip "Visit".
+  A visit is one that stands on the place (`visitInWeek`) to a session that
+  is happening (`held`): a visit called off is gone from the place, and one
+  whose session was called off (Change a session, or a finished register's
+  "It didn't happen") is no visit here; it shows nothing beyond its History
+  rows. Never an allowance and never how many sessions anybody may still
+  miss.
+- *Feedback*: every piece about them on the run (`readOwnFeedback`), and
+  feedback given before pieces existed, kept on the written answer's own row
+  (its facts, who and when, handed by `readRunCoursework` as `legacy`, on an
+  answer its readers may read, as the reading view shows it), as who wrote
+  it, about which week and when. What became of its email is said in the
+  reading view's own words (`emailStateWords`): a piece stopped by the
+  do-not-email list, or held by this copy of the site, is "Not emailed", and
+  older feedback was emailed when it was given. On the team's page an email
+  that went adds who pressed Send on its batch ("in a batch sent by Zach",
+  from the piece's `emailedByUid`); older feedback records no batch, so it
+  says none, and neither does the facilitator's cut. Never its words.
+- *Notes*: the notes' own component (`PersonNotes`), through the notes' own
+  routes, which decide who reads which note (see "Claude and Pangram on
+  coursework, and the notes the team keeps"). Never on the reader's own page.
+- *Application*: the People tab's link (`applicationHref`, the review
+  screens' `canReadApplication`), "Read the application"; absent for the
+  reader's own. Beside it, and only where the link is handed, its line, read
+  from the application itself: "Ranked AGI Strategy first." where what they
+  sent ranks this programme (`choiceNumber`); then "Accepted Wed 28 Oct." where
+  decision day's result put them on it (`result.kind` accepted, its
+  `programmeId` this programme, on the day it was sent, `publishedAt`), or
+  "Said yes to an invitation Tue 27 Oct." where they accepted an invitation to
+  it (decision day's or a freed place's, on the day they answered). A part the
+  records cannot say is left out: somebody who joined by invitation never
+  ranked the programme, so their line has no ranking.
+- *Events* and *Activity*: an admin's alone (`if (!isAdmin) return` comes
+  before either is read). Events are the events tree's own reader
+  (`eventsOfPersonInTerm`, privacy v15's "Attendance"), drawn by the admin
+  profile's own card body, with one line above it: "Signed up to 3 this
+  term. Came to 1 of the 2 that are over where they held a place and check-in
+  was used." THIS TERM is the run's own dates: from its first day
+  (`courseRuns.startDate`, midnight in London) to the end of its last session
+  (`runEndOf`), with no end while none is dated. Counted: each published
+  event starting inside them for which their newest own sign-up (never a test
+  one) is a place, a request not decided or the waiting list (`signedUpWithin`
+  in `src/lib/events/missedEvents.ts`); not a place given back, a request
+  turned down, a cancelled event, an undated one or a drop-in with no sign-up.
+  The second sentence is NOT over those: it is over the events in the same
+  dates that the policy's rule on missed events counts (`countedEvents`, the
+  one decision the line beside a request and the card's "came" ask: over, not
+  cancelled, a confirmed place held when it started, check-in used at its
+  door, this academic year, after they agreed), how many there are and how
+  many they came to (a check-in by their account or through one of their
+  sign-ups, `cameWithSignups`). So an event still to come, the waiting list, a
+  request nobody decided, a place given back beforehand and an event whose
+  door list was never opened are never set against "came"; a drop-in they
+  came to with no sign-up is in no number. It is said with a nought too
+  ("Came to 0 of the 2 ..."), because it says what it is out of, and left out
+  when no event counts yet. Never "missed". With no sign-ups the line is "Not
+  signed up to any this term." alone. Nothing for somebody who has not accepted privacy v15, as the
+  card lists nothing for them. It comes from the card's own read. Activity is made only of records the page has already read,
+  and the History rows one-week visits wrote about them:
+  when Publish told them their group ("Publish told them their group", never
+  a group's name, because a move keeps the day Publish first told them; and
+  nothing when that email was held or stopped), the last save of each week's
+  reflections, each written answer's first send and each email of feedback
+  that went (never one held or stopped), and the History rows a one-week visit
+  wrote about them, in their own words with who did it as the row kept the
+  name ("Amara Okafor visits Group C for week 4.", "...’s visit to Group C for
+  week 4 is off."; `visitHistoryOf`: `courseAudit` by `subjectUid`, `runId`
+  and the two kinds, at most 240 rows, the arranging row kept from their own
+  group's side and a calling off once), newest first, the first twelve.
+  Nothing is recorded for it.
+
+**The facilitator's cut**, `/learn/[runId]/group/[groupId]/people/[uid]`,
+reached from a name on the group's "Your group" card (`GroupPeopleCard`'s
+`personBase`, handed only to a facilitator of the group; never on the reader's
+own name or a name of one of the group's facilitators, `unlinked`). Read by
+`loadFacilitatorPersonPage`: a live facilitator of the group with standing,
+and nobody else (the lead and admins have the team's page); about somebody
+placed in the group now and told, whose work the one gate lets them read
+(`writtenReviewRole`), never a co-facilitator and never themselves. Anybody
+else is sent to the run's home. It holds the name they go by, the weeks they
+spent in this group (`inGroupForWeek`) with their coursework as above,
+"Weeks 1 and 2 were with another group." for the rest (never which), their
+attendance at this group's sessions counted from those weeks alone (and a week
+they spent at another group's session on a one-week visit, which stays this
+group's week: its line names the host's session with the chip "Visit", it is
+counted among visits, and its coursework row says where its work was due, as
+the group's facilitators are emailed when the visit is arranged), and the
+feedback this facilitator wrote, pieces and older feedback alike. No
+application, notes, ratings, contact details, events or activity. Somebody
+moved out of the group, who left, in an archived group or on another run is
+sent to the run's home.
+
+**Reads per view.** Every query is an equality on one or two fields, so
+nothing needs a declared index, and no read is added to any other page. The
+team's page reads what its neighbours read, each through their own reader:
+the gate's (the form, the run, its pitching week), the People tab's (the
+form, its sent applications and decisions, the run, its groups and seats),
+the Coursework tab's for one row (the run, its groups and seats again, the
+run's own weeks and each group copy the person's weeks name, every answer,
+tick and week record on the run as facts, the run's feedback, the person's
+packs by id), the Attendance tab's (the run, its groups, seats and
+registers, the scheduler's switches and the accounts of its learners and
+facilitators), the person's account, their feedback (one query) and its
+writers' accounts; for an admin or the lead, their ratings (one query for
+the person on the run, split by week) and the raters' accounts; for a lead,
+the forms (`reviewerFactsOf`); for whoever is handed the application's link,
+the form and the one application by address; for an admin, their sign-ups,
+check-ins and the events those name, and the History rows about their visits
+(one query, at most 240 rows). About thirty-five queries and addressed reads.
+
+IN DOCUMENTS that is a lot more: the Coursework tab's reads are the whole
+run's, so one view reads every reflection, box, written answer and tick on
+the run, every week record, the run's feedback twice, every seat three times,
+the run's registers and the accounts of everybody on it, and every sent
+application and decision on the form. For a run of sixty people six weeks
+in, with the usual week, that is roughly four to six thousand documents a
+view, about what opening the reading view of one week costs plus the People
+and Attendance tabs; fewer early in a term. Bounded by the run and the form,
+never by anything a person can grow. Narrowing it to one person's rows would
+mean a per-person mode in `readRunCoursework` and in the week states it
+reads, which every coursework page shares; that is not a small change, so it
+is left. The facilitator's cut: the group, the run's groups, the forms
+(`reviewerFactsOf`), the person's place and account, the run's seats, the
+same coursework reads, their feedback and its writers' accounts, and the
+Attendance tab's read: the same order of documents.
+
+`tests/course-person-page.test.mjs` draws both pages as every reader and
+holds each to what it is handed.
+
+## A one-week visit to another group's session
+
+For ONE week somebody goes to another group's session and stays in their own
+group. An admin or the programme's lead arranges it from the person's page
+under the programme (`.../programmes/[programmeId]/people/[uid]/visit`),
+reached from their row's More menu on the People tab and from their name on
+the programme's page of a group, offered for exactly the places and runs a
+move is. The person may cancel it themselves. Nobody asks for one yet.
+
+**The record.** A place can carry `visits`, a list of
+`{ weekNumber, groupId, arrangedByUid, arrangedAt }`, one a week at most
+(`src/lib/firestore/courseEnrolments.ts`). The normaliser reads the list whole
+or not at all, and a visit to the group they belong to that week, or in a week
+before they joined, reads as none. A place with no list reads exactly as
+before. Written only by the visit's own saves (`src/lib/courses/visit/save.ts`):
+arranging one, and calling one off by staff or by the person. A move on the
+allocation board and a change of session on an open run keep every visit but
+one to the group they now belong to (a board move made mid-term, from the
+move's week on, as a staff move does); Remove and placing a facilitator
+delete the list (Remove keeps each visit's week and host beside the removal,
+`visitsWhenRemoved`, so the host's register, which marked them like anybody
+else, is never the group they are listed under as having left: that is the
+last of their own groups whose register marked them), and Remove tells the host group's facilitators of each
+visit whose session has not started and is happening, with the visit's
+called-off email in its form without "as usual" (the person removed is sent
+nothing), counted in the confirmation before the press, the count sent back
+and worked out again in the removal's transaction (a different one refused,
+409), held to the visit limit claimed in that transaction (429, nothing
+written; `src/lib/courses/visit/removed.ts`); a staff move drops a visit from its week on to the group moved into
+and keeps every other; deleting an account and destroying a run delete the
+place whole.
+
+**The two functions.** `groupForWeek(place, week)` answers the HOST for the
+visit's week: the session they go to, so their Late, the reminders before it,
+the register their line is on, its check-in, its meeting link, their mark and
+everything about one session follow it with no change of their own.
+`ownGroupForWeek(place, week)` never answers a host: the copy of the week they
+work in, whose member they are, whose Remind reaches them, who gives the
+feedback, and a staff move's week rule. `tests/course-groups-by-week-readers.test.mjs`
+lists every caller of either, and of the helpers made of them, as `week` (the
+session's group), `own` (the group they belong to) or `now`, checked both ways.
+The helpers in `src/lib/courses/groupsByWeek.ts` answer the session's group;
+handed `belonging(place)` they answer the groups it belongs to.
+
+**The copy of each week stays their own group's.** A visitor works in, and is
+judged on, their own group's copy of every week, the visit's week included.
+The run's week states (`src/lib/courses/weekWork/readers.ts`) answer three
+questions for anybody whose weeks differ (a move or a visit): `belongsTo`
+(whose member they are that week), `dueWith` (whose session their work for a
+week is due at: the host for the visit's week) and `copyGroupOf` (the copy they
+work in). "Week N is open" judges a visitor's earlier weeks on their own
+copies. Each group's email goes once, to the people due at its session when it
+goes, and a visit can be arranged or called off between two groups' sends, so
+a person's email of a week is also claimed once across the run's groups (a
+`wkopen__` marker per person and week in `courseNudges`, created just before
+their message as the group's claim is); a send leaves out somebody whose
+marker another group's send made when either send found them on a visit that
+week, and a marker made with no visit in play stops nobody, so with no visit
+anywhere every send goes to whom it always did (somebody moved between two
+groups' sends still gets both, as before). A visitor is in the host's
+audience for the week and in their own group's too (`belongingToo`), so
+whichever send reaches them first is theirs, never two; a send that reaches
+them while the visit stands is about the session they go to (the host's day,
+time and place while the host still meets), and a visit arranged after their
+own group's send leaves the email they already had, about their own session.
+The words about the week are read from their own copy. A claim that cannot be
+written is logged and the message goes, as before there were claims. When
+everybody a send would reach has had the week's email elsewhere, nothing is
+claimed and the register says so ("Everybody in Group B has already had week
+5’s email from another group, so nobody’s emailed."). Account deletion takes a
+person's claims (`deleteWeekEmailClaims`), and a run's destroy drains them by
+`runId`. A visitor whose
+own copy is not published when a send goes is left out of it and of the
+register's count, and gets the next send that reaches them once it is; with no
+send after, none.
+The reminders before the host's session remind them about the visit's week
+alone, judged on their own copy. The host's This week's work judges their row
+on their own copy (`readGroupWeek`'s `copies`).
+
+**Places left for a week** (`placesLeftInWeek` in `src/lib/courses/visit/places.ts`):
+the group's capacity less everybody whose session that week is the group's,
+its own people that week and visitors in, less its people away. No capacity
+is no limit. Staff may send somebody to a full session: the page warns ("Group
+K is full this week: this makes 7, one over its limit of 6.") and the press
+must say it was shown the warning.
+
+**What is refused**, one sentence each and nothing written: a place that is not
+an active learner's, told its group; somebody who facilitates a group of the
+run; a run with one group, or over, archived or being destroyed (asked again
+inside the save); a host that is missing, archived, of another run or the
+group they belong to that week; a host session that week that is missing,
+called off, marked as not held or started; somebody already marked as having
+come on their own group's register that week; a week that already has a
+visit to a session that is happening; a week whose own group's session has a
+request to be excused waiting ("Chloe is waiting to hear about being excused
+from week 4. Decide that request first, on the Requests page."); or a host
+register at its limit of people. A visit CAN be arranged for a week the
+person is excused from: the excusal stays where it is, on their own group's
+register; on the host's they are a visitor with no excusal, counted as there
+when marked there; if the visit ends they are back with their own group,
+still excused. A request asked about a visit's session records it
+(`aboutVisit`), and such a request, or any request while a visit stands that
+week, is paired with a session by group as well as key (`weeksAbout`): a
+request about a host's session says nothing about the person's own group's
+once the visit is off. When a visit ends, by any path, a request of theirs
+still waiting about its session is withdrawn quietly in the same write
+(`withdrawVisitRequestsIn`): no email, a line in the request's history by
+whoever ended the visit, that week left off the person's own list of
+requests (no words there say that somebody else withdrew it), and on the
+admins' Requests page "Withdrawn when the visit ended" with when. It is kept
+on each week it withdrew (`withdrawnWithVisit` on the week), so another week
+of the same request the person withdrew themselves reads as theirs; a
+request stored with the mark on the whole request reads it on each of its
+withdrawn weeks, as before. Every other request pairs by the
+key alone, as it always has, a person moved to another group included.
+
+**A limit on the emails** (`src/lib/courses/visit/limits.ts`): every staff press
+that arranges or calls off a visit is counted on the notice lane's stored
+counters, per person visited on that run (10 a day) and per presser (40 a
+day), read and claimed inside the save's own transaction (`noticeSlotsIn`), so
+a press refused at a limit, refused for any other reason, answered 409 or whose
+commit fails claims nothing. The page and the preview read the same counters
+first (`noticeSlotsRefusal`) and say so before the press. The person's own
+cancel is never counted and never refused for a limit.
+
+**The save**, one transaction: the visit on the place; the person's rollup
+rebuilt from the place as written when a register of that week (theirs or the
+host's) is already finished; one History row on each group (`member-visits`,
+"Aisha Rahman visits Group F for week 2." and "Aisha Rahman is at Group F for
+week 2."), with the optional reason in the move's one form, read by the
+programme's lead and admins only, and cleared when the person's account is
+deleted. After the commit: the person, the host's facilitators and their own
+group's facilitators are emailed (`src/lib/email/visitEmail.ts`, kind
+`course-visit`), each with standing and an address, never the person among
+them and never whoever pressed. One function decides who, for the button's
+count and the send.
+
+**Calling it off.** The person, from their programme page, until the earlier of
+the two sessions of that week starts (`cancelDeadline` in
+`src/lib/courses/visit/plan.ts`, the one answer the card and the route both
+ask; a session of their own group called off that week is no session, and the
+line said when it comes too late names the group whose session has started):
+both groups' facilitators are emailed, exactly the people the card names. Their
+own cancel decides their own place first, and answers one 404 for anything that
+is not their own standing visit on a run they hold a place on.
+Staff, from the same page that arranges it, until the same moment (the
+earlier of the two sessions' starts, the host's read from its own schedule
+even once its group is archived): the person is emailed too. Once the
+person's own group's session has started, calling it off would count them
+absent from a session they were told not to go to, so it is refused in one
+sentence that says the visit stays and what to do instead (the person's Can't
+make it on the visit card, where the card offers one, or an admin marking
+them excused on the host's register); once both sessions have started, the
+sentence closes "The visit can no longer be cancelled."; once the host's has,
+it is refused as too late. There is no exception for when a visit was
+arranged: a replacement arranged after the person's own session started can
+never be ended, by them or by staff (its card shows no Cancel and no "You can
+cancel until" line, and its email leaves out "Changed your mind?"). When the host's
+session is not happening (called off, marked as not held, or its group
+archived before it finished a register of the session held), staff can call
+the visit off whatever the clock says of the host's until the person's own
+group's session that week starts; after that the sentence says the week is
+not counted for them. Staff can still call one off on a run down to one
+group that still meets. The person's own card draws nothing for a host
+session called off or marked as not held, and their own cancel reads such a
+visit as none. Either way the visit comes off the place, their
+own words on the host's register for that session (joining online, can't make
+it) come off while it is not finished, the rollup is rebuilt when it must be,
+and each group's History gets a row (`member-visit-off`).
+
+**When the session they visit is called off.** By Change a session (kept
+pace or pushed back, before it or after the fact) or by a finished register's
+own correction, It didn't happen (`POST .../attendance/column`, admins and the
+people leading the programme), through the same code
+(`src/lib/courses/visit/hostOff.ts`):
+
+- Their own group's session that week is still to come: the visit ENDS in the
+  same write as the change. The person is sent "Your visit to Group I for week
+  2 is off" and their own group's facilitators the visit's called-off email,
+  whether or not the group is told of the change, and they are left out of the
+  group's notice and its count. Somebody excused from their own group's session
+  that week has the "as usual" sentence left out of both emails. A History row
+  on each group; their own words on the host's register taken back while it is
+  not finished; a request waiting about the visit withdrawn quietly; back on
+  their own group's register; their figures rebuilt from their own group's
+  registers. The preview says, before the press, how many people visiting are
+  told and how many emails that is ("1 person visiting this session is told
+  their visit is off, whatever Tell the group says, and so are their own
+  group’s facilitators: 3 emails."; on the register's correction "whether or
+  not the group is emailed"); the press carries that number, and the
+  transaction works it out again and refuses a different one ("Who is visiting
+  this session has changed since the page was opened. Check it, then press
+  again."). The limits on these emails are read and claimed in the same
+  transaction, the presser's once per visit; at a limit the whole change is
+  refused with nothing written. The emails go after the commit; one that
+  cannot be sent is said to staff by count.
+- Their own session has started, or their own group has none that week: the
+  visit STANDS, counts for nothing, and can be REPLACED: a visit to another
+  group's session that week that has not started may be arranged over it, the
+  old entry going in the same write with a History row, with the emails an
+  arranged visit always sends and a preview line ("This replaces Chloe’s visit
+  to Group D’s session that week, which is not happening.").
+- A session put back keeps an ended visit ended; staff arrange it again. Said
+  to have happened after all, the same.
+
+With nobody visiting the session, the change's answers, writes and emails are
+as they always were.
+
+**The registers.** The host's register lists the visitor as a row of that week
+alone, with the line "Visiting from Group C"; they are marked like anybody and
+take the host's check-in. Their own group's register shows "At Group F this
+week" in that week's cell, never marked and never counted; a mark sent for it
+is refused ("Aisha is at Group F this week."). A correction of a visitor's line
+is asked on the host's register, and its panel says where their week lives.
+Their own attendance, the Attendance tab, who finished and a certificate's count
+read the host's mark for that week. The Overview counts them on the host's
+session for that week (its "N of M came" and "N in the group"), never on
+their own group's, and once in the week's figure; their coursework for the
+week is counted under their own group. A host archived since keeps that week as
+it keeps a week of a record of groups by week: its finished register of a
+session held counts, anything else counts for nothing
+(`countsFromArchivedGroup`).
+
+**Who reads the work.** The written work's gate (`writtenReviewRole`) is
+unchanged. Beside it, `hostReadsWeek` (`src/lib/courses/visit/reading.ts`) lets
+a facilitator of the host group, standing behind the role, read the visitor's
+work for the visit's week, from the moment it is arranged until it is called
+off: through the reading view's door on the host's group page (that week
+alone, with no feedback shown or offered, no private notes, no ratings, no
+session report lines and no Remind), the fill-in boxes route (that week
+alone) and the first read (that week alone; the day is kept, never who). They
+never give feedback, rate or reopen the week, and the visitor's answer is never
+on the host's Feedback to write or a row of the host's page of one question.
+The person's week page names them in its existing sentences about who can
+read their work, for that week alone (`visitReadersOf`); somebody who also
+facilitates the person's own group is named once, and a host's facilitator who
+shares a first name with one of the person's own group's facilitators is named
+in full, and so is that facilitator, so nobody is dropped from the sentence.
+
+**The pages.** The host group's pages list the visitor with that week's people
+("Visiting from Group C, week 2 only. You can read Aisha’s week 2; Rahul gives
+the feedback.", chip "Visiting"), expected at the session, and as a row of
+This week's work that the host's Remind never reaches, and in the facilitator's
+detailed This week's work for that week, a row to read (chip "Visiting", each
+part's reflection judged on their own group's copy, counted in no number, no
+ticks or notes) whose name opens the reading view of that week alone. Their own group's pages
+list them as "At Group F this week", not expected; their work stays in its
+This week's work. The person's programme page shows the visiting card for the
+session while it has not ended, with "I’m joining online" acting on the host's
+session and the host's link for that session, "Can't make it" asking to be
+excused from the host's session (the request is filed against the host, so the
+host's facilitators' side and the admins' Requests page find it; the form's
+week line reads "Week 2 · Wed 11 Nov, at Group I"; it is asked alone, never
+beside a week of their own group's; an approval is written on the host's
+register and the visit stands), and "Cancel this visit" until the earlier
+session starts. The card is drawn where the next session's card goes when the
+visit is their next session; a visit further ahead is listed below the ticket.
+
+**A move for good with a visit ahead.** The move's week rule reads the sessions
+of the groups the place belongs to, never a visit's host. The move page's
+"What will happen" names each visit from the move's week on: one to the group
+they move into goes, every other stays.
 
 ## A programme's lead on the run their programme names
 
@@ -2043,9 +2733,11 @@ already open; nothing under `/admin/courses` is needed.
   changed by hand: the list to pick from is names only, a change emails
   nobody, and somebody added after groups have gone out is told by the next
   press of Publish.
-- **Overview tab**: the run's week, each group's session this week and its
-  register, what needs attention, who came by week and how many are taking
-  part (see "The lead's Overview and Attendance" below).
+- **Overview tab**: the run's week, attendance by week across the
+  programme, one row per group for a chosen week, each group's session this
+  week and its register, what needs attention and how many are taking part
+  (see "The lead's Overview and Attendance" and "The Overview, by week"
+  below).
 - **Attendance tab**: every register of the run as one grid, By person or
   By week, read only, with Download CSV. Marking stays with the group's
   facilitators and admins. Under the grid, the notes each group's
@@ -2069,6 +2761,8 @@ already open; nothing under `/admin/courses` is needed.
   whose application the viewer may open, so the lead meets an invitation to
   somebody who did not rank the programme only once they accept. No email
   address, access requirement, answer or leaver's reason is on it.
+  Each name opens the person's page (see "A person's page, for the team,
+  and a facilitator's cut of it").
 - **Applications tab, Offer freed places** (see the next section).
 - Everything else a run's track lead may do on the run, through the same
   routes: the run's own applications queue, putting somebody back on the
@@ -2109,8 +2803,10 @@ number agrees between them and the CSV.
   group whose register marked them; somebody who left before any register
   marked them is nobody's row.
 - **"Came"** counts present, late and left early; excused and absent count
-  in "of". A mark saved on a register not finished yet counts, drawn with a
-  ring. A session the register says did not happen counts for nobody.
+  in "of". On the Attendance tab a mark saved on a register not finished
+  yet counts, drawn with a ring; the Overview counts finished registers only
+  (see "The Overview, by week"). A session the register says did not happen
+  counts for nobody.
 - **Download CSV** is logged in the export log before the file is handed
   over, and refused when the log cannot be written. It holds group, name,
   each week's mark in words, "Came" and "Of", and when somebody left: never
@@ -2131,6 +2827,152 @@ number agrees between them and the CSV.
   the press or the job comes first. It works while the job is switched off:
   the press is a person's decision. A facilitator who has turned off their
   "Tasks and worksheets" emails is not offered.
+
+### The Overview, by week
+
+Two cards under the week card, worked out on the server by
+`buildProgrammeOverview` through `src/lib/courses/overviewByWeek.ts`. Who may
+open them is the tab's gate (`loadProgrammeRun`): an admin, and the
+programme's own lead; a reviewer is told the tab is theirs, and anybody with
+no role on the programme, a lead of another programme included, is shown
+"there is no programme here". Before any group has met the tab is still "Get
+ready for week 1", and neither card is drawn.
+
+- **Attendance by week**: a row per week of the run, counted from FINISHED
+  registers only, through the Attendance tab's own rows (`listGroups`), so a
+  mark is read off the register of the group the person was in that week
+  (`groupForWeek`) and somebody moved between groups counts once, in that
+  week's own group. Each row draws in the room, online, excused and absent
+  as a bar and in words, then "52 of 54 came" once every group that holds a
+  dated session that week has a finished register, "2 of 11 groups have met
+  so far" until then (with "1 register not finished yet" for a group that
+  met whose register is not counted), or "Not met yet". A WHOLE WEEK'S
+  "came" and "of" are the Attendance tab's own weekly total
+  (`buildRunAttendance`), whatever that total counts, so the two can never
+  differ once every register of the week is finished; only the split of
+  excused and absent inside it is counted here. A week no live group held
+  that the tab's total still counts reads that total, never "No group meets
+  in week N". A session that didn't happen, or was cancelled, is no session.
+  A held session with no date and no finished register has no day to meet
+  on: the week neither waits for it nor counts it, and its group's row says
+  "No date yet". A mark saved on a register not finished counts here for
+  nobody, so for a week still in progress these figures can differ from the
+  Attendance tab's, which counts it "so far". Under the rows: "Late and left
+  early count as came." Each week's name opens the Attendance tab, which the
+  card's line says.
+- **Groups in week N**: one row per group that still meets, in every tab's
+  order, for the week in the address (`?week=3`, chosen with the card's
+  Week picker, a plain form), else the programme's week now: its
+  facilitators, that week's session (day and time, "moved" when the week was
+  moved on its own, "online this week", "room to be confirmed" when no room
+  is set, by `weekOpenPlace`, the answer "Week N is open" uses), readings
+  done and coursework done, and who came the week before and that week, from
+  the group's own finished register ("Tonight", "Tomorrow", "Not finished",
+  "No register yet", "No date yet" or "Not held" otherwise), the group's
+  facilitators apart as its own page sets them apart, one holding a place in
+  the group included, so every number on a row is out of the same people;
+  the week's figure above counts that place, as the tab's total does.
+  Readings and coursework are the
+  group's page's own numbers for that week: its view of the week
+  (`groupWeekWorkView`) over the people its page lists, the readings bar's
+  done and "N of M have done week N". A week not published says "Not
+  published yet"; a week not written as blocks, or an incubator's group,
+  "Not tracked", as its page draws no card. Each row opens the group's page
+  on that week. On a phone the table gives way to a list of the same rows.
+
+**Reads.** The week's work is read once for every group
+(`readGroupsWeek` in `src/lib/courses/groupWeekWork/load.ts`), never while
+"Get ready for week 1" takes the tab's place: the run's groups and places
+are the ones the tab read already, then its stored weeks (one equality),
+each group's copy of the week (two reads a group), the week's answers and
+ticks once (two equalities, projected, `readWeekRows`) split by copy of the
+week, and each person's pack records by id. For 11 groups and 54 people
+that is about 22 reads of the week's copies, the run's stored weeks (up to
+one a person a week: about 330 late in a 6-week term) and the week's
+answers and ticks (about 54 times the week's readings, answers and boxes:
+some 200 to 400), so roughly 550 to 750 documents a view beyond what the
+tab read before. Everything else comes from the records the tab already
+read. No index, rule or stored field is added, and nothing on these cards
+writes or emails anything.
+
+## Searching for a person or a group
+
+"Search people and groups" sits at the top of the app's sidebar, and in the
+phone's menu, for the people who run things. "/" anywhere opens it, except
+while somebody is typing in a field or an editor, with a modifier held, or
+over another dialog. It finds people and groups and nothing else.
+
+### Who may, and what each finds
+
+Worked out on the server, on every query, by `src/lib/search/load.ts`, from
+the lists each reader can already open, through those lists' own gates:
+
+| Reader | People, from | Groups, from | Each result opens |
+| --- | --- | --- | --- |
+| An admin | every account, by the full name the Members page shows | every live group of every run that is not being destroyed | the person's page under Members; the group's page under the programme that names its run, or the group's own page when no programme names it |
+| A programme's lead | the People tab's rows of each programme they lead (`readProgrammePeople`, after the tab's own gate and the admissions tree's page gate), by the tab's names | the live groups of the run each of those programmes names | the People tab opened on the person's row (`?person=`: under the filter that holds the row, Invited for somebody invited, with the search set to their name and enough pages to reach it, `openedOn`); the group's page under the programme |
+| A group's facilitator | the people their group's page lists (`listGroups` over `readRunRecords`, as `loadFacilitatorGroup` reads them), by the page's names | the live groups that name them, held to the facilitator's bar | the group's page, for both |
+
+Somebody who is both a lead and a facilitator finds each person once, by the
+People tab. Anybody else (a reviewer, the committee, a member, a waiting or
+refused account, somebody signed out) is drawn no box, and the route answers
+them one 403 with one sentence, whatever they send.
+
+A lead or a facilitator is never answered from a query over `users`. An
+admin's search reads the three name fields of each account (`select`), never
+an address.
+
+### What a result says
+
+A name as the reader is already shown it, one line saying what it is ("AGI
+Strategy · Group C", or for a group its programme, its run and its weekly
+time), and the page. Never an email address, a role or a status. Matching is
+on the name shown, folded for case and accents; a word of one or two letters
+has to start a word of the name; a group also matches on its programme and
+run. Nothing is matched on an address. The same answer comes back for a name
+nobody holds and for a name the reader may not see, after the same reads:
+the reader's whole list is read whatever was typed.
+
+At most six people and four groups, with a line when more matched.
+
+### Limits, and what is kept
+
+- Fewer than two letters asks nothing; more than 80 characters is refused.
+- The box asks after a pause in typing (350 milliseconds) or on Enter, never
+  on every key, and never twice for the same words: Enter while they are on
+  their way, or once they are answered, does not ask again.
+- Thirty requests a minute and three hundred an hour per account, and per
+  address for somebody signed out, by the site's own throttles
+  (`src/lib/rateLimit.ts`), checked before anything works out who the caller
+  is, so a refused caller cannot spend reads without limit either. Kept in
+  the server's memory, so nothing is written to count them; over it, a 429
+  with `Retry-After`. The menu's one question has a count of its own.
+- The words typed travel in a POST body, never in an address a request log
+  keeps. Nothing about a query (the words, what was found, that it was asked)
+  is written or logged anywhere, and no index of people is built or stored.
+
+### What one query reads
+
+- An admin: every account (three fields each), every group, each group's run
+  by address, every application form, and for the six people at most in the
+  answer, their places on courses (one `in`).
+- A lead: every form, then per form whose decisions have gone out its sent
+  applications and decisions once, however many of its programmes they lead,
+  and per programme the run, its groups and its places, each once (the People
+  tab's own reader is handed the form's read). One programme: forms + A + D +
+  1 + g + e; two on one form: forms + A + D + 2 + g1 + g2 + e1 + e2.
+- A facilitator: the groups that name them (one `array-contains`), then per
+  run those groups are on, the run's records as the group page reads them
+  (the run, its groups, places and registers, the register switches, and the
+  accounts of its people and facilitators by address), and every form for the
+  programme's name.
+
+Every read is an equality, an `in` or an `array-contains` on one field, or a
+whole collection, so nothing needs a declared index. Nothing is written.
+
+### Deploy
+
+Nothing: no rule, no index and no setting changes.
 
 ## Asking people to facilitate
 
@@ -2390,8 +3232,69 @@ reviewed, a row per person per week, each "Review" opening the review queue
 on that week), the updates, the pace against the programme, and the notes.
 Once every session is over, the ticket's place says there are no more.
 
-Not drawn, though the board draws them: who can't make it tonight (2.4 is
-not built) and a facilitator guide (no record holds one).
+Under how the group meets, in the order a facilitator needs them before a
+session: the box about who is joining online (unchanged); **Before the
+session**; who has done the week, with Remind; and **Meeting links**.
+
+### Before the session
+
+The group's next session still to end (not cancelled, dated), whichever week
+the row of weeks has chosen, and who has said what about it, one row each, a
+person in the first row that fits them: asked to be excused and waiting
+("Waiting"); excused by an approved request or on their own word that they
+can't make it ("Excused"); joining online ("Online", only for a session held
+in a room); visiting from another group that week, with their line
+("Visiting"); one of the group's own people at another group's session that
+week, with where; and everybody else ("Coming", in the room). Somebody moved
+in from a later week is left out. Worked out by `beforeTheSessionOf`
+(`src/lib/courses/groupPage/model.ts`) from the same facts the staff page's
+week card and the register read (`loadGroupPage`, the facilitator's view):
+the name each person goes by, one of two facts about a request to be excused,
+and nothing else. Never a reason, never when anybody asked, never an address,
+never a place Publish has not told. The only read it adds is the group's
+requests to be excused (one equality on `groupId`), for that one session.
+Admins and the programme's lead are given none: their week card lists the
+week's people already.
+
+### Each week's meeting link
+
+**Meeting links** lists every week of the plan with its date and state and
+which link it reads, in words ("Set: every week", "Set: week 3 only", "Kept
+the link it had before", "No link"), never the link (`weekLinkKind`, the rooms page's reading). A week
+still to come has Change (or Set the link); the panel offers **Week 3 only**,
+the default, and **Week 3 onwards**. Admins and the lead have the same panel
+on each week of the programme's group page. Both save through
+`POST .../groups/[groupId]/meeting-link` (`everyWeek` is "onwards"), which
+works it out with `planLinkSave` (`src/lib/courses/meetingLink/plan.ts`):
+
+- **Week 3 only**: week 3's own link, set on purpose. Every other week stays
+  as it is.
+- **Week 3 onwards**: the every-week link becomes this one and week 3's own
+  link goes. A later week still to come with a link set for it on purpose
+  keeps it; the panel names each such week before the press ("Week 5 keeps
+  the link set for it, and won’t get this one."), and so do the saved line
+  and the history line. Every week before week 3, and any week that has
+  ended, keeps what it read: one that read the every-week link is given it
+  as its own, MARKED as kept (`linkPinned: true` beside `meetingUrl` on the
+  week's entry), where it had none, none. A later press from an earlier week
+  replaces kept links from its week on, and keeps links set on purpose. An
+  entry with no mark is set on purpose, which is every entry stored before
+  the mark, so stored data reads as it did. The list says "Kept the link it
+  had before" of a kept week, never that it was set for that week. "Week 3
+  only" on a kept week makes it set on purpose. An entry left holding only a
+  link and its mark is deleted whole. Nothing is kept when the every-week
+  link does not change. The box's tick, "Also use it for every week after
+  week 3 that has no link of its own", is the same press from its week.
+- A week that has ended is refused, as before. A press that would set apart
+  more weeks than a group keeps (20) is refused with nothing written, and the
+  refusal says whether the other choice can still be saved.
+- In a view-as session the list has nothing to press, as the box has none.
+- The week's rooms page reads a week's link by the same decision
+  (`weekLinkKind`) and the same words (`weekLinkWords`), so it says "Kept the
+  link it had before" of a kept week too.
+
+Nobody is emailed, and the history row says which weeks and whether there
+was a link before, never the link.
 
 ### Who has done the week, and Remind
 
@@ -2482,6 +3385,15 @@ The register is a page of its own, behind the register's
 own gate. "Take the register" and each register's "See it" lead there. The
 grid is the one the group page used to hold. Before Publish has told anybody
 their group the page says when the names come.
+
+The register opens with what people said already in: an excused line is
+excused as the write that excused it left it; somebody whose request is
+waiting carries "Asked to be excused, waiting"; a visitor carries "Visiting
+from Group K"; and somebody who said they are joining online, on a line not
+marked yet, carries "Said joining online" with their place drawn online, so
+the one tap that marks them records them as present and online. Nothing is
+written until that tap: everybody else is set by a tap, so a register is
+never finished with people present by default.
 
 ### The check-in, on the register
 
@@ -3403,8 +4315,9 @@ the calendar of the group whose weeks they read (`weekOpensOn`, the day
 begun); otherwise "Started" where they have done anything in it (a tick, a
 reflection, a box, an answer begun) and "Not started" where nothing. No counts
 are drawn: the reading view one click away has them. The whole cell opens the
-reading view of that person's week; the name opens the person's page. Never
-anybody's words in a cell.
+reading view of that person's week; the name opens the person's page ("A
+person's page, for the team"), or, for somebody holding no place, the reading
+view. Never anybody's words in a cell.
 
 **Beside the state, up to three flags**, each only where it is true, and only
 for a reader who may read that person's work (`writtenReviewRole` over the
@@ -4364,6 +5277,313 @@ this build does not know, read as they were written. History of times, rooms
 and links starts the day this shipped; the register finishes logged before it
 show too. It is server-only and for staff pages.
 
+## The week's rooms and the term's rooms
+
+Two pages on a term's application form, across its programmes: every group's
+room for one week, and every group's room for every week. The code is
+`src/lib/courses/weekRooms/`; the pages are
+`/admin/admissions/forms/[roundId]/rooms` and `.../rooms/term`. Each
+programme's Sessions view links to both, filtered to that programme.
+
+### Who may open them
+
+An admin, every programme on the form; a programme's lead, their own
+programme and nothing else. The admissions tree's gate, repeated on each page,
+then the question every Groups view asks of each programme on the form (an
+admin, or its lead, with the standing a lead is held to), before anything of a
+run is read (`load.ts`). A reviewer, a track lead, a facilitator, a member and
+anybody signed out are refused: the tree sends those it does not admit to the
+dashboard, and those it does are drawn "There is no programme here", the same
+answer as a form that is not there and as `?programme=` naming a programme the
+reader may not see. A lead of another programme learns nothing of this one.
+The whole admin tree is closed in a view-as session.
+
+### The week's rooms
+
+One calendar week, Monday to Sunday in London (`?week=` any day of it; this
+week without one), one row per group's session that week, the week's first
+session as every group's sessions resolve (`resolveSessions`). A row says the
+day and time, the campus that week, that week's room and where it comes from
+(the week's own, "This week only"; the group's usual room, "Usual room"; or
+none, "To be confirmed"), whether the meeting link is set for every week, for
+that week only, or not at all (never the link), and three counts:
+
+- **Away**: lines on the session's register that say excused, and everybody
+  who said in advance they can't make it (`excusedInAdvance`).
+- **Online**: everybody who said they are joining online (`onlineSaid`).
+- **Requests**: requests about that session waiting, as the Requests page
+  would show this reader: a register correction to an admin and to the lead
+  (none on a group the lead facilitates); a week of a request to be excused to
+  an admin alone, as the programme head counts them.
+
+Away and Online count only the people whose group THAT WEEK is the row's
+(`inGroupForWeek` over the run's places, a place given up or taken off left
+out): a register keeps a line written
+before its person moved to another group, and that line is not counted, as the
+group's own page does not count it. One-week visits to another group are not
+on the site yet, so there is no visiting count; a row takes one beside Online
+when they are. "N not booked" counts only rows that can take a room.
+
+A session held online for the week (its own mode, or the Online campus) reads
+"Online this week" and has no field. So does one called off, started or met.
+
+Weeks run from the first with a session to the last, each a link; a week with
+no session says so and offers the nearest week that has some.
+
+**What it reads, a view**: the form (1), each visible programme's run (P) and
+its groups (G, one equality on `runId`), each shown row's register by id (R),
+each shown run's requests (one equality on `runId`, at most 500) and each
+shown run's places (E, one equality on `runId`): 1 + P + G + R + Q + E
+documents. No account.
+
+### A room and nothing else: the room-only change
+
+A room typed or pasted on either page is saved by the one-week change route,
+`POST /api/courses/groups/[groupId]/session/change`, with `kind: "room"`
+(`src/lib/courses/sessionChange/room.ts`, written by `roomWrite.ts`), behind
+that route's own gate (view-as refused first) and then for an admin or the
+programme's own lead alone, the people these pages are for. A facilitator of
+the group and a track lead pass the route's gate and are refused this kind in
+one sentence that sends them to the group's page, where they change a week's
+room with Change a session as before, so nobody changes many weeks of rooms
+through the route without the pages. Its body is
+`{ kind: "room", weeks: [{ week, dateKey, room }], reason?, tell?, emailCount?, preview? }`.
+
+It writes the week's own `sessionOverrides.<week>.location` and nothing else:
+never the week's day, start or length, and no `sessionChanges` record. So the
+week is not moved: a later new regular time still reaches it (the week takes
+the new day and time and keeps its own room; the preview lists it as keeping
+"its own room for that week"), the Weeks tab's "This week is online" treats
+the group as unchanged, and nothing says Moved. A week that already carries a
+one-week move keeps it, and only its room changes.
+
+**To be confirmed is a choice.** An empty room, "TBC" or "TBA" (any case,
+with or without dots), "to be confirmed" or a lone "-", each with or without
+a full stop after it, is no room, stored as the week's own empty room (on a
+group with a usual room or without one, so a usual room set later never lands
+on such a week), as a one-week move with Room to be confirmed stores it,
+so the week reads To be confirmed even when the group has a usual room. Every
+room field on both pages has a To be confirmed control beside it. A room typed
+that is the group's usual room, on a week with no change record, takes the
+week's own room away instead, so the week follows the group's room again.
+
+A room that differs from the one the week has only in case or spacing is
+saved as typed and tells nobody: nothing the group reads has changed, and the
+row says so.
+
+Refused, with the sentence the page shows: a week the group has no session in,
+a session no longer on the date the page showed, one that has started or met,
+one called off, one held online, the room it already has, a room of more than
+one line or 200 characters, and a link. Several weeks of one group are checked
+in one transaction, each on the group as the weeks before it leave it: a
+refused week says why and the rest are written. One History row a week
+(`session-room`, "Room set or taken off for one week", under Time and room): "Set week 5’s
+room to George Green B06, for that week only.", "Changed ...", or "Took week
+5’s room off, for that week only: Room to be confirmed.", then the room before,
+the reason when one was given, and who was emailed.
+
+**Telling the group** (one week at a time, with Tell the group on): the same
+lane, limits and people as a one-week move's notice. An update to the group,
+kept on its programme page, emailed to the people in the group FOR THAT WEEK
+and its facilitators with standing, never the presser; the updates lane's
+windows for the group (three an hour per presser, ten a day) claimed before
+anything changes; the count on the button checked first, and a count that
+changed, fell to nobody or passed one send's limit answered 409 with the new
+facts (`emails`, `overCap`) and nothing changed, so the row asks again. Unlike
+the move, the route tells the group ITSELF, after the commit, in the same
+request: a tab closed mid-save cannot leave the room saved with History
+claiming an email that never went. A send that fails keeps the room, the
+answer says how many did not go, and the History row is brought to what was
+really sent. The words are `roomNoticeWords`
+(`src/lib/courses/sessionChange/roomWords.ts`), the only words a member
+receives from either page:
+
+- a room set where there was none: "Week 5 is in George Green B06" / "Group
+  A’s week 5 session, Thu 26 Nov, 6pm to 7:30pm, is in George Green B06
+  (University Park).";
+- a room changed: the same subject / "... is now in George Green B06
+  (University Park), not Portland A21. The day and time are the same.";
+- a room taken off: "Week 5: room to be confirmed" / "... has no room yet.
+  We’ll email you as soon as it’s booked. The day and time are the same.";
+
+then "Why: ..." only when a reason was given. A missing campus or length drops
+out of the sentence. An incubator's people read "Your week 5 session".
+
+The group's own page still changes one week with a move, as before. Its notice
+(and the dialog's) now posts its week with the update (`weekNumber` on the
+updates route, for an update to one group only), so the update reaches the
+people the change route counted: with nobody moved, the same people as before.
+The updates route takes that week only when it is one the change route can
+have changed: a week in which the group has a session whose register nobody
+has taken (`weekNoticeRefusal` in `src/lib/courses/updates/week.ts`), and,
+for a session that has started, only from the record the change route wrote
+for that week (`sessionChanges[weekId]`), by the person posting, within a day
+of the change. Any other week (a session that met and was marked, a session
+that has started with no such record, a week past the group's last session,
+a week only another group has) is refused in one sentence before anything is
+posted or sent.
+
+### The week's page: Save
+
+As soon as a field changes, the route is asked with `preview: true` (nothing
+changes; its refusal, or whom the notice would email). Save presses each
+changed row in turn with the reason (optional, one for the whole save) and,
+with Tell the group on (the default), the count: "Save 2 rooms and email 2
+groups (10 people)". Each row says what happened. While a save is going the
+browser asks before the page is left; groups saved whose email did not go are
+listed under the button.
+
+### The paste boxes
+
+On the week's page: two columns from a spreadsheet, group then room, for the
+week shown. Each line's group is matched in any case and spacing: the
+programme's short name, its first word or its initials (a word in capitals
+kept whole, so "Technical AI Safety" is "TAIS"), then the group's name or the
+letter after "Group"; a programme with one group may be named alone. A line
+that fits one row is matched; one that fits two, or none, is asked about with a
+Select, with a suggestion when its last word is one group's letter and nothing
+in front of it names a programme not shown. Only the rows of the week shown are
+candidates. A cell a spreadsheet copies in quotes is read whole, so a room over
+two lines is refused ("A room is one line."); a third column is ignored and the
+line says so. A choice is kept under the line's group as pasted, so more typing
+keeps it. Matched rooms go into the rows' fields, and the box takes back only a
+field still holding what it put there, so a room typed into the table stays;
+Cancel takes back what the box put; nothing is saved until Save.
+
+On the term's grid: a block, the group then a column a week. A first line whose
+columns name weeks ("Week 3", "Wk 3", "w3", "3", or a date) is a header;
+without one the columns are the grid's weeks from its first. The box says
+which week each column was taken as, for each programme, before anything is
+saved. A DATE takes, for each group, the session whose own date falls in that
+date's calendar week, so a group pushed back a week gets the room on the
+session it holds then, and the line names that day where it is not the
+column's week. Groups are matched as above. AN EMPTY CELL LEAVES ITS WEEK AS IT
+IS (the box counts them); only "TBC" and its spellings take a room off there.
+A cell for a week that cannot take a room is skipped and says why
+(`gridPaste.ts`).
+
+### The term's rooms
+
+A table a programme, a row a group, a column a taught week of the run. Every
+cell that can take a room (a session still to come, not called off, not held
+online) is a field with its room and where it comes from, a To be confirmed
+control and a link to its week; other cells say what they are (called off,
+online, started, met, moved) and link to their week. One Save applies every
+changed cell as the room-only change, every changed week of one group in one
+request and one transaction, with Tell the group off: SAVING FROM THE GRID
+EMAILS NOBODY, and the button says so ("Save 34 rooms. Emails nobody."), with a
+line saying a change people need telling about is saved on that week's page.
+History records each as not emailed.
+
+It reads the form, each shown programme's run and groups, and one register a
+group and taught week by id: 1 + S + G + G x W (for fifteen groups over ten
+weeks, about 170). A Save of every cell is one request a group (fifteen). Each
+reads the group and its run (the route's gate), the form naming the run (the
+lead's check and the naming programme, one or two), then inside one
+transaction the group again and its ten registers: about 16 a group with ten
+weeks. It writes the group once and one History row a week: about 240
+documents read and 165 written for fifteen groups over ten weeks.
+
+**Where a week with no room is told it is**: the emails that print a
+session's place through `courseNudgeSessionWhere` (Week N is open, the
+register's end, the explainers, and the reminder about what is left to
+somebody not coming to the session) and the calendar feed
+decide "online" from the week's campus, as the ticket does (`heldOnline`): a
+blank room is online only on the Online campus or none. A week with no room on
+a group that meets on a campus is told exactly what a week with no room and no
+link is told, whatever link the group keeps. The reminder of a session to everybody due at it
+says its place through `reminderPlaceOf`: online only when the week is held
+online (its own mode, or the Online campus), and a room still to be
+confirmed for any week with no room.
+
+### Emailing a group its rooms
+
+Under the term's grid, each group has a button, "Email Group C its rooms",
+with when its rooms were last emailed and by whom, and there is one button for
+every group shown. It is the only way the email goes: saving the grid or a
+week's rooms emails nobody, and no job sends it. The route is
+`POST /api/courses/groups/[groupId]/rooms-email`; the code is
+`src/lib/courses/termRoomsEmail/`.
+
+**Who may press**: an admin and the lead of the programme that names the run
+(`programmeLedBy`), the people who save rooms on the page. A facilitator and a
+track lead are refused. View-as is refused first.
+
+**The email**, a notice on the `course-group` surface, so its marker line is the
+room-change notice's own. The words are approved and live in
+`TERM_ROOMS_EMAIL_WORDS` (`words.ts`):
+
+> Where Group C meets for the rest of term
+>
+> Hi Daniel,
+>
+> Here is where each of Group C’s sessions is:
+>
+> Week 4 · Wed 25 Nov, 3pm to 5pm · Portland A21 (University Park)
+> Week 5 · Wed 2 Dec, 3pm to 5pm · room to be confirmed
+>
+> The latest is always on your programme page.
+>
+> [Open your programme page]
+
+One line a session still to come (dated, not called off, not started when the
+email goes), as every reader resolves it (`resolveSessions`): a moved week
+shows its new day and time, a week with its own room that room, a week held
+online "online", and a week with no room, its room cleared, or a link typed as
+its room "room to be confirmed" (`reminderPlaceOf`). Never a meeting link. The
+button opens the person's programme page for the run. No greeting when the
+account gives no name.
+
+**Who it goes to**: everybody whose place Publish has told and whose place
+BELONGS to the group (`ownGroupForWeek`) in a week of a session still to come,
+so somebody only visiting the group for a week is not sent it. Each person's
+email lists their own timetable with the group: the sessions of the weeks they
+are due at its session (`groupForWeek`). Somebody moving out from a later week
+gets the weeks before it, somebody moving in the weeks from it, and a member
+visiting another group for one week has that week left out (and is counted
+among those whose emails list fewer weeks); somebody whose only week left in
+the group is one they spend visiting elsewhere gets no email. Then the group's
+facilitators who meet their bar, every line. Never the
+presser, nobody who left, nobody not yet told, the do-not-email list applied.
+
+**No email goes** for an incubator (its people are never told the word group,
+and the email names it: the page says so instead of a button), a group with no
+name, a group with no session still to come, or a group nobody would get it
+for. The dialog says which; the press is refused (409) in the same sentence.
+
+**The press**: the dialog asks with `{ preview: true }` (who, how many, how
+many get fewer lines, one email exactly as it goes, and a limit already met),
+then presses with `{ emailCount, pressKey }`. The count is worked out again
+and a difference is a 409 with the new count and nothing sent. Then one
+transaction reads the group's record (`courseNudges/termrooms__<groupId>`) and
+both limits: the record holding the same `pressKey` is the same press again
+(a double press) and sends nothing; a limit met is a 429 in one sentence with
+nothing claimed; otherwise it claims both limits, writes the record (the key,
+when, the History row's id, how many; never a uid) and a `rooms-emailed`
+History row (under Time and room), and only then do the emails go, one a
+person. A send that fails is counted and reported ("1 email didn’t go. Nothing
+is sent again by itself: pressing again emails everybody in the group again."),
+and the History row and the record are brought to what went. A press none of
+whose sends went is not the group's last email: the record puts back the last
+press that reached anybody, so the page goes on saying when that was and by
+whom, or "Not emailed its rooms yet." when there was none.
+
+**Limits** (`limits.ts`): three a day per group, whoever presses (once after a
+term is filled in, perhaps again after a correction), and sixty a day per
+presser across every group. The preview says a limit met before the press.
+
+**What it reads**: the page adds each shown group's record by id and the
+History row each record names, by id (2 x G at most). A preview or a press
+reads the forms (the naming programme), the run's active places twice (the
+notice audience, then whose weeks are whose), the cohort list, the accounts
+of those in scope and the group's facilitators.
+
+### Download
+
+
+Both pages make a CSV in the browser of what they show (groups, rooms and
+counts), with the site's CSV helper. No read, no route, nothing about anybody.
+
 ## Pinning weeks that met: `scripts/pin-met-sessions.mjs`
 
 Finds every week whose register was taken and holds a `sessionAt` that is not
@@ -4608,19 +5828,46 @@ talk; the code is `src/lib/courses/packsAndCases/`.
 
 ### Typing in the draw
 
-1. **After the session**, the group page shows the spread for the week the
-   group meets next ("Pathways in Group B": each pathway with who has it,
-   and who has nothing yet) and links to the draw page, "Change pathways and
-   cases" (`/learn/draw/<group>?week=<n>`).
-2. **Copy the slips in.** Each person in the group has a row, the group's
+1. **Which week.** A week's slips are handed out at the session before it
+   (the last session held before that week's first, so a session called off
+   moves the hand-out to the one before it; week 1 has none). The group page,
+   the draw page and the draw's route ask one rule
+   (`src/lib/courses/packsAndCases/drawWeek.ts`): the earliest week still to
+   come that gives something out and where somebody has not got theirs,
+   looking no further than the next two such weeks. From the start of the
+   hand-out session that is next week, never the session's own. With no
+   such week still to come, the draw page opens on the last week that gave
+   something out, and the group page shows no card.
+2. **The card.** While that week is still to come, the group page shows its
+   spread ("Pathways in Group B" over "Week 4": each pathway with who has it,
+   and who has nothing yet) and links to the draw page on it, "Change
+   pathways and cases" (`/learn/draw/<group>?week=<n>`).
+3. **The draw page** opens on the same week without `?week=`; the address
+   still opens any week. Its Week picker lists every week that gives
+   something out, past ones too ("Week 3 · Pathways and cases"). It says
+   "Copy in the slips you handed out tonight." on the hand-out night only,
+   and before the hand-out session when the slips go out.
+4. **Copy the slips in.** Each person in the group has a row, the group's
    facilitators included (they take part too): their pathway, then their
    case. A case list offers only that pathway's cases. A case with a content
    note is never in a list: it stays out of the draw.
-3. **Swaps** go through the group's facilitators: "Swap two people" swaps
+5. **Swaps** go through the group's facilitators: "Swap two people" swaps
    everything two people have; Save keeps it. Changing somebody's pathway
    takes back a case the new one does not offer.
-4. **Save** writes only what changed. Nobody is emailed: each person sees
+6. **Save** writes only what changed. Nobody is emailed: each person sees
    theirs on that week's page.
+7. **A week whose session has started or been held.** The page says which
+   week it is before any change ("Week 3 is the week people are working on
+   now. Its session has started." or "Week 2's session was on Tue 10 Nov."),
+   and Save asks again, with what the save changes: "Changing a case takes
+   back that person's Ready for my talk." on a week that gives out cases, and
+   for a pathway or plan that counts towards the week, that the person's
+   week is done only once the new one is ticked. The route refuses such a
+   save without that yes, and a page opened before the session started asks
+   then, in the route's own words. A group with no session time set has no
+   dates, so its weeks all count as still to come and Save never asks.
+8. **Once the programme closes** for work (`workClosesAt`), the draw is read
+   only: the page shows the lists with no Save, and the route refuses a save.
 
 ### Who sees what
 
@@ -5256,7 +6503,7 @@ certificate was sent in error, and tell its owner.
 
 Privacy policy version 13 took back version 12's promise that nothing
 written in a course is used outside its programme, from its own agreement on,
-and the current policy (`src/content/legal/privacy/v20.tsx`) keeps those
+and the current policy (`src/content/legal/privacy/v21.tsx`) keeps those
 words. Three features rest on that, each an admin's press and never
 automatic, all built like the applications' second reader
 (`docs/applications.md`, "Claude and Pangram"): labels to Claude, names put
@@ -5758,6 +7005,20 @@ Things worth knowing before you run it:
 which period, how many people were in it, and the filename. If that record
 cannot be written the export is refused, so a file never leaves without a log
 line behind it. Say so if anybody asks why the button failed.
+
+## Anonymous feedback, the admins' page
+
+Run NAISI › Surveys › Anonymous feedback (`/admin/surveys/anonymous-feedback`),
+admins only. It reads every application form (one query, for when this term
+began), this term's kept entries (one range on `day`, at most 2,000) and the
+oldest kept entry (one), never the waiting place. Dealt with and a note write
+`dealtWith` and `note` on the entry, with the admin's uid, name and the time;
+Download writes nothing; Delete this entry deletes that one kept entry, after a
+confirm; the clear-out deletes kept entries sent before a chosen day no later
+than a year before today, after a confirm that counts them. Each deletion
+writes one record to `societyFeedbackDeletions`: who, when, one entry or a
+clear-out, and how many, never what was in an entry. The whole of it is in docs/surveys.md, "Anonymous feedback for the
+whole society".
 
 ## Destroying an admission round
 

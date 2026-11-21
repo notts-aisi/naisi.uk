@@ -210,7 +210,7 @@ describe("the course email preheader is words, so no pattern reads it", () => {
 
   test("each of the week's emails previews its first paragraph, written as words", () => {
     const words = codeOf(WORDS);
-    assert.equal((words.match(/preheader: lead,/g) ?? []).length, 2, "both emails preview their first paragraph");
+    assert.equal((words.match(/preheader: lead,/g) ?? []).length, 3, "the three emails (Week N is open, the reminder of a session, and the reminder about what is left) preview their first paragraph");
     assert.doesNotMatch(words, /\.replace\(\s*\/</, "the week's emails strip tags with a pattern again");
   });
 

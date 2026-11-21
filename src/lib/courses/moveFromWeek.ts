@@ -10,7 +10,7 @@ import {
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { joinedMarkerId, leftMarkerId } from "./allocationPublish";
-import { isMoveWeek, recordAfterMove } from "./groupsByWeek";
+import { isMoveWeek, recordAfterMove, visitsAfterGroupChange } from "./groupsByWeek";
 import { lastTaughtWeek } from "./weekPlan";
 
 /**
@@ -33,12 +33,14 @@ import { lastTaughtWeek } from "./weekPlan";
  * about was kept, that group in `toldGroupId`, so the seat stays told and the
  * next Publish knows what changed.
  *
- * IT ASKS NO GATE AND EMAILS NOBODY. Its one caller is the staff move
+ * IT ASKS NO GATE AND EMAILS NOBODY. Its two callers are the staff move
  * (`src/lib/courses/staffMove/save.ts`, behind the route
  * `POST /api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move`
- * and its own gate), which emails after this has committed. It refuses, with
- * a reason a caller can turn into words, and never throws for a document
- * that is not there:
+ * and its own gate), which emails after this has committed, and a move made
+ * mid-term on the allocation board (`POST /api/courses/runs/[runId]/allocate`,
+ * behind its own gate), which emails nobody: the next Publish tells the
+ * person (`toldAtPublish`). It refuses, with a reason a caller can turn into
+ * words, and never throws for a document that is not there:
  *  - `bad-week`: the week is not a whole week from 1 to the limit, or it is
  *    past the last week of the run's plan (`lastTaughtWeek`);
  *  - `no-place`: no learner's place on the run that is still taking part, or
@@ -57,21 +59,29 @@ import { lastTaughtWeek } from "./weekPlan";
  *  - `stopped`: the caller's own check inside the transaction stopped it
  *    (`MoveFromWeekStaff.confirm`), with what it answered.
  *
- * A STAFF MOVE MADE MID-TERM (`staff`) is told by its own emails, sent once
- * this has committed, so in the same transaction it also:
+ * A CALLER'S OWN CHECK AND ROWS (`staff`): in the same transaction it
  *  - asks the caller's check (`confirm`) with what the transaction read,
- *    after every refusal above and before anything is written: the week the
- *    move is from and the count of its emails are worked out again there, so
- *    a session that started, or a facilitator who changed, between the page
- *    and the press stops it;
+ *    after every refusal above and before anything is written;
+ *  - writes the caller's own rows (`alsoWrite`: the two groups' history).
+ *
+ * A MOVE ON THE ALLOCATION BOARD (`toldAtPublish`) is told as every move
+ * there is: at the next Publish, which sends "You’ve moved". So it writes
+ * what a move on the board writes of the told group (the group a seat told
+ * before it was kept was told about, in `toldGroupId`) and forgets no
+ * marker.
+ *
+ * A STAFF MOVE MADE MID-TERM (`staff` without `toldAtPublish`) is told by its
+ * own emails, sent once this has committed (its check works the week and the
+ * count of its emails out again, so a session that started, or a facilitator
+ * who changed, between the page and the press stops it), so in the same
+ * transaction it also:
  *  - writes the group they move to as the group they were told about
  *    (`toldGroupId`), so the next Publish owes them nothing for this move;
  *  - does for them what Publish does after "You’ve moved"
  *    (`forgetMoveMarkers` in `./allocationPublish.ts`): deletes the `joined__`
  *    markers of the group they leave and the `left__` markers of the group
  *    they join, so the next Publish says nothing about this move and a later
- *    move back is announced afresh;
- *  - writes the caller's own rows (`alsoWrite`: the two groups' history).
+ *    move back is announced afresh.
  * It NEVER writes `allocatedEmailAt`: that is the instant Late is measured
  * from, and restamping it would read every week met before the move as
  * joined late.
@@ -89,8 +99,10 @@ export type MoveFromWeekRead = {
   to: CourseGroupDoc;
 };
 
-/** A staff move made mid-term, told by its own emails (see the module header). */
+/** A caller's own check and rows: the staff move, told by its own emails, or the board's, told at Publish (see the module header). */
 export type MoveFromWeekStaff<Stop> = {
+  /** A move on the allocation board: told at the next Publish, so `toldGroupId` and Publish's markers are left as the board leaves them. */
+  toldAtPublish?: boolean;
   /** Inside the transaction, before anything is written: null to go on, or what stopped the move. */
   confirm: (tx: Transaction, read: MoveFromWeekRead) => Promise<Stop | null>;
   /** Rows written in the same transaction once the move goes ahead. */
@@ -206,7 +218,12 @@ export async function moveFromWeek<Stop = never>(
       groupsByWeek: record ?? FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
     };
-    if (staff && moving) {
+    // A one-week visit in a week from the move on to the group they move
+    // into would be no visit at all, and goes; every other visit stands.
+    if (place.visits) patch.visits = visitsAfterGroupChange(place, { groupId: toGroupId, groupsByWeek: record ?? undefined }) ?? FieldValue.delete();
+    // Told by the staff move's own emails; a move on the board is told at the next Publish.
+    const toldNow = staff !== null && !staff.toldAtPublish;
+    if (toldNow && moving) {
       // Told about the group they join by the staff move's own emails: the
       // next Publish owes them nothing. `allocatedEmailAt` is never written.
       patch.toldGroupId = toGroupId;
@@ -216,7 +233,7 @@ export async function moveFromWeek<Stop = never>(
       patch.toldGroupId = fromGroupId;
     }
     tx.update(placeRef, patch);
-    if (staff && moving) {
+    if (toldNow && moving) {
       // What Publish forgets after "You’ve moved": their time in the group they
       // leave, and any earlier time out of the group they join.
       for (const facilitatorUid of from.facilitatorUids) {

@@ -830,8 +830,8 @@ const BUILT = new Map([
   [
     "src/features/applications/people/ProgrammePeople.tsx",
     {
-      built: ["item.href", "row.applicationHref", "row.groupsHref", "row.moveHref"],
-      from: "the People tab's More menu: the person's application on the programme's review screen, People in groups, and the page for moving them to another group for good, each built on the server from the programme's own path and, for the application and the move, the person's uid, encoded",
+      built: ["item.href", "row.applicationHref", "row.groupsHref", "row.moveHref", "row.personHref", "row.visitHref"],
+      from: "the People tab's More menu: the person's application on the programme's review screen, People in groups, and the page for moving them to another group for good; and the person's page on the programme, which their name opens. Each built on the server from the programme's own path and, for all but People in groups, the person's uid, encoded; and the page for a one-week visit, built on the server beside the move's (`movingLinks`) from the same path and a fixed word",
     },
   ],
   [
@@ -986,6 +986,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/overview/OverviewByWeek.tsx",
+    {
+      built: ["attendanceHref", "row.href", "row.href"],
+      from: "the programme's own Attendance tab, and each group's page on the chosen week, which `groupsInWeek` builds on the server from the programme's path, the group's id (encoded) and a week number",
+    },
+  ],
+  [
     "src/features/applications/overview/CertificatesSection.tsx",
     {
       built: ["model.preview.href", "model.email.href"],
@@ -1000,7 +1007,6 @@ const BUILT = new Map([
         "session.seeIt",
         "item.link.href",
         "item.link.href",
-        "`${programmePath}/attendance`",
         "`${programmePath}/messages`",
         "`${programmePath}/messages`",
         "`${programmePath}/setup#who-finished`",
@@ -1255,8 +1261,42 @@ const BUILT = new Map([
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions/page.tsx",
     {
-      built: ["`${here}?week=${n}`"],
-      from: "the Sessions view's own path (groupsViewPath, from the form's and the programme's ids) and a taught week's number from the run's plan. Nothing anybody typed",
+      built: [
+        "`${here}?week=${n}`",
+        "termRoomsPath(view.roundId, view.programmeId)",
+        "weekRoomsPath(view.roundId, { programme: view.programmeId })",
+      ],
+      from: "the Sessions view's own path (groupsViewPath, from the form's and the programme's ids) and a taught week's number from the run's plan; and the week's rooms and the term's rooms (src/lib/courses/weekRooms/paths.ts), from the form's and the programme's ids, encoded. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/rooms/page.tsx",
+    {
+      built: [
+        "applicationFormPath(reader.roundId)",
+        "applicationFormPath(reader.roundId)",
+        "here(view.elsewhere.monday)",
+        "here(view.monday, null)",
+        "here(view.monday, programme.programmeId)",
+        "here(view.next)",
+        "here(view.previous)",
+        "here(week.monday)",
+        "termRoomsPath(reader.roundId, only)",
+      ],
+      from: "the week's rooms and the term's rooms (src/lib/courses/weekRooms/paths.ts) and the form's own page, from the form's id, a programme's id on the form and a Monday the page worked out from the runs' dates, each encoded. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/rooms/term/page.tsx",
+    {
+      built: [
+        "applicationFormPath(reader.roundId)",
+        "applicationFormPath(reader.roundId)",
+        "termRoomsPath(reader.roundId)",
+        "termRoomsPath(reader.roundId, programme.programmeId)",
+        "weekRoomsPath(reader.roundId, { programme: only })",
+      ],
+      from: "the term's rooms and the week's rooms (src/lib/courses/weekRooms/paths.ts) and the form's own page, from the form's id and a programme's id on the form, encoded. Nothing anybody typed",
     },
   ],
   [
@@ -1282,6 +1322,20 @@ const BUILT = new Map([
         'firstQuestionHref(`/admin/admissions/forms/${round}/programmes/${programmeKey}/question?group=${encodeURIComponent(group.id)}`, week.weekNumber, "reflection")',
       ],
       from: "the programme's own page of one question across the group, at the week's first reflection: its path from the form's and the programme's ids in the address, encoded, a live group's id and the week's number. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/page.tsx",
+    {
+      built: ["outcome.back"],
+      from: "the way back to the programme's own People tab, from its loader: the path from the form's and the programme's ids, encoded. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit/page.tsx",
+    {
+      built: ["backHref", "backHref"],
+      from: "the way back to the programme's own People tab, on a refusal and on the refusal of a run down to one group with no visit standing: its path from the form's and the programme's ids in the address, encoded. Nothing anybody typed",
     },
   ],
   [

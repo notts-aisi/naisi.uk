@@ -1,15 +1,18 @@
 import Link from "next/link";
 import type { PairsView } from "@/lib/courses/pairs/model";
-import { changePairsWords, pairsCardTitleWords } from "@/lib/courses/pairs/words";
+import { NO_PAIRS_TO_COME, changePairsWords, pairsCardTitleWords, pairsCardWeekWords } from "@/lib/courses/pairs/words";
 import styles from "@/features/courses/facilitator/facilitator.module.css";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import PairsList from "./PairsList";
 
 /**
- * PAIRS ON THE GROUP PAGE (no board draws them): for the week of the group's
- * next session, when that week asks for pairs, "Pairs in Group B" with each
+ * PAIRS ON THE GROUP PAGE (no board draws them): on a course with a week in
+ * pairs, always, about the week the pairs are for (`pairsCardWeek`: the
+ * week of the group's next session when it asks for pairs, else the next
+ * week still to come that does), "Pairs in Group B" and "Week 4" with each
  * pair, who is bringing a laptop, the checks, and the way to the pairs page
- * ("Pair people up", then "Change pairs and laptops").
+ * ("Pair people up", then "Change pairs and laptops"). Once no week still to
+ * come is in pairs, the card says so. Never pinned.
  *
  * Drawn on the server for the group's live facilitators and admins, the
  * people the group page lets in. Names only. Its classes are the group
@@ -17,14 +20,17 @@ import PairsList from "./PairsList";
  */
 export default function PairsCard({
   groupName,
+  weekNumber,
   view,
   laptops,
   changeHref,
 }: {
   groupName: string;
-  view: PairsView<{ uid: string; name: string; firstName: string }>;
+  /** The week the pairs are for; null once no week still to come is in pairs. */
+  weekNumber: number | null;
+  view: PairsView<{ uid: string; name: string; firstName: string }> | null;
   laptops: boolean;
-  changeHref: string;
+  changeHref: string | null;
 }) {
   const headingId = "group-pairs";
   return (
@@ -34,16 +40,23 @@ export default function PairsCard({
           {pairsCardTitleWords(groupName)}
         </h2>
       </div>
-      <PairsList
-        view={view}
-        laptops={laptops}
-        action={
-          <Link href={changeHref} className={styles.spreadLink}>
-            {changePairsWords(view.pairs.length > 0, laptops)}
-            <span aria-hidden="true">→</span>
-          </Link>
-        }
-      />
+      {weekNumber !== null && view && changeHref ? (
+        <>
+          <p className={weekly.cardLine}>{pairsCardWeekWords(weekNumber)}</p>
+          <PairsList
+            view={view}
+            laptops={laptops}
+            action={
+              <Link href={changeHref} className={styles.spreadLink}>
+                {changePairsWords(view.pairs.length > 0, laptops)}
+                <span aria-hidden="true">→</span>
+              </Link>
+            }
+          />
+        </>
+      ) : (
+        <p className={weekly.cardLine}>{NO_PAIRS_TO_COME}</p>
+      )}
     </section>
   );
 }

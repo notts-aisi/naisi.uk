@@ -33,9 +33,9 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { COURSE, NOW, RUN, TAIS_GROUP, find, loadCourseDestroy, makeFacilitatorGuideWorld } from "./lib/facilitatorGuideWorld.mjs";
+import { COURSE, NOW, RUN, TAIS_GROUP, find, loadCourseDestroy, makeFacilitatorGuideWorld, textOf } from "./lib/facilitatorGuideWorld.mjs";
 import { FELLOW_WEEK_3, HANDBOOK, NOTES_W3, PLAN_W1, PLAN_W3, PRINTABLES, SESSIONS, WEEK_NOTES } from "./lib/facilitatorGuideFixture.mjs";
-import { B, C } from "./lib/facilitatorPagesWorld.mjs";
+import { A, B, C } from "./lib/facilitatorPagesWorld.mjs";
 import { formPath } from "./lib/leadWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
@@ -45,6 +45,8 @@ const { world, reset, seedGuide, load, index, coursePage, docPage, adminPage, ga
 
 const AGI_GUIDE = `/learn/facilitator-guide/${COURSE.agi}`;
 const REFUSED = "Only a course’s facilitators, its programme’s lead and admins can open its facilitator guide.";
+/** The session card's sentence for AGI Strategy with nothing loaded: Claudia leads the programme. */
+const NOTHING_LOADED = "There’s nothing in this course’s facilitator guide yet. Claudia or an admin loads it, and it will show here.";
 
 /** Everybody a suite asks as, and what they are on this term. */
 const EVERYBODY = ["zach", "claudia", "tess", "rahul", "sofia", "tom", "grace", "ola", "lloyd", "yusuf", "amara", "chloe", "una", "nobody", null];
@@ -367,32 +369,46 @@ describe("3. the guide's list of titles: the gate's three, one 403 for everybody
     });
   });
 
-  test("Home's reading of it: the weeks it names for this course, and nothing for any other answer", () => {
-    const { guideWeeksFrom } = guide.hook;
-    assert.deepEqual(guideWeeksFrom({ courseId: "c", weeks: [{ weekNumber: 1 }, { weekNumber: 3 }] }, "c"), { courseId: "c", weeks: [1, 3] });
-    assert.equal(guideWeeksFrom({ courseId: "other", weeks: [{ weekNumber: 1 }] }, "c"), null);
-    assert.equal(guideWeeksFrom({ courseId: "c", weeks: [] }, "c"), null);
-    assert.equal(guideWeeksFrom({ error: REFUSED }, "c"), null);
-    assert.deepEqual(guideWeeksFrom({ courseId: "c", weeks: [{ weekNumber: "2" }, { weekNumber: 0 }, { weekNumber: 4 }, null] }, "c"), { courseId: "c", weeks: [4] });
+  // Home reads the route's answer as one of the session card's three
+  // (`guideReadOfAnswer`): failed, nothing loaded, or the weeks loaded.
+  const FAILED = { kind: "failed" };
+  const EMPTY = { kind: "empty" };
+  const loaded = (...weeks) => ({ kind: "loaded", weeks });
+
+  test("Home's reading of it: the weeks it names for this course, failed for an answer about another course or a refusal, and nothing loaded for none", () => {
+    const { guideReadOfAnswer } = guide.links;
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", weeks: [{ weekNumber: 1 }, { weekNumber: 3 }] }, "c"), loaded(1, 3));
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "other", weeks: [{ weekNumber: 1 }] }, "c"), FAILED);
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", weeks: [] }, "c"), EMPTY);
+    assert.deepEqual(guideReadOfAnswer(false, { error: REFUSED }, "c"), FAILED);
+    assert.deepEqual(guideReadOfAnswer(true, { error: REFUSED }, "c"), FAILED);
+    // A not-ok answer is failed whatever its body says.
+    assert.deepEqual(guideReadOfAnswer(false, { courseId: "c", weeks: [{ weekNumber: 1 }] }, "c"), FAILED);
+    assert.deepEqual(guideReadOfAnswer(true, null, "c"), FAILED);
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", weeks: [{ weekNumber: "2" }, { weekNumber: 0 }, { weekNumber: 4 }, null] }, "c"), loaded(4));
   });
 
   test("Home's reading of it: the course's own documents alone are something loaded, with no week to link; nothing is nothing", async () => {
-    const { guideWeeksFrom } = guide.hook;
+    const { guideReadOfAnswer } = guide.links;
     const handbook = { key: "handbook", label: "Handbook", title: "Weather Fellowship: facilitator guide" };
-    assert.deepEqual(guideWeeksFrom({ courseId: "c", documents: [handbook], weeks: [] }, "c"), { courseId: "c", weeks: [] });
-    assert.equal(guideWeeksFrom({ courseId: "c", documents: [], weeks: [] }, "c"), null);
-    // A document counts only by a key the guide has; another course's answer, or one with no weeks, counts for nothing.
-    assert.equal(guideWeeksFrom({ courseId: "c", documents: [{ key: "preface" }, { label: "Handbook" }, null, "handbook"], weeks: [] }, "c"), null);
-    assert.equal(guideWeeksFrom({ courseId: "other", documents: [handbook], weeks: [] }, "c"), null);
-    assert.equal(guideWeeksFrom({ courseId: "c", documents: [handbook] }, "c"), null);
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", documents: [handbook], weeks: [] }, "c"), loaded());
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", documents: [], weeks: [] }, "c"), EMPTY);
+    // A document counts only by a key the guide has; another course's answer, or one with no weeks, is not this course's guide.
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", documents: [{ key: "preface" }, { label: "Handbook" }, null, "handbook"], weeks: [] }, "c"), EMPTY);
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "other", documents: [handbook], weeks: [] }, "c"), FAILED);
+    assert.deepEqual(guideReadOfAnswer(true, { courseId: "c", documents: [handbook] }, "c"), FAILED);
     // The route's own answers, read the same way.
-    assert.deepEqual(guideWeeksFrom((await index("rahul")).body, COURSE.agi), { courseId: COURSE.agi, weeks: [1, 3] });
+    const read = async (who) => {
+      const answer = await index(who);
+      return guideReadOfAnswer(answer.status === 200, answer.body, COURSE.agi);
+    };
+    assert.deepEqual(await read("rahul"), loaded(1, 3));
     reset();
     await seedGuide(COURSE.agi, [["handbook", HANDBOOK]]);
-    assert.deepEqual(guideWeeksFrom((await index("rahul")).body, COURSE.agi), { courseId: COURSE.agi, weeks: [] });
+    assert.deepEqual(await read("rahul"), loaded());
     reset();
-    assert.equal(guideWeeksFrom((await index("rahul")).body, COURSE.agi), null);
-    assert.equal(guideWeeksFrom((await index("amara")).body, COURSE.agi), null);
+    assert.deepEqual(await read("rahul"), EMPTY);
+    assert.deepEqual(await read("amara"), FAILED);
   });
 });
 
@@ -420,9 +436,10 @@ describe("4. the guide's pages", () => {
       "signed out": `/login?next=${encodeURIComponent(AGI_GUIDE)}`,
     });
     const drawn = await coursePage("rahul");
+    // The card for Group B's session tonight, then every week of the course: the two not loaded are said so.
     assert.match(
       drawn.text,
-      /AGI Strategy Fellowship Facilitator guide Only facilitators, the programme’s lead and admins see this\. Each week Week 1: First look Session plan Week 3: Reading the sky Session plan · Week notes For the whole course How to use these plans Weather Fellowship: session plans Handbook Weather Fellowship: facilitator guide Case studies and feedback Printables/,
+      /AGI Strategy Fellowship Facilitator guide Only facilitators, the programme’s lead and admins see this\. Your next session Week 3: Reading the sky Group B · Tue 17 Nov, 6pm Open week 3’s plan Each week Week 1: First look Session plan Week 2: Week 2 readings Not loaded yet Week 3: Reading the sky Session plan · Week notes Week 4 Not loaded yet Week 5 Not loaded yet Week 6 Not loaded yet For the whole course How to use these plans Weather Fellowship: session plans Handbook Weather Fellowship: facilitator guide Case studies and feedback Printables/,
     );
     for (const [href, label] of [[`${AGI_GUIDE}/week-1`, "Week 1"], [`${AGI_GUIDE}/week-3`, "Week 3"], [`${AGI_GUIDE}/handbook`, "Handbook"], [`${AGI_GUIDE}/printables`, "Printables"]]) {
       assert.match(drawn.html, new RegExp(`<a href="${href}" class="row">`), label);
@@ -500,7 +517,8 @@ describe("4. the guide's pages", () => {
   });
 
   test("a week or a document with nothing loaded says so plainly to its readers; a page that is not one, likewise", async () => {
-    assert.match((await docPage("rahul", "week-2")).text, /Facilitator guide for week 2 .*There’s no facilitator guide for week 2 yet\./);
+    assert.match((await docPage("rahul", "week-2")).text, /Facilitator guide for week 2 .*Week 2’s plan isn’t in the guide yet\./);
+    assert.doesNotMatch((await docPage("rahul", "week-2")).text, /There’s no facilitator guide for week/);
     world.db.seed(`courses/${COURSE.tais}`, world.db.read(`courses/${COURSE.tais}`));
     assert.match((await docPage("ola", "handbook", COURSE.tais)).text, /“Handbook” isn’t in this facilitator guide yet\./);
     for (const segment of ["week-0", "week-03", "week-61", "preface", "w03-plan"]) {
@@ -632,17 +650,25 @@ describe("5. the links: the group page's ticket and Home", () => {
     assert.deepEqual(ticket.guideContents, { href: AGI_GUIDE, label: "Facilitator guide" });
     assert.match(drawn.html, new RegExp(`<a href="${AGI_GUIDE}" class="ticketGuide"><span>Facilitator guide</span><svg`));
     assert.equal(drawn.text.match(/Facilitator guide/g)?.length, 1);
+    // In the week's link's place, the sentence saying so and who loads it, before the course page's link.
+    assert.equal(ticket.guideSentence, "Week 3’s plan isn’t in the guide yet. Claudia or an admin loads it.");
+    assert.match(drawn.text, /Take the register Week 3’s plan isn’t in the guide yet\. Claudia or an admin loads it\. Facilitator guide/);
   });
 
-  test("the course's own documents alone are linked by the guide's course page, and nothing loaded links nothing", async () => {
+  test("the course's own documents alone are linked by the guide's course page, and nothing loaded links nothing and says so", async () => {
     reset();
     await seedGuide(COURSE.agi, [["handbook", HANDBOOK]]);
     const documentsOnly = await groupPage("rahul");
     const ticket = find(documentsOnly.element, "FacilitatorTicket")[0]?.props;
     assert.equal(ticket.guide, null);
     assert.deepEqual(ticket.guideContents, { href: AGI_GUIDE, label: "Facilitator guide" });
+    // Week 3 is not loaded, and something is: the sentence where its link would be, then the course page.
+    assert.equal(ticket.guideSentence, "Week 3’s plan isn’t in the guide yet. Claudia or an admin loads it.");
     const home = await homeWithGuide("rahul");
-    assert.match(home.html, new RegExp(`<div class="weekGuide"><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`));
+    assert.match(
+      home.html,
+      new RegExp(`<div class="weekGuide"><p class="guideSentence">Week 3’s plan isn’t in the guide yet\\. Claudia or an admin loads it\\.</p><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`),
+    );
     assert.doesNotMatch(home.text, /Facilitator guide for week/);
 
     reset();
@@ -650,11 +676,15 @@ describe("5. the links: the group page's ticket and Home", () => {
     const bare = find(nothing.element, "FacilitatorTicket")[0]?.props;
     assert.equal(bare.guide, null);
     assert.equal(bare.guideContents, null);
+    // One sentence in place of both links, naming the programme's lead.
+    assert.equal(bare.guideSentence, NOTHING_LOADED);
+    assert.match(nothing.text, new RegExp(`Take the register ${NOTHING_LOADED.replace(/[.]/g, "\\.")}`));
     assert.doesNotMatch(nothing.text, /Facilitator guide/);
     assert.doesNotMatch(nothing.html, /facilitator-guide/);
     const bareHome = await homeWithGuide("rahul");
     assert.doesNotMatch(bareHome.text, /Facilitator guide/);
-    assert.doesNotMatch(bareHome.html, /weekGuide|facilitator-guide/);
+    assert.doesNotMatch(bareHome.html, /facilitator-guide/);
+    assert.match(bareHome.text, new RegExp(`This week Week 3 · Who decides what AGI means ${NOTHING_LOADED.replace(/[.]/g, "\\.")}`));
   });
 
   test("Home, under this week's title: “Facilitator guide for week 3” to the week when it has some, and “Facilitator guide” to the guide's course page whenever the guide has anything", async () => {
@@ -664,14 +694,18 @@ describe("5. the links: the group page's ticket and Home", () => {
       home.html,
       new RegExp(`<div class="weekGuide"><a href="${AGI_GUIDE}/week-3" class="textLink">Facilitator guide for week 3<svg[^>]*><path[^>]*></path></svg></a><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`),
     );
-    // The week has moved on to one with nothing in the guide: its link goes, and the course page's stays.
+    // The week has moved on to one with nothing in the guide: its link goes, a sentence says so and who loads it,
+    // and the course page's stays.
     reset();
     await seedGuide(COURSE.agi, [["w01-plan", PLAN_W1]]);
     const later = await homeWithGuide("rahul");
-    assert.match(later.text, /This week Week 3 · Who decides what AGI means Facilitator guide 3 exercises to review/);
+    assert.match(later.text, /This week Week 3 · Who decides what AGI means Week 3’s plan isn’t in the guide yet\. Claudia or an admin loads it\. Facilitator guide 3 exercises to review/);
     assert.doesNotMatch(later.text, /Facilitator guide for week/);
     assert.doesNotMatch(later.html, new RegExp(`href="${AGI_GUIDE}/`));
-    assert.match(later.html, new RegExp(`<div class="weekGuide"><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`));
+    assert.match(
+      later.html,
+      new RegExp(`<div class="weekGuide"><p class="guideSentence">Week 3’s plan isn’t in the guide yet\\. Claudia or an admin loads it\\.</p><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`),
+    );
   });
 });
 
@@ -834,9 +868,13 @@ describe("9. Sessions and Week notes: two more places, at the top of Each week",
     await seedGuide(COURSE.agi, AT_A_GLANCE);
     for (const who of ["rahul", "claudia", "zach"]) {
       const drawn = await coursePage(who);
+      // Rahul's group's members read week 2's title; an admin and a lead with no group are given its number.
+      const two = who === "rahul" ? "Week 2: Week 2 readings" : "Week 2";
       assert.match(
         drawn.text,
-        /Each week Sessions Week notes Week 1: First look Session plan Week 3: Reading the sky Session plan · Week notes For the whole course How to use these plans Weather Fellowship: session plans Handbook Weather Fellowship: facilitator guide Case studies and feedback Printables/,
+        new RegExp(
+          `Each week Sessions Week notes Week 1: First look Session plan ${two} Not loaded yet Week 3: Reading the sky Session plan · Week notes Week 4 Not loaded yet Week 5 Not loaded yet Week 6 Not loaded yet For the whole course How to use these plans Weather Fellowship: session plans Handbook Weather Fellowship: facilitator guide Case studies and feedback Printables`,
+        ),
         who,
       );
       for (const [href, label] of [[`${AGI_GUIDE}/sessions`, "Sessions"], [`${AGI_GUIDE}/week-notes`, "Week notes"]]) {
@@ -851,7 +889,10 @@ describe("9. Sessions and Week notes: two more places, at the top of Each week",
     reset();
     await seedGuide(COURSE.agi, AT_A_GLANCE);
     const alone = await coursePage("sofia");
-    assert.match(alone.text, /Facilitator guide Only facilitators, the programme’s lead and admins see this\. Each week Sessions Week notes$/);
+    assert.match(
+      alone.text,
+      /Facilitator guide Only facilitators, the programme’s lead and admins see this\. Your next session Week 3: Who decides what AGI means Group B · Tue 17 Nov, 6pm Week 3’s plan isn’t in the guide yet\. The programme’s lead or an admin loads it\. Each week Sessions Week notes Week 1: Week 1 readings Not loaded yet Week 2: Week 2 readings Not loaded yet Week 3: Who decides what AGI means Not loaded yet Week 4 Not loaded yet Week 5 Not loaded yet Week 6 Not loaded yet$/,
+    );
     assert.doesNotMatch(alone.text, /For the whole course|There’s nothing in this course’s facilitator guide yet/);
   });
 
@@ -913,6 +954,343 @@ describe("9. Sessions and Week notes: two more places, at the top of Each week",
     assert.equal(result.complete, true);
     assert.equal(db.has(`courseFacilitatorGuide/${id}__sessions`), false);
     assert.equal(db.has(`courseFacilitatorGuide/${id}__week-notes`), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. The reader's own group on the guide's pages
+// ---------------------------------------------------------------------------
+
+describe("10. the guide's pages lead a facilitator to their next session, and list the weeks still to be loaded", () => {
+  const GROUP_B = `/learn/${RUN.agi}/group/${B}`;
+  const GROUP_A = `/learn/${RUN.agi}/group/${A}`;
+  /** The gate's reader for `who`, whole. */
+  const readerOf = (who, courseId = COURSE.agi) => guide.access.facilitatorGuideReader(world.courseDb, w.sessionFor(who), courseId);
+  /** The card at the top of the course page, as words, or null when there is none. */
+  const cardOf = (drawn) => {
+    const at = drawn.html.indexOf('aria-labelledby="guide-next"');
+    if (at < 0) return null;
+    const html = drawn.html.slice(drawn.html.lastIndexOf("<section", at), drawn.html.indexOf("</section>", at));
+    return textOf(html);
+  };
+
+  test("the gate hands a facilitator their own live groups, in meeting order, as named fields with no link, room or name; through every other door, none", async () => {
+    const rahul = await readerOf("rahul");
+    assert.equal(rahul.as, "facilitator");
+    assert.deepEqual(rahul.groups.map((group) => [group.groupId, group.runId, group.name]), [[B, RUN.agi, "Group B"]]);
+    const [own] = rahul.groups;
+    assert.deepEqual(Object.keys(own).sort(), ["groupId", "name", "runId", "sessions", "weekCount"]);
+    assert.equal(own.weekCount, 6);
+    assert.deepEqual(Object.keys(own.sessions[0]).sort(), ["cancelled", "dateKey", "endsAt", "occurrence", "sessionKey", "startTimeLocal", "startsAt", "weekNumber"]);
+    assert.deepEqual(
+      own.sessions.map((session) => `${session.sessionKey} ${session.dateKey} ${session.startTimeLocal}`),
+      ["w01 2026-11-03 18:00", "w02 2026-11-10 18:00", "w03 2026-11-17 18:00", "w04 2026-11-24 18:00", "w05 2026-12-01 18:00", "w06 2026-12-08 18:00"],
+    );
+    // A meeting link on the group and its week never comes back, nor its room or anybody's name.
+    world.db.poke(`courseGroups/${B}`, { session: { ...world.db.read(`courseGroups/${B}`).session, meetingUrl: "https://meet.example.com/group-b" } });
+    const handed = JSON.stringify((await readerOf("rahul")).groups);
+    assert.doesNotMatch(handed, /meet\.example|https?:|Hallward|Rahul|Sofia|meetingUrl|location|facilitatorUids/);
+    // Sofia facilitates Group B (Tuesdays) and Group A (Thursdays): both, Tuesday's first. Tom has Group C only.
+    assert.deepEqual((await readerOf("sofia")).groups.map((group) => group.groupId), [B, A]);
+    assert.deepEqual((await readerOf("tom")).groups.map((group) => group.groupId), [C]);
+    // An archived group is not handed back; with none left, the door is shut as it always was.
+    world.db.poke(`courseGroups/${B}`, { archived: true });
+    assert.deepEqual((await readerOf("sofia")).groups.map((group) => group.groupId), [A]);
+    assert.equal(await readerOf("rahul"), null);
+    // An admin and a lead are let in by their own doors, with no groups on the proof.
+    for (const who of ["zach", "claudia"]) assert.equal(Object.hasOwn(await readerOf(who), "groups"), false, who);
+    assert.equal(Object.hasOwn(await readerOf("ola", COURSE.tais), "groups"), true);
+    assert.equal(Object.hasOwn(await readerOf("tess", COURSE.tais), "groups"), false);
+  });
+
+  test("a facilitator's card: the week their group meets for next, the group, its day and clock, and that week's plan; the way back is to the group", async () => {
+    const drawn = await coursePage("rahul");
+    assert.equal(drawn.wrote, false);
+    assert.equal(cardOf(drawn), "Your next session Week 3: Reading the sky Group B · Tue 17 Nov, 6pm Open week 3’s plan");
+    assert.match(drawn.html, new RegExp(`<a href="${AGI_GUIDE}/week-3" class="buttonPrimary">Open week 3’s plan</a>`));
+    assert.match(drawn.html, new RegExp(`<a href="${GROUP_B}" class="crumb">Group B</a>`));
+    assert.doesNotMatch(drawn.html, /href="\/learn" class="crumb"/);
+    assert.match(drawn.text, /^Group B Group B AGI Strategy Fellowship Facilitator guide Only facilitators, the programme’s lead and admins see this\. Your next session/);
+    // The same card for each of the group's facilitators.
+    assert.equal(cardOf(await coursePage("sofia")), cardOf(drawn));
+  });
+
+  test("two groups on the course: the one that meets next, and the other once that one has met", async (t) => {
+    t.after(() => w.at(NOW));
+    // Tuesday noon: Group B tonight, before Group A on Thursday.
+    assert.equal(cardOf(await coursePage("sofia")), "Your next session Week 3: Reading the sky Group B · Tue 17 Nov, 6pm Open week 3’s plan");
+    // During Group B's session it is still the next one.
+    w.at("2026-11-17T19:00:00Z");
+    assert.match(cardOf(await coursePage("sofia")), /Group B · Tue 17 Nov, 6pm/);
+    // Wednesday: Group A meets on Thursday, for week 4, which has nothing loaded.
+    w.at("2026-11-18T09:00:00Z");
+    const wednesday = await coursePage("sofia");
+    assert.equal(cardOf(wednesday), "Your next session Week 4 Group A · Thu 19 Nov, 6pm Week 4’s plan isn’t in the guide yet. The programme’s lead or an admin loads it.");
+    assert.match(wednesday.html, new RegExp(`<a href="${GROUP_A}" class="crumb">Group A</a>`));
+    assert.doesNotMatch(cardOf(wednesday), /Open week/);
+  });
+
+  test("a week moved through Change a session is on its new day; an evening called off is never next", async () => {
+    world.db.poke(`courseGroups/${B}`, { sessionOverrides: { w03: { weekday: 3, startTimeLocal: "17:30" } } });
+    assert.equal(cardOf(await coursePage("rahul")), "Your next session Week 3: Reading the sky Group B · Wed 18 Nov, 5:30pm Open week 3’s plan");
+    reset();
+    await seedGuide();
+    world.db.poke(`courseGroups/${B}`, {
+      sessionChanges: { w03: { kind: "cancelled", reason: "Both away.", dateKey: "2026-11-17", byUid: "rahul", at: NOW } },
+    });
+    assert.equal(
+      cardOf(await coursePage("rahul")),
+      "Your next session Week 4 Group B · Tue 24 Nov, 6pm Week 4’s plan isn’t in the guide yet. The programme’s lead or an admin loads it.",
+    );
+  });
+
+  test("after the group's last session: no card, and the way back still leads to the group", async (t) => {
+    t.after(() => w.at(NOW));
+    w.at("2026-12-10T12:00:00Z");
+    const drawn = await coursePage("rahul");
+    assert.equal(cardOf(drawn), null);
+    assert.doesNotMatch(drawn.text, /Your next session/);
+    assert.match(drawn.html, new RegExp(`<a href="${GROUP_B}" class="crumb">Group B</a>`));
+  });
+
+  test("no card for an admin or a lead who facilitates nothing; an admin who facilitates a group is drawn theirs", async () => {
+    for (const who of ["zach", "claudia"]) {
+      const drawn = await coursePage(who);
+      assert.equal(cardOf(drawn), null, who);
+      assert.match(drawn.html, /<a href="\/learn" class="crumb">My programmes<\/a>/, who);
+      assert.doesNotMatch(drawn.html, /\/group\//, who);
+    }
+    // Zach facilitates Group C, Wednesdays at 1pm.
+    world.db.poke(`courseGroups/${C}`, { facilitatorUids: ["tom", "zach"] });
+    const zach = await coursePage("zach");
+    assert.equal(cardOf(zach), "Your next session Week 3: Reading the sky Group C · Wed 18 Nov, 1pm Open week 3’s plan");
+    assert.match(zach.html, new RegExp(`<a href="/learn/${RUN.agi}/group/${C}" class="crumb">Group C</a>`));
+    // Claudia, who leads, is let in as a facilitator once she facilitates, and drawn hers.
+    world.db.poke(`courseGroups/${C}`, { facilitatorUids: ["claudia"] });
+    assert.match(cardOf(await coursePage("claudia")), /Group C · Wed 18 Nov, 1pm/);
+  });
+
+  test("the list: every week of the course, the loaded with their parts, the rest “Not loaded yet” with the theme their members read", async () => {
+    const drawn = await coursePage("rahul");
+    assert.match(
+      drawn.text,
+      /Each week Week 1: First look Session plan Week 2: Week 2 readings Not loaded yet Week 3: Reading the sky Session plan · Week notes Week 4 Not loaded yet Week 5 Not loaded yet Week 6 Not loaded yet For the whole course/,
+    );
+    // Each leads to its week's page, which says so plainly.
+    for (const n of [2, 4, 5, 6]) assert.match(drawn.html, new RegExp(`<a href="${AGI_GUIDE}/week-${n}" class="row">`), String(n));
+    // A theme is a published week's title: weeks 4 to 6 are not published, so they have none.
+    world.db.poke(`courseRuns/${RUN.agi}/weeks/w02`, { title: "Week 2: How fast" });
+    assert.match((await coursePage("rahul")).text, /Week 2: How fast Not loaded yet/);
+    // An admin or a lead with no group of their own: the course's weeks, by number alone.
+    for (const who of ["zach", "claudia"]) {
+      assert.match(
+        (await coursePage(who)).text,
+        /Each week Week 1: First look Session plan Week 2 Not loaded yet Week 3: Reading the sky Session plan · Week notes Week 4 Not loaded yet Week 5 Not loaded yet Week 6 Not loaded yet For the whole course/,
+        who,
+      );
+    }
+    // Every week loaded: nothing said to be missing.
+    reset();
+    await seedGuide(COURSE.agi, [1, 2, 3, 4, 5, 6].map((n) => [`w0${n}-plan`, PLAN_W1.replace("Session 1", `Session ${n}`)]));
+    assert.doesNotMatch((await coursePage("rahul")).text, /Not loaded yet/);
+  });
+
+  test("nothing loaded at all: one sentence saying so and who loads it, never by name, and the way back to the group", async () => {
+    reset();
+    const rahul = await coursePage("rahul");
+    assert.match(rahul.text, /Facilitator guide Only facilitators, the programme’s lead and admins see this\. There’s nothing in this course’s facilitator guide yet\. The programme’s lead or an admin loads it\. Back to Group B$/);
+    assert.match(rahul.html, new RegExp(`<a href="${GROUP_B}" class="footLink">Back to Group B</a>`));
+    assert.equal(cardOf(rahul), null);
+    assert.doesNotMatch(rahul.text, /Claudia|Each week/);
+    // An admin: the same sentence, and no group to go back to.
+    const zach = await coursePage("zach");
+    assert.match(zach.text, /There’s nothing in this course’s facilitator guide yet\. The programme’s lead or an admin loads it\.$/);
+    // With no lead who stands, admins alone.
+    const form = world.db.read(formPath);
+    const agi = Object.keys(form.programmes).find((id) => form.programmes[id].runId === RUN.agi);
+    world.db.poke(formPath, { programmes: { ...form.programmes, [agi]: { ...form.programmes[agi], leadUid: null } } });
+    assert.match((await coursePage("rahul")).text, /There’s nothing in this course’s facilitator guide yet\. An admin loads it\. Back to Group B$/);
+    world.db.poke(formPath, { programmes: { ...form.programmes, [agi]: { ...form.programmes[agi], leadUid: "claudia" } } });
+    world.db.poke("users/claudia", { role: "member", suRecognised: false });
+    assert.match((await coursePage("rahul")).text, /An admin loads it\. Back to Group B$/);
+  });
+
+  test("a week's page: Take the register for each group whose session that week is next or in progress, never an old one, and the group, under the title", async (t) => {
+    t.after(() => w.at(NOW));
+    /** Each row under the title, as HTML. */
+    const rows = (drawn) => [...drawn.html.matchAll(/<div class="actions" role="group" aria-label="([^"]*)">(.*?)<\/div>/g)].map((match) => `${match[1]}: ${match[2]}`);
+    const row = (name, groupPath, key) =>
+      `${name}: ${key ? `<a href="${groupPath}/register?session=${key}" class="buttonGhost">Take the register</a>` : ""}<a href="${groupPath}" class="buttonGhost">${name}</a>`;
+    // Tonight's week: Group B's next session.
+    const tonight = await docPage("rahul", "week-3");
+    assert.deepEqual(rows(tonight), [row("Group B", GROUP_B, "w03")]);
+    assert.match(tonight.text, /Facilitator guide for week 3 Only facilitators, the programme’s lead and admins see this\. Take the register Group B/);
+    // In progress: still that session's.
+    w.at("2026-11-17T19:00:00Z");
+    assert.deepEqual(rows(await docPage("rahul", "week-3")), [row("Group B", GROUP_B, "w03")]);
+    // A week already met, and the same week once its session ended yesterday: the group alone, never an old register.
+    w.at(NOW);
+    assert.deepEqual(rows(await docPage("rahul", "week-1")), [row("Group B", GROUP_B, null)]);
+    w.at("2026-11-18T09:00:00Z");
+    assert.deepEqual(rows(await docPage("rahul", "week-3")), [row("Group B", GROUP_B, null)]);
+    w.at(NOW);
+    // A week further ahead than the next session: the group alone, its register not open yet.
+    await seedGuide(COURSE.agi, [["w05-plan", PLAN_W1.replace("Session 1", "Session 5")]]);
+    assert.deepEqual(rows(await docPage("rahul", "week-5")), [row("Group B", GROUP_B, null)]);
+    // Tonight's evening called off: no register for week 3.
+    world.db.poke(`courseGroups/${B}`, {
+      sessionChanges: { w03: { kind: "cancelled", reason: "Both away.", dateKey: "2026-11-17", byUid: "rahul", at: NOW } },
+    });
+    assert.deepEqual(rows(await docPage("rahul", "week-3")), [row("Group B", GROUP_B, null)]);
+    world.db.poke(`courseGroups/${B}`, { sessionChanges: {} });
+    // Two groups a week apart: on Wednesday, Group A meets for week 4 on Thursday and Group B on Tuesday after.
+    // Each is decided on its own, and each gets its row, in meeting order.
+    await seedGuide(COURSE.agi, [["w04-plan", PLAN_W1.replace("Session 1", "Session 4")]]);
+    w.at("2026-11-18T09:00:00Z");
+    assert.deepEqual(rows(await docPage("sofia", "week-4")), [row("Group B", GROUP_B, "w04"), row("Group A", GROUP_A, "w04")]);
+    // Week 3 on Wednesday: Group B met last night and Group A last Thursday, so neither register; the group Sofia meets next.
+    assert.deepEqual(rows(await docPage("sofia", "week-3")), [row("Group A", GROUP_A, null)]);
+    // Thursday evening, during Group A's week 4: Group A's in progress, and Group B's week 4 is still its next.
+    w.at("2026-11-19T18:30:00Z");
+    assert.deepEqual(rows(await docPage("sofia", "week-4")), [row("Group B", GROUP_B, "w04"), row("Group A", GROUP_A, "w04")]);
+    // Friday: Group A's is over; Group B's alone.
+    w.at("2026-11-20T09:00:00Z");
+    assert.deepEqual(rows(await docPage("sofia", "week-4")), [row("Group B", GROUP_B, "w04")]);
+    // An admin or a lead who facilitates nothing, a course document, and a week with nothing loaded: none.
+    w.at(NOW);
+    for (const who of ["zach", "claudia"]) assert.deepEqual(rows(await docPage(who, "week-3")), [], who);
+    assert.deepEqual(rows(await docPage("rahul", "handbook")), []);
+    const empty = await docPage("rahul", "week-2");
+    assert.deepEqual(rows(empty), []);
+    assert.match(empty.text, /Week 2’s plan isn’t in the guide yet\. Back to the facilitator guide$/);
+  });
+
+  test("a week's theme is the one its group's members read: the group's own copy where it has one, and only once published to them", async () => {
+    const list = async () => (await coursePage("rahul")).text;
+    assert.match(await list(), /Week 2: Week 2 readings Not loaded yet/);
+    // Group B holds its own copy of week 2, with its own title: that is what its members read.
+    world.db.seed(`courseGroups/${B}/weeks/w02`, { ...world.db.read(`courseRuns/${RUN.agi}/weeks/w02`), title: "Our own week two", published: true });
+    assert.match(await list(), /Week 2: Our own week two Not loaded yet/);
+    assert.doesNotMatch(await list(), /Week 2 readings/);
+    // The group's copy is not published to its members yet: no title, though the run's own week is published.
+    world.db.poke(`courseGroups/${B}/weeks/w02`, { published: false });
+    assert.match(await list(), /Week 1: First look Session plan Week 2 Not loaded yet Week 3/);
+    // A run's week its members cannot read yet gives no title either, and its group's published copy does.
+    world.db.poke(`courseRuns/${RUN.agi}/weeks/w04`, { title: "What we can do" });
+    assert.match(await list(), /Week 4 Not loaded yet/);
+    world.db.seed(`courseGroups/${B}/weeks/w04`, { ...world.db.read(`courseRuns/${RUN.agi}/weeks/w04`), published: true });
+    assert.match(await list(), /Week 4: What we can do Not loaded yet/);
+    // Another group's own copy is never read for Rahul's page.
+    world.db.seed(`courseGroups/${C}/weeks/w05`, { ...world.db.read(`courseRuns/${RUN.agi}/weeks/w05`), title: "Group C's week five", published: true });
+    assert.doesNotMatch(await list(), /Group C's week five/);
+  });
+
+  test("the gate is decided by the runs it could read: one failing read never errors, never turns away somebody another run lets in, and lets nobody in", async () => {
+    /** The course routes' database, with one run's read failing. */
+    const failing = (...runIds) => {
+      const view = Object.create(world.courseDb);
+      view.collection = (path) => {
+        const collection = world.courseDb.collection(path);
+        if (path !== "courseRuns") return collection;
+        return new Proxy(collection, {
+          get(target, key) {
+            if (key === "doc") {
+              return (id) => (runIds.includes(id) ? { get: async () => Promise.reject(new Error("unavailable")) } : target.doc(id));
+            }
+            const value = target[key];
+            return typeof value === "function" ? value.bind(target) : value;
+          },
+        });
+      };
+      return view;
+    };
+    const as = (who, db) => guide.access.facilitatorGuideReader(db, w.sessionFor(who), COURSE.agi);
+    // Sofia's Group A moves to the course's spring run: her groups are on two runs of one course.
+    world.db.poke(`courseGroups/${A}`, { runId: RUN.agiSpring });
+    assert.deepEqual((await as("sofia", world.courseDb)).groups.map((group) => group.groupId).sort(), [A, B].sort());
+    assert.deepEqual((await as("sofia", failing(RUN.agiSpring))).groups.map((group) => group.groupId), [B]);
+    assert.deepEqual((await as("sofia", failing(RUN.agi))).groups.map((group) => group.groupId), [A]);
+    // Every run she is on unreadable: the calm refusal, never an error.
+    assert.equal(await as("sofia", failing(RUN.agi, RUN.agiSpring)), null);
+    assert.equal(await as("rahul", failing(RUN.agi)), null);
+    // Nobody new: Amara, Nell and a lead's own door are answered as before.
+    assert.equal(await as("amara", failing(RUN.agiSpring)), null);
+    assert.equal((await as("claudia", failing(RUN.agiSpring)))?.as, "lead");
+  });
+
+  test("“next” is the shared rule's: the projection and sessionRange name the same session in every world", async (t) => {
+    t.after(() => w.at(NOW));
+    const { sessions, groupDocs, courseDocs, nextSession } = guide;
+    const both = (over = {}) => {
+      const run = courseDocs.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+      const group = { ...groupDocs.normalizeCourseGroup(B, world.db.read(`courseGroups/${B}`)), ...over };
+      const now = new Date();
+      const shared = sessions.sessionRange(sessions.resolveSessions(run, group), now).next;
+      const ours = nextSession.nextSessionOf(nextSession.guideGroupOf(run, group), now);
+      return [shared?.sessionKey ?? null, ours?.sessionKey ?? null];
+    };
+    const same = (label, expected, over) => {
+      const [shared, ours] = both(over);
+      assert.equal(ours, shared, label);
+      assert.equal(ours, expected, label);
+    };
+    same("tonight", "w03");
+    w.at("2026-11-17T19:00:00Z");
+    same("in progress", "w03");
+    w.at("2026-11-17T20:00:01Z");
+    same("just over", "w04");
+    w.at(NOW);
+    world.db.poke(`courseGroups/${B}`, { sessionOverrides: { w03: { weekday: 3 } } });
+    same("a moved week", "w03");
+    w.at("2026-11-17T20:00:01Z");
+    same("a moved week, after the old evening", "w03");
+    w.at(NOW);
+    world.db.poke(`courseGroups/${B}`, {
+      sessionOverrides: {},
+      sessionChanges: { w03: { kind: "cancelled", reason: "Both away.", dateKey: "2026-11-17", byUid: "rahul", at: NOW } },
+    });
+    same("called off", "w04");
+    world.db.poke(`courseGroups/${B}`, { sessionChanges: {} });
+    // A second slot at 1pm on Tuesdays, before the group's 6pm: the earlier start is next, not the first in the week.
+    same("two a week", "w03-2", { extraSession: { weekday: 2, startTimeLocal: "13:00", durationMinutes: 60, location: "", meetingUrl: null, notes: "" } });
+    w.at("2026-12-10T12:00:00Z");
+    same("the last session over", null);
+    w.at(NOW);
+    world.db.poke(`courseRuns/${RUN.agi}`, { startDate: "" });
+    same("no dates", null);
+  });
+
+  test("the pure choice of the next session and the register, on a group of two sessions a week", () => {
+    const { nextGuideSession, registerSessionFor, registerRowsFor, homeGroupOf } = guide.nextSession;
+    const at = (iso) => new Date(iso).getTime();
+    const session = (weekNumber, occurrence, start, over = {}) => ({
+      weekNumber,
+      occurrence,
+      sessionKey: occurrence === 1 ? `w0${weekNumber}` : `w0${weekNumber}-${occurrence}`,
+      dateKey: start.slice(0, 10),
+      startTimeLocal: "18:00",
+      startsAt: at(start),
+      endsAt: at(start) + 2 * 3600_000,
+      cancelled: false,
+      ...over,
+    });
+    const one = { groupId: "g1", runId: "r", name: "One", weekCount: 2, sessions: [session(1, 1, "2026-11-03T18:00:00Z"), session(1, 2, "2026-11-05T18:00:00Z"), session(2, 1, "2026-11-10T18:00:00Z")] };
+    const two = { groupId: "g2", runId: "r", name: "Two", weekCount: 2, sessions: [session(1, 1, "2026-11-04T18:00:00Z"), session(2, 1, "2026-11-11T18:00:00Z", { cancelled: true })] };
+    const now = new Date("2026-11-04T12:00:00Z");
+    assert.equal(nextGuideSession([one, two], now).group.groupId, "g2");
+    assert.equal(nextGuideSession([one, two], new Date("2026-11-04T21:00:00Z")).session.sessionKey, "w01-2");
+    // Week 1's register: the session in progress, else the group's next; never one that is over.
+    assert.equal(registerSessionFor(one, 1, now).sessionKey, "w01-2");
+    assert.equal(registerSessionFor(one, 1, new Date("2026-11-03T19:00:00Z")).sessionKey, "w01");
+    assert.equal(registerSessionFor(one, 1, new Date("2026-11-06T09:00:00Z")), null);
+    assert.equal(registerSessionFor(two, 2, new Date("2026-11-08T09:00:00Z")), null);
+    // Each group decided on its own, in the order given.
+    assert.deepEqual(registerRowsFor([one, two], 1, now).map((row) => `${row.group.groupId} ${row.session.sessionKey}`), ["g1 w01-2", "g2 w01"]);
+    assert.deepEqual(registerRowsFor([one, two], 2, now).map((row) => row.group.groupId), []);
+    // Every session over: no next, and the first group in meeting order is the way back.
+    assert.equal(nextGuideSession([one, two], new Date("2026-12-01T00:00:00Z")), null);
+    assert.equal(homeGroupOf([one, two], new Date("2026-12-01T00:00:00Z")).groupId, "g1");
+    assert.equal(homeGroupOf([], now), null);
   });
 });
 

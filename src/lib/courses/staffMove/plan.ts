@@ -3,7 +3,7 @@ import type { DocumentReference, DocumentSnapshot, Firestore, Transaction } from
 import { readOwnFeedback } from "@/lib/courses/feedback/readers";
 import { ownRequestsIn } from "@/lib/courses/excused/ask";
 import { firstNameOfUser, fullNameOfUser, readNamingProgramme, standingUserOf } from "@/lib/courses/programmeLead";
-import { resolveSessions } from "@/lib/courses/sessions";
+import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { EXCUSED_IN_ADVANCE, attendanceDocId } from "@/lib/firestore/courseAttendance";
 import { boxIsWritten, isOwnBoxResponse } from "@/lib/firestore/courseExercises";
@@ -18,7 +18,8 @@ import {
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { sessionKeyParts } from "../excused/model";
-import { sessionsByWeekGroup } from "../groupsByWeek";
+import { belonging, sessionsByWeekGroup, sessionsWithGroup } from "../groupsByWeek";
+import { moveLimitRefusal } from "./limits";
 import type { MoveLineView, MovePreviewView } from "./view";
 import { moveWeekOf, weeksThatCome, type MoveWeek } from "./week";
 import {
@@ -43,6 +44,7 @@ import {
   oldHasNoneLeftWords,
   oldHasNoneSetWords,
   oldNoLongerMeetsWords,
+  oldOffWords,
   oldStillToComeWords,
   personEmailWords,
   registersLineWords,
@@ -57,6 +59,7 @@ import {
   type LeftBehind,
   type MoveEmailFacts,
   type MoveEmailWords,
+  visitsAheadWords,
 } from "./words";
 
 /**
@@ -309,47 +312,104 @@ export function moveChoices(facts: MoveFacts): MoveChoice[] {
 }
 
 /**
+ * The person's own sessions (each week's from the group their place belonged
+ * to that week, never a visit's host) that have started and are not called
+ * off, with the group each is marked on: the sessions whose register can say
+ * the session was not held.
+ */
+function startedOwnSessions(
+  run: CourseRunDoc,
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek" | "visits">,
+  groups: readonly CourseGroupDoc[],
+  now: Date,
+): Array<{ groupId: string; session: ResolvedSession }> {
+  const sessionsOf = (groupId: string) => {
+    const group = groups.find((each) => each.id === groupId);
+    return group && !group.archived ? resolveSessions(run, group) : null;
+  };
+  return sessionsWithGroup(belonging(place), sessionsOf).filter(({ session }) => {
+    if (session.cancelled) return false;
+    const startsAt = sessionInstants(session).startsAt;
+    return startsAt !== null && startsAt.getTime() <= now.getTime();
+  });
+}
+
+/** One of the person's own sessions, by its week and occurrence (one group a week). */
+const ownSessionKey = (session: Pick<ResolvedSession, "weekNumber" | "occurrence">) => `${session.weekNumber}:${session.occurrence}`;
+
+/**
+ * WHICH OF THE PERSON'S OWN SESSIONS WERE MARKED AS NOT HELD, read from their
+ * registers (`held === false`, It didn't happen): the week rule reads such a
+ * week as one nobody met. Only sessions that have started are read. `readAll`
+ * is a plain read for the page and the preview, or the save's transaction.
+ */
+export async function readNotHeld(
+  readAll: ReadAll,
+  db: Firestore,
+  run: CourseRunDoc,
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek" | "visits">,
+  groups: readonly CourseGroupDoc[],
+  now: Date,
+): Promise<(session: ResolvedSession) => boolean> {
+  const own = startedOwnSessions(run, place, groups, now);
+  if (own.length === 0) return () => false;
+  const snaps = await readAll(own.map(({ groupId, session }) => db.collection("courseAttendance").doc(attendanceDocId(run.id, groupId, session.weekNumber, session.occurrence))));
+  const notHeld = new Set(own.filter((_, index) => snaps[index]?.exists && snaps[index].data()?.held === false).map(({ session }) => ownSessionKey(session)));
+  return (session) => notHeld.has(ownSessionKey(session));
+}
+
+/**
  * The week the move would be from, by the rule (`./week.ts`), now: the
  * person's own sessions (each week's from the group they were in that week,
  * so for somebody moved before, never a week of the group they are in now
- * that they spent elsewhere) against the new group's.
+ * that they spent elsewhere) against the new group's, and which of their own
+ * were marked as not held (`readNotHeld`). The ONE answer the move page, its
+ * save and a move on the allocation board all ask.
  */
 export function moveWeekFor(
   run: CourseRunDoc,
-  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek">,
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek" | "visits">,
   groups: readonly CourseGroupDoc[],
   to: CourseGroupDoc,
   now: Date,
+  notHeld: (session: ResolvedSession) => boolean = () => false,
 ): MoveWeek {
   const sessionsOf = (groupId: string) => {
     const group = groups.find((each) => each.id === groupId);
     return group && !group.archived ? resolveSessions(run, group) : null;
   };
-  return moveWeekOf({ oldSessions: sessionsByWeekGroup(place, sessionsOf), newSessions: resolveSessions(run, to), now });
+  // The groups the place BELONGS to: never a one-week visit's host.
+  return moveWeekOf({ oldSessions: sessionsByWeekGroup(belonging(place), sessionsOf), newSessions: resolveSessions(run, to), now, notHeld });
 }
 
 /** The week rule's refusal in its sentence. */
 function weekRefusal(week: Extract<MoveWeek, { ok: false }>, facts: MoveFacts, to: CourseGroupDoc): string {
+  return weekRefusalWords(week, facts.person.firstName, facts.from.name, to.name);
+}
+
+/** The week rule's refusal in its sentence, from the names alone: the move page's and the board's. */
+export function weekRefusalWords(week: Extract<MoveWeek, { ok: false }>, firstName: string, fromName: string, toName: string): string {
   const refusal = week.refusal;
-  if (refusal.kind === "old-has-none-set") return oldHasNoneSetWords(facts.person.firstName, facts.from.name);
+  if (refusal.kind === "old-has-none-set") return oldHasNoneSetWords(firstName, fromName);
   if (refusal.kind === "old-still-to-come") {
     return oldStillToComeWords({
-      firstName: facts.person.firstName,
-      fromName: facts.from.name,
+      firstName,
+      fromName,
       weekNumber: refusal.session.weekNumber,
       dateKey: refusal.session.dateKey,
       startTimeLocal: refusal.session.session.startTimeLocal,
     });
   }
-  if (refusal.kind === "old-has-none-left") return oldHasNoneLeftWords(facts.person.firstName, facts.from.name);
-  if (refusal.kind === "new-has-none") return newHasNoneWords(to.name, refusal.weekNumber);
+  if (refusal.kind === "old-has-none-left") return oldHasNoneLeftWords(firstName, fromName);
+  if (refusal.kind === "new-has-none") return newHasNoneWords(toName, refusal.weekNumber);
   return newHasMetWords({
-    firstName: facts.person.firstName,
-    toName: to.name,
-    fromName: facts.from.name,
+    firstName,
+    toName,
+    fromName,
     weekNumber: refusal.weekNumber,
     dateKey: refusal.oldSession.dateKey,
     startTimeLocal: refusal.oldSession.session.startTimeLocal,
+    ifCalledOff: refusal.ifCalledOff,
   });
 }
 
@@ -370,8 +430,18 @@ export function targetOf(facts: MoveFacts, toGroupId: string): { ok: true; to: C
 
 /** The weeks before N, by the groups they were spent in (one for somebody never moved before). */
 function stayNamesOf(facts: MoveFacts, weeks: readonly number[]): string[] {
-  const ids = [...new Set(weeks.map((week) => groupForWeek(facts.place, week) ?? facts.from.id))];
-  return ids.map((id) => facts.groups.find((group) => group.id === id)?.name.trim() || "the group");
+  return stayNamesFor(facts.place, facts.groups, facts.from.id, weeks);
+}
+
+/** The same, from the place and the run's groups: the move page's and the board's. */
+export function stayNamesFor(
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek" | "visits">,
+  groups: readonly CourseGroupDoc[],
+  fromId: string,
+  weeks: readonly number[],
+): string[] {
+  const ids = [...new Set(weeks.map((week) => groupForWeek(place, week) ?? fromId))];
+  return ids.map((id) => groups.find((group) => group.id === id)?.name.trim() || "the group");
 }
 
 /** The fields of a week that say when and by whom it was made, not what it says. */
@@ -453,13 +523,24 @@ async function weeksWrittenFrom(db: Firestore, runId: string, uid: string, weekN
  * What the move leaves behind on the old group, from week N on: a line on
  * one of its registers that says they are excused (asked, or approved), a
  * "most weeks" tick about one of its sessions, and a request to be excused
- * still waiting about one.
+ * still waiting about one. The move page's line and the board's question
+ * both read it here (`leftBehindWords`).
+ *
+ * A "most weeks" tick is part of the person's time answer, so it is read
+ * only for a reader of time answers (`timeAnswers`, which the caller asks of
+ * `readsTimeAnswers`): for anybody else that session is read as any other,
+ * by its register's line.
  */
-async function leftBehindOf(db: Firestore, facts: MoveFacts, weekNumber: number): Promise<LeftBehind[]> {
+export async function leftBehindOf(
+  db: Firestore,
+  facts: Pick<MoveFacts, "run" | "from" | "place">,
+  weekNumber: number,
+  reader: { timeAnswers: boolean },
+): Promise<LeftBehind[]> {
   const { run, from, place } = facts;
   const later = resolveSessions(run, from).filter((session) => session.weekNumber >= weekNumber);
   const ticked = new Set(
-    place.timeAnswer?.kind === "mostWeeks" && place.timeAnswer.forGroupId === from.id ? place.timeAnswer.sessionKeys : [],
+    reader.timeAnswers && place.timeAnswer?.kind === "mostWeeks" && place.timeAnswer.forGroupId === from.id ? place.timeAnswer.sessionKeys : [],
   );
   const out: LeftBehind[] = [];
   const registers = later.length ? await db.getAll(...later.map((s) => db.collection("courseAttendance").doc(attendanceDocId(run.id, from.id, s.weekNumber, s.occurrence)))) : [];
@@ -499,8 +580,12 @@ export async function planMove(
   const target = targetOf(facts, toGroupId);
   if (!target.ok) return target;
   const { to } = target;
-  const week = moveWeekFor(facts.run, facts.place, facts.groups, to, now);
+  const notHeld = await readNotHeld((refs) => db.getAll(...refs), db, facts.run, facts.place, facts.groups, now);
+  const week = moveWeekFor(facts.run, facts.place, facts.groups, to, now, notHeld);
   if (!week.ok) return { ok: false, status: 409, error: weekRefusal(week, facts, to) };
+  // The limits on how often a move emails, read as the press will claim them.
+  const capped = await moveLimitRefusal(db, facts.run.id, facts.person, actorUid);
+  if (capped) return capped;
 
   const { person, from, place, accounts } = facts;
   const weekNumber = week.weekNumber;
@@ -510,11 +595,19 @@ export async function planMove(
   const [feedback, differ, leftBehind, writtenAhead] = await Promise.all([
     readOwnFeedback(db, facts.run.id, person.uid),
     copiesDiffer(db, facts.run.id, from, to, weeks),
-    leftBehindOf(db, facts, weekNumber),
+    // The move page and its route admit the programme's lead and admins alone, who read time answers (`readsTimeAnswers`).
+    leftBehindOf(db, facts, weekNumber, { timeAnswers: true }),
     // Weeks from N on already written in on the old group's copy, whose copy differs in the new group.
     weeksWrittenFrom(db, facts.run.id, person.uid, weekNumber).then((written) => copiesDiffer(db, facts.run.id, from, to, written)),
   ]);
   const feedbackFrom = [...new Set(feedback.map((piece) => piece.byUid))].filter((uid) => from.facilitatorUids.includes(uid));
+  const visitsAhead = (place.visits ?? [])
+    .filter((visit) => visit.weekNumber >= weekNumber)
+    .map((visit) => ({
+      weekNumber: visit.weekNumber,
+      hostName: facts.groups.find((group) => group.id === visit.groupId)?.name ?? "",
+      goes: visit.groupId === to.id,
+    }));
   const firstOf = (uid: string) => {
     const data = accounts.get(uid);
     return data ? firstNameOfUser(data) : "";
@@ -561,6 +654,9 @@ export async function planMove(
     { label: LINE_LABEL.late, text: lateLineWords({ toName: to.name, weekday: to.session.weekday, weekNumber }) },
     { label: LINE_LABEL.registers, text: registersLineWords({ firstName: person.firstName, fromName: from.name, toName: to.name, weekNumber }) },
     ...(leftBehind.length > 0 ? [{ label: LINE_LABEL.leftBehind, text: leftBehindWords(person.firstName, from.name, leftBehind) }] : []),
+    // A one-week visit ahead, from week N on: the save drops one to the group
+    // they move into (no visit at all) and keeps every other.
+    ...(visitsAhead.length > 0 ? [{ label: LINE_LABEL.visits, text: visitsAheadWords(person.firstName, to.name, weekNumber, visitsAhead) }] : []),
   ];
 
   const toPerson = recipients.find((each) => each.as === "person") ?? null;
@@ -572,7 +668,10 @@ export async function planMove(
       weekNumber,
       weekStated: weekStatedWords(weekNumber, to.name, week.newSession.dateKey),
       weeksStay: weeksStayWords(weeks, stayNames, person.firstName),
-      skipsOld: skipsOldSessionWords({ firstName: person.firstName, fromName: from.name, dateKey: week.oldSession.dateKey, weekNumber }),
+      // A week nobody met with the old group says why the move is from it; otherwise the session they skip.
+      skipsOld: week.oldOff
+        ? oldOffWords({ firstName: person.firstName, fromName: from.name, toName: to.name, dateKey: week.oldSession.dateKey, weekNumber, why: week.oldOff })
+        : skipsOldSessionWords({ firstName: person.firstName, fromName: from.name, dateKey: week.oldSession.dateKey, weekNumber }),
       lines,
       told: toldLineWords(recipients.map((each) => each.firstName || "somebody")),
       personEmail: toPerson ? { heading: toPersonHeading(person.firstName), words: personEmailWords(emailFacts) } : null,

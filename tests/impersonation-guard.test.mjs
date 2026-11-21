@@ -93,6 +93,12 @@ const GUARDED_TREES = [
   // list, a send) is caught by the sweep.
   "src/app/api/audience",
 
+  // Search for a person or a group. Its one route only reads: a POST so the
+  // words typed travel in the body, never an address a log keeps, and on
+  // ALLOWLIST with that reason. The tree is registered so a route added
+  // beside it that writes is caught by the sweep.
+  "src/app/api/search",
+
   // Messages: every write in this tree is a message sent in the session's
   // name, or the test it waits for. Its one read (whether the menu draws
   // Messages) is a GET, which the sweep does not ask about.
@@ -106,6 +112,13 @@ const GUARDED_TREES = [
   // tests/event-view-as.test.mjs asks every handler here the same question
   // through the real code.
   "src/app/api/events",
+
+  // Anonymous feedback for the whole society. Sending one is refused in a
+  // view-as session: an admin looking through a member's eyes is not that
+  // member, and the entry would read as a member's own. The admins' routes
+  // record which admin marked or noted an entry, and clear entries for good.
+  "src/app/api/anonymous-feedback",
+  "src/app/api/admin/anonymous-feedback",
 ];
 
 /**
@@ -184,6 +197,10 @@ const MUST_GUARD = [
     "emails the people whose week isn't done a reminder from the presser by name, and records who pressed, in the presser's name",
   ],
   ["src/app/api/courses/groups/[groupId]/session/change/route.ts", "changes or cancels one week's session of a group, in the presser's name"],
+  [
+    "src/app/api/courses/groups/[groupId]/rooms-email/route.ts",
+    "emails a group where each of its sessions still to come is, claims the presser's limits and writes a History row, in the presser's name",
+  ],
   [
     "src/app/api/courses/groups/[groupId]/session/regular/route.ts",
     "changes a group's regular day, time, length and room from a week onwards, pins its earlier weeks, takes back people's words on the old time and emails the group, in the presser's name",
@@ -430,6 +447,10 @@ const MUST_GUARD = [
     "moves one person to another group for good on the run a programme names, mid-term, and emails them and both groups' facilitators",
   ],
   [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit/route.ts",
+    "arranges or calls off one person's one-week visit to another group's session on the run a programme names, and emails them and both groups' facilitators",
+  ],
+  [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room/route.ts",
     "sets the room a group meets in every week on the run a programme names, from the Groups tab",
   ],
@@ -452,6 +473,10 @@ const MUST_GUARD = [
   [
     "src/app/api/courses/groups/[groupId]/joining-online/route.ts",
     "keeps the person's own word that they are joining a session online on its register, which their facilitators read and are asked for a link by",
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/visit/cancel/route.ts",
+    "cancels the caller's own one-week visit to another group's session, takes their own words off that session's register and emails both groups' facilitators",
   ],
   [
     "src/app/api/courses/groups/[groupId]/meeting-link/route.ts",
@@ -761,6 +786,10 @@ const MUST_GUARD = [
   ["src/app/api/events/[id]/archive/route.ts", "archives an event or brings it back"],
   ["src/app/api/events/[id]/delete/route.ts", "deletes an event that never went live, with its sign-ups, check-ins and list"],
   ["src/app/api/events/[id]/collaborators/route.ts", "changes who may edit an event"],
+  // ── Anonymous feedback ──────────────────────────────────────────────────────
+  ["src/app/api/anonymous-feedback/route.ts", "sends anonymous feedback, which would read as the viewed member's own"],
+  ["src/app/api/admin/anonymous-feedback/[entryId]/route.ts", "marks an entry of anonymous feedback dealt with, writes a note on it, or deletes it for good, in the presser's name"],
+  ["src/app/api/admin/anonymous-feedback/clear/route.ts", "deletes older anonymous feedback for good, recorded in the presser's name"],
 ];
 
 /**
@@ -788,6 +817,10 @@ const ALLOWLIST = [
   [
     "src/app/api/audience/who/route.ts",
     "Reads only. Its POST carries a choice of tags and answers the names it reaches, never an address, and it writes and sends nothing, so a view-as session reads what the member being viewed may read.",
+  ],
+  [
+    "src/app/api/search/route.ts",
+    "Reads only. Its POST carries the words typed into the search box and answers names, what each is and a page to open, and it writes, sends and keeps nothing, so a view-as session is answered as the person being viewed would be, which is the question view-as exists to answer.",
   ],
 ];
 

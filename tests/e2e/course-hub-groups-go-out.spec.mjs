@@ -295,6 +295,20 @@ test(
         { timeout: WAIT_MS },
       );
 
+    /**
+     * The answer to the board's PRESS on the allocate route: the next POST
+     * whose body is not the question asked before a move of somebody already
+     * told (`preview: true`, which writes nothing and goes first).
+     */
+    const pressTo = (pg, suffix) =>
+      pg.waitForResponse(
+        (r) =>
+          new URL(r.url()).pathname.endsWith(suffix) &&
+          r.request().method() === "POST" &&
+          (r.request().postDataJSON?.() ?? {}).preview !== true,
+        { timeout: WAIT_MS },
+      );
+
     /** A JSON answer that must be a success, read once. */
     async function okBody(response, what) {
       const body = await response.json().catch(() => null);
@@ -380,7 +394,9 @@ test(
       }
       assert.ok(from !== -1 && to !== -1, `${person.first}'s menu offers no ${group.name}, or no current place`);
       for (let i = 0; i < Math.abs(to - from); i += 1) await menu.press(to > from ? "ArrowDown" : "ArrowUp");
-      const [response] = await Promise.all([responseTo(adminPage, "/allocate", "POST"), menu.press("Enter")]);
+      // The press, not the question before it: for somebody told, the board
+      // asks the route first, which before the term has nothing to ask.
+      const [response] = await Promise.all([pressTo(adminPage, "/allocate"), menu.press("Enter")]);
       const body = await okBody(response, `Placing ${person.first} in ${group.name}`);
       // One placed is the whole answer: a refused move places nobody, and the
       // answer printed below says why it was refused.
@@ -585,7 +601,9 @@ test(
      * "You’re facilitating", for one group, as the seed copy writes it: the
      * board's words since October 2026, the room inside the sentence that
      * says when the group meets (until then "Where: Room E1", a line of its
-     * own) and where the names are after the group's size.
+     * own) and where the names are after the group's size. Since November
+     * 2026 a second button, "Facilitator guide", follows "Open your group"
+     * and opens the course's facilitator guide.
      */
     function assertFacilitating(email, { group, size, test: isTest = false }) {
       const subject = `You’re facilitating ${group.name}: ${weeklySlotWords(group)}`;
@@ -599,18 +617,25 @@ test(
             ? "There is 1 person in the group. Their name is on your group page."
             : `There are ${size} people in the group. Their names are on your group page.`,
           "Open your group",
+          // No week 1 in the guide here, so the button names no week.
+          "Facilitator guide",
           // The programme has no lead, so NAISI signs it, as it signs the
           // group email (since 26 October 2026; until then nobody did).
           "Take the register on your phone during the session. NAISI",
         ],
         // One facilitator, and a programme with no lead to sign it. This world
         // loads no facilitator guide, so week 1's guide is never promised.
-        absent: ["You’re facilitating with", "lead, NAISI", "Where:", "week 1’s guide"],
+        absent: ["You’re facilitating with", "lead, NAISI", "Where:", "week 1’s guide", "guide for week 1"],
       });
       const groupPage = `${origin}${groupPagePath(group)}`;
       assert.ok(
         email.links.includes(groupPage),
         `the facilitators' email does not link to the group's page (${groupPage}): ${JSON.stringify(email.links)}`,
+      );
+      const guidePage = `${origin}/learn/facilitator-guide/${enc(state.courseId)}`;
+      assert.ok(
+        email.links.includes(guidePage),
+        `the facilitators' email does not link to the course's facilitator guide (${guidePage}): ${JSON.stringify(email.links)}`,
       );
     }
 

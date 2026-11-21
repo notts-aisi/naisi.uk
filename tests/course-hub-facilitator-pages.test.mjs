@@ -32,6 +32,8 @@
  * HTML. Faked: see `tests/lib/facilitatorPagesWorld.mjs`.
  */
 import { beforeEach, describe, mock, test } from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -39,6 +41,7 @@ import { fileURLToPath } from "node:url";
 import { enrolment, registerPath, switches } from "./lib/hubAttendanceWorld.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
 import { B, C, NOW, RUN, facilitatorSeed, find, makeFacilitatorPagesWorld } from "./lib/facilitatorPagesWorld.mjs";
+import { laptopLayout, phoneOrder } from "./lib/groupPageOrder.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
@@ -48,6 +51,13 @@ const w = await makeFacilitatorPagesWorld("__facilitatorPagesSuite");
 const { world, at, reset, groupPage, registerPage, attendanceTab, summary, note, home, words } = w;
 
 const RUN_HOME = `/learn/${RUN.agi}`;
+const { default: NotForYou } = await w.loadTs(join("features", "courses", "facilitator", "NotForYou.tsx"));
+/** The group page's one calm page, for somebody signed in it does not admit. */
+const NOT_FOR_YOU = renderToStaticMarkup(createElement(NotForYou, { page: "group" }));
+/** The second, for an admin (admitted to every group) at an address the page cannot open. */
+const CANT_OPEN = renderToStaticMarkup(createElement(NotForYou, { page: "group", admitted: true }));
+/** "not for you" or "can't open" when the group page drew a calm page byte for byte, else where it sent them, else "drawn". */
+const outcomeOf = (drawn) => drawn.to ?? (drawn.html === NOT_FOR_YOU ? "not for you" : drawn.html === CANT_OPEN ? "can't open" : "drawn");
 const GROUP_PATH = (groupId = B) => `${RUN_HOME}/group/${groupId}`;
 
 /** What the page's ticket, cards and head hand their components, read off the element tree. */
@@ -83,25 +93,25 @@ beforeEach(() => reset());
 // ---------------------------------------------------------------------------
 
 describe("1. who opens a group's page, its register and its summary", () => {
-  test("the group page: its two facilitators and an admin; everybody else is sent away", async () => {
+  test("the group page: its two facilitators and an admin; everybody else signed in is told the page is not theirs", async () => {
     const said = {};
     for (const who of ["rahul", "sofia", "zach", "claudia", "tess", "lloyd", "yusuf", "tom", "chloe", "amara", "nobody", null]) {
       const drawn = await groupPage(who);
-      said[who ?? "signed out"] = drawn.to ?? "drawn";
+      said[who ?? "signed out"] = outcomeOf(drawn);
       assert.equal(drawn.wrote, false, `${who}'s page wrote something`);
     }
     assert.deepEqual(said, {
       rahul: "drawn",
       sofia: "drawn",
       zach: "drawn",
-      claudia: RUN_HOME,
-      tess: RUN_HOME,
-      lloyd: RUN_HOME,
-      yusuf: RUN_HOME,
-      tom: RUN_HOME,
-      chloe: RUN_HOME,
-      amara: RUN_HOME,
-      nobody: RUN_HOME,
+      claudia: "not for you",
+      tess: "not for you",
+      lloyd: "not for you",
+      yusuf: "not for you",
+      tom: "not for you",
+      chloe: "not for you",
+      amara: "not for you",
+      nobody: "not for you",
       "signed out": "/login",
     });
   });
@@ -112,7 +122,10 @@ describe("1. who opens a group's page, its register and its summary", () => {
       const drawn = await registerPage(who);
       said[who ?? "signed out"] = drawn.to ?? drawn.text;
     }
-    const drawnFor = "Group B Group B Group B’s register [AttendanceGrid]";
+    // Nothing is loaded in AGI Strategy's facilitator guide in this world: above the table, the
+    // one sentence for a course with nothing, naming its lead (tests/course-facilitator-guide-links.test.mjs).
+    const drawnFor =
+      "Group B Group B Group B’s register There’s nothing in this course’s facilitator guide yet. Claudia or an admin loads it, and it will show here. [AttendanceGrid]";
     assert.deepEqual(said, {
       rahul: drawnFor,
       sofia: drawnFor,
@@ -132,9 +145,9 @@ describe("1. who opens a group's page, its register and its summary", () => {
     assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH()}" class="crumb crumbDesk">Group B</a>`));
   });
 
-  test("an archived group: its facilitators are sent away from both pages; an admin reads them with nothing to press", async () => {
+  test("an archived group: its facilitators are kept out of both pages; an admin reads them with nothing to press", async () => {
     world.db.poke(`courseGroups/${B}`, { archived: true });
-    assert.equal((await groupPage("rahul")).to, RUN_HOME);
+    assert.equal(outcomeOf(await groupPage("rahul")), "not for you");
     assert.equal((await registerPage("rahul")).to, RUN_HOME);
     const asAdmin = await groupPage("zach");
     assert.equal(asAdmin.to, null);
@@ -143,8 +156,8 @@ describe("1. who opens a group's page, its register and its summary", () => {
 
   test("a group of another run, addressed under this run, is nobody's page", async () => {
     world.db.poke(`courseGroups/${B}`, { runId: RUN.tais });
-    for (const who of ["rahul", "zach"]) {
-      assert.equal((await groupPage(who)).to, RUN_HOME, who);
+    for (const [who, answer] of [["rahul", "not for you"], ["zach", "can't open"]]) {
+      assert.equal(outcomeOf(await groupPage(who)), answer, who);
       assert.equal((await registerPage(who)).to, RUN_HOME, who);
     }
   });
@@ -340,10 +353,12 @@ describe("2. the group page in week 3, as the facilitator's group page draws it"
     assert.equal(find(odd.element, "ReviewQueue")[0].props.initialWeek, 3);
   });
 
-  test("updates: the card the group's page already had, here beside the work to review", async () => {
+  test("updates: the card the group's page already had, over how the group meets, and the pace still under the registers", async () => {
     const drawn = await groupPage("rahul");
     assert.equal(find(drawn.element, "StaffUpdatesSection").length, 1);
-    assert.match(drawn.text, /Updates No updates yet\. Pace On pace with the programme\. Weeks & schedule →/);
+    // In the order of a session: the updates beside who is coming, over how the group meets.
+    assert.match(drawn.text, /In the room Coming Updates No updates yet\. AGI Strategy · Group B Tuesdays, 6pm to 8pm /);
+    assert.match(drawn.text, /Week 3 Tue 17 Nov Tonight Pace On pace with the programme\. Weeks & schedule → Notes for you/);
   });
 
   test("pace: a group pushed a week behind says so, and its chip is its own week", async () => {
@@ -441,8 +456,8 @@ describe("3. the notes a group's facilitators share", () => {
       const drawn = await attendanceTab(who);
       assert.equal(drawn.to, "/dashboard", who);
     }
-    // A facilitator of another group of the run, and a member of the group, are sent away from its page.
-    for (const who of ["tom", "chloe"]) assert.equal((await groupPage(who)).to, RUN_HOME, who);
+    // A facilitator of another group of the run, and a member of the group, are given its calm page, with no note.
+    for (const who of ["tom", "chloe"]) assert.equal(outcomeOf(await groupPage(who)), "not for you", who);
   });
 
   test("the lead's tab shows no register note: those stay the group's facilitators' and admins'", async () => {
@@ -460,7 +475,7 @@ describe("4. a facilitator's Home on session day, as the facilitator's Home draw
     const drawn = await home("rahul");
     assert.match(
       drawn.text,
-      /Hi Rahul\. .*Tue 17 Nov Tonight · week 3 Group B, 6pm Hallward B12 · with Sofia 3 expected Take the register Opens your group’s register for tonight\. This week Week 3 · Who decides what AGI means 3 exercises to review Review/,
+      /Hi Rahul\. .*Tue 17 Nov Tonight · week 3 Group B, 6pm Hallward B12 · with Sofia 3 expected Take the register Opens your group’s register for tonight\. Open Group B This week Week 3 · Who decides what AGI means 3 exercises to review Review/,
     );
     assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH()}/register" class="primaryLarge registerCtaButton">Take the register</a>`));
     assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH()}/review" class="textLink">Review`));
@@ -499,7 +514,7 @@ describe("4. a facilitator's Home on session day, as the facilitator's Home draw
   test("on another day than the session's, the register's line says where it leads, not tonight", async () => {
     at("2026-11-15T10:00:00Z");
     const drawn = await home("rahul");
-    assert.match(drawn.text, /Your next session · week 3 Group B, 6pm .* Take the register Opens your group’s register\. This week/);
+    assert.match(drawn.text, /Your next session · week 3 Group B, 6pm .* Take the register Opens your group’s register\. Open Group B This week/);
   });
 });
 
@@ -536,9 +551,14 @@ describe("5. the words in week 1, before the first session and after the end", (
     const onHome = await home("rahul");
     assert.match(
       onHome.text,
-      /Your first session · week 1 Group B, 6pm Hallward B12 · with Sofia Open your group Who’s coming 0 of 3 said they’re coming\. Chloe, Farah and Kofi haven’t said\. .*Say hello Send your group a hello before Tuesday\. Write to Group B \(3\) Posts an update to the group and emails 3 people\. Replies go to ai-safety@uonsu\.com\./,
+      /Your first session · week 1 Group B, 6pm Hallward B12 · with Sofia Open your group This week Week 1 · Week 1 readings Who’s coming 0 of 3 said they’re coming\. Chloe, Farah and Kofi haven’t said\. .*Say hello Send your group a hello before Tuesday\. Write to Group B \(3\) Posts an update to the group and emails 3 people\. Replies go to ai-safety@uonsu\.com\./,
     );
-    assert.doesNotMatch(onHome.text, /Take the register|This week/);
+    // No register before the first session's day. This week shows from the day somebody is made a
+    // facilitator, with the guide (drawn once the guide's answer arrives): its title, and nothing of the
+    // weekly rows, which wait for the first session.
+    assert.doesNotMatch(onHome.text, /Take the register/);
+    assert.equal(onHome.text.match(/This week/g)?.length, 1);
+    assert.doesNotMatch(onHome.text, /to review|email goes|Write feedback/);
   });
 
   test("week 1, the day of the first session: tonight's register, and no marks yet", async () => {
@@ -561,7 +581,10 @@ describe("5. the words in week 1, before the first session and after the end", (
     const drawn = await groupPage("rahul");
     assert.match(drawn.text, /Your group You’ll see your group’s names when groups go out\. Names only\./);
     assert.doesNotMatch(drawn.text, /\d+ expected/);
-    assert.match((await registerPage("rahul")).text, /Group B’s register You’ll see your group’s names when groups go out\. \[AttendanceGrid\]/);
+    assert.match(
+      (await registerPage("rahul")).text,
+      /Group B’s register You’ll see your group’s names when groups go out\. There’s nothing in this course’s facilitator guide yet\. Claudia or an admin loads it, and it will show here\. \[AttendanceGrid\]/,
+    );
     assert.match((await home("rahul")).text, /You’ll see your group’s names when groups go out\./);
     // An admin reads everybody placed, as the register always has.
     assert.match((await groupPage("zach")).text, /Chloe Nguyen .*Farah Hussain .*Kofi Asante/);
@@ -572,7 +595,43 @@ describe("5. the words in week 1, before the first session and after the end", (
     const drawn = await groupPage("rahul");
     const parts = partsOf(drawn);
     assert.equal(parts.ticket, null);
-    assert.match(drawn.text, /Group B .* No more sessions are planned for your group\. Your group Weeks 1 and 2/);
+    assert.match(
+      drawn.text,
+      /Group B .* No more sessions are planned for your group\. There’s nothing in this course’s facilitator guide yet\. Claudia or an admin loads it, and it will show here\. Updates No updates yet\. /,
+    );
+    // Then, after how the group meets, the way to rate the group over the work to review, then the group.
+    assert.match(drawn.text, /No link Rate your group About two minutes a person\. To review 3 /);
+    assert.match(drawn.text, /Review exercises → Your group Weeks 1 and 2 /);
+    // The same in the markup, at both widths: the rate card over the work to review, both across the page between
+    // the two blocks; and with no session ahead the first block has no left column, so the right one takes the width.
+    const order = [
+      ["the card for no more sessions", 'data-testid="session-card"'],
+      ["the updates", 'aria-labelledby="group-updates"'],
+      ["how the group meets", 'aria-labelledby="group-meets-facilitator"'],
+      ["the rate card", 'aria-label="Rate your group"'],
+      ["the work to review", 'aria-labelledby="group-to-review"'],
+      ["your group", 'aria-labelledby="group-people"'],
+      ["the registers", 'aria-labelledby="group-registers"'],
+      ["the pace", 'aria-labelledby="group-pace"'],
+      ["the notes", 'aria-labelledby="group-notes"'],
+    ];
+    const place = phoneOrder(drawn.html, order);
+    const { blocks, column, where } = laptopLayout(drawn.html);
+    assert.deepEqual(
+      order.map(([name]) => [name, where(place[name])]),
+      [
+        ["the card for no more sessions", "across"],
+        ["the updates", "block 1 right"],
+        ["how the group meets", "block 1 right"],
+        ["the rate card", "across"],
+        ["the work to review", "across"],
+        ["your group", "block 2 left"],
+        ["the registers", "block 2 left"],
+        ["the pace", "block 2 right"],
+        ["the notes", "block 2 right"],
+      ],
+    );
+    assert.equal(column(blocks[0], "colMain"), null, "an empty left column is drawn after the last session");
     assert.doesNotMatch(drawn.html, /weekChip/);
     assert.deepEqual(
       parts.registers.registers.map((row) => [row.weekNumber, row.state]),

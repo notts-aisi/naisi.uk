@@ -136,6 +136,17 @@ function gaveBackOn(application: ApplicationDoc): Date | null {
 
 const CATEGORY_ORDER: Record<PersonCategory, number> = { holding: 0, "gave-back": 1, invited: 2 };
 
+/**
+ * THE TWO WAYS TO CHANGE SOMEBODY'S GROUP, offered together or not at all: a
+ * move for good (`/move`) and a one-week visit (`/visit`) are offered for
+ * exactly the same place and run (a visit's rule for the place is the move's,
+ * and the run's refusals are the same set). One decision, which the People
+ * tab's More menu and the person's own page both draw.
+ */
+export function movingLinks(offered: boolean, personPath: string): { moveHref: string | null; visitHref: string | null } {
+  return offered ? { moveHref: `${personPath}/move`, visitHref: `${personPath}/visit` } : { moveHref: null, visitHref: null };
+}
+
 export function programmePeople(input: PeopleInput): PeopleModel {
   const { form, programmeId, decisions, viewer, groups, seats, programmePath } = input;
   const invitable = new Set(form.programmeIds);
@@ -203,18 +214,19 @@ export function programmePeople(input: PeopleInput): PeopleModel {
             : { kind: "not-yet" },
       free: freeOf(form, application, groups),
       status,
+      personHref: `${programmePath}/people/${encodeURIComponent(application.uid)}`,
       applicationHref: isOwn ? null : `${programmePath}/applications/${encodeURIComponent(application.uid)}`,
       groupsHref: category === "holding" && input.runNamed ? `${programmePath}/groups` : null,
-      moveHref:
+      ...movingLinks(
         category === "holding" &&
-        input.movable === true &&
-        placed &&
-        seat?.told === true &&
-        seat.active === true &&
-        seat.left === null &&
-        seat.facilitates !== true
-          ? `${programmePath}/people/${encodeURIComponent(application.uid)}/move`
-          : null,
+          input.movable === true &&
+          placed !== null &&
+          seat?.told === true &&
+          seat.active === true &&
+          seat.left === null &&
+          seat.facilitates !== true,
+        `${programmePath}/people/${encodeURIComponent(application.uid)}`,
+      ),
       // Holding a place first, in a group before not, groups in the board's
       // order; then who gave a place back; then who is invited.
       order: CATEGORY_ORDER[category] * 1000 + (category === "holding" ? (placed ? placed.at : 999) : 0),

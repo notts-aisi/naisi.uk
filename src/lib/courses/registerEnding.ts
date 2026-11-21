@@ -18,7 +18,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { readCoursesConfig } from "@/lib/firestore/config";
 import type { CourseAttendanceDoc } from "@/lib/firestore/courseAttendance";
 import { chasedUids } from "@/lib/scheduler/jobs/registerReminders";
-import { sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { campusForWeek, sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
 import { registerSwitchesIn } from "@/lib/scheduler/registerSwitches";
@@ -233,7 +233,7 @@ export async function readRegisterEnding(
   let nextSession: ResolvedSession | null = null;
   if (pick) {
     const { session } = pick.column;
-    const where = courseNudgeSessionWhere(session.session, sessionModeForWeek(group, session.weekId));
+    const where = courseNudgeSessionWhere(session.session, sessionModeForWeek(group, session.weekId), campusForWeek(group, session.weekId));
     focus = {
       sessionKey: session.sessionKey,
       weekNumber: session.weekNumber,

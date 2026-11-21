@@ -65,7 +65,15 @@ type Note = { tone: "problem"; text: string };
  * posted on exactly as given, so a group with a facilitator who holds no
  * place in it is counted as the change route counted it.
  */
-type PendingUpdate = { groupId: string; title: string; message: string; emailCount: number; withFacilitators?: boolean };
+type PendingUpdate = {
+  groupId: string;
+  title: string;
+  message: string;
+  emailCount: number;
+  withFacilitators?: boolean;
+  /** About one week's session: the people in the group that week, as the change route counted them. */
+  weekNumber?: number;
+};
 
 export default function ChangeSessionDialog({
   facts,
@@ -119,6 +127,7 @@ export default function ChangeSessionDialog({
           email: update.emailCount > 0,
           ...(update.emailCount > 0 ? { emailCount: update.emailCount } : {}),
           ...(update.withFacilitators === true ? { withFacilitators: true } : {}),
+          ...(typeof update.weekNumber === "number" ? { weekNumber: update.weekNumber } : {}),
         }),
       });
       body = (await response.json().catch(() => null)) as Record<string, unknown> | null;

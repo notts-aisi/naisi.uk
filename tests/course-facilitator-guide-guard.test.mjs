@@ -133,11 +133,11 @@ describe("1. one place touches the facilitator guide's collection", () => {
 const READERS = {
   "app/(app)/learn/facilitator-guide/[courseId]/page.tsx": {
     gate: "facilitatorGuideReader(",
-    why: "the course page: the titles of every week and document loaded, for the gate's three; the one calm answer for everybody else",
+    why: "the course page: the titles of every week and document loaded, for the gate's three, and for a facilitator their own next session from the groups the gate read to admit them; the one calm answer for everybody else",
   },
   "app/(app)/learn/facilitator-guide/[courseId]/[doc]/page.tsx": {
     gate: "facilitatorGuideReader(",
-    why: "a week's or a document's page: the documents themselves, for the gate's three; the one calm answer for everybody else",
+    why: "a week's or a document's page: the documents themselves, for the gate's three, and for a facilitator the way to their own group and its register, from the groups the gate read to admit them; the one calm answer for everybody else",
   },
   "app/(app)/admin/courses/[courseId]/facilitator-guide/page.tsx": {
     gate: "facilitatorGuideReader(",
@@ -162,6 +162,14 @@ const READERS = {
   "app/(app)/learn/[runId]/group/[groupId]/page.tsx": {
     gate: "facilitatorGuideReader(",
     why: "a facilitator's group page: which weeks have something, by title, for the ticket's link to this week, and whether anything is loaded at all, for its link to the guide's course page; the page itself is its live facilitators' and admins'",
+  },
+  "app/(app)/learn/[runId]/group/[groupId]/register/page.tsx": {
+    gate: "facilitatorGuideReader(",
+    why: "a group's register: which weeks have something, by title, for the link to the register's week above its table, asked of the guide's own gate and never the register's, so somebody given one session or a run's track lead, whom the guide refuses, is drawn nothing",
+  },
+  "app/(app)/learn/[runId]/page.tsx": {
+    gate: "facilitatorGuideReader(",
+    why: "the programme page: which weeks have something, by title, for About this course's guide row and each group card's week, asked only for a facilitator, a lead or an admin and handed to the client component only for somebody the guide admits, so a member's page asks nothing and carries nothing of it",
   },
   "lib/courses/allocationPublish.ts": {
     gate: "facilitatorGuideReaderForGroup(",
@@ -198,6 +206,10 @@ const THROUGH = {
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move/route.ts": {
     via: "lib/courses/allocationPublish.ts",
     why: "moving somebody to another group for good mid-term forgets Publish's markers for the move by Publish's own marker ids, and reads nothing of the guide",
+  },
+  "app/api/courses/runs/[runId]/allocate/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "a move made mid-term on the allocation board goes through the same writer as the move page, which takes Publish's marker ids from its module, and the board's move reads nothing of the guide",
   },
   "app/api/courses/runs/[runId]/allocation/route.ts": {
     via: "lib/courses/allocationPublish.ts",
@@ -334,6 +346,44 @@ describe("2. every page and route that reaches the guide asks the gate first", (
     // that is there and not being destroyed; nobody else.
     assert.match(code, /if \(!isAddressableId\(courseId\)\) return null;\s*if \(user\.role === "admin"\) return \{ courseId \} as GuideWriter;/);
     assert.match(code, /if \(!\(await liveCourse\(db, courseId\)\)\) return null;\s*if \(await leadsOnCourse\(db, user, courseId\)\) return \{ courseId \} as GuideWriter;\s*return null;/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2b. What the facilitators' door hands back beside the proof
+// ---------------------------------------------------------------------------
+
+describe("2b. the facilitators' door hands back the caller's own groups as named fields, never a link", () => {
+  const NEXT = "lib/courses/facilitatorGuide/nextSession.ts";
+
+  test("the groups are projected in one place, field by field, and the projection names no link, room or person", () => {
+    const access = FILES.get(ACCESS).code;
+    // The door reads the caller's own groups, live and standing, and admits on there being one.
+    assert.match(access, /const groups = await ownGroupsOnCourse\(db, user, courseId\);\s*if \(groups\.length > 0\) return mintReader\(courseId, course\.title, "facilitator", groups\);/);
+    // Each group handed back goes through the projection, never as the document read.
+    assert.match(access, /return guideGroupOf\(normalizeCourseRun\(runId, raw\), group\);/);
+    assert.match(access, /own\.push\(projected\(runId, raw, group\)\);/);
+    const next = FILES.get(NEXT).code;
+    const body = /export function guideGroupOf\([^)]*\): GuideGroup \{([\s\S]*?)\n\}/.exec(next);
+    assert.ok(body, "the scan no longer finds the projection");
+    assert.doesNotMatch(body[1], /meetingUrl|location|notes|facilitatorUids|\.\.\.(?:group|session)\b/);
+    for (const field of ["groupId", "runId", "name", "weekCount", "sessions", "weekNumber", "sessionKey", "dateKey", "startTimeLocal", "startsAt", "endsAt", "cancelled"]) {
+      assert.match(body[1], new RegExp(`\\b${field}\\b`), field);
+    }
+  });
+
+  test("a week's theme is resolved by the one week overlay, never a second rule", () => {
+    const rows = FILES.get("lib/courses/facilitatorGuide/weekRows.ts").code;
+    assert.match(rows, /const weeks = await resolveWeekDocs\(db, themeGroup\.runId, themeGroup\.groupId\);/);
+    assert.match(rows, /if \(!week\.published\) return \[\];/);
+    assert.doesNotMatch(rows, /\.collection\(\s*["']weeks["']\s*\)/, "weekRows.ts reads a week's documents itself instead of through resolveWeekDocs");
+  });
+
+  test("nothing in the browser reaches the projection or the pages' reads of what is not loaded", () => {
+    const offenders = [...FILES]
+      .filter(([path, { client }]) => client && (reach(path).has(NEXT) || reach(path).has("lib/courses/facilitatorGuide/weekRows.ts")))
+      .map(([path]) => path);
+    assert.deepEqual(offenders, []);
   });
 });
 

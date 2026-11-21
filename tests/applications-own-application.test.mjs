@@ -240,6 +240,11 @@ const READS_THE_LISTS = {
     why: "who a message may be for: everybody whose application on the term's form was sent and is still in the term, for an admin's Applied tag, an admin who applied included. It reads no decision and no review, so it says nothing about where anybody's application stands",
     holds: "no-decisions",
   },
+  "lib/search/load.ts#readFormPeople": {
+    kind: "everybody",
+    why: "search, for a programme's lead: the form's sent applications and decisions, read once and handed to the People tab's own reader for each programme the lead leads, so search finds exactly the tab's rows, an admin who applied included. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
+    holds: "after-the-send",
+  },
   "lib/audience/load.ts#readPlaces": {
     kind: "everybody",
     why: "who a message may be for: everybody holding a place on each of the term's programmes, and everybody invited who has not answered, for an admin's tags and a programme lead's, an admin who applied included, by the hand-over's own test. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",

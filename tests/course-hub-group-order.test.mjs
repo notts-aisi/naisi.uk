@@ -53,6 +53,41 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  * the groups are handed on to, which must ask the comparator.
  */
 const READS_WITHOUT_A_LIST = new Map([
+  // A move made mid-term on the board, reached from the allocate route.
+  [
+    "src/lib/courses/moveFromWeek.ts",
+    {
+      why:
+        "The writer of a move from a week reads the run's groups to find the group moved into, the group left and any " +
+        "group the person facilitates: never a list of groups on a page.",
+    },
+  ],
+  [
+    "src/lib/courses/staffMove/board.ts",
+    {
+      why:
+        "A move made mid-term on the board reads the run's groups to work out the move's week from the sessions of the " +
+        "groups the place belongs to: never a list of groups on a page.",
+    },
+  ],
+  // A session called off: the visits to it that end with it.
+  [
+    "src/lib/courses/visit/hostOff.ts",
+    {
+      why:
+        "Ending the visits to a session called off reads the run's groups only to find each visitor's own group that week " +
+        "and its session: never a list of groups on a page.",
+    },
+  ],
+  // A one-week visit: whether a facilitator of the host group reads a visitor's week.
+  [
+    "src/lib/courses/visit/reading.ts",
+    {
+      why:
+        "Who reads a visitor's work reads the run's groups only to find the host group of one visit and whether the " +
+        "reader facilitates it: a yes or no, never a list of groups on a page.",
+    },
+  ],
   // A group's page on the programme's side: whether there is another group to
   // move anybody to, a count.
   [
@@ -259,6 +294,13 @@ const READS_WITHOUT_A_LIST = new Map([
 
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
+  // ADDED (November 2026), with a one-week visit to another group's session.
+  [
+    "src/features/courses/visit/VisitPage.tsx",
+    "Arranging a one-week visit for one person: the visit route of the one person the page is for (previewed, pressed, " +
+      "or called off). The sessions it offers come from the server page, already ordered by `compareGroupsByMeeting` " +
+      "(`sessionChoices`); the route lists no run's groups.",
+  ],
   // ADDED (November 2026), with moving somebody to another group mid-term.
   [
     "src/features/courses/staffMove/MovePage.tsx",

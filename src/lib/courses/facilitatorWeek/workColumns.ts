@@ -12,6 +12,7 @@ import type { ReviewPerson } from "@/lib/courses/writtenAnswers/reviewPage";
 import { facilitatesOnRun, liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import { WRITTEN_ANSWER } from "@/lib/courses/writtenAnswerWords";
 import { personWeekStateOf } from "@/lib/courses/groupWeekWork/model";
+import { waitingOf } from "@/lib/courses/weekWork/waiting";
 import { weekAsksForWriting, weekWritingNeeds } from "@/lib/courses/weekWork/model";
 import { loadPeopleWeekFacts, loadRunWeekStates } from "@/lib/courses/weekWork/readers";
 import { groupSessionAt } from "@/lib/courses/weekWork/sessionDue";
@@ -114,7 +115,8 @@ export async function loadWorkColumns(
   const chooseOne = chooseOnesOf(week.blocks)[0] ?? null;
   const givesCases = talksOf(week.blocks).some((talk) => talk.groups.some((caseGroup) => caseGroup.cases.length > 0));
   const [work, review] = await Promise.all([
-    chooseOne || givesCases ? weekWorkOf(db, run.id, week, people, viewer) : Promise.resolve(null),
+    // A facilitator's own pick and case are theirs to see; only their co-facilitators get blanks.
+    chooseOne || givesCases ? weekWorkOf(db, run.id, week, people, { ...viewer, uid: actor.uid }) : Promise.resolve(null),
     loadWrittenReview(db, actor, run, group, weekNumber, now),
   ]);
 
@@ -142,7 +144,15 @@ export async function loadWorkColumns(
       const own = facts.get(person.uid);
       if (!own) continue;
       const due = states.dueOf(person.uid, weekNumber);
-      const state = personWeekStateOf({ tasks, asks, pieces: [], facts: own, submittedAt: states.submittedOf(person.uid, weekNumber), due });
+      const state = personWeekStateOf({
+        tasks,
+        asks,
+        pieces: [],
+        facts: own,
+        submittedAt: states.submittedOf(person.uid, weekNumber),
+        due,
+        waiting: waitingOf(week.blocks, own.state),
+      });
       const line = { progress: state.progress, doneAt: state.progress.doneAt, due };
       cells[person.uid] = { text: state.text, href: null, detail: state.detail, tone: personWeekTone(line) };
     }

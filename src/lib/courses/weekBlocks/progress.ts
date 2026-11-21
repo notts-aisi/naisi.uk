@@ -98,6 +98,12 @@ export type DoneState = {
   packOf?: (chooseOneId: string) => string | null;
   /** The reader marked themselves ready for this talk. Left out: not ready. */
   isReady?: (talkId: string) => boolean;
+  /**
+   * The case the reader was given in this talk, or null for none. Read only
+   * by whether a part waits on the facilitator (`weekWork/waiting.ts`);
+   * nothing here counts it. Left out: the page cannot know, and no talk waits.
+   */
+  caseOf?: (talkId: string) => string | null;
 };
 
 /** The blocks no page can see finished yet. Each later page moves its kind out of here. */
@@ -201,6 +207,14 @@ export type HandedTask = {
   packs?: Readonly<Record<string, string>>;
   /** Which of `needs.talkIds` the reader marked themselves ready for. */
   ready?: readonly string[];
+  /**
+   * Every part of it that waits on the facilitator's slip, as the server read
+   * it (`waitingPartsIn`, `weekWork/waiting.ts`): a pack given out not given
+   * yet (with its word, "pathway"), or a case. Whether the task itself waits
+   * is decided with the reader's live ticks (`handedTaskWaitsOn`), only for
+   * its row's words: nothing counts it differently. Absent: nothing waits.
+   */
+  waiting?: ReadonlyArray<{ kind: "pack"; id: string; word: string } | { kind: "case"; id: string }>;
 };
 
 /** Is a task, as the overview hands it, done for this reader? */

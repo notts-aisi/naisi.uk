@@ -8,6 +8,7 @@ import { weekToMarkdown } from "@/lib/courses/weekBlocks/markdownWrite";
 import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import {
   answersOnRemoved,
+  holdersFor,
   pasteAnswer,
   pasteBodyOf,
   readPasteAgainst,
@@ -62,6 +63,11 @@ import { templateWeekFields } from "@/lib/firestore/courseTemplates";
  * another group, or anybody taking part. AUTHORIZATION BEFORE EXISTENCE: a
  * missing group, one that no longer meets and somebody else's are one 403 for
  * everybody but an admin.
+ *
+ * WHO CHOOSES each Choose one and Cases block, and the author's change to
+ * it, travel with the paste exactly as on the run's week loader; the people
+ * a change reaches are counted among the group's people and facilitators,
+ * and who has picked never stops a change, as there.
  *
  * WHAT SAVE CHECKS is what the run's week loader checks (`weekPaste.ts`): the
  * paste read again against the copy as stored (or the run's week while there
@@ -228,9 +234,14 @@ export async function POST(req: Request, ctx: Params) {
   if (sent instanceof NextResponse) return sent;
   const loaded = await load(db, gated);
   if (loaded instanceof NextResponse) return loaded;
-  const read = readPasteAgainst(sent.markdown, { blocks: storedBlocks(loaded), weekNumber: gated.weekNumber, dayBeforeTime: loaded.dayBeforeTime });
-  const counts = await answersOnRemoved(db, gated.run.id, gated.weekId, read.removed, await readersOf(db, gated.group));
-  return NextResponse.json(pasteAnswer(read, counts, loaded.dayBeforeTime));
+  const read = readPasteAgainst(sent, { blocks: storedBlocks(loaded), weekNumber: gated.weekNumber, dayBeforeTime: loaded.dayBeforeTime });
+  const owners = await readersOf(db, gated.group);
+  // Who holds a pack is counted among the group's people and facilitators, as the answers are.
+  const [counts, holders] = await Promise.all([
+    answersOnRemoved(db, gated.run.id, gated.weekId, read.removed, owners),
+    holdersFor(db, gated.run.id, read, owners),
+  ]);
+  return NextResponse.json(pasteAnswer(read, counts, loaded.dayBeforeTime, holders));
 }
 
 export async function PUT(req: Request, ctx: Params) {
@@ -246,11 +257,18 @@ export async function PUT(req: Request, ctx: Params) {
   if (sent instanceof NextResponse) return sent;
   const loaded = await load(db, gated);
   if (loaded instanceof NextResponse) return loaded;
-  const read = readPasteAgainst(sent.markdown, { blocks: storedBlocks(loaded), weekNumber: gated.weekNumber, dayBeforeTime: loaded.dayBeforeTime });
-  const counts = await answersOnRemoved(db, gated.run.id, gated.weekId, read.removed, await readersOf(db, gated.group));
-  const answer = pasteAnswer(read, counts, loaded.dayBeforeTime);
-  if (read.problems.length > 0) return badRequest(read.problems[0], answer);
+  const read = readPasteAgainst(sent, { blocks: storedBlocks(loaded), weekNumber: gated.weekNumber, dayBeforeTime: loaded.dayBeforeTime });
+  const owners = await readersOf(db, gated.group);
+  // The save is decided by the paste and the answers it takes out alone; a
+  // refusal, shown as the check, counts who holds a pack too.
+  const counts = await answersOnRemoved(db, gated.run.id, gated.weekId, read.removed, owners);
+  let answer = pasteAnswer(read, counts, loaded.dayBeforeTime);
   const unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
+  if (read.problems.length > 0 || unconfirmed) {
+    answer = pasteAnswer(read, counts, loaded.dayBeforeTime, await holdersFor(db, gated.run.id, read, owners));
+  }
+  // What the paste itself holds stops it first: another week, facilitator material, a broken block.
+  if (read.problems.length > 0) return badRequest(read.problems[0], answer);
   if (unconfirmed) return NextResponse.json({ error: unconfirmed, ...answer }, { status: 409 });
 
   const copyRef = groupWeekRef(db, gated.group.id, gated.weekId);

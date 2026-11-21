@@ -182,12 +182,37 @@ describe("1. the lead reads every register of their run", () => {
   // somebody untold, so this test moved Dev to make one. A move now keeps
   // somebody told, so Dev is on Group A's register at once; somebody placed
   // and not told (taken off the run and put back) still is not.
+  //
+  // AND AGAIN (November 2026): a move once the person's group has met keeps
+  // the weeks already met, so the move this test means, for every week, is
+  // made before the run's first session (on the day Publish told them); the
+  // registers are read on Thursday as before. The test after it moves Dev
+  // mid-term and pins which register has him for which week.
   test("somebody told their group and moved after Publish is on the lead's register at once, as on the facilitators'", async () => {
-    await join_.place("claudia", [{ uid: "dev", groupId: A }]);
+    mock.timers.setTime(PLACED_ON.getTime());
+    const moved = await join_.place("claudia", [{ uid: "dev", groupId: A }]);
+    assert.deepEqual([moved.body.placed, moved.body.rejected], [1, []]);
+    mock.timers.setTime(READ_ON.getTime());
     for (const who of ["claudia", "sofia"]) {
       const body = (await read(who, A)).body;
       assert.deepEqual(body.members.map((member) => member.uid).sort(), ["bea", "dev"], who);
       assert.equal(body.notYetTold, false, who);
+    }
+  });
+
+  test("moved mid-term after Group B met week 1, Dev is on Group A's register from week 2 and stays on Group B's for week 1, for the lead as for the facilitators", async () => {
+    mock.timers.setTime(new Date("2026-11-04T12:00:00Z").getTime());
+    const moved = await join_.place("claudia", [{ uid: "dev", groupId: A }]);
+    assert.deepEqual([moved.body.placed, moved.body.rejected], [1, []]);
+    mock.timers.setTime(READ_ON.getTime());
+    for (const who of ["claudia", "sofia"]) {
+      const body = (await read(who, A)).body;
+      assert.deepEqual(body.members.map((member) => [member.uid, member.inGroupWeeks ?? null]), [["bea", null], ["dev", [{ fromWeek: 2, untilWeek: null }]]], who);
+      assert.equal(body.notYetTold, false, who);
+    }
+    for (const who of ["claudia", "rahul"]) {
+      const body = (await read(who, B)).body;
+      assert.deepEqual(body.members.map((member) => [member.uid, member.inGroupWeeks ?? null]), [["amara", null], ["dev", [{ fromWeek: 1, untilWeek: 2 }]]], who);
     }
   });
 

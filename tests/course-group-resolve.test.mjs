@@ -875,7 +875,8 @@ test("GUARD: own attendance is a learner's own row, gated and never queried", ()
   // their own enrolment, and nothing else).
   assert.match(OVERVIEW, /\.\.\.ownSessionsWithGroup\.map\(\(\{ groupId, session: s \}\) =>\s*db\s*\.collection\("courseAttendance"\)\s*\.doc\(\s*attendanceDocId\(\s*runId,\s*groupId,/);
   assert.match(OVERVIEW, /\.map\(\(session\) => \(\{ groupId: ownLearnerGroup\.id, session \}\)\)/);
-  assert.match(OVERVIEW, /hasGroupsByWeek\(liveEnrolment\)\s*\?\s*ownSessionsAcrossGroups\(liveEnrolment,/);
+  // A place that records a move, or a one-week visit: each week off the register of that week's session's group.
+  assert.match(OVERVIEW, /differsByWeek\(liveEnrolment\)\s*\?\s*ownSessionsAcrossGroups\(liveEnrolment,/);
   assert.match(OVERVIEW, /const paired = sessionsWithGroup\(place, sessionsOf\);/);
   assert.equal((OVERVIEW.match(/ownSessionsAcrossGroups\(/g) ?? []).length, 2, "defined once, called once, on the caller's own place");
   assert.equal((OVERVIEW.match(/attendanceDocId\(/g) ?? []).length, 2, "the read and the key map, nothing else");

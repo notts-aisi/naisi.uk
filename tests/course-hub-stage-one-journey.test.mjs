@@ -1265,6 +1265,8 @@ const FOOTER = "Nottingham AI Safety Initiative · University of Nottingham · a
 const short = (response) => [response.status, response.body?.error ?? null];
 const groupPage = (runId, groupId) => `${APP_URL}/learn/${runId}/group/${groupId}`;
 const programmePage = (runId) => `${APP_URL}/learn/${runId}`;
+/** A course's facilitator guide, which "You’re facilitating" links beside the group page since November 2026. */
+const guidePage = (courseId) => `${APP_URL}/learn/facilitator-guide/${courseId}`;
 
 /**
  * The placement email Publish writes, word for word, from its greeting to its
@@ -1283,12 +1285,13 @@ const placementWords = ({ first, group, slot, room, from, facilitators, size }) 
  * The facilitators' email Publish writes, word for word, from its greeting to
  * its footer: the board's words since October 2026. Until then the room was
  * a line of its own ("Where: Room C20"), and so was "You’re facilitating with
- * Sofia.", and nothing said where the names are.
+ * Sofia.", and nothing said where the names are. Since November 2026 a
+ * second button, "Facilitator guide", follows "Open your group".
  */
 const facilitatingWords = ({ first, group, slot, from, to, room, withWhom = null, size, lead, programme }) =>
   `Hi ${first}, ${group} meets on ${slot} in ${room}, from ${from} to ${to}. ` +
   (withWhom ? `You’re facilitating with ${withWhom}. ` : "") +
-  `There are ${size} people in the group. Their names are on your group page. Open your group Take the register on your phone during the session. ` +
+  `There are ${size} people in the group. Their names are on your group page. Open your group Facilitator guide Take the register on your phone during the session. ` +
   `${lead} ${programme} lead, NAISI ${FOOTER}`;
 
 /** Kofi's own application page while he holds his place and has not said he is coming, word for word. */
@@ -1741,7 +1744,7 @@ describe("stage one of the course hub, one term from decision day to the first s
     // Each person's email has had the board's "Open your programme" since
   // October 2026: their own programme's page is its one link, as a
   // facilitator's group page is theirs. Until then it had no link at all.
-  test("no email Publish sends carries a meeting link or a token: the only links are the reader's own programme or group page, and the society's address", () => {
+  test("no email Publish sends carries a meeting link or a token: the only links are the reader's own programme or group page, a facilitator's guide, and the society's address", () => {
       for (const mail of [...p().testMail, ...p().pressMail]) {
         assert.deepEqual([...`${mail.subject} ${mail.text}`.matchAll(/\{[a-zA-Z]+\}/g)].map((m) => m[0]), [], mail.to);
       }
@@ -1762,9 +1765,10 @@ describe("stage one of the course hub, one term from decision day to the first s
           [address("joel")]: asked,
           [address("kofi")]: asked,
           [address("priya")]: asked,
-          [address("amelia")]: [groupPage(RUN, GROUP.A)],
-          [address("rahul")]: [groupPage(RUN, GROUP.B)],
-          [address("sofia")]: [groupPage(RUN, GROUP.B)],
+          // A facilitator's: their group page, and their course's facilitator guide (November 2026).
+          [address("amelia")]: [groupPage(RUN, GROUP.A), guidePage(COURSE)],
+          [address("rahul")]: [groupPage(RUN, GROUP.B), guidePage(COURSE)],
+          [address("sofia")]: [groupPage(RUN, GROUP.B), guidePage(COURSE)],
         },
       );
     });

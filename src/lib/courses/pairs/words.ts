@@ -107,6 +107,14 @@ export function pairsCardTitleWords(groupName: string): string {
   return `Pairs in ${groupName}`;
 }
 
+/** The week the group page's card is about, under its title: "Week 4". */
+export function pairsCardWeekWords(weekNumber: number): string {
+  return `Week ${weekNumber}`;
+}
+
+/** The group page's card once no week still to come is in pairs. */
+export const NO_PAIRS_TO_COME = "No week still to come is in pairs.";
+
 /** The way to the pairs page: "Pair people up" before anybody is paired, then "Change pairs and laptops". */
 export function changePairsWords(anyPaired: boolean, laptops: boolean): string {
   if (!anyPaired) return "Pair people up";

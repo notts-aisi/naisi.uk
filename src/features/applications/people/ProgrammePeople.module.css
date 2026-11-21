@@ -515,6 +515,25 @@
 }
 
 /* === Mobile === */
+/* A name opens the person's page on the programme. */
+.nameLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.nameLink:hover {
+  color: var(--color-accent-text-hover);
+  text-decoration: underline;
+}
+
+.nameLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .filter {
     padding: 0 10px 0 12px;

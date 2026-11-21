@@ -774,10 +774,10 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in as a programme's lead and adds a group from the Times view.",
   },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
+  "/api/courses/runs/[runId]/visit/cancel": {
     reason:
-      "Course hub: moving one person to another group for good, mid-term, with its three emails on save. tests/course-staff-move.test.mjs executes it as every kind of caller, every refusal, the week rule both ways, the 409s and every email. The browser spec scripts/e2e-fixtures/course-hub-staff-move.mjs drives it end to end and is written but has not run yet.",
-    coverWhen: "When the course-hub-staff-move spec has passed once with a teardown of zero rows and is marked verified.",
+      "Course hub: the person cancelling a visit staff arranged for them, from their programme page. tests/course-visit.test.mjs executes it as the person, somebody else and signed out, before and after the earlier of the two sessions starts, with what it takes off the host's register and who it emails. No member signs in on the verified browser spec scripts/e2e-fixtures/course-hub-visit.mjs, which arranges and calls off a visit as staff.",
+    coverWhen: "When a browser spec signs in as the person a visit was arranged for and cancels it from their programme page.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room": {
     reason:
@@ -1009,6 +1009,11 @@ const NOT_COVERED = {
       "Course hub: the instant Can't make it, which records somebody as excused on the spot. Somebody taking part now asks an admin instead (the excused weeks spec drives that), so only a facilitator who holds a place in the group they run says it; anybody else taking part is refused in one sentence, and may still take back a line they wrote before. tests/course-session-cant-make-it.test.mjs executes it as every kind of caller, with the refusal, the line it writes, its take-back and the line an approval wrote that it leaves alone.",
     coverWhen:
       "When a browser spec seats a facilitator in the group they run, or the route goes once the instant button has settled.",
+  },
+  "/api/courses/groups/[groupId]/rooms-email": {
+    reason:
+      "Emailing a group its rooms for the rest of term, by hand from the term's rooms: pressed as every caller against the real route, its audience, caps, notice door and templates by tests/course-term-rooms-email.test.mjs, words checked over the rendered email. The term's rooms has no verified browser spec to extend: course-hub-week-rooms has not had its first green run.",
+    coverWhen: "When course-hub-week-rooms is verified: a step that presses one group's button and reads the email in Mailpit then goes into it, in the same diff as this entry goes.",
   },
   "/api/courses/groups/[groupId]/session": {
     reason:
@@ -1506,10 +1511,10 @@ const NOT_COVERED = {
     coverWhen:
       "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
+  "/(app)/learn/[runId]/group/[groupId]/people/[uid]": {
     reason:
-      "Course hub: the page for moving one person to another group for good, mid-term. tests/course-staff-move.test.mjs executes what it draws through its route's preview; the browser spec scripts/e2e-fixtures/course-hub-staff-move.mjs drives it end to end and is written but has not run yet.",
-    coverWhen: "When the course-hub-staff-move spec has passed once with a teardown of zero rows and is marked verified.",
+      "Course hub: one person as their group's facilitator sees them. tests/course-person-page.test.mjs draws it as the group's facilitator, another group's, the lead, an admin and the person, and for somebody moved in from another group.",
+    coverWhen: "When an end-to-end spec signs in as a group's facilitator after the group's first week, so the cut can be opened from the group's page.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {
     reason:
@@ -1570,6 +1575,30 @@ const NOT_COVERED = {
       "Coming back to an unfinished survey: which pages are saved and never an answer, held by tests/ai-survey-no-trace.test.mjs.",
     coverWhen:
       "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/api/anonymous-feedback": {
+    reason:
+      "Sending anonymous feedback; tests/society-feedback.test.mjs sends it as a member, committee and an admin, keeps exactly the seven fields and nothing of the sender, reads the session once, and refuses signed out, waiting, refused, view-as, a bad body, an unknown programme, a session past the last week and a flood past the limit.",
+    coverWhen:
+      "When a fixture can find the entry its member sent without anything naming the sender (a marker in the words, deleted by teardown from the waiting place), so a spec can sign a member in, open the form from the foot of Home, send it and read the thanks.",
+  },
+  "/api/admin/anonymous-feedback/[entryId]": {
+    reason:
+      "Dealt with, a note for admins, and deleting one kept entry; tests/society-feedback.test.mjs records which admin and when, leaves the entry's seven fields as they were, deletes the one entry and nothing else with a record that holds none of its content, and refuses everybody but an admin, a view-as session, a missing entry and an empty body.",
+    coverWhen:
+      "When a spec can run the night's move against the entry it sent (it reaches admins only from the next day), so it can open the admins' page, mark the entry dealt with, add a note and clear it out by hand.",
+  },
+  "/api/admin/anonymous-feedback/clear": {
+    reason:
+      "Counting and clearing out older anonymous feedback by hand; tests/society-feedback.test.mjs counts, refuses a day after today and a stale count, deletes only what is older and never reaches the waiting place, and refuses everybody but an admin.",
+    coverWhen:
+      "When a spec can run the night's move against the entry it sent (it reaches admins only from the next day), so it can open the admins' page, mark the entry dealt with, add a note and clear it out by hand.",
+  },
+  "/api/admin/anonymous-feedback/download": {
+    reason:
+      "The download of every kept entry; tests/society-feedback.test.mjs reads its header and row, its formula guard and that it names no admin, and refuses everybody but an admin.",
+    coverWhen:
+      "When a spec can run the night's move against the entry it sent (it reaches admins only from the next day), so it can open the admins' page, mark the entry dealt with, add a note and clear it out by hand.",
   },
   "/api/feedback": {
     reason:
@@ -1787,6 +1816,16 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/rooms": {
+    reason:
+      "The week's rooms: the journey is written as the spec course-hub-week-rooms (a room set in its row, one pasted, the term's rooms), which has not had its first green run yet; the page is rendered as every caller, and its every press made against the real routes, by tests/course-week-rooms.test.mjs.",
+    coverWhen: "When course-hub-week-rooms first passes locally with a teardown manifest of zero and its status becomes verified, in the same diff as this entry goes.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/rooms/term": {
+    reason:
+      "The term's rooms: the last step of the spec course-hub-week-rooms, which has not had its first green run yet; the grid is rendered as every caller by tests/course-week-rooms.test.mjs, and its panel that emails a group its rooms by tests/course-term-rooms-email.test.mjs.",
+    coverWhen: "When course-hub-week-rooms first passes locally with a teardown manifest of zero and its status becomes verified, in the same diff as this entry goes.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/send": {
     reason:
       "Application system: /(app)/admin/admissions/forms/[roundId]/send is an admin's page whose every number is worked out by modules the unit suite executes; nobody has applied through the new form yet, so there is no term to drive it against.",
@@ -1821,12 +1860,6 @@ const NOT_COVERED = {
       "Course hub: Copy weeks from the course, a page of the Weeks tab; its every caller and the copy it sends (never an overwrite) are executed by tests/course-hub-weeks-tab.test.mjs.",
     coverWhen:
       "When a course has two runs on dev and a browser spec copies one's weeks into the other as its programme's lead.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": {
-    reason:
-      "Course hub: the People tab lists everyone who holds a place on a programme or gave it back, for its lead and admins; its every caller, its counts, its rows and what it never sends are executed by tests/course-hub-people-tab.test.mjs, and it was checked by hand at 1440 and 390.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a term whose decisions have been sent, with a programme naming a run and its lead signed in.",
   },
   "/(app)/admin/courses": {
     reason:
@@ -1893,6 +1926,12 @@ const NOT_COVERED = {
       "Course hub: the page an ask to facilitate opens, rendered to HTML for the person asked, somebody else and every state of an ask by tests/course-hub-facilitator-asks.test.mjs, and checked by hand at 390 and 1440.",
     coverWhen: "With the spec for the ask above.",
   },
+  "/(app)/learn/facilitator-guide": {
+    reason:
+      "Facilitator guide: /(app)/learn/facilitator-guide, the short list of guides for somebody facilitating on two courses or more, is drawn on the server from the caller's own groups; every kind of caller (one course, two, nobody, an admin who facilitates nothing, a course being destroyed, signed out) is rendered to HTML by tests/messages.test.mjs.",
+    coverWhen:
+      "When the end-to-end fixtures seed a facilitator with groups on two courses, with the menu's Facilitating part.",
+  },
   "/(app)/learn/facilitator-guide/[courseId]": {
     reason:
       "Facilitator guide: /(app)/learn/facilitator-guide/[courseId] is drawn on the server behind the guide's own gate; its every caller is executed by tests/course-facilitator-guide.test.mjs, and it was checked by hand at 1440 and 390 with a whole guide loaded.",
@@ -1952,12 +1991,6 @@ const NOT_COVERED = {
       "Course hub: the update composer for one group, opened from its page by its facilitators; the page's every caller is executed by tests/course-hub-updates-pages.test.mjs and its route by tests/course-hub-updates-routes.test.mjs.",
     coverWhen:
       "When the end-to-end fixtures can seed a run Publish has told, with a group's facilitator signed in.",
-  },
-  "/api/courses/groups/[groupId]/draw": {
-    reason:
-      "Course hub: the draw typed into the group page: who may type it, the case lists, the content note kept out, swaps and what a save clears are executed by tests/course-hub-packs-and-cases.test.mjs as every kind of caller; typed in a browser on the preview kit at 390 and 1440.",
-    coverWhen:
-      "When a browser spec signs in a group's facilitator after a session, copies the slips in on the draw page and a member of the group reads their case on their week page.",
   },
   "/api/courses/groups/[groupId]/pairs": {
     reason:
@@ -2038,15 +2071,9 @@ const NOT_COVERED = {
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
   },
-  "/(app)/learn/draw/[groupId]": {
-    reason:
-      "Course hub: the draw's page, drawn as each kind of caller and with its lists held word for word by tests/course-hub-packs-and-cases.test.mjs; photographed on the preview kit at 390 and 1440.",
-    coverWhen:
-      "When the browser spec that copies the slips in drives the page.",
-  },
   "/(app)/learn/pairs/[groupId]": {
     reason:
-      "Course hub: the pairs page for a session in pairs, drawn as each kind of caller and with its pairs, checks and rows held word for word by tests/course-hub-pairs.test.mjs; photographed on the preview kit at 390 and 1440.",
+      "Course hub: the pairs page for a session in pairs, drawn as each kind of caller and with its pairs, checks and rows held word for word by tests/course-hub-pairs.test.mjs, and its one calm page for everybody else held byte for byte, for a real, an archived and a made-up group, by tests/course-hub-not-for-you.test.mjs; photographed on the preview kit at 390 and 1440.",
     coverWhen:
       "When the browser spec that pairs a group drives the page.",
   },
@@ -2253,6 +2280,18 @@ const NOT_COVERED = {
       "Where the survey's totals will be published: one static sentence saying when, until the results page is designed.",
     coverWhen:
       "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/(app)/anonymous-feedback": {
+    reason:
+      "The members' form; tests/society-feedback.test.mjs renders it with this term's programmes, the roles and its words, without asking who is reading, and without the pointer to Ask the team.",
+    coverWhen:
+      "When a fixture can find the entry its member sent without anything naming the sender (a marker in the words, deleted by teardown from the waiting place), so a spec can sign a member in, open the form from the foot of Home, send it and read the thanks.",
+  },
+  "/(app)/admin/(admin-only)/surveys/anonymous-feedback": {
+    reason:
+      "The admins' page; tests/society-feedback.test.mjs renders it as an admin from what the night's move kept, never the waiting place, in at most three reads, shows the words as text, and sends every other reader to the dashboard.",
+    coverWhen:
+      "When a spec can run the night's move against the entry it sent (it reaches admins only from the next day), so it can open the admins' page, mark the entry dealt with, add a note and clear it out by hand.",
   },
   "/feedback/[token]": {
     reason:

@@ -1,5 +1,6 @@
 import { sessionWhenWords } from "../excused/words";
 import { dayWords } from "../sessionChange/words";
+import { CANCEL_KEEP_PACE } from "../groupPage/words";
 import { couldBeFollowed } from "../followable";
 import { sessionWhenLabel } from "../londonLabels";
 
@@ -211,6 +212,7 @@ export const LINE_LABEL = {
   registers: "Registers",
   told: "Told",
   leftBehind: "Left behind",
+  visits: "Visits",
 } as const;
 
 /** "Group F · Thursdays, 5pm to 7pm · George Green B06 · Harriet · 5 people": one choice under "Move to". */
@@ -256,6 +258,20 @@ export function skipsOldSessionWords(input: { firstName: string; fromName: strin
   const day = dayWords(input.dateKey);
   const on = day ? ` on ${day}` : "";
   return `${first} won’t go to ${possessive(groupName(input.fromName))} session${on}. To move ${first} from week ${input.weekNumber + 1} instead, come back after that session.`;
+}
+
+/**
+ * In place of the session they skip, when week N is a week nobody met with
+ * the old group: "Group C’s week 3 session on Tue 17 Nov was called off, so
+ * Leo is with Group F from week 3." ("is marked as not held" when its
+ * register says so).
+ */
+export function oldOffWords(input: { firstName: string; fromName: string; toName: string; dateKey: string; weekNumber: number; why: "called-off" | "not-held" }): string {
+  const first = line(input.firstName) || "They";
+  const day = dayWords(input.dateKey);
+  const on = day ? ` on ${day}` : "";
+  const off = input.why === "called-off" ? "was called off" : "is marked as not held";
+  return `${possessive(groupName(input.fromName))} week ${input.weekNumber} session${on} ${off}, so ${first} ${first === "They" ? "are" : "is"} with ${groupName(input.toName)} from week ${input.weekNumber}.`;
 }
 
 /** Group: "From week 3, Leo is in Group F, which then has 6, its limit." */
@@ -402,6 +418,24 @@ export function leftBehindWords(firstName: string, fromName: string, items: read
   return out.join(" ");
 }
 
+/**
+ * Visits, only when one is ahead from week N on: "Leo’s week 4 visit to Group
+ * F goes: from week 3 Leo is in Group F." for a visit to the group they move
+ * into, and "Leo’s week 5 visit to Group K stays." for any other. Nobody is
+ * emailed about it.
+ */
+export function visitsAheadWords(firstName: string, toName: string, weekNumber: number, items: ReadonlyArray<{ weekNumber: number; hostName: string; goes: boolean }>): string {
+  const first = line(firstName) || "Their";
+  const whose = line(firstName) ? possessive(first) : "Their";
+  return items
+    .map((item) =>
+      item.goes
+        ? `${whose} week ${item.weekNumber} visit to ${groupName(item.hostName)} goes: from week ${weekNumber} ${line(firstName) || "they"} is in ${groupName(toName)}.`
+        : `${whose} week ${item.weekNumber} visit to ${groupName(item.hostName)} stays.`,
+    )
+    .join(" ");
+}
+
 // ---------------------------------------------------------------------------
 // The history rows (one on each group)
 // ---------------------------------------------------------------------------
@@ -445,6 +479,84 @@ export function movedInDetail(personName: string, fromName: string, weekNumber: 
   const base = `${line(personName) || "Somebody"} moved here from ${groupName(fromName)}, from week ${weekNumber}.`;
   const why = moveReasonForm(reason);
   return why ? `${base} Reason: ${why}` : base;
+}
+
+// ---------------------------------------------------------------------------
+// A move made mid-term on the allocation board (the Groups tab)
+// ---------------------------------------------------------------------------
+
+/** On the old group's history, for a move on the Groups tab: "Leo Park moved to Group F from week 3 on the Groups tab, to be told at the next Publish." */
+export function boardMovedOutDetail(personName: string, toName: string, weekNumber: number): string {
+  return `${line(personName) || "Somebody"} moved to ${groupName(toName)} from week ${weekNumber} on the Groups tab, to be told at the next Publish.`;
+}
+
+/** On the new group's history: "Leo Park moved here from Group C, from week 3, on the Groups tab, to be told at the next Publish." */
+export function boardMovedInDetail(personName: string, fromName: string, weekNumber: number): string {
+  return `${line(personName) || "Somebody"} moved here from ${groupName(fromName)}, from week ${weekNumber}, on the Groups tab, to be told at the next Publish.`;
+}
+
+/**
+ * The board's question before a move made mid-term: "Move Leo Park to
+ * Group F from week 3? Weeks 1 and 2 stay with Group C, where Leo met.
+ * Nobody is emailed now: Leo sees Group F straight away, and the next
+ * Publish emails them that they have moved." With a week nobody met with
+ * the old group, why the move is from it, between the two; and what the
+ * move leaves behind on the old group from week N on, in the move page's
+ * own sentence (`leftBehindWords`), before the last.
+ */
+export function boardMoveConfirmWords(input: {
+  name: string;
+  firstName: string;
+  toName: string;
+  weekNumber: number;
+  /** "Weeks 1 and 2 stay with Group C, where Leo met.", or "". */
+  weeksStay: string;
+  /** Why week N is a week nobody met with the old group (`oldOffWords`), or "". */
+  oldOff: string;
+  /** What stays on the old group from week N on and no longer applies (`leftBehindWords`), or "". */
+  leftBehind?: string;
+}): string {
+  const first = line(input.firstName) || line(input.name) || "They";
+  const to = groupName(input.toName);
+  return [
+    `Move ${line(input.name) || first} to ${to} from week ${input.weekNumber}?`,
+    [input.weeksStay, input.oldOff].filter(Boolean).join(" "),
+    input.leftBehind ?? "",
+    `Nobody is emailed now: ${first} sees ${to} straight away, and the next Publish emails them that they have moved.`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/**
+ * A told person whose group has met, dragged out of every group mid-term:
+ * refused, because a place in no group keeps no record of the weeks met.
+ * "Amara has already met with Group A, so Amara can’t be taken out of every
+ * group: the weeks met with Group A would be lost. Move Amara straight to the
+ * new group instead, or take Amara off the run."
+ */
+export function midTermToPoolWords(firstName: string, fromName: string): string {
+  const first = line(firstName) || "They";
+  const from = groupName(fromName);
+  return (
+    `${first} has already met with ${from}, so ${first} can’t be taken out of every group: the weeks met with ${from} would be lost. ` +
+    `Move ${first} straight to the new group instead, or take ${first} off the run.`
+  );
+}
+
+/**
+ * NOT DRAWN AS A LINE OF ITS OWN: the board shows it as the refusal of a
+ * move made mid-term by somebody who is neither an admin nor the programme's
+ * lead (a run's track lead), naming who to ask.
+ */
+export function midTermLeadOnlyWords(firstName: string, fromName: string): string {
+  const first = line(firstName) || "They";
+  return `${first} has already met with ${groupName(fromName)}, so only an admin or the programme’s lead can move ${first} now. Ask one of them.`;
+}
+
+/** A move on the board whose week changed between the question and the press: "The move is now from week 4. Move Leo again to see what it does." */
+export function boardWeekChangedWords(firstName: string, weekNumber: number): string {
+  return `The move is now from week ${weekNumber}. Move ${line(firstName) || "them"} again to see what it does.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -502,16 +614,32 @@ export function fullWords(toName: string, count: number, capacity: number): stri
  * The week rule's refusals, with the names, weeks and times filled in:
  *  - "Group F has already met for week 2, so Leo can’t join it for that week.
  *    To move Leo from week 3, come back after Group C’s week 2 session (Wed
- *    11 Nov, 5pm)."
+ *    11 Nov, 5pm). If Group C’s week 2 session is called off with “Cancel and
+ *    keep pace”, Leo can be moved now, from week 3." (the last sentence only
+ *    when the week rule says calling it off lets the move go ahead)
  *  - "Group C has no sessions left, so there is nothing to move Leo from."
  *  - "Group F has no session for week 3."
  */
-export function newHasMetWords(input: { firstName: string; toName: string; fromName: string; weekNumber: number; dateKey: string; startTimeLocal: string }): string {
+export function newHasMetWords(input: {
+  firstName: string;
+  toName: string;
+  fromName: string;
+  weekNumber: number;
+  dateKey: string;
+  startTimeLocal: string;
+  /** The week the move would be from at once were the old group's week N session called off, keeping pace; null when it would not go ahead. */
+  ifCalledOff?: number | null;
+}): string {
   const first = line(input.firstName) || "they";
   const when = sessionWhenWords(input.dateKey, input.startTimeLocal);
+  const session = `${possessive(groupName(input.fromName))} week ${input.weekNumber} session`;
+  const calledOff =
+    typeof input.ifCalledOff === "number"
+      ? ` If ${session} is called off with “${CANCEL_KEEP_PACE}”, ${first} can be moved now, from week ${input.ifCalledOff}.`
+      : "";
   return (
     `${groupName(input.toName)} has already met for week ${input.weekNumber}, so ${first} can’t join it for that week. ` +
-    `To move ${first} from week ${input.weekNumber + 1}, come back after ${possessive(groupName(input.fromName))} week ${input.weekNumber} session${when ? ` (${when})` : ""}.`
+    `To move ${first} from week ${input.weekNumber + 1}, come back after ${session}${when ? ` (${when})` : ""}.${calledOff}`
   );
 }
 

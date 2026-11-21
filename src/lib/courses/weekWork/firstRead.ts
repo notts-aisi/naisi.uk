@@ -1,12 +1,14 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { reflectionPartsOf } from "@/lib/courses/facilitatorWeek/model";
-import { feedbackGate, feedbackRefusalFor, feedbackStandingIn, feedbackWeekOf, type FeedbackWeek } from "@/lib/courses/feedback/access";
+import { feedbackGate, feedbackRefusalFor, feedbackStandingIn, feedbackWeekOf, type FeedbackGate, type FeedbackWeek } from "@/lib/courses/feedback/access";
 import { boxesReaderFor } from "@/lib/courses/fillInBoxes/access";
 import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { londonDateKey, londonWallClockToInstant } from "@/lib/courses/weekPlan";
 import { weekFillInBoxes } from "@/lib/courses/weekBlocks/reader";
-import { liveGroupsOf, reviewerFactsOf } from "@/lib/courses/writtenAnswers/access";
+import { hostReadsWeekOf } from "@/lib/courses/visit/reading";
+import { liveGroupsOf, ownerFactsOf, reviewerFactsOf } from "@/lib/courses/writtenAnswers/access";
+import { weekDocId } from "@/lib/firestore/courses";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { exerciseResponseId, isFillInResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
@@ -264,16 +266,26 @@ async function markOnePerson(
   input: { runId: string; weekId: string; weekNumber: number; person: FirstReadAsk; now: Date },
 ): Promise<void> {
   const { runId, weekId, weekNumber, person, now } = input;
-  // The one gate on whose work a reader may act on, asked before anything of theirs is read.
+  // The one gate on whose work a reader may act on, asked before anything of theirs is read;
+  // else a facilitator of the host group of their one-week visit, for that week alone
+  // (`hostReadsWeekOf`): their reading counts as a first read like anybody's on the team.
   const gate = await feedbackGate(db, actor, runId, person.uid);
-  if (!gate.ok) return;
-  const week = await feedbackWeekOf(db, gate, weekId);
+  let scope: Pick<FeedbackGate, "run" | "liveGroups" | "owner"> | null = gate.ok ? gate : null;
+  const hosting = !gate.ok && weekId === weekDocId(weekNumber) && (await hostReadsWeekOf(db, actor, runId, person.uid, weekNumber));
+  if (hosting) {
+    const run = await readRunForWork(db, runId);
+    const liveGroups = run ? await liveGroupsOf(db, runId) : [];
+    const owner = run ? await ownerFactsOf(db, runId, person.uid, liveGroups, { isAdmin: false }) : null;
+    scope = run && owner ? { run, liveGroups, owner } : null;
+  }
+  if (!scope) return;
+  const week = await feedbackWeekOf(db, scope, weekId);
   if (!week) return;
   const kinds = kindsOf(week);
   const named = [...new Set(person.ids)].filter((id) => kinds.has(id));
   if (named.length === 0) return;
   // A box is read only by those its own gate admits.
-  const boxesRead = named.some((id) => kinds.get(id) === "box") ? (await boxesReaderFor(db, actor, runId, person.uid)) !== null : false;
+  const boxesRead = named.some((id) => kinds.get(id) === "box") ? hosting || (await boxesReaderFor(db, actor, runId, person.uid)) !== null : false;
   const ref = weekWorkRef(db, runId, person.uid, weekId);
   await db.runTransaction(async (tx) => {
     const [record, ...rows] = await Promise.all([

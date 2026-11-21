@@ -1,5 +1,6 @@
 import "server-only";
 import { copiesOf, readsGroupIdFor } from "@/lib/courses/weekCopy";
+import { hostReadsWeek, weeksVisiting } from "@/lib/courses/visit/reading";
 import type { GroupFromWeek } from "@/lib/firestore/courseEnrolments";
 import type { Firestore } from "firebase-admin/firestore";
 import { readPersonPrivateNotes, readRunCoursework } from "@/lib/courses/facilitatorWeek/readers";
@@ -18,6 +19,7 @@ import { boxesReaderFor } from "@/lib/courses/fillInBoxes/access";
 import { resolveGroupCalendar, resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { readGroupWeek, readLastReminded, remindableOf } from "@/lib/courses/groupWeekWork/load";
 import { personWeekStateOf, weekPiecesOf, type Bucket, type LastReminded } from "@/lib/courses/groupWeekWork/model";
+import { waitingOf } from "@/lib/courses/weekWork/waiting";
 import { courseCardOf } from "@/lib/courses/predictions/own";
 import { besideScopeOf, type ReportLinesView } from "@/lib/courses/sessionReports/beside";
 import { readReportLinesAbout } from "@/lib/courses/sessionReports/readers";
@@ -278,6 +280,14 @@ export type ReadingDoor = {
   enrolments: readonly CourseEnrolmentDoc[];
   back: ReadingStep;
   crumb: ReadingStep;
+  /**
+   * A facilitator of the host group of the person's one-week visit, reading
+   * that week alone (`hostReadsWeek` in `src/lib/courses/visit/reading.ts`):
+   * only that week is a column; no feedback is shown or offered, no private
+   * notes, no ratings, no session report lines and no Remind; what is shown
+   * is named as first read. Absent for every other reader.
+   */
+  hostWeek?: number | null;
 };
 
 /**
@@ -318,7 +328,9 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
     readRunCoursework(db, { run, liveGroups, now, enrolments: input.enrolments }, uid),
   ]);
   const weeks = person.readsGroupId ? await personWeeksRead(db, run.id, person) : runWeeks;
-  const columns = columnsOf(run, runWeeks);
+  // A host's facilitator reads the visit's week and no other.
+  const hostWeek = input.hostWeek ?? null;
+  const columns = columnsOf(run, runWeeks).filter((column) => hostWeek === null || column.weekNumber === hostWeek);
   const work = coursework.work.get(uid);
   const withWork = new Set<number>(
     [...(work?.reflections ?? []), ...(work?.boxes ?? [])].map((key) => Number(key.split(" ")[0])),
@@ -337,6 +349,7 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
   });
   if (!opening) return null;
   const n = opening.weekNumber;
+  if (hostWeek !== null && n !== hostWeek) return null;
   // THE GROUP WHOSE COPY OF THIS WEEK THE PERSON READS, the one place every
   // read of week n below takes its group from: for somebody moved mid-term,
   // the group their place belonged to that week (`readsGroupIdFor`); for
@@ -352,21 +365,27 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
   const deadlineGroup = copyGroupId === person.readsGroupId ? readsGroup : ((await groupOfRun(db, run, liveGroups, copyGroupId)) ?? readsGroup);
 
   const [boxesReader, notes, owner, card, blockWeek] = await Promise.all([
-    boxesReaderFor(db, actor, run.id, uid),
-    readPersonPrivateNotes(db, run.id, viewer, { uid, name: person.name, firstName: person.name, own: person.facilitating }, [
-      { weekNumber: n, sourceIds: new Set((weekOf(n)?.sources ?? []).map((source) => source.id)) },
-    ]),
+    // The host's facilitator reads the visit week's boxes as the rule lets them, and never the private notes.
+    hostWeek !== null ? Promise.resolve("facilitator" as const) : boxesReaderFor(db, actor, run.id, uid),
+    hostWeek !== null
+      ? Promise.resolve(null)
+      : readPersonPrivateNotes(db, run.id, viewer, { uid, name: person.name, firstName: person.name, own: person.facilitating }, [
+          { weekNumber: n, sourceIds: new Set((weekOf(n)?.sources ?? []).map((source) => source.id)) },
+        ]),
     ownerFactsOf(db, run.id, uid, liveGroups, { isAdmin: facts.isAdmin }),
     // The sealed prediction's weeks: the course's card, never the person's own record.
     facts.isAdmin && actor.uid !== uid ? courseCardOf(db, run) : Promise.resolve(null),
     resolveWeekDoc(db, run.id, copyGroupId, weekDocId(n)),
   ]);
-  const role = owner ? writtenReviewRole(actor, facts, owner, liveGroups) : null;
+  // The host's facilitator is never handed the gate's answer: they read, and give no feedback.
+  const role = owner && hostWeek === null ? writtenReviewRole(actor, facts, owner, liveGroups) : null;
   const mayWrite = role?.mayReview === true;
 
   const answerId = weekOf(n)?.answer?.id ?? null;
-  const stored = answerId ? (coursework.writes.answers.get(workKey(n, answerId)) ?? null) : null;
-  const pieces = coursework.feedback.filter((piece) => piece.weekNumber === n);
+  const written = answerId ? (coursework.writes.answers.get(workKey(n, answerId)) ?? null) : null;
+  // Never the feedback their own group's facilitators wrote, to the host's facilitator.
+  const stored = written && hostWeek !== null ? { ...written, feedback: null } : written;
+  const pieces = hostWeek !== null ? [] : coursework.feedback.filter((piece) => piece.weekNumber === n);
   const cardNames = await cardNamesOf(db, [uid, actor.uid, stored?.feedback?.byUid ?? "", ...pieces.map((piece) => piece.byUid)]);
   const { onTheAnswer, onTheWeek, ownAnswerPiece, ownWeekPiece, readSavedAt, changed, answerReadable } = feedbackOnAWeek({
     answerId,
@@ -397,7 +416,7 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
   // What the week's session reports say about the person: whose reports' lines this reader sees, by the review page's own rule.
   const beside = role ? besideScopeOf({ uid: actor.uid, isAdmin: facts.isAdmin, isLead: facts.isLead }, uid, role.mayReview) : null;
   const [team, draft, askedThen, state, pangram, reportLines, afterDeadline] = await Promise.all([
-    owner && answerId && answerReadable && mayRateWorkOf(actor, facts, owner, liveGroups)
+    hostWeek === null && owner && answerId && answerReadable && mayRateWorkOf(actor, facts, owner, liveGroups)
       ? loadTeamRatings(db, {
           runId: run.id,
           uid,
@@ -431,7 +450,7 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
         })
       : Promise.resolve(null),
     // The person's own lines in the week's session reports, beside an answer its readers may read, as `besideScopeOf` lets this reader see them.
-    beside && answerId && answerReadable ? readReportLinesAbout(db, { runId: run.id, uid, weekNumber: n, scope: beside }) : Promise.resolve(null),
+    hostWeek === null && beside && answerId && answerReadable ? readReportLinesAbout(db, { runId: run.id, uid, weekNumber: n, scope: beside }) : Promise.resolve(null),
     afterDeadlineOf(db, { run, group: deadlineGroup, weekNumber: n, rule: answerBlock?.due ?? null, firstSentAt: stored?.sentAt ?? null, due }),
   ]);
 
@@ -445,7 +464,7 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
     week.parts.every((part) => part.prompts.every((prompt) => prompt.answer === null)) &&
     (week.answer === null || week.answer.state === "not-started") &&
     !(week.boxes ?? []).some((box) => box.text);
-  const remindGroup = readsGroup && !person.facilitating && person.groupId === readsGroup.id ? readsGroup : null;
+  const remindGroup = hostWeek === null && readsGroup && !person.facilitating && person.groupId === readsGroup.id ? readsGroup : null;
   const empty = nothing ? await emptyOf(db, { run, group: remindGroup, weekNumber: n, uid, actorUid: actor.uid, now, ticked: week.ticked, of: week.sources.length }) : null;
 
   const ticks: Record<string, ReadingTick> = {};
@@ -491,9 +510,11 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
         }
       : null,
     changed,
-    questionHref: input.questionHref(n),
-    // What the page shows in full, named to be kept as first read: only by somebody who may act on the work.
-    firstRead: mayWrite && shownAnswerIds(week).length > 0 ? { weekId: weekDocId(n), ids: shownAnswerIds(week) } : null,
+    // A visitor is no row of the host's page of one question.
+    questionHref: hostWeek === null ? input.questionHref(n) : null,
+    // What the page shows in full, named to be kept as first read: by somebody who may act on the work, and by
+    // the host's facilitator reading the visit's week, whose reading counts like anybody's on the team.
+    firstRead: (mayWrite || hostWeek !== null) && shownAnswerIds(week).length > 0 ? { weekId: weekDocId(n), ids: shownAnswerIds(week) } : null,
     team,
     answerRange: answerBlock?.words ?? null,
     afterDeadline,
@@ -616,6 +637,7 @@ async function weekStateOf(
     facts: own,
     submittedAt: input.submittedAt,
     due: input.due,
+    waiting: waitingOf(input.blocks, own.state),
   });
   return { text: state.text, detail: state.detail, bucket: state.bucket };
 }
@@ -778,6 +800,56 @@ export function archivedGroupFellows(
 }
 
 /**
+ * A VISITOR'S WEEK, read by a facilitator of the host group (the group whose
+ * page this is) for the week of the visit alone (`hostReadsWeek`): the week
+ * the address asks for when it is a visit week to this group, else the first.
+ * Refused for anybody else, and once the visit is called off.
+ */
+async function loadVisitorWeek(
+  db: Firestore,
+  actor: SessionUser,
+  input: Parameters<typeof loadGroupPersonWeek>[2],
+  enrolments: readonly CourseEnrolmentDoc[],
+): Promise<GroupPersonWeekOutcome> {
+  const { run, group, liveGroups, facts } = input;
+  const seat = enrolments.find((each) => each.uid === input.uid && each.runId === run.id) ?? null;
+  const weeks = weeksVisiting(seat, group.id).filter((weekNumber) => hostReadsWeek(actor, seat, liveGroups, weekNumber));
+  if (!seat || weeks.length === 0) return { status: "refused" };
+  const asked = typeof input.askedWeek === "string" && /^\d{1,2}$/.test(input.askedWeek) ? Number(input.askedWeek) : null;
+  const hostWeek = asked !== null && weeks.includes(asked) ? asked : weeks[0];
+  const names = await namesOf(db, [input.uid], actor);
+  const name = names.get(input.uid) ?? "NAISI member";
+  const back: ReadingStep = { label: group.name.trim() || "Your group", href: input.groupPath };
+  const view = await readPersonWeek(db, actor, {
+    door: "group",
+    run,
+    liveGroups,
+    facts,
+    viewer: "facilitator",
+    person: {
+      uid: input.uid,
+      name,
+      facilitating: false,
+      // Their own group's: the copy they work in, never the host's.
+      groupId: seat.groupId,
+      readsGroupId: seat.groupId,
+      readsCopies: copiesOf(seat, liveGroups),
+      notToldYet: false,
+    },
+    people: [{ uid: input.uid, name }],
+    askedWeek: String(hostWeek),
+    programmeName: input.programmeName,
+    base: `${input.groupPath}/coursework`,
+    enrolments,
+    questionHref: () => null,
+    back,
+    crumb: back,
+    hostWeek,
+  });
+  return view ? { status: "ok", view } : { status: "blank" };
+}
+
+/**
  * ONE PERSON OF A GROUP, ONE WEEK, from the group's side. The page has asked
  * its own gate (the group's reading pages': the group's live
  * facilitator, the programme's lead, an admin) and hands what it read.
@@ -805,7 +877,11 @@ export async function loadGroupPersonWeek(
 ): Promise<GroupPersonWeekOutcome> {
   const { run, group, liveGroups, facts } = input;
   const { owners: readable, seats, told: toldSeats, enrolments } = await readableInGroup(db, actor, { run, group, liveGroups, facts });
-  if (!readable.some((owner) => owner.uid === input.uid)) return { status: "refused" };
+  if (!readable.some((owner) => owner.uid === input.uid)) {
+    // Not one of the group's people: a facilitator of this group may still read
+    // a visitor's work for the week they come to its session, and that week alone.
+    return input.facilitatesThisGroup ? loadVisitorWeek(db, actor, input, enrolments) : { status: "refused" };
+  }
 
   const names = await namesOf(db, readable.map((owner) => owner.uid), actor);
   const nameOf = (uid: string) => names.get(uid) ?? "NAISI member";

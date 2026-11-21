@@ -1,0 +1,189 @@
+/* ============================================================
+   Search for a person or a group: the sidebar's button and the
+   dialog it opens. Every colour and size reads a theme token.
+   ============================================================ */
+
+/* The button: a field-shaped control under the brand, with the
+   key that opens it drawn at its end. */
+.trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 2.75rem;
+  margin: 0 0 var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-ui);
+  text-align: left;
+  cursor: pointer;
+  flex: none;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.trigger:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+.trigger:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.key {
+  flex: none;
+  padding: 0.125rem 0.4375rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-meta);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+/* ---- The dialog ---- */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.label {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-3) 0.875rem;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  /* 16px or more, or iOS zooms the page when the field takes focus. */
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.input:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.status {
+  margin: 0;
+  min-height: 1.25rem;
+  font-size: 0.875rem;
+  color: var(--color-text-soft);
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-soft);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 3.5rem;
+  padding: var(--space-2) 0.875rem;
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  text-decoration: none;
+  min-width: 0;
+}
+.option:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+.optionActive {
+  background: var(--color-surface-hover);
+  box-shadow: inset 0 0 0 2px var(--color-accent-text);
+}
+
+.name {
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.line {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.empty,
+.more {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--color-text-soft);
+}
+
+.help {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--color-text-soft);
+}
+
+/* On a touch screen there is no "/" key to press, and nothing moves with the
+   arrows: the key on the button and the line about keys go. */
+@media (hover: none) {
+  .key,
+  .help {
+    display: none;
+  }
+}
+
+@media (max-width: 36rem) {
+  .option {
+    padding-inline: var(--space-3);
+  }
+}

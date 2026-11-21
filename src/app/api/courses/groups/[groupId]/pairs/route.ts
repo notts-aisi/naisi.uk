@@ -4,11 +4,10 @@ import { isAddressableId } from "@/lib/addressableId";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { drawGate, readDrawPeople, readGroupWeek } from "@/lib/courses/packsAndCases/readers";
+import { openDrawGroup, readDrawPeople, readGroupWeek } from "@/lib/courses/packsAndCases/readers";
 import { isPairNumber, pairsAskOf, pairsView, sizeProblemIn, type PairEntry } from "@/lib/courses/pairs/model";
 import { aloneRefusalWords, noPairsThisWeekWords, tooManyRefusalWords } from "@/lib/courses/pairs/words";
 import { isWeekItemId } from "@/lib/courses/weekBlocks/model";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { COURSE_PAIRS_COLLECTION, normalizeCoursePair, pairRecordId } from "@/lib/firestore/coursePairs";
 
 /**
@@ -22,7 +21,10 @@ import { COURSE_PAIRS_COLLECTION, normalizeCoursePair, pairRecordId } from "@/li
  * WHO (`drawGate`, the draw's own gate, since pairs are typed by the same
  * people): the group's live facilitators, the lead of the programme that
  * names the run, and admins. Not another group's facilitator, not the run's
- * track leads, not a reviewer, not a fellow. View-as is refused first.
+ * track leads, not a reviewer, not a fellow. View-as is refused first, then
+ * the session, then the gate (`openDrawGroup`), before the body is read: a
+ * group that is not there and a group the caller has no part in get the one
+ * 403 (an admin alone is told it is not there).
  *
  * WHAT IS CHECKED, against the week the group reads (its own copy when it
  * has one, the run's otherwise) and the people in the group's pairs (its
@@ -35,8 +37,9 @@ import { COURSE_PAIRS_COLLECTION, normalizeCoursePair, pairRecordId } from "@/li
  *    two or three people in it, or nobody. At least one laptop per pair is
  *    never checked here: the page shows it as a check, and saves.
  *
- * Nobody is emailed. The body is checked before anything is read; everything
- * is checked before anything is written, and the writes are one transaction.
+ * Nobody is emailed. The body is checked before the group's people or the
+ * week are read; everything is checked before anything is written, and the
+ * writes are one transaction.
  * A person with no pair and no laptop keeps no record.
  */
 
@@ -76,7 +79,13 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  // ---- The body, before any document is read --------------------------------
+  // ---- Who: the group's live facilitators, the programme's lead, admins -----
+  // Asked before the body is read: a group that is not there gets the answer a group that is not theirs gets.
+  const opened = await openDrawGroup(db, actor, groupId);
+  if (!opened.ok) return NextResponse.json({ error: opened.error }, { status: opened.status });
+  const { group, gate } = opened;
+
+  // ---- The body ---------------------------------------------------------------
   let body: { weekId?: unknown; blockId?: unknown; entries?: unknown };
   try {
     body = (await req.json()) as typeof body;
@@ -114,12 +123,6 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
     entries.push({ uid, pair, laptop });
   }
 
-  // ---- Who: the group's live facilitators, the programme's lead, admins -----
-  const groupSnap = await db.collection("courseGroups").doc(groupId).get();
-  if (!groupSnap.exists) return NextResponse.json({ error: "That group isn’t on this programme." }, { status: 404 });
-  const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
-  const gate = await drawGate(db, actor, group);
-  if (!gate.ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const groupName = group.name.trim() || "This group";
   if (group.archived) {
     return NextResponse.json({ error: `${groupName} is archived, so nothing on it changes.` }, { status: 409 });

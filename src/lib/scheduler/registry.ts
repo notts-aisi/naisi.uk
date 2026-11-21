@@ -104,9 +104,9 @@ export const SCHEDULER_JOB_IDS = [
   // The one reminder to a group's facilitators when a register is still not
   // finished. It emails people, so it registers with `enabledByDefault: false`.
   "courses-register-reminders",
-  // The reminders 3 days and 1 day before a session to each person whose week
-  // is not done. It emails people, so it registers with
-  // `enabledByDefault: false`.
+  // The reminders 3 days and 1 day before a session to everybody due at it,
+  // with what is left of their week if anything is. It emails people, so it
+  // registers with `enabledByDefault: false`.
   "courses-week-reminders",
   // The queued new-event announcement (docs/notifications.md). Publishing
   // consults THIS switch to decide between sending inline and queueing, so

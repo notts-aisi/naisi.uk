@@ -254,13 +254,23 @@ describe("the shared loader reads JSX", () => {
  * list that can only grow is a list nobody trusts, and the reason column is
  * what makes the next person's decision to adopt it legible.
  *
- * The forty-two suites that still carry their own copy are not required to
+ * The forty-one suites that still carry their own copy are not required to
  * migrate. That they pass at all is the proof their graphs stop short of a
  * `.tsx`, so a wholesale rewrite would be a large diff with no failure behind
  * it. They move when they next need to change, and until then they are held
  * still by `LEGACY_LOADERS` below.
  */
 const USERS = new Map([
+  [
+    "rich-text-link-href.test.mjs",
+    "runs the rich-text editor's link box rule, a .ts module, as a plain function, and reads a course email's seed " +
+      "wording, another .ts module, to hold that a link to one token is saved and read back as the token alone",
+  ],
+  [
+    "course-offer.test.mjs",
+    "loads the hub's own route, a .ts module, for the pure rule that decides an offer; the route's graph is the " +
+      "hub's whole reach, which the shared loader compiles to one file a module",
+  ],
   [
     "ai-survey-totals.test.mjs",
     "runs the AI at Nottingham survey's totals as a plain function, a .ts module, to hold what each count and each " +
@@ -1256,6 +1266,12 @@ const USERS = new Map([
       "fetcher, Next's link and navigation and the stylesheets are stubbed",
   ],
   [
+    "course-facilitators-week.test.mjs",
+    "it draws the facilitator's group page and the register grid as each reader sees them, through the group page's " +
+      "reader, the link writer's route and the attendance route on the sessions world, so the pages' JSX, the server " +
+      "readers and the pure plan of a link are loaded together; Next's link and navigation and the stylesheets are stubbed",
+  ],
+  [
     "course-group-week-work.test.mjs",
     "it renders Remind's email through the real week email template and its notice line, and reads a week's pieces " +
       "through the blocks' own task needs and the one meaning of done, so the template's JSX and the pure modules " +
@@ -1425,7 +1441,7 @@ const USERS = new Map([
     "it executes `needsPolicyAcceptance` (src/lib/legal/acceptance.ts) on a table of stored agreements, because " +
       "who the member area and a collaborator's space send to accept the policies is decided by comparing a stored " +
       "string with the versions the site serves, and only running it shows the answer; it runs again with " +
-      "`./policies` stubbed to a list where privacy has moved on to 21 and the terms to 2, so the promise that a " +
+      "`./policies` stubbed to a list where privacy has moved on to 22 and the terms to 2, so the promise that a " +
       "later privacy version is told rather than asked is held before a later version exists",
   ],
   [
@@ -1499,7 +1515,7 @@ const USERS = new Map([
 ]);
 
 /**
- * The forty-two suites that still carry a hand-copied loader, frozen.
+ * The forty-one suites that still carry a hand-copied loader, frozen.
  *
  * One reason covers the list, because it is one decision: each of these works
  * today, each one's module graph stops short of a `.tsx`, and rewriting them
@@ -1531,7 +1547,6 @@ const LEGACY_LOADERS = [
   "course-deletion.test.mjs",
   "course-enrol.test.mjs",
   "course-group-resolve.test.mjs",
-  "course-offer.test.mjs",
   "course-pages.test.mjs",
   "course-programme-page.test.mjs",
   "course-schedule-changes.test.mjs",

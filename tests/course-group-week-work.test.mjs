@@ -289,9 +289,11 @@ describe("7. the words", () => {
   test("last reminded, in the table and in the panel", () => {
     const auto = { at: "2026-11-03T15:00:00.000Z", how: "1-day", byName: null };
     const hand = { at: "2026-11-09T10:02:00.000Z", how: "hand", byName: "Rahul" };
-    assert.equal(words.lastRemindedCell(auto), "Tue 3 Nov, 3pm · 1-day, automatic");
+    assert.equal(words.lastRemindedCell(auto), "Tue 3 Nov, 3pm · 1-day reminder before the session");
     assert.equal(words.lastRemindedCell(hand), "Mon 9 Nov, 10:02am · by Rahul");
-    assert.equal(words.lastRemindedLine(auto), "Last reminded Tue 3 Nov, 3pm: the 1-day reminder, automatic");
+    // Named by when it went, true of the reminder of the session (to everybody due at it, done or not) and of the
+    // reminder about what is left (to somebody not coming): never a reminder about the week, nor the session's.
+    assert.equal(words.lastRemindedLine(auto), "Last reminded Tue 3 Nov, 3pm: the 1-day reminder before the session");
     assert.equal(words.lastRemindedLine(null), "Not reminded yet");
   });
 
@@ -387,7 +389,7 @@ describe("7. the words", () => {
     }
     assert.equal(
       words.automaticRemindersWords({ kind: "on", threeDay: { at: "2026-11-08T09:00:00Z", went: 5 }, oneDay: { at: "2026-11-10T09:00:00Z", went: 0 } }),
-      "Automatic reminders: the 3-day reminder went on Sun 8 Nov, 9am to 5 people, and the 1-day reminder goes on Tue 10 Nov, 9am to anybody not done.",
+      "Automatic reminders: the 3-day reminder went on Sun 8 Nov, 9am to 5 people, and the 1-day reminder goes on Tue 10 Nov, 9am. They go to everybody due at the session, with what’s left of their week if anything is; somebody excused is sent only what’s left.",
     );
   });
 });
@@ -422,7 +424,7 @@ describe("8. Week N is open's two new lines", () => {
     const email = emailWords.weekOpenEmailWords({ ...OPEN, roomToBeConfirmed: true }, "Priya");
     assert.deepEqual(email.paragraphs, [
       "Week 3 of AGI Strategy is open: Power and incentives. Your next session is Tue 17 Nov at 5:30pm.",
-      "Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page.",
+      "Room to be confirmed: it’ll be on your programme page as soon as it’s booked.",
     ]);
     assert.deepEqual(emailWords.missingWeekOpenValues({ ...OPEN, roomToBeConfirmed: true }), [], "a room not booked yet holds nothing");
     assert.equal(emailWords.weekOpenEmailWords({ ...OPEN, where: "Online" }, "").paragraphs.length, 1, "an online session needs no room");

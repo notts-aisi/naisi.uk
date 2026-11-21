@@ -258,6 +258,8 @@ const PIECE_HOLDERS = {
   "lib/courses/coursework/readingLoad.ts":
     "server-only: the reading view's one loader; reads `.piece` for the version each feedback card was about, whether the week and the answer take feedback, and the ratings' changes; hands the page `personWeeks`' answers, never the stored one",
   "lib/courses/coursework/model.ts": "pure: `personWeeks` copies an answer's named fields into what the page is handed, and never `piece` (run below)",
+  "lib/courses/personPage/load.ts":
+    "server-only: a person's page and a facilitator's cut of it, through `readRunCoursework` with words for nobody (each answer's facts, never its words); it reads no `.piece`",
   "lib/courses/coursework/questionLoad.ts":
     "server-only: the loader of one question across a group; words for the people the one gate lets the reader read, through `readRunCoursework`, `.piece` read for the version each feedback card was about and the ratings' changes; hands the page each answer's named fields, never the stored one (tests/course-question-view.test.mjs runs it with a change not sent)",
 };

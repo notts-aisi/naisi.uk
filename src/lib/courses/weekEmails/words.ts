@@ -6,9 +6,10 @@ import type { ReminderDays, WeekAsk, WeekLeft } from "./model";
 
 /**
  * EVERY WORD OF THE WEEK'S THREE EMAILS: "Week N is open", 6 days before a
- * group's session, and the reminders 3 days and 1 day before it to the
- * people whose week is not done. Fixed words, in one file, so the emails, the
- * register's page and the tests say one thing.
+ * group's session, and the reminders 3 days and 1 day before it to everybody
+ * due at it, with its day, time and place and what is left of their week if
+ * anything is. Fixed words, in one file, so the emails, the register's page
+ * and the tests say one thing.
  *
  * All three are notices (`docs/notifications.md`): the line above the words
  * saying why the email reached them is the notice lane's own
@@ -123,7 +124,7 @@ export type WeekOpenFacts = {
 
 /** "Week N is open" for a session in a room not booked yet: it goes, with this line. */
 export const WEEK_OPEN_ROOM_TO_BE_CONFIRMED =
-  "Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page.";
+  "Room to be confirmed: it’ll be on your programme page as soon as it’s booked.";
 
 /**
  * The one line "Week N is open" adds for an earlier week of the person's that
@@ -278,10 +279,13 @@ export type WeekReminderFacts = {
 
 /** "Week 3: your session is tomorrow", "Week 3: your session is on Wed 18 Nov". */
 export function weekReminderSubject(facts: Pick<WeekReminderFacts, "daysBefore" | "sessionAt" | "weeks">): string {
-  const weeks = capitalise(weeksWords(facts.weeks.map((week) => week.weekNumber)));
-  return facts.daysBefore === 1
-    ? `${weeks}: your session is tomorrow`
-    : `${weeks}: your session is on ${londonDayLabel(facts.sessionAt)}`;
+  return reminderSubjectFor(facts.daysBefore, facts.sessionAt, facts.weeks.map((week) => week.weekNumber));
+}
+
+/** The subject both reminders share, from the numbers of the weeks it is about. */
+function reminderSubjectFor(daysBefore: ReminderDays, sessionAt: Date, weekNumbers: readonly number[]): string {
+  const weeks = capitalise(weeksWords(weekNumbers));
+  return daysBefore === 1 ? `${weeks}: your session is tomorrow` : `${weeks}: your session is on ${londonDayLabel(sessionAt)}`;
 }
 
 /** The line a reminder adds to the check's for a written answer with words in it that is not sent yet. */
@@ -318,10 +322,17 @@ function reminderAfterWords(weeks: readonly ReminderWeek[]): string {
 }
 
 /**
- * EVERY WORD OF A REMINDER for one person: the subject, a greeting, when the
- * session is, then for each week not done "Week 3 isn’t finished yet:" and
- * what is left of it, a button to the first of those weeks, and what stops
- * the reminders. Why it reached them is the notice line above the words.
+ * EVERY WORD OF A REMINDER ABOUT WHAT IS LEFT, for one person: the subject, a
+ * greeting, when the session is, then for each week not done "Week 3 isn’t
+ * finished yet:" and what is left of it, a button to the first of those
+ * weeks, and what stops the reminders. Why it reached them is the notice line
+ * above the words.
+ *
+ * Since the reminders became reminders of the session for everybody due at
+ * it (`sessionReminderEmailWords`, below), this one goes only to somebody who
+ * will not be at the session (an excusal that stands, or they said they
+ * can't make it) and has something of the week left: they are not told to
+ * come, and are told what is left, in these words.
  */
 export function weekReminderEmailWords(facts: WeekReminderFacts, firstName: string): WeekEmailWords {
   const course = oneLine(facts.courseTitle);
@@ -341,6 +352,161 @@ export function weekReminderEmailWords(facts: WeekReminderFacts, firstName: stri
     button: `Finish week ${first}`,
     link: facts.weekUrl,
     after: [reminderAfterWords(facts.weeks)],
+    feedback: null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The reminder of the session, for everybody due at it
+// ---------------------------------------------------------------------------
+
+/**
+ * Where one week's session is, as the reminder says it (`reminderPlaceOf` in
+ * `./model.ts` decides which): a room, with its campus when the week has one
+ * that is a place ("University Park", "Jubilee"; "" for none); online; or a
+ * room still to be confirmed.
+ */
+export type ReminderPlace =
+  | { kind: "room"; room: string; campus: string }
+  /** `link`: a link is set for that week, as the programme page's session card shows it. */
+  | { kind: "online"; link: boolean }
+  | { kind: "to-be-confirmed" };
+
+/** What the reminder of a session is made from, every value read from records. */
+export type SessionReminderFacts = {
+  daysBefore: ReminderDays;
+  /** When the session starts and ends; `endsAt` null (or the same instant) when it has no length. */
+  sessionAt: Date;
+  endsAt: Date | null;
+  /** The run is an incubator's: its people are told of no group and no facilitator. */
+  incubator: boolean;
+  /** The group's name ("Group C"). */
+  groupName: string;
+  /** The week the session is of. */
+  weekNumber: number;
+  place: ReminderPlace;
+  /** The first names of the group's facilitators who still stand behind the role, never the reader's own. */
+  facilitatorFirstNames: readonly string[];
+  /** `certificateNeedsWords` for this person, exactly as the programme page says it, or null with none. */
+  certificate: string | null;
+  /** The weeks the session is about for this person, in order: the subject names them. */
+  weeks: readonly number[];
+  /** Of those, each not done, with what is left of it, in order. Empty when every one is done. */
+  left: readonly ReminderWeek[];
+  /** Their programme page (the run's home), which the button opens. */
+  programmeUrl: string;
+  /**
+   * Their programme page shows this session's card, with its Can't make it
+   * and its link (`programmePageShowsSession` in the job). When it does not
+   * (somebody moved to another group from a later week, reminded by the group
+   * they are leaving), "Can’t make it? ..." and "The link is on your
+   * programme page." are left out, and nothing is said instead.
+   */
+  sessionOnTheirPage: boolean;
+  /**
+   * Their programme page shows this session's link, where one is set: as
+   * `sessionOnTheirPage` unless said. Somebody visiting the group for one
+   * week has the visit's card, with the host's link for that session, and its
+   * "Can't make it" only where the card offers one, so the two can differ for
+   * them alone.
+   */
+  linkOnTheirPage?: boolean;
+};
+
+/** The reminder of a session's button, for everybody: it opens their programme page. */
+export const SESSION_REMINDER_BUTTON = "Open your programme page";
+
+/** The reminder's second paragraph, the same for everybody. */
+export const SESSION_REMINDER_CANT_MAKE_IT =
+  "Can’t make it? Tell us on your programme page as early as you can: press Can’t make it on this session’s card.";
+
+/** After "online," in the session's sentence, when a link is set for that week: the link is never in the email. */
+export const SESSION_REMINDER_ONLINE = "The link is on your programme page.";
+
+/** After the session's sentence, for a week with no room. */
+export const SESSION_REMINDER_ROOM_TO_BE_CONFIRMED = "The room is still to be confirmed: it will be on your programme page as soon as it’s booked.";
+
+/**
+ * "6pm to 8pm", or "6pm" for a session with no length. The house clock, in
+ * London.
+ */
+function sessionTimesWords(sessionAt: Date, endsAt: Date | null): string {
+  const start = londonClockLabel(sessionAt);
+  return endsAt && endsAt.getTime() > sessionAt.getTime() ? `${start} to ${londonClockLabel(endsAt)}` : start;
+}
+
+/**
+ * THE SESSION'S SENTENCE: "Group C’s week 5 session is on Thu 26 Nov, 6pm to
+ * 8pm, in Portland A21 (University Park), with Rahul." Online: "..., 6pm to
+ * 8pm, online, with Rahul. The link is on your programme page.", the last
+ * sentence only when a link is set for that week. No room yet:
+ * "..., 6pm to 8pm, with Rahul. The room is still to be confirmed: it will
+ * be on your programme page as soon as it’s booked." A missing fact drops
+ * only itself: no campus,
+ * no "(University Park)"; no facilitator, no "with Rahul"; several, "with
+ * Rahul and Sofia" (`inWords`, as the site's other emails to members list
+ * them).
+ *
+ * AN INCUBATOR'S PEOPLE ARE NEVER TOLD THE WORD "GROUP", nor who facilitates
+ * it, as the email that tells them they moved names "your sessions" and no
+ * group and no facilitator (`../movedEmail.ts`): "Your week 5 session is on
+ * Thu 26 Nov, 6pm to 8pm, in Portland A21 (University Park)."
+ */
+export function sessionReminderLead(
+  facts: Pick<SessionReminderFacts, "sessionAt" | "endsAt" | "incubator" | "groupName" | "weekNumber" | "place" | "facilitatorFirstNames">,
+): string {
+  const group = oneLine(facts.groupName);
+  const whose = facts.incubator || !group ? "Your" : `${group}’s`;
+  const parts = [`${whose} week ${facts.weekNumber} session is on ${londonDayLabel(facts.sessionAt)}`, sessionTimesWords(facts.sessionAt, facts.endsAt)];
+  if (facts.place.kind === "room") {
+    const room = oneLine(facts.place.room);
+    const campus = oneLine(facts.place.campus);
+    parts.push(campus ? `in ${room} (${campus})` : `in ${room}`);
+  } else if (facts.place.kind === "online") {
+    parts.push("online");
+  }
+  const names = facts.incubator ? [] : facts.facilitatorFirstNames.map(oneLine).filter(Boolean);
+  if (names.length > 0) parts.push(`with ${namesAnd(names)}`);
+  const said = `${parts.join(", ")}.`;
+  if (facts.place.kind === "online") return facts.place.link ? `${said} ${SESSION_REMINDER_ONLINE}` : said;
+  if (facts.place.kind === "to-be-confirmed") return `${said} ${SESSION_REMINDER_ROOM_TO_BE_CONFIRMED}`;
+  return said;
+}
+
+/**
+ * EVERY WORD OF THE REMINDER OF A SESSION, for one person due at it, 3 days
+ * and 1 day before: the reminder's subject, a greeting, the session's
+ * sentence (that week's day, time and place, from the resolver every reader
+ * of a session uses), how to say they can't make it (when their programme
+ * page shows this session's card), what a certificate
+ * needs (only where the run has a rule, exactly as their programme page says
+ * it, and never a count of what they have missed), and, only when the week
+ * is not done, what is left of it under the reminder's own lead-in, each
+ * week of a session covering two on its own. Then "Open your programme
+ * page", for everybody, done or not. Never a meeting link: an online session
+ * with one says the link is on their programme page. Why it reached them is
+ * the notice line above the words (its own reason: `NoticeMarker`'s
+ * `sessionReminderReason`).
+ */
+export function sessionReminderEmailWords(facts: SessionReminderFacts, firstName: string): WeekEmailWords {
+  // Their page shows no link for this session: no link there to point to.
+  const place = facts.place.kind === "online" && !(facts.linkOnTheirPage ?? facts.sessionOnTheirPage) ? { kind: "online" as const, link: false } : facts.place;
+  const lead = sessionReminderLead({ ...facts, place });
+  const paragraphs = facts.sessionOnTheirPage ? [lead, SESSION_REMINDER_CANT_MAKE_IT] : [lead];
+  const certificate = oneLine(facts.certificate ?? "");
+  if (certificate) paragraphs.push(certificate);
+  return {
+    subject: reminderSubjectFor(facts.daysBefore, facts.sessionAt, facts.weeks),
+    preheader: lead,
+    greeting: greetingWords(firstName),
+    paragraphs,
+    lists: facts.left.map((week) => ({
+      lead: `Week ${week.weekNumber} isn’t finished yet:`,
+      items: weekLeftWords(week.left),
+    })),
+    button: SESSION_REMINDER_BUTTON,
+    link: facts.programmeUrl,
+    after: [],
     feedback: null,
   };
 }

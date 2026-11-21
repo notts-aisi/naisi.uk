@@ -931,7 +931,10 @@ describe("A. Before groups go out: the Weeks tab, Get ready for week 1 and Publi
     inOrder(seen.previewW1.text, [
       "Week 1 as a fellow reads it. This is a preview: nothing here can be ticked or sent, and nobody’s answers are shown.",
       "How sure are you?",
+      // As a fellow with nothing done and no pack or case given yet reads it: every task counted, as it always
+      // was; the case study holds nothing but the case, so its row says Waiting.
       "This week 0 of 3 done",
+      "Waiting for your case Waiting",
       "In all: About 2 hours",
     ]);
     assert.equal(seen.previewW1.wrote, false, "the preview writes nothing");

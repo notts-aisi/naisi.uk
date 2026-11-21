@@ -213,6 +213,12 @@ export function decidedWeekWords(input: {
   return when ? `${verb} by ${who}, ${when}` : `${verb} by ${who}`;
 }
 
+/** A week withdrawn because the visit it was about ended: "Withdrawn when the visit ended, today, 3:20pm". Staff-facing. */
+export function withdrawnWithVisitWords(at: string | null, now: Date): string {
+  const when = dayAndClock(at, now);
+  return when ? `Withdrawn when the visit ended, ${when}` : "Withdrawn when the visit ended";
+}
+
 /** What the register did when it was approved. */
 export function registerOutcomeWords(outcome: "written" | "corrected" | "kept" | null): string {
   switch (outcome) {

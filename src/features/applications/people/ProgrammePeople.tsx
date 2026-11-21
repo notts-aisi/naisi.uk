@@ -4,7 +4,7 @@ import { Fragment, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { useHydrated } from "@/hooks/useHydrated";
-import { rowMatches, rowMatchesSearch } from "@/lib/applications/people/filters";
+import { openedOn, rowMatches, rowMatchesSearch } from "@/lib/applications/people/filters";
 import { PEOPLE_FILTERS, type PeopleFilter, type PeopleView, type PersonRow } from "@/lib/applications/people/views";
 import {
   COLUMNS,
@@ -28,6 +28,7 @@ import {
   statusWords,
 } from "@/lib/applications/people/words";
 import { MOVE_LINK } from "@/lib/courses/staffMove/words";
+import { VISIT_LINK } from "@/lib/courses/visit/words";
 import styles from "./ProgrammePeople.module.css";
 
 /**
@@ -97,6 +98,11 @@ function moreItems(row: PersonRow): { href: string; label: string }[] {
   if (row.applicationHref) items.push({ href: row.applicationHref, label: seeApplicationWords(row.firstName) });
   if (row.groupsHref) items.push({ href: row.groupsHref, label: OPEN_PEOPLE_IN_GROUPS });
   if (row.moveHref) items.push({ href: row.moveHref, label: MOVE_LINK });
+  // A one-week visit is offered for exactly the place and the run a move is
+  // (`placeTakesVisit` is `placeTakesMove`, and the run's refusals are the
+  // same set), beside it: one decision on the server (`movingLinks`), which
+  // the person's own page draws too.
+  if (row.visitHref) items.push({ href: row.visitHref, label: VISIT_LINK });
   return items;
 }
 
@@ -125,11 +131,13 @@ function StatusCell({ row }: { row: PersonRow }) {
   );
 }
 
-export default function ProgrammePeople({ view }: { view: PeopleView }) {
+export default function ProgrammePeople({ view, person = null }: { view: PeopleView; person?: string | null }) {
   const live = useHydrated();
-  const [filter, setFilter] = useState<PeopleFilter>("everyone");
-  const [search, setSearch] = useState("");
-  const [shown, setShown] = useState(PAGE_SIZE);
+  // Opened on one person's row (`?person=`, from search): the filter, the search and the pages set so it is drawn.
+  const [opened] = useState(() => openedOn(view.rows, person, PAGE_SIZE));
+  const [filter, setFilter] = useState<PeopleFilter>(opened?.filter ?? "everyone");
+  const [search, setSearch] = useState(opened?.search ?? "");
+  const [shown, setShown] = useState(opened?.shown ?? PAGE_SIZE);
   /** The row whose More menu is open, and the button that opened it. */
   const [openUid, setOpenUid] = useState<string | null>(null);
   const opener = useRef<HTMLButtonElement | null>(null);
@@ -210,7 +218,7 @@ export default function ProgrammePeople({ view }: { view: PeopleView }) {
             type="search"
             className={styles.searchInput}
             placeholder={SEARCH_LABEL}
-            defaultValue=""
+            defaultValue={opened?.search ?? ""}
             onInput={(event) => {
               setSearch(event.currentTarget.value);
               setShown(PAGE_SIZE);
@@ -264,7 +272,11 @@ export default function ProgrammePeople({ view }: { view: PeopleView }) {
                             <InitialsChip name={row.name} uid={row.uid} size="lg" />
                           </span>
                           <div className={styles.personText}>
-                            <div className={styles.name}>{row.name}</div>
+                            <div className={styles.name}>
+                              <Link href={row.personHref} className={styles.nameLink}>
+                                {row.name}
+                              </Link>
+                            </div>
                             {row.detail && <div className={styles.detail}>{row.detail}</div>}
                           </div>
                         </div>

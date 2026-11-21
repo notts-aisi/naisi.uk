@@ -11,7 +11,7 @@ import type { PieceFacts } from "../weekWork/versions";
 import { teamRatingsOf, type TeamRatingsView } from "./model";
 
 /**
- * THE ONE READER OF RATINGS FOR THE TEAM, on the server, for three callers,
+ * THE ONE READER OF RATINGS FOR THE TEAM, on the server, for four callers,
  * each after its own gate:
  *
  *  - the reading pages (the reading view of a person's week and the page of
@@ -24,6 +24,9 @@ import { teamRatingsOf, type TeamRatingsView } from "./model";
  *    comments people on the team gave it"), an admin's alone (`src/lib/courses/weekNotes/gather.ts`): one
  *    person's ratings on a run and a whole week's. Equalities only (`uid` and
  *    `runId`, or `runId` and `weekId`), filtered again in memory;
+ *  - a person's page on a programme (`src/lib/courses/personPage/load.ts`),
+ *    after `mayRateWorkOf`, the reading pages' own gate: one person's ratings
+ *    on the run, in one query, split by week there;
  *  - a term's Next term page, an admin's alone, after `canRunTerm`
  *    (`src/lib/applications/nextTerm/load.ts`): every rating about the people
  *    a note suggests, which that page narrows to the term's runs and to work

@@ -77,9 +77,13 @@ const READERS = {
     does: "saves",
     why: "the facilitators' box saves the link they typed for one week (the week's own) or for every week (the group's standing link), behind its route's gate; it emails nobody",
   },
+  "lib/courses/meetingLink/plan.ts": {
+    does: "saves",
+    why: "the arithmetic of a link saved for one week or from a week on: the field paths the writer sets, every earlier week keeping the link it had, marked; and which kind of link a week reads (its own, every week, kept, none) as a word, never the link, the one decision the facilitator's list and the week's rooms page (which no longer names the link itself) both ask",
+  },
   "features/courses/facilitator/JoiningOnlineBox.tsx": {
     does: "saves",
-    why: "the facilitators' box at the top of the group page and the register: the field a facilitator types a week's link into, held to the group's own cap, which it sends to its route and never shows back",
+    why: "the facilitators' box under the session on the group page and at the top of the register: the field a facilitator types a week's link into, held to the group's own cap, which it sends to its route and never shows back",
   },
   "features/courses/GroupWeekEditor.tsx": {
     does: "shows",
@@ -96,6 +100,22 @@ const READERS = {
   "app/api/courses/runs/[runId]/overview/route.ts": {
     does: "shows",
     why: "the member's run overview: the link of the reader's own group, and only theirs, redacted by canSeeMeetingUrlFor",
+  },
+  "lib/courses/visit/card.ts": {
+    does: "resolves",
+    why: "the host's link for the one session of a one-week visit, on the visitor's own card, through seesSessionLink by that session's key; never the standing link, and no email reads it",
+  },
+  "lib/courses/visit/view.ts": {
+    does: "stores",
+    why: "the shape of a visit's card on the overview: the field the resolved link travels in, typed only",
+  },
+  "features/courses/visit/VisitCard.tsx": {
+    does: "shows",
+    why: "Join online on the visitor's own card for the session they go to, behind sign-in, with the line that says the link is only here",
+  },
+  "features/courses/RunHome.tsx": {
+    does: "asks",
+    why: "the programme page asks whether a visit's card carries a link, to tell the joining-online answer whether there is one; it shows nothing of it itself",
   },
   "features/courses/SessionCard.tsx": {
     does: "shows",
@@ -148,6 +168,10 @@ const READERS = {
   "lib/courses/placementEmail.ts": {
     does: "asks",
     why: "the placement email asks whether an online group has a link, to say it is on the programme page; it never prints it",
+  },
+  "lib/scheduler/jobs/weekReminders.ts": {
+    does: "asks",
+    why: "the reminder of a session asks whether a link is set for that week, as the programme page's session card reads it, to say the link is on the programme page; it never prints it",
   },
   "lib/email/courseNudgeEmail.ts": {
     does: "asks",
@@ -213,8 +237,24 @@ describe("3. no message is made beside the link", () => {
     const nudge = read("lib/email/courseNudgeEmail.ts");
     const uses = [...nudge.matchAll(/^.*\bmeetingUrl\b.*$/gm)].map((m) => m[0].trim());
     assert.deepEqual(uses, [
-      'return session.meetingUrl ? "Online" : "";',
+      // Asked only whether there is one, and only on the Online campus or none (a blank room on a campus is a room to book).
+      'return session.meetingUrl && (campus === null || campus === "online") ? "Online" : "";',
     ]);
+  });
+
+  test("the reminders before a session only ask whether a week has a link, and hand the words a yes or no", () => {
+    const job = read("lib/scheduler/jobs/weekReminders.ts");
+    const uses = [...job.matchAll(/^.*\bmeetingUrl\b.*$/gm)].map((m) => m[0].trim());
+    assert.deepEqual(uses, [
+      "const link = cardChangeFacts(sessions, group, due.session, londonDateKey(ctx.now)).next?.meetingUrl ?? null;",
+      'const place = reminderPlaceOf(group, due.session, typeof link === "string" && validateSubmissionUrl(link, GROUP_FIELD_LIMITS.meetingUrl) === null);',
+    ]);
+    // Asked as the card asks it: a yes only for an address that passes the card's own check.
+    const asked =
+      'const place = reminderPlaceOf(group, due.session, typeof link === "string" && validateSubmissionUrl(link, GROUP_FIELD_LIMITS.meetingUrl) === null);';
+    assert.ok(job.includes(asked));
+    assert.equal((job.match(/\blink\b/g) ?? []).length - (job.match(/"[^"\n]*\blink\b[^"\n]*"/g) ?? []).length, 3, "the link is read once and asked once, and goes nowhere else");
+    assert.doesNotMatch(job.replace(asked, ""), /[(,{[]\s*link\s*[,)}\]]|\blink\s*[,})]/, "the link is handed on somewhere");
   });
 
   test("no message composer names it: the room notice, the group email, updates and the change dialog", () => {

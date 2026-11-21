@@ -244,9 +244,21 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/search/load.ts",
+    {
+      why: "search for a person or a group: it reads a form's programmes by the ids on that form's own programmeIds (a lead's programmes), or by the id `namingProgrammeIn` found there (the programme that names a run), for the programme's name and its run",
+    },
+  ],
+  [
     "src/lib/courses/requests/load.ts",
     {
       why: "the Requests page finds the runs a reader might lead and each run's programme name: it reads each form's programmes by the ids on that form's own programmeIds, and holds every run it finds to the one gate before reading its requests",
+    },
+  ],
+  [
+    "src/lib/courses/weekRooms/load.ts",
+    {
+      why: "the week's rooms and the term's rooms find the programmes a reader may see on a form: it reads the form's programmes by the ids `programmeRolesFor` hands back for that reader off the same form, to take each programme's short name and the run it names",
     },
   ],
   [
@@ -337,6 +349,12 @@ const HELD = new Map([
     "src/lib/surveys/",
     {
       why: "a survey's answers, read by a question, option or line id taken from the survey's own items (the answers a route accepts, the totals, the spreadsheet), and a form's programmes by the programme id a survey or its New survey request names",
+    },
+  ],
+  [
+    "src/lib/societyFeedback/programmes.ts",
+    {
+      why: "a form's programmes, read by each id in the form's own programmeIds for this term's list, and by the programme id a member's anonymous feedback names in its request, which is checked against programmeIds before the read",
     },
   ],
   [

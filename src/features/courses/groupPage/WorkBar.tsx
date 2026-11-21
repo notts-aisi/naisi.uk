@@ -7,6 +7,7 @@ const SEGMENT: Record<Bucket, string> = {
   "done-on-time": styles.segDone,
   "done-late": styles.segLate,
   done: styles.segDone,
+  waiting: styles.segWaiting,
   started: styles.segStarted,
   "not-started": styles.segNone,
   "joined-late": styles.segJoined,

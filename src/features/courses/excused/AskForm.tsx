@@ -18,6 +18,8 @@ export type AskWeek = {
   /** Still to come: asked about before it. A past session (asked about after it) is confirmed nothing about. */
   upcoming: boolean;
   onlineOffered: boolean;
+  /** A week of a one-week visit: its own line ("Week 2 · Wed 11 Nov, at Group I"). Absent otherwise. */
+  line?: string;
 };
 
 /**
@@ -164,7 +166,7 @@ export default function AskForm({
                 onChange={() => toggle(week.sessionKey)}
                 disabled={off}
               />
-              <span>{O.weekChoiceWords(week.weekNumber, week.occurrence, week.dateKey)}</span>
+              <span>{week.line ?? O.weekChoiceWords(week.weekNumber, week.occurrence, week.dateKey)}</span>
             </label>
           ))}
           {!more && weeks.length > O.WEEKS_SHOWN_FIRST && (

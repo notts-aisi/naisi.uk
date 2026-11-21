@@ -9,15 +9,19 @@ import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { formatRunStartShort } from "@/lib/courses/window";
 import {
+  GROUPS_BY_WEEK_LIMITS,
   courseEnrolmentId,
   normalizeCourseEnrolment,
   type CourseEnrolmentStatus,
 } from "@/lib/firestore/courseEnrolments";
-import { courseApplicationId } from "@/lib/firestore/courseApplications";
+import { courseApplicationId, normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseRunChannel, normalizeCourseRun } from "@/lib/firestore/courses";
 import { unsubscribe } from "@/lib/firestore/subscriptions";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { visitLimitsIn } from "@/lib/courses/visit/limits";
+import { NO_VISITS_ENDED, sendRemovalVisitEmails, visitsEndedByRemoval, type RemovalVisits } from "@/lib/courses/visit/removed";
+import { removalChangedWords } from "@/lib/courses/visit/words";
 
 /**
  * Remove one learner from a run: their enrolment flips to `status:"removed"`
@@ -25,7 +29,13 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * group's `memberCount` decrement.
  *
  * WHO MAY REMOVE: admins ∪ the run's `trackLeadUids` ∪ the lead of the
- * programme that names the run (`runStaffingOf`): the allocation gate.
+ * programme that names the run (`runStaffingOf`): the allocation gate. And
+ * of the people on the run, only somebody whose row the board serves the
+ * caller (`rowIsServedTo`): a row the application form placed is an admin's
+ * and the programme lead's, so a run's track lead is answered about such a
+ * person as about a uid with no place on the run, before anything about them
+ * is read, by the preview and the press alike. Somebody with no row on the
+ * run's list (an open run's own sign-up) is anybody's on the gate, as before.
  *
  * It records WHEN (`droppedOutAt`, the field leaving writes), so the
  * programme's Overview, its Attendance tab and the group's register say the
@@ -61,6 +71,19 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * "active" (which also re-clears/re-earns the placement-email stamp via the
  * cleared `groupId`). That route needs an accepted application, so a member
  * who signed themselves up comes back through the reinstate route instead.
+ *
+ * A VISIT STILL TO COME IS CALLED OFF WITH ITS HOST TOLD. Every one-week
+ * visit on the place goes with the removal; for each whose session has not
+ * started and is happening, the host's facilitators are sent the visit's
+ * approved called-off email after the commit (`visitsEndedByRemoval` and
+ * `sendRemovalVisitEmails` in `src/lib/courses/visit/removed.ts`). The person
+ * removed is sent nothing. `preview: true` writes nothing and answers how
+ * many emails a press sends and about which visits, for the board's
+ * confirmation; the press sends that count back (`emails`, none meaning 0),
+ * and the transaction works it out again and refuses a different one (409,
+ * with the count as it is now). A press that emails is held to the limit on a
+ * visit called off by hand (`visitLimitsIn`), claimed in the removal's own
+ * write: at the limit it is refused (429) with nothing written.
  *
  * FACILITATOR ROWS ARE OUT OF SCOPE: a `role:"facilitator"` enrolment is
  * managed by the group facilitators route (which retires it when the person
@@ -104,12 +127,30 @@ class RemoveError extends Error {
   constructor(
     message: string,
     public status: number,
+    public emails: number | null = null,
   ) {
     super(message);
   }
 }
 
-export async function POST(_req: Request, ctx: Ctx) {
+/** The body: none, `{ preview: true }`, or the count of emails the confirmation showed. Null when it is malformed. */
+async function readBody(req: Request): Promise<{ preview: boolean; emails: number } | null> {
+  const text = await req.text().catch(() => "");
+  if (!text.trim()) return { preview: false, emails: 0 };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const { preview, emails } = raw as { preview?: unknown; emails?: unknown };
+  if (preview !== undefined && typeof preview !== "boolean") return null;
+  if (emails !== undefined && !(typeof emails === "number" && Number.isInteger(emails) && emails >= 0)) return null;
+  return { preview: preview === true, emails: typeof emails === "number" ? emails : 0 };
+}
+
+export async function POST(req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
 
@@ -136,9 +177,44 @@ export async function POST(_req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // The body first: a malformed one gets the one answer, whoever the uid is.
+  const body = await readBody(req);
+  if (!body) return NextResponse.json({ error: "Expected no body, or a JSON object." }, { status: 400 });
+
+  // A person whose row the board does not serve this caller is answered as a uid with no place, before
+  // anything about them is read: the preview's visits and the press's emails alike.
+  const rowSnap = await db.collection("courseApplications").doc(courseApplicationId(runId, uid)).get();
+  const row = rowSnap.exists ? normalizeCourseApplication(rowSnap.id, rowSnap.data() ?? {}) : null;
+  if (row && !rowIsServedTo(row, staffing)) {
+    return NextResponse.json({ error: "Enrolment not found" }, { status: 404 });
+  }
+
   const enrolmentRef = db
     .collection("courseEnrolments")
     .doc(courseEnrolmentId(runId, uid));
+
+  if (body.preview) {
+    // What a press would do about their visits, read now: writes nothing.
+    const [snap, runGroups] = await Promise.all([enrolmentRef.get(), db.collection("courseGroups").where("runId", "==", runId).get()]);
+    if (!snap.exists || snap.data()?.uid !== uid || snap.data()?.runId !== runId) {
+      return NextResponse.json({ error: "Enrolment not found" }, { status: 404 });
+    }
+    const place = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
+    const visits =
+      place.status === "active"
+        ? await visitsEndedByRemoval((refs) => db.getAll(...refs), db, {
+            run,
+            place,
+            groups: runGroups.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})),
+            actorUid: actor.uid,
+            now: new Date(),
+          })
+        : NO_VISITS_ENDED;
+    return NextResponse.json({
+      ok: true,
+      preview: { emails: visits.emails, visits: visits.ended.map((each) => ({ hostName: each.host.name.trim() || "Untitled group", weekNumber: each.weekNumber })) },
+    });
+  }
 
   // Where the seat's place on the form came from, as leaving reads it, and
   // the form it goes back to, read before the transaction (see the note at
@@ -149,8 +225,11 @@ export async function POST(_req: Request, ctx: Ctx) {
   const fromForm = "path" in leaving && leaving.path.kind === "form" ? leaving.path : null;
   const form = fromForm ? await loadForm(db, fromForm.roundId) : null;
 
+  // The visits the removal ends with an email, as the transaction read them: sent after the commit.
+  let visitsOff: RemovalVisits = NO_VISITS_ENDED;
   try {
     await db.runTransaction(async (tx) => {
+      visitsOff = NO_VISITS_ENDED;
       const [snap, runGroups] = await Promise.all([
         tx.get(enrolmentRef),
         // One equality on one field: who facilitates the run's groups.
@@ -198,6 +277,21 @@ export async function POST(_req: Request, ctx: Ctx) {
           ? await readPlaceToGiveBack(tx, db, form, uid, fromForm.programmeId, now)
           : null;
 
+      // The visits still to come it ends, and the emails to their hosts'
+      // facilitators: the count the confirmation showed, or nothing is written.
+      const visits = await visitsEndedByRemoval((refs) => tx.getAll(...refs), db, {
+        run,
+        place: normalizeCourseEnrolment(snap.id, existing),
+        groups: runGroups.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})),
+        actorUid: actor.uid,
+        now,
+      });
+      if (visits.emails !== body.emails) throw new RemoveError(removalChangedWords(visits.emails), 409, visits.emails);
+      // Held to the limit on a visit called off by hand, claimed with the removal's own writes.
+      const limits = visits.emails > 0 ? await visitLimitsIn(tx, db, runId, uid, actor.uid) : null;
+      if (limits?.refusal) throw new RemoveError(limits.refusal, 429);
+      limits?.write();
+
       const groupId =
         typeof existing.groupId === "string" && existing.groupId
           ? existing.groupId
@@ -215,6 +309,18 @@ export async function POST(_req: Request, ctx: Ctx) {
       // never counted by it, so removing one moves nothing.
       const heldOpenSeat = status === "active" && existing.selfEnrolled === true;
 
+      // The weeks they spent, or were to spend, at another group's session: kept beside the removal, so a
+      // host's register is never taken for the register of a group they belonged to (`listGroups`). A place
+      // removed before, put back and removed again keeps the weeks its first removal kept too.
+      const stored = normalizeCourseEnrolment(snap.id, existing);
+      const visitsWhenRemoved = [
+        ...(stored.visitsWhenRemoved ?? []),
+        ...(stored.visits ?? []).map((each) => ({ weekNumber: each.weekNumber, groupId: each.groupId })),
+      ]
+        .filter((each, at, all) => all.findIndex((other) => other.weekNumber === each.weekNumber && other.groupId === each.groupId) === at)
+        .sort((a, b) => a.weekNumber - b.weekNumber)
+        // Within the stored list's bound, the latest weeks kept: the latest mark is the one asked.
+        .slice(-GROUPS_BY_WEEK_LIMITS.entries);
       tx.update(enrolmentRef, {
         status: "removed" satisfies CourseEnrolmentStatus,
         groupId: null,
@@ -231,6 +337,10 @@ export async function POST(_req: Request, ctx: Ctx) {
         // And the record of which group they were in from which week: with
         // no group it would disagree with the place.
         groupsByWeek: FieldValue.delete(),
+        // And any one-week visit to another group's session still to come:
+        // somebody taken off the run goes to no session of it.
+        visits: FieldValue.delete(),
+        ...(visitsWhenRemoved.length > 0 ? { visitsWhenRemoved } : {}),
         // WHEN THEY WERE TAKEN OFF, in the field leaving writes, so the
         // programme's Overview, its Attendance tab and the register say
         // "Left Fri 13 Nov" for both kinds of leaving. Somebody who left by
@@ -252,10 +362,11 @@ export async function POST(_req: Request, ctx: Ctx) {
           updatedAt: FieldValue.serverTimestamp(),
         });
       }
+      visitsOff = visits;
     });
   } catch (err) {
     if (err instanceof RemoveError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      return NextResponse.json({ error: err.message, ...(err.emails !== null ? { emails: err.emails } : {}) }, { status: err.status });
     }
     console.error("[courses remove] transaction failed", runId, uid, err);
     return NextResponse.json({ error: "Couldn't remove that enrolment." }, { status: 500 });
@@ -297,5 +408,9 @@ export async function POST(_req: Request, ctx: Ctx) {
     console.warn("[courses remove] cohort unsubscribe failed", runId, uid, err);
   }
 
-  return NextResponse.json({ ok: true });
+  // The hosts' facilitators of each visit it ended, told after the commit.
+  const ended: RemovalVisits = visitsOff;
+  const emails = ended.emails > 0 ? await sendRemovalVisitEmails(ended, { actorUid: actor.uid, runId }) : null;
+
+  return NextResponse.json(emails ? { ok: true, emails } : { ok: true });
 }

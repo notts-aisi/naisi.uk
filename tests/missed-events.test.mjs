@@ -293,6 +293,84 @@ function attendance({ events, signups, checkIns = [], agreedFrom = AGREED }) {
 const three = { "ev-b": EVENTS["ev-b"], "ev-c": EVENTS["ev-c"], "ev-d": EVENTS["ev-d"] };
 const placesAt = (...ids) => ids.map((eventId) => ({ eventId }));
 
+describe("the sign-ups in a stretch of time, and, over the events that count, how many they came to", () => {
+  const term = { from: new Date("2026-10-01T00:00:00Z"), to: null };
+  const SEASON = {
+    "ev-c": EVENTS["ev-c"],
+    "ev-d": EVENTS["ev-d"],
+    "ev-e": EVENTS["ev-e"],
+    "ev-f": EVENTS["ev-f"],
+    "ev-g": EVENTS["ev-g"],
+    "ev-req": EVENTS["ev-req"],
+    "ev-sep": EVENTS["ev-sep"],
+  };
+
+  test("came is counted over the events the rule counts and no others, by the card's own decision", () => {
+    const person = attendance({
+      events: SEASON,
+      signups: [
+        { eventId: "ev-c" },
+        { id: "sd", eventId: "ev-d" },
+        // Pizza and papers: a place, over, and its door list never opened.
+        { eventId: "ev-e" },
+        // Quiz night: told us beforehand, by giving the place back.
+        { eventId: "ev-f", status: "cancelled", writtenAt: new Date("2026-11-10T09:00:00Z") },
+        { eventId: "ev-g", status: "waitlisted" },
+        { eventId: "ev-req", status: "pending" },
+        { eventId: "ev-sep" },
+      ],
+      checkIns: [
+        { eventId: "ev-d", uid: "priya", rsvpId: "sd" },
+        // Came after giving the place back, and to an event before the stretch: neither is counted.
+        { eventId: "ev-f" },
+        { eventId: "ev-sep" },
+      ],
+    });
+    // Signed up: Film night, Policy social, Pizza and papers, Speaker evening and Winter social (five).
+    // Counted (over, a place held at the start, check-in used): Film night and Policy social. Came to Policy social.
+    assert.deepEqual(rules.signedUpWithin(person, term, NOW), { signedUp: 5, counted: 2, came: 1 });
+    // One decision: exactly the events `countedEvents` counts in the stretch, and their own `came`.
+    const counted = rules.countedEvents(person, NOW).filter((each) => each.event.startAt >= term.from);
+    assert.deepEqual(counted.map((each) => [each.event.id, each.came]).sort(), [["ev-c", false], ["ev-d", true]]);
+    const rows = rules.personEventRows(person, NOW);
+    assert.equal(rows.find((row) => row.eventId === "ev-d").state, "came", "the card says the same of the same event");
+    assert.notEqual(rows.find((row) => row.eventId === "ev-c").state, "came");
+  });
+
+  test("the four-event case: the waiting list and a request nobody decided are in no count of came", () => {
+    const person = attendance({
+      events: SEASON,
+      signups: [{ eventId: "ev-c" }, { id: "sd", eventId: "ev-d" }, { eventId: "ev-g", status: "waitlisted" }, { eventId: "ev-req", status: "pending" }],
+      checkIns: [{ eventId: "ev-d", uid: "priya", rsvpId: "sd" }],
+    });
+    assert.deepEqual(rules.signedUpWithin(person, term, NOW), { signedUp: 4, counted: 2, came: 1 });
+  });
+
+  test("nothing over yet counts nothing; nothing come to says a nought over what counts", () => {
+    const ahead = attendance({ events: SEASON, signups: [{ eventId: "ev-g" }, { eventId: "ev-req", status: "pending" }] });
+    assert.deepEqual(rules.signedUpWithin(ahead, term, NOW), { signedUp: 2, counted: 0, came: 0 });
+    const none = attendance({ events: SEASON, signups: placesAt("ev-c", "ev-d") });
+    assert.deepEqual(rules.signedUpWithin(none, term, NOW), { signedUp: 2, counted: 2, came: 0 });
+  });
+
+  test("somebody who told us beforehand, whatever the check-ins say, is in no count", () => {
+    const person = attendance({
+      events: SEASON,
+      signups: [{ eventId: "ev-f", status: "cancelled", writtenAt: new Date("2026-11-10T09:00:00Z") }],
+      checkIns: [{ eventId: "ev-f" }],
+    });
+    assert.deepEqual(rules.signedUpWithin(person, term, NOW), { signedUp: 0, counted: 0, came: 0 });
+  });
+
+  test("a drop-in come to with no sign-up is in no number; nobody who has not agreed is counted", () => {
+    const drop = { "ev-drop": { ...EVENTS["ev-e"], noSignup: true } };
+    const person = attendance({ events: drop, signups: [], checkIns: [{ eventId: "ev-drop" }] });
+    assert.deepEqual(rules.signedUpWithin(person, term, NOW), { signedUp: 0, counted: 0, came: 0 });
+    assert.equal(rules.personEventRows(person, NOW)[0].state, "came", "the card lists it");
+    assert.equal(rules.signedUpWithin(attendance({ events: SEASON, signups: placesAt("ev-d"), agreedFrom: null }), term, NOW), null);
+  });
+});
+
 describe("the rules: two in a row that count", () => {
   test("the two most recent events that count both went by without them", () => {
     assert.equal(rules.missedTwoInARow(attendance({ events: three, signups: placesAt("ev-c", "ev-d") }), NOW), true);
@@ -850,9 +928,18 @@ function importsOf(file) {
 }
 
 describe("the walk: an admin's alone, and no survey", () => {
-  test("two files reach the module, and each is behind an admin check", () => {
+  test("three files reach the module, and each is behind an admin check", () => {
     const reaching = [...walkSource(SRC)].filter((file) => file !== MODULE && importsOf(file).includes(MODULE)).map(rel).sort();
-    assert.deepEqual(reaching, ["src/app/api/admin/members/[uid]/events/route.ts", "src/lib/events/requestCard.ts"]);
+    assert.deepEqual(reaching, ["src/app/api/admin/members/[uid]/events/route.ts", "src/lib/courses/personPage/load.ts", "src/lib/events/requestCard.ts"]);
+
+    // A person's page on a programme: the events read only once the programme's gate has answered an admin,
+    // which `roleOnProgramme` answers only for a session whose role is admin.
+    const personPage = withoutComments(read("src/lib/courses/personPage/load.ts"));
+    assert.match(personPage, /const isAdmin = gate\.view\.viewer === "admin";/);
+    const leadReturns = personPage.indexOf("if (!isAdmin) return");
+    const eventsRead = personPage.indexOf("eventsOfPersonInTerm(db, uid, now, termOf(run, liveGroups, now))");
+    assert.ok(eventsRead !== -1, "the person's page reads the events through the module's one reader of a person");
+    assert.ok(leadReturns !== -1 && leadReturns < eventsRead, "the person's page asks before it reads");
 
     // The requests' card: one call, in requestFacts, made only when the session is an admin's.
     const card = withoutComments(read("src/lib/events/requestCard.ts"));

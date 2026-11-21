@@ -233,9 +233,20 @@ export async function finishedForMember(
       if (register.runId === run.id && weekGroups.includes(register.groupId)) registers.set(doc.id, register);
     }
   }
+  // A group their record names that has been archived since: its finished
+  // registers still count for the weeks they spent in it (`archivedGroups`).
+  // Read only for a place whose record names a group that is not live.
+  const notLive = weekGroups.filter((groupId) => !groups.some((group) => group.id === groupId) && groupId !== "" && !groupId.includes("/"));
+  const archivedGroups = notLive.length
+    ? (await db.getAll(...notLive.map((groupId) => db.collection("courseGroups").doc(groupId))))
+        .filter((snap) => snap.exists)
+        .map((snap) => normalizeCourseGroup(snap.id, snap.data() ?? {}))
+        .filter((group) => group.archived && group.runId === run.id)
+    : [];
   const records: RunRecords = {
     run,
     groups: [...groups],
+    archivedGroups,
     enrolments: [enrolment],
     registers,
     accounts: new Map(),

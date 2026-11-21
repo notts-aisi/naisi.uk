@@ -21,6 +21,7 @@ import { clockWords, dayWords, hoursWords, namesWords, peopleWords } from "../se
 import { weekdaysWords } from "../regularTime/words";
 import type { DidNotHappenPreview } from "../registerCover/pageWords";
 import type { GroupWeekWorkView } from "../groupWeekWork/view";
+import type { WeekLinkKind } from "../meetingLink/plan";
 import {
   ROOM_TO_BE_CONFIRMED,
   type HistoryFilter,
@@ -66,6 +67,8 @@ export type GroupPageWeek = {
   taken: boolean;
   /** The week has a meeting link, its own or the group's. Never the link. */
   hasLink: boolean;
+  /** Which link the week reads: its own, the group's every-week link, or none (`weekLinkKind`). Never the link. */
+  link: WeekLinkKind;
   /** The seven days of the week's slot, for a move's Day. */
   slotDays: string[];
   /** Who said they are joining this session online, and who said they can't make it: names. */
@@ -82,9 +85,13 @@ export type GroupPageWeek = {
    * The week's people, for staff. Somebody moved into the group mid-term is
    * listed for a week before they joined it with `joins` (`joinsLaterOf` in
    * `src/lib/courses/staffMove/joins.ts`): not one of the week's people, with
-   * no word said.
+   * no word said. Somebody from another group coming to this session for one
+   * week (a one-week visit) is listed with `visiting`, its line ("Visiting
+   * from Group C, week 2 only. You can read Aisha’s week 2; Rahul gives the
+   * feedback."), and counted; a member of this group at another group's
+   * session that week with `awayAt`, that group's name, and not counted.
    */
-  people: { uid: string; name: string; said: WeekSaid; excuse?: ExcuseFact; joins?: JoinsLater }[];
+  people: { uid: string; name: string; said: WeekSaid; excuse?: ExcuseFact; joins?: JoinsLater; visiting?: { line: string }; awayAt?: string }[];
   /** Its register is finished. */
   finished: boolean;
   /** Its register says the session did not happen (the old switch). */
@@ -169,6 +176,13 @@ export type GroupPageView = {
   /** The session "Set the link" for every week saves on: the next one still to end, not cancelled. */
   linkSessionKey: string | null;
   linkWeekNumber: number | null;
+  /**
+   * "Before the session", on the facilitator's page only (null for staff,
+   * whose week card lists the week's people): the group's next session still
+   * to end, and who has said what about it (`beforeTheSessionOf`). Null with
+   * no such session or nobody to list.
+   */
+  before: BeforeTheSession | null;
   /** The group's history, for admins and the lead; null on the facilitator's page. */
   history: { rows: GroupPageHistoryRow[]; more: boolean } | null;
   /**
@@ -203,6 +217,120 @@ export function weekRegisterFacts(week: GroupPageWeek): {
     covered: week.cover !== null,
     taken: week.taken,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Before the session, on the facilitator's page
+// ---------------------------------------------------------------------------
+
+/** What a row of "Before the session" says about the people on it. */
+export type BeforeKind = "waiting" | "excused" | "online" | "visiting" | "away" | "coming";
+
+/** The order the rows are drawn in: what needs a decision or a link first, who is simply coming last. */
+export const BEFORE_ORDER: readonly BeforeKind[] = ["waiting", "excused", "online", "visiting", "away", "coming"];
+
+/**
+ * One row: the names it is about (as the reader is shown people), and, for a
+ * visitor and somebody away, their own line ("Visiting from Group C, week 2
+ * only. ..." / "At Group F this week"). Names only: no uid, no address, never
+ * a reason or when anything was asked.
+ */
+export type BeforeRow = { kind: BeforeKind; names: string[]; line: string };
+
+export type BeforeTheSession = {
+  weekNumber: number;
+  /** The session's civil date. */
+  dateKey: string;
+  /** The session is held online for everybody: whoever is coming is joining online. */
+  online: boolean;
+  rows: BeforeRow[];
+};
+
+/**
+ * WHO HAS SAID WHAT ABOUT ONE SESSION, for its facilitators before it: each
+ * of the week's people once, in the first row that fits them.
+ *
+ *  - VISITING: somebody from another group at this session for the week,
+ *    with their line.
+ *  - AWAY: one of the group's own people at another group's session that
+ *    week, with where.
+ *  - WAITING: a request to be excused, not decided yet.
+ *  - EXCUSED: an approved request, or their own word that they can't make it.
+ *  - ONLINE: their own word that they are joining online (on a session held
+ *    in a room).
+ *  - COMING: everybody else.
+ *
+ * Somebody moved into the group from a later week is not one of the week's
+ * people and is left out. The facts are the ones the register and the staff
+ * page already read (`GroupPageWeek.people`), so the three cannot disagree.
+ */
+export function beforeTheSessionOf(input: {
+  weekNumber: number;
+  dateKey: string;
+  online: boolean;
+  people: GroupPageWeek["people"];
+  /** "At Group F this week", from the host group's name. */
+  awayWords: (hostName: string) => string;
+}): BeforeTheSession | null {
+  const grouped = new Map<BeforeKind, string[]>();
+  const single: BeforeRow[] = [];
+  for (const person of input.people) {
+    if (person.joins) continue;
+    if (person.visiting) {
+      single.push({ kind: "visiting", names: [person.name], line: person.visiting.line });
+      continue;
+    }
+    if (person.awayAt !== undefined) {
+      single.push({ kind: "away", names: [person.name], line: input.awayWords(person.awayAt) });
+      continue;
+    }
+    const kind: BeforeKind =
+      person.excuse === "waiting"
+        ? "waiting"
+        : person.excuse === "excused" || person.said === "cant"
+          ? "excused"
+          : person.said === "online" && !input.online
+            ? "online"
+            : "coming";
+    grouped.set(kind, [...(grouped.get(kind) ?? []), person.name]);
+  }
+  const rows: BeforeRow[] = [];
+  for (const kind of BEFORE_ORDER) {
+    if (kind === "visiting" || kind === "away") rows.push(...single.filter((row) => row.kind === kind));
+    else if (grouped.has(kind)) rows.push({ kind, names: grouped.get(kind) ?? [], line: "" });
+  }
+  if (rows.length === 0) return null;
+  return { weekNumber: input.weekNumber, dateKey: input.dateKey, online: input.online, rows };
+}
+
+// ---------------------------------------------------------------------------
+// A week's meeting link: for that week only, or from that week on
+// ---------------------------------------------------------------------------
+
+/**
+ * What the two choices of a week's link say, from the page's weeks: the
+ * later weeks still to come that read the every-week link (they keep it when
+ * the link is for this week only), the later weeks still to come with a link
+ * set for them on purpose (they keep it, and do not get a link from this week
+ * on), and the earlier weeks of the plan (they keep the link they had when it
+ * is from this week on). Mirrors what the writer does (`planLinkSave`).
+ */
+export function linkChoiceFacts(
+  weeks: ReadonlyArray<Pick<GroupPageWeek, "weekNumber" | "ended" | "cancelled" | "link">>,
+  weekNumber: number,
+): { laterOnEvery: number[]; laterOwn: number[]; earlier: number[] } {
+  const later = weeks.filter((week) => week.weekNumber > weekNumber && !week.ended && !week.cancelled);
+  return {
+    laterOnEvery: later.filter((week) => week.link === "every").map((week) => week.weekNumber),
+    // A link set for the week on purpose: from that week on, it keeps it and does not get the new one.
+    laterOwn: later.filter((week) => week.link === "week").map((week) => week.weekNumber),
+    earlier: weeks.filter((week) => week.weekNumber < weekNumber).map((week) => week.weekNumber),
+  };
+}
+
+/** Whether a week's link may be set or changed: a session still to end, not cancelled. A week that has met keeps its link. */
+export function linkChangeable(week: Pick<GroupPageWeek, "ended" | "cancelled" | "dateKey">): boolean {
+  return !week.ended && !week.cancelled && Boolean(week.dateKey);
 }
 
 // ---------------------------------------------------------------------------
@@ -508,6 +636,8 @@ export type OneWeekPreview = {
   /** A session called off after it started: what else follows (attendance, its lines, its check-in and report, the chase); null otherwise. */
   didNotHappen?: DidNotHappenPreview | null;
   notice: { title: string; message: string };
+  /** Visits to it that end with it, told by their own emails whatever the tick (`visit/hostOff.ts`); null with none. */
+  visitsOff?: { people: number; emails: number; words: string } | null;
   at: string | null;
 };
 
@@ -521,7 +651,7 @@ export type RegularPreview = {
   };
   moves: { weekNumber: number; before: PreviewMoment | null; after: PreviewMoment | null; lateFrom: { before: string | null; after: string | null } }[];
   kept: { weekNumber: number; pinned: boolean; session: PreviewMoment | null }[];
-  ownTimes: { weekNumber: number; kind: "online" | "moved" | "cancelled" | "pushed" | "set"; session: PreviewMoment | null; campus: GroupCampus | null }[];
+  ownTimes: { weekNumber: number; kind: "online" | "moved" | "cancelled" | "pushed" | "set" | "room"; session: PreviewMoment | null; campus: GroupCampus | null }[];
   reminders: ({ weekNumber: number } & PreviewReminders)[];
   told: PreviewTold;
   /** One line for each cover the press would take off (`coversEndLines`); absent from an older answer. */
@@ -532,6 +662,9 @@ export type RegularPreview = {
 
 /** One line of "What will happen": its label and its sentence. */
 export type PreviewLine = { label: string; text: string };
+
+/** The label of the line saying which visits end with a session called off. */
+export const VISITS_LABEL = "Visits";
 
 /** The label of the line saying which covers end, as the route wrote each. */
 export const COVER_ENDS = "Cover";
@@ -747,6 +880,7 @@ const OWN_TIME_WORDS: Record<RegularPreview["ownTimes"][number]["kind"], string>
   cancelled: "cancelled",
   pushed: "pushed back",
   set: "set on its own",
+  room: "its own room for that week",
 };
 
 /** Every line of "What will happen" for a new regular time from a week onwards. */

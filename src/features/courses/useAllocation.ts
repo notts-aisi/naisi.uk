@@ -226,16 +226,32 @@ export type AllocationPayload = {
 // Every result is a discriminated union the caller can render precisely.
 // ---------------------------------------------------------------------------
 
-export type Placement = { uid: string; groupId: string | null };
+/** A move: `fromWeek` is the week the board showed for a move made mid-term, sent back with the press. */
+export type Placement = { uid: string; groupId: string | null; fromWeek?: number };
 
 export type PlaceResult =
   | {
       ok: true;
       placed: number;
-      /** Per-person refusals (group full, no longer accepted, …). */
-      rejected: { uid: string; reason: string }[];
+      /** Per-person refusals (group full, no longer accepted, …); a move made mid-term refused by its own save carries its sentence. */
+      rejected: { uid: string; reason: string; words?: string }[];
     }
   | { ok: false; error: string };
+
+/**
+ * What a move would do, asked before the press: for a move made mid-term, the
+ * week it is from and the board's question, or why no week can be offered in
+ * the server's sentence; for every other move, nothing (`fromWeek` null).
+ */
+export type PlacePreview = {
+  uid: string;
+  groupId: string | null;
+  fromWeek: number | null;
+  words: string | null;
+  refusal: { reason: string; words?: string } | null;
+};
+
+export type PreviewResult = { ok: true; preview: PlacePreview[] } | { ok: false; error: string };
 
 export type PublishResult =
   | { ok: true; report: PublishReport }
@@ -258,6 +274,11 @@ export type TestResult =
 
 export type RemoveResult = { ok: true } | { ok: false; error: string };
 
+/** What taking somebody off the run would do about their visits: the emails to the hosts' facilitators, and which visits. */
+export type RemovePreview =
+  | { ok: true; emails: number; visits: { hostName: string; weekNumber: number }[] }
+  | { ok: false; error: string };
+
 export type UseAllocation = {
   data: AllocationPayload | null;
   /** True on the first load AND on a manual refresh (`data` stays put). */
@@ -266,6 +287,8 @@ export type UseAllocation = {
   reload: () => void;
   /** Move people between groups (`groupId: null` returns them to the pool). */
   place: (placements: Placement[]) => Promise<PlaceResult>;
+  /** What those moves would do, before the press: writes nothing. */
+  previewPlace: (placements: Placement[]) => Promise<PreviewResult>;
   /**
    * Publish, carrying the number of emails the board showed: the press is
    * refused if that is no longer what it would send. Refuses while anyone is
@@ -274,8 +297,10 @@ export type UseAllocation = {
   publishAllocation: (emails: number) => Promise<PublishResult>;
   /** "Send a test to me": the first person's and the first facilitator's real emails, to the caller. */
   sendPublishTest: () => Promise<TestResult>;
-  /** Take one person off the run entirely (their enrolment, not their application). */
-  removeEnrolment: (uid: string) => Promise<RemoveResult>;
+  /** Take one person off the run entirely (their enrolment, not their application), with the count of emails the confirmation showed. */
+  removeEnrolment: (uid: string, emails?: number) => Promise<RemoveResult>;
+  /** What that would do about their visits, before the press: writes nothing. */
+  previewRemove: (uid: string) => Promise<RemovePreview>;
 };
 
 // ---------------------------------------------------------------------------
@@ -388,6 +413,27 @@ export function useAllocation(runId: string): UseAllocation {
     [base, reload],
   );
 
+  /** The same route with `preview: true`: the week of each move made mid-term, and the board's question. */
+  const previewPlace = useCallback(
+    async (placements: Placement[]): Promise<PreviewResult> => {
+      try {
+        const res = await fetch(`${base}/allocate`, {
+          method: "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ placements, preview: true }),
+        });
+        const body = await readBody<{ preview: PlacePreview[] }>(res);
+        if (!res.ok || !body?.ok || !Array.isArray(body.preview)) {
+          return { ok: false, error: body?.error ?? `That move didn't go through (${res.status}).` };
+        }
+        return { ok: true, preview: body.preview };
+      } catch (e: unknown) {
+        return { ok: false, error: messageFrom(e) };
+      }
+    },
+    [base],
+  );
+
   /**
    * Publish: subscribe everyone placed to the cohort channel, email them their
    * group, and tell each facilitator. Carries the number the button showed.
@@ -453,11 +499,11 @@ export function useAllocation(runId: string): UseAllocation {
    * untouched, which is why they stay on the board afterwards.
    */
   const removeEnrolment = useCallback(
-    async (uid: string): Promise<RemoveResult> => {
+    async (uid: string, emails?: number): Promise<RemoveResult> => {
       try {
         const res = await fetch(
           `${base}/enrolments/${encodeURIComponent(uid)}/remove`,
-          { method: "POST", headers: JSON_HEADERS },
+          { method: "POST", headers: JSON_HEADERS, ...(emails !== undefined ? { body: JSON.stringify({ emails }) } : {}) },
         );
         const body = await readBody<Record<string, never>>(res);
         if (!res.ok || !body?.ok) {
@@ -475,15 +521,37 @@ export function useAllocation(runId: string): UseAllocation {
     [base, reload],
   );
 
+  const previewRemove = useCallback(
+    async (uid: string): Promise<RemovePreview> => {
+      try {
+        const res = await fetch(`${base}/enrolments/${encodeURIComponent(uid)}/remove`, {
+          method: "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ preview: true }),
+        });
+        const body = await readBody<{ preview: { emails: number; visits: { hostName: string; weekNumber: number }[] } }>(res);
+        if (!res.ok || !body?.ok || !body.preview) {
+          return { ok: false, error: body?.error ?? `That didn't go through (${res.status}).` };
+        }
+        return { ok: true, emails: body.preview.emails, visits: body.preview.visits };
+      } catch (e: unknown) {
+        return { ok: false, error: messageFrom(e) };
+      }
+    },
+    [base],
+  );
+
   return {
     data,
     loading: settledNonce !== nonce,
     error,
     reload,
     place,
+    previewPlace,
     publishAllocation,
     sendPublishTest,
     removeEnrolment,
+    previewRemove,
   };
 }
 

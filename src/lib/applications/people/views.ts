@@ -78,6 +78,8 @@ export type PersonRow = {
   coming: PersonComing;
   free: PersonFree;
   status: PersonStatus;
+  /** Their page on the programme (`.../people/[uid]`), which their name opens. */
+  personHref: string;
   /** Their application on this programme's review screen. Null for the viewer's own. */
   applicationHref: string | null;
   /** People in groups, where somebody holding a place is put in a group or moved. Null otherwise. */
@@ -88,6 +90,11 @@ export type PersonRow = {
    * more than one group that is not an incubator's. Null otherwise.
    */
   moveHref: string | null;
+  /**
+   * Their page for a one-week visit to another group's session: offered
+   * exactly where `moveHref` is (`movingLinks`). Null otherwise.
+   */
+  visitHref: string | null;
 };
 
 export type PeopleCounts = Record<PeopleFilter, number>;

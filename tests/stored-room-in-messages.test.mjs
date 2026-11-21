@@ -95,6 +95,10 @@ const ROOM_READS = {
     printedBy: null,
     why: "Builds a group history row's facts, which the group's page shows its staff; no message is written from them.",
   },
+  "src/lib/courses/visit/plan.ts": {
+    printedBy: "src/lib/courses/visit/words.ts",
+    why: "Hands the host session's room to a visit's words (`sessionFacts`): the emails, the page's lines and its sessions, through `printableRoom`, which asks.",
+  },
   "src/lib/courses/regularTime/apply.ts": {
     printedBy: null,
     why: "Writes the new regular room onto the group and its history row; the notice's words are `regularNoticeWords`, which ask.",

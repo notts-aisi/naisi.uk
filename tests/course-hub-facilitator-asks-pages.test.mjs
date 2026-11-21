@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { loadJoin, makeWorld } from "./lib/handoverWorld.mjs";
-import { AGI_PARAMS, B, NOW, REPLY_BY, REPLY_BY_INSTANT, ROUND, SECRET, askSeed, loadAskRoutes } from "./lib/facilitatorAskWorld.mjs";
+import { AGI_PARAMS, B, NOW, REPLY_BY, REPLY_BY_INSTANT, ROUND, RUN, SECRET, askSeed, loadAskRoutes } from "./lib/facilitatorAskWorld.mjs";
 
 const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
 const ui = { h: createElement };
@@ -155,22 +155,57 @@ test("after the day and time to answer by, the page says so in place of the butt
   );
 });
 
-test("after yes, the page says they facilitate the group, and that names come when groups go out", async () => {
+/** The course's facilitator guide, as the page links it: the run's own course. */
+const guideHref = () => `/learn/facilitator-guide/${encodeURIComponent(world.db.read(`courseRuns/${RUN.agi}`).courseId)}`;
+const GUIDE_WORDS = /facilitator guide/i;
+
+// The guide's line and button (November 2026): saying yes names them on the
+// group, which opens the course's facilitator guide to them at once.
+test("after yes, the page says they facilitate the group, that names come when groups go out, and that the guide is open to them now", async () => {
   begin();
   const askId = await askOmar();
   assert.equal((await call("omar", routes.answer.POST, { askId }, { body: { answer: "yes" }, course: true })).status, 200);
-  const { text } = await draw("omar", askId);
+  const { text, html } = await draw("omar", askId);
   assert.match(text, /^Fellowship: AGI Strategy You’re facilitating Group B\./);
-  assert.match(text, /You’ll see your group’s names when groups go out\.$/);
+  assert.match(text, /You’ll see your group’s names when groups go out\. The facilitator guide is open to you now\. Open the facilitator guide$/);
   assert.ok(!text.includes("Please answer by"));
+  assert.ok(html.includes(`<a class="guideLink" href="${guideHref()}">Open the facilitator guide</a>`), html);
 });
 
-test("after no, the page thanks them and says what they said", async () => {
+test("after yes and once groups have gone out: Open your group, then the guide's line and button", async () => {
+  begin();
+  const askId = await askOmar();
+  assert.equal((await call("omar", routes.answer.POST, { askId }, { body: { answer: "yes" }, course: true })).status, 200);
+  world.db.poke(`courseRuns/${RUN.agi}`, { allocationPublishedAt: new Date() });
+  const { text, html } = await draw("omar", askId);
+  assert.match(text, /You’re facilitating Group B\. .* Open your group The facilitator guide is open to you now\. Open the facilitator guide$/);
+  assert.ok(!text.includes("when groups go out"), text);
+  assert.ok(html.includes(`href="${guideHref()}"`), html);
+});
+
+test("after yes, for somebody the guide's own gate now refuses: no line and no button", async () => {
+  begin();
+  const askId = await askOmar();
+  assert.equal((await call("omar", routes.answer.POST, { askId }, { body: { answer: "yes" }, course: true })).status, 200);
+  // Taken off the group since they said yes: the ask still reads yes, and the guide is no longer theirs.
+  const group = world.db.read(`courseGroups/${B}`);
+  assert.ok(group.facilitatorUids.includes("omar"), "saying yes did not name them on the group");
+  world.db.poke(`courseGroups/${B}`, { facilitatorUids: group.facilitatorUids.filter((uid) => uid !== "omar") });
+  const { text, html } = await draw("omar", askId);
+  assert.match(text, /^Fellowship: AGI Strategy You’re facilitating Group B\./);
+  assert.match(text, /You’ll see your group’s names when groups go out\.$/);
+  assert.doesNotMatch(text, GUIDE_WORDS);
+  assert.ok(!html.includes("/learn/facilitator-guide/"), html);
+});
+
+test("after no, the page thanks them and says what they said, and says nothing of the guide", async () => {
   begin();
   const askId = await askOmar();
   await call("omar", routes.answer.POST, { askId }, { body: { answer: "no" }, course: true });
-  const { text } = await draw("omar", askId);
+  const { text, html } = await draw("omar", askId);
   assert.match(text, /Thanks for letting us know\. You said you can’t facilitate AGI Strategy this term\.$/);
+  assert.doesNotMatch(text, GUIDE_WORDS);
+  assert.ok(!html.includes("/learn/facilitator-guide/"), html);
 });
 
 test("once somebody else has the place, the page says so", async () => {

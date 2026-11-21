@@ -1,6 +1,9 @@
 import "server-only";
 import { inGroupForWeek } from "@/lib/courses/groupsByWeek";
 import { joinsLaterOf, type JoinsLater } from "@/lib/courses/staffMove/joins";
+import { visitingLineWords } from "@/lib/courses/visit/words";
+import { ownGroupForWeek, visitInWeek } from "@/lib/firestore/courseEnrolments";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import type { Firestore } from "firebase-admin/firestore";
 import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
 import {
@@ -90,6 +93,26 @@ export type GroupPersonRow = {
    * weeks before it to read. Absent for everybody else.
    */
   joins?: JoinsLater;
+  /**
+   * A week of the group's next session they spend at another group's
+   * session (a one-week visit): that group's name, which their line says
+   * ("At Group F this week"). Not expected at the session. Absent otherwise.
+   */
+  awayAt?: string;
+};
+
+/**
+ * Somebody from another group coming to the group's next session for one
+ * week (a one-week visit): listed with the session's people, "Visiting from
+ * Group C, week 2 only. You can read Aisha’s week 2; Rahul gives the
+ * feedback.", and expected at it.
+ */
+export type GroupVisitorRow = {
+  uid: string;
+  name: string;
+  weekNumber: number;
+  /** The line under their name. */
+  line: string;
 };
 
 /** A register's state, as the Registers card says it. */
@@ -145,6 +168,8 @@ export type FacilitatorGroupModel = {
    * it. Equal to `expected` for every week when nobody's place records a move.
    */
   expectedIn: Record<number, number>;
+  /** Visitors from other groups at the group's next session, name-sorted; empty with none. */
+  visitors: GroupVisitorRow[];
   /** True while next week's email is on its schedule: "Finished", not "Pushed". */
   scheduled: boolean;
   toReview: GroupReviewRow[];
@@ -283,6 +308,7 @@ const EMPTY: FacilitatorGroupModel = {
   firstSessionDateKey: "",
   expected: 0,
   expectedIn: {},
+  visitors: [],
   scheduled: false,
   toReview: [],
   weeksBehind: null,
@@ -299,9 +325,8 @@ export async function loadFacilitatorGroup(
 ): Promise<FacilitatorGroupModel> {
   const records = await recordsWith(db, run, group);
   if (!records) return EMPTY;
-  const listed = listGroups(records, { isAdmin: viewer.isAdmin, role: viewer.actor.role }, now, weeksOf(records)).find(
-    (entry) => entry.group.id === group.id,
-  );
+  const allListed = listGroups(records, { isAdmin: viewer.isAdmin, role: viewer.actor.role }, now, weeksOf(records));
+  const listed = allListed.find((entry) => entry.group.id === group.id);
   if (!listed) return EMPTY;
 
   const todayKey = londonDateKey(now);
@@ -314,6 +339,9 @@ export async function loadFacilitatorGroup(
   const toRow = (row: (typeof rows)[number]): GroupPersonRow => {
     const enrolment = enrolmentOf.get(row.uid);
     const joins = nextWeek !== null && enrolment && row.left === null ? joinsLaterOf(enrolment, group.id, nextWeek) : null;
+    // At another group's session for the week of the group's next session.
+    const away = nextWeek !== null && enrolment && row.left === null ? visitInWeek(enrolment, nextWeek) : null;
+    const awayHost = away && away.groupId !== group.id ? (records.groups.find((each) => each.id === away.groupId) ?? null) : null;
     return {
       uid: row.uid,
       name: row.name,
@@ -321,8 +349,41 @@ export async function loadFacilitatorGroup(
       left: row.left,
       marks: marksOf(row.cells, finishedWeeks),
       ...(joins ? { joins } : {}),
+      ...(awayHost ? { awayAt: awayHost.name.trim() || "another group" } : {}),
     };
   };
+  // Visitors from other groups, week by week: the people of the other groups
+  // as the Attendance tab lists them to this viewer (its rows ask the rule
+  // about a placement Publish has not told), still taking part, whose session
+  // that week is this group's.
+  const visitorsIn = (weekNumber: number) =>
+    allListed
+      .filter((entry) => entry.group.id !== group.id)
+      .flatMap((entry) => entry.people)
+      .filter(({ row, enrolment }) => row.left === null && enrolment.status === "active" && visitInWeek(enrolment, weekNumber)?.groupId === group.id)
+      .map(({ enrolment }) => enrolment);
+  const visitors: GroupVisitorRow[] =
+    nextWeek === null
+      ? []
+      : visitorsIn(nextWeek)
+          .map((enrolment) => {
+            const homeId = ownGroupForWeek(enrolment, nextWeek);
+            const home = records.groups.find((each) => each.id === homeId) ?? null;
+            const account = records.accounts.get(enrolment.uid) ?? {};
+            const name = nameForViewer({ role: viewer.actor.role }, accountNamesOf(account), "NAISI member");
+            return {
+              uid: enrolment.uid,
+              name,
+              weekNumber: nextWeek,
+              line: visitingLineWords({
+                firstName: firstNameOfUser(account) || name,
+                homeName: home?.name ?? "",
+                weekNumber: nextWeek,
+                homeFacilitatorFirstNames: (home?.facilitatorUids ?? []).map((uid) => firstNameOfUser(records.accounts.get(uid) ?? {})).filter(Boolean),
+              }),
+            };
+          })
+          .sort((a, b) => a.name.localeCompare(b.name));
   const people = rows.filter((row) => row.left === null).map(toRow);
   const leavers = rows.filter((row) => row.left !== null).map(toRow);
   const registers = ordered
@@ -352,9 +413,12 @@ export async function loadFacilitatorGroup(
     expectedIn: Object.fromEntries(
       ordered.map((facts) => [
         facts.session.weekNumber,
-        listed.people.filter(({ row, enrolment }) => row.left === null && inGroupForWeek(enrolment, group.id, facts.session.weekNumber)).length,
+        listed.people.filter(({ row, enrolment }) => row.left === null && inGroupForWeek(enrolment, group.id, facts.session.weekNumber)).length +
+          // A visitor in that week is expected at the session too.
+          visitorsIn(facts.session.weekNumber).length,
       ]),
     ),
+    visitors,
     scheduled: records.switches.scheduled,
     // A facilitator who holds a place is one of the group's people, and their
     // own answers wait for the programme's lead and admins, never for their

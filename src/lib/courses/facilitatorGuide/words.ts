@@ -33,9 +33,102 @@ export const GUIDE_REFUSED = "Only a course’s facilitators, its programme’s 
 /** The course page with nothing loaded yet. */
 export const GUIDE_EMPTY = "There’s nothing in this course’s facilitator guide yet.";
 
-/** A week page with neither of its documents loaded. */
+/**
+ * A week with neither of its documents loaded: the week page's sentence, and
+ * the first half of the session card's where the week's own link would be.
+ */
 export function guideWeekEmptyWords(weekNumber: number): string {
-  return `There’s no facilitator guide for week ${weekNumber} yet.`;
+  return `Week ${weekNumber}’s plan isn’t in the guide yet.`;
+}
+
+/**
+ * Who loads the guide, said where a group is known: the programme's lead by
+ * first name, as the group page already names them, or admins alone when no
+ * lead stands.
+ */
+export function whoLoadsItWords(leadFirstName: string | null): string {
+  const lead = leadFirstName?.trim() ?? "";
+  return lead ? `${lead} or an admin loads it.` : "An admin loads it.";
+}
+
+/** The session card's sentence for a week that is not loaded while something else is. */
+export function guideWeekNotLoadedWords(weekNumber: number, leadFirstName: string | null): string {
+  return `${guideWeekEmptyWords(weekNumber)} ${whoLoadsItWords(leadFirstName)}`;
+}
+
+/** The session card's sentence, in place of both links, for a course with nothing loaded at all. */
+export function guideNothingLoadedWords(leadFirstName: string | null): string {
+  const lead = leadFirstName?.trim() ?? "";
+  return lead
+    ? `${GUIDE_EMPTY} ${lead} or an admin loads it, and it will show here.`
+    : `${GUIDE_EMPTY} An admin loads it, and it will show here.`;
+}
+
+/**
+ * Who loads the guide, said on the guide's own pages, which are addressed by
+ * course and know no group: never a person's name, for a course can be named
+ * by two programmes, each with a lead who may load it. "An admin loads it."
+ * where no programme naming a live run of the course has a lead who stands.
+ */
+export const GUIDE_LOADED_BY_LEAD = "The programme’s lead or an admin loads it.";
+
+export function guideLoadedByWords(aLeadStands: boolean): string {
+  return aLeadStands ? GUIDE_LOADED_BY_LEAD : whoLoadsItWords(null);
+}
+
+/** The course page with nothing loaded yet, with who loads it. */
+export function guideEmptyWords(aLeadStands: boolean): string {
+  return `${GUIDE_EMPTY} ${guideLoadedByWords(aLeadStands)}`;
+}
+
+/** The card's sentence, in place of its button, for a next session whose week is not loaded. */
+export function guideWeekNotLoadedHereWords(weekNumber: number, aLeadStands: boolean): string {
+  return `${guideWeekEmptyWords(weekNumber)} ${guideLoadedByWords(aLeadStands)}`;
+}
+
+// ---------------------------------------------------------------------------
+// The reader's own group, on the guide's pages (a facilitator only)
+// ---------------------------------------------------------------------------
+
+/** The card at the top of the course page. */
+export const YOUR_NEXT_SESSION = "Your next session";
+
+/** The card's button: "Open week 2’s plan". */
+export function openWeekPlanWords(weekNumber: number): string {
+  return `Open week ${weekNumber}’s plan`;
+}
+
+/** The card's line: "Group C · Wed 11 Nov, 3pm", from the group's name and the session's day and clock. */
+export function nextSessionLineWords(groupName: string, when: string): string {
+  return [groupName.trim(), when.trim()].filter(Boolean).join(" · ");
+}
+
+/** "Week 2: How fast", or "Week 2" with no theme. */
+export function weekTitleWords(weekNumber: number, theme: string): string {
+  const trimmed = theme.trim();
+  return trimmed ? `${weekWords(weekNumber)}: ${trimmed}` : weekWords(weekNumber);
+}
+
+/** Under a week in the course page's list that has nothing loaded. */
+export const NOT_LOADED_YET = "Not loaded yet";
+
+/** The group's name where it has none. */
+export const GROUP_FALLBACK = "Group";
+
+/** The way back to the reader's group at the foot of the course page with nothing loaded: "Back to Group C". */
+export function backToGroupWords(groupName: string): string {
+  return `Back to ${groupName.trim() || GROUP_FALLBACK}`;
+}
+
+/**
+ * A week's theme from the title its members read ("How fast"), for a week
+ * with nothing in the guide: a leading "Week 2:" is left out, since the row
+ * says the week already.
+ */
+export function memberWeekTheme(title: string, weekNumber: number): string {
+  const trimmed = title.trim();
+  const found = new RegExp(`^week\\s+${weekNumber}\\s*[:.·-]\\s*(.+)$`, "i").exec(trimmed);
+  return found ? found[1].trim() : trimmed;
 }
 
 /** One of the course's own documents, not loaded yet. */

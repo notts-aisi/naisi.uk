@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import AttendanceGrid from "@/features/courses/AttendanceGrid";
 import JoiningOnlineBox from "@/features/courses/facilitator/JoiningOnlineBox";
@@ -5,6 +6,8 @@ import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import { registerTitle } from "@/lib/courses/facilitatorPageWords";
+import { NO_GUIDE_LINKS, type GuideLinksView } from "@/lib/courses/facilitatorGuide/links";
+import { ArrowRight } from "@/app/(app)/dashboard/icons";
 import { loadRegisterMembers, type RegisterGate } from "@/lib/courses/registerAccess";
 import { joiningOnlineBox } from "@/lib/courses/meetingLink/box";
 import { givenSessionLink } from "@/lib/courses/meetingLink/givenSession";
@@ -44,6 +47,8 @@ export default async function RegisterPageBody({
   reportHref,
   didntHappen,
   requestsBase = null,
+  guide = null,
+  handOut = null,
 }: {
   gated: Extract<RegisterGate, { ok: true }>;
   user: SessionUser;
@@ -58,6 +63,20 @@ export default async function RegisterPageBody({
   didntHappen: { href: string; words: string } | null;
   /** The Requests page, for a reader who decides requests and can open it; null elsewhere. */
   requestsBase?: string | null;
+  /**
+   * The facilitator guide above the table, worked out by the page from the
+   * guide's own gate and never the register's (the facilitator's door only),
+   * read beside the register's own reads; null draws nothing.
+   */
+  guide?: Promise<GuideLinksView> | null;
+  /**
+   * The row to the pathways and cases page at the session that hands the
+   * slips out: whether tonight can be such an evening is read beside the
+   * register's own reads, and on such an evening the row comes as a slot in
+   * its own `Suspense`, read after the register is sent. Null, or a read that
+   * draws nothing, adds nothing. The register draws it beside the check-in.
+   */
+  handOut?: Promise<ReactNode> | null;
 }) {
   const db = getAdminDb();
   const groupName = gated.group.name || "Group";
@@ -77,7 +96,7 @@ export default async function RegisterPageBody({
   // The box at the top, named as the register names its rows for this
   // reader: never for somebody given one session. Nothing is offered to press
   // in a view-as session, where nothing is written.
-  const [joiningOnline, viewAs] = await Promise.all([
+  const [joiningOnline, viewAs, guideView, handOutRow] = await Promise.all([
     db && !onlyGiven
       ? joiningOnlineBox(db, {
           run,
@@ -87,6 +106,8 @@ export default async function RegisterPageBody({
         }).catch(() => [])
       : Promise.resolve([]),
     getImpersonator().then((marker) => markerIsLive(marker, user.uid)),
+    guide ?? Promise.resolve(NO_GUIDE_LINKS),
+    handOut ?? Promise.resolve(null),
   ]);
 
   return (
@@ -132,10 +153,29 @@ export default async function RegisterPageBody({
 
       {namesToCome && <p className={weekly.cardLine}>{NAMES_WHEN_GROUPS_GO_OUT}</p>}
 
+      {/* The facilitator guide for the register's week, above the table. */}
+      {(guideView.week || guideView.sentence || guideView.standing) && (
+        <div className={facilitator.registerGuide}>
+          {guideView.week && (
+            <Link href={guideView.week.href} className={facilitator.ticketGuide}>
+              <span>{guideView.week.label}</span>
+              <ArrowRight />
+            </Link>
+          )}
+          {guideView.sentence && <p className={facilitator.guideSentence}>{guideView.sentence}</p>}
+          {guideView.standing && (
+            <Link href={guideView.standing.href} className={facilitator.ticketGuide}>
+              <span>{guideView.standing.label}</span>
+              <ArrowRight />
+            </Link>
+          )}
+        </div>
+      )}
+
       {/* The register owns its own week controls and its own horizontal
           overflow: a wide table handles its own responsiveness rather than
           widening the shell (the `.mainWide` rule). */}
-      <AttendanceGrid groupId={gated.group.id} runId={gated.runId} reportHref={reportHref} session={session} didntHappen={didntHappen} requestsBase={requestsBase} />
+      <AttendanceGrid groupId={gated.group.id} runId={gated.runId} reportHref={reportHref} session={session} didntHappen={didntHappen} requestsBase={requestsBase} {...(handOutRow ? { handOut: handOutRow } : {})} />
     </div>
   );
 }

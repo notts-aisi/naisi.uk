@@ -21,8 +21,12 @@
  *     away with the record that put it there: two absences in a row, a week
  *     not published that a group has reached, a register not finished (with
  *     the reminder's and the task's real times), somebody who left.
- *  4. ATTENDANCE BY WEEK AND THE PEOPLE: the grid's figures, the groups a
- *     week so far is from, how many take part and how many left.
+ *  4. ATTENDANCE BY WEEK, THE GROUPS IN A WEEK AND THE PEOPLE: each week
+ *     from its finished registers only, by kind, as the grid counts them,
+ *     somebody moved between groups once in each week's own group, a
+ *     session that didn't happen counted for nobody; one row per group for
+ *     the chosen week (`?week=`), opening its page on that week; the empty
+ *     states; how many take part and how many left.
  *  5. REMIND emails that group's facilitators and nobody else, behind the
  *     count the button showed, once per facilitator per register whether
  *     the press or the reminder job comes first; every other caller is
@@ -44,6 +48,7 @@ import {
   A,
   AGI,
   B,
+  C,
   COURSE,
   D,
   NOW,
@@ -69,6 +74,8 @@ const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(nam
 const SESSION = "export async function getCurrentUser() { return globalThis.__hubOverviewPages.user; }";
 const STYLESHEETS = [
   "./ProgrammeOverview.module.css",
+  "./OverviewByWeek.module.css",
+  "./Select.module.css",
   // The Overview's Feedback to send draws with feedback's own stylesheet.
   "./feedback.module.css",
   "./editor.module.css",
@@ -165,6 +172,17 @@ async function draw(who) {
   } finally {
     world.db.collection = collection;
   }
+}
+
+/** The Overview as `who` sees it with `?week=` in the address. */
+async function drawWeek(who, week) {
+  globalThis.__hubOverviewPages.user = sessionFor(who);
+  const element = await OverviewPage({
+    params: Promise.resolve({ roundId: ROUND, programmeId: AGI }),
+    searchParams: Promise.resolve({ week }),
+  });
+  const [overview] = find(element, "ProgrammeOverview");
+  return { model: overview?.props.model ?? null, html: renderToStaticMarkup(element) };
 }
 
 const remind = (who, body, options = {}) => call(who, remindRoute.POST, { roundId: ROUND, programmeId: AGI }, { body, ...options });
@@ -507,26 +525,199 @@ describe("3. needs attention", () => {
 // ---------------------------------------------------------------------------
 
 describe("4. attendance by week, and the people", () => {
-  test("the grid's figures, and which groups the week so far is from", async () => {
+  test("attendance by week counts finished registers only, by kind, and says how far each week has got", async () => {
     const { model, html } = await draw("claudia");
+    assert.equal(model.ending, "pushed");
+    assert.equal(model.byWeek.blank, null);
     assert.deepEqual(
-      model.chart.weeks.map((week) => [week.label, week.percent, week.soFar]),
+      model.byWeek.weeks.map((week) => [week.label, week.when, week.state, week.counts, week.line, week.unfinished]),
       [
-        ["W1", 92, false],
-        ["W2", 64, false],
-        ["W3", 67, true],
-        ["W4", null, false],
-        ["W5", null, false],
-        ["W6", null, false],
+        // Every register of weeks 1 and 2 is finished: the week's whole count.
+        ["Week 1", "w/c Thu 29 Oct", "done", { room: 11, online: 0, excused: 1, absent: 0 }, "11 of 12 came", null],
+        ["Week 2", "w/c Thu 5 Nov", "done", { room: 7, online: 0, excused: 1, absent: 3 }, "7 of 11 came", null],
+        // Group A's register is finished; Group D met on Monday and its saved
+        // register (Freya absent, Yasmin present) counts for nobody yet.
+        ["Week 3", "this week", "so-far", { room: 3, online: 0, excused: 0, absent: 1 }, "2 of 4 groups have met so far", "1 register not pushed yet"],
+        ["Week 4", "w/c Thu 19 Nov", "not-met", { room: 0, online: 0, excused: 0, absent: 0 }, "Not met yet", null],
+        ["Week 5", "w/c Thu 26 Nov", "not-met", { room: 0, online: 0, excused: 0, absent: 0 }, "Not met yet", null],
+        ["Week 6", "w/c Thu 3 Dec", "not-met", { room: 0, online: 0, excused: 0, absent: 0 }, "Not met yet", null],
       ],
     );
-    assert.equal(model.chart.from, "Week 3 is from Groups A and D so far.");
-    assert.equal(
-      model.chart.description,
-      "Who came, by week: week 1 92%, week 2 64%, week 3 67% so far. Weeks 4 to 6 not yet.",
+    // The same figures the Attendance tab's grid holds, where every register of the week is finished.
+    const { readRunRecords, buildRunAttendance } = await lib("courses", "programmeAttendance.ts");
+    const grid = buildRunAttendance(await readRunRecords(world.db, RUN.agi), { isAdmin: false }, NOW);
+    for (const weekNumber of [1, 2]) {
+      const total = grid.totals.find((each) => each.weekNumber === weekNumber);
+      const row = model.byWeek.weeks.find((each) => each.weekNumber === weekNumber);
+      assert.deepEqual([row.came, row.of, row.counts.online], [total.came, total.of, total.online], `week ${weekNumber}`);
+    }
+    assert.match(html, /role="img" aria-label="Week 1: in the room 11, online 0, excused 1, absent 0\."/);
+    assert.match(html, new RegExp(`href="${PAGE_PATH}/attendance"[^>]*>Week 1`));
+    assert.ok(!/Who came, by week/.test(html), "the old percentage chart is gone");
+  });
+
+  test("one row per group for the week the programme is in, each opening the group's page on that week", async () => {
+    const { model, html, text: said } = await draw("claudia");
+    const groups = model.byWeek.groups;
+    assert.equal(groups.heading, "Groups in week 3");
+    assert.deepEqual([groups.sessionHeading, groups.beforeHeading, groups.cameHeading], ["Week 3 session", "Week 2 came", "Week 3 came"]);
+    assert.deepEqual(
+      groups.options.map((option) => option.label),
+      ["Week 1", "Week 2", "Week 3 (this week)", "Week 4", "Week 5", "Week 6"],
     );
-    assert.match(html, /role="img" aria-label="Who came, by week: week 1 92%, week 2 64%, week 3 67% so far\. Weeks 4 to 6 not yet\."/);
-    assert.match(html, new RegExp(`href="${PAGE_PATH}/attendance"[^>]*>All attendance`));
+    assert.deepEqual(
+      groups.rows.map((row) => [row.groupName, row.facilitators, row.session, row.cameBefore, row.came]),
+      [
+        ["Group D", "Grace Okoye", "Mon 16 Nov, 6pm", "1 of 2", "Not pushed"],
+        ["Group B", "Rahul Mehta and Sofia Rossi", "Today, 6pm", "3 of 3", "Tonight"],
+        ["Group C", "Tom Fletcher", "Tomorrow, 1pm", "1 of 1", "Tomorrow"],
+        ["Group A", "Sofia Rossi", "Thu 12 Nov, 6pm", "2 of 5", "3 of 4"],
+      ],
+    );
+    // These weeks are not written as blocks, so their groups' pages count no week's work either.
+    assert.ok(groups.rows.every((row) => row.readings === "Not tracked" && row.coursework === "Not tracked"));
+    for (const row of groups.rows) {
+      assert.equal(row.href, `${PAGE_PATH}/groups/${encodeURIComponent(row.groupId)}?week=3`);
+      assert.ok(html.includes(`href="${row.href}"`), `${row.groupName} opens nothing`);
+    }
+    // The week picker is a plain GET form on the tab's own address.
+    assert.match(html, new RegExp(`<form[^>]* action="${PAGE_PATH}/overview" method="get"`));
+    assert.match(html, /<select[^>]*name="week"/);
+    assert.match(said, /Groups in week 3 Each row opens that group’s page\. Week /);
+    // An admin is drawn the same figures here: Una, whom Publish has not told, has no mark.
+    assert.deepEqual((await draw("zach")).model.byWeek.groups.rows.map((row) => row.came), groups.rows.map((row) => row.came));
+  });
+
+  test("another week is chosen from the address, and a week nobody has met says so in every row", async () => {
+    const element = await drawWeek("claudia", "5");
+    const groups = element.model.byWeek.groups;
+    assert.equal(groups.heading, "Groups in week 5");
+    assert.deepEqual(
+      groups.rows.map((row) => [row.groupName, row.cameBefore, row.came]),
+      [
+        ["Group D", "No register yet", "No register yet"],
+        ["Group B", "No register yet", "No register yet"],
+        ["Group C", "No register yet", "No register yet"],
+        ["Group A", "No register yet", "No register yet"],
+      ],
+    );
+    assert.ok(groups.rows.every((row) => row.href.endsWith("?week=5")));
+    // Week 1 has no week before it; an address that is not a week of the run opens on this week.
+    assert.equal((await drawWeek("claudia", "1")).model.byWeek.groups.beforeHeading, null);
+    assert.equal((await drawWeek("claudia", "9")).model.byWeek.groups.weekNumber, 3);
+    assert.equal((await drawWeek("claudia", "3; drop")).model.byWeek.groups.weekNumber, 3);
+  });
+
+  test("a session that didn't happen is no session: its group leaves the week's count", async () => {
+    world.db.poke(registerPath(D, 3), { held: false });
+    const { model } = await draw("claudia");
+    const week3 = model.byWeek.weeks.find((week) => week.weekNumber === 3);
+    assert.deepEqual([week3.line, week3.unfinished, week3.counts], ["1 of 3 groups have met so far", null, { room: 3, online: 0, excused: 0, absent: 1 }]);
+    const d = model.byWeek.groups.rows.find((row) => row.groupId === D);
+    assert.deepEqual([d.session, d.came], ["Mon 16 Nov, 6pm · not held", "Not held"]);
+  });
+
+  test("once Group D's register is finished, week 3 counts it, and a moved week and a room to confirm are said", async () => {
+    world.db.poke(registerPath(D, 3), { pushedAt: new Date("2026-11-16T20:30:00Z"), pushedByUid: "grace" });
+    world.db.poke(`courseGroups/${C}`, {
+      "session.location": "",
+      "sessionChanges.w03": { kind: "moved", reason: "A room clash.", dateKey: "2026-11-18", byUid: "zach", at: NOW },
+    });
+    const { model } = await draw("claudia");
+    const week3 = model.byWeek.weeks.find((week) => week.weekNumber === 3);
+    assert.deepEqual([week3.line, week3.counts], ["2 of 4 groups have met so far", { room: 4, online: 0, excused: 0, absent: 2 }]);
+    assert.equal(model.byWeek.groups.rows.find((row) => row.groupId === D).came, "1 of 2");
+    const c = model.byWeek.groups.rows.find((row) => row.groupId === C);
+    assert.deepEqual([c.session, c.moved], ["Tomorrow, 1pm · moved · room to be confirmed", true]);
+    assert.ok(model.byWeek.groups.rows.filter((row) => row.groupId !== C).every((row) => !row.moved));
+  });
+
+  test("somebody moved between groups is counted once, in each week's own group", async () => {
+    // Kofi moves from Group B to Group A from week 3, and Group A's finished week 3 register marks him.
+    world.db.poke(`courseEnrolments/${RUN.agi}__kofi`, {
+      groupId: A,
+      groupsByWeek: [
+        { groupId: B, fromWeek: 1 },
+        { groupId: A, fromWeek: 3 },
+      ],
+    });
+    world.db.poke(registerPath(A, 3), { "records.kofi": "present" });
+    const { model } = await draw("claudia");
+    const byWeek = Object.fromEntries(model.byWeek.weeks.map((week) => [week.weekNumber, week.counts]));
+    // Weeks 1 and 2 as before: his marks there are Group B's, counted once.
+    assert.deepEqual(byWeek[1], { room: 11, online: 0, excused: 1, absent: 0 });
+    assert.deepEqual(byWeek[2], { room: 7, online: 0, excused: 1, absent: 3 });
+    assert.deepEqual(byWeek[3], { room: 4, online: 0, excused: 0, absent: 1 });
+    const rows = Object.fromEntries(model.byWeek.groups.rows.map((row) => [row.groupName, [row.cameBefore, row.came]]));
+    assert.deepEqual(rows["Group B"], ["3 of 3", "Tonight"]);
+    assert.deepEqual(rows["Group A"], ["2 of 5", "4 of 5"]);
+  });
+
+  test("a run with no weeks, and one with no groups, say so instead of counting", async () => {
+    const { readRunRecords, listGroups } = await lib("courses", "programmeAttendance.ts");
+    const { buildProgrammeOverview } = await lib("courses", "programmeOverview.ts");
+    const { attendanceByWeek, NO_GROUPS_YET, NO_WEEKS_YET } = await lib("courses", "overviewByWeek.ts");
+    const records = await readRunRecords(world.db, RUN.agi);
+    const place = { programmePath: PAGE_PATH, courseId: COURSE.agi, decisionsSentAt: null };
+    const viewer = { isAdmin: false, uid: "claudia" };
+    const noGroups = await buildProgrammeOverview(world.db, { ...records, groups: [] }, viewer, place, NOW);
+    assert.deepEqual(noGroups.byWeek, { weeks: [], groups: null, blank: NO_GROUPS_YET });
+    const noWeeks = await buildProgrammeOverview(world.db, { ...records, run: { ...records.run, weekPlan: [] }, groups: [] }, viewer, place, NOW);
+    assert.deepEqual(noWeeks.byWeek, { weeks: [], groups: null, blank: NO_WEEKS_YET });
+    // The pure rows over nothing: nothing.
+    assert.deepEqual(attendanceByWeek({ listed: listGroups(records, viewer, NOW, []), weeks: [], slots: [], thisWeek: null, totals: [], ending: "pushed" }), []);
+  });
+
+  test("somebody who joined online is counted online, and a whole week's figure is the Attendance tab's own total", async () => {
+    // Dev came to week 2 online (a finished register), and Amara to week 3 (Group A's, finished; the week is not whole).
+    world.db.poke(registerPath(A, 2), { "online.dev": true });
+    world.db.poke(registerPath(A, 3), { "online.amara": true });
+    const { model, html } = await draw("claudia");
+    const byWeek = Object.fromEntries(model.byWeek.weeks.map((week) => [week.weekNumber, week]));
+    assert.deepEqual(byWeek[2].counts, { room: 6, online: 1, excused: 1, absent: 3 });
+    assert.equal(byWeek[2].line, "7 of 11 came");
+    assert.deepEqual(byWeek[3].counts, { room: 2, online: 1, excused: 0, absent: 1 });
+    assert.match(html, /aria-label="Week 2: in the room 6, online 1, excused 1, absent 3\."/);
+    const { readRunRecords, buildRunAttendance } = await lib("courses", "programmeAttendance.ts");
+    const total = buildRunAttendance(await readRunRecords(world.db, RUN.agi), { isAdmin: false }, NOW).totals.find((each) => each.weekNumber === 2);
+    assert.deepEqual([byWeek[2].came, byWeek[2].of, byWeek[2].counts.online], [total.came, total.of, total.online]);
+    // A group's row: Group A's week 2 and week 3, the online mark counted as came.
+    const a = model.byWeek.groups.rows.find((row) => row.groupId === A);
+    assert.deepEqual([a.cameBefore, a.came], ["2 of 5", "3 of 4"]);
+    // The line the old chart carried stays, under the rows, and the card names where a week goes.
+    assert.match(html, /Late and left early count as came\./);
+    assert.match(html, /Every group, from the pushed registers\. Each week opens the Attendance tab\./);
+  });
+
+  test("a whole week reads the tab's total, even a week only a group archived since held", async () => {
+    const { attendanceByWeek } = await lib("courses", "overviewByWeek.ts");
+    const totals = [{ weekNumber: 1, percent: 75, came: 3, of: 4, online: 1, soFar: false, from: ["Group Z"] }];
+    const [row] = attendanceByWeek({ listed: [], weeks: [1], slots: [], thisWeek: null, totals, ending: "finished" });
+    assert.deepEqual([row.state, row.line, row.counts], ["done", "3 of 4 came", { room: 2, online: 1, excused: 0, absent: 1 }]);
+    const [none] = attendanceByWeek({ listed: [], weeks: [1], slots: [], thisWeek: null, totals: [], ending: "finished" });
+    assert.deepEqual([none.state, none.line], ["none", "No group meets in week 1"]);
+  });
+
+  test("a held session with no date keeps the week from no state, and its row says it has no date yet", async () => {
+    // Group D's week 3 register finished; Groups B and C's week 3 sessions have no date and no register.
+    world.db.poke(registerPath(D, 3), { pushedAt: new Date("2026-11-16T20:30:00Z"), pushedByUid: "grace" });
+    const { readRunRecords, listGroups, weeksOf, buildRunAttendance } = await lib("courses", "programmeAttendance.ts");
+    const { attendanceByWeek, groupsInWeek } = await lib("courses", "overviewByWeek.ts");
+    const records = await readRunRecords(world.db, RUN.agi);
+    const viewer = { isAdmin: false };
+    const listed = listGroups(records, viewer, NOW, weeksOf(records));
+    for (const entry of listed.filter((each) => each.group.id === B || each.group.id === C)) {
+      const facts = entry.sessions.get(3);
+      Object.assign(facts, { startsAt: null, endsAt: null, started: false, ended: false, tag: null, session: { ...facts.session, dateKey: "" } });
+    }
+    const totals = buildRunAttendance(records, viewer, NOW).totals;
+    const week3 = attendanceByWeek({ listed, weeks: [3], slots: [], thisWeek: 3, totals, ending: "pushed" })[0];
+    assert.deepEqual([week3.state, week3.line], ["done", "4 of 6 came"]);
+    const rows = groupsInWeek({ listed, weeks: [1, 2, 3], weekNumber: 3, thisWeek: 3, work: new Map(), ending: "pushed", todayKey: "2026-11-17", programmePath: PAGE_PATH }).rows;
+    assert.deepEqual(rows.filter((row) => row.groupId === B || row.groupId === C).map((row) => [row.session, row.came]), [
+      ["No date yet", "No date yet"],
+      ["No date yet", "No date yet"],
+    ]);
   });
 
   test("how many take part and how many left, and that freed places are over", async () => {

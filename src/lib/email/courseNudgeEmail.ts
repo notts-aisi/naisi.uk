@@ -17,7 +17,9 @@ import type { GroupSession, GroupSessionMode } from "@/lib/firestore/courseGroup
  *    nudge's, kept so every claim already written keeps meaning what it
  *    meant: a group mailed about a session is never mailed about it again.
  *  - `courseNudgeSessionWhere`: where a session is, as an email may print it.
- *  - `courseWeekUrl`: the week's page, as a link in an email.
+ *  - `courseWeekUrl`: the week's page, as a link in an email, and
+ *    `courseProgrammeUrl`, the run's own page, which the reminder of a
+ *    session opens.
  */
 
 /**
@@ -66,7 +68,11 @@ export function groupNudgeMarkerId(
  *                     link that meets in a room this week is told the room,
  *                     or nothing when no room is stored;
  *   · `null`        → the room when there is one, "Online" when there is
- *                     only a link.
+ *                     only a link AND the week's campus is Online or not
+ *                     chosen, as the ticket asks it (`heldOnline`). A week
+ *                     with no room on a group that meets on a campus is a
+ *                     room still to book, whatever link the group keeps:
+ *                     "", as for a week with no room and no link.
  *
  * ── A ROOM IS TYPED BY A PERSON, AND A LINK CAN BE TYPED INTO ONE ───────────
  * So the room is asked about before it is printed (`couldBeFollowed`, the one
@@ -76,7 +82,9 @@ export function groupNudgeMarkerId(
  */
 export function courseNudgeSessionWhere(
   session: GroupSession | null | undefined,
-  mode?: GroupSessionMode | null,
+  mode: GroupSessionMode | null | undefined,
+  /** The week's campus (`campusForWeek`): a blank room is online only on the Online campus or none. */
+  campus: GroupCampus | null,
 ): string {
   if (!session) return "";
   const location = session.location.trim();
@@ -85,7 +93,7 @@ export function courseNudgeSessionWhere(
   if (mode === "virtual") return "Online";
   if (mode === "in-person") return room;
   if (location) return room;
-  return session.meetingUrl ? "Online" : "";
+  return session.meetingUrl && (campus === null || campus === "online") ? "Online" : "";
 }
 
 /**
@@ -107,7 +115,7 @@ export function weekOpenPlace(
   mode: GroupSessionMode | null,
   campus: GroupCampus | null,
 ): { where: string; roomToBeConfirmed: boolean; roomHoldsLink: boolean; onlineNoLink: boolean } {
-  const where = courseNudgeSessionWhere(session, mode);
+  const where = courseNudgeSessionWhere(session, mode, campus);
   const location = session.location.trim();
   const online = campus === "online";
   const roomToBeConfirmed = where === "" && !online;
@@ -117,6 +125,13 @@ export function weekOpenPlace(
     roomHoldsLink: roomToBeConfirmed && location !== "" && couldBeFollowed(location),
     onlineNoLink: where === "" && online,
   };
+}
+
+/** The run's own page in the member area (their programme page), or "" when a part of it is missing. */
+export function courseProgrammeUrl(appUrl: string, runId: string): string {
+  const base = appUrl.replace(/\/+$/, "");
+  if (!base || !runId) return "";
+  return `${base}/learn/${encodeURIComponent(runId)}`;
 }
 
 /** The week's page on the site for this run, or "" when a part of it is missing. */

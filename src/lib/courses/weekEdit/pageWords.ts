@@ -232,8 +232,8 @@ export const HISTORY_PAGE = {
   confirm: (answers: number) => `Restore it and take out ${plural(answers, "answer", "answers")}`,
   restored: (summary: string) => `Saved: ${summary}.`,
   state: { changed: "Changed", added: "Added", removed: "Removed" } as const,
-  /** A changed row's fields: "Its link and title changed." */
-  fields: (fields: string) => `Its ${fields} changed.`,
+  /** A changed row's fields: "Its link and title changed.", or for a Choose one or Cases "Who chooses changed." */
+  fields: (fields: string) => (fields === "who chooses" ? "Who chooses changed." : `Its ${fields} changed.`),
   movedLine: (n: number) => `${plural(n, "block has", "blocks have")} moved within the week.`,
   titleRow: "The week’s title",
   loading: "Reading the two versions…",
@@ -265,6 +265,86 @@ export const PASTE_CHECK = {
   replaceTakingOut: (label: string, answers: number) => `${label} and take out ${plural(answers, "answer", "answers")}`,
   footnote: "The same protections as changing one block: ticks and answers stay attached, nothing is emailed, and it goes in the week’s history.",
   lockedOut: (name: string) => `${name} is editing this week: the paste opens when they save or leave.`,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Who chooses, in the paste's check
+// ---------------------------------------------------------------------------
+
+/** On the programme's own week the count is of everybody on the programme, any group with its own copy of the week included. */
+const WHOLE_RUN = " This counts everybody on the programme, so it can be a little high.";
+
+/** "the Choose one line", "the Talk line": the line of a block that can say who chooses. */
+const LINE_NAME = { chooseOne: "Choose one", cases: "Talk" } as const;
+
+/**
+ * The check's "Who chooses?": each Choose one and each Cases block of the
+ * pasted week, who makes the choice, why it starts that way, and what a
+ * change does to people already on the week. The why lines name the rule
+ * the reader applied (`ChooserRule` in `src/lib/courses/weekBlocks/whoChooses.ts`).
+ */
+export const WHO_CHOOSES = {
+  title: "Who chooses?",
+  /** The line under the title: how many of the blocks can be changed here. */
+  lede: (changeable: number) =>
+    changeable === 0
+      ? "Each block that offers a choice, and who makes it."
+      : changeable === 1
+        ? "Each block that offers a choice, and who makes it. Change it before you save."
+        : changeable === 2
+          ? "Each block that offers a choice, and who makes it. Change either before you save."
+          : "Each block that offers a choice, and who makes it. Change any of them before you save.",
+  given: "Given out by your facilitator",
+  picked: "Picked by each person",
+  /** "Choose one · 4 packs", "Choose one · 2 options" (a list). */
+  chooseOneDetail: (packs: number, list: boolean) =>
+    `Choose one · ${list ? plural(packs, "option", "options") : plural(packs, "pack", "packs")}`,
+  /** "Cases · 22, by pathway", "Cases · 15", "Cases · 6, in 2 groups". */
+  casesDetail: (cases: number, groupLabel: string, groups: number) =>
+    `Cases · ${cases}${groupLabel ? `, by ${groupLabel.toLowerCase()}` : groups > 1 ? `, in ${groups} groups` : ""}`,
+  // Why it starts that way, one line per rule of the reader.
+  /** The block's own line says it: "given out" or "picked by". */
+  said: (line: keyof typeof LINE_NAME, words: string) => `The pasted week says so: its ${LINE_NAME[line]} line says “${words}”.`,
+  /** A table with neither, whose part's words before it ask people to choose one. */
+  partAsks: (asks: string) => `The pasted week doesn’t say, and the words before it say “${asks}”, so a Choose one starts as picked by each person.`,
+  /** A table with neither, whose part asks people to choose one but also says they chose or are given one. */
+  partAsksBut: (asks: string, but: string) =>
+    `The pasted week doesn’t say, and the words before it say “${asks}” but also “${but}”, so a Choose one starts as given out by your facilitator.`,
+  /** A table with neither, in a part that does not ask anybody to choose. */
+  partSilent: "The pasted week doesn’t say, and the words before it don’t say “choose one” or “pick one”, so a Choose one starts as given out by your facilitator.",
+  /** The same, under a Choose one line that names nobody. */
+  partSilentWithLine:
+    "Its Choose one line doesn’t say “given out” or “picked by”, and the words before it don’t say “choose one” or “pick one”, so it starts as given out by your facilitator.",
+  list: "A list is always picked by each person.",
+  /** A case study under its own heading, with nothing on its Talk line. */
+  heading: (heading: string) => `The pasted week doesn’t say. Cases under “${heading}” start as given out.`,
+  /** A Talk line inside a part, with nothing on it. */
+  inPart: "The pasted week doesn’t say, and a talk inside a part starts as picked by each person.",
+  /** A talk taken from a part's title. */
+  partTitle: (followsChooseOne: boolean) =>
+    followsChooseOne
+      ? "The pasted week doesn’t say, so a talk taken from a part’s title follows that part’s Choose one."
+      : "The pasted week doesn’t say, and its part has no Choose one, so a talk taken from a part’s title starts as picked by each person.",
+  /** Under Cases, always: why there is one answer. */
+  casesOnlyGiven: "Cases can only be given out: no page lets a member pick a case.",
+  /** Under Cases read as picked: what that would do. */
+  casesPicked: "As pasted, no more cases can be given out: no page lets a member pick one. Choose “Given out by your facilitator”.",
+  changed: "Changed from the pasted week. Once saved, Copy as Markdown writes it into the week’s words.",
+  // What a change does to people already on the week.
+  /** Picked to given: what people picked stays theirs, and is no longer theirs to change. */
+  nowGiven: (people: number, wholeRun = false) =>
+    people === 0
+      ? "Nobody has picked one yet. Facilitators give one to everybody."
+      : (people === 1
+          ? "1 person has picked one. They keep their pick and can no longer change it. Facilitators give one to everybody else."
+          : `${people} people have picked one. They keep their picks and can no longer change them. Facilitators give one to everybody else.`) +
+        (wholeRun ? WHOLE_RUN : ""),
+  /** Given to picked: what was given becomes each person's own pick. */
+  nowPicked: (people: number, wholeRun = false) =>
+    people === 0
+      ? "Nobody has been given one yet. Each person picks their own before their session for the week starts, and facilitators can no longer give one out."
+      : `${plural(people, "person was", "people were")} given one. It becomes their own pick, which they can change until their session for the week starts. Facilitators can no longer give one out.` +
+        (wholeRun ? WHOLE_RUN : ""),
 } as const;
 
 // ---------------------------------------------------------------------------

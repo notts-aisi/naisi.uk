@@ -141,6 +141,11 @@ type Summary = {
   error: Error | null;
   /** The run Home already shows in full, left out of the list. */
   featuredRunId?: string | null;
+  /**
+   * Runs Home shows elsewhere, left out too: a facilitator's Home carries
+   * every run they facilitate on, the one shown and the others' groups.
+   */
+  alsoShownRunIds?: readonly string[];
 };
 
 export default function MyCoursesSummary({
@@ -148,6 +153,7 @@ export default function MyCoursesSummary({
   loading,
   error,
   featuredRunId = null,
+  alsoShownRunIds,
 }: Summary) {
   const live = useMemo(() => liveRunsOf(runs).slice(0, MAX_ROWS), [runs]);
 
@@ -156,7 +162,7 @@ export default function MyCoursesSummary({
   // it back.
   if (loading || error || live.length === 0) return null;
 
-  const listed = live.filter((entry) => entry.runId !== featuredRunId);
+  const listed = live.filter((entry) => entry.runId !== featuredRunId && !alsoShownRunIds?.includes(entry.runId));
 
   return (
     <>

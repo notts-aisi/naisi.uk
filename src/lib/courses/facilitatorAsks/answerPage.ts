@@ -5,6 +5,8 @@ import { loadForm } from "@/lib/applications/repo";
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
+import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
+import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
 import { groupAskFacts } from "./groups";
 import { listRunAsks, readAsk, readTraining } from "./read";
 import { askStateOf } from "./rules";
@@ -41,6 +43,13 @@ import {
  * email named them. NOTHING FROM ANY APPLICATION: their own answers are not
  * shown back, and nobody else's are reached. Holding a place on the
  * programme closes nothing: a facilitator can be one of its fellows too.
+ *
+ * AFTER YES, THE GUIDE. Saying yes names them on the group in the same
+ * transaction (`answer.ts`), and the course's facilitator guide is open to a
+ * facilitator of a live group on a live run of the course, so the page says
+ * so and links it. Asked of the guide's own gate (`facilitatorGuideReader`),
+ * and only after yes: nobody who said no, or whom the gate refuses (taken
+ * off the group since, an account that no longer stands), is shown it.
  *
  * It reads no application, no review and no decision.
  */
@@ -82,6 +91,11 @@ export type AnswerPageModel =
       groupHref: string;
       /** Whether the group's people have been told their group (Publish has been pressed). */
       groupsOut: boolean;
+      /**
+       * The course's facilitator guide, for somebody who said yes and whom
+       * the guide's own gate admits; null for everybody else.
+       */
+      guideHref: string | null;
     };
 
 export async function loadAnswerPage(
@@ -135,6 +149,8 @@ export async function loadAnswerPage(
 
   const where = facts?.where;
   const groupsOut = runData !== null && runData.allocationPublishedAt != null;
+  // The run's own course, asked of the guide's gate as the guide's pages ask it.
+  const guideReader = state === "yes" && run ? await facilitatorGuideReader(db, actor, run.courseId) : null;
   const trainingSaid = trainingWords(training);
   return {
     kind: "ask",
@@ -156,5 +172,6 @@ export async function loadAnswerPage(
     groupName,
     groupHref: `/learn/${encodeURIComponent(ask.runId)}/group/${encodeURIComponent(ask.groupId)}`,
     groupsOut,
+    guideHref: guideReader ? facilitatorGuidePath(guideReader.courseId) : null,
   };
 }

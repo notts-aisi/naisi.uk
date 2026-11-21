@@ -32,9 +32,15 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * reason is needed for a press, and a preview (`preview: true`) may be asked
  * before one is written. Then the run and the session.
  *
- * Nobody is emailed by a correction. "It didn't happen" answers with the
- * notice's words when Tell the group was ticked, and its page posts them to
- * the group through the updates route, exactly as "Change a session" does.
+ * The correction itself emails nobody in the group. "It didn't happen"
+ * answers with the notice's words when Tell the group was ticked, and its page
+ * posts them to the group through the updates route, exactly as "Change a
+ * session" does. It does email about the people visiting that session from
+ * another group, whatever the tick: a visit to it ends with it while the
+ * visitor's own group's session that week is still to come, and the person and
+ * their own group's facilitators are told after the commit
+ * (`src/lib/courses/visit/hostOff.ts`), counted before the press
+ * (`visitEmails`) and held to the visit limit.
  */
 export async function POST(req: Request, ctx: { params: Promise<{ groupId: string }> }) {
   const blocked = await assertNotImpersonating();

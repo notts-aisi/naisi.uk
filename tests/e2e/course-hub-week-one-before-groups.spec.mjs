@@ -440,6 +440,39 @@ const flat = (text) => text.replace(/\s+/g, " ").trim();
  */
 const textOf = async (locator) => flat((await locator.textContent()) ?? "");
 
+/**
+ * The group page's one calm page, as somebody signed in whom it does not
+ * admit reads it: a 200 at the address asked, never a redirect, with the
+ * heading, who the page is for (its facilitators and admins: the group page
+ * admits no lead), what to do if that is wrong, the one way on to My
+ * programmes, and nothing of the group.
+ */
+async function assertGroupNotForYou(pg, origin, path, group, who) {
+  const response = await pg.goto(`${origin}${path}`, { waitUntil: "domcontentloaded" });
+  assert.equal(response?.status(), 200, `${who} opened ${path} and was answered ${response?.status()}`);
+  const calm = pg.getByTestId("not-for-you");
+  await calm.waitFor({ timeout: WAIT_MS });
+  assert.equal(new URL(pg.url()).pathname, path, `${who} was moved off the group's page to ${new URL(pg.url()).pathname}`);
+  // Each piece on its own: `textContent` runs the elements together with no
+  // space between them, so the whole is never compared as one string.
+  assert.equal(await textOf(calm.getByRole("heading", { level: 1 })), "This page isn’t for your account");
+  const lines = calm.locator("p");
+  assert.equal(await lines.count(), 2, `${who} reads ${await lines.count()} sentences`);
+  assert.equal(await textOf(lines.nth(0)), "It’s for a group’s facilitators and admins.", `${who} is told the page is for somebody else`);
+  assert.equal(
+    await textOf(lines.nth(1)),
+    "If you facilitate this group and can’t open it, ask the team and we’ll put it right.",
+    `${who} reads other words`,
+  );
+  const ways = calm.getByRole("link");
+  assert.equal(await ways.count(), 1, `${who} is offered ${await ways.count()} links`);
+  assert.equal(await textOf(ways.first()), "My programmes");
+  assert.equal(await ways.first().getAttribute("href"), "/learn");
+  const main = await textOf(pg.locator("main"));
+  assert.ok(!main.includes(group.name), `${who} is shown the group's name`);
+  assert.equal(await pg.getByRole("link", { name: "Take the register" }).count(), 0, `${who} is offered the group's register`);
+}
+
 const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
 /** What an email's HTML says, as one line of words. */
@@ -1062,7 +1095,10 @@ test(
           [WEEK_ONE.title, [], [], [], 0],
           "week 1 read with something to fix or check",
         );
+        // Week 1 holds no Choose one and no Cases, so the check asks nobody who chooses.
+        assert.deepEqual(found.whoChooses, [], "week 1 read with a block that offers a choice");
         await card.getByRole("heading", { name: "What we found in week 1", exact: true }).waitFor({ timeout: WAIT_MS });
+        assert.equal(await card.getByRole("heading", { name: "Who chooses?" }).count(), 0, "week 1's check asks who chooses");
         assert.equal(await card.getByRole("heading", { name: "Before it can be saved" }).count(), 0, "week 1 cannot be saved");
 
         const [save] = await Promise.all([
@@ -1338,8 +1374,9 @@ test(
         await sentTo(adaPage, weekPath(2), weekPath(1), "Ada, opening week 2,");
         await adaPage.getByRole("heading", { level: 1, name: WEEK_ONE.title, exact: true }).waitFor({ timeout: WAIT_MS });
         await sentTo(adaPage, programmePath, "/learn", "Ada, opening the programme's page,");
+        // Each group's page is not Ada's: its one calm page, where it used to send Ada to My programmes without a word.
         for (const group of state.groups) {
-          await sentTo(adaPage, `${programmePath}/group/${enc(group.id)}`, "/learn", `Ada, opening ${group.name}'s page,`);
+          await assertGroupNotForYou(adaPage, origin, `${programmePath}/group/${enc(group.id)}`, group, `Ada, opening ${group.name}'s page,`);
         }
 
         // Week 1's data is week 1 alone: no group, no session, no other week.

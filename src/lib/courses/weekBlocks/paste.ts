@@ -3,6 +3,7 @@ import { foundRows, thingsToCheck, type FoundRow } from "./found";
 import { readWeekMarkdown } from "./markdownRead";
 import { finishWeekBlocks, mergeWeekIds } from "./merge";
 import { dayBeforeWords } from "./markdownWrite";
+import { applyWhoChooses, whoChoosesRows, type WhoChoosesOverride, type WhoChoosesRow } from "./whoChooses";
 import {
   newWeekItemId,
   sanitizeWeekBlocks,
@@ -18,6 +19,11 @@ import {
  * worked out, then the found list, the things to check, and what stops it
  * being saved. The loader's route asks this for "Read it" and again for
  * "Save", so what is saved is exactly what was read.
+ *
+ * WHO CHOOSES each Choose one and Cases block is read from the Markdown's
+ * words, then changed where the author changed it in the check
+ * (`whoChooses`, by the block's place: `./whoChooses.ts`), before the ids
+ * are settled, so Read it and Save apply the same change to the same read.
  *
  * Pure: the route reads the stored week and counts the answers on what the
  * paste would take out (`removed`).
@@ -40,6 +46,8 @@ export type PastedWeek = {
   removed: WeekItem[];
   kept: number;
   minted: number;
+  /** Each Choose one and Cases block, who chooses it and why: the check's "Who chooses?". */
+  whoChooses: WhoChoosesRow[];
 };
 
 export function readPastedWeek(input: {
@@ -54,11 +62,14 @@ export function readPastedWeek(input: {
    */
   dayBeforeTime?: string | null;
   mint?: (prefix: IdPrefix) => string;
+  /** The author's changes to who chooses, by place. None reads the week exactly as its words do. */
+  whoChooses?: readonly WhoChoosesOverride[];
 }): PastedWeek {
   const parsed = readWeekMarkdown(input.markdown);
-  const merged = mergeWeekIds(input.stored, parsed.blocks, input.mint ?? newWeekItemId);
+  const chosen = applyWhoChooses(parsed.blocks, input.whoChooses ?? []);
+  const merged = mergeWeekIds(input.stored, chosen.blocks, input.mint ?? newWeekItemId);
   const finished = finishWeekBlocks(merged.blocks);
-  const problems = [...parsed.problems, ...weekBlocksProblems(finished)];
+  const problems = [...parsed.problems, ...chosen.problems, ...weekBlocksProblems(finished)];
   if (parsed.weekNumber !== null && parsed.weekNumber !== input.weekNumber) {
     problems.unshift(
       `This is week ${parsed.weekNumber}’s Markdown, and you’re loading week ${input.weekNumber}. Check the week, or change the first line.`,
@@ -84,6 +95,7 @@ export function readPastedWeek(input: {
     removed: merged.removed,
     kept: merged.kept,
     minted: merged.minted,
+    whoChooses: whoChoosesRows({ read: finished, start: parsed.blocks, rules: parsed.choices, stored: input.stored }),
   };
 }
 

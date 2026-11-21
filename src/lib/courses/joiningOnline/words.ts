@@ -113,7 +113,10 @@ export function linkFieldLabel(weekNumber: number): string {
 }
 
 /** The choice beside it. */
-export const EVERY_WEEK = "Keep this link for every week";
+/** The box's tick: the link from the box's week on, as a press from that week on saves it. */
+export function fromWeekOnWords(weekNumber: number): string {
+  return `Also use it for every week after week ${weekNumber} that has no link of its own`;
+}
 
 /** The button. */
 export const ADD_LINK = "Add the link";
@@ -125,13 +128,26 @@ export const LINK_ADDED =
 /** Said under the box: who sees the link and where. */
 export const BOX_NOTE = "Your group sees the link on their programme page, never in an email.";
 
+/**
+ * A link that would set apart more weeks than a group keeps (20): a week's
+ * own link needs an entry, and a link from a week on keeps each earlier week's
+ * link in one. Says what would be saved instead, when the other choice would.
+ */
+export function meetingLinkFullWords(input: { weekNumber: number; onwards: boolean; otherWorks: boolean }): string {
+  const { weekNumber, onwards, otherWorks } = input;
+  const why = onwards
+    ? `This group already keeps as many weeks apart from its usual slot as it can, so the weeks before week ${weekNumber} can’t keep their links as they are.`
+    : `This group already keeps as many weeks apart from its usual slot as it can, so week ${weekNumber} can’t have a link of its own.`;
+  if (!otherWorks) return `${why} Nothing was saved. Ask an admin about the group’s weeks.`;
+  return onwards ? `${why} Week ${weekNumber} only can still be saved.` : `${why} Week ${weekNumber} onwards can still be saved.`;
+}
+
 /** The route's answers. */
 export const MEETING_LINK_REFUSAL = {
   noSession: "That isn’t one of this group’s sessions.",
   cancelled: "That session isn’t happening, so it needs no link.",
   over: "That session is over, so it needs no link.",
   /** The group already keeps its most weeks apart from its usual slot. */
-  full: "This group has too many weeks set apart from its usual slot to add one more. Keep the link for every week instead.",
   failed: "That link didn’t save. Try again.",
 } as const;
 
@@ -202,6 +218,9 @@ export const ONLINE_WORD = "Online";
 
 /** Said after a cell's mark to a screen reader, for somebody who joined online. */
 export const JOINED_ONLINE = "Joined online.";
+
+/** Under a register's line not marked yet, for somebody who said they are joining online. */
+export const SAID_JOINING_ONLINE = "Said joining online";
 
 /** Said to a screen reader for somebody who said in advance they are joining online. */
 export const SAID_ONLINE_IN_ADVANCE = "They said they’re joining online.";

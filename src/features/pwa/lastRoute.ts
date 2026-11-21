@@ -30,7 +30,16 @@ const KEY = "naisi.lastRoute";
  *  longer "where you were", it is just history. */
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Pages never recorded. Anonymous feedback's form promises that nothing about
+ * sending it is kept, and that includes this browser: its address beside a
+ * time would say when somebody had the form open. Leaving it, the previous
+ * record stays as it was.
+ */
+export const NOT_RECORDED = ["/anonymous-feedback"] as const;
+
 export function recordLastRoute(pathname: string): void {
+  if (NOT_RECORDED.some((path) => pathname === path || pathname.startsWith(`${path}/`))) return;
   try {
     window.localStorage.setItem(KEY, JSON.stringify({ path: pathname, ts: Date.now() }));
   } catch {

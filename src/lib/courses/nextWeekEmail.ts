@@ -34,6 +34,10 @@ import { firstWord } from "@/lib/firestore/applicationEmails";
 import type { CoursesConfig } from "@/lib/firestore/config";
 import { campusForWeek, sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
+import { courseEnrolmentId, normalizeCourseEnrolment, placementIsTold, visitInWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { differsByWeek } from "@/lib/courses/groupsByWeek";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 
 /**
  * "WEEK N IS OPEN", TO ONE GROUP: the one place it is resolved, claimed and
@@ -96,6 +100,32 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  * outcome says so (`roomHoldsLink`), and the schedule puts a card on the
  * boards of the programme's lead and the admins to put it right.
  *
+ * ── SOMEBODY VISITING FOR ONE WEEK: NEVER TWO, AND ONE WHEREVER POSSIBLE ────
+ * Each group's email goes once, to the people due at its session when it
+ * goes, and a visit can be arranged or called off between two groups' sends.
+ * So a person's email of a week is also claimed once ACROSS THE RUN'S GROUPS:
+ * a marker per person and week (`weekOpenPersonMarkerId`, in `courseNudges`
+ * beside the group's), created with `.create()` as the group's is, just
+ * before their message goes. A send leaves out anybody whose marker another
+ * group's send made, when either that send or this one finds them on a
+ * visit that week; a marker of the same group (its second session of the
+ * week, an admin's resend) never stops anybody, and neither does one made
+ * with no visit in play, so with no visit anywhere every send goes to
+ * exactly whom it always did.
+ *
+ * Somebody visiting is in the host's audience for the week (`groupForWeek`)
+ * AND in the audience of the group they belong to that week
+ * (`belongingToo`), so whichever of the two sends reaches them first is the
+ * one they get, and it is always about the session they go to: the host's
+ * day, time and place, with the week's title and what it asks read from the
+ * copy they work in, their own group's (`copyGroupIdFor`), never the host's.
+ * When that copy is not published (or, sent whole, misses a value), the week
+ * is not open for them yet: they are left out of that send, counted as
+ * skipped and claimed by nobody, and the next send that reaches them once it
+ * is published is theirs. When no send comes after, they get none. A visit
+ * whose host no longer meets, or has no dated session that week, is read in
+ * their own group's send as their own group's session.
+ *
  * ── AN EARLIER WEEK NOT DONE ────────────────────────────────────────────────
  * Each person's email adds one line for any earlier week of theirs that is
  * not done, whose session has passed and which they had joined by then
@@ -135,6 +165,7 @@ export type NextWeekEmailOutcome = {
     | "missing"
     | "refused"
     | "nobody"
+    | "had"
     | "claimed"
     | null;
   /** The empty values that held a whole email. Empty otherwise. */
@@ -207,6 +238,13 @@ export async function readNextWeekEmail(
     session: ResolvedSession;
     feedbackUrl: string;
     appUrl: string;
+    /**
+     * The group whose copy of the week the email's words are read from, when
+     * it is not the session's group's: a visitor's own group's
+     * (`copyGroupIdFor`). Everything about the session is the session's
+     * group's either way.
+     */
+    copyGroupId?: string;
   },
 ): Promise<NextWeekEmailReading> {
   const { run, group, session } = args;
@@ -215,7 +253,7 @@ export async function readNextWeekEmail(
     console.error("[courses week open email] explainers could not be read", run.id, err);
     return [];
   });
-  const { week } = await resolveWeekDoc(db, run.id, group.id, session.weekId);
+  const { week } = await resolveWeekDoc(db, run.id, args.copyGroupId ?? group.id, session.weekId);
   const explainers = await explainersRead;
   const sessions = resolveSessions(run, group);
   const blocks = week && isBlockWeek(week) ? week.blocks : null;
@@ -227,7 +265,7 @@ export async function readNextWeekEmail(
     weekNumber: session.weekNumber,
     weekTitle: week?.title ?? "",
     sessionAt: sessionInstants(session).startsAt,
-    where: courseNudgeSessionWhere(session.session, sessionModeForWeek(group, session.weekId)),
+    where: courseNudgeSessionWhere(session.session, sessionModeForWeek(group, session.weekId), campusForWeek(group, session.weekId)),
     first: sessions[0]?.sessionKey === session.sessionKey,
     // A cancelled session's email says it is off, why, and when the group
     // meets next, in place of when and where it meets; the session after one
@@ -248,6 +286,168 @@ export async function readNextWeekEmail(
   return { published: Boolean(week?.published), missing, facts, week, roomHoldsLink: !session.cancelled && place.roomHoldsLink };
 }
 
+/**
+ * One person's claim on the email of one week of the run, across every group
+ * (`wkopen__`): construct-only, never parsed. A prefix of its own, so it can
+ * collide with neither a group's claim nor the send throttle in the same
+ * collection; `runId` is stored on it, so destroying a run takes it.
+ */
+export function weekOpenPersonMarkerId(runId: string, uid: string, weekId: string): string {
+  return `wkopen__${runId}__${uid}__${weekId}`;
+}
+
+/**
+ * Whether a person's claim on a week, as stored, says they have had its email
+ * from ANOTHER group's send in a way that stands: that send, or this one,
+ * found them on a one-week visit that week. A claim of this group (its second
+ * session of the week, a resend) never does; nor does one made with no visit
+ * in play, so that with no visit anywhere nothing changes.
+ */
+function hadItElsewhere(claim: Record<string, unknown> | undefined, groupId: string, visitingNow: boolean): boolean {
+  if (!claim || claim.groupId === groupId) return false;
+  return claim.visit === true || visitingNow;
+}
+
+/** Who one group's email goes to, each with the words they are sent: decided before anything is claimed. */
+type RecipientsPlan = {
+  recipients: CohortRecipient[];
+  readingOf: Map<string, NextWeekEmailReading>;
+  /** Who has a one-week visit in the email's week: said on their claim. */
+  visiting: Set<string>;
+  /** Left out because the copy they work in is not ready (unpublished, or a value missing). */
+  skipped: number;
+  /** Left out because they had the week's email from another group's send (`hadItElsewhere`). */
+  hadIt: number;
+};
+
+/**
+ * WHO OF THE GROUP'S AUDIENCE THIS SEND REACHES, AND WITH WHICH WORDS, read
+ * only: the send and the register's preview both ask it, so the count on the
+ * button is the count that goes. Everybody is on the group's own reading but
+ * somebody whose weeks differ (a one-week visit, a record of groups by week),
+ * whose place is read by id: their copy of the week, and for somebody
+ * visiting ANOTHER group that week, the host's session. Then each person's
+ * claim on the week is read, and whoever had it from another group's send is
+ * left out (`hadItElsewhere`).
+ */
+async function planRecipients(
+  db: Firestore,
+  args: {
+    run: CourseRunDoc;
+    group: CourseGroupDoc;
+    session: ResolvedSession;
+    reading: NextWeekEmailReading;
+    members: readonly CohortRecipient[];
+    whole: boolean;
+    config: CoursesConfig;
+    appUrl: string;
+  },
+): Promise<RecipientsPlan> {
+  const { run, group, session } = args;
+  const out: RecipientsPlan = { recipients: [], readingOf: new Map(), visiting: new Set(), skipped: 0, hadIt: 0 };
+  const uids = args.members.map((member) => member.uid);
+  if (uids.length === 0) return out;
+  const [placeSnaps, claimSnaps] = await Promise.all([
+    db.getAll(...uids.map((uid) => db.collection("courseEnrolments").doc(courseEnrolmentId(run.id, uid)))),
+    db.getAll(...uids.map((uid) => db.collection("courseNudges").doc(weekOpenPersonMarkerId(run.id, uid, session.weekId)))),
+  ]);
+  // Only a place whose weeks differ: everybody else reads the group's own email.
+  const places = new Map<string, CourseEnrolmentDoc>();
+  for (const snap of placeSnaps) {
+    if (!snap.exists) continue;
+    const place = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
+    // Only a place Publish has told (every recipient's is: the notice audience asks it too).
+    if (place.uid && placementIsTold(place) && differsByWeek(place)) places.set(place.uid, place);
+  }
+  const claims = new Map<string, Record<string, unknown>>();
+  for (const snap of claimSnaps) if (snap.exists) claims.set(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
+
+  // The groups somebody here visits that week: the session they go to is theirs.
+  const hostIds = [
+    ...new Set(
+      [...places.values()].map((place) => visitInWeek(place, session.weekNumber)?.groupId ?? "").filter((id) => id && id !== group.id && !id.includes("/")),
+    ),
+  ];
+  const hosts = new Map<string, CourseGroupDoc>();
+  for (const snap of hostIds.length ? await db.getAll(...hostIds.map((id) => db.collection("courseGroups").doc(id))) : []) {
+    if (!snap.exists) continue;
+    const host = normalizeCourseGroup(snap.id, snap.data() ?? {});
+    if (!host.archived && host.runId === run.id) hosts.set(host.id, host);
+  }
+
+  // Each email's words, read once per session and copy.
+  const readings = new Map<string, Promise<NextWeekEmailReading | null>>();
+  const readingFor = (sessionGroup: CourseGroupDoc, at: ResolvedSession, copy: string): Promise<NextWeekEmailReading | null> => {
+    if (sessionGroup.id === group.id && copy === group.id) return Promise.resolve(args.reading);
+    const key = `${sessionGroup.id}|${at.sessionKey}|${copy}`;
+    let reading = readings.get(key);
+    if (!reading) {
+      reading = readNextWeekEmail(db, {
+        run,
+        group: sessionGroup,
+        session: at,
+        feedbackUrl: args.config.weeklyFeedbackUrl,
+        appUrl: args.appUrl,
+        copyGroupId: copy,
+      }).then((own) => (own.week && own.published && !(args.whole && own.missing.length > 0) ? own : null));
+      readings.set(key, reading);
+    }
+    return reading;
+  };
+
+  for (const member of args.members) {
+    const place = places.get(member.uid);
+    const visit = place ? visitInWeek(place, session.weekNumber) : null;
+    if (hadItElsewhere(claims.get(weekOpenPersonMarkerId(run.id, member.uid, session.weekId)), group.id, visit !== null)) {
+      out.hadIt += 1;
+      continue;
+    }
+    const copy = (place ? copyGroupIdFor(place, session.weekNumber, place.groupId) : null) ?? group.id;
+    // Visiting another group that week: the host's session, while it meets and has one dated.
+    const host = visit && visit.groupId !== group.id ? (hosts.get(visit.groupId) ?? null) : null;
+    const hostSession = host ? (resolveSessions(run, host).find((each) => each.weekNumber === session.weekNumber && each.dateKey !== "") ?? null) : null;
+    const own = host && hostSession ? await readingFor(host, hostSession, copy) : await readingFor(group, session, copy);
+    if (!own) {
+      out.skipped += 1;
+      continue;
+    }
+    out.readingOf.set(member.uid, own);
+    out.recipients.push(member);
+    if (visit) out.visiting.add(member.uid);
+  }
+  return out;
+}
+
+/**
+ * Claim one person's email of the week for this group's send, just before it
+ * goes: true when it is theirs to send, false when another group's send
+ * already claimed it in a way that stands (`hadItElsewhere`).
+ */
+async function claimPersonWeek(
+  db: Firestore,
+  args: { run: CourseRunDoc; group: CourseGroupDoc; session: ResolvedSession; uid: string; visiting: boolean; now: Date },
+): Promise<boolean> {
+  const ref = db.collection("courseNudges").doc(weekOpenPersonMarkerId(args.run.id, args.uid, args.session.weekId));
+  try {
+    await ref.create({
+      kind: "week-open-person",
+      runId: args.run.id,
+      uid: args.uid,
+      groupId: args.group.id,
+      weekNumber: args.session.weekNumber,
+      weekId: args.session.weekId,
+      sessionKey: args.session.sessionKey,
+      visit: args.visiting,
+      sentAt: args.now,
+    });
+    return true;
+  } catch (err) {
+    if (!isAlreadyExists(err)) throw err;
+    const claim = (await ref.get()).data();
+    return !hadItElsewhere(claim as Record<string, unknown> | undefined, args.group.id, args.visiting);
+  }
+}
+
 /** An outcome in which nothing went, and why. */
 function heldOutcome(
   held: NextWeekEmailOutcome["held"],
@@ -262,8 +462,8 @@ type PreparedEmail = {
   ready: true;
   markerId: string;
   reading: NextWeekEmailReading;
-  /** Who it goes to: everybody holding a place in the group, as `resolveNoticeAudience` answers. */
-  members: CohortRecipient[];
+  /** Who it goes to, and with which words (`planRecipients`, of the people `resolveNoticeAudience` answers). */
+  plan: RecipientsPlan;
   skipped: number;
 };
 
@@ -340,11 +540,13 @@ async function prepareNextWeekEmail(
   // be counted on the group being mailed, not on the whole run. FOR THE
   // SESSION'S WEEK: the people whose group that week is this one
   // (`groupForWeek`), so somebody moved from a later week hears about their
-  // old group's session, and their new group's from the week they move.
-  // With no record of groups by week, the people in the group now.
+  // old group's session, and their new group's from the week they move; and
+  // the people who belong to it that week while visiting another group's
+  // session (`belongingToo`: see the header). With no record of groups by
+  // week and no visit, the people in the group now.
   const audience = args.audience
     ? await args.audience(session.weekNumber)
-    : await resolveNoticeAudience(db, run.id, LANE, { groupId: group.id, weekNumber: session.weekNumber });
+    : await resolveNoticeAudience(db, run.id, LANE, { groupId: group.id, weekNumber: session.weekNumber, belongingToo: true });
   if (audience.refusal) {
     return { ready: false, outcome: heldOutcome("refused", audience.refusal, { skipped: audience.skipped }) };
   }
@@ -361,7 +563,31 @@ async function prepareNextWeekEmail(
       ),
     };
   }
-  return { ready: true, markerId, reading, members: audience.members, skipped: audience.skipped };
+  // Who of them this send reaches, with which words (`planRecipients`).
+  const plan = await planRecipients(db, {
+    run,
+    group,
+    session,
+    reading,
+    members: audience.members,
+    whole: args.whole,
+    config: args.config,
+    appUrl: args.appUrl,
+  });
+  if (plan.recipients.length === 0) {
+    // Everybody it would reach works in a copy of the week not open yet (it
+    // waits for them, as for an unpublished week), or has had the week's
+    // email from another group's send. Nothing is claimed, so a copy
+    // published later still sends.
+    return {
+      ready: false,
+      outcome:
+        plan.skipped > 0
+          ? heldOutcome("unpublished", `Week ${session.weekNumber}’s email is waiting: the copy of the week the people it would reach work in isn’t published yet.`, { skipped: audience.skipped + plan.skipped })
+          : heldOutcome("had", `Everybody this email would reach has already had week ${session.weekNumber}’s email from another group, so none was sent.`, { skipped: audience.skipped }),
+    };
+  }
+  return { ready: true, markerId, reading, plan, skipped: audience.skipped + plan.skipped };
 }
 
 /** What a press of a register's button would do with the group's email about one session. */
@@ -399,7 +625,7 @@ export async function previewNextWeekEmails(
   const audienceOnce = (weekNumber: number) => {
     let audience = audiences.get(weekNumber);
     if (!audience) {
-      audience = resolveNoticeAudience(db, run.id, LANE, { groupId: group.id, weekNumber });
+      audience = resolveNoticeAudience(db, run.id, LANE, { groupId: group.id, weekNumber, belongingToo: true });
       audiences.set(weekNumber, audience);
     }
     return audience;
@@ -426,7 +652,7 @@ export async function previewNextWeekEmails(
     const claimed = (await db.collection("courseNudges").doc(prepared.markerId).get()).exists;
     out.set(
       session.sessionKey,
-      claimed ? { goes: false, why: "claimed" } : { goes: true, emails: prepared.members.length },
+      claimed ? { goes: false, why: "claimed" } : { goes: true, emails: prepared.plan.recipients.length },
     );
   }
   return out;
@@ -469,9 +695,10 @@ export async function sendNextWeekEmail(args: {
     appUrl: args.appUrl,
   });
   if (!prepared.ready) return prepared.outcome;
-  const { markerId, reading } = prepared;
-  const recipients: CohortRecipient[] = prepared.members;
+  const { markerId, reading, plan } = prepared;
   let skipped = prepared.skipped;
+  const recipients = plan.recipients;
+  const readingOf = plan.readingOf;
   // Each person's earlier weeks not done, read BEFORE the claim; a read that
   // fails leaves the line out of everybody's email rather than hold it.
   const earlier = await earlierWeeksNotDone(db, {
@@ -552,9 +779,21 @@ export async function sendNextWeekEmail(args: {
   // Bounded concurrency: `dispatchSends` keeps a group's send inside the
   // request and tick time limits.
   await dispatchSends(recipients, async (recipient) => {
+    // Their own claim on the week, across the run's groups: another group's
+    // send can have reached them since the plan was read.
+    // Only a claim somebody already holds stops their message; a claim that
+    // cannot be written is logged and the message goes, as it did before
+    // there were claims, so a failed write never loses anybody their email.
+    let theirs = true;
+    try {
+      theirs = await claimPersonWeek(db, { run, group, session, uid: recipient.uid, visiting: plan.visiting.has(recipient.uid), now: args.now });
+    } catch (err) {
+      console.error("[courses week open email] a person's claim on the week could not be written; sending all the same", group.id, recipient.uid, err);
+    }
+    if (!theirs) return;
     // The placeholder-free name: "" drops the greeting rather than addressing
     // somebody as "NAISI member".
-    const words = weekOpenEmailWords(reading.facts, firstWord(recipient.ownName), {
+    const words = weekOpenEmailWords((readingOf.get(recipient.uid) ?? reading).facts, firstWord(recipient.ownName), {
       earlierNotDone: earlier.get(recipient.uid) ?? [],
     });
     try {

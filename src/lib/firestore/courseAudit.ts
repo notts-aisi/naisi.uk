@@ -124,6 +124,10 @@ export type CourseAuditKind =
   | "session-restored"
   /** A session whose time had passed recorded at the time it really met. */
   | "session-put-right"
+  /** One week's room set, changed or taken off, that week only, its day and time untouched (the week's rooms, the term's rooms). */
+  | "session-room"
+  /** The group emailed where each of its sessions still to come is, by hand from the term's rooms. */
+  | "rooms-emailed"
   /** The group's regular day, time, length, room or campus changed from one week onwards. */
   | "group-time-changed"
   /** The room the group meets in every week set or changed, from the Groups tab. */
@@ -197,7 +201,9 @@ export type CourseAuditKind =
    * how many were emailed, and the reason given, which only the programme's
    * lead and admins read (`LEAD_ONLY_REASON_KINDS`).
    */
-  | "member-moved";
+  | "member-moved"
+  | "member-visits"
+  | "member-visit-off";
 
 export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "attendance-edit",
@@ -223,6 +229,8 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "session-pushed",
   "session-restored",
   "session-put-right",
+  "session-room",
+  "rooms-emailed",
   "group-time-changed",
   "group-room-changed",
   "group-link-set",
@@ -237,6 +245,8 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "register-cover-removed",
   "week-reminded",
   "member-moved",
+  "member-visits",
+  "member-visit-off",
 ];
 
 /** The label for a kind this build does not know. See `courseAuditKindLabel`. */
@@ -266,6 +276,8 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "session-pushed": "Session cancelled, later weeks pushed back",
   "session-restored": "Session put back as usual",
   "session-put-right": "Session put right after it happened",
+  "session-room": "Room set or taken off for one week",
+  "rooms-emailed": "Rooms for the rest of term emailed",
   "group-time-changed": "Regular time changed",
   "group-room-changed": "Room changed",
   "group-link-set": "Meeting link set",
@@ -280,6 +292,8 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "register-cover-removed": "Cover taken off a session that moved",
   "week-reminded": "Reminded about a week’s work",
   "member-moved": "Moved to another group for good",
+  "member-visits": "Visit to another group for one week",
+  "member-visit-off": "Visit to another group called off",
 };
 
 /**
@@ -297,6 +311,8 @@ const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory
   "session-pushed": "time-and-room",
   "session-restored": "time-and-room",
   "session-put-right": "time-and-room",
+  "session-room": "time-and-room",
+  "rooms-emailed": "time-and-room",
   "group-time-changed": "time-and-room",
   "group-room-changed": "time-and-room",
   "group-link-set": "link",
@@ -317,6 +333,8 @@ const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory
   "register-cover-removed": "registers",
   "week-reminded": "people",
   "member-moved": "people",
+  "member-visits": "people",
+  "member-visit-off": "people",
 };
 
 /**
@@ -351,7 +369,7 @@ export const LEAD_ONLY_AUDIT_KINDS: readonly CourseAuditKind[] = ["facilitator-r
  * history drawn for anybody else keeps the row and leaves its reason out,
  * the rule `LEAD_ONLY_AUDIT_KINDS` follows for the record of who was there.
  */
-export const LEAD_ONLY_REASON_KINDS: readonly CourseAuditKind[] = ["register-covered", "register-given", "member-moved"];
+export const LEAD_ONLY_REASON_KINDS: readonly CourseAuditKind[] = ["register-covered", "register-given", "member-moved", "member-visits"];
 
 export function courseAuditCategory(kind: CourseAuditKind | string): CourseAuditCategory {
   return isCourseAuditKind(kind) ? (COURSE_AUDIT_CATEGORY[kind] ?? "other") : "other";

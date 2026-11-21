@@ -4,14 +4,26 @@
  *
  * Run with `npm test`.
  *
- * The current version is v20: v19 with the AI at Nottingham survey named in
+ * The current version is v21: v20 with the paragraph "Reminders." in "Your
+ * work, progress and reminders" saying that three days and one day before
+ * each of somebody's sessions we email them its day, time and place, how to
+ * tell us they can't make it, and what is left of that week's work if
+ * anything is (it no longer says they stop once the week is done), "If you
+ * facilitate your own group." ending with the one exception for a week whose
+ * pathways or cases are given out, and
+ * "What's changed in version 21" at the top with version 20's, 19's, 18's
+ * and 17's lines kept under it, dated. Told on Home, not asked. Every other
+ * word is v20's, so the sections below that name v15 to v20 hold v21's text,
+ * and the describe for version 21 holds its change to the code.
+ *
+ * v20 is v19 with the AI at Nottingham survey named in
  * three places (a paragraph under "Surveys and check-ins" saying it is
  * anonymous and has a privacy notice of its own, the email step among the
  * forms Google reCAPTCHA runs on, and the key to an unfinished survey among
  * what the browser keeps), and "What's changed in version 20" at the top with
  * version 19's, 18's and 17's lines kept under it, dated. reCAPTCHA's line on
  * /privacy/services names the survey too. Told on Home, not asked. Every
- * other word is v19's, so the sections below that name v15 to v19 hold v20's
+ * other word is v19's, so the sections below that name v15 to v19 held v20's
  * text, and the describe for version 20 holds its changes to the code.
  *
  * v19 is v18 with a fifth small preference named under
@@ -199,15 +211,20 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v20.tsx");
+const CURRENT = read("src/content/legal/privacy/v21.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v20 is the text the site
+ * content check below runs against this, because v21 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v20, frozen: read by the version 20 describe, which proves v20 is v19 with its changes, and by the version 21 describe, which proves v21 is v20 with its one. */
+const V20_FLAT = read("src/content/legal/privacy/v20.tsx").replace(/\s+/g, " ");
+/** "What's changed in version 21", as the page carries it (an apostrophe is `&apos;` in the source). */
+const CHANGED_21 =
+  "We now email everybody a reminder of each session&apos;s day, time and place three days and one day before it, where before we only emailed people with work left to do. Anonymous feedback from the second form is kept for up to two years and deleted by hand once a year, where before we said two years from the day it is sent. We now say that our database&apos;s recovery copies can hold the time at which something sent through an anonymous form arrived, for up to 14 days. We now say that in a week where facilitators give out pathways or cases, a group&apos;s other facilitators can see which ones a facilitator who also takes part in the group has.";
 /** v19, frozen: read by the version 19 describe, which proves v19 is v18 with its one change, and by the version 20 describe, which proves v20 is v19 with its changes. */
 const V19_FLAT = read("src/content/legal/privacy/v19.tsx").replace(/\s+/g, " ");
 /** v18, frozen: read by the version 18 describe, which proves v18 is v17 with its changes, and by the version 19 describe, which proves v19 is v18 with its one. */
@@ -265,13 +282,16 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v20 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 20);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.20");
+  test("privacy v21 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 21);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.21");
   });
 
-  test("privacy v20 is dated the day its words last changed", () => {
-    // Provisional: set again to the day v20 goes live, as v19's, v18's, v17's, v16's and v15's were.
+  test("privacy v21 is dated the day its words last changed", () => {
+    // The day v21 reaches the site, as v20's, v19's, v18's, v17's, v16's and v15's were dated.
+    const twentyOne = POLICIES.privacy.versions.find((v) => v.version === 21);
+    assert.equal(twentyOne?.lastUpdated, "22 November 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 21).length, 1);
     const twenty = POLICIES.privacy.versions.find((v) => v.version === 20);
     assert.equal(twenty?.lastUpdated, "17 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 20).length, 1);
@@ -433,6 +453,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v20",
+    {
+      sha256: "02d3f88a3b93c92661c6af48506f6b258b16ff40e6bca20a55f40124a1bf482b",
+      why: "the AI at Nottingham survey named under surveys, Google reCAPTCHA and what the browser keeps, current from 17 November 2026 until v21 replaced it; told on Home, not asked, and the wording that said the reminders before a session are about what is left and stop once the week is done, frozen when v21 reminded everybody due at a session rather than editing it in place",
+    },
+  ],
   [
     "privacy/v19",
     {
@@ -968,7 +995,8 @@ const MUST_NAME = [
   // CHANGED ON PURPOSE (v17): and, for a week spent at another group's
   // session, that group's facilitators.
   ["who reads somebody's work, and that the week's page says so", /<strong>Who reads it\.<\/strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators\. Nobody else taking part; the week&apos;s page says so\./],
-  ["a facilitator's own work is the lead's and admins' only", /If you facilitate a group, your own work is read by the lead and admins only\./],
+  // CHANGED ON PURPOSE (v21): apart from the one exception, a week whose pathways or cases are given out.
+  ["a facilitator's own work is the lead's and admins' only", /If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above\./],
   // Pairs for a session in pairs (Technical AI Safety's hands-on night).
   // §2g holds what each person sees of their pair to its code.
   ["what a person's partner sees in a session in pairs", /When a session is in pairs, your partner sees your first name and whether you are bringing a laptop\./],
@@ -4370,7 +4398,7 @@ describe("the course hub passage", () => {
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
-      " If you facilitate a group, your own work is read by the lead and admins only.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above.",
       " Your private notes on the material are read by your group&apos;s facilitators and admins (if you facilitate the group, by admins alone), and we use them to improve the course.",
       " A facilitator may read out a line of a reflection without saying whose it is.",
     ]) {
@@ -4448,6 +4476,10 @@ describe("the course hub passage", () => {
         [
           "src/lib/courses/coursework/questionLoad.ts",
           "one question across a group, after its door's gate (the programme's: its lead and admins; the group's: its live facilitators, the lead and admins), the words read only for the people the one gate on whose work lets the reader read, so a facilitator never reads a facilitator's own",
+        ],
+        [
+          "src/lib/courses/personPage/load.ts",
+          "a person's page: their reflections and ticks as states, counts and times, never words, for the programme's lead and admins after the programme's own gate, and for a live facilitator of the group they are in now, their weeks in that group alone, after the one gate on whose work",
         ],
         ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "the group's page, for its live facilitators and admins"],
         ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx", "the page to read lines out, for the group's live facilitators and admins"],
@@ -4541,6 +4573,10 @@ describe("the course hub passage", () => {
           "src/app/api/courses/runs/[runId]/overview/route.ts",
           "the run home's route, which reads the rule alone, never the list, to tell a learner what a certificate needs before the end (November 2026: v19 says only the lead and admins see the list; since v15 it says nothing of who sees the number)",
         ],
+        [
+          "src/lib/scheduler/jobs/weekReminders.ts",
+          "the reminders before a session, which read the rule alone, never the list, to tell each learner due at a session what a certificate needs in the sentence their programme page says (v21: the reminders before a session say it too)",
+        ],
       ]),
       "reading the rule or the list of who finished",
       "The policy says only the programme's lead and admins see the list (and " +
@@ -4571,6 +4607,15 @@ describe("the course hub passage", () => {
       assert.match(read(route), /\bfinished: boolean;/);
     }
     assert.match(read("src/app/api/courses/runs/[runId]/overview/route.ts"), /\bcertificateNeeds: string \| null;/, "the run home is sent more than one sentence about the rule");
+    // The reminders before a session read the rule alone and say one sentence
+    // of it, the programme page's own: never the list, never a count.
+    const reminders = read("src/lib/scheduler/jobs/weekReminders.ts");
+    assert.deepEqual(
+      [...reminders.matchAll(/import \{([^}]*)\} from "@\/lib\/courses\/finishing\/[A-Za-z]+";/g)].map((match) => match[1].trim()),
+      ["certificateNeedsFor", "readFinishRule"],
+      "the reminders read more of who finished than the rule and the sentence it makes",
+    );
+    assert.match(read("src/lib/courses/weekEmails/words.ts"), /certificate: string \| null;/);
   });
 
   test("a deletion takes somebody off pitching week, out of their team and out of who finished, and a partner keeps a shared pitch", () => {
@@ -4693,6 +4738,10 @@ describe("the course hub passage", () => {
         [
           "src/lib/courses/coursework/door.ts",
           "Claude and Pangram on coursework (v13): the form's applications and decisions, read only through placeHoldersOn to answer WHO holds a place on the programme, by the name on record, behind the Coursework tab's door (an admin or the programme's lead). Nothing an application says is sent or shown, and a facilitator never reaches it",
+        ],
+        [
+          "src/lib/courses/personPage/load.ts",
+          "A person's page for the team: the one application by address, read only where the People tab hands the reader its link (an admin, or the programme's lead whose review screens may open it; canReadApplication), for the line beside that link: where they ranked the programme, and the day decision day accepted them or they said yes to an invitation. The facilitator's cut never reads it",
         ],
         [
           "src/lib/courses/weekNotes/store.ts",
@@ -5257,9 +5306,10 @@ describe("the course hub passage", () => {
     // The reading view of one person's week asks the same rule with the same gate's answer, for the person whose
     // week it is, and reads the lines only beside an answer its readers may read.
     const reading = withoutComments(read("src/lib/courses/coursework/readingLoad.ts"));
-    const role = reading.indexOf("const role = owner ? writtenReviewRole(actor, facts, owner, liveGroups) : null;");
+    // A host group's facilitator reading a visitor's one week is never handed the gate's answer, and reads no report line.
+    const role = reading.indexOf("const role = owner && hostWeek === null ? writtenReviewRole(actor, facts, owner, liveGroups) : null;");
     const scope = reading.indexOf("const beside = role ? besideScopeOf({ uid: actor.uid, isAdmin: facts.isAdmin, isLead: facts.isLead }, uid, role.mayReview) : null;");
-    const lines = reading.indexOf("beside && answerId && answerReadable ? readReportLinesAbout(db, { runId: run.id, uid, weekNumber: n, scope: beside }) : Promise.resolve(null),");
+    const lines = reading.indexOf("hostWeek === null && beside && answerId && answerReadable ? readReportLinesAbout(db, { runId: run.id, uid, weekNumber: n, scope: beside }) : Promise.resolve(null),");
     assert.ok(role !== -1 && scope > role && lines > scope, "the reading view reads report lines before its gate and the rule");
 
     // A facilitator's read names the reports they wrote, so a co-facilitator's
@@ -5432,7 +5482,7 @@ describe("the course hub passage", () => {
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
-      " If you facilitate a group, your own work is read by the lead and admins only.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
     }
@@ -5446,7 +5496,7 @@ describe("the course hub passage", () => {
         ["src/lib/courses/packsAndCases/readers.ts", "the readers, each read by id from the people a page may show it to"],
         ["src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts", "the person's own pick and ready box, in their own name only"],
         ["src/app/api/courses/groups/[groupId]/draw/route.ts", "the draw, typed in by the group's live facilitators, the programme's lead or an admin"],
-        ["src/lib/courses/weekEdit/counts.ts", "the week editor counts how many people have started a week, a pick among their work: a number for the programme's lead or an admin, never whose"],
+        ["src/lib/courses/weekEdit/counts.ts", "the week editor counts how many people have started a week, a pick among their work, and the paste's check how many hold a pack in a Choose one whose chooser it changes, somebody who facilitates counted as anybody else: numbers for the programme's lead or an admin, never whose"],
         ["src/lib/firestore/courseDeletion.ts", "destroying a run deletes its records"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account deletes every record of theirs"],
       ]),
@@ -5467,9 +5517,10 @@ describe("the course hub passage", () => {
     assert.match(readers, /!group\.archived && isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\);/);
     assert.match(readers, /const leadOf = await programmeLedBy\(db, actor, group\.runId\);/);
     assert.ok(!/isTrackLead|trackLeadUids|admissionsReviewer/.test(readers), "the draw's gate now admits a run's track lead or a reviewer");
-    for (const file of ["src/app/api/courses/groups/[groupId]/draw/route.ts", "src/app/(app)/learn/draw/[groupId]/page.tsx"]) {
-      assert.match(read(file), /await drawGate\(db, (?:actor|user), group\)/, `${file} no longer asks the draw's gate`);
-    }
+    // The route asks it through `openDrawGroup`, which answers a group that is not there as one that is not theirs.
+    assert.match(readers, /export async function openDrawGroup\([\s\S]*?const gate = await drawGate\(db, actor, group\);\s*if \(!gate\.ok\) return \{ ok: false, status: 403, error: "Forbidden" \};/);
+    assert.match(read("src/app/(app)/learn/draw/[groupId]/page.tsx"), /await drawGate\(db, user, group\)/, "the draw page no longer asks the draw's gate");
+    assert.match(read("src/app/api/courses/groups/[groupId]/draw/route.ts"), /const opened = await openDrawGroup\(db, actor, groupId\);/, "the draw's route no longer asks the draw's gate");
     // What the draw hands staff holds packs and cases, never the ready box:
     // the draw's state, the spread and This week's work's cells.
     const drawState = /export async function readDrawState\([\s\S]*?\n\}/.exec(readers);
@@ -5482,7 +5533,49 @@ describe("the course hub passage", () => {
     // and admins, and a facilitator's own pick is left blank for their
     // co-facilitators: only the lead and admins see that one.
     assert.match(weekWork[0], /const seesOwnWork = viewer\.isAdmin \|\| viewer\.leadOf !== null;/);
-    assert.match(weekWork[0], /const hidden = picked && person\.facilitates && !seesOwnWork;/);
+    assert.match(weekWork[0], /const reader = \{ uid: viewer\.uid \?\? "", seesOwnWork \};/);
+    assert.match(weekWork[0], /const hidden = picked && hidesOwnPick\(person, reader\);/);
+    // The case that follows such a pick names the pick, so it is left blank
+    // with it; the facilitator themself sees both. Held by rendering the
+    // group page's table as that facilitator, a co-facilitator, the lead and
+    // an admin in tests/course-draw-picked.test.mjs.
+    assert.match(weekWork[0], /const caseHidden = keyedByPick && hidesOwnPick\(person, reader\);/);
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-draw-picked.test.mjs")));
+    // THE DRAW READS A PICK the cases follow, for the case lists, and keeps a
+    // facilitator's own from their co-facilitators: by one rule
+    // (`hidesOwnPick`: somebody who facilitates a live group of the run, this
+    // one or another, read by somebody else who is neither the lead nor an
+    // admin), asked by every reader of the draw.
+    assert.match(drawState[0], /const blocks = \[\.\.\.week\.draw\.packs, \.\.\.week\.draw\.picked, \.\.\.week\.draw\.cases\];/);
+    assert.match(
+      readers,
+      /export function hidesOwnPick\(person: DrawPerson, viewer: \{ uid: string; seesOwnWork: boolean \}\): boolean \{\s*return person\.ownWork && person\.uid !== viewer\.uid && !viewer\.seesOwnWork;\s*\}/,
+    );
+    assert.match(readers, /if \(gate\.isAdmin \|\| gate\.leadOf\) return true;\s*return \(await programmeLedBy\(db, actor, group\.runId\)\) !== null;/);
+    //  - the draw page hands its editor what `drawRowsFor` keeps, never the state: a hidden row carries no pick and no case that follows one;
+    const rows = /export function drawRowsFor\([\s\S]*?\n\}/.exec(readers);
+    assert.ok(rows, "could not find what the draw page hands its editor");
+    assert.match(rows[0], /if \(following\.size > 0 && hidesOwnPick\(person, viewer\)\) \{\s*for \(const talkId of following\) delete cases\[talkId\];/);
+    assert.match(rows[0], /rows\.picks\[person\.uid\] = \{\};\s*rows\.hidden\.push\(person\.uid\);/);
+    const drawPageSource = withoutComments(read("src/app/(app)/learn/draw/[groupId]/page.tsx"));
+    assert.match(drawPageSource, /const rows = week && gives \? drawRowsFor\(week, people, state, \{ uid: user\.uid, seesOwnWork \}\) : null;/);
+    assert.match(drawPageSource, /initial=\{rows\.initial\}\s*picks=\{rows\.picks\}\s*hidden=\{rows\.hidden\}/);
+    assert.ok(!/state\.get\(/.test(drawPageSource), "the draw page hands its editor the draw's state itself");
+    //  - the draw's route refuses that case from a co-facilitator before the pick is looked at, and never checks a save against it;
+    const drawRoute = withoutComments(read("src/app/api/courses/groups/[groupId]/draw/route.ts"));
+    assert.match(drawRoute, /if \(following\.has\(entry\.blockId\) && hiddenUids\.has\(entry\.uid\)\) \{[\s\S]{0,160}return NextResponse\.json\(\{ error: ownCaseGivenByWords\(name\) \}, \{ status: 403 \}\);/);
+    assert.ok(drawRoute.indexOf("hiddenUids.has(entry.uid)") < drawRoute.indexOf("db.runTransaction("), "the route reads the pick before it refuses a co-facilitator");
+    assert.match(drawRoute, /if \(following\.has\(talkId\) && hiddenUids\.has\(uid\)\) continue;/);
+    //  - the group page's card reads only packs given out and who has a case (`spreadOf`, `everybodyHasTheirs`), never a pick.
+    const spread = /export function spreadOf\([\s\S]*?\n\}/.exec(readers);
+    const everybody = /export function everybodyHasTheirs\([\s\S]*?\n\}/.exec(readers);
+    assert.ok(spread && everybody, "could not find the card's readers");
+    for (const body of [spread[0], everybody[0]]) assert.ok(!/\.picked\b/.test(body), "the group page's card now reads a pick");
+    // A pick stays once a case that follows it is given, read in the transaction that writes it.
+    assert.match(
+      read("src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts"),
+      /if \(current && current !== packId\) \{[\s\S]*?if \(held\) throw new PickStaysError\(\);/,
+    );
     // A person reads their own, by their own uid: the overview asks for the caller's.
     assert.match(
       read("src/app/api/courses/runs/[runId]/overview/route.ts"),
@@ -5552,12 +5645,11 @@ describe("the course hub passage", () => {
     // live facilitators, the programme's lead and admins), asked by the route
     // and the pairs page; the group page's own gate (its live facilitators and
     // admins) for its card.
-    for (const file of ["src/app/api/courses/groups/[groupId]/pairs/route.ts", "src/app/(app)/learn/pairs/[groupId]/page.tsx"]) {
-      assert.match(read(file), /const gate = await drawGate\(db, (?:actor|user), group\);/, `${file} no longer asks the draw's gate`);
-    }
+    assert.match(read("src/app/(app)/learn/pairs/[groupId]/page.tsx"), /const gate = await drawGate\(db, user, group\);/, "the pairs page no longer asks the draw's gate");
+    assert.match(read("src/app/api/courses/groups/[groupId]/pairs/route.ts"), /const opened = await openDrawGroup\(db, actor, groupId\);/, "the pairs route no longer asks the draw's gate");
     assert.match(
       read("src/app/(app)/learn/[runId]/group/[groupId]/page.tsx"),
-      /const pairsWeek = drawWeek \? await readGroupPairs\(db, runId, groupId, drawWeek, drawList\) : null;/,
+      /const pairsWeek = pairsFor\?\.week \? await readGroupPairs\(db, runId, groupId, pairsFor\.week, drawList\) : null;/,
     );
     // Each person sees their own pair alone: the week page asks for the
     // session's own person, and the reader hands on one pair's first names
@@ -5607,7 +5699,7 @@ describe("the course hub passage", () => {
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
-      " If you facilitate a group, your own work is read by the lead and admins only.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
     }
@@ -5645,7 +5737,9 @@ describe("the course hub passage", () => {
     );
     const reader = withoutComments(read(readerFile));
     const gated = reader.indexOf("const reader = await boxesReaderFor(db, actor, runId, uid);");
-    const refused = reader.indexOf('if (!reader) return NextResponse.json({ error: "Forbidden" }, { status: 403 });');
+    // Or, for a week somebody spends at another group's session, that group's facilitators (the policy's "for a week
+    // you spend at another group's session, that group's facilitators"), by the one second answer, for that week alone.
+    const refused = reader.indexOf('if (!reader && !(await hostReadsWeekOf(db, actor, runId, uid, week))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });');
     const readRows = reader.indexOf('.collection("courseExerciseResponses")');
     assert.ok(gated !== -1 && refused > gated && readRows > refused, "the reader reads a box before it asks who is reading");
     assert.match(reader, /if \(!isFillInResponse\(data\) \|\| data\.uid !== uid \|\| data\.runId !== runId\) continue;/);
@@ -5933,7 +6027,7 @@ describe("the course hub passage", () => {
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
-      " If you facilitate a group, your own work is read by the lead and admins only.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
     }
@@ -6250,12 +6344,14 @@ describe("the course hub passage", () => {
     // with the form's paragraph, on the page once, and the promise is gone
     // (the anonymous form's test holds the paragraph to the code). v17 adds
     // one paragraph after it, the second form that may open, and the section
-    // closes with the two.
+    // closes with the two; v21 says that form in the present tense, once it
+    // exists, and closes the section with what the database's recovery
+    // copies can hold of either form.
     const surveys = PAGE_FLAT.slice(PAGE_FLAT.indexOf('<section id="surveys"'), PAGE_FLAT.indexOf('<section id="ai-review"'));
     assert.match(
       surveys,
-      /<p> <strong>The anonymous form\.<\/strong> One form never records who answers: [^<]* <\/p> <p> We may also open a second form that never records who fills it in: [^<]* <\/p> <\/section> $/,
-      "the surveys section no longer closes with the anonymous form and the second form",
+      /<p> <strong>The anonymous form\.<\/strong> One form never records who answers: [^<]* <\/p> <p> We also have a second form that never records who fills it in: [^<]* <\/p> <p> Our database&apos;s recovery copies, which exist so that data can be restored after a fault, can hold the time at which something sent through either anonymous form arrived, for up to 14 days\. We would only look at them if we had to\. <\/p> <\/section> $/,
+      "the surveys section no longer closes with the anonymous form, the second form and what the recovery copies can hold of both",
     );
     assert.equal((PAGE_FLAT.match(/We do not currently run anonymous surveys/g) ?? []).length, 0, "the promise is still on the page beside the form that kept it");
     assert.equal((PAGE_FLAT.match(/One form never records who answers/g) ?? []).length, 1);
@@ -6338,6 +6434,10 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/[surveyId]/blanks/route.ts", "the person's own answers to the questions they left blank, signed in, to their own row: there is no uid in the request"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account takes its name off its survey answers and deletes its survey rows"],
         ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off two years after the programme"],
+        [
+          "src/lib/societyFeedback/programmes.ts",
+          "anonymous feedback's list of this term's programmes takes `chooseTerm`, the pure choice of which application form is this term, and reads no survey, answer or name",
+        ],
         // A week's check-ins are fixed the first time it is whole, which is
         // when the programme's lead first reads it: the job records which
         // check-ins the week has, by their ids, and reads no answer and nobody
@@ -8098,9 +8198,14 @@ describe("the check-in passage", () => {
     // tests/missed-events.test.mjs walks every import of the module and runs
     // both routes as every caller.
     assert.deepEqual(
-      sourceFilesNaming(/\bmissedEventsOf\(|\beventsOfPerson\(/).filter((file) => file !== "src/lib/events/missedEvents.ts"),
-      ["src/app/api/admin/members/[uid]/events/route.ts", "src/lib/events/requestCard.ts"],
+      sourceFilesNaming(/\bmissedEventsOf\(|\beventsOfPerson\(|\beventsOfPersonInTerm\(/).filter((file) => file !== "src/lib/events/missedEvents.ts"),
+      ["src/app/api/admin/members/[uid]/events/route.ts", "src/lib/courses/personPage/load.ts", "src/lib/events/requestCard.ts"],
     );
+    // A person's page on a programme reads them only once the programme's gate has answered an admin.
+    const personPage = withoutComments(read("src/lib/courses/personPage/load.ts"));
+    const personEvents = personPage.indexOf("eventsOfPersonInTerm(db, uid, now, termOf(run, liveGroups, now))");
+    assert.ok(personEvents !== -1, "the person's page reads the events through the module's one reader of a person");
+    assert.ok(personPage.indexOf("if (!isAdmin) return") !== -1 && personPage.indexOf("if (!isAdmin) return") < personEvents);
     const route = withoutComments(read("src/app/api/admin/members/[uid]/events/route.ts"));
     assert.ok(route.indexOf('if (viewer.role !== "admin") {') < route.indexOf("await eventsOfPerson(db, uid, new Date())"));
     assert.match(
@@ -9552,12 +9657,12 @@ describe("the re-consent gate", () => {
 
   test("the accept page says nothing of version 19, which changes nothing about how information is used", () => {
     // A line on the accept page is for a version that changed how
-    // information is used: 15 to 18 and 20, oldest first. Version 19 names
-    // one more small preference kept in the browser, and its own first
-    // paragraph on the policy said so; version 20 keeps that line, dated.
+    // information is used: 15 to 18, 20 and 21, oldest first. Version 19
+    // names one more small preference kept in the browser, and its own first
+    // paragraph on the policy said so; versions 20 and 21 keep that line, dated.
     const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
     const lines = [...accept.matchAll(/What changed in version (\d+)\.<\/strong>/g)].map((match) => Number(match[1]));
-    assert.deepEqual(lines, [15, 16, 17, 18, 20]);
+    assert.deepEqual(lines, [15, 16, 17, 18, 20, 21]);
     const NINETEEN = "the site keeps one more small preference in your browser: that you dismissed the line saying this policy changed. Nothing about how we use your information has changed.";
     assert.ok(V19_FLAT.includes(`<strong>What&apos;s changed in version 19:</strong> ${NINETEEN}`));
     assert.ok(PAGE_FLAT.includes(`<strong>What changed in version 19, on 13 November 2026:</strong> ${NINETEEN}`));
@@ -9575,8 +9680,24 @@ describe("the re-consent gate", () => {
     const CHANGED =
       "This version adds the AI at Nottingham survey, an anonymous survey with a privacy notice of its own. It is now named where the policy describes surveys, Google reCAPTCHA and what your browser keeps.";
     assert.ok(said.includes(CHANGED), "the accept page's line for version 20 is no longer the policy's own words");
-    assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED} </p>`), "the policy no longer says what changed in version 20, in those words");
+    // Version 20's own "What's changed", and version 21 keeping it under its own, dated.
+    assert.ok(V20_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED} </p>`), "v20 no longer says what changed in version 20, in those words");
+    assert.ok(PAGE_FLAT.includes(`<strong>What changed in version 20, on 17 November 2026:</strong> ${CHANGED}`), "the policy no longer keeps what changed in version 20, with its date, in those words");
     assert.ok(!V19_FLAT.includes("What&apos;s changed in version 20"));
+  });
+
+  test("the accept page says what version 21 changes, last, after version 20's line, in version 21's own words", () => {
+    // Version 21 emails everybody due at a session a reminder of it, a change
+    // to how information is used, so the accept page says it last, before
+    // the links. Its line is version 21's own "What's changed in version 21".
+    const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
+    const twenty = accept.indexOf("What changed in version 20.</strong>");
+    const twentyOne = accept.indexOf("What changed in version 21.</strong>");
+    assert.ok(twenty !== -1 && twentyOne > twenty && accept.indexOf("Read the full", twentyOne) > twentyOne, "the accept page no longer says what version 21 changed, after version 20");
+    const said = accept.slice(twentyOne, accept.indexOf("Read the full", twentyOne));
+    assert.ok(said.includes(CHANGED_21), "the accept page's line for version 21 is no longer the policy's own words");
+    assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 21:</strong> ${CHANGED_21} </p>`), "the policy no longer says what changed in version 21, in those words");
+    assert.ok(!V20_FLAT.includes("What&apos;s changed in version 21"));
   });
 
   test("is not left behind on the dashboard layout alone", () => {
@@ -10776,6 +10897,10 @@ describe("v15 lets the people running a programme rate written work for each oth
           "src/lib/courses/coursework/questionLoad.ts",
           "one question across a group, for an admin or the programme's lead alone, person by person (`mayRateWorkOf`, which never admits a facilitator or the person themselves); tests/course-work-ratings.test.mjs holds the call",
         ],
+        [
+          "src/lib/courses/personPage/load.ts",
+          "a person's page on the programme, the number and the rater only, for an admin or the programme's lead alone (`mayRateWorkOf`, which never admits a facilitator or the person themselves); tests/course-work-ratings.test.mjs holds the call",
+        ],
       ]),
       "reading ratings for the team",
       "A new caller shows ratings somewhere new: decide it is an admin's or the lead's alone first.",
@@ -11239,29 +11364,31 @@ describe("v14 made survey questions required unless marked optional and named th
  * list, and every service on the list is one the code calls. A new service is
  * a new entry in both maps below, and a notice, before it receives anything.
  */
-describe("v15 says reminders before a session are about what is left, are part of running the programme, and stop once the week is done; the code agrees", () => {
-  // "Before your group's session we may email you about what is left of that
-  // week's work. These reminders are part of running the programme, so your
-  // notification settings don't switch them off, and they stop once the week
-  // is done." Each clause, held to the one job that sends them
+describe("v21 says the reminders before a session go to everybody due at it, with its day, time and place, and what is left; they are part of running the programme; the code agrees", () => {
+  // "Three days and one day before each of your sessions we email you its
+  // day, time and place, how to tell us if you can't make it, and what's
+  // left of that week's work if anything is. [...] These reminders are part
+  // of running the programme, so your notification settings don't switch
+  // them off." Each clause, held to the one job that sends them
   // (`courses-week-reminders`); the job is run end to end in
   // tests/course-week-reminders.test.mjs.
   const job = withoutComments(read("src/lib/scheduler/jobs/weekReminders.ts"));
   const model = withoutComments(read("src/lib/courses/weekEmails/model.ts"));
   const words = withoutComments(read("src/lib/courses/weekEmails/words.ts"));
+  /** "Reminders." as v21 says it, approved word for word. */
+  const REMINDERS_21 =
+    "<strong>Reminders.</strong> Three days and one day before each of your sessions we email you its day, time and place, how to tell us if you can&apos;t make it, and what&apos;s left of that week&apos;s work if anything is. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off.";
+  /** "Reminders." as v17 to v20 said it. */
+  const REMINDERS_20 =
+    "<strong>Reminders.</strong> Before the session a week&apos;s work is due at, we may email you about what&apos;s left of it. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off, and they stop once the week is done.";
 
   test("the policy says it, in those words", () => {
-    // CHANGED ON PURPOSE (v17): before the session a week's work is due at,
-    // and after it the people running the group may remind somebody of a
-    // week that is not done, and later weeks' emails may mention it. Nothing
-    // sends after the session yet: the job below still stops once a session
-    // has started. v16's words are held in frozen v16.
-    assert.ok(
-      PAGE_FLAT.includes(
-        "<strong>Reminders.</strong> Before the session a week&apos;s work is due at, we may email you about what&apos;s left of it. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off, and they stop once the week is done.",
-      ),
-      "the policy no longer says what the reminders before and after a session are",
-    );
+    // CHANGED ON PURPOSE (v21): everybody due at a session is reminded of
+    // it, and the reminders no longer stop once the week is done. v20's
+    // words, and v16's before them, are held in the frozen files.
+    assert.ok(PAGE_FLAT.includes(REMINDERS_21), "the policy no longer says what the reminders before and after a session are");
+    assert.ok(!PAGE_FLAT.includes("they stop once the week is done"), "the policy still says the reminders stop once the week is done");
+    assert.ok(V20_FLAT.includes(REMINDERS_20));
     assert.ok(
       V16_FLAT.includes(
         "<strong>Reminders.</strong> Before your group&apos;s session we may email you about what is left of that week&apos;s work. These reminders are part of running the programme, so your notification settings don&apos;t switch them off, and they stop once the week is done.",
@@ -11269,17 +11396,47 @@ describe("v15 says reminders before a session are about what is left, are part o
     );
   });
 
-  test("before your group's session: 3 days and 1 day before it, and never once it has started", () => {
+  test("three days and one day before each of your sessions, and never once it has started", () => {
     assert.match(model, /export const WEEK_REMINDER_DAYS = \[3, 1\] as const;/);
     assert.match(job, /if \(!startsAt \|\| now\.getTime\(\) >= startsAt\.getTime\(\)\) continue;/);
     assert.match(job, /const sessions = resolveSessions\(runState\.run, group\);/, "the group's own sessions");
   });
 
-  test("about what is left of that week's work: the check's own lines, a written answer not sent yet, and nothing else", () => {
+  test("its day, time and place: that week's, from the session the resolver hands every reader", () => {
+    assert.match(job, /sessionAt: due\.startsAt,\s+endsAt,/);
+    assert.match(job, /const place = reminderPlaceOf\(group, due\.session, typeof link === "string" && validateSubmissionUrl\(link, GROUP_FIELD_LIMITS\.meetingUrl\) === null\);/);
+    assert.match(words, /\$\{whose\} week \$\{facts\.weekNumber\} session is on \$\{londonDayLabel\(facts\.sessionAt\)\}/);
+  });
+
+  test("how to tell us if you can't make it", () => {
+    assert.match(words, /export const SESSION_REMINDER_CANT_MAKE_IT =\s+"Can’t make it\? Tell us on your programme page as early as you can: press Can’t make it on this session’s card\.";/);
+    // Said whenever their programme page shows the session's card, where Can't make it is.
+    assert.match(words, /const paragraphs = facts\.sessionOnTheirPage \? \[lead, SESSION_REMINDER_CANT_MAKE_IT\] : \[lead\];/);
+    assert.match(job, /\.\.\.\(await shownOnTheirPage\(db, runState, runFacts, group, due\.session, person\.uid\)\),/);
+    assert.match(job, /const shows = programmePageShowsSession\(seat, group\.id, visit\);\s+return \{ sessionOnTheirPage: shows\.cantMakeIt, linkOnTheirPage: shows\.joinOnline \};/);
+    // Their place in the group: both, as the page's own card offers them.
+    assert.match(job, /if \(place\.groupId === groupId\) return \{ cantMakeIt: true, joinOnline: true \};/);
+  });
+
+  test("what's left of that week's work if anything is: the check's own lines, a written answer not sent yet, only for a week not done", () => {
     assert.match(job, /left: weekLeft\(\{ blocks: week\.blocks, tasks: week\.tasks, state: own\.state \}\),/);
     assert.match(words, /const lines = left\.items\.map\(notDoneWords\);/);
     assert.match(words, /if \(left\.notSent\) lines\.push\(ANSWER_NOT_SENT_YET\);/);
     assert.match(words, /export const ANSWER_NOT_SENT_YET = "Your written answer isn’t sent yet\.";/);
+    const done = job.indexOf("if (weekDone({ tasks: week.tasks, state: own.state, submitted: state.submittedAt !== null, asks: week.asks })) continue;");
+    const listed = job.indexOf("remind.push({");
+    assert.ok(done > 0 && listed > done, "a week that is done is listed");
+    // Nor a week where a part waits on the facilitator's slip and the very list it would print names nothing else.
+    const waits = job.indexOf("if (nothingLeftButSlips(weekLeft({ blocks: week.blocks, tasks: week.tasks, state: own.state }), waitingOf(week.blocks, own.state))) continue;");
+    assert.ok(waits > done && listed > waits, "a week where only a slip not given yet is left is listed");
+    assert.match(model, /return parts\.length > 0 && left\.items\.length === 0 && !left\.notSent;/, "held back for anything but an empty list");
+  });
+
+  test("they no longer stop once the week is done: done takes the list off, and never the reminder", () => {
+    assert.match(job, /return \{ send: "session", weeks: theirs, left: remind \};/);
+    assert.match(job, /\| \{ send: false; why: "excused" \| "locked" \| "joined-late" \};/, "a reason not to remind somebody due at the session that is not one of these");
+    assert.doesNotMatch(job, /why: "done"|why \?\?= "done"|stampSkipped\(db, marker\.id, "done"/, "done is a reason not to remind again");
+    assert.match(job, /await stampSkipped\(db, marker\.id, verdict\.why, ctx\.now\);/);
   });
 
   test("part of running the programme, so the settings don't switch them off: a notice, to everybody holding a place", () => {
@@ -11288,13 +11445,6 @@ describe("v15 says reminders before a session are about what is left, are part o
     // record of groups by week anywhere, the people in it now).
     assert.match(job, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id, weekNumber \}\)/);
     assert.doesNotMatch(job, /resolveCohortAudience|wantsEmailForProfile|hasOptedOut|listUnsubscribe/, "a reminder reads somebody's settings, or offers to switch itself off");
-  });
-
-  test("they stop once the week is done: a week done is asked about before anything is sent", () => {
-    const done = job.indexOf("if (weekDone({ tasks: week.tasks, state: own.state, submitted: state.submittedAt !== null, asks: week.asks })) continue;");
-    const remind = job.indexOf("remind.push({");
-    assert.ok(done > 0 && remind > done, "a reminder can go to somebody whose week is done");
-    assert.match(job, /await stampSkipped\(db, marker\.id, verdict\.why, ctx\.now\);/);
   });
 });
 
@@ -11420,13 +11570,25 @@ describe("v15 says you may tell us in advance that you can't make a session, whi
     );
   });
 
-  test("taking it back is yours, or the group's time changing under it: staff never take back what you said otherwise", () => {
-    // Two callers and no more: you, and a new regular time for your group, whose
-    // "Most weeks, not all" ticks were about the old time.
+  test("taking it back is yours, or the group's time changing under it, or a visit called off: staff never take back what you said otherwise", () => {
+    // Three callers and no more: you, a new regular time for your group, whose
+    // "Most weeks, not all" ticks were about the old time, and a one-week visit
+    // called off, whose session you no longer go to: your own word about THAT
+    // session, on its register, while it is not finished, and nothing else.
     assert.deepEqual(callersOf("writeTakenBack"), [
       ["src/lib/courses/regularTime/apply.ts", 1],
       ["src/lib/courses/timeAnswer/seat.ts", 1],
+      ["src/lib/courses/visit/hostOff.ts", 1],
+      ["src/lib/courses/visit/save.ts", 1],
     ]);
+    // A visit that ends because its session was called off takes back the
+    // same word the same way, on the host's register while it is not finished.
+    const hostOff = withoutComments(read("src/lib/courses/visit/hostOff.ts"));
+    assert.match(hostOff, /if \(registerRef && registerSnap && hostSession && hostRegister && hostRegister\.pushedAt === null\) \{/);
+    assert.match(hostOff, /if \(Object\.hasOwn\(hostRegister\.excusedInAdvance, visit\.uid\)\) \{[\s\S]*?writeTakenBack\(tx, \{ session: hostSession, ref: registerRef, data, state: \{ kind: "told" \} \} as unknown as SessionLine, visit\.uid\)/);
+    const visitSave = withoutComments(read("src/lib/courses/visit/save.ts"));
+    assert.match(visitSave, /if \(register\.pushedAt === null\) \{/);
+    assert.match(visitSave, /if \(Object\.hasOwn\(register\.excusedInAdvance, input\.uid\)\) \{\s*writeTakenBack\(tx, \{ session: plan\.hostSession, ref, data, state: \{ kind: "told" \} \} as unknown as SessionLine, input\.uid\);/);
     assert.match(card, /writeTakenBack\(tx, line, user\.uid\);/);
     assert.match(seat, /if \(state\.kind === "told"\) writeTakenBack\(tx, line, user\.uid\);/);
     // A line an admin's approval wrote is not your word, so nothing that takes
@@ -11524,10 +11686,16 @@ describe("v16 says a register records the room or online, and you may tell us in
       new Map([
         ["src/lib/courses/joiningOnline/seat.ts", "Joining online: the caller's own word on their own line of the session's register, and taking it back"],
         ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own word, key by key, and nobody else's"],
+        ["src/lib/courses/visit/save.ts", "a one-week visit called off takes the person's own word off the session they no longer go to, and writes none"],
+        ["src/lib/courses/visit/hostOff.ts", "a one-week visit that ends with its session called off takes the person's own word off that session, and writes none"],
       ]),
       "writing that somebody is joining a session online",
       "The policy says you tell us in advance. Nobody may say it for anybody else.",
     );
+    assert.match(withoutComments(read("src/lib/courses/visit/save.ts")), /tx\.set\(ref, \{ \[ONLINE_SAID\]: \{ \[input\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\);/);
+    assert.doesNotMatch(withoutComments(read("src/lib/courses/visit/save.ts")), /\[ONLINE_SAID\]: \{ \[[^\]]+\]: FieldValue\.serverTimestamp/, "a visit writes somebody's word");
+    assert.match(withoutComments(read("src/lib/courses/visit/hostOff.ts")), /tx\.set\(registerRef, \{ \[ONLINE_SAID\]: \{ \[visit\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\)/);
+    assert.doesNotMatch(withoutComments(read("src/lib/courses/visit/hostOff.ts")), /\[ONLINE_SAID\]: \{ \[[^\]]+\]: FieldValue\.serverTimestamp/, "a visit ending writes somebody's word");
     assert.match(seat, /if \(seat\.uid !== user\.uid \|\| seat\.runId !== runId\) return false;/);
     assert.match(seat, /tx\.get\(db\.collection\("courseEnrolments"\)\.doc\(courseEnrolmentId\(group\.runId, user\.uid\)\)\)/);
     assert.match(seat, /\[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.serverTimestamp\(\) \},/);
@@ -12092,13 +12260,15 @@ describe("v20 names the AI at Nottingham survey under surveys, Google reCAPTCHA 
   ];
 
   test("v20 is v19 with these changes and no others", () => {
+    // Read from frozen v20 since v21 replaced it; v21 is v20 with its own
+    // change, held by the version 21 describe.
     let text = bodyOf(V19_FLAT);
     for (const [what, before, after] of V20_CHANGES) {
       assert.equal(text.split(before).length, 2, `v19 does not say, exactly once, what v20 changes (${what}): ${before}`);
-      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v20 still says what it was meant to replace (${what})`);
+      assert.ok(!bodyOf(V20_FLAT).includes(before) || after.includes(before), `v20 still says what it was meant to replace (${what})`);
       text = text.replace(before, after);
     }
-    assert.equal(text, bodyOf(CURRENT_FLAT), "v20 differs from v19 somewhere outside the changes listed here");
+    assert.equal(text, bodyOf(V20_FLAT), "v20 differs from v19 somewhere outside the changes listed here");
   });
 
   test("the three new passages, word for word, and none in v19", () => {
@@ -12127,11 +12297,11 @@ describe("v20 names the AI at Nottingham survey under surveys, Google reCAPTCHA 
   });
 
   test("what changed is at the top, newest first, each earlier version's line under it with its date", () => {
-    const twenty = PAGE_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED} </p>`);
-    const nineteen = PAGE_FLAT.indexOf(`<strong>What changed in version 19, on 13 November 2026:</strong> ${CHANGED_19}`);
-    const eighteen = PAGE_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
-    const seventeen = PAGE_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
-    assert.ok(twenty !== -1 && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < PAGE_FLAT.indexOf('<h2 id="in-short">'));
+    const twenty = V20_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED} </p>`);
+    const nineteen = V20_FLAT.indexOf(`<strong>What changed in version 19, on 13 November 2026:</strong> ${CHANGED_19}`);
+    const eighteen = V20_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
+    const seventeen = V20_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
+    assert.ok(twenty !== -1 && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < V20_FLAT.indexOf('<h2 id="in-short">'));
     // Each date is the day that version went live, as the policy list has it.
     assert.equal(POLICIES.privacy.versions.find((v) => v.version === 19)?.lastUpdated, "13 November 2026");
     assert.ok(!V19_FLAT.includes("What&apos;s changed in version 20"));
@@ -12145,6 +12315,141 @@ describe("v20 names the AI at Nottingham survey under surveys, Google reCAPTCHA 
     }
     // It adds a use of information, so Home's one short line says the policy changed, for a week from its date.
     assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 20), { version: 20, lastUpdated: "17 November 2026", toldOnHome: true });
+    // The week, the words and the dismissal are run in tests/policy-update-line.test.mjs.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
+  });
+});
+
+describe("v21 says the reminders before a session go to everybody due at it, and keeps v20's, v19's, v18's and v17's What's changed under its own; every other word is v20's", () => {
+  /**
+   * A version's file from the end of its notes on: its imports, its contents
+   * list, the address of the services page and its words as served. The
+   * header comment is notes, not policy.
+   */
+  const FIRST_IMPORT = 'import type { ReactNode } from "react";';
+  const bodyOf = (flat) => {
+    assert.equal(flat.split(FIRST_IMPORT).length, 2, "a version file does not open, after its notes, with the import this check starts from");
+    return flat.slice(flat.indexOf(FIRST_IMPORT));
+  };
+  /** What version 20 changed, in version 20's own words. */
+  const CHANGED_20 =
+    "This version adds the AI at Nottingham survey, an anonymous survey with a privacy notice of its own. It is now named where the policy describes surveys, Google reCAPTCHA and what your browser keeps.";
+  /** "Reminders." in "Your work, progress and reminders": v20's, and v21's as the owner approved it. */
+  const REMINDERS_20 =
+    "<strong>Reminders.</strong> Before the session a week&apos;s work is due at, we may email you about what&apos;s left of it. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off, and they stop once the week is done.";
+  /** How long anonymous feedback from the second form is kept, as v21 says it: cleared by hand once a year (`src/lib/societyFeedback/admin.ts`, `clearBefore`). */
+  const RETENTION_21 =
+    "up to two years. Once a year an admin deletes by hand every entry more than a year old, so none is kept longer than two years.";
+  /** The end of "If you facilitate your own group.": v20's, and v21's with its one exception, as the owner is asked to approve it. */
+  const OWN_GROUP_20 =
+    "Your own work is read by the programme&apos;s lead and admins, not by the group&apos;s other facilitators, and they don&apos;t give you feedback on it. </p>";
+  const OWN_GROUP_21 =
+    "Your own work is read by the programme&apos;s lead and admins, not by the group&apos;s other facilitators, and they don&apos;t give you feedback on it. The one exception is a week where facilitators give out pathways or cases: the group&apos;s other facilitators can see which ones you have, including a pathway you picked yourself if the week was later changed to given out. </p>";
+  const REMINDERS_21 =
+    "<strong>Reminders.</strong> Three days and one day before each of your sessions we email you its day, time and place, how to tell us if you can&apos;t make it, and what&apos;s left of that week&apos;s work if anything is. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off.";
+  /**
+   * EVERY CHANGE v21 MAKES TO v20, as [what, v20's words, v21's words], each
+   * a run of the flattened text. Applied to frozen v20 in turn, each found
+   * exactly once, they give v21 exactly: so nothing else in v20 changed.
+   */
+  const V21_CHANGES = [
+    ["the component's name", "export default function PrivacyContentV20(", "export default function PrivacyContentV21("],
+    [
+      "what changed, at the top, with version 20's line kept under it and dated",
+      `<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED_20} </p>`,
+      `<p id="whats-changed"> <strong>What&apos;s changed in version 21:</strong> ${CHANGED_21} </p> <p> <strong>What changed in version 20, on 17 November 2026:</strong> ${CHANGED_20} </p>`,
+    ],
+    ["the reminders before a session go to everybody due at it, and no longer stop once the week is done", REMINDERS_20, REMINDERS_21],
+    [
+      "anonymous feedback from the second form is kept up to two years and cleared by hand once a year",
+      "<li> <strong>Anonymous feedback from the second form:</strong> two years from the day it is sent. </li>",
+      `<li> <strong>Anonymous feedback from the second form:</strong> ${RETENTION_21} </li>`,
+    ],
+    [
+      "the second form is described in the present tense, now that it exists, and what the recovery copies can hold of either form follows it",
+      "<p> We may also open a second form that never records who fills it in: an anonymous feedback form that any member can use at any time. It would not ask who you are, and we would keep what you write, the day, and any programme, session or role you choose to name. Only admins would read it, from the next day. Nobody can reply to it, so if you&apos;d like an answer, ask us directly instead. </p>",
+      "<p> We also have a second form that never records who fills it in: an anonymous feedback form that any member can use at any time. It does not ask who you are, and we keep what you write, the day, and any programme, session or role you choose to name. Only admins read it, from the next day. Nobody can reply to it, so if you&apos;d like an answer, ask us directly instead. </p> " +
+        "<p> Our database&apos;s recovery copies, which exist so that data can be restored after a fault, can hold the time at which something sent through either anonymous form arrived, for up to 14 days. We would only look at them if we had to. </p>",
+    ],
+    ["a facilitator who takes part in their own group: the one exception, a week whose pathways or cases are given out", OWN_GROUP_20, OWN_GROUP_21],
+    [
+      "Who reads it. points a facilitator's own work at that exception",
+      " If you facilitate a group, your own work is read by the lead and admins only. Two things are narrower still.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above. Two things are narrower still.",
+    ],
+  ];
+
+  test("v21 is v20 with these changes and no others", () => {
+    let text = bodyOf(V20_FLAT);
+    for (const [what, before, after] of V21_CHANGES) {
+      assert.equal(text.split(before).length, 2, `v20 does not say, exactly once, what v21 changes (${what}): ${before}`);
+      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v21 still says what it was meant to replace (${what})`);
+      text = text.replace(before, after);
+    }
+    assert.equal(text, bodyOf(CURRENT_FLAT), "v21 differs from v20 somewhere outside the changes listed here");
+  });
+
+  test("the new paragraph, word for word, under Your work, progress and reminders, and not in v20", () => {
+    const section = PAGE_FLAT.slice(PAGE_FLAT.indexOf("<h2>Your work, progress and reminders</h2>"), PAGE_FLAT.indexOf('<section id="feedback-and-notes"'));
+    assert.ok(section.includes(REMINDERS_21), "Reminders. is not in Your work, progress and reminders, in those words");
+    assert.ok(!V20_FLAT.includes(REMINDERS_21));
+    assert.ok(!V20_FLAT.includes("Three days and one day before each of your sessions"));
+  });
+
+  test("a facilitator who takes part in their own group: the one exception, word for word, and the code agrees", () => {
+    const passage = hubPassageOf("<strong>If you facilitate your own group.</strong>");
+    assert.ok(`${passage}</p>`.endsWith(OWN_GROUP_21), "If you facilitate your own group. no longer ends with the exception, in those words");
+    assert.ok(!V20_FLAT.includes("The one exception is a week where facilitators give out pathways or cases"));
+    // "Who reads it." says "apart from the one exception above": the exception comes first on the page.
+    const exception = PAGE_FLAT.indexOf("The one exception is a week where facilitators give out pathways or cases");
+    const pointer = PAGE_FLAT.indexOf("your own work is read by the lead and admins only, apart from the one exception above.");
+    assert.ok(exception !== -1 && pointer > exception, "Who reads it. no longer comes after the exception it points to as above");
+    // "the group's other facilitators can see which ones you have": the
+    // pathways and cases page reads every person's pack in a Choose one given
+    // out and their case in a talk given out, a facilitator's as anybody's,
+    // and hands them to the editor; only a talk whose cases follow a pick
+    // keeps a facilitator's row back ("Picks their own").
+    const readers = withoutComments(read("src/lib/courses/packsAndCases/readers.ts"));
+    const drawState = /export async function readDrawState\([\s\S]*?\n\}/.exec(readers);
+    const rows = /export function drawRowsFor\([\s\S]*?\n\}/.exec(readers);
+    assert.ok(drawState && rows, "could not find the draw's readers");
+    assert.match(drawState[0], /for \(const chooseOne of week\.draw\.packs\) \{\s*const pack = findPack\(chooseOne, records\.get\(`\$\{person\.uid\} \$\{chooseOne\.id\}`\)\?\.packId \?\? null\);\s*if \(pack\) packs\[chooseOne\.id\] = pack\.id;/);
+    assert.ok(!/facilitates/.test(drawState[0]), "the draw's state now asks who facilitates");
+    assert.match(rows[0], /const packs = \{ \.\.\.\(holding\?\.packs \?\? \{\}\) \};/);
+    assert.match(rows[0], /if \(following\.size > 0 && hidesOwnPick\(person, viewer\)\) \{/);
+    // "including a pathway you picked yourself if the week was later changed
+    // to given out": a pick and a pack given are one record, and the check on
+    // a pasted week never refuses the change for who has picked.
+    const paste = withoutComments(read("src/lib/courses/weekPaste.ts"));
+    assert.match(paste, /problems: \[\.\.\.read\.problems\],/);
+    for (const file of ["src/app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts", "src/app/api/courses/groups/[groupId]/weeks/[weekId]/blocks/route.ts"]) {
+      const route = withoutComments(read(file));
+      assert.ok(!/facilitat/i.test(route.slice(route.indexOf("export async function PUT("))), `${file}: the save now asks who facilitates`);
+    }
+    // Run through the routes and the pathways and cases page, as a co-facilitator.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-week-who-chooses.test.mjs")));
+  });
+
+  test("what changed is at the top, newest first, each earlier version's line under it with its date", () => {
+    const twentyOne = PAGE_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 21:</strong> ${CHANGED_21} </p>`);
+    const twenty = PAGE_FLAT.indexOf(`<strong>What changed in version 20, on 17 November 2026:</strong> ${CHANGED_20}`);
+    const nineteen = PAGE_FLAT.indexOf("<strong>What changed in version 19, on 13 November 2026:</strong>");
+    const eighteen = PAGE_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
+    const seventeen = PAGE_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
+    assert.ok(twentyOne !== -1 && twentyOne < twenty && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < PAGE_FLAT.indexOf('<h2 id="in-short">'));
+    // Each date is the day that version went live, as the policy list has it.
+    assert.equal(POLICIES.privacy.versions.find((v) => v.version === 20)?.lastUpdated, "17 November 2026");
+    assert.ok(!V20_FLAT.includes("What&apos;s changed in version 21"));
+  });
+
+  test("told on Home, not asked: nobody is asked to accept it", async () => {
+    const acceptance = await loadTs("lib/legal/acceptance.ts");
+    assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
+    for (const stored of ["terms.1+privacy.15", "terms.1+privacy.16", "terms.1+privacy.17", "terms.1+privacy.18", "terms.1+privacy.19", "terms.1+privacy.20", "terms.1+privacy.21"]) {
+      assert.equal(acceptance.needsPolicyAcceptance(stored), false, stored);
+    }
+    // It changes how information is used, so Home's one short line says the policy changed, for a week from its date.
+    assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 21), { version: 21, lastUpdated: "22 November 2026", toldOnHome: true });
     // The week, the words and the dismissal are run in tests/policy-update-line.test.mjs.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
   });

@@ -320,6 +320,8 @@ export const RESULT = {
   timeFailed: (name: string, why: string) => `${name}’s time wasn’t changed: ${why}`,
   placed: (name: string, group: string | null) => (group ? `${name} is in ${group}.` : `${name} is out of groups.`),
   placesFailed: (why: string) => `Nobody was moved: ${why}`,
+  /** The question before a move made mid-term was answered Cancel. */
+  notConfirmed: "you chose not to make the moves you were asked about.",
   facilitating: (names: readonly string[], group: string) =>
     `${listInWords(names)} ${names.length === 1 ? "facilitates" : "facilitate"} ${group}.`,
   facilitatingFailed: (group: string, why: string) => `${group}’s facilitators weren’t changed: ${why}`,

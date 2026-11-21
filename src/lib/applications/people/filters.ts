@@ -57,3 +57,28 @@ export function rowMatchesSearch(row: Pick<PersonRow, "name" | "detail">, search
   const haystack = fold(`${row.name} ${row.detail}`);
   return words.every((word) => haystack.includes(word));
 }
+
+/** How the tab opens on one person's row (`?person=`, where search sends a lead). */
+export type OpenedOn = { search: string; filter: PeopleFilter; shown: number };
+
+/**
+ * THE TAB OPENED ON ONE ROW, so that row is drawn. Three things can hide a
+ * row, and each is set so it does not:
+ *
+ *  - THE FILTER: Everyone, unless it leaves the row out (somebody invited),
+ *    then the first filter, in the tab's order, that holds it;
+ *  - THE SEARCH: the row's own name, which it always matches;
+ *  - "SHOW MORE": as many pages of the table as reach the row, should more
+ *    rows than one page share the name.
+ *
+ * Null for a uid that is no row: the tab opens as usual, saying nothing.
+ */
+export function openedOn(rows: readonly PersonRow[], uid: string | null, pageSize: number): OpenedOn | null {
+  if (!uid) return null;
+  const row = rows.find((each) => each.uid === uid);
+  if (!row) return null;
+  const filter = rowMatches(row, "everyone") ? "everyone" : (PEOPLE_FILTERS.find((each) => rowMatches(row, each)) ?? "everyone");
+  const matching = rows.filter((each) => rowMatches(each, filter) && rowMatchesSearch(each, row.name));
+  const at = Math.max(0, matching.findIndex((each) => each.uid === uid));
+  return { search: row.name, filter, shown: Math.max(pageSize, Math.ceil((at + 1) / pageSize) * pageSize) };
+}

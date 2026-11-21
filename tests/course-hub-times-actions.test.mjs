@@ -376,7 +376,13 @@ describe("4. once Publish has told somebody when a group meets, its time is not 
     assert.equal(untold.status, 200, JSON.stringify(untold.body));
   });
 
-  test("a group whose facilitator Publish told stays told after everybody told in it has moved out", async () => {
+  test("a group whose facilitator Publish told stays told after everybody told in it has moved out", async (t) => {
+    // Before the run's first session (Mon 26 Oct 2026), on a fixed clock: the
+    // moves below are the board's moves for every week, which is what this
+    // test is about. Once a group has met, a move keeps the weeks already met
+    // (`tests/course-board-move.test.mjs`), and after the run's last session
+    // there is nothing to move anybody from, so it is never the suite's day.
+    t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-10-20T12:00:00Z") });
     world.db.poke(`courseGroups/${GROUP.monday}`, { facilitatorUids: ["nobody"] });
     await placed(everybodyIn(GROUP.monday));
     await published("zach");

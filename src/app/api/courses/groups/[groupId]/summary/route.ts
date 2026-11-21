@@ -7,10 +7,14 @@ import {
 } from "@/lib/courses/facilitatorGroup";
 import type { NextEmailLine } from "@/lib/courses/registerEnding";
 import { facilitatorExplainerOn, type FacilitatorExplainer } from "@/lib/courses/explainers/readers";
+import { readSlipsTonight } from "@/lib/courses/drawCard/reads";
 import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
+import { drawPeople } from "@/lib/courses/packsAndCases/readers";
+import { drawTitleWords } from "@/lib/courses/packsAndCases/words";
 import { resolveSessions, sessionRange } from "@/lib/courses/sessions";
 import { updateAudienceCounts } from "@/lib/courses/updates/audience";
 import { loadRunGroups } from "@/lib/courses/updates/readers";
+import { facilitatingOnRunOf } from "@/lib/courses/writtenAnswers/access";
 import {
   firstSessionDayOf,
   isBeforeFirstSessionDay,
@@ -46,6 +50,15 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * (the session the run's overview names for the group): how long, what
  * about, who gives it and who scheduled it, named as the reader sees people,
  * for Home's ticket, as the group page's ticket says it.
+ *
+ * THE SLIPS BEING HANDED OUT TONIGHT, for Home's card that points to the
+ * pathways and cases page, handed only to a facilitator of the group: from
+ * the start of the session that hands a week's slips out to the end of its
+ * evening, while somebody has not got theirs (`readSlipsTonight`, the rule
+ * the group page's card is pinned by), the week they are for, the session's
+ * day and what the week gives out. Absent at any other time and for an admin
+ * who does not facilitate the group; no draw is read to say so on any
+ * other evening.
  *
  * WHO READS IT: a live facilitator of the group, and admins: the group
  * page's own gate. Everybody else, and a group that is not there, is one 403;
@@ -104,6 +117,13 @@ export type FacilitatorSummary = {
    * with none.
    */
   explainer: FacilitatorExplainer | null;
+  /**
+   * The slips being handed out tonight, for a facilitator of the group: the
+   * week they are for, the hand-out session's date ("YYYY-MM-DD") and what
+   * the week gives out ("Pathways and cases"). Absent at any other time, so
+   * the answer is as it always was.
+   */
+  slips?: { weekNumber: number; handOutDateKey: string; title: string };
 };
 
 export async function GET(_req: Request, ctx: { params: Promise<{ groupId: string }> }) {
@@ -134,10 +154,17 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
   const model = await loadFacilitatorGroup(db, run, group, { isAdmin, actor }, now);
   // The group's next session, on its own calendar, as the overview names it.
   const next = sessionRange(resolveSessions(run, group, resolveGroupCalendar(run, group, now).calendar), now).next;
-  const [line, writtenQueue, explainer] = await Promise.all([
+  const [line, writtenQueue, explainer, slips] = await Promise.all([
     readNextEmailForHome(db, run, group, model.scheduled, now),
     loadWrittenQueue(db, actor, run, group),
     facilitatorExplainerOn(db, actor, run.id, group.id, next?.sessionKey),
+    // The group's people as the group page puts them in the draw; a read that fails says nothing.
+    facilitates
+      ? readSlipsTonight(db, { run, group, now, people: async () => drawPeople(model.people, model.facilitators, facilitatingOnRunOf(group, await loadRunGroups(db, run.id))) }).catch((err: unknown) => {
+          console.error("[group summary] the slips read failed", group.id, err);
+          return null;
+        })
+      : Promise.resolve(null),
   ]);
   // Who's coming: a facilitator's, before the first session's day, about the
   // people the facilitator's own view of the group lists (told, taking part),
@@ -190,6 +217,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
           fromWeekNumber: explainer.fromWeekNumber,
         }
       : null,
+    ...(slips ? { slips: { weekNumber: slips.weekNumber, handOutDateKey: slips.handOut.session.dateKey, title: drawTitleWords(slips.draw) } } : {}),
   };
   return NextResponse.json(answer);
 }

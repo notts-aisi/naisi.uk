@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { facilitatesOnRun } from "@/lib/courses/writtenAnswers/access";
 import { seesSessionLink } from "@/lib/courses/meetingLink/audience";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { londonDateKey, type CurrentWeek, type WeekPlanEntry } from "@/lib/courses/weekPlan";
@@ -21,7 +22,10 @@ import { certificateNeedsFor } from "@/lib/courses/finishing/needs";
 import { finishedForMember, readFinishRule } from "@/lib/courses/finishing/record";
 import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
-import { hasGroupsByWeek, inGroupForWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, groupsOfWeeks, hasGroupsByWeek, hasVisits, inGroupForWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { rawCountsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
+import { ownVisitsOf, visitReadersOf } from "@/lib/courses/visit/card";
+import type { OverviewVisit, OverviewVisitReaders } from "@/lib/courses/visit/view";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import { memberExplainerOn, type MemberExplainer } from "@/lib/courses/explainers/model";
@@ -39,6 +43,9 @@ import { taskNeeds, taskSubject, thisWeekOf, type TaskNeeds } from "@/lib/course
 import { taskLabelWords } from "@/lib/courses/memberPageWords";
 import { findCase, talksOf } from "@/lib/courses/packsAndCases/model";
 import { NO_PICKS, readOwnPacksAndCases, type OwnPicks } from "@/lib/courses/packsAndCases/readers";
+import { handOutOf } from "@/lib/courses/weekWork/handOut";
+import { NOTHING_GIVEN_OUT, givenOutOf, waitingParts, waitingPartsIn, type WaitingPart } from "@/lib/courses/weekWork/waiting";
+import type { HandOut } from "@/lib/courses/weekWork/waitingWords";
 import { workClosesAt } from "@/lib/courses/weekWork/closes";
 import { NO_GROUP } from "@/lib/courses/weekWork/sessionDue";
 import type { WeekWorkWire } from "@/lib/courses/weekWork/model";
@@ -504,6 +511,16 @@ export type OverviewThisWeekRow =
        * `moved`: the week's session is cancelled and it is due by the next.
        */
       due: { dateKey: string; moved: boolean } | null;
+      /**
+       * Every part of it that waits on the caller's facilitator's slip
+       * (`waitingPartsIn`, `src/lib/courses/weekWork/waiting.ts`): a pack
+       * given out not given yet, with its word ("pathway"), or a case.
+       * Whether the task itself waits is decided on the page with the
+       * caller's live ticks (`handedTaskWaitsOn`), once everything else in
+       * it is done, for its row's words alone: no count reads it. Absent
+       * when nothing waits, and for anybody not taking part.
+       */
+      waiting?: Array<{ kind: "pack"; id: string; word: string } | { kind: "case"; id: string }>;
     }
   | { type: "none"; what: string; time: string; note: string }
   /** Offered, not set (the hands-on route): outside "In all", never counted. */
@@ -585,6 +602,14 @@ export type OverviewPayload = {
      * part. Never whether a piece was emailed, and never anybody else's.
      */
     feedback: OwnFeedbackCard[] | null;
+    /**
+     * A week written as blocks where the caller's facilitator gives something
+     * out, for somebody taking part: when the slips go out (`handOutOf`, from
+     * the one rule the draw asks, on the caller's own sessions), for the week
+     * page's "Given out at the end of session 2." and its line under what
+     * waits. Absent otherwise.
+     */
+    handOut?: HandOut;
   }>;
   /**
    * Who a person taking part asks to switch a pack or swap a case
@@ -592,6 +617,14 @@ export type OverviewPayload = {
    * facilitators other than themselves. Empty with no group.
    */
   askToSwap: string[];
+  /**
+   * Who they ask to swap a case that follows a pack they PICKED: as
+   * `askToSwap`, but nobody for somebody who facilitates the group they take
+   * part in. That case is their own work, given by them, the programme's lead
+   * or an admin, never by a co-facilitator, so a co-facilitator is never named
+   * as somebody who can do it.
+   */
+  askToSwapPicked: string[];
   /**
    * The caller's own calendar's taught weeks, in its order, with each week's
    * session and whether its page is open to them. See `OverviewWeekSchedule`.
@@ -634,6 +667,20 @@ export type OverviewPayload = {
    * `forkedWeekIds` is then their own group's, as it always was.
    */
   forkedWeekGroups?: Record<string, string>;
+  /**
+   * The caller's own one-week visits to another group's session still to
+   * come or under way, in week order, each as their programme page's card
+   * draws it (`OverviewVisit`). ABSENT for everybody with none.
+   */
+  visits?: OverviewVisit[];
+  /**
+   * For each week of a one-week visit that stands, the first names of the
+   * host group's facilitators who may read that week of the caller's work
+   * (`hostReadsWeek`, the rule that decides they may): their week page's
+   * existing sentences about who can read their work name them too, that
+   * week alone. ABSENT for everybody with no visit.
+   */
+  visitReaders?: OverviewVisitReaders[];
   /** The caller's OWN enrolment summary; null when they read as facilitator/admin. */
   enrolment: {
     status: CourseEnrolmentStatus;
@@ -985,6 +1032,8 @@ function thisWeekPayload(
   picks: OwnPicks,
   answersReadBy: OverviewThisWeek["answersReadBy"],
   dueOf: (when: When) => { dateKey: string; moved: boolean } | null,
+  /** What of the caller's own week waits on their facilitator's slip (`waitingOf`): none for anybody not taking part. */
+  waiting: readonly WaitingPart[] = [],
 ): OverviewThisWeek | null {
   const block = thisWeekOf(blocks);
   if (!block) return null;
@@ -1004,6 +1053,7 @@ function thisWeekPayload(
       if (row.type === "optional") return { type: "optional", what: row.what, time: row.time, note: row.note };
       const needs = taskNeeds(blocks, row);
       const due = dueOf(row.when);
+      const waits = waitingPartsIn(needs, waiting);
       return {
         type: "task",
         what: row.what,
@@ -1023,6 +1073,9 @@ function thisWeekPayload(
         ready: needs.talkIds.filter((id) => picks.ready.includes(id)),
         talk: talkLine(blocks, needs.talkIds, picks),
         due: due ? { dateKey: due.dateKey, moved: due.moved } : null,
+        ...(waits.length > 0
+          ? { waiting: waits.map((part) => (part.kind === "pack" ? { kind: "pack" as const, id: part.id, word: part.word } : { kind: "case" as const, id: part.id })) }
+          : {}),
       };
     }),
   };
@@ -1117,6 +1170,7 @@ async function beforeGroupsPayload(
       : [],
     weekSchedule: [],
     askToSwap: [],
+    askToSwapPicked: [],
     programme: programme ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName } : null,
     shownCrest: shownCrests.get(run.id) ?? null,
     forkedWeekIds: [],
@@ -1375,16 +1429,28 @@ export async function GET(
   // EACH WEEK FROM THE GROUP THEY WERE IN THAT WEEK (`sessionsWithGroup`):
   // somebody whose place records a move reads their earlier weeks off their
   // old group's registers and the rest off their group's now, as one record,
-  // from the week they joined and capped the same way. A week in a group that
-  // no longer meets has no session here. With no such record, their own
-  // group's sessions, as always.
+  // from the week they joined and capped the same way. A week of a one-week
+  // visit is read off the host's register. A week in a group archived since
+  // (a group the record or a visit gives that week) is read off its register,
+  // which counts only once finished and held (`rawCountsFromArchivedGroup`,
+  // below). With no such record and no visit, their own group's sessions, as
+  // always.
+  const archivedOfRecord = (groupId: string): CourseGroupDoc | null => {
+    const doc = groupSnap.docs.find((each) => each.id === groupId);
+    const group = doc ? normalizeCourseGroup(doc.id, doc.data() ?? {}) : null;
+    return group && group.archived && group.runId === run.id ? group : null;
+  };
   const ownSessionsWithGroup: Array<{ groupId: string; session: ResolvedSession }> =
     !ownLearnerGroup || !liveEnrolment
       ? []
-      : hasGroupsByWeek(liveEnrolment)
+      : differsByWeek(liveEnrolment)
         ? ownSessionsAcrossGroups(liveEnrolment, (groupId) => {
             const group = groups.find((each) => each.id === groupId);
-            return group ? resolveSessions(run, group, group.id === ownLearnerGroup.id ? own.calendar : undefined) : null;
+            if (!group) {
+              const archived = archivedOfRecord(groupId);
+              return archived ? resolveSessions(run, archived) : null;
+            }
+            return resolveSessions(run, group, group.id === ownLearnerGroup.id ? own.calendar : undefined);
           })
         : sessionsFromJoinWeek(
             resolveSessions(run, ownLearnerGroup, own.calendar),
@@ -1466,7 +1532,7 @@ export async function GET(
   const forkedWeekGroups: Record<string, string> | undefined =
     ownLearnerGroup && liveEnrolment && hasGroupsByWeek(liveEnrolment) ? {} : undefined;
   const entries: ReadonlyArray<ResolvedWeekEntry & { copyGroupId?: string | null }> = weekEntries;
-  const weeks = entries
+  const weeks: OverviewPayload["weeks"] = entries
     .map((entry) => {
       const { source, week: w } = entry;
       if (source === "group") forkedWeekIds.push(w.id);
@@ -1534,8 +1600,11 @@ export async function GET(
     // one they are due at (moved in from week 3, never its week 2), and the
     // tickets beside it are offered for that one. With no record, every
     // session, as always.
+    // A week of a one-week visit is the host's session, never their own
+    // group's: their own group's card skips it, as it skips a week spent in
+    // another group before a move.
     const movedHere = Boolean(
-      ownLearnerGroup && liveEnrolment && source.id === ownLearnerGroup.id && hasGroupsByWeek(liveEnrolment),
+      ownLearnerGroup && liveEnrolment && source.id === ownLearnerGroup.id && differsByWeek(liveEnrolment),
     );
     const theirs =
       movedHere && liveEnrolment ? resolved.filter((each) => inGroupForWeek(liveEnrolment, source.id, each.weekNumber)) : resolved;
@@ -1601,6 +1670,18 @@ export async function GET(
   };
 
   const groupCardPayloads = groupCards.map(toCard);
+
+  // THE CALLER'S OWN ONE-WEEK VISITS, while the session they go to has not
+  // ended: the host's session that week (its day, room and link, behind the
+  // same gate as any link), the group they stay in and their next session
+  // there, who arranged it, and until when they can cancel it (the earlier of
+  // the two sessions' starts) with who is told. Absent with none.
+  const visits: OverviewVisit[] | undefined =
+    ownLearnerGroup && liveEnrolment && hasVisits(liveEnrolment)
+      ? await ownVisitsOf(db, { run, groups, place: liveEnrolment, actor, isAdmin, now })
+      : undefined;
+  const visitReaders: OverviewVisitReaders[] | undefined =
+    ownLearnerGroup && liveEnrolment && hasVisits(liveEnrolment) ? await visitReadersOf(db, { groups, place: liveEnrolment }) : undefined;
   // `group` is the first card when there is one, which for every caller who
   // had a card before is the same object they had before. NULL for a
   // multi-group facilitator, because `ownGroup` is. See the wire type.
@@ -1644,7 +1725,7 @@ export async function GET(
   // so never a session of the group they are in now from a week they spent
   // elsewhere. With no record, their group's sessions, as always.
   const weekSchedule =
-    ownLearnerGroup && liveEnrolment && hasGroupsByWeek(liveEnrolment)
+    ownLearnerGroup && liveEnrolment && differsByWeek(liveEnrolment)
       ? sessionsWithGroup(liveEnrolment, (groupId) => {
           const each = groups.find((candidate) => candidate.id === groupId);
           return each ? resolveSessions(run, each, each.id === ownLearnerGroup.id ? calendar : undefined) : null;
@@ -1660,7 +1741,7 @@ export async function GET(
    * go by it, and so does the schedule above.
    */
   const ownDueSessions: readonly ResolvedSession[] =
-    ownLearnerGroup && liveEnrolment && hasGroupsByWeek(liveEnrolment)
+    ownLearnerGroup && liveEnrolment && differsByWeek(liveEnrolment)
       ? sessionsByWeekGroup(liveEnrolment, (groupId) => {
           const each = groups.find((candidate) => candidate.id === groupId);
           return each ? resolveSessions(run, each, each.id === ownLearnerGroup.id ? calendar : undefined) : null;
@@ -1709,6 +1790,11 @@ export async function GET(
       const startsAt = ownGroup ? dueMoment(ownDueSessions, entry.weekNumber, "before") : null;
       entry.picks = { ...(ownPicks.get(entry.id) ?? NO_PICKS), open: !startsAt || now.getTime() < startsAt.at.getTime() };
     }
+    // What of the caller's own week waits on their facilitator's slip, and when the slips go out: only for somebody taking part.
+    const weekPicks = ownPicks.get(entry.id) ?? NO_PICKS;
+    const given = blocks && readsOwnPicks ? givenOutOf(blocks) : NOTHING_GIVEN_OUT;
+    const waiting = waitingParts(given, { packOf: (id) => weekPicks.packs[id] ?? null, caseOf: (id) => weekPicks.cases[id] ?? null });
+    if (given.packs.length + given.cases.length > 0) entry.handOut = handOutOf(ownGroup ? ownDueSessions : [], entry.weekNumber, now);
     if (!blocks) continue;
     entry.thisWeek = thisWeekPayload(
       blocks,
@@ -1718,6 +1804,7 @@ export async function GET(
       ownPicks.get(entry.id) ?? NO_PICKS,
       facilitates.length > 0 ? "lead" : "facilitators",
       (when) => (ownGroup ? dueMoment(ownDueSessions, entry.weekNumber, when, course.dayBeforeTime) : null),
+      waiting,
     );
   }
 
@@ -1738,13 +1825,15 @@ export async function GET(
     const sessionByDocId = new Map(
       ownSessionsWithGroup.map(({ groupId, session: s }) => [
         attendanceDocId(runId, groupId, s.weekNumber, s.occurrence),
-        s.sessionKey,
+        { key: s.sessionKey, session: s, archived: !groups.some((each) => each.id === groupId) },
       ]),
     );
     for (const snap of ownRegisterDocs) {
-      const key = sessionByDocId.get(snap.id);
-      if (!snap.exists || !key) continue;
-      ownRegisters.set(key, snap.data() ?? {});
+      const entry = sessionByDocId.get(snap.id);
+      if (!snap.exists || !entry) continue;
+      // A week in a group archived since: its register only once finished, of a session held.
+      if (entry.archived && !rawCountsFromArchivedGroup(entry.session, snap.data())) continue;
+      ownRegisters.set(entry.key, snap.data() ?? {});
     }
   }
 
@@ -1799,8 +1888,16 @@ export async function GET(
     registers: ownRegisters,
     // Each week's group, for a place that records a move.
     liveGroups: groups,
+    archivedGroups: liveEnrolment && differsByWeek(liveEnrolment) ? groupsOfWeeks(liveEnrolment).map(archivedOfRecord).filter((group) => group !== null) : [],
   });
 
+  // Who a person taking part asks to switch a pack or swap a case: their own group's other facilitators.
+  const askToSwap = readsOwnPicks && ownGroup
+      ? ownGroup.facilitatorUids
+          .filter((uid) => uid !== actor.uid)
+          .map((uid) => (nameByUid.get(uid) ?? "").trim().split(/\s+/)[0] ?? "")
+          .filter(Boolean)
+      : [];
   const payload: OverviewPayload = {
     run: {
       id: run.id,
@@ -1820,18 +1917,17 @@ export async function GET(
     currentWeek,
     weeks,
     weekSchedule,
-    askToSwap: readsOwnPicks && ownGroup
-      ? ownGroup.facilitatorUids
-          .filter((uid) => uid !== actor.uid)
-          .map((uid) => (nameByUid.get(uid) ?? "").trim().split(/\s+/)[0] ?? "")
-          .filter(Boolean)
-      : [],
+    askToSwap,
+    // A case that follows the pick of somebody who facilitates a live group of the run is named to nobody.
+    askToSwapPicked: ownGroup && facilitatesOnRun(actor.uid, groups) ? [] : askToSwap,
     programme: programme
       ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName }
       : null,
     shownCrest: shownCrests.get(run.id) ?? null,
     forkedWeekIds,
     ...(forkedWeekGroups ? { forkedWeekGroups } : {}),
+    ...(visits && visits.length > 0 ? { visits } : {}),
+    ...(visitReaders && visitReaders.length > 0 ? { visitReaders } : {}),
     enrolment: enrolment
       ? {
           status: enrolment.status,

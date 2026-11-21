@@ -35,7 +35,7 @@ export const LEAD_WEEK_THREE_STEPS = [
   "the admin approves the two members who sign in and the facilitator to be appointed",
   "the admin names the running course run on the programme's Settings tab and hands its people over",
   "the admin appoints a facilitator to the group whose register is not finished",
-  "the Overview shows week 3, this week's sessions and their registers, what needs attention and the newest update",
+  "the Overview shows week 3, attendance by week from the finished registers, a row for every group, this week's sessions and their registers, what needs attention and the newest update",
   "Remind emails the unfinished register's facilitator once, with the count its button says",
   "the Attendance tab shows every mark of the three weeks, each person's row and each week's figure",
   "Download CSV is the grid, word for word, and the download is logged",

@@ -34,6 +34,7 @@ import type { JoiningOnlineView } from "@/lib/courses/joiningOnline/model";
 import { ONLINE_WORD } from "@/lib/courses/joiningOnline/words";
 import type { CertificateCardView } from "@/lib/courses/certificates/card";
 import type { GuideLinks } from "@/lib/courses/guide/model";
+import type { FacilitatorGuideProp } from "@/lib/courses/facilitatorGuide/links";
 import type { TeamCardView } from "@/lib/courses/teamPage/views";
 import type { TimeQuestionView } from "@/lib/courses/timeAnswer/model";
 import type { MessagesEntries } from "@/lib/messages/handover";
@@ -73,6 +74,8 @@ import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import type { OverviewPayload, OverviewWeekSchedule } from "@/app/api/courses/runs/[runId]/overview/route";
+import VisitCard from "./visit/VisitCard";
+import { visitsAroundTicket } from "@/lib/courses/visit/view";
 import weekly from "./weekly/weekly.module.css";
 import styles from "./RunHome.module.css";
 
@@ -209,6 +212,17 @@ type Props = {
    * when it has neither.
    */
   guide?: GuideLinks | null;
+  /**
+   * The course's facilitator guide, from the server page, for somebody the
+   * guide admits and nobody else (it is asked only for a facilitator, a track
+   * lead, an admin or somebody who meets a programme lead's bar, and handed
+   * on only when the guide's gate let them in or the page knows it would):
+   * the course and the weeks that have something
+   * loaded. "About this course" gains its "Facilitator guide" row, and each
+   * group's card "Facilitator guide for week 2" when that week is loaded.
+   * Absent for everybody else, so nothing about the guide reaches their page.
+   */
+  facilitatorGuide?: FacilitatorGuideProp | null;
   /**
    * The caller's own certificates on this run, from the server page
    * (`readOwnCertificates`): "Your certificate" under the
@@ -520,6 +534,7 @@ export default function RunHome({
   excused = null,
   viewAs = false,
   guide = null,
+  facilitatorGuide = null,
   uid = null,
   certificates = [],
   endSurvey = null,
@@ -707,6 +722,51 @@ export default function RunHome({
     ) : null;
   // The last session, once it has ended, while there is something to say about it.
   const lastSession = entry === "ask" ? lastSessionOf(excused, nextKey) : null;
+  // THE PERSON'S OWN ONE-WEEK VISITS, each the card for the session they go
+  // to: "I'm joining online" acts on that session (the server's view of their
+  // next session names the host's when it is the next they are due at), and
+  // "Cancel this visit" until the earlier of the two sessions starts. A visit
+  // that is their NEXT session is drawn where the next session's card goes,
+  // above the ticket; a visit further ahead is listed below the ticket, with
+  // the same words and its Cancel, never above a session that comes first.
+  // The server's view of the host's session a visit is for, when it says so (`visit` on the session).
+  const visitSessionOf = (visit: { sessionKey: string; hostGroupId: string }) =>
+    excused?.sessions.find((session) => session.sessionKey === visit.sessionKey && session.visit?.groupId === visit.hostGroupId) ?? null;
+  const visitCardOf = (visit: NonNullable<typeof data.visits>[number]) => {
+    const onThis = joiningOnline && joiningOnline.groupId === visit.hostGroupId && joiningOnline.sessionKey === visit.sessionKey ? joiningOnline : null;
+    return (
+      <div key={`visit-${visit.weekNumber}`} className={order.ticket}>
+        <VisitCard
+          runId={runId}
+          visit={visit}
+          locked={viewAs}
+          answers={
+            // "Can't make it", as today, asks to be excused from the HOST's
+            // session (the server's view names that session and its group);
+            // "I'm joining online" acts on it too.
+            entry === "ask" && excused && visitSessionOf(visit) ? (
+              <TicketExcuse
+                key={`visit-${visit.sessionKey}`}
+                view={excused}
+                session={visitSessionOf(visit) as NonNullable<ReturnType<typeof visitSessionOf>>}
+                groupName={visit.hostName}
+                facilitatorFirstNames={visit.hostFacilitatorFirstNames}
+                joiningOnline={onThis}
+                hasLink={visit.meetingUrl !== null}
+                locked={viewAs}
+                certificateNeeds={data.certificateNeeds ?? null}
+              />
+            ) : onThis ? (
+              <TicketAnswers key={onThis.sessionKey} cantMakeIt={null} joiningOnline={onThis} hasLink={visit.meetingUrl !== null} locked={viewAs} />
+            ) : null
+          }
+        />
+      </div>
+    );
+  };
+  const aroundTicket = visitsAroundTicket(data.visits ?? [], facts);
+  const visitsFirst = aroundTicket.first.map(visitCardOf);
+  const visitsLater = aroundTicket.later.map(visitCardOf);
   const lastSessionCard =
     lastSession && excused ? (
       <div className={order.ticket}>
@@ -837,6 +897,7 @@ export default function RunHome({
             publishedWeekNumbers={publishedWeekNumbers}
             canEmailCohort={canEmailCohort}
             messages={messages}
+            facilitatorGuide={facilitatorGuide}
           />
         </AfterTheEnd>
       </PageEnter>
@@ -879,7 +940,9 @@ export default function RunHome({
       <div className={weekly.columns}>
         <div className={weekly.colMain}>
           <CertificateCard certificates={certificates} />
+          {visitsFirst}
           {ticket}
+          {visitsLater}
           {lastSessionCard}
           {timeQuestion && learner && (
             /* After the ticket, on a phone too. An incubator's people are told
@@ -959,7 +1022,7 @@ export default function RunHome({
           {beforeStart && weekList}
 
           {/* Start here and the Glossary, after the group. */}
-          <AboutThisCourse runId={runId} links={guide} className={weekly.order7} />
+          <AboutThisCourse runId={runId} links={guide} facilitatorGuide={facilitatorGuide} className={weekly.order7} />
 
           {/* One card per group they facilitate. The cohort-wide links ride on
               the FIRST card only, because they address the run and not a room. */}
@@ -972,6 +1035,7 @@ export default function RunHome({
                 showCohortLinks={canEmailCohort && index === 0}
                 emailGroupHref={messages.groups[facilitated.id] ?? null}
                 emailCohortHref={messages.cohort}
+                facilitatorGuide={facilitatorGuide}
               />
             </div>
           ))}
@@ -1057,12 +1121,14 @@ function FacilitatedPanels({
   publishedWeekNumbers,
   canEmailCohort,
   messages,
+  facilitatorGuide,
 }: {
   runId: string;
   groups: OverviewPayload["groups"];
   publishedWeekNumbers: number[];
   canEmailCohort: boolean;
   messages: MessagesEntries;
+  facilitatorGuide: FacilitatorGuideProp | null;
 }) {
   return (
     <>
@@ -1075,6 +1141,7 @@ function FacilitatedPanels({
           showCohortLinks={canEmailCohort && index === 0}
           emailGroupHref={messages.groups[facilitated.id] ?? null}
           emailCohortHref={messages.cohort}
+          facilitatorGuide={facilitatorGuide}
         />
       ))}
     </>

@@ -4,7 +4,7 @@ import EmailChrome, { emailLinkStyle } from "./EmailChrome";
 import type { WeekEmailWords } from "@/lib/courses/weekEmails/words";
 
 type Props = {
-  /** Every word, from `weekOpenEmailWords` or `weekReminderEmailWords`. */
+  /** Every word, from `weekOpenEmailWords`, `sessionReminderEmailWords` or `weekReminderEmailWords`. */
   words: WeekEmailWords;
   /** The notice lane's marker, built by `sendNotice`. */
   notice: ReactNode;
@@ -12,10 +12,10 @@ type Props = {
 
 /**
  * THE WEEK'S EMAILS: "Week N is open", 6 days before a group's session, and
- * the reminders 3 days and 1 day before it to the people whose week is not
- * done. One layout for the three: the notice line, the words, a list for
- * each week (what it asks for, or what is left of it), a button to the week's
- * page and the lines under it.
+ * the reminders 3 days and 1 day before it to everybody due at it. One layout
+ * for the three: the notice line, the words, a list for each week (what it
+ * asks for, or what is left of it), a button (to the week's page, or for the
+ * reminder of a session to their programme page) and the lines under it.
  *
  * Fixed words, written in `src/lib/courses/weekEmails/words.ts`. Every value
  * is a React child or an `href`, never markup, so nothing a person typed (a

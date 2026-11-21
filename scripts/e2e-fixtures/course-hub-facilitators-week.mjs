@@ -98,6 +98,13 @@ export const SPEC = {
       "/(app)/admin/(admin-only)",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators",
+      // NOT DRIVEN on this page by any browser spec yet (November 2026):
+      // "Before the session", "Meeting links" and its panel's "Week N only" /
+      // "Week N onwards", and, on the register, "Said joining online". The
+      // page is credited for what this spec drives; those parts are held by
+      // the unit suites (tests/course-facilitators-week.test.mjs). The trigger
+      // that closes it: a step in this spec that reads the two cards and saves
+      // a link from a week on.
       "/(app)/learn/[runId]/group/[groupId]",
       "/(app)/learn/[runId]/group/[groupId]/sessions",
       "/(app)/learn/[runId]",

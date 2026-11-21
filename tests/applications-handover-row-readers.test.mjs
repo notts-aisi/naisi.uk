@@ -83,11 +83,12 @@ const READERS = {
   },
   "app/api/courses/runs/[runId]/allocate/route.ts": {
     kind: "staff",
-    asks: 1,
+    asks: 2,
     why:
       "a placement reads each person's row to see that they were accepted, and answers by uid; for a seat " +
       "that has left and is put back, it reads where the row came from (fromForm) to give that place on the " +
-      "form back to them, only once the row is served to the caller",
+      "form back to them, only once the row is served to the caller. The preview asks the same before it answers " +
+      "a move made mid-term with its week; a row not served to the caller is answered as a move with nothing to say",
   },
   "app/api/courses/runs/[runId]/allocation/publish/route.ts": {
     kind: "staff",
@@ -180,13 +181,23 @@ const READERS = {
     proof: ['where("status", "==", "pending")', "getCountFromServer("],
     why: "an admin's count of pending applications. A row from the form is never pending, and a count names nobody",
   },
-  "app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": {
-    kind: "no-content",
-    proof: ["appSnap.data()?.email"],
+  "app/api/courses/runs/[runId]/enrolments/[uid]/reinstate/route.ts": {
+    kind: "staff",
+    asks: 1,
     why:
-      "takes the address off a row to drop a mailing-list entry when the account has gone. A row from the form " +
-      "carries no address, and nothing of the row is sent back. Where the seat's place came from, to give it back on " +
-      "the form, is leaving's own answer (lib/courses/leaving.ts, listed there)",
+      "putting somebody back on an open run, for an admin, the run's track leads or the lead of the programme that " +
+      "names it, reads the person's row first and answers a row it does not serve the caller as a uid with no place, " +
+      "as Remove does, before their seat is read",
+  },
+  "app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": {
+    kind: "staff",
+    asks: 1,
+    why:
+      "Remove, for an admin, the run's track leads or the lead of the programme that names it, reads the person's row " +
+      "first and answers a row it does not serve the caller as a uid with no place, before the preview lists their " +
+      "visits or the press emails a host. After the removal it takes the address off the row to drop a mailing-list " +
+      "entry when the account has gone; a row from the form carries no address. Where the seat's place came from, to " +
+      "give it back on the form, is leaving's own answer (lib/courses/leaving.ts, listed there)",
   },
   "lib/firestore/accountDeletion.ts": {
     kind: "no-content",

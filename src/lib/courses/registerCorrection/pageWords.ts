@@ -2,6 +2,7 @@ import { londonClockLabel, londonDayLabel } from "@/lib/courses/londonLabels";
 import { clockWords, dayWords, namesWords, peopleWords } from "@/lib/courses/sessionChange/words";
 import { cameBy, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import { didNotHappenLines } from "@/lib/courses/registerCover/pageWords";
+import { VISITS_LABEL } from "@/lib/courses/groupPage/model";
 import { linesWords, lineWords } from "./words";
 
 /**
@@ -550,6 +551,9 @@ export function didNotHappenPreviewLines(preview: Record<string, unknown>): Befo
     lines.push({ label: "Dates", text: "The weeks after it keep their dates." });
   }
   if (coversEnd.length > 0) lines.push({ label: "Cover", text: coversEnd.join(" ") });
+  // Visits that end with it, in the route's own sentence, as Change a session's preview says them.
+  const visitsOff = preview.visitsOff as { words?: unknown } | undefined;
+  if (visitsOff && typeof visitsOff.words === "string" && visitsOff.words.trim()) lines.push({ label: VISITS_LABEL, text: visitsOff.words });
   if (facts) {
     // What was opened or written for it, in the one-week change's own words for
     // the cancel chosen: kept pace, they are kept; pushed back, the week's

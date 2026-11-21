@@ -559,7 +559,11 @@ describe("the pass a browser holds", () => {
     const [payload, signature] = token.split(".");
     const forged = Buffer.from(JSON.stringify({ e: "abc123", i: pass.id, s: 0, o: pass.order, x: now + 10 * PASS_LIFETIME_MS })).toString("base64url");
     assert.equal(openPass(`${forged}.${signature}`, key, now), null);
-    assert.equal(openPass(`${payload}.${signature.slice(0, -2)}AA`, key, now), null);
+    // A changed signature: its FIRST character, to one it was not. (The last
+    // characters of a signature carry spare bits, so fixed characters put
+    // there can spell the same signature, about one run in a thousand.)
+    const changed = `${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`;
+    assert.equal(openPass(`${payload}.${changed}`, key, now), null);
     assert.equal(openPass(token, Buffer.from("x".repeat(32)), now), null);
     assert.equal(openPass(payload, key, now), null);
     assert.equal(openPass(`${token}.${signature}`, key, now), null);
