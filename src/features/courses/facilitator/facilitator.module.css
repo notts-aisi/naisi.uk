@@ -2267,8 +2267,8 @@
   }
 }
 
-/* === The spread: "Pathways in Group B", drawn by
-   src/features/courses/packsAndCases/PathwaySpread.tsx === */
+/* === The spread's tiles and links, which the pairs card and the pairs page
+   draw each pair with (src/features/courses/pairs/) === */
 
 .spreadTiles {
   list-style: none;

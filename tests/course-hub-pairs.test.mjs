@@ -481,14 +481,16 @@ describe("3. the pairs page and the group page's card", () => {
     inOrder((await w.groupPage("sofia")).text, ["Pairs in Group B", "Nobody is paired yet.", "Pair people up"]);
   });
 
-  test("the pairs sit where a facilitator meets them: after Before the session and the spread in the left column, over who has done the week on the right", async () => {
+  test("the pairs sit where a facilitator meets them: after Before the session in the left column, never pinned, over who has done the week on the right", async () => {
     w.seedGroupB();
     for (const who of ["rahul", "zach"]) {
       const { html } = await w.groupPage(who);
+      // Week 4's slips go out tonight and nobody has week 3's: the pathways and
+      // cases card is pinned under the session card; the pairs card never is.
       const order = [
         ["the session", 'data-testid="session-card"'],
-        ["before the session", 'aria-labelledby="before-the-session"'],
         ["the spread", 'aria-labelledby="group-spread"'],
+        ["before the session", 'aria-labelledby="before-the-session"'],
         ["the pairs", 'aria-labelledby="group-pairs"'],
         ["who has done the week", 'data-testid="week-work-count"'],
         ["the updates", 'aria-labelledby="group-updates"'],
@@ -501,8 +503,8 @@ describe("3. the pairs page and the group page's card", () => {
         order.map(([name]) => [name, where(at[name])]),
         [
           ["the session", "across"],
+          ["the spread", "across"],
           ["before the session", "block 1 left"],
-          ["the spread", "block 1 left"],
           ["the pairs", "block 1 left"],
           ["who has done the week", "block 1 right"],
           ["the updates", "block 1 right"],
@@ -514,12 +516,16 @@ describe("3. the pairs page and the group page's card", () => {
     }
   });
 
-  test("the card is drawn only for a week that asks: not for Group A's week without pairs, and not on a week written before blocks", async () => {
+  test("the card is always there on a course with pairs, about the week the pairs are for: with none still to come it says so", async () => {
     // Group A meets on Thursday, in week 3 too: it asks. Take the session out of Group A's own copy.
     const copy = structuredClone(w.world.db.read(`courseRuns/${RUN.agi}/weeks/w03`));
     copy.blocks = copy.blocks.filter((block) => block.type !== "inTheSession");
     w.world.db.seed(`courseGroups/${A}/weeks/w03`, { ...copy, groupId: A, runId: RUN.agi });
-    assert.doesNotMatch((await w.groupPage("sofia", A)).text, /Pairs in Group A/);
+    // Group A's only week in pairs, week 2, has met: the card stays, says so, and offers nothing to press.
+    const groupA = await w.groupPage("sofia", A);
+    inOrder(groupA.text, ["Pairs in Group A", "No week still to come is in pairs."]);
+    assert.doesNotMatch(groupA.text, /Pair people up|Change pairs/);
+    assert.doesNotMatch(groupA.html, /href="\/learn\/pairs\//);
     assert.match((await w.groupPage("sofia", B)).text, /Pairs in Group B/);
     // Group C meets tomorrow, in week 3, with the run's week: it asks.
     assert.match((await w.groupPage("tom", C)).text, /Pairs in Group C/);
@@ -888,7 +894,7 @@ describe("6. who sees what, and every file that addresses the record", () => {
     assert.match(code("app/(app)/learn/[runId]/weeks/[n]/page.tsx"), /return await readOwnPairs\(db, access\.user, access\.run\.id, access\.groups, access\.enrolment, weekNumber, new Date\(\)\);/);
     assert.match(
       code("app/(app)/learn/[runId]/group/[groupId]/page.tsx"),
-      /const pairsWeek = nextWeek \? await readGroupPairs\(db, runId, groupId, nextWeek, drawList\) : null;/,
+      /const pairsWeek = pairsFor\?\.week \? await readGroupPairs\(db, runId, groupId, pairsFor\.week, drawList\) : null;/,
     );
     // The person's own reader hands the page first names and laptops of one pair, never a record.
     const readers = code("lib/courses/pairs/readers.ts");

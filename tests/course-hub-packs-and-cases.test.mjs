@@ -542,18 +542,56 @@ describe("3. the draw", () => {
     assert.deepEqual(w.records(), []);
   });
 
-  test("a facilitator who takes part is given a pathway like anybody, by a co-facilitator", async () => {
+  test("a facilitator who takes part is given a pathway like anybody, by a co-facilitator; the group page's card names it to them and admins, never to the group's other facilitators", async () => {
     const answer = await w.saveDraw("sofia", "w03", [["farah", W3.given, W3.technology]]);
     assert.equal(answer.status, 200);
-    // The spread shows it to the group's facilitators: the draw is the group's logistics.
-    const group = await w.groupPage("rahul");
-    assert.match(group.text, /Technology 1 FH Farah/);
+    assert.equal(w.recordOf("farah", W3.given).packId, W3.technology);
+    // The card: Farah and Sofia facilitate too, so Rahul is shown neither by
+    // name, and Technology, which only Farah holds, has no row for him.
+    const rahul = await w.groupPage("rahul");
+    assert.match(rahul.text, /Not given yet: Chloe, Kofi, Rahul and 2 more /);
+    assert.doesNotMatch(rahul.text, /Technology Farah/);
+    // Farah sees her own; an admin sees everybody's.
+    assert.match((await w.groupPage("farah")).text, /Technology Farah Not given yet: Chloe, Farah, Kofi and 2 more /);
+    assert.match((await w.groupPage("zach")).text, /Technology Farah Not given yet: Chloe, Farah, Kofi, Rahul and Sofia /);
   });
 
-  test("the spread sits where a facilitator meets it: under Before the session in the left column, over who has done the week on the right", async () => {
+  test("the card sits where a facilitator meets it: pinned straight under the session card while slips are being handed out, else under Before the session in the left column", async () => {
+    // Pinned: week 3's slips went out at session 2, and only Chloe has hers.
     w.seedDraw("chloe", "w3", { pack: W3.elections, caseId: W3.surprise });
     for (const who of ["rahul", "zach"]) {
       const { html } = await w.groupPage(who);
+      assert.match(html, /data-testid="draw-card" data-pinned="true"/, who);
+      const order = [
+        ["the session", 'data-testid="session-card"'],
+        ["the card", 'aria-labelledby="group-spread"'],
+        ["before the session", 'aria-labelledby="before-the-session"'],
+        ["who has done the week", 'data-testid="week-work-count"'],
+        ["the updates", 'aria-labelledby="group-updates"'],
+        ["how the group meets", 'aria-labelledby="group-meets-facilitator"'],
+        ["this week's work", 'aria-labelledby="this-weeks-work"'],
+      ];
+      const at = phoneOrder(html, order);
+      const { where } = laptopLayout(html);
+      assert.deepEqual(
+        order.map(([name]) => [name, where(at[name])]),
+        [
+          ["the session", "across"],
+          ["the card", "across"],
+          ["before the session", "block 1 left"],
+          ["who has done the week", "block 1 right"],
+          ["the updates", "block 1 right"],
+          ["how the group meets", "block 1 right"],
+          ["this week's work", "across"],
+        ],
+        who,
+      );
+    }
+    // Not pinned: everybody has week 3's, so the card says so, where it always sat.
+    for (const uid of ["chloe", "farah", "kofi", "rahul", "sofia"]) w.seedDraw(uid, "w3", { pack: W3.elections, caseId: W3.surprise });
+    for (const who of ["rahul", "zach"]) {
+      const { html } = await w.groupPage(who);
+      assert.doesNotMatch(html, /data-pinned=/, who);
       const order = [
         ["the session", 'data-testid="session-card"'],
         ["before the session", 'aria-labelledby="before-the-session"'],
@@ -655,17 +693,32 @@ describe("3. the draw", () => {
     assertCantOpen(await w.drawPage("zach", "no-such-group"), "an admin on a made-up group");
   });
 
-  test("the group page's spread: each pack with who has it, who has nothing yet, and the way to the draw", async () => {
-    w.seedDraw("chloe", "w3", { pack: W3.elections });
-    w.seedDraw("kofi", "w3", { pack: W3.elections });
-    w.seedDraw("farah", "w3", { pack: W3.markets });
+  test("the group page's card: each pack with who has it by the name they go by, who has nothing yet, and the way to the draw", async () => {
+    w.seedDraw("chloe", "w3", { pack: W3.elections, caseId: W3.surprise });
+    w.seedDraw("kofi", "w3", { pack: W3.elections, caseId: W3.surprise });
+    w.seedDraw("farah", "w3", { pack: W3.markets, caseId: W3.crash });
+    // An admin is shown everybody.
+    inOrder((await w.groupPage("zach")).text, [
+      "Packs and cases",
+      "Week 3 · 3 of 5 given",
+      "Elections",
+      "Chloe and Kofi",
+      "Markets",
+      "Farah",
+      "Not given yet: Rahul and Sofia",
+      "Rahul and Sofia are waiting for theirs.",
+      "Copy in the slips",
+    ]);
+    // A facilitator is shown no other facilitator by name: counted, never named.
     const group = await w.groupPage("rahul");
-    inOrder(group.text, ["Packs in Group B", "Elections 2", "Chloe and Kofi", "Markets 1", "Farah", "Technology 0", "Not given yet: Rahul and Sofia", "Change packs and cases"]);
+    inOrder(group.text, ["Packs and cases", "Week 3 · 3 of 5 given", "Elections", "Chloe and Kofi", "Not given yet: Rahul and 1 more", "Rahul and 1 more are waiting for theirs.", "Copy in the slips"]);
+    assert.doesNotMatch(group.text, /Markets Farah|Sofia are waiting/);
     assert.match(group.html, new RegExp(`href="/learn/draw/${B}\\?week=3"`));
-    // An admin sees it too; a group whose next week gives nothing out has none.
-    assert.match((await w.groupPage("zach")).text, /Packs in Group B/);
+    // A week that gives nothing out next: the card stays and says so, with what was given out a tap away.
     w.world.db.poke(`courseRuns/${RUN.agi}/weeks/w03`, { blocks: w.world.db.read(`courseRuns/${RUN.agi}/weeks/w01`).blocks });
-    assert.doesNotMatch((await w.groupPage("rahul")).text, /Packs in Group B|Change packs and cases/);
+    const after = await w.groupPage("rahul");
+    inOrder(after.text, ["Pathways and cases", "Nothing is given out in week 3.", "What was given out", "Week 2"]);
+    assert.match(after.html, new RegExp(`href="/learn/draw/${B}"`));
   });
 
   test("the draw's words", () => {

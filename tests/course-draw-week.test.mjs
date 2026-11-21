@@ -232,19 +232,76 @@ describe("2. one rule, asked by the draw page, its route and the group page's ca
 
     const group = read("app", "(app)", "learn", "[runId]", "group", "[groupId]", "page.tsx");
     assert.match(group, /const course = group\.archived \? null : await readDrawWeeks\(db, \{ run: access\.run, group, people: drawList, now \}\);/);
-    assert.match(group, /const drawCard = course \? drawCardOf\(course, drawList\) : null;/);
-    assert.match(group, /changeHref=\{`\/learn\/draw\/\$\{encodeURIComponent\(groupId\)\}\?week=\$\{drawCard\.week\.weekNumber\}`\}/);
-    assert.doesNotMatch(group, /readGroupWeek\(|readDrawState\(|spreadOf\(/, "the group page reads a draw of its own choosing");
+    assert.match(group, /drawCardModel\(\{ course, people: drawList, viewer: \{ uid: access\.user\.uid, isAdmin: access\.isAdmin, lead: false \}, now \}\)/);
+    assert.doesNotMatch(group, /readGroupWeek\(|readDrawState\(|spreadOf\(|drawWeekRule\(/, "the group page reads a draw of its own choosing");
 
-    // Nothing else in the tree links to the draw page on a week of its own choosing.
+    // The card's model, and every other reader of the slips' week: each asks
+    // the rule through what `readDrawWeeks` read, and none works a session's
+    // time out for itself.
+    const model = read("lib", "courses", "drawCard", "model.ts");
+    assert.match(model, /const \{ rule \} = course;/);
+    assert.match(model, /const n = rule\.weekNumber;/);
+    assert.match(model, /const facts = rule\.facts\.get\(n\);/);
+    const reads = read("lib", "courses", "drawCard", "reads.ts");
+    assert.match(reads, /const dates = await readDrawWeeks\(db, \{ run, group, people: \[\], now \}\);/);
+    assert.match(reads, /const course = await readDrawWeeks\(db, \{ run, group, people, now \}\);/);
+    assert.match(reads, /const sessions = resolveSessions\(run, group, resolveGroupCalendar\(run, group, now\)\.calendar\);/);
+    for (const [file, code] of [
+      ["the card's model", model],
+      ["the slips' reads", reads],
+      ["the pairs card's week", read("lib", "courses", "pairs", "cardWeek.ts")],
+      ["the register page", read("app", "(app)", "learn", "[runId]", "group", "[groupId]", "register", "page.tsx")],
+      ["the group summary route", read("app", "api", "courses", "groups", "[groupId]", "summary", "route.ts")],
+      ["the guide's week page", read("app", "(app)", "learn", "facilitator-guide", "[courseId]", "[doc]", "page.tsx")],
+      ["Home", read("app", "(app)", "dashboard", "HomeFacilitator.tsx")],
+    ]) {
+      assert.doesNotMatch(code, /sessionInstants\(|sessionRange\([^)]*\)\.next\?\.weekNumber \+|weekNumber [+-] 1\b/, `${file} works a week or a session's time out for itself`);
+    }
+    assert.match(read("app", "(app)", "learn", "[runId]", "group", "[groupId]", "register", "page.tsx"), /const slips = await readSlipsTonight\(db, \{/);
+    assert.match(read("app", "api", "courses", "groups", "[groupId]", "summary", "route.ts"), /\? readSlipsTonight\(db, \{ run, group, now, people: async \(\) => drawPeople\(model\.people, model\.facilitators\) \}\)/);
+    assert.match(read("app", "(app)", "learn", "facilitator-guide", "[courseId]", "[doc]", "page.tsx"), /await readGuideSlips\(db, \{ groups, pageWeek: page\.weekNumber, now \}\)/);
+
+    // Every file that asks the rule, and why.
+    const asking = [];
+    for (const file of walkSource(SRC)) {
+      if (/\bdrawWeekRule\(/.test(readFileSync(file, "utf8"))) asking.push(file.slice(SRC.length + 1));
+    }
+    assert.deepEqual(asking.sort(), [
+      // The rule itself.
+      join("lib", "courses", "packsAndCases", "drawWeek.ts"),
+      // The pathways and cases page and the group page's card, through `readDrawWeeks`.
+      join("lib", "courses", "packsAndCases", "readers.ts"),
+      // The route's standing of the week saved into.
+      join("app", "api", "courses", "groups", "[groupId]", "draw", "route.ts"),
+      // The card's states: the next week to come, and the guide's card.
+      join("lib", "courses", "drawCard", "model.ts"),
+      // The pairs card: the next week in pairs still to come.
+      join("lib", "courses", "pairs", "cardWeek.ts"),
+    ].sort());
+
+    // Nothing else in the tree links to the draw page on a week of its own
+    // choosing: each link takes its week from the rule's answer.
     const linking = [];
     for (const file of walkSource(SRC)) {
       if (/\/learn\/draw\/[^"'`]*\?week=/.test(readFileSync(file, "utf8"))) linking.push(file.slice(SRC.length + 1));
     }
     assert.deepEqual(linking.sort(), [
-      join("app", "(app)", "learn", "[runId]", "group", "[groupId]", "page.tsx"),
+      join("app", "(app)", "dashboard", "HomeFacilitator.tsx"),
+      join("app", "(app)", "learn", "facilitator-guide", "[courseId]", "[doc]", "page.tsx"),
+      join("features", "courses", "groupPage", "DrawCard.tsx"),
       join("features", "courses", "packsAndCases", "DrawWeekPicker.tsx"),
-    ]);
+      join("features", "courses", "register", "HandOutRow.tsx"),
+    ].sort());
+    const card = read("features", "courses", "groupPage", "DrawCard.tsx");
+    assert.deepEqual(
+      [...card.matchAll(/weekHref\(([^)]*)\)/g)].map(([, arg]) => arg).sort(),
+      // The rule's week (taken from the model, below) in each phase, and the week before it, when everybody has that one's.
+      ["model.earlier.weekNumber", "weekNumber", "weekNumber", "weekNumber", "weekNumber"],
+    );
+    assert.match(card, /const \{ weekNumber, draw, facts, phase \} = model;/);
+    assert.match(read("app", "(app)", "dashboard", "HomeFacilitator.tsx"), /\?week=\$\{known\.slips\.weekNumber\}/);
+    assert.match(read("app", "(app)", "learn", "facilitator-guide", "[courseId]", "[doc]", "page.tsx"), /\?week=\$\{entry\.weekNumber\}/);
+    assert.match(read("app", "(app)", "learn", "[runId]", "group", "[groupId]", "register", "page.tsx"), /<HandOutRow groupId=\{gated\.group\.id\} weekNumber=\{slips\.weekNumber\} draw=\{slips\.draw\} \/>/);
   });
 
   test("over one world at a run of clock times, the page opens on the week the card names, and the route asks a yes exactly where the page warns", async () => {
@@ -481,7 +538,7 @@ describe("3. saving late, read only once closed, any week by its address, and th
   test("the group page's card names the week it is about", async () => {
     w.at("2026-11-17T18:30:00Z");
     const group = await w.groupPage("rahul");
-    assert.match(group.text, /Packs in Group B Week 4 /);
+    assert.match(group.text, /Give out week 4’s packs and cases before people leave\. /);
     assert.match(group.html, new RegExp(`href="/learn/draw/${B}\\?week=4"`));
     void W4;
   });

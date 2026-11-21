@@ -84,8 +84,9 @@ export default function DrawCard({
   todayKey: string;
 }) {
   const headingId = "group-spread";
+  // The page with no week named opens on the week the slips are for, with its Week picker.
   const page = `/learn/draw/${encodeURIComponent(groupId)}`;
-  const weekHref = (weekNumber: number) => `${page}?week=${weekNumber}`;
+  const weekHref = (weekNumber: number) => `/learn/draw/${encodeURIComponent(groupId)}?week=${weekNumber}`;
   const pinned = model.kind === "week" && model.pinned;
   const title =
     model.kind === "week" ? (model.phase === "giveOut" ? giveOutWords(model.weekNumber, model.draw) : drawTitleWords(model.draw)) : DRAW_CARD_TITLE;
