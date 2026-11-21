@@ -65,7 +65,7 @@ const comparable = (text) => text.replace(/ ?Add to calendar ?/g, " ").replace(/
 async function bothPages(who) {
   await w.asBrowser(who);
   const answer = await w.answersFor(who);
-  const props = answer.status === 200 ? { cantMakeIt: answer.body.cantMakeIt, joiningOnline: answer.body.joiningOnline, excused: answer.body.excused } : {};
+  const props = answer.status === 200 ? { cantMakeIt: answer.body.cantMakeIt, joiningOnline: answer.body.joiningOnline, excused: answer.body.excused, anotherSession: answer.body.anotherSession } : {};
   const programme = w.programmeHome(who, props);
   const home = await w.homeCard(who);
   return { answer, programme, home, programmeCard: firstCard(programme.html), homeCard: firstCard(home?.html ?? "") };
@@ -108,7 +108,7 @@ describe("1. the route answers the caller's own place alone", () => {
     assert.equal((await w.call("chloe", w.routes.nextSession.GET, { runId: "no-such-run" }, { course: true })).status, 404);
     const own = await ask("chloe");
     assert.equal(own.status, 200, JSON.stringify(own.body));
-    assert.deepEqual(Object.keys(own.body).sort(), ["cantMakeIt", "excused", "joiningOnline", "viewAs"]);
+    assert.deepEqual(Object.keys(own.body).sort(), ["anotherSession", "cantMakeIt", "excused", "joiningOnline", "viewAs"]);
     assert.equal(own.body.viewAs, false);
     assert.equal(own.body.excused.groupId, B);
     assert.equal(own.body.joiningOnline.sessionKey, "w03");
@@ -164,6 +164,10 @@ describe("2. Home and the programme page draw one card", () => {
     assert.match(ordinary.homeCard.text, /^Tonight · week 3 Tue 17 Nov, 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia/);
     assert.ok(ordinary.homeCard.text.includes(J.JOINING_ONLINE), ordinary.homeCard.text);
     assert.ok(ordinary.homeCard.html.includes('data-testid="excuse-open"'), "Home offers Can't make it");
+    assert.ok(
+      ordinary.homeCard.text.indexOf("Go to another session this week") > ordinary.homeCard.text.indexOf(J.JOINING_ONLINE),
+      "the third button, after the other two",
+    );
 
     // Moved this week, with why and the usual slot.
     moveWeekThree();
@@ -178,6 +182,7 @@ describe("2. Home and the programme page draw one card", () => {
     assert.match(joining.homeCard.text, /^Tonight · week 3 Joining online Tue 17 Nov, 6pm to 8pm Online, with Group B, Rahul and Sofia/);
     assert.ok(joining.homeCard.text.includes(J.saidOnlineWords(false, ["Rahul", "Sofia"])), joining.homeCard.text);
     assert.ok(joining.homeCard.text.includes(J.IN_THE_ROOM_AFTER_ALL));
+    assert.ok(!joining.homeCard.text.includes("Go to another session this week"), "not once they have said they are joining online");
 
     // Asked to be excused, waiting.
     w.reset();
@@ -286,7 +291,7 @@ describe("5. what else the card says, on both pages", () => {
       await bothPages("chloe");
       w.ui.overview = { ...w.ui.overview, programme: { ...(w.ui.overview.programme ?? { name: "AGI Strategy", leadFirstName: null }), kind: "incubator" } };
       const answer = w.ui.nextSession;
-      const programme = firstCard(w.programmeHome("chloe", { cantMakeIt: answer.cantMakeIt, joiningOnline: answer.joiningOnline, excused: answer.excused }).html);
+      const programme = firstCard(w.programmeHome("chloe", { cantMakeIt: answer.cantMakeIt, joiningOnline: answer.joiningOnline, excused: answer.excused, anotherSession: answer.anotherSession }).html);
       const home = firstCard((await w.homeCard("chloe")).html);
       return { home, programme };
     };

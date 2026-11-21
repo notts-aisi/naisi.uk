@@ -6,7 +6,7 @@ import { getRunAccess } from "@/features/courses/runAccess";
 import AnotherSessionForm from "@/features/courses/visitRequest/AnotherSessionForm";
 import { VisitRequestWaiting } from "@/features/courses/visitRequest/CardParts";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
-import { excusedFor } from "@/lib/courses/excused/own";
+import { nextSessionAnswersFor } from "@/lib/courses/nextSession/answers";
 import { anotherSessionPageFor } from "@/lib/courses/visitRequest/own";
 import { ANOTHER_SESSION_TITLE, ASK_REFUSAL } from "@/lib/courses/visitRequest/words";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -46,15 +46,17 @@ export default async function AnotherSessionPage({ params }: { params: Promise<{
 
   const now = new Date();
   const asked = { user: access.user, run: access.run, enrolment: access.enrolment, groups: access.groups, now };
-  const [view, excused, programme, marker] = await Promise.all([
+  const [view, answers, programme, marker] = await Promise.all([
     anotherSessionPageFor(db, asked).catch(() => null),
-    excusedFor(db, asked).catch(() => null),
+    // Their requests to be excused, for the one list under the form: the card's own answers.
+    nextSessionAnswersFor(db, { ...asked, takesPart: access.isEnrolled }),
     runProgrammeOf(db, access.run.id).catch(() => null),
     getImpersonator(),
   ]);
   const locked = markerIsLive(marker, access.user.uid);
   const name = programme?.shortName || access.run.courseTitle.trim() || "this programme";
   const waiting = view?.card.waiting ?? null;
+  const excused = answers.excused;
   const excusedRows = excused?.asks ? excused.requests : [];
   const visitRows = view?.card.rows ?? [];
 

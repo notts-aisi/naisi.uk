@@ -48,7 +48,7 @@ export async function askForVisit(db: Firestore, user: SessionUser, runId: strin
   const naming = await readNamingProgramme(db, runId);
   const requestRef = db.collection(COURSE_REQUESTS_COLLECTION).doc();
   const todayKey = londonDateKey(now);
-  let told: { personName: string; hostName: string; homeName: string; weekNumber: number; host: { dateKey: string; startTimeLocal: string } } | null = null;
+  let told: { hostName: string; homeName: string; weekNumber: number; host: { dateKey: string; startTimeLocal: string } } | null = null;
   const outcome = await db.runTransaction(async (tx): Promise<VisitAskOutcome> => {
     told = null;
     const read = await readVisitFacts(txReader(tx), db, runId, user.uid, "ahead", now, "member");
@@ -103,7 +103,6 @@ export async function askForVisit(db: Firestore, user: SessionUser, runId: strin
     });
     told = tellsAdmins
       ? {
-          personName: "",
           hostName: planned.plan.hostName,
           homeName: planned.plan.homeName,
           weekNumber: week.weekNumber,
