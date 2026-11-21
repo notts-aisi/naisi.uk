@@ -1,6 +1,6 @@
 import { drawWeekRule, type DrawWeekFacts } from "../packsAndCases/drawWeek";
 import { casesIn, chooseOnesOf, hasDraw, talksOf, type WeekDraw } from "../packsAndCases/model";
-import { everybodyHasTheirs, spreadOf, type DrawPerson, type DrawWeeks, type GroupWeek } from "../packsAndCases/readers";
+import { everybodyHasTheirs, spreadOf, type DrawPerson, type DrawState, type DrawWeeks, type GroupWeek } from "../packsAndCases/readers";
 import type { ResolvedSession } from "../sessions";
 
 /**
@@ -30,7 +30,8 @@ import type { ResolvedSession } from "../sessions";
  *
  * WHO IS NAMED: a facilitator of the group is left out of the card's named
  * lists for the group's other facilitators, and counted without a name. The
- * reader themself, the lead and admins see every name.
+ * reader themself and admins see every name, and so would the programme's
+ * lead (`lead`) on a page that admitted the lead: the group page does not.
  */
 
 export type DrawCardViewer = {
@@ -74,6 +75,44 @@ export type DrawCardModel =
       /** Every other week that gives something out. */
       otherWeeks: number[];
     };
+
+/**
+ * THE TWO THINGS ABOUT TIME THIS FILE ASKS BESIDE THE RULE, each worked out
+ * here once and nowhere else (`tests/course-draw-week.test.mjs` holds every
+ * other caller to that):
+ *
+ *  - `handOutStarted`: the session the rule names as handing a week's slips
+ *    out has started (its `startsAt`, the rule's own), which is when the
+ *    card is pinned. The rule's `handOutNight` is the same start to the end
+ *    of that day in London.
+ *  - `weekAfter`: the next week the group's plan teaches after this one, from
+ *    the group's sessions as the rule is handed them, so a plan that skips a
+ *    week names the one it teaches.
+ */
+export function handOutStarted(facts: DrawWeekFacts, now: Date): boolean {
+  return facts.handOut !== null && now.getTime() >= facts.handOut.startsAt.getTime();
+}
+
+export function weekAfter(sessions: readonly ResolvedSession[], weekNumber: number): number | null {
+  const later = sessions.map((session) => session.weekNumber).filter((n) => n > weekNumber);
+  return later.length > 0 ? Math.min(...later) : null;
+}
+
+/**
+ * THE DRAW READ FOR THE RULE'S WEEKS, with the rule asked again with whether
+ * everybody has theirs in each: the second half of `readDrawWeeks`, for a
+ * caller that has already read the course's weeks with nobody in the draw
+ * (`dates`), so the week queries are made once.
+ */
+export function withDraws(dates: DrawWeeks, states: ReadonlyMap<number, DrawState>, people: readonly DrawPerson[], now: Date): DrawWeeks {
+  const everybodyHas = new Map<number, boolean>();
+  for (const [n, state] of states) {
+    const week = dates.weeks.get(n);
+    if (week) everybodyHas.set(n, everybodyHasTheirs(week, people, state));
+  }
+  const rule = drawWeekRule({ sessions: dates.sessions, givingWeeks: dates.giving.map((week) => week.weekNumber), now, everybodyHas });
+  return { ...dates, states: new Map(states), rule };
+}
 
 /** Whether a reader is shown this person by name on the card. */
 export function namedFor(viewer: DrawCardViewer, person: DrawPerson): boolean {
@@ -142,7 +181,7 @@ export function drawCardModel(input: {
   const have = people.filter(holding).length;
   const total = people.length;
   const all = total > 0 && have === total;
-  const started = facts.handOut !== null && now.getTime() >= facts.handOut.startsAt.getTime();
+  const started = handOutStarted(facts, now);
   const pinned = total > 0 && started && !all;
   const phase: DrawCardPhase = all ? "all" : !pinned ? "before" : have === 0 && facts.handOutNight ? "giveOut" : "some";
 
@@ -204,20 +243,20 @@ export function mayBeHandOutNight(course: DrawWeeks): boolean {
 }
 
 /**
- * THE GUIDE'S CARD on a week's page: the week after it, when that week gives
+ * THE GUIDE'S CARD on a week's page: the week after it in the group's plan, when that week gives
  * something out and this is the evening its slips are handed out at this
  * week's session, by the one rule over the group's sessions. The guide reads
  * that one week's blocks and no draw, so it says nothing of who has theirs.
  */
 export function guideSlipsOf(input: {
   sessions: readonly ResolvedSession[];
-  /** The week after the page's, as the group reads it; null when it is not written as blocks. */
+  /** The week after the page's in the group's plan (`weekAfter`), as the group reads it; null when it is not written as blocks. */
   next: GroupWeek | null;
   pageWeek: number;
   now: Date;
 }): { weekNumber: number; draw: WeekDraw; sessionNumber: number } | null {
   const { sessions, next, pageWeek, now } = input;
-  if (!next || !hasDraw(next.draw)) return null;
+  if (!next || !hasDraw(next.draw) || next.weekNumber !== weekAfter(sessions, pageWeek)) return null;
   const facts = drawWeekRule({ sessions, givingWeeks: [next.weekNumber], now }).facts.get(next.weekNumber);
   if (!facts || !facts.handOutNight || !facts.handOut || facts.handOut.session.weekNumber !== pageWeek) return null;
   return { weekNumber: next.weekNumber, draw: next.draw, sessionNumber: facts.handOut.session.weekNumber };

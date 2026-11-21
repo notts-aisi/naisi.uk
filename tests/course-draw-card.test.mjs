@@ -127,7 +127,7 @@ describe("1. the card's states, as each reader is shown them", () => {
     }
     // A facilitator: Farah and Sofia facilitate too, so neither is named; Markets, which only Farah holds, has no row.
     assert.deepEqual(shown.facilitator, { tiles: [["Elections", ["Chloe"]]], notGiven: { names: ["Kofi", "Rahul"], unnamed: 1 } });
-    // Farah, who facilitates from a place in the group, is shown her own, and neither of the others.
+    // Farah, who facilitates from a place in the group, is shown their own, and neither of the others.
     assert.deepEqual(shown.takingPart, { tiles: [["Elections", ["Chloe"]], ["Markets", ["Farah"]]], notGiven: { names: ["Kofi"], unnamed: 2 } });
     // The lead and an admin are shown everybody.
     for (const name of ["lead", "admin"]) {
@@ -391,13 +391,15 @@ describe("4. every sentence the card says", () => {
     assert.equal(words.pickedWords(3, "Pathway", "Maya"), "Week 3’s pathways are picked by each person, so there’s nothing for you to give out. If you meant to hand them out, ask Maya or an admin to change the week.");
     assert.equal(words.pickedWords(6, "One career review that fits you", null), "In week 6 each person picks their own, so there’s nothing for you to give out. If you meant to hand them out, an admin can change the week.");
     assert.equal(words.casesNotSetWords(3, null), "Week 3’s cases aren’t set to be given out, so nobody can be given one. To give them out, an admin can change the week.");
-    assert.equal(words.NOTHING_TO_GIVE_OUT, "Nothing on this course is given out, so there’s nothing for you to give out.");
+    assert.equal(words.NOTHING_TO_GIVE_OUT, "No week of this course has anything to give out yet.");
     assert.equal(words.registerRowTitleWords(3, pathways), "Week 3’s pathways and cases");
     assert.equal(words.REGISTER_ROW_LINE, "Hand out the slips, then copy them in.");
     assert.equal(words.homeSlipsTitleWords("2026-11-11"), "After Wednesday’s session");
     assert.equal(words.homeSlipsLineWords(3, "Pathways and cases"), "Copy in the pathways and cases you hand out for week 3.");
     assert.equal(words.guideSlipsEyebrowWords(2), "After session 2");
     assert.equal(words.guideSlipsLineWords(3, pathways), "Copy in the pathway and case slips you handed out for week 3.");
+    assert.equal(words.guideSlipsLineWords(5, { packs: [{ title: "Plan" }], cases: [] }), "Copy in the plan slips you handed out for week 5.");
+    assert.equal(words.guideSlipsLineWords(3, { packs: [{ title: "One career review that fits you" }], cases: [{}] }), "Copy in the pathway and case slips you handed out for week 3.");
     assert.equal(pairsWords.pairsCardWeekWords(4), "Week 4");
     assert.equal(pairsWords.NO_PAIRS_TO_COME, "No week still to come is in pairs.");
   });

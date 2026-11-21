@@ -479,7 +479,7 @@ export default async function GroupHomePage({
   // `readDrawWeeks`). Everybody in the group is in it, its facilitators too,
   // who take part. The card says what is next on any course with a Choose
   // one or a Cases block; a facilitator of the group is named on it only to
-  // themself, an admin and the lead.
+  // themself and admins (this page does not admit the programme's lead).
   const drawList = drawPeople(model.people, model.facilitators);
   const course = group.archived ? null : await readDrawWeeks(db, { run: access.run, group, people: drawList, now });
   const drawCard = course

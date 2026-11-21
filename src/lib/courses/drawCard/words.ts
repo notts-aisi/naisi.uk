@@ -140,8 +140,11 @@ export function casesNotSetWords(weekNumber: number, leadFirstName: string | nul
   return `Week ${weekNumber}’s cases aren’t set to be given out, so nobody can be given one. ${changeTheWeekWords("To give them out", leadFirstName)}`;
 }
 
-/** A course whose Cases blocks have no cases in them, and no Choose one. Not drawn on the boards. */
-export const NOTHING_TO_GIVE_OUT = "Nothing on this course is given out, so there’s nothing for you to give out.";
+/**
+ * A course whose Choose ones hold no packs and whose Cases blocks hold no
+ * cases yet (a course still being written). Not drawn on the boards.
+ */
+export const NOTHING_TO_GIVE_OUT = "No week of this course has anything to give out yet.";
 
 // ---------------------------------------------------------------------------
 // The three places that point to the card at the session that hands them out
@@ -169,9 +172,13 @@ export function guideSlipsEyebrowWords(sessionNumber: number): string {
   return `After session ${sessionNumber}`;
 }
 
-/** "pathway and case": what each slip names, for the guide's line. */
+/**
+ * "pathway and case": what each slip names, for the guide's line. A Choose
+ * one's title is used only when it is one plain word ("Pathway", "Plan");
+ * any other title ("One career review that fits you") is called a pathway.
+ */
 function slipThingsWords(draw: WeekDraw): string {
-  const things = [...new Set(draw.packs.map((chooseOne) => lower(chooseOne.title.trim()) || "pack"))];
+  const things = [...new Set(draw.packs.map((chooseOne) => (/^[A-Za-z]+$/.test(chooseOne.title.trim()) ? lower(chooseOne.title.trim()) : "pathway")))];
   if (draw.cases.length > 0) things.push("case");
   return joinNames(things);
 }

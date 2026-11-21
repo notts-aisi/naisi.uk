@@ -71,9 +71,10 @@ export default async function RegisterPageBody({
   guide?: Promise<GuideLinksView> | null;
   /**
    * The row to the pathways and cases page at the session that hands the
-   * slips out, worked out by the page from that page's own gate, read beside
-   * the register's own reads; null, or a read that draws nothing, adds
-   * nothing. The register draws it beside the check-in.
+   * slips out: whether tonight can be such an evening is read beside the
+   * register's own reads, and on such an evening the row comes as a slot in
+   * its own `Suspense`, read after the register is sent. Null, or a read that
+   * draws nothing, adds nothing. The register draws it beside the check-in.
    */
   handOut?: Promise<ReactNode> | null;
 }) {

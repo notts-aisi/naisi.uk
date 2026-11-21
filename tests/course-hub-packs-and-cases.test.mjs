@@ -547,17 +547,17 @@ describe("3. the draw", () => {
     assert.equal(answer.status, 200);
     assert.equal(w.recordOf("farah", W3.given).packId, W3.technology);
     // The card: Farah and Sofia facilitate too, so Rahul is shown neither by
-    // name, and Technology, which only Farah holds, has no row for him.
+    // name, and Technology, which only Farah holds, has no row for Rahul.
     const rahul = await w.groupPage("rahul");
     assert.match(rahul.text, /Not given yet: Chloe, Kofi, Rahul and 2 more /);
     assert.doesNotMatch(rahul.text, /Technology Farah/);
-    // Farah sees her own; an admin sees everybody's.
+    // Farah sees their own; an admin sees everybody's.
     assert.match((await w.groupPage("farah")).text, /Technology Farah Not given yet: Chloe, Farah, Kofi and 2 more /);
     assert.match((await w.groupPage("zach")).text, /Technology Farah Not given yet: Chloe, Farah, Kofi, Rahul and Sofia /);
   });
 
   test("the card sits where a facilitator meets it: pinned straight under the session card while slips are being handed out, else under Before the session in the left column", async () => {
-    // Pinned: week 3's slips went out at session 2, and only Chloe has hers.
+    // Pinned: week 3's slips went out at session 2, and only Chloe has theirs.
     w.seedDraw("chloe", "w3", { pack: W3.elections, caseId: W3.surprise });
     for (const who of ["rahul", "zach"]) {
       const { html } = await w.groupPage(who);

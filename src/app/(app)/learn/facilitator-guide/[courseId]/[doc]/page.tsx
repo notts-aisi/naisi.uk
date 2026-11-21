@@ -159,17 +159,17 @@ export default async function FacilitatorGuidePage({ params }: { params: Promise
   const registers = registerRowsFor(groups, page.weekNumber, now);
   const home = homeGroupOf(groups, now);
   const rows: { group: GuideGroup; session: GuideSession | null }[] = registers.length > 0 ? registers : home ? [{ group: home, session: null }] : [];
-  // The next week's slips, for each of the reader's groups that hands them out at this week's session tonight.
-  const slips = groups.length > 0 ? await readGuideSlips(db, { groups, pageWeek: page.weekNumber, now }) : [];
-  // This session's printables, beside the first document the page shows (its
-  // plan, or its notes when only those are loaded), when there is anything
-  // to print for it. A week with something loaded is a week the guide has,
-  // so the route takes its number.
-  let printFor: number | null = null;
-  if (documents.length > 0) {
-    const [printables] = await readGuidePage(db, reader, { kind: "course", key: "printables" });
-    if (printables && sectionsOfSession(printables.doc, page.weekNumber).length > 0) printFor = page.weekNumber;
-  }
+  // Read together: the next week's slips, for each of the reader's groups
+  // that hands them out at this week's session tonight; and this session's
+  // printables, beside the first document the page shows (its plan, or its
+  // notes when only those are loaded), when there is anything to print for
+  // it. A week with something loaded is a week the guide has, so the route
+  // takes its number.
+  const [slips, printables] = await Promise.all([
+    groups.length > 0 ? readGuideSlips(db, { groups, pageWeek: page.weekNumber, now }) : Promise.resolve([]),
+    documents.length > 0 ? readGuidePage(db, reader, { kind: "course", key: "printables" }).then(([found]) => found ?? null) : Promise.resolve(null),
+  ]);
+  const printFor = printables && sectionsOfSession(printables.doc, page.weekNumber).length > 0 ? page.weekNumber : null;
   return (
     <div className={styles.page}>
       <GuideHead back={back} eyebrow={reader.courseTitle} heading={heading} barTitle={weekWords(page.weekNumber)} />
@@ -216,7 +216,7 @@ export default async function FacilitatorGuidePage({ params }: { params: Promise
                   <section
                     key={`slips-${entry.groupId}`}
                     className={`${styles.card} ${styles.next}`}
-                    aria-label={guideSlipsEyebrowWords(entry.sessionNumber)}
+                    aria-label={`${slips.length > 1 ? `${entry.name.trim() || GROUP_FALLBACK} · ` : ""}${guideSlipsEyebrowWords(entry.sessionNumber)}`}
                   >
                     <p className={styles.nextEyebrow}>
                       {slips.length > 1 ? `${entry.name.trim() || GROUP_FALLBACK} · ` : ""}
