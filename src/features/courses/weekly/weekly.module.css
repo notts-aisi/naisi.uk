@@ -2485,6 +2485,20 @@ a.weekItem:focus-visible {
   }
 }
 
+/* The card for a person's next session, on Home and on the programme page:
+   its label and its chip on one row, then a line each. */
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.cardLine {
+  margin: 0;
+}
+
 /* A one-week visit on the person's own programme page: the session they go to, on the ticket's own surface. */
 
 .visitBody {

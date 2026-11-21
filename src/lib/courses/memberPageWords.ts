@@ -90,6 +90,12 @@ export function sessionEyebrow(input: {
   online?: boolean;
   /** Home's card says "your first session" and "your last session" on the day; the programme home says the week. */
   home?: boolean;
+  /**
+   * False for their own group's session when a one-week visit comes before
+   * it: the visit's card is their next session, so this one says only its
+   * week, "Week 3".
+   */
+  next?: boolean;
 }): string {
   const weeks = weeksWords(input.weekNumbers);
   const online = input.online ? " · online" : "";
@@ -102,6 +108,7 @@ export function sessionEyebrow(input: {
   if (eyebrowNamesTheDay(input)) return `${coversWords(input.dateKey ?? "", input.weekNumbers)}${online}`;
   if (input.isFirst) return `Your first session · ${weeks}${online}`;
   if (input.isLast) return `Your last session · ${weeks}${online}`;
+  if (input.next === false) return `${weeks.charAt(0).toUpperCase()}${weeks.slice(1)}${online}`;
   return `Your next session · ${weeks}${online}`;
 }
 
@@ -117,6 +124,58 @@ export function eyebrowNamesTheDay(input: { isToday: boolean; weekNumbers: reado
 
 /** Beside a room that differs from the group's own this week. */
 export const ROOM_CHANGED = "Room changed this week";
+
+/** The chip of a session moved for its week alone ("Change a session"). It takes the place of `ROOM_CHANGED`. */
+export const MOVED_THIS_WEEK = "Moved this week";
+
+/** The chip once they have said they are joining the session online. */
+export const JOINING_ONLINE_CHIP = "Joining online";
+
+/**
+ * Under a session moved for its week alone: why, in the words staff gave
+ * when they moved it, then the group's usual slot and room. "Why: Portland
+ * A21 is closed for an exam. Usually Wednesdays, 3pm, Portland A21." Each
+ * part only where it is known: with no usual room "... Usually Wednesdays,
+ * 3pm."; with no reason "Usually Wednesdays, 3pm, Portland A21." alone; ""
+ * with neither.
+ */
+export function movedWhyWords(input: { reason: string; usualWeekday: number; usualStartTimeLocal: string; usualRoom: string }): string {
+  const reason = input.reason.trim();
+  const why = reason ? (/[.!?]$/.test(reason) ? `Why: ${reason}` : `Why: ${reason}.`) : "";
+  const day = WEEKDAY_NAMES[input.usualWeekday];
+  const clock = clockWords(input.usualStartTimeLocal);
+  const room = input.usualRoom.trim();
+  const usual = day && clock ? `Usually ${day}s, ${clock}${room ? `, ${room}` : ""}.` : "";
+  return [why, usual].filter(Boolean).join(" ");
+}
+
+const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/**
+ * The card's room line: "Monica Partridge E02, University Park", the room
+ * and the campus it is on; the campus alone while there is no room; "" with
+ * neither, or for a session held online.
+ */
+export function roomLineWords(room: string, campus: string): string {
+  return [room.trim(), campus.trim()].filter((part, at, all) => part !== "" && all.indexOf(part) === at).join(", ");
+}
+
+/**
+ * The card's group line: "Group C with Rahul", "Group C" with no facilitator
+ * to name. An incubator's people are never told the word group, so theirs
+ * is "with Rahul" alone, as the programme page always said.
+ */
+export function cardGroupLineWords(groupName: string, firstNames: readonly string[], incubator: boolean): string {
+  const withLine = withWords(firstNames);
+  if (incubator) return withLine;
+  return [groupName.trim(), withLine].filter(Boolean).join(" ");
+}
+
+/** In place of the room and group lines once they have said they are joining online: "Online, with Group C and Rahul". */
+export function onlineWithWords(groupName: string, firstNames: readonly string[], incubator: boolean): string {
+  const who = [incubator ? "" : groupName.trim(), ...firstNames].filter(Boolean);
+  return who.length > 0 ? `Online, with ${namesWords(who)}` : "Online";
+}
 
 /** Home's card's heading: "Group B, 6pm to 8pm". The tile beside it carries the date. */
 export function groupHoursWords(groupName: string, hours: string): string {

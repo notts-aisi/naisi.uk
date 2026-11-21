@@ -51,6 +51,7 @@ export default function TicketExcuse({
   hasLink,
   locked = false,
   certificateNeeds = null,
+  onSaidChange,
 }: {
   view: ExcusedOwnView;
   session: OwnExcusedSession;
@@ -61,6 +62,8 @@ export default function TicketExcuse({
   locked?: boolean;
   /** What a certificate needs, said in the form (`certificateNeedsWords`), or null. */
   certificateNeeds?: string | null;
+  /** Hears every "I'm joining online" press that saved, so the card's chip says it. */
+  onSaidChange?: (said: boolean) => void;
 }) {
   const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
@@ -74,7 +77,17 @@ export default function TicketExcuse({
   // The way in: offered while the session may still be asked about.
   const asks = state.kind === "open" || ((state.kind === "declined" || state.kind === "withdrawn") && state.again && session.ask.open && session.ask.when === "before");
   const online = joiningOnline && (asks || said) ? (
-    <JoiningOnline key={`online-${joiningOnline.sessionKey}-${said}`} view={{ ...joiningOnline, said }} hasLink={hasLink} locked={locked} onSaidChange={setSaid} />
+    <JoiningOnline
+      key={`online-${joiningOnline.sessionKey}-${said}`}
+      view={{ ...joiningOnline, said }}
+      hasLink={hasLink}
+      locked={locked}
+      facilitatorFirstNames={facilitatorFirstNames}
+      onSaidChange={(next) => {
+        setSaid(next);
+        onSaidChange?.(next);
+      }}
+    />
   ) : null;
   const entry =
     asks && !said ? (

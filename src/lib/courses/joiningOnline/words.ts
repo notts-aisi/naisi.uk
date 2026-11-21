@@ -21,8 +21,8 @@
 // The ticket, for somebody taking part
 // ---------------------------------------------------------------------------
 
-/** The button on the ticket. */
-export const JOINING_ONLINE = "Joining online";
+/** The button on the card. */
+export const JOINING_ONLINE = "I’m joining online";
 
 /** Its name for a screen reader: "Joining online on Tue 17 Nov". */
 export function joiningOnlineLabel(day: string): string {
@@ -30,21 +30,28 @@ export function joiningOnlineLabel(day: string): string {
 }
 
 /** Taking it back, while the session has not started. */
-export const IN_THE_ROOM_AFTER_ALL = "I’ll be in the room after all";
+export const IN_THE_ROOM_AFTER_ALL = "I’ll be in the room instead";
 
 /**
  * Once they have said it: who sees it, and where the link will be. With a
  * link already on the ticket, it says the link is there.
  */
-export function saidOnlineWords(hasLink: boolean): string {
+export function saidOnlineWords(hasLink: boolean, facilitatorFirstNames: readonly string[] = []): string {
+  // The card's own words, before the link is added, for a session with one
+  // facilitator to name: "Rahul can see you’re joining online. The link to
+  // join shows here once Rahul adds it: not yet."
+  if (!hasLink && facilitatorFirstNames.length === 1 && facilitatorFirstNames[0].trim()) {
+    const name = facilitatorFirstNames[0].trim();
+    return `${name} can see you’re joining online. The link to join shows here once ${name} adds it: not yet.`;
+  }
   return hasLink
     ? "You’ve said you’re joining online, and your facilitators can see that. The link to join is on this ticket."
     : "You’ve said you’re joining online, and your facilitators can see that. The link to join will be on this ticket, not in your emails.";
 }
 
 /** What the route answers once it has saved, either way. */
-export function onlineSavedWords(online: boolean, hasLink: boolean): string {
-  return online ? saidOnlineWords(hasLink) : "You’ve told us you’ll be in the room after all.";
+export function onlineSavedWords(online: boolean, hasLink: boolean, facilitatorFirstNames: readonly string[] = []): string {
+  return online ? saidOnlineWords(hasLink, facilitatorFirstNames) : "You’ve told us you’ll be in the room after all.";
 }
 
 /** What the press says while it is on its way. */

@@ -1,6 +1,7 @@
 import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/route";
 import { campusLabel } from "@/lib/courses/campus";
 import { heldOnline } from "@/lib/courses/joiningOnline/model";
+import { roomLineWords } from "@/lib/courses/memberPageWords";
 import { coversWords, LINK_WILL_BE_HERE } from "@/lib/courses/sessionChange/words";
 import { GROUP_FIELD_LIMITS, type GroupSessionMode } from "@/lib/firestore/courseGroups";
 import { validateSubmissionUrl, weekDocId } from "@/lib/firestore/courses";
@@ -77,6 +78,17 @@ export type TicketFacts = {
   startTimeLocal: string;
   durationMinutes: number;
   room: string | null;
+  /**
+   * The card's room line, the room and its campus: "Monica Partridge E02,
+   * University Park"; the campus alone while there is no room; "" for a
+   * session held online.
+   */
+  place: string;
+  /**
+   * The session was moved for its week alone, with the reason staff gave
+   * ("Change a session"), or null.
+   */
+  moved: { reason: string } | null;
   mode: GroupSessionMode | null;
   joinUrl: string | null;
   /**
@@ -114,6 +126,8 @@ export function ticketFacts(group: OverviewGroup): TicketFacts | null {
     startTimeLocal: next.startTimeLocal,
     durationMinutes: next.durationMinutes,
     room: room ?? standIn,
+    place: mode !== "virtual" ? roomLineWords(room ?? "", campusLabel(campus)) : "",
+    moved: next.moved ?? null,
     mode,
     joinUrl,
     joinFor: joinUrl ? (online ? "everybody" : "joining-online") : null,

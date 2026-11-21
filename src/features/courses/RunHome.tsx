@@ -13,23 +13,19 @@ import { firstName, tilePartsOfDay } from "@/app/(app)/dashboard/homeWords";
 import FacilitatorGroupPanel from "./FacilitatorGroupPanel";
 import TimeAnswerCard from "./timeAnswer/TimeAnswerCard";
 import { ticketFacts } from "./sessionChange/cardFacts";
-import SessionNotice from "./sessionChange/SessionNotice";
 import RunUpdates from "./updates/RunUpdates";
 import { useRunOverview } from "./useRunOverview";
 import { useSyncTasks } from "./useSyncTasks";
-import SessionTicket from "./weekly/SessionTicket";
-import TicketAnswers from "./weekly/TicketAnswers";
 import ThisWeekCard from "./weekly/ThisWeekCard";
 import WeekList from "./weekly/WeekList";
 import YourGroup from "./weekly/YourGroup";
 import AboutThisCourse from "./AboutThisCourse";
 import CertificateCard from "./CertificateCard";
 import type { CantMakeItView } from "@/lib/courses/cantMakeIt/model";
-import { lastSessionOf, sessionOf, ticketEntryOf } from "@/lib/courses/excused/card";
+import { lastSessionOf, ticketEntryOf } from "@/lib/courses/excused/card";
 import type { ExcusedOwnView } from "@/lib/courses/excused/own";
 import LastSessionCard from "./excused/LastSessionCard";
 import OwnRequests from "./excused/OwnRequests";
-import TicketExcuse from "./excused/TicketExcuse";
 import type { JoiningOnlineView } from "@/lib/courses/joiningOnline/model";
 import { ONLINE_WORD } from "@/lib/courses/joiningOnline/words";
 import type { CertificateCardView } from "@/lib/courses/certificates/card";
@@ -57,25 +53,19 @@ import {
   YOUR_MARKS,
   KEEP_ACTION_PLAN,
   afterLineParts,
-  eyebrowNamesTheDay,
   groupLineWords,
   keepWeeksWords,
   readingListKeepWords,
-  hoursWords,
   kindAndTermWords,
   markWords,
-  sessionEyebrow,
   weekOfWords,
   withWords,
 } from "@/lib/courses/memberPageWords";
 import { slotWords } from "@/lib/courses/sessionChange/words";
 import { campusLabel } from "@/lib/courses/campus";
-import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
-import { londonDateKey } from "@/lib/courses/weekPlan";
 import type { OverviewPayload, OverviewWeekSchedule } from "@/app/api/courses/runs/[runId]/overview/route";
-import VisitCard from "./visit/VisitCard";
-import { visitsAroundTicket } from "@/lib/courses/visit/view";
+import NextSessionCards from "./nextSession/NextSessionCards";
 import weekly from "./weekly/weekly.module.css";
 import styles from "./RunHome.module.css";
 
@@ -595,7 +585,6 @@ export default function RunHome({
 
   const { run, currentWeek, group, access } = data;
   const now = new Date();
-  const todayKey = londonDateKey(now);
   const programmeName = data.programme?.name || run.courseTitle;
   const state = stateCopy(data);
 
@@ -614,16 +603,13 @@ export default function RunHome({
   const thisSchedule = data.weekSchedule.find((week) => week.weekNumber === thisWeekNumber) ?? null;
   const thisDoc = data.weeks.find((week) => week.weekNumber === thisWeekNumber) ?? null;
 
-  // The next session's ticket: its own day, time, room and link.
+  // The group's next session, for the marks' "Not yet" and the head below.
   const facts = group ? ticketFacts(group) : null;
   const facilitatorPeople = (group?.facilitatorNames ?? []).map((name, index) => ({
     uid: `${group?.id ?? "group"}-${index}`,
     name,
     firstName: firstName(name) || name,
   }));
-  const factsSchedule = facts ? data.weekSchedule.find((week) => week.weekNumber === facts.weekNumber) : undefined;
-  const ticketIsToday = facts !== null && facts.dateKey === todayKey;
-  const firstSessionDate = group?.calendar.firstSessionDate ?? "";
 
   // The head's line: "Group B · Tuesdays 6pm · Jubilee · Room C20 · with
   // Rahul and Sofia", the group's USUAL slot, campus and room: a week's own
@@ -669,104 +655,25 @@ export default function RunHome({
     ? { ticket: weekly.order1, week: weekly.order2, group: weekly.order3, updates: weekly.order4, weeks: weekly.order5 }
     : { ticket: weekly.order1, week: weekly.order2, updates: weekly.order3, marks: weekly.order4, weeks: weekly.order5, group: weekly.order6 };
 
-  // The ticket's words: a session covering a cancelled week
-  // names its day in the eyebrow, "Tue 1 Dec · weeks 4 and 5", and its
-  // heading then says only the hours; an online week ends "· online". The
-  // group's last session is "Your last session" before its day.
-  const lastSessionDate = group?.calendar.lastSessionDate ?? "";
-  const eyebrowInput = facts
-    ? {
-        isToday: ticketIsToday,
-        isFirst: facts.dateKey === firstSessionDate,
-        isLast: lastSessionDate !== "" && facts.dateKey === lastSessionDate,
-        startTimeLocal: facts.startTimeLocal,
-        weekNumbers: facts.weekNumbers,
-        dateKey: facts.dateKey,
-        online: facts.mode === "virtual",
-      }
-    : null;
-  // What the reader can tell us about the session this ticket shows, of the
-  // group it is their place in: each only when it is about that session.
-  const nextKey = group?.calendar.nextSession?.sessionKey ?? null;
-  const ticketCantMakeIt =
-    cantMakeIt && group?.id === cantMakeIt.groupId && nextKey === cantMakeIt.sessionKey ? cantMakeIt : null;
-  const ticketJoiningOnline =
-    joiningOnline && group?.id === joiningOnline.groupId && nextKey === joiningOnline.sessionKey ? joiningOnline : null;
-  // Which way in: a request an admin decides for somebody taking part, or
-  // today's instant "Can't make it" for somebody who facilitates the group
-  // they hold a place in (`ticketEntryOf`). Neither when the view is missing.
-  const entry = ticketEntryOf(excused, group?.id ?? null);
-  const ticketSession = entry === "ask" ? sessionOf(excused, nextKey) : null;
+  // THE NEXT SESSION'S CARD, and under it their own group's session after a
+  // visit and any visit further ahead, decided where Home decides its own
+  // (`NextSessionCards`), from the overview and the server page's answers.
   const facilitatorFirstNames = facilitatorPeople.map((person) => person.firstName);
-  const ticketSlot =
-    entry === "ask" && excused && ticketSession && facts ? (
-      <TicketExcuse
-        key={ticketSession.sessionKey}
-        view={excused}
-        session={ticketSession}
-        groupName={group?.name ?? ""}
-        facilitatorFirstNames={facilitatorFirstNames}
-        joiningOnline={ticketJoiningOnline}
-        hasLink={facts.joinUrl !== null}
-        locked={viewAs}
-        certificateNeeds={data.certificateNeeds ?? null}
-      />
-    ) : ticketJoiningOnline || (entry === "instant" && ticketCantMakeIt) ? (
-      <TicketAnswers
-        key={(ticketCantMakeIt ?? ticketJoiningOnline)?.sessionKey}
-        cantMakeIt={entry === "instant" ? ticketCantMakeIt : null}
-        joiningOnline={ticketJoiningOnline}
-        hasLink={facts?.joinUrl !== null && facts?.joinUrl !== undefined}
-        locked={viewAs}
-      />
-    ) : null;
+  const entry = ticketEntryOf(excused, group?.id ?? null);
+  const nextKey = group?.calendar.nextSession?.sessionKey ?? null;
+  const cards = (
+    <NextSessionCards
+      runId={runId}
+      data={data}
+      answers={{ cantMakeIt, joiningOnline, excused }}
+      locked={viewAs}
+      calendar={learnerGroup !== null || access.isFacilitator}
+      wrapClass={order.ticket}
+      stackClass={styles.stack}
+    />
+  );
   // The last session, once it has ended, while there is something to say about it.
   const lastSession = entry === "ask" ? lastSessionOf(excused, nextKey) : null;
-  // THE PERSON'S OWN ONE-WEEK VISITS, each the card for the session they go
-  // to: "I'm joining online" acts on that session (the server's view of their
-  // next session names the host's when it is the next they are due at), and
-  // "Cancel this visit" until the earlier of the two sessions starts. A visit
-  // that is their NEXT session is drawn where the next session's card goes,
-  // above the ticket; a visit further ahead is listed below the ticket, with
-  // the same words and its Cancel, never above a session that comes first.
-  // The server's view of the host's session a visit is for, when it says so (`visit` on the session).
-  const visitSessionOf = (visit: { sessionKey: string; hostGroupId: string }) =>
-    excused?.sessions.find((session) => session.sessionKey === visit.sessionKey && session.visit?.groupId === visit.hostGroupId) ?? null;
-  const visitCardOf = (visit: NonNullable<typeof data.visits>[number]) => {
-    const onThis = joiningOnline && joiningOnline.groupId === visit.hostGroupId && joiningOnline.sessionKey === visit.sessionKey ? joiningOnline : null;
-    return (
-      <div key={`visit-${visit.weekNumber}`} className={order.ticket}>
-        <VisitCard
-          runId={runId}
-          visit={visit}
-          locked={viewAs}
-          answers={
-            // "Can't make it", as today, asks to be excused from the HOST's
-            // session (the server's view names that session and its group);
-            // "I'm joining online" acts on it too.
-            entry === "ask" && excused && visitSessionOf(visit) ? (
-              <TicketExcuse
-                key={`visit-${visit.sessionKey}`}
-                view={excused}
-                session={visitSessionOf(visit) as NonNullable<ReturnType<typeof visitSessionOf>>}
-                groupName={visit.hostName}
-                facilitatorFirstNames={visit.hostFacilitatorFirstNames}
-                joiningOnline={onThis}
-                hasLink={visit.meetingUrl !== null}
-                locked={viewAs}
-                certificateNeeds={data.certificateNeeds ?? null}
-              />
-            ) : onThis ? (
-              <TicketAnswers key={onThis.sessionKey} cantMakeIt={null} joiningOnline={onThis} hasLink={visit.meetingUrl !== null} locked={viewAs} />
-            ) : null
-          }
-        />
-      </div>
-    );
-  };
-  const aroundTicket = visitsAroundTicket(data.visits ?? [], facts);
-  const visitsFirst = aroundTicket.first.map(visitCardOf);
-  const visitsLater = aroundTicket.later.map(visitCardOf);
   const lastSessionCard =
     lastSession && excused ? (
       <div className={order.ticket}>
@@ -782,35 +689,6 @@ export default function RunHome({
     ) : null;
   const ownRequests =
     entry === "ask" && excused && excused.requests.length > 0 ? <OwnRequests requests={excused.requests} className={"marks" in order ? order.marks : order.group} /> : null;
-  const ticket =
-    group?.sessionNotice || facts ? (
-      <div className={order.ticket}>
-        <div className={styles.stack}>
-          {group?.sessionNotice && <SessionNotice notice={group.sessionNotice} />}
-          {facts && eyebrowInput && (
-            <SessionTicket
-              facts={facts}
-              eyebrow={sessionEyebrow(eyebrowInput)}
-              heading={
-                (eyebrowNamesTheDay(eyebrowInput)
-                  ? ""
-                  : sessionWhenLabel(
-                      { weekday: -1, startTimeLocal: facts.startTimeLocal, durationMinutes: facts.durationMinutes },
-                      facts.dateKey,
-                    )) || hoursWords(facts.startTimeLocal, facts.durationMinutes)
-              }
-              roomChanged={factsSchedule?.roomChanged === true}
-              facilitators={facilitatorPeople}
-              calendar={learnerGroup !== null || access.isFacilitator}
-              cantMakeIt={
-                /* About the session this ticket shows, of the group it is the reader's place in. */
-                ticketSlot
-              }
-            />
-          )}
-        </div>
-      </div>
-    ) : null;
 
   const weekCard =
     learner && thisWeekNumber >= 1 && (running || beforeStart) ? (
@@ -940,9 +818,7 @@ export default function RunHome({
       <div className={weekly.columns}>
         <div className={weekly.colMain}>
           <CertificateCard certificates={certificates} />
-          {visitsFirst}
-          {ticket}
-          {visitsLater}
+          {cards}
           {lastSessionCard}
           {timeQuestion && learner && (
             /* After the ticket, on a phone too. An incubator's people are told

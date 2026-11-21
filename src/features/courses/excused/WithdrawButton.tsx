@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useCardRefresh } from "../nextSession/refresh";
 import { useState } from "react";
 import { useHydrated } from "@/hooks/useHydrated";
 import * as O from "@/lib/courses/excused/ownWords";
@@ -26,6 +27,7 @@ export default function WithdrawButton({
   note?: boolean;
 }) {
   const router = useRouter();
+  const refreshCard = useCardRefresh();
   const hydrated = useHydrated();
   const [busy, setBusy] = useState(false);
   const [line, setLine] = useState<{ text: string; problem: boolean } | null>(null);
@@ -41,6 +43,7 @@ export default function WithdrawButton({
     }
     setLine({ text: O.WITHDRAWN, problem: false });
     router.refresh();
+    refreshCard();
   }
 
   return (
