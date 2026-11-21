@@ -8,7 +8,6 @@ import { weekToMarkdown } from "@/lib/courses/weekBlocks/markdownWrite";
 import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import {
   answersOnRemoved,
-  holdersCountAll,
   holdersFor,
   pasteAnswer,
   pasteBodyOf,
@@ -16,7 +15,6 @@ import {
   unconfirmedAnswers,
   type PasteBody,
 } from "@/lib/courses/weekPaste";
-import { facilitatorPickProblems } from "@/lib/courses/weekBlocks/whoChooses";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -69,8 +67,7 @@ import { templateWeekFields } from "@/lib/firestore/courseTemplates";
  * WHO CHOOSES each Choose one and Cases block, and the author's change to
  * it, travel with the paste exactly as on the run's week loader; the people
  * a change reaches are counted among the group's people and facilitators,
- * and a Choose one turned from picked to given out while one of this
- * group's facilitators has picked one is refused, as there.
+ * and who has picked never stops a change, as there.
  *
  * WHAT SAVE CHECKS is what the run's week loader checks (`weekPaste.ts`): the
  * paste read again against the copy as stored (or the run's week while there
@@ -189,16 +186,6 @@ async function readersOf(db: Firestore, group: CourseGroupDoc): Promise<Set<stri
   return uids;
 }
 
-/**
- * How many of the group's people and facilitators hold a pack in each Choose
- * one whose chooser the paste changes, and how many of them facilitate this
- * group. `all`: every such block, for an answer shown; otherwise the blocks
- * turned to given out, which a save needs to decide whether it is refused.
- */
-function holdersOf(db: Firestore, group: CourseGroupDoc, read: ReturnType<typeof readPasteAgainst>, owners: ReadonlySet<string>, all: boolean) {
-  return holdersFor(db, group.runId, read, { owners, all, facilitators: async () => new Set(group.facilitatorUids) });
-}
-
 /** Thrown out of the save's transaction to answer with a status. */
 class SaveRefusal extends Error {
   constructor(
@@ -249,9 +236,10 @@ export async function POST(req: Request, ctx: Params) {
   if (loaded instanceof NextResponse) return loaded;
   const read = readPasteAgainst(sent, { blocks: storedBlocks(loaded), weekNumber: gated.weekNumber, dayBeforeTime: loaded.dayBeforeTime });
   const owners = await readersOf(db, gated.group);
+  // Who holds a pack is counted among the group's people and facilitators, as the answers are.
   const [counts, holders] = await Promise.all([
     answersOnRemoved(db, gated.run.id, gated.weekId, read.removed, owners),
-    holdersOf(db, gated.group, read, owners, true),
+    holdersFor(db, gated.run.id, read, owners),
   ]);
   return NextResponse.json(pasteAnswer(read, counts, loaded.dayBeforeTime, holders));
 }
@@ -271,22 +259,16 @@ export async function PUT(req: Request, ctx: Params) {
   if (loaded instanceof NextResponse) return loaded;
   const read = readPasteAgainst(sent, { blocks: storedBlocks(loaded), weekNumber: gated.weekNumber, dayBeforeTime: loaded.dayBeforeTime });
   const owners = await readersOf(db, gated.group);
-  // The save counts only what decides whether it is refused; a refusal, shown as the check, counts the rest too.
-  const [counts, guard] = await Promise.all([
-    answersOnRemoved(db, gated.run.id, gated.weekId, read.removed, owners),
-    holdersOf(db, gated.group, read, owners, false),
-  ]);
-  let answer = pasteAnswer(read, counts, loaded.dayBeforeTime, guard);
-  let unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
-  if ((answer.problems.length > 0 || unconfirmed) && !holdersCountAll(read, guard)) {
-    answer = pasteAnswer(read, counts, loaded.dayBeforeTime, await holdersOf(db, gated.group, read, owners, true));
-    unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
+  // The save is decided by the paste and the answers it takes out alone; a
+  // refusal, shown as the check, counts who holds a pack too.
+  const counts = await answersOnRemoved(db, gated.run.id, gated.weekId, read.removed, owners);
+  let answer = pasteAnswer(read, counts, loaded.dayBeforeTime);
+  const unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
+  if (read.problems.length > 0 || unconfirmed) {
+    answer = pasteAnswer(read, counts, loaded.dayBeforeTime, await holdersFor(db, gated.run.id, read, owners));
   }
   // What the paste itself holds stops it first: another week, facilitator material, a broken block.
   if (read.problems.length > 0) return badRequest(read.problems[0], answer);
-  // Then a Choose one turned to given out over a facilitator's own pick, which the store decides.
-  const pickRefusal = facilitatorPickProblems(read.whoChooses, guard)[0];
-  if (pickRefusal) return badRequest(pickRefusal, answer);
   if (unconfirmed) return NextResponse.json({ error: unconfirmed, ...answer }, { status: 409 });
 
   const copyRef = groupWeekRef(db, gated.group.id, gated.weekId);

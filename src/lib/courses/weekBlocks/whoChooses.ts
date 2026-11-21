@@ -29,12 +29,11 @@ import { allBlocks, GIVEN_BY, type CasesBlock, type ChooseOneBlock, type GivenBy
  *  - a talk with no cases (a pitch): not listed at all, since nothing is
  *    given out or picked in it, and who chooses changes nothing anybody sees.
  *
- * A FACILITATOR'S OWN PICK STAYS THEIRS. While a Choose one is picked, a
- * pack picked by somebody who facilitates a group is read by the lead and
- * admins only; given out, the draw shows it to the group's other
- * facilitators. So a save that turns a Choose one from picked to given out
- * is refused while any such pick is on it (`facilitatorPickProblems`), and
- * the check says so before Save.
+ * A CHANGE TO GIVEN OUT IS NEVER REFUSED FOR WHO HAS PICKED. Everybody who
+ * picked keeps their pick as the pack they are given, somebody who
+ * facilitates a group included, and the check counts them all. Given out,
+ * the pathways and cases page shows a facilitator's pack to the group's
+ * other facilitators, as the privacy policy says from version 21.
  *
  * Pure: the route counts the people a change reaches (`packHolders` in
  * `src/lib/courses/weekEdit/counts.ts`).
@@ -242,30 +241,8 @@ export function switchedChooseOnes(rows: readonly WhoChoosesRow[], read: readonl
   return choiceBlocks(read).filter((block): block is ChooseOneBlock => block.type === "chooseOne" && ids.has(block.id));
 }
 
-/** How many hold a pack in one Choose one, and how many of those facilitate a group (`packHolders`). */
-export type Holders = { people: number; facilitating: number };
-
-/** Does a save turn this row's Choose one from picked to given out, on a block people may already hold a pack in? */
-function turnsGiven(row: WhoChoosesRow): boolean {
-  return row.kind === "chooseOne" && row.stored === "fellow" && row.givenBy === "facilitator";
-}
-
-/**
- * The sentences that stop a save: a Choose one turned from picked to given
- * out while somebody who facilitates a group holds a pick in it. While it is
- * picked, that pick is their own work, read by the lead and admins only;
- * given out, the draw would show it to the group's other facilitators. The
- * block can still be saved as picked. Whichever way the change came, the
- * check's switch or the pasted words, it is refused the same.
- */
-export function facilitatorPickProblems(rows: readonly WhoChoosesRow[], holders: ReadonlyMap<string, Holders>): string[] {
-  const out: string[] = [];
-  for (const row of rows) {
-    const held = holders.get(row.blockId);
-    if (turnsGiven(row) && held && held.facilitating > 0) out.push(WHO_CHOOSES.facilitatorsPicked(held.facilitating));
-  }
-  return [...new Set(out)];
-}
+/** How many people hold a pack in one Choose one (`packHolders`). */
+export type Holders = { people: number };
 
 /**
  * What a row says to the page: its words, its answers, and what the change
@@ -281,9 +258,7 @@ export function whoChoosesWire(row: WhoChoosesRow, holders: ReadonlyMap<string, 
     held === null
       ? null
       : row.givenBy === "facilitator"
-        ? turnsGiven(row) && held.facilitating > 0
-          ? WHO_CHOOSES.facilitatorsPicked(held.facilitating)
-          : WHO_CHOOSES.nowGiven(held.people, wholeRun)
+        ? WHO_CHOOSES.nowGiven(held.people, wholeRun)
         : WHO_CHOOSES.nowPicked(held.people, wholeRun);
   return {
     place: row.place,

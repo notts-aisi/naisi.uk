@@ -466,15 +466,14 @@ After "Read it" the loader shows:
   which they can change until their session for the week starts. On the
   programme's own week the count is of everybody on the programme, and the
   check says it can be a little high.
-- **A facilitator's own pick stays theirs.** While a Choose one is picked, a
-  pack picked by somebody who facilitates a group is read by the lead and
-  admins only; given out, the draw would show it to the group's other
-  facilitators. So a save that turns a Choose one from picked to given out
-  is refused while anybody who facilitates a live group of the run (on a
-  group's own copy, that group) has picked one, whether the check's switch
-  or the pasted words make the change. The check says so in place of the
-  count, Save stays off, and the route refuses in the same sentence. The
-  block can still be saved as picked.
+- **Who has picked never stops a change.** A Choose one turned from picked
+  to given out always saves, whether the check's switch or the pasted words
+  make the change: everybody who picked keeps their pick as the pack they
+  are given, somebody who facilitates a group included, and the check's
+  count includes them. Given out, the pathways and cases page shows that
+  pack to the group's other facilitators, as the privacy policy says from
+  version 21 ("If you facilitate your own group."). A save reads who holds
+  a pack only to answer a refused save with the check.
 - **The comparison and the history** name a change of who chooses on a
   Choose one or Cases block: "Who chooses changed."
 - **What stops a save**: another week's Markdown, a source with no https

@@ -191,7 +191,9 @@ export default async function ReConsentPage() {
           year, where before we said two years from the day it is sent. We now
           say that our database&apos;s recovery copies can hold the time at
           which something sent through an anonymous form arrived, for up to 14
-          days.
+          days. We now say that in a week where facilitators give out pathways
+          or cases, a group&apos;s other facilitators can see which ones a
+          facilitator who also takes part in the group has.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}

@@ -345,15 +345,6 @@ export const WHO_CHOOSES = {
       ? "Nobody has been given one yet. Each person picks their own before their session for the week starts, and facilitators can no longer give one out."
       : `${plural(people, "person was", "people were")} given one. It becomes their own pick, which they can change until their session for the week starts. Facilitators can no longer give one out.` +
         (wholeRun ? WHOLE_RUN : ""),
-  /**
-   * Picked to given, refused: somebody who facilitates their own group has
-   * picked one, and a pick of theirs is read by the lead and admins only.
-   * The check shows it in place of the count, and Save is refused with it.
-   */
-  facilitatorsPicked: (people: number) =>
-    people === 1
-      ? "This can’t be changed to given out yet. 1 person who facilitates their own group has picked one, and their pick is theirs alone: the group’s other facilitators would see it."
-      : `This can’t be changed to given out yet. ${people} people who facilitate their own group have picked one, and their picks are theirs alone: the group’s other facilitators would see them.`,
 } as const;
 
 // ---------------------------------------------------------------------------

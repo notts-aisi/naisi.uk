@@ -96,8 +96,8 @@ export async function readWeekWork(db: Firestore, runId: string, weekId: string,
   return work;
 }
 
-/** How many people hold a pack in one Choose one, and how many of them facilitate a group of the run. */
-export type PackHolders = { people: number; facilitating: number };
+/** How many people hold a pack in one Choose one. */
+export type PackHolders = { people: number };
 
 /**
  * How many people hold a pack in each of `blocks` (Choose ones whose chooser
@@ -107,18 +107,15 @@ export type PackHolders = { people: number; facilitating: number };
  * reads it. `owners` narrows the count to the people who read the week being
  * pasted, as `answersOnRemoved` does: null for the run's own week (every row
  * of the run, which can only over-count), a group's people and facilitators
- * for a group's own copy. `facilitating` counts the holders in
- * `facilitators`: a pick by somebody who facilitates is their own work, read
- * by the lead and admins only, which a switch to given out would put on the
- * draw in front of their co-facilitators. Nothing is read when no block is
- * asked for. Numbers for the check; never whose.
+ * for a group's own copy. Somebody who facilitates is counted as anybody
+ * else. Nothing is read when no block is asked for. Numbers for the check;
+ * never whose.
  */
 export async function packHolders(
   db: Firestore,
   runId: string,
   blocks: readonly ChooseOneBlock[],
   owners: ReadonlySet<string> | null = null,
-  facilitators: ReadonlySet<string> = new Set(),
 ): Promise<Map<string, PackHolders>> {
   const holders = new Map<string, PackHolders>();
   if (blocks.length === 0) return holders;
@@ -135,7 +132,7 @@ export async function packHolders(
     people.get(blockId)?.add(uid);
   }
   for (const [blockId, set] of people) {
-    holders.set(blockId, { people: set.size, facilitating: [...set].filter((uid) => facilitators.has(uid)).length });
+    holders.set(blockId, { people: set.size });
   }
   return holders;
 }

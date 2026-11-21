@@ -206,7 +206,11 @@ export const POLICIES: Record<
     // anonymous feedback from the second form (`src/lib/societyFeedback/`) is
     // kept for up to two years and cleared by hand once a year, every entry
     // more than a year old, where v20 said "two years from the day it is
-    // sent". "What's changed" says both, and keeps v20's, v19's, v18's and
+    // sent". And "If you facilitate your own group." says that in a week
+    // whose pathways or cases are given out, the group's other facilitators
+    // see which ones a facilitator who takes part in it has, a pathway they
+    // picked before the week was changed to given out included.
+    // "What's changed" says each, and keeps v20's, v19's, v18's and
     // v17's lines under v21's, each
     // with its date. It changes how information is used, so it is told on
     // Home (`toldOnHome`). Told, not asked: `LAST_PRIVACY_VERSION_ASKED`
