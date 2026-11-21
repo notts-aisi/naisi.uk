@@ -6,6 +6,7 @@ import InitialsChip from "@/components/ui/InitialsChip";
 import Select from "@/components/ui/Select";
 import { useHydrated } from "@/hooks/useHydrated";
 import { caseOptions, type DrawTalk } from "@/lib/courses/packsAndCases/model";
+import { safeReturnPath } from "@/lib/safeReturnPath";
 import {
   CANCEL,
   DRAW_NOT_SAVED,
@@ -168,10 +169,11 @@ export default function DrawEditor({
       if (going.current || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const link = (event.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
       if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
-      const to = new URL(link.href, window.location.href);
-      if (to.origin !== window.location.origin) return;
+      // Only a path on this site is asked about (`safeReturnPath`, the one place that is decided); any other link goes as it would.
+      const href = safeReturnPath(link.getAttribute("href"));
+      if (!href) return;
       event.preventDefault();
-      setAsk({ kind: "leave", href: to.pathname + to.search + to.hash });
+      setAsk({ kind: "leave", href });
     };
     const onLeave = (event: Event) => {
       if (going.current) return;

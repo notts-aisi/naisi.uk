@@ -81,10 +81,12 @@ export const SPEC = {
     ],
   },
   /**
-   * NOT RUN YET. Written against the markup of the pages it drives, and run
-   * locally under the harness before it is marked verified.
+   * VERIFIED on Sat 21 November 2026: in local mode, against the harness's own
+   * server (`npm run e2e:browser -- --local --spec course-hub-draw`), on
+   * d5143cf6: all nine steps ran, and the fixture manifest read zero after
+   * teardown.
    */
-  status: "unverified",
+  status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerms({ runId, suppress, onState, points: ["draw-night"] }),
   countRows: countTerms,
   teardown: teardownTerms,
