@@ -774,6 +774,11 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in as a programme's lead and adds a group from the Times view.",
   },
+  "/api/courses/runs/[runId]/next-session": {
+    reason:
+      "Course hub: what Home's card for a member's next session can be told, the programme page's own server answers. tests/course-next-session-card.test.mjs executes it as the person, another member, a facilitator with no place, an admin and signed out, and draws Home's card and the programme page's from the same world and compares them. The browser specs that open Home as a member were changed with it and have not been run since.",
+    coverWhen: "When a browser spec that signs in as a member and opens Home passes with this route answering its card.",
+  },
   "/api/courses/runs/[runId]/visit/cancel": {
     reason:
       "Course hub: the person cancelling a visit staff arranged for them, from their programme page. tests/course-visit.test.mjs executes it as the person, somebody else and signed out, before and after the earlier of the two sessions starts, with what it takes off the host's register and who it emails. No member signs in on the verified browser spec scripts/e2e-fixtures/course-hub-visit.mjs, which arranges and calls off a visit as staff.",

@@ -3055,6 +3055,19 @@ export const ROUTES = {
         "is missing.",
     },
   },
+  "/api/courses/runs/[runId]/next-session": {
+    GET: {
+      expect: signedIn(404),
+      // What the card for the caller's next session can be told, for Home:
+      // the programme page's own server answers (`nextSessionAnswersFor`),
+      // each null when there is nothing to offer, and whether an admin is
+      // looking as the member (tests/course-next-session-card.test.mjs).
+      fields: ["cantMakeIt", "joiningOnline", "excused", "viewAs"],
+      why:
+        "Session required, then the programme page's own gate reads the run. The battery's id " +
+        "addresses nothing, so every signed-in persona is told the run is missing. It writes nothing.",
+    },
+  },
   "/api/courses/runs/[runId]/pitching": {
     GET: {
       expect: signedIn(403),
@@ -7597,6 +7610,20 @@ export const REAL_ROUTES = {
         lead: c(403, "A programme's lead holds no place on the run: the overview is its people's, its facilitators' and an admin's."),
         facilitator: c(200, "Holds a told place and facilitates a group: the run's overview."),
         participant: c(200, "Holds a told place: the run's overview."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/next-session": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "No told place on the run: there is no next session of theirs to say anything about."),
+        admin: c(403, "An admin holds no place on the run: the card's answers are only ever the caller's own."),
+      },
+      theirs: {
+        lead: c(403, "A programme's lead holds no place on the run."),
+        facilitator: c(200, "Holds a told place in a group, which they also facilitate: their own card's answers."),
+        participant: c(200, "Holds a told place: their own card's answers."),
       },
     },
   },
