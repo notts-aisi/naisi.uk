@@ -995,7 +995,8 @@ const MUST_NAME = [
   // CHANGED ON PURPOSE (v17): and, for a week spent at another group's
   // session, that group's facilitators.
   ["who reads somebody's work, and that the week's page says so", /<strong>Who reads it\.<\/strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators\. Nobody else taking part; the week&apos;s page says so\./],
-  ["a facilitator's own work is the lead's and admins' only", /If you facilitate a group, your own work is read by the lead and admins only\./],
+  // CHANGED ON PURPOSE (v21): apart from the one exception, a week whose pathways or cases are given out.
+  ["a facilitator's own work is the lead's and admins' only", /If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above\./],
   // Pairs for a session in pairs (Technical AI Safety's hands-on night).
   // §2g holds what each person sees of their pair to its code.
   ["what a person's partner sees in a session in pairs", /When a session is in pairs, your partner sees your first name and whether you are bringing a laptop\./],
@@ -4397,7 +4398,7 @@ describe("the course hub passage", () => {
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
-      " If you facilitate a group, your own work is read by the lead and admins only.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above.",
       " Your private notes on the material are read by your group&apos;s facilitators and admins (if you facilitate the group, by admins alone), and we use them to improve the course.",
       " A facilitator may read out a line of a reflection without saying whose it is.",
     ]) {
@@ -5481,7 +5482,7 @@ describe("the course hub passage", () => {
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
-      " If you facilitate a group, your own work is read by the lead and admins only.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
     }
@@ -5696,7 +5697,7 @@ describe("the course hub passage", () => {
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
-      " If you facilitate a group, your own work is read by the lead and admins only.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
     }
@@ -6024,7 +6025,7 @@ describe("the course hub passage", () => {
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
-      " If you facilitate a group, your own work is read by the lead and admins only.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
     }
@@ -12369,6 +12370,11 @@ describe("v21 says the reminders before a session go to everybody due at it, and
         "<p> Our database&apos;s recovery copies, which exist so that data can be restored after a fault, can hold the time at which something sent through either anonymous form arrived, for up to 14 days. We would only look at them if we had to. </p>",
     ],
     ["a facilitator who takes part in their own group: the one exception, a week whose pathways or cases are given out", OWN_GROUP_20, OWN_GROUP_21],
+    [
+      "Who reads it. points a facilitator's own work at that exception",
+      " If you facilitate a group, your own work is read by the lead and admins only. Two things are narrower still.",
+      " If you facilitate a group, your own work is read by the lead and admins only, apart from the one exception above. Two things are narrower still.",
+    ],
   ];
 
   test("v21 is v20 with these changes and no others", () => {
@@ -12392,6 +12398,10 @@ describe("v21 says the reminders before a session go to everybody due at it, and
     const passage = hubPassageOf("<strong>If you facilitate your own group.</strong>");
     assert.ok(`${passage}</p>`.endsWith(OWN_GROUP_21), "If you facilitate your own group. no longer ends with the exception, in those words");
     assert.ok(!V20_FLAT.includes("The one exception is a week where facilitators give out pathways or cases"));
+    // "Who reads it." says "apart from the one exception above": the exception comes first on the page.
+    const exception = PAGE_FLAT.indexOf("The one exception is a week where facilitators give out pathways or cases");
+    const pointer = PAGE_FLAT.indexOf("your own work is read by the lead and admins only, apart from the one exception above.");
+    assert.ok(exception !== -1 && pointer > exception, "Who reads it. no longer comes after the exception it points to as above");
     // "the group's other facilitators can see which ones you have": the
     // pathways and cases page reads every person's pack in a Choose one given
     // out and their case in a talk given out, a facilitator's as anybody's,

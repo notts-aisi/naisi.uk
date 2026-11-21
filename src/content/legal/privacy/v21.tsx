@@ -44,7 +44,9 @@
  *     on a pasted week never refuses that change
  *     (`src/lib/courses/weekBlocks/whoChooses.ts`). On a week whose pathway
  *     each person picks, their pick and the case that follows it stay the
- *     lead's and admins' ("Picks their own"), as in version 20.
+ *     lead's and admins' ("Picks their own"), as in version 20. "Who reads
+ *     it." points its sentence about a facilitator's own work at that
+ *     exception ("apart from the one exception above").
  *  5. **What's changed** at the top says all four, and keeps version 20's, version
  *     19's, version 18's and version 17's lines under it, each with its date.
  *
@@ -665,8 +667,8 @@ export default function PrivacyContentV21({
                 week you spend at another group&apos;s session, that
                 group&apos;s facilitators. Nobody else taking part; the
                 week&apos;s page says so. If you facilitate a group, your own
-                work is read by the lead and admins only. Two things are
-                narrower still. Your sealed predictions are read by you and
+                work is read by the lead and admins only, apart from the one
+                exception above. Two things are narrower still. Your sealed predictions are read by you and
                 admins alone, and each time an admin opens them we record it
                 first; if we can&apos;t record it, they stay closed. Your
                 private notes on the material are read by your group&apos;s
