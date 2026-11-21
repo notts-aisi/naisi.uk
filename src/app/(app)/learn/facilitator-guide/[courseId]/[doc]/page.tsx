@@ -217,7 +217,6 @@ export default async function FacilitatorGuidePage({ params }: { params: Promise
                     key={`slips-${entry.groupId}`}
                     className={`${styles.card} ${styles.next}`}
                     aria-label={guideSlipsEyebrowWords(entry.sessionNumber)}
-                    data-testid="guide-slips"
                   >
                     <p className={styles.nextEyebrow}>
                       {slips.length > 1 ? `${entry.name.trim() || GROUP_FALLBACK} · ` : ""}

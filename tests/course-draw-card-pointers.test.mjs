@@ -154,16 +154,16 @@ describe("3. the guide's week page, on the evening its session hands next week's
       assert.match(page.text, /After session 3 Copy in the pack and case slips you handed out for week 4\. Copy in week 4’s slips/, who);
       assert.match(page.html, new RegExp(`href="/learn/draw/${B}\\?week=4"`), who);
       // After the week's first part, never before it.
-      assert.ok(page.html.indexOf('data-testid="guide-slips"') > page.html.indexOf('class="part"'), who);
+      assert.ok(page.html.indexOf(`href="/learn/draw/${B}`) > page.html.indexOf('class="part"'), who);
     }
   });
 
   test("not another week's page, not at noon, and not for an admin with no group on the course", async () => {
     await at(TONIGHT);
-    assert.doesNotMatch((await w.docPage("rahul", "week-2")).html, /guide-slips/);
-    assert.doesNotMatch((await w.docPage("zach", "week-3")).html, /guide-slips/);
+    assert.doesNotMatch((await w.docPage("rahul", "week-2")).html, /\/learn\/draw\//);
+    assert.doesNotMatch((await w.docPage("zach", "week-3")).html, /\/learn\/draw\//);
     await at(NOON);
-    assert.doesNotMatch((await w.docPage("rahul", "week-3")).html, /guide-slips/);
+    assert.doesNotMatch((await w.docPage("rahul", "week-3")).html, /\/learn\/draw\//);
   });
 });
 
@@ -181,7 +181,7 @@ describe("4. a course that gives nothing out and has no pairs answers as it alwa
       assert.ok(page.grid, who);
       assert.ok(!Object.hasOwn(page.grid.props, "handOut"), who);
       assert.ok(!Object.hasOwn((await w.summary(who)).body, "slips"), who);
-      assert.doesNotMatch((await w.docPage(who, "week-3")).html, /guide-slips|\/learn\/draw\//, who);
+      assert.doesNotMatch((await w.docPage(who, "week-3")).html, /\/learn\/draw\//, who);
     }
     assert.doesNotMatch((await w.home("rahul")).html, /home-slips|\/learn\/draw\//);
   });

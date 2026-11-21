@@ -15,7 +15,7 @@ import weekly from "@/features/courses/weekly/weekly.module.css";
  */
 export default function HandOutRow({ groupId, weekNumber, draw }: { groupId: string; weekNumber: number; draw: WeekDraw }) {
   return (
-    <div className={styles.handOutRow} data-testid="register-hand-out">
+    <div className={styles.handOutRow}>
       <div className={styles.handOutText}>
         <span className={styles.drawRowName}>{registerRowTitleWords(weekNumber, draw)}</span>
         <span className={weekly.cardLine}>{REGISTER_ROW_LINE}</span>
