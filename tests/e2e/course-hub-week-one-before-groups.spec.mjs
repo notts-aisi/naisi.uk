@@ -1095,7 +1095,10 @@ test(
           [WEEK_ONE.title, [], [], [], 0],
           "week 1 read with something to fix or check",
         );
+        // Week 1 holds no Choose one and no Cases, so the check asks nobody who chooses.
+        assert.deepEqual(found.whoChooses, [], "week 1 read with a block that offers a choice");
         await card.getByRole("heading", { name: "What we found in week 1", exact: true }).waitFor({ timeout: WAIT_MS });
+        assert.equal(await card.getByRole("heading", { name: "Who chooses?" }).count(), 0, "week 1's check asks who chooses");
         assert.equal(await card.getByRole("heading", { name: "Before it can be saved" }).count(), 0, "week 1 cannot be saved");
 
         const [save] = await Promise.all([
