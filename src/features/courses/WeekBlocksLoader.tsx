@@ -477,7 +477,7 @@ export default function WeekBlocksLoader({
  * as picked offer "Given out" alone; a list, and Cases already given out,
  * offer nothing to change, only who chooses and why.
  */
-function WhoChoosesBlock({
+export function WhoChoosesBlock({
   row,
   name,
   disabled,
