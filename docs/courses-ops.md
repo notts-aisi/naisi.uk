@@ -5796,12 +5796,62 @@ whether the time question is asked again, who would be told, and the notice.
 Group notices from the regular-time and room routes take ten a day per group
 on a counter of their own (`groupchangeday__{groupId}`), no hourly window.
 
+## A group's places and name
+
+Both are rows of "How Group C meets" on the group's page under its
+programme, for an admin and the programme's lead (`loadProgrammeRun`, the
+gate of the room, campus and time routes beside them). Neither emails
+anybody. Each route decides inside one transaction, and a change writes the
+field, `updatedAt` and one row of the group's History; a press for what the
+group already has writes nothing (`src/lib/courses/placesAndName/set.ts`).
+
+- **Places** (`PUT .../programmes/[programmeId]/groups/[groupId]/places`,
+  `{ places }`, a whole number or null for no limit) is the group's own limit
+  (`capacity`): people are placed up to it and the group shows Full when it is
+  reached. What the programme's public page says about places is Settings',
+  under Dates and places, and is never copied onto a group. The number passes
+  Times' rule (`placesProblem`: at least one, then `groupCapacityError`, at most
+  40 and none left out on an open-enrolment run), and can't go below the
+  people in the group plus the freed places offered in it and not answered.
+  People are counted as the Groups tab counts them (`placesInGroup`: learner
+  places on the run whose group it is and who have not left), never by the
+  stored `memberCount`; a freed place counts while its invitation stands
+  (`freedOffersIn`, the archive check's own count). A group already below that
+  floor reads true on its page ("1 place · 12 in the group") and is refused
+  every save but a number at least the floor or no limit, a save of the number
+  it has included. History: `group-places-changed`, "Changed the places from 8
+  to 10.", with `before.places` and `after.places`.
+- **Name** (`PUT .../programmes/[programmeId]/groups/[groupId]/name`,
+  `{ name }`) is trimmed with its spaces folded; blank ("Give the group a
+  name.") and longer than 80 characters are refused before anything is read,
+  and so, in the transaction, is a name another live group of the run has,
+  compared as Times' Add a group compares (`sameName`, case and spacing aside;
+  an archived group's name is free). History: `group-renamed`, "Renamed Group
+  C to Wednesday afternoons.". Every reader takes the name live: an email when
+  it is sent, the registers, search, and the calendar feed, whose entries are
+  keyed by hashed ids and so change in place. What was copied before keeps the
+  old name: emails already sent, open task cards (a held email's card), survey
+  check-ins (on purpose, so a check-in stands as it was opened) and earlier
+  History sentences.
+
+**From a browser**, `name` and `capacity` are pinned for every writer but an
+admin (`groupNameAndPlacesUnchanged` in firestore.rules, beside the room's
+pin): an approver, the run's track lead and the group's own facilitator are
+refused a change to either, and a save that leaves both alone passes. Creating
+a group is unchanged. On a run a programme names the older group card shows
+both as words with "Change it on Group C's page" and never sends them, an
+admin's save included. On a run no programme names there is no group page, so
+an admin still changes both on the older card, as before: that change is NOT
+checked against the people in the group and writes NO History. Anybody else
+sees them there as words under "Only an admin can change these here."
+
 ## A group's history
 
 `loadGroupHistory` (`src/lib/courses/groupHistory/load.ts`) reads the run's
 `courseAudit` rows newest first with the index that exists (`runId`, `at`
 descending), keeps the group's, and gives each its label and a category for
-the page's filters: time and room, people, link, registers, or other. Rows
+the page's filters: name and places, time and room, people, link, registers,
+or other. Rows
 carry their one sentence (`detail`) and, from the day this shipped, the optional
 `weekId`, `before`, `after`, `reason` and `emailed`; an older row, and a kind
 this build does not know, read as they were written. History of times, rooms
