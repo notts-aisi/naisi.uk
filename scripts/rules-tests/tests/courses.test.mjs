@@ -788,7 +788,7 @@ describe("courseRuns weeks", () => {
     );
   });
 
-  it("gates week DELETION above authoring: drafter refused, approver allowed", async () => {
+  it("refuses week DELETION to every browser, approvers and admins included: the routes remove weeks", async () => {
     await seedCast();
     await seedRun("run1");
     await seed(async (db) => {
@@ -801,8 +801,11 @@ describe("courseRuns weeks", () => {
     });
     const ref = (db) =>
       db.collection("courseRuns").doc("run1").collection("weeks").doc("w03");
-    await assertFails(ref(await asUser("drafter")).delete());
-    await assertSucceeds(ref(await asUser("approver")).delete());
+    // The destroy cascade, Normalise week ids and the copies remove weeks
+    // (Admin SDK); course-older-editor-locks.test.mjs holds the same refusal.
+    for (const uid of ["drafter", "approver", "admin1"]) {
+      await assertFails(ref(await asUser(uid)).delete());
+    }
   });
 });
 
