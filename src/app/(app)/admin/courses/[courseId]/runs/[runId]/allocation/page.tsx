@@ -13,11 +13,10 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * which OVERLAPS this page's gate rather than nesting inside it. A track lead
  * who holds neither course permission cannot open this URL, and a drafter who
  * is not a track lead opens it and gets 403s from the board's own calls. That
- * is deliberate: the ROUTE is the boundary, this page is only one door to it,
- * and the track lead's door is the learn-side mount in P7
- * (`/learn/[runId]/allocation`), which renders this same component against
- * these same routes. RunEditor hides the link for a caller the routes will
- * refuse, so the dead end is not offered in the first place.
+ * is deliberate: the ROUTE is the boundary, and this page is only one door
+ * to it (a programme's lead places people on the programme's own Groups
+ * tab, through the same routes). RunEditor hides the link for a caller the
+ * routes will refuse, so the dead end is not offered in the first place.
  *
  * ONLY AN ADMIN PUBLISHES. Whether the reader is one is read here from the
  * session and handed to the board, which draws Publish's buttons for an

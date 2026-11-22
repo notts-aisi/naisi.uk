@@ -1380,9 +1380,10 @@ async function beforePublish() {
 // CHANGED ON PURPOSE (November 2026): only an admin publishes. Each
 // programme's lead still places its people; an admin tests and presses.
 
-async function publishAsTheLead(who, runId, label) {
+/** The programme's lead reads the board's count; an admin, `who`, tests and presses. */
+async function publishAsAnAdmin(lead, who, runId, label) {
   const p = {};
-  p.before = await publishSummary(who, runId);
+  p.before = await publishSummary(lead, runId);
   const beforeTheTest = world.mail.length;
   p.test = await courseStep(`${label}: Send a test to me`, 200, who, courseRoutes.publishTest.POST, { runId });
   p.testMail = await Promise.all(mailSince(beforeTheTest).map(opened));
@@ -1400,9 +1401,9 @@ async function publishAsTheLead(who, runId, label) {
 
 async function publish() {
   at("publishing");
-  seen.publish = await publishAsTheLead("zach", RUN, "an admin, for AGI Strategy");
+  seen.publish = await publishAsAnAdmin("claudia", "zach", RUN, "an admin, for AGI Strategy");
   at("publishingIncubator");
-  seen.incubatorPublish = await publishAsTheLead("zach", INC_RUN, "an admin, for the incubator");
+  seen.incubatorPublish = await publishAsAnAdmin("tess", "zach", INC_RUN, "an admin, for the incubator");
   await lookAround("published");
 }
 

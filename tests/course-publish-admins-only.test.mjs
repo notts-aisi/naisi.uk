@@ -217,6 +217,13 @@ describe("5. whether an admin is looking comes from the server page, and only an
     assert.match(olderPage, /<AllocationBoard [^>]*admin=\{user\?\.role === "admin"\}/);
   });
 
+  test("the lead's way to Publish's page says the same words on the Overview and on People in groups", async () => {
+    const board = await made.loadTs(join("features", "applications", "groups", "peopleInGroupsWords.ts"));
+    const getReady = await lib("courses", "getReady", "words.ts");
+    assert.equal(board.PUBLISH_GROUPS_LEAD, getReady.PUBLISH_LINK_LEAD);
+    assert.equal(board.PUBLISH_GROUPS, getReady.STEP_LINK.publish);
+  });
+
   test("both mounts hand the Publish area the answer, and the area draws the buttons for an admin alone", () => {
     assert.match(read("features/applications/groups/PublishGroups.tsx"), /<AllocationPublish[\s\S]*?admin=\{admin\}/);
     assert.match(read("features/courses/AllocationBoard.tsx"), /<AllocationPublish[\s\S]*?admin=\{admin\}/);
