@@ -20,9 +20,10 @@ import styles from "./GroupPage.module.css";
  * the panel and nothing is written. Nobody is emailed either way.
  *
  * Once it goes through: an archived group's page sends the reader to the
- * Groups tab's Sessions view, which says "Group E is archived. Nobody was
- * emailed." from the address while it is so; a restored group's page is
- * read again, saying "Group F is back. Nobody was emailed." the same way.
+ * Groups tab's All groups view, which says "Group E is archived. Nobody was
+ * emailed." from the address, once; a restored group's page is read again,
+ * saying "Group F is back. Nobody was emailed." the same way. All groups
+ * asks the same restore question from the archived groups at its foot.
  */
 
 /** Where each way to put a refusal right goes, as the page knows them. */

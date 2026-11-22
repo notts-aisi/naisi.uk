@@ -1,0 +1,195 @@
+/* All groups, a view of a programme's Groups tab: the card of groups, a
+   table of one row per group, and the archived groups at the foot. On a
+   phone each row becomes a block of its labelled values. */
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.headLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+
+.textLink:hover {
+  color: var(--color-accent-text-hover);
+  background: var(--color-accent-soft);
+}
+
+.textLink:focus-visible,
+.nameLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.blank {
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-muted);
+}
+
+/* The table scrolls inside its card rather than widening the page. */
+.scroll {
+  min-width: 0;
+  margin-top: var(--space-4);
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-ui);
+}
+
+.table th,
+.table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.table thead th {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  border-bottom-color: var(--color-border-strong);
+}
+
+.table tbody th {
+  font-weight: 500;
+}
+
+.nameLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  margin: calc(-1 * var(--space-3)) 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.chipWarn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--color-warning-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* The archived groups: one row each, the name and its line, Restore beside them. */
+.archived {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.archivedRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.archivedMain {
+  min-width: 0;
+}
+
+.archivedMain .nameLink {
+  margin: 0;
+}
+
+.archivedLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Why Restore could not be asked, under its row. */
+.archivedProblem {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 48rem) {
+  .scroll {
+    overflow-x: visible;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .table,
+  .table tbody,
+  .table tr,
+  .table th,
+  .table td {
+    display: block;
+    width: 100%;
+  }
+
+  .table tr {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .table th,
+  .table td {
+    padding: var(--space-1) 0;
+    border-bottom: 0;
+  }
+
+  .table tbody td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .nameLink {
+    margin: 0;
+  }
+
+  .archivedRow > button {
+    width: 100%;
+  }
+}

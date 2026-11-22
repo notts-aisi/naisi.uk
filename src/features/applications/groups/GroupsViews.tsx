@@ -1,14 +1,17 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ALL_GROUPS } from "@/lib/courses/allGroups/words";
 import styles from "./GroupsViews.module.css";
 
 /**
  * THE VIEWS OF A PROGRAMME'S GROUPS TAB, and the row they sit in.
  *
- * Four views exist for every run, in the boards' order: Sessions (each
- * group's session in one week, and changing one), People in groups (the run's
- * allocation board), Times (when the people holding a place are free) and
- * Facilitators (who staffs each group). An admin has a fifth beside People in
+ * Four views exist for every run, in the design's order: People in groups
+ * (the run's allocation board), All groups (one row per group, each opening
+ * the group's page, and the archived groups at the foot; its address is
+ * still `/sessions`, the name it had as Sessions, so every link to it keeps
+ * working), Times (when the people holding a place are free) and
+ * Facilitators (who staffs each group). An admin has a fifth after All
  * groups, Circles (each group a ring, each person's week against the groups'
  * times, and suggestions drawn over them), which only an admin is offered
  * because it shows painted weeks and Claude's reads. A run with a pitching
@@ -21,8 +24,8 @@ import styles from "./GroupsViews.module.css";
 export type GroupsView = "sessions" | "people" | "circles" | "times" | "facilitators" | "pitches";
 
 const VIEWS: readonly { view: GroupsView; label: string; segment: string }[] = [
-  { view: "sessions", label: "Sessions", segment: "/sessions" },
   { view: "people", label: "People in groups", segment: "" },
+  { view: "sessions", label: ALL_GROUPS, segment: "/sessions" },
   { view: "circles", label: "Circles", segment: "/circles" },
   { view: "times", label: "Times", segment: "/times" },
   { view: "facilitators", label: "Facilitators", segment: "/facilitators" },

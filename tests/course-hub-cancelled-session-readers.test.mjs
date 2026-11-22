@@ -310,6 +310,14 @@ const READERS = {
       "asked (`joiningOnlineState` answers cancelled first), so nobody is offered it or keeps a word for a session " +
       "that is not happening, and a register that says its session did not happen closes it too",
   },
+  "lib/courses/allGroups/load.ts": {
+    kind: "asks",
+    proof: ["cancelled: one.cancelled,", "heldFalse: register?.held === false,"],
+    why:
+      "All groups' week column: each group's session in the programme's week is said by `weekStateOf`, handed the " +
+      "session's own cancelled flag beside the register's switch, as the group's page does, so a session called off " +
+      "through Change a session reads as cancelled and one that did not happen as didn't happen; nothing is chased or counted",
+  },
   "lib/courses/groupPage/load.ts": {
     kind: "asks",
     proof: ["cancelled: session.cancelled,", "heldFalse: register?.held === false,"],

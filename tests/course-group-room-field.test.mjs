@@ -14,7 +14,8 @@
  *     "" for none, and nothing else: no week's change of room, no email.
  *  3. A group that is not the run's, or is archived, is refused; text that
  *     is not a room is refused before anything is read.
- *  4. The Sessions view's card and Circles carry the room for the field.
+ *  4. The board's columns read the new room (the field sits on Circles; the
+ *     group page's Room panel saves through the same route).
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";

@@ -790,7 +790,7 @@ describe("3. the week's rooms and the term's rooms are an admin's and a programm
     assert.ok(!lead.text.includes("Technical AI Safety"));
   });
 
-  test("the Sessions view leads to both, already filtered to its programme", async () => {
+  test("All groups leads to both, already filtered to its programme", async () => {
     const page = readFileSync(join(SRC, "app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)", "groups", "sessions", "page.tsx"), "utf8");
     assert.match(page, /weekRoomsPath\(view\.roundId, \{ programme: view\.programmeId \}\)/);
     assert.match(page, /termRoomsPath\(view\.roundId, view\.programmeId\)/);

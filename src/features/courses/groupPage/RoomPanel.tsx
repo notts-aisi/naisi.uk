@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useHydrated } from "@/hooks/useHydrated";
+import GroupCampusPicker from "@/features/applications/groups/GroupCampusPicker";
 import { roomButtonWords, sentWords, type GroupPageView } from "@/lib/courses/groupPage/model";
 import * as W from "@/lib/courses/groupPage/words";
 import { UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
@@ -17,16 +18,30 @@ import styles from "./GroupPage.module.css";
  * many it emails, the count being the send's own, and a count that no
  * longer holds is refused (409) with the new one, which the button then
  * shows. One week's room is Change this week's.
+ *
+ * THE GROUP'S CAMPUS sits in the same panel, as its own control: the Groups
+ * tab's campus picker (`GroupCampusPicker`, `PUT .../groups/[groupId]/campus`,
+ * the programme's lead or an admin; the route asks again and refuses an
+ * archived group), which saves the moment it is chosen, can go back to "Not
+ * chosen yet", needs no time set, and emails nobody. Two presses, each saying
+ * what it does: the campus says it emails nobody, the room's button says how
+ * many it emails.
  */
 export default function RoomPanel({
   view,
   roomPath,
+  campusAt = null,
+  onCampusSaved,
   onClose,
   onDone,
 }: {
   view: GroupPageView;
   /** The programme's room route for this group. */
   roomPath: string;
+  /** The programme whose campus route saves the group's campus; none, no campus control. */
+  campusAt?: { roundId: string; programmeId: string } | null;
+  /** What the campus route said once it saved ("Group B meets at Jubilee."). */
+  onCampusSaved?: (said: string) => void;
   onClose: () => void;
   onDone: (said: string) => void;
 }) {
@@ -37,6 +52,8 @@ export default function RoomPanel({
   const [emails, setEmails] = useState(view.notice.refused ? 0 : view.notice.emails);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // What the campus route said once it saved, said here too: the page's own line is behind the sheet.
+  const [campusSaid, setCampusSaid] = useState<string | null>(null);
   const off = !hydrated || busy;
   const value = tbc ? "" : room.replace(/\s+/g, " ").trim();
   const changed = value !== view.meets.room;
@@ -87,6 +104,27 @@ export default function RoomPanel({
         </Button>
       </div>
       <p className={styles.panelLede}>{W.ROOM_PANEL_HINT}</p>
+      {campusAt && (
+        <div className={styles.field}>
+          <GroupCampusPicker
+            roundId={campusAt.roundId}
+            programmeId={campusAt.programmeId}
+            groupId={view.groupId}
+            groupName={view.groupName}
+            value={view.meets.campus}
+            onSaved={(words) => {
+              setCampusSaid(words || null);
+              onCampusSaved?.(words);
+            }}
+          />
+          <p className={styles.optionHint}>{W.CAMPUS_SAVES_AT_ONCE}</p>
+          {campusSaid && (
+            <p className={styles.optionHint} role="status">
+              {campusSaid}
+            </p>
+          )}
+        </div>
+      )}
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor={`${ids}-room`}>
           {W.ROOM_FIELD}

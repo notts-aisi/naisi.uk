@@ -44,7 +44,7 @@ import { countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs"
 export const WEEK_ONE_BEFORE_GROUPS_STEPS = [
   "the admin approves the three accounts that sign in on this journey",
   "the admin names the course run on the programme's Settings tab and moves it on from draft",
-  "the admin sets the day groups go out on the Groups tab's Sessions view",
+  "the admin sets the day groups go out on the Groups tab's All groups view",
   "the admin loads the programme's Start here and Glossary in the run's editor",
   "the lead pastes week 1 on the Weeks tab, saves it as a draft and previews it as a fellow",
   "while week 1 is a draft, a person holding a place reads that their group is on its way, and week 1, Start here and the Glossary stay shut",
@@ -135,6 +135,12 @@ export const SPEC = {
    * enrolments, 1 course log row, 1 nudge, 1 progress row, 1 exercise response,
    * 2 cohort subscriptions and 2 of their events, 6 rows of the send log, and 4
    * accounts with their sign-ins), and the fixture manifest read zero after it.
+   *
+   * CHANGED on 2026-11-22, when the Groups tab's Sessions view became All
+   * groups at the same address: only the step's name, which says the view's
+   * new name. Its press is the same "When groups go out" card. The renamed
+   * step has not yet run in a browser: the pull request's end-to-end job runs
+   * it first.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "before-groups" }),

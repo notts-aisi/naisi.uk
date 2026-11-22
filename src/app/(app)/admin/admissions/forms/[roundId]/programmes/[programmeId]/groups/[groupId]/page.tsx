@@ -19,12 +19,10 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { placeTakesMove, runMoveRefusal } from "@/lib/courses/staffMove/plan";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
-import { restorePlan } from "@/lib/courses/groupArchive/plan";
-import { readGroupArchiveFacts } from "@/lib/courses/groupArchive/read";
-import { archivedSentence, restoreQuestionBody, restoredSaidWords, sitsElsewhereWords } from "@/lib/courses/groupArchive/words";
-import { dayAndTimeWords, roomLine } from "@/lib/courses/groupPage/words";
-import { CAMPUS_LABEL } from "@/lib/courses/campusWords";
+import { readRestoreQuestion } from "@/lib/courses/groupArchive/restoreQuestion";
+import { archivedSentence, restoredSaidWords } from "@/lib/courses/groupArchive/words";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
+import { readPairsLink } from "@/lib/courses/pairs/link";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 
 /**
@@ -57,7 +55,10 @@ import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
  * no tabs, and carries its own way back to the programme and its Groups tab.
  *
  * The chosen week's work (who has done it, who was late, and Remind) is read
- * for the week in the address (`?week=2`), or the week the page opens on.
+ * for the week in the address (`?week=2`), or the week the page opens on,
+ * and so is its way to the week's pairs ("Pairs and laptops" on the week's
+ * card, when the week asks for pairs: `readPairsLink`). The Room panel holds
+ * the group's campus too, saved through the programme's campus route.
  *
  * "Take the register" is the group's register under this page, which takes
  * an admin and the programme's lead; each week's ways to take a register in
@@ -154,36 +155,25 @@ export default async function ProgrammeGroupPage({
   // that fails draws the page without the facilitators' line.
   let archived: { sentence: string; restoreBody: string; restoreNote: string } | null = null;
   if (group.archived) {
-    const [byData, facts] = await Promise.all([
+    const [byData, question] = await Promise.all([
       group.archivedByUid && isAddressableId(group.archivedByUid)
         ? db.collection("users").doc(group.archivedByUid).get().then((snap) => (snap.exists ? (snap.data() ?? {}) : null))
         : Promise.resolve(null),
-      readGroupArchiveFacts(db, group.id, now, undefined, user).catch(() => null),
+      // The question All groups asks too, from the same reader.
+      readRestoreQuestion(db, { group, viewer: user, now }),
     ]);
     // As the reader may see them (the names rule): the committee and admins the full name.
     const byName = byData ? nameForViewer(user, accountNamesOf(byData), "") : "";
-    const plan = facts ? restorePlan(facts, now) : null;
-    const groupNames = new Map(live.map((each) => [each.id, each.name] as const));
-    const restoreNote =
-      facts && plan?.ok
-        ? sitsElsewhereWords(
-            group.name,
-            plan.dropping.map((each) => ({
-              name: facts.names.get(each.uid)?.name ?? "",
-              // "" says no group.
-              groupName: each.groupId ? (groupNames.get(each.groupId) ?? "another group") : "",
-            })),
-            plan.staying.map((uid) => facts.names.get(uid)?.name ?? "").filter(Boolean),
-          )
-        : "";
-    const when = group.session.startTimeLocal ? dayAndTimeWords(group.session.weekday, group.session.startTimeLocal, group.session.durationMinutes) : "";
-    const room = group.session.location.trim() ? roomLine(group.session.location, group.campus ? CAMPUS_LABEL[group.campus] : "") : "";
     archived = {
       sentence: archivedSentence(group.name, group.archivedAt ? londonDayLabel(group.archivedAt) : "", group.archivedAt ? byName : ""),
-      restoreBody: restoreQuestionBody(group.name, when, room),
-      restoreNote,
+      restoreBody: question.body,
+      restoreNote: question.note,
     };
   }
+  // "Pairs and laptops" on the week card, for the week the page opens on,
+  // when that week asks for pairs: the way the lead reaches a group's pairs.
+  // Read again for each week chosen, which puts the week in the address.
+  const pairs = !group.archived && page.workWeek !== null ? await readPairsLink(db, run.id, group.id, page.workWeek).catch(() => null) : null;
   const restoredParam = Array.isArray(search.restored) ? search.restored[0] : search.restored;
   const said = !group.archived && restoredParam === "1" ? restoredSaidWords(group.name) : null;
 
@@ -214,13 +204,16 @@ export default async function ProgrammeGroupPage({
           move: movesHere ? `${base}/people` : null,
           movable,
           roomPath: `${groupApi}/room`,
+          // The campus, in the Room panel: the programme's campus route, which asks again.
+          campusAt: { roundId: view.roundId, programmeId: view.programmeId },
+          pairs,
           // Places and Name: the programme's own routes, which count and check again.
           placesPath: `${groupApi}/places`,
           namePath: `${groupApi}/name`,
           // For a refusal's way to put it right, and where archiving goes next.
           self,
           person: `${base}/people`,
-          sessions: groupsViewPath(view.roundId, view.programmeId, "sessions"),
+          allGroups: groupsViewPath(view.roundId, view.programmeId, "sessions"),
         }}
       />
     </ApplicationsRoot>

@@ -544,7 +544,7 @@ export default function PeopleInGroups({ view, views }: Props) {
         href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
         className={`${shared.btn} ${styles.publishLink}`}
       >
-        {view.viewer === "admin" ? words.PUBLISH_GROUPS : words.PUBLISH_GROUPS_LEAD}
+        {words.publishLinkWords(view.viewer)}
       </Link>
     </div>
   );

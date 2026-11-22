@@ -2,7 +2,7 @@
  * A GROUP UPDATE'S WEEK IS A WEEK OF THAT GROUP THE CHANGE ROUTE CAN HAVE
  * CHANGED. `POST /api/courses/runs/[runId]/updates` takes a `weekNumber` only
  * for the notice a change to one of the group's sessions posts (the group
- * page's Change panel and the Sessions view's dialog send the week the change
+ * page's Change panel and a group's own sessions page's dialog send the week the change
  * route answered), and its email reaches the people in the group that week.
  * So the week must be one in which the group has a session whose register
  * nobody has taken (`weekNoticeRefusal`): a session still to come, or one put

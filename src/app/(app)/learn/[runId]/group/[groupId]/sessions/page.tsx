@@ -92,9 +92,6 @@ export default async function GroupSessionsPage({
         </p>
       </div>
       <SessionsBoard
-        heading=""
-        previous={null}
-        next={null}
         cards={cards}
         blank={cards.length === 0 ? NO_MORE_SESSIONS : null}
       />

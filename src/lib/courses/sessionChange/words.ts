@@ -1,6 +1,6 @@
 /**
- * THE WORDS OF CHANGING A SESSION, in one place: the Sessions view's,
- * the dialog's, the route's refusals, the update it posts and what the
+ * THE WORDS OF CHANGING A SESSION, in one place: a group's own sessions
+ * page's, the dialog's, the route's refusals, the update it posts and what the
  * group's people read. No imports, so the dialog in the browser and the route
  * on the server say the same thing in the same words.
  *
@@ -84,7 +84,7 @@ export function parseClock(text: string): string | null {
 /** Index = `GroupSession.weekday` (`Date.getDay()`, 0 = Sunday). */
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-/** "Tuesdays 6pm", a group's weekly slot as the Sessions view draws it. "" while it has no day or time. */
+/** "Tuesdays 6pm", a group's weekly slot as a session card draws it. "" while it has no day or time. */
 export function slotWords(weekday: number, hhmm: string): string {
   const day = WEEKDAYS[weekday];
   const clock = clockWords(hhmm);
@@ -124,10 +124,8 @@ export function weeksWords(weekNumbers: readonly number[]): string {
 }
 
 // ---------------------------------------------------------------------------
-// The Sessions view
+// The cards
 // ---------------------------------------------------------------------------
-
-export const SESSIONS_VIEW = "Sessions";
 
 /** "Week 4 of 6 · Thu 19 to Wed 25 Nov". */
 export function weekHeading(weekNumber: number, totalWeeks: number, range: string): string {

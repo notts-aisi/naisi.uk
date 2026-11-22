@@ -10,13 +10,14 @@ import { ROOM, ROOM_HINT, ROOM_PLACEHOLDER, ROOM_SAVE, ROOM_SAVING, roomControlL
 import styles from "./GroupRoomField.module.css";
 
 /**
- * ONE GROUP'S ROOM ON THE GROUPS TAB, beside its campus: the room it meets in
- * every week, saved by its button through the programme's room route
- * (`PUT .../groups/[groupId]/room`, the programme's lead or an admin; the
- * route asks again). Then the page is read again from the server, so every
- * place that shows the room shows the new one, and `onSaved` is handed the
- * route's sentence to say. Nobody is emailed. One week's room is "Change a
- * session"'s.
+ * ONE GROUP'S ROOM ON CIRCLES (an admin's view of the Groups tab), beside its
+ * campus: the room it meets in every week, saved by its button through the
+ * programme's room route (`PUT .../groups/[groupId]/room`, the programme's
+ * lead or an admin; the route asks again). Then the page is read again from
+ * the server, so every place that shows the room shows the new one, and
+ * `onSaved` is handed the route's sentence to say. Nobody is emailed. The
+ * group's own page changes the same room in its Room panel, whose button
+ * says how many it emails; one week's room is that week's Change this week.
  */
 export default function GroupRoomField({
   roundId,

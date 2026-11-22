@@ -278,7 +278,7 @@ test("the doors this step repointed lead to each programme's own pages", () => {
   const overview = read("src/lib/courses/programmeOverview.ts");
   assert.match(overview, /href: `\$\{programmePath\}\/weeks\/\$\{weekDocId\(card\.weekNumber\)\}`/);
   assert.match(overview, /href: `\$\{place\.programmePath\}\/weeks\/\$\{weekDocId\(weekNumber\)\}`/);
-  // Get ready's Set rooms: the Groups tab's Sessions view.
+  // Get ready's Set rooms: the Groups tab's All groups view (its address is still /groups/sessions).
   assert.match(read("src/features/applications/overview/GetReady.tsx"), /sessions: "\/groups\/sessions"/);
   // Course run's way to People in groups.
   const handover = read("src/lib/applications/handover/load.ts");

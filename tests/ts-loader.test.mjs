@@ -467,7 +467,7 @@ const USERS = new Map([
   ],
   [
     "course-hub-groups-go-out-day.test.mjs",
-    "renders the Groups tab's Sessions view and the programme's head (.tsx server components) to " +
+    "renders the Groups tab's All groups view and the programme's head (.tsx server components) to " +
       "HTML for the lead, an admin and a reviewer, because whether the day groups go out is set where " +
       "the run's groups are set up, and said in the head while it is ahead, is only right if the pages say so",
   ],

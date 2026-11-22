@@ -491,7 +491,7 @@ const MUST_GUARD = [
   ],
   [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus/route.ts",
-    "sets a group's campus on the run a programme names, from the Groups tab's Sessions view",
+    "sets a group's campus on the run a programme names, from the Room panel of the group's page",
   ],
   [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/places/route.ts",

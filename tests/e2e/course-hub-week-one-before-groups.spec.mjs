@@ -994,7 +994,7 @@ test(
         assert.equal(run?.status, "applications-open", "the run is still not open");
       });
 
-      await step("the admin sets the day groups go out on the Groups tab's Sessions view", async () => {
+      await step("the admin sets the day groups go out on the Groups tab's All groups view", async () => {
         activePage = adminPage;
         await adminPage.goto(sessionsUrl, { waitUntil: "domcontentloaded" });
         const card = adminPage.getByRole("region", { name: "When groups go out", exact: true });

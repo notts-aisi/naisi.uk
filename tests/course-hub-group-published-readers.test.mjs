@@ -631,6 +631,14 @@ const READERS = {
       "and group to say beside each name, which an admin is shown for everybody placed. A lead's and a facilitator's " +
       "people are the People tab's and the group page's own rows, read by those pages' own readers",
   },
+  "lib/courses/allGroups/load.ts": {
+    kind: "staff",
+    proof: ['db.collection("courseEnrolments").where("runId", "==", run.id).get()', "const inGroup = (group: CourseGroupDoc) => placesInGroup({ group, places }).length;"],
+    why:
+      "the Groups tab's All groups, for admins and the programme's lead (the page is behind `loadProgrammeRun`): every " +
+      "place on the run, told or not, counted per group as the Groups tab counts them (\"8 of 8\") and for whether an " +
+      "archived group still has anybody in it. Answers counts alone: no placement and no name of anybody placed is shown",
+  },
   "lib/courses/groupPage/load.ts": {
     kind: "staff",
     proof: [

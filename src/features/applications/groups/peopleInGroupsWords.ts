@@ -50,6 +50,11 @@ export const PUBLISH_GROUPS = "Publish groups…";
  */
 export const PUBLISH_GROUPS_LEAD = "What Publish sends…";
 
+/** The way to Publish's own page beside the Groups tab's views, as each reader is shown it: one rule for every view that draws it. */
+export function publishLinkWords(viewer: "admin" | "lead"): string {
+  return viewer === "admin" ? PUBLISH_GROUPS : PUBLISH_GROUPS_LEAD;
+}
+
 export const TO_PLACE = "To place";
 
 /** "7 of 8", or "7" for a group with no limit. */

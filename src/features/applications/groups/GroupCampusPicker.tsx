@@ -16,8 +16,8 @@ import styles from "./GroupCampusPicker.module.css";
  * again from the server, so everything that shows the campus shows the new
  * one, and `onSaved` is handed the route's sentence to say.
  *
- * Drawn by the Sessions view on each group's card, and made to sit on any
- * view of the tab that lists groups. Nobody is emailed.
+ * Drawn in the Room panel of a group's page and on Circles. Nobody is
+ * emailed.
  */
 
 export default function GroupCampusPicker({

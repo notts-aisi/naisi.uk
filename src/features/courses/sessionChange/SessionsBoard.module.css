@@ -1,4 +1,4 @@
-/* The Sessions view and the change dialog: a column of group
+/* A group's own sessions and the change dialog: a column of session
    cards, 12px apart, each 18px by 20px inside a 12px corner, and beside it
    the dialog, a 24px-padded panel with 20px between its parts. On a phone
    the dialog follows the list. */
@@ -36,45 +36,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-}
-
-.weekRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
-  flex-wrap: wrap;
-}
-
-.weekHeading {
-  margin: 0;
-  font-family: var(--font-meta);
-  font-size: var(--text-caption);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-
-.weekNav {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.weekLink {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-accent-text);
-  text-decoration: none;
-}
-
-.weekLink:hover {
-  color: var(--color-accent-text-hover);
-  background: var(--color-accent-soft);
 }
 
 .blank {
@@ -205,51 +166,6 @@
   flex-direction: column;
   align-items: flex-end;
   gap: var(--space-2);
-}
-
-/* The group's campus, on the Groups tab: a line of its own under the rest. */
-.cardCampus {
-  flex: 1 1 100%;
-  min-width: 0;
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--color-border);
-}
-
-/* The way to a session's pairs, under "Change a session": a quiet link of the
-   week links' kind, its group's name said to screen readers alone. */
-.pairsLink {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-accent-text);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.pairsLink:hover {
-  color: var(--color-accent-text-hover);
-  background: var(--color-accent-soft);
-}
-
-.pairsLink:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 
 /* The card's own button: an outline that turns accent while its dialog is open. */
@@ -636,24 +552,6 @@
   }
 }
 
-/* A group's name, as the way to the group's own page. */
-.cardHeadingLink {
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-color: var(--color-border-strong);
-  text-underline-offset: 3px;
-}
-
-.cardHeadingLink:hover {
-  text-decoration-color: currentColor;
-}
-
-.cardHeadingLink:focus-visible {
-  outline: 3px solid var(--color-accent-text);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-}
-
 @media (max-width: 48rem) {
   .dialog {
     flex: 1 1 100%;
@@ -667,10 +565,6 @@
 
   .cardAction {
     align-items: stretch;
-  }
-
-  .pairsLink {
-    justify-content: center;
   }
 
   .moveFields {

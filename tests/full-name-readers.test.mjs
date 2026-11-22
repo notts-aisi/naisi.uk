@@ -421,6 +421,11 @@ const READERS = new Map([
     proof: ['const name = nameForViewer(viewer, accountNamesOf(data), "NAISI member");'],
     why: "archiving or restoring a group: a refusal names a visitor or whoever covers a session, and the restore question its facilitators, to the presser (an admin or the programme's lead) by the presser's own session",
   }],
+  ["src/lib/courses/allGroups/load.ts", {
+    who: "rule",
+    proof: ['return data ? nameForViewer(viewer, accountNamesOf(data), "") : "";'],
+    why: "the Groups tab's All groups, for an admin or the programme's lead: each group's facilitators and who archived a group, named for the reader's own session",
+  }],
   ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/page.tsx", {
     who: "rule",
     proof: ['const byName = byData ? nameForViewer(user, accountNamesOf(byData), "") : "";'],

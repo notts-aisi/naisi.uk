@@ -5,7 +5,7 @@
  * The term T2 stands on, three weeks after its run began
  * (scripts/e2e-fixtures/worlds/course-hub-term.mjs, point "week-three")
  * -> the admin names the running run on the programme's Settings tab and
- * hands its people over -> opens the week's rooms from the Sessions view,
+ * hands its people over -> opens the week's rooms from All groups,
  * filtered to the programme, and goes to the week Group A's week 4 falls in:
  * its row says its day, time and room -> types a new room into the row, the
  * button counting whom it emails with Tell the group on, gives a reason and
@@ -27,7 +27,7 @@
  *
  * ## What each step relies on in the markup
  *
- *  - the Sessions view's link named "The week’s rooms";
+ *  - All groups' link named "The week’s rooms";
  *  - the week picker, a navigation landmark named "Weeks", each week a link
  *    whose name starts "w/c " and the Monday;
  *  - a row's room field, named "Room for <programme>, <group>", inside the
@@ -228,7 +228,7 @@ test("course hub: the week's rooms, a room set in its row and one pasted, and th
       await region.getByRole("status").filter({ hasText: `${holding} people handed over.` }).waitFor({ timeout: WAIT_MS });
     });
 
-    await step("the admin opens the week's rooms from the Sessions view: Group A's week 4 is a row with its day, time and room", async () => {
+    await step("the admin opens the week's rooms from All groups: Group A's week 4 is a row with its day, time and room", async () => {
       await page.goto(`${programmeBase}/groups/sessions`, { waitUntil: "domcontentloaded" });
       const link = page.getByRole("link", { name: "The week’s rooms", exact: true });
       await link.waitFor({ timeout: WAIT_MS });

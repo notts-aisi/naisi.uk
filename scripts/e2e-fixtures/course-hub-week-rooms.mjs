@@ -8,7 +8,7 @@
  * are still to come. Group A (Ada and Ben) has the meeting link, so an email
  * that carried it would be caught. The spec
  * (`tests/e2e/course-hub-week-rooms.spec.mjs`) is the admin, as the
- * programme's lead would be: the week's rooms opened from the Sessions view,
+ * programme's lead would be: the week's rooms opened from All groups,
  * Group A's week 4 room set in its row and the group told, Group B's pasted
  * from two columns and the group told, and the term's rooms with both weeks
  * marked and a cell that opens its week.
@@ -34,7 +34,7 @@ import { countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs"
  */
 export const WEEK_ROOMS_STEPS = [
   "the admin names the running course run on the programme's Settings tab and hands its people over",
-  "the admin opens the week's rooms from the Sessions view: Group A's week 4 is a row with its day, time and room",
+  "the admin opens the week's rooms from All groups: Group A's week 4 is a row with its day, time and room",
   "the admin sets Group A's week 4 room in its row, the button counts whom it emails, and the group is told",
   "the room's email reaches Group A's people with its subject and the room, and none carries the meeting link",
   "the admin pastes Group B's week 4 room from two columns, the box matches it, and Save tells the group",

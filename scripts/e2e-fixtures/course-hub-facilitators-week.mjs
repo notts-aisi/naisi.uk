@@ -11,7 +11,7 @@
  * register marked and finished, next week's session moved with a reason; then
  * the group's members reading their own marks and the change on their
  * programme page, the email that told them, and the lead's Overview and
- * Sessions view, read as the admin.
+ * All groups and the group's page, read as the admin.
  *
  * ## The facilitator is a fixture account the admin appoints on a real page
  *
@@ -50,7 +50,7 @@ export const FACILITATORS_WEEK_STEPS = [
   "the facilitator moves next week's session with a reason, and the button says how many it emails",
   "the group's members read the change on their programme page",
   "the update's email reaches exactly the group's people, word for word, and none carries the meeting link",
-  "the lead's Overview and Sessions view, read as the admin, show the register finished and the session moved",
+  "the lead's Overview, All groups and the group's page, read as the admin, show the register finished and the session moved",
 ];
 
 /**
@@ -129,6 +129,14 @@ export const SPEC = {
    * times against the harness's loopback server beside the other course hub
    * specs, all twelve steps each time and a manifest of zero; the pull
    * request's end-to-end job is its first CI run.
+   *
+   * CHANGED on 2026-11-22, when the Groups tab's Sessions view became All
+   * groups: the last step reads All groups' rows (the groups in the one
+   * order, each with its day, time and room, each name opening the group's
+   * page, and no Change a session), then the moved session on the group's
+   * page at that week (its card, the usual time, and Put it back as usual)
+   * where it read the Sessions view's cards and dialog. That step has not
+   * yet run in a browser: the pull request's end-to-end job runs it first.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three-unmarked" }),
