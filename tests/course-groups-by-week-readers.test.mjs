@@ -334,8 +334,8 @@ const READERS = {
     why: "the week a staff move is from goes by the sessions of the groups the place BELONGS to (sessionsByWeekGroup of belonging(place)), never a visit's host; the weeks that stay name the group each week's session was in (groupForWeek), where they met; the group they leave is the group they are in now",
   },
   "lib/courses/takeOff/plan.ts": {
-    kinds: ["now"],
-    why: "taking somebody off the run emails the facilitators of the group their seat is in now (`groupId`), once Publish had told them it, and says from which of that group's weeks they come off its register: the group they are in now, never a week's group",
+    kinds: ["week", "now"],
+    why: "taking somebody off the run emails the facilitators of the group their seat is in now (`groupId`), once Publish had told them it; the week they come off its register is its first session whose register holds no saved mark for them, of the weeks whose session's group (groupForWeek) is that group, so a week spent in another group by a move or a visit is passed over",
   },
   "lib/courses/visit/removed.ts": {
     kinds: ["now"],

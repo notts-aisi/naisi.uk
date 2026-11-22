@@ -6,7 +6,8 @@ import { visitRecipients } from "@/lib/courses/visit/plan";
 import { visitsEndedByRemoval, NO_VISITS_ENDED, type RemovalVisits } from "@/lib/courses/visit/removed";
 import type { SessionUser } from "@/lib/firebase/session";
 import { firstWord } from "@/lib/firestore/applicationEmails";
-import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { attendanceDocId } from "@/lib/firestore/courseAttendance";
+import { groupForWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
@@ -32,13 +33,18 @@ import type { TakeOffFacts } from "./words";
  *    (`visitsEndedByRemoval`).
  * Nobody else.
  *
- * "FROM WEEK 3" in the facilitators' email is the group's next session that
- * has not started (`registerWeek`), read the way the register reads
- * somebody who has left: a session that started before they went keeps
- * them, and one that starts after does not (`droppedOutAt`, the instant of
- * the press). So between sessions it is the next one; on a session's day
- * before it starts, that session; once it has started, the one after; and
- * after the group's last session there is none, and the sentence goes.
+ * "FROM WEEK 3" in the facilitators' email is the first session of the
+ * group, in order, whose register holds no saved mark for them
+ * (`registerWeek`). A person taken off stops being a row of every register
+ * the moment the removal is written: the register lists them only among
+ * those who left, with the marks already saved, and refuses a new mark. So
+ * once every earlier register is saved it is the next session; while a
+ * session is under way, or a session's register is not saved yet, it is that
+ * session's week. A week they spent in another group (a move, a visit),
+ * before they joined, or whose register says the session was not held is
+ * not theirs on this register and is passed over. With no such session left
+ * (every session of the group has a saved mark for them), there is none, and
+ * the sentence goes.
  *
  * The person's name in the question's title is the one the viewer sees
  * (`nameForViewer`: the full name for the committee and admins, the name they
@@ -64,7 +70,7 @@ export type TakeOffPlan = {
   group: CourseGroupDoc | null;
   /** The group Publish had told them about, as the person's email names it: the group their seat is in, once told. */
   toldGroupName: string | null;
-  /** The week of the group's next session that has not started, or null. */
+  /** The week of the group's first session whose register holds no saved mark for them, or null. */
   registerWeek: number | null;
   /** The person as the group's History names them. */
   historyName: string;
@@ -74,16 +80,36 @@ function emailOf(data: Record<string, unknown> | undefined): string {
   return typeof data?.email === "string" ? data.email.trim() : "";
 }
 
-/** The week of the group's next session that has not started at `now`, or null when none is left. */
-export function nextRegisterWeek(run: CourseRunDoc, group: CourseGroupDoc, now: Date): number | null {
-  let best: { at: number; weekNumber: number } | null = null;
-  for (const session of resolveSessions(run, group)) {
-    if (session.cancelled) continue;
-    const startsAt = sessionInstants(session).startsAt;
-    if (!startsAt || startsAt.getTime() < now.getTime()) continue;
-    if (!best || startsAt.getTime() < best.at) best = { at: startsAt.getTime(), weekNumber: session.weekNumber };
+/**
+ * The week of the group's first session, in order, whose register holds no
+ * saved mark for this person (see the note at the top), or null when every
+ * session of the group that is theirs has one. One read: each such session's
+ * register.
+ */
+export async function nextRegisterWeek(
+  readAll: ReadAll,
+  db: Firestore,
+  run: CourseRunDoc,
+  group: CourseGroupDoc,
+  place: Pick<CourseEnrolmentDoc, "uid" | "groupId" | "groupsByWeek" | "visits" | "joinedWeekNumber">,
+): Promise<number | null> {
+  const sessions = resolveSessions(run, group)
+    .filter((session) => !session.cancelled)
+    .filter((session) => session.weekNumber >= place.joinedWeekNumber && groupForWeek(place, session.weekNumber) === group.id)
+    .map((session) => ({ session, at: sessionInstants(session).startsAt?.getTime() ?? Number.POSITIVE_INFINITY }))
+    .sort((a, b) => a.at - b.at || a.session.weekNumber - b.session.weekNumber || a.session.occurrence - b.session.occurrence);
+  if (sessions.length === 0) return null;
+  const snaps = await readAll(
+    sessions.map(({ session }) => db.collection("courseAttendance").doc(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence))),
+  );
+  for (const [index, { session }] of sessions.entries()) {
+    const data = snaps[index]?.exists ? ((snaps[index].data() ?? {}) as Record<string, unknown>) : null;
+    // A register that says the session was not held is no session they could be marked on.
+    if (data?.held === false) continue;
+    const records = data && data.records && typeof data.records === "object" ? (data.records as Record<string, unknown>) : {};
+    if (typeof records[place.uid] !== "string") return session.weekNumber;
   }
-  return best ? best.weekNumber : null;
+  return null;
 }
 
 export async function planTakeOff(
@@ -160,7 +186,7 @@ export async function planTakeOff(
     emails: recipients.length + visits.emails,
     group,
     toldGroupName: told && group ? group.name.trim() || null : null,
-    registerWeek: meets ? nextRegisterWeek(run, meets, now) : null,
+    registerWeek: meets ? await nextRegisterWeek(readAll, db, run, meets, place) : null,
     historyName: account ? fullNameOfUser(account) : fallback,
   };
 }
