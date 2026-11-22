@@ -41,7 +41,7 @@ import {
   registerRemindersWords,
   yourGroupCountWords,
 } from "@/lib/courses/getReady/words";
-import { emailsLabel, movedPersonWords, publishConfirmText, publishResultLines } from "@/lib/courses/publishWords";
+import { emailsLabel, movedPersonWords, publishConfirmText, publishResultLines, refusalsFor } from "@/lib/courses/publishWords";
 import OutsideNotes from "./OutsideNotes";
 import styles from "./PublishGroups.module.css";
 
@@ -469,7 +469,7 @@ export default function PublishGroups({ runId, follows = null, admin = false }: 
       ) : null}
       {preview && preview.refusals.length > 0 ? (
         <div className={styles.unplaced} role="status">
-          {preview.refusals.map((sentence) => (
+          {refusalsFor(preview.refusals, admin ? "admin" : "lead").map((sentence) => (
             <p key={sentence}>{sentence}</p>
           ))}
         </div>

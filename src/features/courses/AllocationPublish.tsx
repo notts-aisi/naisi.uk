@@ -14,6 +14,7 @@ import {
   notesNeededLine,
   publishAudienceLine,
   publishButtonLabel,
+  refusalsFor,
   testLine,
 } from "@/lib/courses/publishWords";
 import type { PublishSummary } from "./useAllocation";
@@ -150,7 +151,7 @@ export default function AllocationPublish({
               <p className={styles.lineWarn}>{gaveBackLine(summary.gaveBack)}</p>
             ) : null}
             {notesNeeded.length > 0 ? <p className={styles.lineWarn}>{notesNeededLine(notesNeeded, reader)}</p> : null}
-            {summary.refusals.map((sentence) => (
+            {refusalsFor(summary.refusals, reader).map((sentence) => (
               <p key={sentence} className={styles.lineWarn}>
                 {sentence}
               </p>

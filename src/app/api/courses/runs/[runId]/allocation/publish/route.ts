@@ -33,6 +33,7 @@ import {
   notesNeededLine,
   PUBLISH_ADMIN_ONLY,
   PUBLISH_ONLY_ADMINS,
+  refusalsFor,
   type PublishReport,
 } from "@/lib/courses/publishWords";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
@@ -294,8 +295,9 @@ export async function POST(req: Request, ctx: Ctx) {
     if (plan.refusals.length > 0) {
       return NextResponse.json(
         {
-          error: ["Nothing was published and nobody was emailed.", ...plan.refusals].join(" "),
-          reasons: plan.refusals,
+          // An admin's words: only an admin reaches here.
+          error: ["Nothing was published and nobody was emailed.", ...refusalsFor(plan.refusals, "admin")].join(" "),
+          reasons: refusalsFor(plan.refusals, "admin"),
           unplaced: [],
         },
         { status: 409 },

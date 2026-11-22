@@ -144,6 +144,62 @@ export const MOVED_LEAD =
  */
 export type PublishReader = "admin" | "lead";
 
+/** How every sentence that stops a press ends, as the three emails' composers write it. */
+const PUBLISH_AGAIN = ", then publish again.";
+
+/** What the run panel, which is an admin's, holds: the start date, and the weeks of the run's plan. */
+const RUN_FIXES = new Set(["Set the start date on the run", "Add a week to the run’s plan"]);
+
+/**
+ * A SENTENCE THAT STOPS A PRESS, AS ITS READER READS IT. The three emails'
+ * composers (`placementRefusal`, `incubatorStartRefusal`,
+ * `facilitatingRefusal`) write each as what is missing, then what to do,
+ * then ", then publish again.", for an admin, who presses. Publish's own
+ * page and the older board draw them for a programme's lead and a run's
+ * track lead as well, who do not publish and cannot open Email designs or
+ * the run panel, so for them the last sentence asks an admin instead:
+ *
+ *  - something they do themselves (a day and time, a name, a room):
+ *    "Set its day and time, then ask an admin to publish.";
+ *  - the run's start date or its plan, which is the run panel's: "Ask an
+ *    admin to set the start date on the run, then to publish.";
+ *  - the email's wording, which is Email designs': "Ask an admin to change
+ *    the email’s wording, then to publish.", and where the sentence offered
+ *    them a thing of their own first: "Set its room, or ask an admin to
+ *    change the email’s wording, then ask an admin to publish."
+ *
+ * An admin's sentence comes back exactly as written, and so does any
+ * sentence that does not end ", then publish again." (one that asks nothing
+ * of its reader). The publish routes refuse with an admin's, and both views
+ * draw with the reader's (`tests/course-publish-refusal-words.test.mjs` walks
+ * every sentence the composers write, for both readers).
+ */
+export function refusalFor(sentence: string, reader: PublishReader): string {
+  if (reader === "admin" || !sentence.endsWith(PUBLISH_AGAIN)) return sentence;
+  const body = sentence.slice(0, -PUBLISH_AGAIN.length);
+  const cut = body.lastIndexOf(". ");
+  const problem = cut >= 0 ? body.slice(0, cut + 1) : "";
+  const fix = cut >= 0 ? body.slice(cut + 2) : body;
+  return problem ? `${problem} ${leadFix(fix)}` : leadFix(fix);
+}
+
+/** Each sentence of a list, as `refusalFor` says it to `reader`. */
+export function refusalsFor(sentences: readonly string[], reader: PublishReader): string[] {
+  return sentences.map((sentence) => refusalFor(sentence, reader));
+}
+
+/** What to do, for somebody who does not publish: what is theirs, and what to ask an admin. */
+function leadFix(fix: string): string {
+  if (RUN_FIXES.has(fix)) return `Ask an admin to ${fix.charAt(0).toLowerCase()}${fix.slice(1)}, then to publish.`;
+  const designs = fix.indexOf(" in Email designs");
+  if (designs < 0) return `${fix}, then ask an admin to publish.`;
+  const or = fix.indexOf(", or ");
+  if (or >= 0 && or < designs) {
+    return `${fix.slice(0, or)}, or ask an admin to change the email’s wording, then ask an admin to publish.`;
+  }
+  return "Ask an admin to change the email’s wording, then to publish.";
+}
+
 /**
  * Publish waits for a choice for each person placed outside the times they
  * gave: a note of our own, or "Send without a note". The sentence a press is

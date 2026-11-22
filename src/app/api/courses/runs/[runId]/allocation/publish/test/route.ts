@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { formPlaceFactsFor } from "@/lib/applications/handover/board";
 import { loadPublishPlan, pressBatch, readGroupSessions, recordPublishTest } from "@/lib/courses/allocationPublish";
-import { PUBLISH_ADMIN_ONLY, PUBLISH_ONLY_ADMINS } from "@/lib/courses/publishWords";
+import { PUBLISH_ADMIN_ONLY, PUBLISH_ONLY_ADMINS, refusalsFor } from "@/lib/courses/publishWords";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { sendCourseApplicationEmail, type CourseEmailDelivery } from "@/lib/email/courseApplicationEmails";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -104,7 +104,8 @@ export async function POST(_req: Request, ctx: Ctx) {
   if (plan.adminOnly) return NextResponse.json({ error: PUBLISH_ADMIN_ONLY }, { status: 403 });
   if (plan.refusals.length > 0) {
     return NextResponse.json(
-      { error: ["No test was sent.", ...plan.refusals].join(" "), reasons: plan.refusals },
+      // An admin's words: only an admin reaches here.
+      { error: ["No test was sent.", ...refusalsFor(plan.refusals, "admin")].join(" "), reasons: refusalsFor(plan.refusals, "admin") },
       { status: 409 },
     );
   }
