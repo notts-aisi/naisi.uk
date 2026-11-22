@@ -2009,6 +2009,18 @@ const ROUND_READERS = new Map([
     },
   ],
   [
+    "src/lib/applications/handover/pitchingWeekSave.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ["const snap = await tx.get(formRef(db, roundId));"],
+      why:
+        "pitching week's save reads the form with the form's own loader before its transaction and again " +
+        "inside it, to ask who may and which run the programme names, and asks of the second read that it " +
+        "is a form before it reads one, so a round of the older kind is read as no programme",
+    },
+  ],
+  [
     "src/lib/courses/weekPlanEdit/facts.ts",
     {
       kind: "form",
