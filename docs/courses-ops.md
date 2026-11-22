@@ -2661,7 +2661,8 @@ new is stored.
 
 **The Courses list** (`CoursesList.tsx`) says what a course is, offers New
 course to an admin or a `draftCourse` holder (the rule a course is created
-under), and lists the courses in a table: track, status, level, weekly
+under; an approver alone, whose create the rule refuses, is no longer
+offered it), and lists the courses in a table: track, status, level, weekly
 hours ("Up to 5"), and each live run with its stage in Course run's words
 ("Autumn 2026, running · Spring 2027, draft"). Archived courses fold at the
 foot. A course's row opens its page; no run is opened from the list. It
@@ -2685,12 +2686,17 @@ named on AGI Strategy, Autumn 2026"), read by the page on the server
 forms once, then `namingProgrammeIn` for each run, the answer
 `readNamingProgramme` gives). "Open the programme" goes to that programme's
 Overview, offered only to a reader the Overview opens for (the admissions
-tree's page gate, then an admin or the programme's lead); for anybody else
-the run is a line of words. A run no programme names (a run people join
-without applying is one, since no programme can name it) says so, and "Open
-the run" takes it to its older run page, which stays for such runs. Archived
-runs fold under the live ones. There is no New run: "A run is made, changed
-and closed on its programme’s Settings, under Course run."
+tree's page gate, then an admin or the programme's lead). Anybody else on
+the page (a course drafter or approver who does not lead it) gets "Open the
+run", to the run's older page, until the older run pages are forwarded. A
+run no programme names (a run people join without applying is one, since no
+programme can name it) says so, and "Open the run" takes it to its older run
+page, which stays for such runs; so does every run when the server read
+fails. Archived runs fold under the live ones with the same row. There is no
+New run: "A run is made, changed and closed on its programme’s Settings,
+under Course run." So a course no programme is tied to cannot get a new run
+anywhere on the site, and no new run that people join without applying can
+be made.
 
 ## The older course editor, while it is retired
 
@@ -2791,8 +2797,9 @@ the menu's Courses entry, and a facilitator's week editor on a run no
 programme names. The Courses list and a course's page are newer files, so
 their links are doors too: a course's page from the list, the list from a
 course's page and after a destroy, Edit the public page, Load the
-facilitator guide, and Open the run on a run no programme names. A new door
-fails that test.
+facilitator guide, and Open the run (on a run no programme names, and for a
+reader the programme's Overview does not open for). A new door fails that
+test.
 
 **Deploying.** The two rule changes go out with the code: to the staging
 project after the merge, and to production only with the promotion that

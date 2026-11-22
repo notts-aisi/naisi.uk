@@ -103,7 +103,7 @@ describe("1. the words", () => {
     assert.deepEqual(Object.values(W.COURSE_COLUMNS), ["Course", "Track", "Status", "Level", "Weekly hours", "Runs"]);
     assert.deepEqual(
       W.COURSE_SECTIONS.map((section) => section.label),
-      ["Details", "Public page", "Crest", "Rubric", "Routes and deadlines", "Sealed predictions", "Facilitator guide", "Runs", "Publishing", "Careful"],
+      ["Details", "Public page", "Runs", "Crest", "Rubric", "Routes and deadlines", "Sealed predictions", "Facilitator guide", "Publishing", "Careful"],
     );
   });
 
@@ -239,17 +239,55 @@ describe("2. what the server hands the Runs card", () => {
 // ---------------------------------------------------------------------------
 
 describe("3. a run's row on a course's page", () => {
-  test("its words: the stage alone when the read failed, named on a programme, or named by none", () => {
-    assert.match(
-      EDITOR,
-      /programmes === null\s*\? runStageLabel\(run\.status\)\s*: programme\s*\? namedOnWords\(run\.status, programme\.name\)\s*: namedByNoneWords\(run\.status\)/,
-    );
+  const OLDER = { kind: "older-run" };
+  const rowsFor = async (reader) => {
+    const programmes = await runsFor(reader);
+    return [RUN.agi, RUN.agiSpring].map((id) => W.runRowView({ id, status: world.db.read(`courseRuns/${id}`).status }, programmes));
+  };
+
+  test("an admin and the programme's lead: Open the programme on the run it names, the older run page on the one it does not", async () => {
+    for (const reader of [READERS.admin, READERS.lead]) {
+      assert.deepEqual(await rowsFor(reader), [
+        { line: "Running · named on AGI Strategy, Autumn 2026", opens: { kind: "programme", href: overview(AGI) } },
+        { line: "Draft · no programme names it", opens: OLDER },
+      ]);
+    }
   });
 
-  test("Open the programme only with an address; the older run page only for a run no programme names; nothing else", () => {
+  for (const kind of ["leadNoLongerStanding", "reviewer", "otherLead", "approver", "drafter"]) {
+    test(`${kind}: the run a programme names leads to its older page, so nobody loses the way in`, async () => {
+      assert.deepEqual(await rowsFor(READERS[kind]), [
+        { line: "Running · named on AGI Strategy, Autumn 2026", opens: OLDER },
+        { line: "Draft · no programme names it", opens: OLDER },
+      ]);
+    });
+  }
+
+  test("an archived run a programme names: the same row, in the fold", async () => {
+    const seed = namedSeed();
+    seed[`courseRuns/${RUN.agi}`].archived = true;
+    seed[`courseRuns/${RUN.agi}`].status = "completed";
+    reset(seed);
+    assert.deepEqual((await rowsFor(READERS.admin))[0], {
+      line: "Completed · named on AGI Strategy, Autumn 2026",
+      opens: { kind: "programme", href: overview(AGI) },
+    });
+    assert.deepEqual((await rowsFor(READERS.approver))[0], { line: "Completed · named on AGI Strategy, Autumn 2026", opens: OLDER });
+  });
+
+  test("when the server could not say: the stage alone, and the older run page", () => {
+    assert.deepEqual(W.runRowView({ id: RUN.agi, status: "applications-open" }, null), { line: "Running", opens: OLDER });
+  });
+
+  test("a run id that is a name every object carries is no run's programme", () => {
+    assert.deepEqual(W.runRowView({ id: "constructor", status: "draft" }, {}), { line: "Draft · no programme names it", opens: OLDER });
+  });
+
+  test("the row draws exactly what runRowView says, and builds the older run page's address in one place", () => {
+    assert.match(EDITOR, /const view = runRowView\(run, programmes\);/);
     assert.match(
       EDITOR,
-      /\{programme\?\.href \? \(\s*<Link href=\{programme\.href\} className=\{page\.action\}>\s*\{OPEN_THE_PROGRAMME\}\s*<\/Link>\s*\) : programmes !== null && !programme \? \(\s*<Link\s+href=\{`\/admin\/courses\/\$\{encodeURIComponent\(courseId\)\}\/runs\/\$\{encodeURIComponent\(run\.id\)\}`\}\s+className=\{page\.action\}\s*>\s*\{OPEN_THE_RUN\}\s*<\/Link>\s*\) : null\}/,
+      /\{view\.opens\.kind === "programme" \? \(\s*<Link href=\{view\.opens\.href\} className=\{page\.action\}>\s*\{OPEN_THE_PROGRAMME\}\s*<\/Link>\s*\) : \(\s*<Link\s+href=\{`\/admin\/courses\/\$\{encodeURIComponent\(courseId\)\}\/runs\/\$\{encodeURIComponent\(run\.id\)\}`\}\s+className=\{page\.action\}\s*>\s*\{OPEN_THE_RUN\}\s*<\/Link>\s*\)\}/,
     );
     assert.equal((EDITOR.match(/\/runs\//g) ?? []).length, 1, "a course's page has one way to an older run page");
   });
@@ -325,10 +363,14 @@ describe("4. each card's reads and writes", () => {
     assert.match(RULES, /function canDraftCourse\(\)\s*\{ return hasPerm\('draftCourse'\);\s*\}/);
   });
 
-  test("every section the strip names is a card on the page", () => {
-    for (const section of W.COURSE_SECTIONS) {
-      assert.match(EDITOR, new RegExp(`<section id="${section.id}"`), `${section.id} has no card`);
-    }
+  test("the strip names every card on the page, in the cards' own order", () => {
+    const onPage = [...EDITOR.matchAll(/<section id="([a-z-]+)"/g)].map((match) => match[1]);
+    assert.deepEqual(onPage, W.COURSE_SECTIONS.map((section) => section.id));
+  });
+
+  test("Publishing's hint says where a run leaves draft now", () => {
+    assert.match(EDITOR, /A run leaves draft on its programme’s Settings, under Course run, or on its own page when no programme names it\./);
+    assert.doesNotMatch(EDITOR, /applications-open \(or later\)/);
   });
 });
 

@@ -10,8 +10,9 @@ import page from "./coursePages.module.css";
  * breakpoint it is a row above the cards that scrolls inside itself.
  *
  * Which one is being read: of the cards inside the band near the top of the
- * window, the one highest on the page (the cards are not in the strip's
- * order). Until anything has been seen, the first. Nothing is stored.
+ * window, the one highest on the page. The strip lists the cards in their
+ * order on the page. Until anything has been seen, the first. Nothing is
+ * stored.
  */
 export default function CourseSectionStrip({
   sections,
@@ -56,7 +57,7 @@ export default function CourseSectionStrip({
             <a
               href={`#${section.id}`}
               className={section.id === current ? `${page.stripLink} ${page.stripCurrent}` : page.stripLink}
-              aria-current={section.id === current ? "true" : undefined}
+              aria-current={section.id === current ? "location" : undefined}
               onClick={() => setCurrent(section.id)}
             >
               {section.label}

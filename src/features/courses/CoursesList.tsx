@@ -77,6 +77,12 @@ export default function CoursesList() {
   }, "admin-courses-runs");
 
   /** Each course's live runs, earliest start first, as a row names them. */
+  // The courses with an archived run, so a row whose every run is archived says so.
+  const withArchivedRuns = useMemo(
+    () => new Set(runsQuery.items.filter((run) => run.archived).map((run) => run.courseId)),
+    [runsQuery.items],
+  );
+
   const runsByCourse = useMemo(() => {
     const map = new Map<string, CourseRunDoc[]>();
     for (const run of runsQuery.items) {
@@ -160,6 +166,7 @@ export default function CoursesList() {
     if (runs.length > 0) return runs.map(listRunWords).join(LIST_RUNS_JOIN);
     if (runsQuery.loading) return "Loading runs…";
     if (runsQuery.error) return "";
+    if (withArchivedRuns.has(course.id)) return "Every run of this course is archived.";
     return "No runs yet";
   }
 
@@ -347,7 +354,7 @@ export default function CoursesList() {
         </Card>
       )}
 
-      {!loading && !error && liveCourses.length === 0 && !creating && (
+      {!loading && !error && courses.length === 0 && !creating && (
         <Card padding="lg">
           <h2 className={styles.emptyTitle}>No courses yet</h2>
           <p className={styles.emptyBody}>

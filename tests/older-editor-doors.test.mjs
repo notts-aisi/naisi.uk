@@ -105,8 +105,8 @@ const DOORS = [
   {
     file: "src/features/courses/CourseEditor.tsx",
     line: "href={`/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(run.id)}`}",
-    why: "the Runs card's Open the run, only on a run no programme names (a run people join without applying is one): such a run has no programme's pages, so it keeps the older run page",
-    step: "step 8, until a run no programme names has a newer home",
+    why: "the Runs card's Open the run, to a run's older page: on a run no programme names (a run people join without applying is one), which has no programme's pages; and on a run a programme names, for a reader that programme's Overview does not open for (a course drafter or approver who does not lead it), so nobody loses the way in before the older run pages are forwarded",
+    step: "step 8, when the run addresses are forwarded, and for a run no programme names when it has a newer home",
   },
   {
     file: "src/features/courses/CourseEditor.tsx",

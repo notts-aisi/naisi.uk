@@ -118,6 +118,26 @@
 .foldSummary::-webkit-details-marker {
   display: none;
 }
+/* The fold's own mark: a chevron that points down once it is open. */
+.foldSummary::before {
+  content: "";
+  flex: none;
+  width: 0.45em;
+  height: 0.45em;
+  margin-right: var(--space-2);
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--transition-fast);
+}
+.fold[open] > .foldSummary::before {
+  transform: rotate(45deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .foldSummary::before {
+    transition: none;
+  }
+}
 .foldSummary:hover {
   color: var(--color-accent-text-hover);
 }

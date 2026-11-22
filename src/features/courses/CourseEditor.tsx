@@ -19,7 +19,6 @@ import ResponsiveSelect, {
 } from "@/components/ui/ResponsiveSelect";
 import { AdminLoadingBar, AdminPage } from "@/features/admin/adminList";
 import BlockEditor from "@/components/blocks/BlockEditor";
-import { own } from "@/lib/applications/keys";
 import { crestForCourse } from "@/lib/crests/resolve";
 import {
   COURSE_SECTIONS,
@@ -32,10 +31,8 @@ import {
   WHERE_A_RUN_IS_MADE,
   archivedRunsWords,
   hoursAWeekWords,
-  namedByNoneWords,
-  namedOnWords,
   runNameWords,
-  runStageLabel,
+  runRowView,
   type RunProgrammes,
 } from "@/lib/courses/coursePage/words";
 import { facilitatorGuideAdminPath } from "@/lib/courses/facilitatorGuide/model";
@@ -79,14 +76,16 @@ import page from "./coursePages.module.css";
  * own routes, which ask who may. Only where each card sits and how it looks
  * changed.
  *
- * RUNS are not made or opened for editing here: a run is made, changed and
- * closed on its programme's Settings, under Course run. Each run says its
- * stage and the programme that names it (`programmes`, read by the page on
- * the server), with "Open the programme" to that programme's Overview for a
- * reader it opens for, and as a line of words for anybody else. A run no
- * programme names (a run people join without applying is one) keeps the
- * older run page, and its line links there. Archived runs fold under the
- * live ones, so an archived run can still be reached and brought back.
+ * RUNS are not made here: a run is made, changed and closed on its
+ * programme's Settings, under Course run. Each run says its stage and the
+ * programme that names it (`programmes`, read by the page on the server),
+ * with "Open the programme" to that programme's Overview for a reader it
+ * opens for. For anybody else, for a run no programme names (a run people
+ * join without applying is one), and when that read failed, "Open the run"
+ * leads to the run's older page, so nobody on this page loses the way in
+ * before the older pages forward (`runRowView`). Archived runs fold under
+ * the live ones with the same row, so an archived run can still be reached
+ * and brought back.
  */
 type MetaDraft = {
   title: string;
@@ -333,7 +332,7 @@ export default function CourseEditor({
   if (loading) {
     return (
       <AdminPage>
-        <PageHead title="Courses" />
+        <PageHead crumb={crumb} title="Courses" />
         <Card padding="md">
           <AdminLoadingBar label="Loading course…" />
         </Card>
@@ -344,7 +343,7 @@ export default function CourseEditor({
   if (error) {
     return (
       <AdminPage>
-        <PageHead title="Courses" />
+        <PageHead crumb={crumb} title="Courses" />
         <Card padding="md">
           <p className={styles.error}>Couldn&apos;t load this course: {error.message}</p>
         </Card>
@@ -383,33 +382,27 @@ export default function CourseEditor({
     ...(course.estimatedWeeklyHours != null ? [hoursAWeekWords(course.estimatedWeeklyHours)] : []),
   ].join(" · ");
 
-  /** One run's row: its name, its stage and programme, and the way on where there is one. */
+  /** One run's row: its name, its stage and programme, and the way on (`runRowView`). */
   const runRow = (run: CourseRunDoc) => {
-    const programme = programmes ? (own(programmes, run.id) ?? null) : null;
-    const line =
-      programmes === null
-        ? runStageLabel(run.status)
-        : programme
-          ? namedOnWords(run.status, programme.name)
-          : namedByNoneWords(run.status);
+    const view = runRowView(run, programmes);
     return (
       <li key={run.id} className={page.runRow}>
         <div className={page.runText}>
           <p className={page.runName}>{runNameWords(run)}</p>
-          <p className={page.runLine}>{line}</p>
+          <p className={page.runLine}>{view.line}</p>
         </div>
-        {programme?.href ? (
-          <Link href={programme.href} className={page.action}>
+        {view.opens.kind === "programme" ? (
+          <Link href={view.opens.href} className={page.action}>
             {OPEN_THE_PROGRAMME}
           </Link>
-        ) : programmes !== null && !programme ? (
+        ) : (
           <Link
             href={`/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(run.id)}`}
             className={page.action}
           >
             {OPEN_THE_RUN}
           </Link>
-        ) : null}
+        )}
       </li>
     );
   };
@@ -757,7 +750,7 @@ export default function CourseEditor({
                   {showcaseOptions.length === 1 && (
                     <p className={styles.status}>
                       No run is out of draft yet, so there is nothing to preview publicly.
-                      Move a run to applications-open (or later) from its own page first.
+                      A run leaves draft on its programme’s Settings, under Course run, or on its own page when no programme names it.
                     </p>
                   )}
 
