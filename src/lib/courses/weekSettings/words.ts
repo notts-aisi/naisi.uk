@@ -61,7 +61,7 @@ export const SETTINGS_NOT_YOURS = "Only the programme’s lead and admins can ch
 export const SETTINGS_BODY = "Send the week’s title, summary, pitching week and questions together.";
 export const TITLE_EMPTY = "Give the week a title. It’s the line people find the week by.";
 export const TITLE_LONG = `A title is ${COURSE_FIELD_LIMITS.weekTitle} characters or fewer.`;
-export const SUMMARY_LONG = `A summary is ${COURSE_FIELD_LIMITS.weekSummary.toLocaleString("en-GB")} characters or fewer.`;
+export const SUMMARY_LONG = `A summary is ${new Intl.NumberFormat("en-GB").format(COURSE_FIELD_LIMITS.weekSummary)} characters or fewer.`;
 /** The group week route's words for its questions, word for word. */
 export const QUESTIONS_NOT_A_LIST = "questions must be a list.";
 export const QUESTIONS_TOO_MANY = `A week holds at most ${COURSE_FIELD_LIMITS.maxWeekQuestions} questions.`;
