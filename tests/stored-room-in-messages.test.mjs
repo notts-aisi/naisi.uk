@@ -91,6 +91,12 @@ const ROOM_READS = {
     printedBy: null,
     why: "Reads the room only to decide whether joining online is offered for a session held in a room (`heldOnline`); prints nothing of it.",
   },
+  "src/lib/courses/joiningOnline/seat.ts": {
+    printedBy: null,
+    why:
+      "Reads the room only to decide whether a session is held online for everybody (`heldOnline`), for the word " +
+      "\"joining online\" and for an approved visit's (`joiningOnlineAtHost`, which a visit's save reaches); prints nothing of it.",
+  },
   "src/lib/courses/groupChange/facts.ts": {
     printedBy: null,
     why: "Builds a group history row's facts, which the group's page shows its staff; no message is written from them.",

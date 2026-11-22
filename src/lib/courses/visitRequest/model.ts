@@ -7,7 +7,7 @@ import { ASK_REFUSAL } from "./words";
  * THE BODIES OF THE ROUTES ABOUT A REQUEST TO GO TO ANOTHER SESSION, read
  * whole before anything else is. Pure: reads nothing.
  *
- *   ask       { hostGroupId, reason? }          the week is never sent: it is the week of their next session
+ *   ask       { hostGroupId, reason?, online? }  the week is never sent: it is the week of their next session; `online` is the tick
  *   approve   { emailCount, overLimit?, reply? } the count of emails the button showed, and whether the page showed the session full
  *   decline   { reply }                         the reply is needed
  *   reply     { reply }                         a reply without deciding
@@ -42,16 +42,17 @@ export function parseVisitReason(raw: unknown): Parsed<string> {
   return { ok: true, value: value.replace(/\s+/g, " ") };
 }
 
-export type VisitAskPress = { hostGroupId: string; reason: string };
+export type VisitAskPress = { hostGroupId: string; reason: string; online: boolean };
 
-/** The ask: which session (by its group), and anything they add. */
+/** The ask: which session (by its group), anything they add, and whether they ticked "I’d join online" (absent is not ticked). */
 export function parseVisitAsk(raw: unknown): Parsed<VisitAskPress> {
-  const body = objectBody(raw, ["hostGroupId", "reason"]);
+  const body = objectBody(raw, ["hostGroupId", "reason", "online"]);
   if (!body) return { ok: false, error: ASK_REFUSAL.body };
   if (!isGroupRef(body.hostGroupId)) return { ok: false, error: ASK_REFUSAL.chooseFirst };
   const reason = parseVisitReason(body.reason);
   if (!reason.ok) return reason;
-  return { ok: true, value: { hostGroupId: body.hostGroupId, reason: reason.value } };
+  if (body.online !== undefined && typeof body.online !== "boolean") return { ok: false, error: ASK_REFUSAL.online };
+  return { ok: true, value: { hostGroupId: body.hostGroupId, reason: reason.value, online: body.online === true } };
 }
 
 export const REPLY_REFUSAL = {

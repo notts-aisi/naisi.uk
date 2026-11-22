@@ -28,8 +28,9 @@ import { COURSE_REQUEST_STATUSES, type CourseRequestStatus } from "./courseReque
  * own group. `groupId` and `sessionKey` are their own group's for that week
  * (the group they belong to that week, and its session), so the request is
  * found the way every request about a group is; `change` holds the week, the
- * host group and its session, and the host's session as it was offered when
- * they asked, so the request's page can say it has moved since. No new status:
+ * host group and its session, the host's session as it was offered when
+ * they asked, so the request's page can say it has moved since, and whether
+ * they ticked "I’d join online". No new status:
  * a request nobody decided before the earlier of the two sessions started is
  * CLOSED BY ITSELF, worked out at read time (`src/lib/courses/visitRequest/model.ts`),
  * never stored, because nothing runs when a clock passes.
@@ -104,6 +105,13 @@ export type VisitRequestChange = {
   hostSessionKey: string;
   /** The host's session as it was offered when they asked: its date and start ("" for none). */
   asked: { dateKey: string; startTimeLocal: string };
+  /**
+   * They ticked "I’d join online": approving it then says so on the host's
+   * register for that session, as their own press of "I’m joining online"
+   * would, and the host's facilitators' email says it. False when not ticked,
+   * and for a request stored before the tick existed.
+   */
+  online: boolean;
 };
 
 export type VisitRequestDoc = MemberRequestBase & { kind: typeof VISIT_KIND; change: VisitRequestChange };
@@ -234,6 +242,8 @@ export function normalizeVisitRequest(id: string, data: Raw): VisitRequestDoc | 
         dateKey: typeof asked.dateKey === "string" && DATE_KEY.test(asked.dateKey) ? asked.dateKey : "",
         startTimeLocal: typeof asked.startTimeLocal === "string" && CLOCK.test(asked.startTimeLocal) ? asked.startTimeLocal : "",
       },
+      // Only a strict true is the tick.
+      online: change.online === true,
     },
   };
 }

@@ -11684,21 +11684,96 @@ describe("v16 says a register records the room or online, and you may tell us in
     assertExactlyTheseFiles(
       sourceFilesNaming(/\[ONLINE_SAID\]:|FieldPath\(ONLINE_SAID,/),
       new Map([
-        ["src/lib/courses/joiningOnline/seat.ts", "Joining online: the caller's own word on their own line of the session's register, and taking it back"],
+        [
+          "src/lib/courses/joiningOnline/seat.ts",
+          "Joining online: the person's own word on their own line of the session's register, written for the uid it is handed (the caller's on their press, the asker's on an approval of the request they ticked), and taking it back",
+        ],
         ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own word, key by key, and nobody else's"],
-        ["src/lib/courses/visit/save.ts", "a one-week visit called off takes the person's own word off the session they no longer go to, and writes none"],
-        ["src/lib/courses/visit/hostOff.ts", "a one-week visit that ends with its session called off takes the person's own word off that session, and writes none"],
+        ["src/lib/courses/joiningOnline/gone.ts", "the person's own word taken away, and only deleted, with their place at the session (`onlineWordGone`), for the uid it is handed"],
       ]),
       "writing that somebody is joining a session online",
       "The policy says you tell us in advance. Nobody may say it for anybody else.",
     );
-    assert.match(withoutComments(read("src/lib/courses/visit/save.ts")), /tx\.set\(ref, \{ \[ONLINE_SAID\]: \{ \[input\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\);/);
-    assert.doesNotMatch(withoutComments(read("src/lib/courses/visit/save.ts")), /\[ONLINE_SAID\]: \{ \[[^\]]+\]: FieldValue\.serverTimestamp/, "a visit writes somebody's word");
-    assert.match(withoutComments(read("src/lib/courses/visit/hostOff.ts")), /tx\.set\(registerRef, \{ \[ONLINE_SAID\]: \{ \[visit\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\)/);
-    assert.doesNotMatch(withoutComments(read("src/lib/courses/visit/hostOff.ts")), /\[ONLINE_SAID\]: \{ \[[^\]]+\]: FieldValue\.serverTimestamp/, "a visit ending writes somebody's word");
+    // CHANGED ON PURPOSE (November 2026): a visit that ends takes the
+    // person's word, and its two stamps, away through one rule in the
+    // joining-online module (`onlineWordGone`), which only ever deletes and
+    // only the uid it is handed: the visit's own person. Every way a visit
+    // ends asks it, and an approved excusal asks it of the session it
+    // excuses.
+    const gone = withoutComments(read("src/lib/courses/joiningOnline/gone.ts"));
+    assert.match(gone, /export function onlineWordGone\(data: Record<string, unknown> \| undefined, uid: string, options: \{ keepSetBy\?: boolean \} = \{\}\)/);
+    assert.match(gone, /\.\.\.\(said \? \{ \[ONLINE_SAID\]: \{ \[uid\]: FieldValue\.delete\(\) \} \} : \{\}\),/);
+    assert.match(gone, /\.\.\.\(emailed \? \{ \[ONLINE_EMAILED\]: \{ \[uid\]: FieldValue\.delete\(\) \} \} : \{\}\),/);
+    assert.doesNotMatch(gone, /FieldValue\.serverTimestamp/, "the rule that takes a word away writes one");
+    const visitSaveText = withoutComments(read("src/lib/courses/visit/save.ts"));
+    assert.match(visitSaveText, /const gone = onlineWordGone\(data, input\.uid\);\s+if \(gone\) tx\.set\(ref, gone, \{ merge: true \}\);/);
+    assert.doesNotMatch(visitSaveText, /\[ONLINE_SAID\]: \{ \[[^\]]+\]: FieldValue\.serverTimestamp/, "a visit writes somebody's word");
+    const hostOffText = withoutComments(read("src/lib/courses/visit/hostOff.ts"));
+    assert.match(hostOffText, /const gone = onlineWordGone\(registerSnap\.data\(\) \?\? \{\}, visit\.uid\);/);
+    assert.doesNotMatch(hostOffText, /\[ONLINE_SAID\]|ONLINE_SAID/, "a visit ending writes somebody's word");
+    assert.deepEqual(
+      sourceFilesNaming(/\bonlineWordGone\(/).sort(),
+      ["src/lib/courses/excused/decide.ts", "src/lib/courses/joiningOnline/gone.ts", "src/lib/courses/visit/hostOff.ts", "src/lib/courses/visit/save.ts"],
+      "a new caller of the rule that takes somebody's word away",
+    );
+    assert.match(withoutComments(read("src/lib/courses/excused/decide.ts")), /onlineWordGone\(data, fresh\.subjectUid, \{ keepSetBy: true \}\)/);
+    assert.deepEqual(
+      sourceFilesNaming(/\bonlineWordsGoWithVisitsIn\(/).sort(),
+      [
+        "src/app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts",
+        "src/lib/courses/groupFacilitators.ts",
+        "src/lib/courses/joiningOnline/gone.ts",
+        "src/lib/courses/leaveRun.ts",
+      ],
+      "a new caller of the words that go with a place's visits",
+    );
     assert.match(seat, /if \(seat\.uid !== user\.uid \|\| seat\.runId !== runId\) return false;/);
     assert.match(seat, /tx\.get\(db\.collection\("courseEnrolments"\)\.doc\(courseEnrolmentId\(group\.runId, user\.uid\)\)\)/);
-    assert.match(seat, /\[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.serverTimestamp\(\) \},/);
+    // CHANGED ON PURPOSE (November 2026): the one write of the word moved
+    // into `sayingOnlineOn`, which writes it for the `uid` it is handed and
+    // nobody else. It is handed the caller's own uid by their own press, and
+    // the uid of the person who asked by an admin's approval of their own
+    // request to go to another group's session when THEY ticked "I'd join
+    // online": they told us in advance, on the request, and the host's
+    // facilitators see it and are asked for a link in the visit's email.
+    // Nothing else reaches it, so nobody says it for anybody else.
+    assert.match(seat, /\[ONLINE_SAID\]: \{ \[uid\]: FieldValue\.serverTimestamp\(\) \},/);
+    assert.match(seat, /\[SET_BY\]: \{ \[uid\]: \{ byUid: uid, at: FieldValue\.serverTimestamp\(\), how: "self" \} \},/);
+    assert.match(seat, /const \{ group, session, data, uid \} = input;/);
+    assert.match(seat, /const said = sayingOnlineOn\(\{ group, session, data, registerId: ref\.id, uid: user\.uid, now \}\);/);
+    assert.equal((seat.match(/\bsayingOnlineOn\(/g) ?? []).length, 2, "the definition and the press's own call");
+    assert.deepEqual(
+      sourceFilesNaming(/\bsayingOnlineOn\(/).sort(),
+      ["src/lib/courses/joiningOnline/seat.ts", "src/lib/courses/visit/plan.ts"],
+      "a new caller of the one write of somebody's word",
+    );
+    const visitPlan = withoutComments(read("src/lib/courses/visit/plan.ts"));
+    assert.equal((visitPlan.match(/\bsayingOnlineOn\(/g) ?? []).length, 1);
+    assert.match(visitPlan, /export function joiningOnlineAtHost\([^)]*uid: string, now: Date\): HostOnline \{/);
+    assert.match(visitPlan, /sayingOnlineOn\(\{ group: host, session, data: facts\.registers\.get\(registerId\), registerId, uid, now \}\)/);
+    assert.deepEqual(
+      sourceFilesNaming(/\bjoiningOnlineAtHost\(/).sort(),
+      ["src/lib/courses/visit/plan.ts", "src/lib/courses/visit/save.ts", "src/lib/courses/visitRequest/page.ts"],
+      "a new caller of the word an approved visit writes",
+    );
+    const visitSave = withoutComments(read("src/lib/courses/visit/save.ts"));
+    assert.match(visitSave, /const online = input\.approves\?\.online \? joiningOnlineAtHost\(facts, planned\.plan, input\.uid, input\.now\) : null;/);
+    assert.match(visitSave, /if \(online\?\.said\?\.write\) online\.said\.write\(tx, db\.collection\("courseAttendance"\)\.doc\(online\.registerId\), input\.runId\);/);
+    // The request page only reads, for its preview.
+    assert.doesNotMatch(withoutComments(read("src/lib/courses/visitRequest/page.ts")), /\.write\(/);
+    // Approving passes the person's own tick, on the request they asked themselves.
+    const decide = withoutComments(read("src/lib/courses/visitRequest/decide.ts"));
+    assert.match(decide, /online: request\.change\.online,/);
+    // Only the request's decision passes an approval to the visit's writer,
+    // and with the request's own subject: the staff visit route can never
+    // write a word for somebody who did not say it.
+    assert.deepEqual(sourceFilesNaming(/\bapproves:\s*\{/), ["src/lib/courses/visitRequest/decide.ts"], "an approval passed to the visit's writer from anywhere but the request's decision");
+    assert.equal((decide.match(/\bapproves:\s*\{/g) ?? []).length, 1);
+    assert.match(decide, /const saved = await arrangeVisit\(db, \{\s+runId: request\.runId,\s+uid: request\.subjectUid,/);
+    assert.equal((decide.match(/\bonline:/g) ?? []).length, 1, "the tick passed from anywhere but the request");
+    const ask = withoutComments(read("src/lib/courses/visitRequest/ask.ts"));
+    assert.match(ask, /subjectUid: user\.uid,\s+askedByUid: user\.uid,/);
+    assert.match(ask, /online: press\.online,/);
     assert.match(seat, /tx\.set\(ref, \{ \[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\);/);
     assert.match(route, /const outcome = await recordJoiningOnline\(db, user, groupId, parsed\.value, new Date\(\)\);/);
     assert.doesNotMatch(seat + route, /sendEmail|sendNotice|dispatchSends|mirrorCourse/, "saying you are joining online emails or notifies somebody outside the facilitators' email");
@@ -11715,8 +11790,12 @@ describe("v16 says a register records the room or online, and you may tell us in
     assertExactlyTheseFiles(
       sourceFilesNaming(/\[ONLINE_EMAILED\]:|FieldPath\(ONLINE_EMAILED,/),
       new Map([
-        ["src/lib/courses/joiningOnline/seat.ts", "Joining online: when the group's facilitators were emailed about the caller's own word, stamped once and never taken away"],
+        [
+          "src/lib/courses/joiningOnline/seat.ts",
+          "Joining online: when the group's facilitators were told of the person's own word, by the joining-online email after their press or by the visit's email on an approval of the request they ticked, stamped once and taken away only with their place at the session",
+        ],
         ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own stamp, key by key, and nobody else's"],
+        ["src/lib/courses/joiningOnline/gone.ts", "the person's own stamp taken away, and only deleted, with their place at the session, so a word said again after they are due again is told"],
       ]),
       "writing that a group's facilitators were emailed about somebody joining online",
       "The stamp is about the person's own word. Nobody may write it for anybody else.",

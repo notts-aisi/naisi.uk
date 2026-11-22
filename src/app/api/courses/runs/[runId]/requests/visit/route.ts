@@ -10,7 +10,8 @@ import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
  * ASK TO GO TO ANOTHER GROUP'S SESSION FOR ONE WEEK, from the person's own
- * form (`/learn/[runId]/another-session`): `POST { hostGroupId, reason? }`.
+ * form (`/learn/[runId]/another-session`): `POST { hostGroupId, reason?,
+ * online? }`, `online` being the tick "I’d join online".
  * The week is never sent: it is the week of their next session
  * (`src/lib/courses/visitRequest/ask.ts`).
  *

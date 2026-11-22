@@ -1,5 +1,7 @@
 import "server-only";
-import { FieldValue, type DocumentReference, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type DocumentReference, type DocumentSnapshot, type Firestore, type Transaction } from "firebase-admin/firestore";
+import { onlineWordsGoWithVisitsIn } from "@/lib/courses/joiningOnline/gone";
+import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { courseApplicationId } from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
@@ -140,6 +142,36 @@ export type Placing = { row: "update" } | { row: "create"; joinedWeekNumber: num
 export type SeatProblem =
   | { kind: "elsewhere"; uid: string; groupId: string }
   | { kind: "full"; uid: string };
+
+/**
+ * A placement made by an appointment ends any one-week visit on the place
+ * (`writeFacilitatorChange`: somebody who facilitates a group sits only in
+ * it), so their word that they are joining online goes from each host's
+ * register too (`onlineWordsGoWithVisitsIn`). Read in the caller's
+ * transaction before its writes; the thunk goes with the change's writes.
+ */
+export async function onlineWordsGoWithPlacingIn(
+  tx: Transaction,
+  db: Firestore,
+  input: { run: CourseRunDoc; placing: ReadonlyMap<string, Placing>; enrolments: ReadonlyMap<string, DocumentSnapshot | undefined>; now: Date },
+): Promise<() => void> {
+  const writes: Array<() => void> = [];
+  for (const [uid, place] of input.placing) {
+    const snap = input.enrolments.get(uid);
+    if (place.row !== "update" || !snap?.exists) continue;
+    // As stored: a place in no group reads no visit (the normaliser's rule),
+    // yet the write below deletes whatever the field holds, so its words go too.
+    const stored = (snap.data() ?? {}).visits;
+    const visits = (Array.isArray(stored) ? stored : []).flatMap((entry: unknown) => {
+      const raw = (entry && typeof entry === "object" ? entry : {}) as { weekNumber?: unknown; groupId?: unknown };
+      return typeof raw.weekNumber === "number" && Number.isInteger(raw.weekNumber) && typeof raw.groupId === "string" ? [{ weekNumber: raw.weekNumber, groupId: raw.groupId }] : [];
+    });
+    if (visits.length > 0) writes.push(await onlineWordsGoWithVisitsIn(tx, db, { run: input.run, uid, visits, now: input.now }));
+  }
+  return () => {
+    for (const write of writes) write();
+  };
+}
 
 /**
  * THE PLACES AN APPOINTMENT MAKES, or the first reason it cannot be made.

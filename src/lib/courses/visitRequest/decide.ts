@@ -50,7 +50,10 @@ import {
  *    the button is checked again at the press; the limits on its emails).
  *    The person is sent the staff visit's email with the approved first
  *    sentence and the reply; both groups' facilitators exactly what the staff
- *    visit sends.
+ *    visit sends. With "I’d join online" ticked, the same transaction puts
+ *    the person's word on the host's register for that session, as their own
+ *    press would, stamped as emailed, and the host's facilitators' email
+ *    carries the approved lines about it; no second email goes.
  *  - DECLINE: admins only, with a reply. Writes the decision, no visit.
  *    Emails the person.
  *  - REPLY WITHOUT DECIDING: admins only. The request keeps waiting; the
@@ -222,6 +225,8 @@ export async function approveVisitRequest(
         }
       },
       personWords: (facts) => personEmailWords(facts, approvedPersonEmailParts(decider.firstName, press.reply)),
+      // "I’d join online" ticked: their word on the host's register, in this transaction, and the host's email says it.
+      online: request.change.online,
     },
   });
   if (!saved.ok) {

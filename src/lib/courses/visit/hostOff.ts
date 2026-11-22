@@ -13,7 +13,8 @@ import { visitsLimitsIn } from "./limits";
 import { excusalStandsFor } from "@/lib/courses/excused/marking";
 import { factOf, weeksAbout } from "@/lib/courses/excused/model";
 import { standingRequestsIn } from "@/lib/courses/excused/standing";
-import { ONLINE_SAID, attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
+import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
+import { onlineWordGone } from "@/lib/courses/joiningOnline/gone";
 import { writeTakenBack, type SessionLine } from "@/lib/courses/cantMakeIt/seat";
 import { ownSessionThatWeek, visitRecipients, type VisitRecipient } from "./plan";
 import { sendAll, type VisitSaveAnswer } from "./save";
@@ -169,7 +170,9 @@ export async function endVisitsIn(
     claims.push(await withdrawVisitRequestsIn(tx, db, { runId: input.run.id, uid: visit.uid, hostGroupId: input.host.id, weekNumber: input.weekNumber, byUid: input.actor.uid, now: new Date() }));
     // Their own words on the host's register for that session, while it is not finished, as calling the visit off takes them back.
     if (registerRef && registerSnap && hostSession && hostRegister && hostRegister.pushedAt === null) {
-      if (Object.hasOwn(hostRegister.onlineSaid, visit.uid)) claims.push(() => tx.set(registerRef, { [ONLINE_SAID]: { [visit.uid]: FieldValue.delete() } }, { merge: true }));
+      // Their word that they are joining online, and its stamps, by the one rule (`onlineWordGone`).
+      const gone = onlineWordGone(registerSnap.data() ?? {}, visit.uid);
+      if (gone) claims.push(() => tx.set(registerRef, gone, { merge: true }));
       if (Object.hasOwn(hostRegister.excusedInAdvance, visit.uid)) {
         const data = registerSnap.data() ?? {};
         claims.push(() => writeTakenBack(tx, { session: hostSession, ref: registerRef, data, state: { kind: "told" } } as unknown as SessionLine, visit.uid));

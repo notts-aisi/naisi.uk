@@ -19,6 +19,7 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseRunChannel, normalizeCourseRun } from "@/lib/firestore/courses";
 import { unsubscribe } from "@/lib/firestore/subscriptions";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { onlineWordsGoWithVisitsIn } from "@/lib/courses/joiningOnline/gone";
 import { visitLimitsIn } from "@/lib/courses/visit/limits";
 import { NO_VISITS_ENDED, sendRemovalVisitEmails, visitsEndedByRemoval, type RemovalVisits } from "@/lib/courses/visit/removed";
 import { removalChangedWords } from "@/lib/courses/visit/words";
@@ -287,6 +288,9 @@ export async function POST(req: Request, ctx: Ctx) {
         now,
       });
       if (visits.emails !== body.emails) throw new RemoveError(removalChangedWords(visits.emails), 409, visits.emails);
+      // Their word that they are joining online, on the host's register of
+      // each visit still to come, goes with the visit (`onlineWordsGoWithVisitsIn`).
+      const wordsGo = await onlineWordsGoWithVisitsIn(tx, db, { run, uid, visits: normalizeCourseEnrolment(snap.id, existing).visits ?? [], now });
       // Held to the limit on a visit called off by hand, claimed with the removal's own writes.
       const limits = visits.emails > 0 ? await visitLimitsIn(tx, db, runId, uid, actor.uid) : null;
       if (limits?.refusal) throw new RemoveError(limits.refusal, 429);
@@ -350,6 +354,7 @@ export async function POST(req: Request, ctx: Ctx) {
         updatedAt: FieldValue.serverTimestamp(),
       });
       if (place) givePlaceBack(tx, place);
+      wordsGo();
       if (heldSeat && groupId) {
         tx.update(db.collection("courseGroups").doc(groupId), {
           memberCount: FieldValue.increment(-1),

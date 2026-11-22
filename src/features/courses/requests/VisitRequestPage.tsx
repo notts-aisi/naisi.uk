@@ -23,7 +23,8 @@ const TONE: Record<string, ChipTone> = { waiting: "warning", approved: "success"
 /**
  * ONE REQUEST TO GO TO ANOTHER SESSION, FOR AN ADMIN (`loadVisitRequestPage`,
  * which answers nobody else): who asks, their own words, what for ("Asks
- * for": the session as it is now, with the places left), what approving will
+ * for": the session as it is now, with the places left, and that they would
+ * join online when they ticked it), what approving will
  * do and who is told, with the count (the staff visit's own preview), and the
  * over-the-limit warning when the session filled since; a reply; "Approve and
  * email 3 people", "Decline and send the reply", "Reply without deciding";
@@ -108,6 +109,7 @@ export default function VisitRequestPage({ view }: { view: VisitRequestPageView 
             <div>
               <p className={styles.label}>{V.ASKS_FOR}</p>
               <p className={styles.line}>{[view.asksFor.words, view.asksFor.detail].filter(Boolean).join(" · ")}</p>
+              {view.online && <p className={styles.line}>{view.online}</p>}
               {view.movedSince && <p className={styles.warn}>{view.movedSince}</p>}
             </div>
           </section>

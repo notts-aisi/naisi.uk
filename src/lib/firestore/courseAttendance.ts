@@ -184,10 +184,12 @@ export type CourseAttendanceDoc = {
   /**
    * WHEN THE GROUP'S FACILITATORS WERE EMAILED THAT EACH PERSON IS JOINING
    * THIS SESSION ONLINE, keyed by the uid of the person it is about. Written
-   * only by the "Joining online" press (`src/lib/courses/joiningOnline/seat.ts`),
-   * in the transaction that writes their word, the first time they say it
-   * for this session; never taken away by taking the word back, so saying it,
-   * taking it back and saying it again emails nobody a second time. Server
+   * only with their word (`src/lib/courses/joiningOnline/seat.ts`: their own
+   * press, or an approval of the request they ticked "I'd join online" on,
+   * whose visit email says it), the first time it is written for this
+   * session; never taken away by taking the word back, so saying it, taking
+   * it back and saying it again emails nobody a second time. It goes only
+   * with their place at the session (`../courses/joiningOnline/gone.ts`). Server
    * only: no route or page sends it to a browser. A register written before
    * this map existed has none, and reads as today.
    *

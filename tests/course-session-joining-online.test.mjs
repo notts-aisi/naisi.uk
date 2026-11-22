@@ -1123,12 +1123,17 @@ describe("8. the group's facilitators are emailed, once per person per session, 
     assert.ok(!JSON.stringify(await ticketFor("chloe")).includes("onlineEmailed"), "the ticket carries the record");
     assert.ok(!JSON.stringify(await boxOfB()).includes("onlineEmailed"), "the box carries the record");
 
-    // The tree: the field is named by its record, the one write and account deletion, and no browser module.
+    // The tree: the field is named by its record, the one write, the one rule
+    // that takes it away with the person's place at the session (CHANGED ON
+    // PURPOSE, November 2026: a visit that ends takes it, so a word said
+    // again once they are due again is told), account deletion, and no browser module.
     const naming = [...walkSource(SRC)]
       .filter((file) => /\bonlineEmailed\b|\bONLINE_EMAILED\b/.test(stripSource(readFileSync(file, "utf8"), { keepStrings: true })))
       .map((file) => file.slice(SRC.length + 1).split("\\").join("/"))
       .sort();
-    assert.deepEqual(naming, ["lib/courses/joiningOnline/seat.ts", "lib/firestore/accountDeletion.ts", "lib/firestore/courseAttendance.ts"]);
+    assert.deepEqual(naming, ["lib/courses/joiningOnline/gone.ts", "lib/courses/joiningOnline/seat.ts", "lib/firestore/accountDeletion.ts", "lib/firestore/courseAttendance.ts"]);
+    // The rule only ever deletes the stamp.
+    assert.doesNotMatch(stripSource(readFileSync(join(SRC, "lib", "courses", "joiningOnline", "gone.ts"), "utf8")), /serverTimestamp/);
     for (const file of naming) assert.doesNotMatch(readFileSync(join(SRC, file), "utf8"), /^["']use client["']/m, file);
   });
 });

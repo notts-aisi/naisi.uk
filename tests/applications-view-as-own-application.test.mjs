@@ -92,6 +92,10 @@ const OWN_READS = {
   loadStatusRows: "@/lib/admissions/statusHubData",
   loadStatusRowForRound: "@/lib/admissions/statusHubData",
   loadWhenFree: "@/lib/applications/status/whenFree",
+  // The form for another session this week reads the caller's own painted
+  // week for its "Why:" lines (`whyOfferedFor`), unless told it is a view-as
+  // session.
+  anotherSessionPageFor: "@/lib/courses/visitRequest/own",
 };
 
 const GUARD_FIRST = /^\{\s*const blocked = await assertNotImpersonating\(\);\s*if \(blocked\) return blocked;/;
@@ -106,6 +110,11 @@ const GUARD_FIRST = /^\{\s*const blocked = await assertNotImpersonating\(\);\s*i
  *    before the read. `leaves` is the statement that does it.
  *  - `after-the-form`: reached only once the form's own screen has answered
  *    that the round is not an application form.
+ *  - `passes-the-check`: a screen that draws the rest of itself in a view-as
+ *    session, so it works the check out before the read (`asks`) and hands
+ *    the answer to the read (`passes`), which then reads nothing of the
+ *    application. The read's own answer to that is executed in
+ *    `tests/course-visit-request-why.test.mjs`.
  */
 const HELD = {
   "app/api/admissions/forms/[roundId]/application/route.ts#GET": {
@@ -162,6 +171,12 @@ const HELD = {
     leaves: "if (markerIsLive(await getImpersonator(), user.uid)) {",
     why: "the form's own editor for when the caller is free, which opens on the week their application holds",
   },
+  "app/(app)/learn/[runId]/another-session/page.tsx#AnotherSessionPage": {
+    how: "passes-the-check",
+    asks: "const locked = markerIsLive(await getImpersonator(), access.user.uid);",
+    passes: "anotherSessionPageFor(db, { ...asked, viewingAs: locked })",
+    why: "the form for another session this week, whose \"Why:\" lines read the caller's own painted week",
+  },
   "app/(public)/applications/[roundId]/page.tsx#ApplicationDetailPage": {
     how: "after-the-form",
     why: "the older read-back, for a round of the older kind, which keeps the rule its own page states",
@@ -200,7 +215,7 @@ describe("every read of the caller's own application is held to the view-as chec
     );
     assert.deepEqual(Object.keys(HELD).filter((key) => !found.has(key)), []);
     for (const [key, entry] of Object.entries(HELD)) {
-      assert.ok(["refuses-first", "notice-first", "after-the-form"].includes(entry.how), key);
+      assert.ok(["refuses-first", "notice-first", "after-the-form", "passes-the-check"].includes(entry.how), key);
       assert.ok(typeof entry.why === "string" && entry.why.length > 20, `${key} needs its reason written down`);
     }
   });
@@ -228,6 +243,14 @@ describe("every read of the caller's own application is held to the view-as chec
         const left = fn.body.indexOf(entry.leaves);
         assert.ok(left !== -1, `${key} no longer has the statement that leaves: ${entry.leaves}`);
         assert.ok(left < firstRead, `${key} reads the caller's own application before it has asked whether this is a view-as session`);
+      });
+    }
+    if (entry.how === "passes-the-check") {
+      test(`${key} works out whether this is a view-as session before it reads, and hands the answer to the read`, () => {
+        const asked = fn.body.indexOf(entry.asks);
+        assert.ok(asked !== -1, `${key} no longer works out the check: ${entry.asks}`);
+        assert.ok(asked < firstRead, `${key} reads before it has asked whether this is a view-as session`);
+        assert.ok(fn.body.includes(entry.passes), `${key} does not hand the answer to the read: ${entry.passes}`);
       });
     }
     if (entry.how === "after-the-form") {

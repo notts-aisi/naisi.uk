@@ -2776,6 +2776,62 @@ checked at the press, and staff's email limits apply. Staff arranging a visit
 themselves for a week the person's own request waits about are told to decide
 that request first.
 
+**"I'd join online".** A tick on the form, off unless ticked, stored on the
+request as `change.online` (only a strict `true` is the tick; a request stored
+before it reads as not ticked). The admin deciding it reads "<first name> would join
+online." under "Asks for"; the member is told nothing new. Approving a ticked
+request puts the person's word on the HOST'S register for that week's session
+in the same transaction as the decision and the visit, by the one writer of
+that word (`sayingOnlineOn`, `src/lib/courses/joiningOnline/seat.ts`, which
+the person's own press of "I'm joining online" also uses), with its
+`onlineEmailed` stamp, so the email that press sends the facilitators never
+also goes: the host's facilitators' email about the visit carries the approved
+lines instead ("<first name> will join online." and where the link goes, by whether
+the session has one; never the link). Approving is refused, on the request's
+page and at the press, while the host's register cannot take the word (already
+finished, the person's line already filled in, or full), in a sentence the
+visit already says; a session held online for everybody takes no word and its
+email has no such line. A staff-arranged visit has no tick and is unchanged.
+The host's group page lists every visitor with a visit standing to the group
+in the box at the top, each under the weeks they visit alone (`boxPeopleOf`),
+whatever week the page's next session is, so the field and the button the
+email names are there.
+
+**The word goes with the visit.** Every way a visit ends takes the person's
+word off the host's register for that session while it is not finished, with
+its two stamps (that its email went, and that they set the line), by one rule
+(`onlineWordGone`, `src/lib/courses/joiningOnline/gone.ts`): their own cancel
+and staff's, the host's session called off, being taken off the run, leaving
+it, and a placement made by an appointment (`onlineWordsGoWithVisitsIn`). An
+approved excusal takes it off the session it excuses: excused wins. No single
+place writes every end of a visit (the allocation board taking somebody out of
+their group also drops their visits), so "Change a session" also counts and
+names a word only from the session's own rows, and never beside an excused
+line (`saidFacts` handed the register's rows): a word left behind by any path is
+never counted. So if they
+are due at that session again and say it again, its facilitators are told
+again. That cannot email in a loop: between two such emails an admin or the
+programme's lead has to make them due at the session again, which is itself
+held to the visit's limits and tells the same facilitators; taking the word
+back and saying it again, which the person can do alone, keeps the stamp and
+sends nothing.
+
+**"Why:" under each session offered.** Read from the times the person gave
+on the application form that names the run, back to them alone, by
+`whyOfferedFor` (`src/lib/applications/handover/whyOffered.ts`): their own
+application as they last sent it, through the one reading of a painted week
+(`paintedWeekOf`), with the part of the week said as the freed-place email
+says it (`freeOnInTheirWeek`). It returns finished sentences only, never the
+week. "Why: you said you're free Wednesday evenings" for a session with a
+place in their times; "Why: not a time you gave, but there's room" for one
+with a place outside them; NO LINE with no application on that form (somebody
+who applied to the run itself), nothing painted, a full session, or a session
+in their times whose part of the day their week does not say (somebody who
+marked little time). In a view-as session it is not read. It changes neither
+the order of the list nor what can be chosen. The staff page for arranging a
+visit has no such line: that page also serves the programme's lead, whose
+screens show no painted week.
+
 **What the person sees.** On the card (Home and the programme page): "Go to
 another session this week" for the week offered; while it waits, the request
 first with "Withdraw the request", "Can't make it" and "I'm joining online"

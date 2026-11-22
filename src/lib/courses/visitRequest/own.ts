@@ -1,5 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { whyOfferedFor, type WhySession } from "@/lib/applications/handover/whyOffered";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
@@ -43,7 +44,9 @@ import {
  * live group of it. Anybody else is offered nothing and answered null.
  *
  * WHICH SESSIONS (`memberSessionChoices`): the staff visit's own, with its
- * own count of places left that week.
+ * own count of places left that week, each with why it is offered when the
+ * times they gave on the application form say something true
+ * (`whyOfferedFor`): words only, to them alone, never in a view-as session.
  */
 
 /** One request of theirs, as "Your requests" lists it. */
@@ -249,6 +252,9 @@ export async function anotherSessionFor(
   return anotherSessionOf(db, read.facts, input.now);
 }
 
+/** One session the form offers, with why it is offered ("Why: you said you’re free Wednesday evenings"), or null where nothing true can be said. */
+export type OfferedSessionView = VisitSessionChoiceView & { why: string | null };
+
 /** The form's page, as its server page draws it. */
 export type AnotherSessionPageView = {
   runId: string;
@@ -257,16 +263,45 @@ export type AnotherSessionPageView = {
     weekNumber: number;
     intro: string;
     legend: string;
-    choices: VisitSessionChoiceView[];
+    choices: OfferedSessionView[];
     /** No session of the week has a place. */
     noneWithAPlace: boolean;
   } | null;
   card: AnotherSessionView;
 };
 
+/**
+ * Each offered session as a weekly slot for the "Why:" reader: the host's
+ * session that week, its own weekday from its date, its start and length, and
+ * whether it has a place. Null with no day or time.
+ */
+function whySessionsOf(facts: VisitFacts, weekNumber: number, choices: readonly VisitSessionChoiceView[]): WhySession[] {
+  return choices.map((choice) => {
+    const host = facts.groups.find((group) => group.id === choice.groupId) ?? null;
+    const session = host ? (resolveSessions(facts.run, host).find((each) => each.weekNumber === weekNumber && each.occurrence === 1) ?? null) : null;
+    const slot =
+      session && session.dateKey && session.session.startTimeLocal
+        ? { weekday: new Date(`${session.dateKey}T12:00:00Z`).getUTCDay(), startTimeLocal: session.session.startTimeLocal, durationMinutes: session.session.durationMinutes }
+        : null;
+    return { key: choice.groupId, slot, hasRoom: !choice.full };
+  });
+}
+
 export async function anotherSessionPageFor(
   db: Firestore,
-  input: { user: SessionUser; run: CourseRunDoc; enrolment: CourseEnrolmentDoc | null; now: Date },
+  input: {
+    user: SessionUser;
+    run: CourseRunDoc;
+    enrolment: CourseEnrolmentDoc | null;
+    now: Date;
+    /**
+     * Whether this is a view-as session, worked out by the caller before
+     * anything is read: then the person's own application is neither read
+     * nor shown, so no session says why. Required, so no caller reads it by
+     * forgetting to ask.
+     */
+    viewingAs: boolean;
+  },
 ): Promise<AnotherSessionPageView | null> {
   if (!input.enrolment?.groupId || input.enrolment.uid !== input.user.uid) return null;
   const read = await readVisitFacts(dbReader(db), db, input.run.id, input.user.uid, "ahead", input.now, "member");
@@ -274,7 +309,13 @@ export async function anotherSessionPageFor(
   const card = await anotherSessionOf(db, read.facts, input.now);
   const week = card.offer ? ownWeeksAhead(read.facts, input.now).find((each) => each.weekNumber === card.offer?.weekNumber) ?? null : null;
   if (!week) return { runId: input.run.id, form: null, card };
-  const choices = memberSessionChoices(read.facts, week.weekNumber, input.now);
+  const offered = memberSessionChoices(read.facts, week.weekNumber, input.now);
+  // Their own times, back to them alone, as finished words. The order and
+  // what can be chosen are the list's own; a read that fails says nothing.
+  const why = input.viewingAs !== false
+    ? new Map<string, string>()
+    : await whyOfferedFor(db, { uid: input.user.uid, runId: input.run.id, sessions: whySessionsOf(read.facts, week.weekNumber, offered) }).catch(() => new Map<string, string>());
+  const choices: OfferedSessionView[] = offered.map((choice) => ({ ...choice, why: why.get(choice.groupId) ?? null }));
   return {
     runId: input.run.id,
     form: {
