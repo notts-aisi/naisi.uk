@@ -304,6 +304,19 @@ that closes by itself because nobody decided it before the session email
 nobody. The switch's route takes `{ on, which? }`, `which` naming a key of
 `REQUEST_EMAIL_SWITCHES` and the existing one when left out.
 
+**A new request to change group for good goes the same way.** When
+somebody asks from their own form (`src/lib/courses/moveRequest/ask.ts`), the
+admins are sent one email through the same send (`emailAdminsWords`), under
+the same switch and the same daily cap: who asked, the group they are in and
+the group they asked for, and the way to the request's page. Never their own
+words. Declining it and a reply without deciding email the person through the
+door of requests to be excused (`src/lib/courses/moveRequest/decide.ts`);
+approving it makes the move through the staff move's own writer, so the
+person and both groups' facilitators are sent exactly the move's emails
+(`src/lib/courses/staffMove/save.ts`), the person's with "Your request is
+approved." first and the reply last. Withdrawing, dismissing a decline and a
+request a staff move made moot email nobody.
+
 **A message to the team, to the admins, has a second switch, off unless
 switched on.** When a member sends the team a message from Ask the team
 (`src/lib/courses/teamAsk/ask.ts`), only an admin who switched on "Email me

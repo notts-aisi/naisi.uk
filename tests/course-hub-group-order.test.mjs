@@ -70,6 +70,15 @@ const READS_WITHOUT_A_LIST = new Map([
         "groups the place belongs to: never a list of groups on a page.",
     },
   ],
+  // A request to change group for good: its two groups, by name.
+  [
+    "src/lib/courses/moveRequest/page.ts",
+    {
+      why:
+        "The admins' rows and page of requests to change group read each run's groups to name the group asked from and " +
+        "the group asked for, and the one asked for's places: never a list of groups on a page.",
+    },
+  ],
   // A request to go to another session: whether it still waits.
   [
     "src/lib/courses/visitRequest/page.ts",

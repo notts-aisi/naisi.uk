@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { homeEvents } from "@/app/(app)/dashboard/homeData";
+import { changeGroupFor } from "@/lib/courses/moveRequest/own";
 import { nextSessionAnswersFor } from "@/lib/courses/nextSession/answers";
 import { readOwnCertificates } from "@/lib/courses/certificates/own";
 import { liveGroupsOf, runEndOf } from "@/lib/courses/finishing/runEnd";
@@ -170,6 +171,14 @@ export default async function RunHomePage({
     takesPart: access.isEnrolled,
     now: new Date(),
   });
+  // Changing group for good, on this page alone (never Home): its button, a
+  // request waiting, its decision's message and their own such requests, for
+  // somebody taking part (`changeGroupFor`, their own records by their own
+  // uid). A read that fails draws nothing.
+  const changeGroup =
+    db && access.isEnrolled
+      ? await changeGroupFor(db, { user: access.user, run: access.run, enrolment: access.enrolment, now: new Date() }).catch(() => null)
+      : null;
   // Where "Email the group" and "Email the whole cohort" open Messages, set
   // to that audience (`messagesEntriesFor`), for somebody who staffs the run
   // or facilitates one of its groups; read for nobody else. A link with no
@@ -251,6 +260,7 @@ export default async function RunHomePage({
       joiningOnline={joiningOnline}
       excused={excused}
       anotherSession={anotherSession}
+      changeGroup={changeGroup}
       viewAs={viewAs}
       uid={access.user.uid}
       {...(guide ? { guide } : {})}

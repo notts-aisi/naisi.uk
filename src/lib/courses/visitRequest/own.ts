@@ -11,6 +11,8 @@ import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { requestStandingOf, weeksAbout } from "../excused/model";
+import { moveStandingsOf } from "../moveRequest/standing";
+import { aRequestWaits } from "../requests/oneAtATime";
 import { dbReader, memberSessionChoices, ownWeeksAhead, readVisitFacts, type OwnWeek, type VisitFacts } from "../visit/plan";
 import type { VisitSessionChoiceView } from "../visit/view";
 import { hostRegisterIdOf, notHeldIn, visitRequestStandingOf, type SessionWhen, type VisitRequestStanding } from "./standing";
@@ -37,7 +39,8 @@ import {
  * their own group, still to come (`ownWeeksAhead`, the visit's own rule), and
  * only while nothing else stands that week: no visit, no request to be
  * excused about that session waiting, and no request of theirs to go to
- * another session waiting anywhere ("One request at a time"). The people who
+ * another session or to change group waiting anywhere ("One request at a
+ * time", `../requests/oneAtATime.ts`). The people who
  * can have a visit at all are the staff visit's (`readVisitFacts` as the
  * member): an active learner's told place in a group, on a run with more than
  * one live group that is not an incubator, of somebody who facilitates no
@@ -91,8 +94,8 @@ const iso = (at: Date | null): string | null => (at ? at.toISOString() : null);
 /** The week a person may ask about now, from the facts as the staff visit reads them; null when none. */
 export function offeredWeekOf(facts: VisitFacts, standings: ReadonlyMap<string, VisitRequestStanding>, now: Date): OwnWeek | null {
   if (facts.oneGroup) return null;
-  // One request at a time: one still waiting anywhere on the run.
-  if ([...standings.values()].some((standing) => standing.state === "waiting")) return null;
+  // One request at a time: one still waiting anywhere on the run, a request to change group among them.
+  if (aRequestWaits(standings.values(), moveStandingsOf(facts).values())) return null;
   const week = ownWeeksAhead(facts, now)[0] ?? null;
   if (!week) return null;
   if (visitInWeek(facts.place, week.weekNumber)) return null;

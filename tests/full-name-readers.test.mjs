@@ -445,6 +445,14 @@ const READERS = new Map([
     proof: ['names.set(snap.id, nameForViewer(viewer, accountNamesOf(data), "NAISI member"));'],
     why: "a message to the team, for admins alone (both loaders answer anybody else nothing): the sender, who has it and who replied, named for the reader",
   }],
+  ["src/lib/courses/moveRequest/page.ts", {
+    who: "rule",
+    proof: [
+      'names.set(user.id, nameForViewer(actor, accountNamesOf(data), "NAISI member"));',
+      'for (const snap of userSnaps) if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data() ?? {}), "NAISI member"));',
+    ],
+    why: "a request to change group for good, for admins alone: the person, who has it, who decided and replied, named for the reader",
+  }],
   ["src/lib/courses/visitRequest/page.ts", {
     who: "rule",
     proof: [

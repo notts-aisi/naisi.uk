@@ -67,9 +67,10 @@ const MAX_ADMINS = 50;
 
 /**
  * THE SWITCHES "Email me about new requests" can read, each a key of
- * `users/{uid}.requestEmails` with its own default. Requests to be excused and
- * requests to go to another session are both on `excused`, on unless an
- * admin stored false, so the one switch an admin already has covers both. A
+ * `users/{uid}.requestEmails` with its own default. Requests to be excused,
+ * to go to another session and to change group are all on `excused`, on
+ * unless an admin stored false, so the one switch an admin already has covers
+ * them all. A
  * later kind adds its own key here, with its own default.
  *
  * Messages to the team (`src/lib/courses/teamAsk/ask.ts`) are on `team`, OFF

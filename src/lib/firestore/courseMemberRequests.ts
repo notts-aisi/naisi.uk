@@ -5,7 +5,8 @@ import { COURSE_REQUEST_STATUSES, type CourseRequestStatus } from "./courseReque
  * of `courseRequests/{autoId}` (`./courseRequests.ts` holds the collection, its
  * rules and its one top-level shape), each read by its own normaliser in this
  * file. The first kind is going to another group's session for one week
- * (`visit`).
+ * (`visit`); the second, changing group for the rest of the programme
+ * (`move`).
  *
  * WHY ITS OWN NORMALISERS. Every normaliser of the collection reads the kind
  * first and answers null for any other: the correction readers
@@ -41,6 +42,17 @@ import { COURSE_REQUEST_STATUSES, type CourseRequestStatus } from "./courseReque
 
 /** The kinds this file reads. Not one of `COURSE_REQUEST_KINDS`, nor the excused kind. */
 export const VISIT_KIND = "visit";
+/**
+ * A MOVE REQUEST (`kind: "move"`): the person asks to change group for the
+ * rest of the programme. `groupId` is the group they are in now (the place's
+ * group when they asked) and `sessionKey` and `weekId` are "" (a move is about
+ * no one session). `change` holds the group they ask for, the week the move
+ * was made from once approved (`fromWeek`, written by the approval alone: the
+ * week is the staff move's rule at the press, never asked), and the place's
+ * record of groups by week as it read when they asked (`recordAsked`), so a
+ * move made since by anybody else is seen and the request goes with it.
+ */
+export const MOVE_KIND = "move";
 
 /** What each entry of these requests' history says happened. */
 export type MemberRequestEvent = "asked" | "taken" | "withdrawn" | "approved" | "declined" | "replied" | "dismissed";
@@ -115,6 +127,18 @@ export type VisitRequestChange = {
 };
 
 export type VisitRequestDoc = MemberRequestBase & { kind: typeof VISIT_KIND; change: VisitRequestChange };
+
+/** A move request's own payload. */
+export type MoveRequestChange = {
+  /** The group they ask to move to. */
+  toGroupId: string;
+  /** The first week in that group, written when it was approved; null before. */
+  fromWeek: number | null;
+  /** The place's record of groups by week when they asked (`placeRecordKey`): "" for none. */
+  recordAsked: string;
+};
+
+export type MoveRequestDoc = MemberRequestBase & { kind: typeof MOVE_KIND; change: MoveRequestChange };
 
 type Raw = Record<string, unknown>;
 
@@ -244,6 +268,33 @@ export function normalizeVisitRequest(id: string, data: Raw): VisitRequestDoc | 
       },
       // Only a strict true is the tick.
       online: change.online === true,
+    },
+  };
+}
+
+/** The longest record of groups by week kept as asked: a term's moves, with room to spare. */
+const RECORD_ASKED_MAX = 2000;
+
+/**
+ * A stored move request as every reader may trust it, or null for a document
+ * of another kind, or one that names no real run, no person, no group they
+ * are in or no group they ask for.
+ */
+export function normalizeMoveRequest(id: string, data: Raw): MoveRequestDoc | null {
+  if (data.kind !== MOVE_KIND) return null;
+  const change = (data.change && typeof data.change === "object" && !Array.isArray(data.change) ? data.change : {}) as Raw;
+  const base = memberRequestBaseOf(id, data, change);
+  if (!base || !base.runId || !base.subjectUid || !base.groupId) return null;
+  const toGroupId = uidOrEmpty(change.toGroupId);
+  if (!toGroupId || toGroupId === base.groupId) return null;
+  const fromWeek = typeof change.fromWeek === "number" && Number.isInteger(change.fromWeek) && change.fromWeek >= 1 && change.fromWeek <= 99 ? change.fromWeek : null;
+  return {
+    ...base,
+    kind: MOVE_KIND,
+    change: {
+      toGroupId,
+      fromWeek,
+      recordAsked: typeof change.recordAsked === "string" && change.recordAsked.length <= RECORD_ASKED_MAX ? change.recordAsked : "",
     },
   };
 }

@@ -188,6 +188,8 @@ type Facts = {
   visitsWaiting?: number;
   /** How many of them are register corrections, counted by themselves. */
   correctionsWaiting?: number;
+  /** How many of them are requests to change group. */
+  movesWaiting?: number;
   /** How many of them are messages to the team. */
   messagesWaiting?: number;
 };
@@ -207,6 +209,7 @@ export default function HomeAdmin({
   excusedWaiting = 0,
   visitsWaiting = 0,
   correctionsWaiting = 0,
+  movesWaiting = 0,
   messagesWaiting = 0,
 }: Facts) {
   const pending = usePendingCount();
@@ -240,7 +243,7 @@ export default function HomeAdmin({
     });
   }
   // A facilitator asked for a register to be corrected, or somebody asked to
-  // be excused or to go to another session: the Requests page.
+  // be excused, to go to another session or to change group: the Requests page.
   if (requestsWaiting > 0) {
     todo.push({
       key: "requests",
@@ -250,6 +253,7 @@ export default function HomeAdmin({
         corrections: correctionsWaiting,
         excused: excusedWaiting,
         visits: visitsWaiting,
+        moves: movesWaiting,
         messages: messagesWaiting,
       }),
       action: "Open",

@@ -1,5 +1,5 @@
 import "server-only";
-import type { Firestore } from "firebase-admin/firestore";
+import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { moveFromWeek, type MoveFromWeekRead } from "@/lib/courses/moveFromWeek";
 import { moveGroupUrl, movePersonUrl, sendMoveEmail, type MoveEmailOutcome } from "@/lib/email/moveEmail";
@@ -8,7 +8,7 @@ import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { weekDocId } from "@/lib/firestore/courses";
 import { moveLimitsIn } from "./limits";
 import { accountsIn, emailFor, moveRecipients, moveWeekFor, planMove, readMoveFacts, readNotHeld, runMoveRefusal, type MovePlan, type MoveRecipient, type MoveRefusal } from "./plan";
-import { MOVE_REFUSAL, changedWords, moveReasonForm, movedInDetail, movedOutDetail, movedWords } from "./words";
+import { MOVE_REFUSAL, changedWords, moveReasonForm, movedInDetail, movedOutDetail, movedWords, type MoveEmailFacts, type MoveEmailWords } from "./words";
 
 /**
  * THE SAVE OF A MOVE TO ANOTHER GROUP FOR GOOD, MADE MID-TERM: the route's
@@ -52,6 +52,21 @@ export type MoveSaveInput = {
   reason: string;
   actor: SessionUser;
   now: Date;
+  /**
+   * The person's own request this press approves (`../moveRequest/decide.ts`).
+   * `inTransaction` reads it again IN THIS TRANSACTION, after every other
+   * check, with what the transaction read, and hands back its decision's
+   * write, made with the move's own writes: a move is never written without
+   * its decision nor a decision without its move, and a withdraw or a second
+   * press racing it cannot both land. Its refusal stops the move with nothing
+   * written. The person's email is the approved one (`personWords`). Absent
+   * for a move staff make, which this leaves exactly as it was.
+   */
+  approves?: {
+    requestId: string;
+    inTransaction: (tx: Transaction, read: MoveFromWeekRead, weekNumber: number) => Promise<{ ok: true; write: () => void } | MoveRefusal>;
+    personWords: (facts: MoveEmailFacts) => MoveEmailWords;
+  };
 };
 
 /** What became of each email, by recipient. */
@@ -72,7 +87,8 @@ export type MoveChanged = { ok: false; status: 409; error: string; weekNumber: n
 
 type Stop =
   | { kind: "changed"; weekNumber: number | null; emails: number | null; error: string }
-  | { kind: "limit"; error: string };
+  | { kind: "limit"; error: string }
+  | { kind: "request"; status: number; error: string };
 
 export async function saveMove(db: Firestore, input: MoveSaveInput): Promise<MoveSaveAnswer | MoveRefusal | MoveChanged> {
   const read = await readMoveFacts(db, input.runId, input.uid);
@@ -86,6 +102,8 @@ export async function saveMove(db: Firestore, input: MoveSaveInput): Promise<Mov
   let counted: MoveRecipient[] = [];
   // Claims the limits on how often a move emails, once the move is going to be written.
   let claimLimits: () => void = () => {};
+  // Writes the decision of the request this press approves, with the move's own writes.
+  let writeDecision: () => void = () => {};
   const result = await moveFromWeek<Stop>(
     db,
     { runId: input.runId, uid: input.uid, toGroupId: input.toGroupId, fromWeek: plan.weekNumber },
@@ -117,10 +135,17 @@ export async function saveMove(db: Firestore, input: MoveSaveInput): Promise<Mov
           return { kind: "changed", weekNumber, emails: weekNumber === null ? null : recipients.length, error };
         }
         counted = recipients;
+        // The request this press approves, read again here, after every other check.
+        if (input.approves) {
+          const decision = await input.approves.inTransaction(tx, seen, input.weekNumber);
+          if (!decision.ok) return { kind: "request", status: decision.status, error: decision.error };
+          writeDecision = decision.write;
+        }
         return null;
       },
       alsoWrite(tx, seen) {
         claimLimits();
+        writeDecision();
         const actor = { uid: input.actor.uid, displayName: input.actor.displayName ?? "" };
         const shared = { run: seen.run, actor, weekId: weekDocId(plan.weekNumber), reason: moveReasonForm(input.reason) || null, emailed: counted.length, subjectUid: input.uid };
         tx.create(
@@ -150,6 +175,7 @@ export async function saveMove(db: Firestore, input: MoveSaveInput): Promise<Mov
   if (!result.ok) {
     if (result.refusal === "stopped") {
       if (result.stop.kind === "limit") return { ok: false, status: 429, error: result.stop.error };
+      if (result.stop.kind === "request") return { ok: false, status: result.stop.status, error: result.stop.error };
       return { ok: false, status: 409, error: result.stop.error, weekNumber: result.stop.weekNumber, emails: result.stop.emails };
     }
     if (result.refusal === "group-full") return { ok: false, status: 409, error: MOVE_REFUSAL.changed };
@@ -167,7 +193,7 @@ export async function saveMove(db: Firestore, input: MoveSaveInput): Promise<Mov
       actorUid: input.actor.uid,
       runId: input.runId,
       link: recipient.as === "person" ? movePersonUrl(appUrl, input.runId) : moveGroupUrl(appUrl, input.runId, recipient.as === "new" ? result.toGroupId : result.fromGroupId),
-      words: emailFor(plan, recipient),
+      words: recipient.as === "person" && input.approves ? input.approves.personWords(plan.emailFacts) : emailFor(plan, recipient),
     });
     each.push({ uid: recipient.uid, as: recipient.as, outcome });
   }

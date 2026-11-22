@@ -31,18 +31,22 @@ const VISIT_TONE: Record<OwnVisitRowState, string> = {
  * "YOUR REQUESTS": the person's own requests on this programme, one list,
  * newest first: to be excused, one row per week with where it stands and who
  * decided it and when (by first name), and to go to another group's session
- * for a week, one row each ("Group I for week 2"), with a reply under it when
- * there is one. Their own records only (`excusedFor`, `anotherSessionFor`),
+ * for a week, one row each ("Group I for week 2"), and to change group for
+ * good, one row each ("Move to Group I"), with a reply under it when there is
+ * one. Their own records only (`excusedFor`, `anotherSessionFor`),
  * and never a count of how often they have been excused. Drawn nothing with
  * none.
  */
 export default function OwnRequests({
   requests,
   visitRequests = [],
+  moveRequests = [],
   className,
 }: {
   requests: readonly OwnExcusedRequest[];
   visitRequests?: readonly OwnVisitRow[];
+  /** Their requests to change group for good, in the same shape (`ownMoveRowsOf`). */
+  moveRequests?: readonly OwnVisitRow[];
   className?: string;
 }) {
   const excusedRows = requests.flatMap((request) =>
@@ -51,8 +55,9 @@ export default function OwnRequests({
       .map((week) => ({ kind: "excused" as const, at: request.askedAt ?? "", request, week })),
   );
   const visitRows = visitRequests.map((row) => ({ kind: "visit" as const, at: row.askedAt ?? "", row }));
-  // Newest first across both kinds; a request's own weeks keep their order.
-  const rows = [...excusedRows, ...visitRows].sort((a, b) => b.at.localeCompare(a.at));
+  const moveRows = moveRequests.map((row) => ({ kind: "move" as const, at: row.askedAt ?? "", row }));
+  // Newest first across every kind; a request's own weeks keep their order.
+  const rows = [...excusedRows, ...visitRows, ...moveRows].sort((a, b) => b.at.localeCompare(a.at));
   if (rows.length === 0) return null;
   const now = new Date();
   return (
@@ -62,8 +67,8 @@ export default function OwnRequests({
       </h2>
       <ul className={styles.ownRows} role="list">
         {rows.map((each) =>
-          each.kind === "visit" ? (
-            <li key={each.row.id} className={styles.ownRow} data-kind="visit">
+          each.kind === "visit" || each.kind === "move" ? (
+            <li key={each.row.id} className={styles.ownRow} data-kind={each.kind}>
               <div className={styles.ownBody}>
                 <p className={styles.ownTitle}>{each.row.title}</p>
                 <p className={styles.small}>{each.row.line}</p>

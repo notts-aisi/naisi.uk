@@ -75,14 +75,14 @@ import {
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; status: number; error: string; extra?: Record<string, unknown> };
 
-const fail = (status: number, error: string, extra?: Record<string, unknown>): { ok: false; status: number; error: string; extra?: Record<string, unknown> } => ({
+export const fail = (status: number, error: string, extra?: Record<string, unknown>): { ok: false; status: number; error: string; extra?: Record<string, unknown> } => ({
   ok: false,
   status,
   error,
   ...(extra ? { extra } : {}),
 });
 
-class Refused extends Error {
+export class Refused extends Error {
   constructor(
     readonly status: number,
     message: string,
@@ -91,7 +91,7 @@ class Refused extends Error {
   }
 }
 
-function caught(err: unknown): { ok: false; status: number; error: string } {
+export function caught(err: unknown): { ok: false; status: number; error: string } {
   if (err instanceof Refused) return fail(err.status, err.message);
   throw err;
 }
@@ -107,15 +107,15 @@ async function readKind<T extends MemberRequestBase>(db: Firestore, requestId: s
   return snap.exists ? reader(snap.id, snap.data() ?? {}) : null;
 }
 
-async function kindInTransaction<T extends MemberRequestBase>(tx: Transaction, db: Firestore, id: string, reader: KindReader<T>): Promise<T> {
+export async function kindInTransaction<T extends MemberRequestBase>(tx: Transaction, db: Firestore, id: string, reader: KindReader<T>): Promise<T> {
   const snap = await tx.get(db.collection(COURSE_REQUESTS_COLLECTION).doc(id));
   const request = snap.exists ? reader(snap.id, snap.data() ?? {}) : null;
   if (!request) throw new Refused(409, EXCUSED_REFUSAL.notFound);
   return request;
 }
 
-/** An admin, for a request somebody else asked; anybody else learns nothing of it. */
-async function forAdmin<T extends MemberRequestBase>(db: Firestore, actor: SessionUser, requestId: string, reader: KindReader<T>): Promise<Outcome<T>> {
+/** An admin, for a request somebody else asked; anybody else learns nothing of it. Every kind's deciding routes ask it. */
+export async function forAdmin<T extends MemberRequestBase>(db: Firestore, actor: SessionUser, requestId: string, reader: KindReader<T>): Promise<Outcome<T>> {
   if (actor.role !== "admin") return fail(403, "Forbidden");
   const request = await readKind(db, requestId, reader);
   if (!request) return fail(404, EXCUSED_REFUSAL.notFound);
@@ -123,8 +123,8 @@ async function forAdmin<T extends MemberRequestBase>(db: Firestore, actor: Sessi
   return { ok: true, value: request };
 }
 
-/** The asker, for their own request; an admin is told it is not theirs, anybody else nothing. */
-async function forAsker<T extends MemberRequestBase>(db: Firestore, actor: SessionUser, requestId: string, reader: KindReader<T>): Promise<Outcome<T>> {
+/** The asker, for their own request; an admin is told it is not theirs, anybody else nothing. Every kind's withdraw and dismiss ask it. */
+export async function forAsker<T extends MemberRequestBase>(db: Firestore, actor: SessionUser, requestId: string, reader: KindReader<T>): Promise<Outcome<T>> {
   const request = await readKind(db, requestId, reader);
   if (!request) return actor.role === "admin" ? fail(404, EXCUSED_REFUSAL.notFound) : fail(403, "Forbidden");
   if (request.askedByUid !== actor.uid) return actor.role === "admin" ? fail(403, WITHDRAW_REFUSAL.notYours) : fail(403, "Forbidden");
@@ -147,7 +147,7 @@ async function standingIn(tx: Transaction, db: Firestore, request: VisitRequestD
 }
 
 /** The person's first name, from their account: "" with none. */
-async function firstNameOf(db: Firestore, uid: string): Promise<{ firstName: string; email: string }> {
+export async function firstNameOf(db: Firestore, uid: string): Promise<{ firstName: string; email: string }> {
   if (!isAddressableId(uid)) return { firstName: "", email: "" };
   const snap: DocumentSnapshot = await db.collection("users").doc(uid).get();
   const data = (snap.exists ? snap.data() : {}) ?? {};
@@ -313,7 +313,7 @@ export async function declineVisitRequest(
   return { ok: true, value: { status: "declined", emailed: { person: personOutcome } } };
 }
 
-async function groupNames(db: Firestore, ids: readonly string[]): Promise<Map<string, string>> {
+export async function groupNames(db: Firestore, ids: readonly string[]): Promise<Map<string, string>> {
   const wanted = [...new Set(ids)].filter(isAddressableId);
   const snaps = wanted.length ? await db.getAll(...wanted.map((id) => db.collection("courseGroups").doc(id))) : [];
   return new Map(snaps.filter((snap) => snap.exists).map((snap) => [snap.id, normalizeCourseGroup(snap.id, snap.data() ?? {}).name]));

@@ -8,6 +8,8 @@ import { VISIT_KIND } from "@/lib/firestore/courseMemberRequests";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
 import { ADMIN_EMAILS_A_DAY, adminsToldTodayIn, askerNameForAdmins, emailAdminsWords } from "../excused/alert";
 import { memberSessionChoices, planVisit, readVisitFacts, txReader } from "../visit/plan";
+import { aRequestWaits } from "../requests/oneAtATime";
+import { moveStandingsOf } from "../moveRequest/standing";
 import { offeredWeekOf, standingsOf } from "./own";
 import type { VisitAskPress } from "./model";
 import { ASK_REFUSAL, newVisitRequestEmailWords } from "./words";
@@ -26,7 +28,8 @@ import { ASK_REFUSAL, newVisitRequestEmailWords } from "./words";
  * EVERY REFUSAL IS ONE SENTENCE AND WRITES NOTHING: nothing can be asked
  * (no place, no week, a visit standing, their session started, a request to
  * be excused waiting about it); one waiting already ("One request at a
- * time", over their requests of this kind on this run alone); no session
+ * time", over their requests of this kind and of a change of group on this
+ * run, `../requests/oneAtATime.ts`); no session
  * chosen; one the form no longer offers; one that has just filled.
  *
  * WHAT IT WRITES: one `courseRequests` document of kind `visit`, in a
@@ -56,7 +59,8 @@ export async function askForVisit(db: Firestore, user: SessionUser, runId: strin
     if (!read.ok) return refuse(404, ASK_REFUSAL.nothingToAsk);
     const { facts } = read;
     const standings = standingsOf(facts, now);
-    if ([...standings.values()].some((standing) => standing.state === "waiting")) return refuse(409, ASK_REFUSAL.alreadyWaiting);
+    // One request at a time, across kinds: a request to change group waiting counts too.
+    if (aRequestWaits(standings.values(), moveStandingsOf(facts).values())) return refuse(409, ASK_REFUSAL.alreadyWaiting);
     const week = offeredWeekOf(facts, standings, now);
     if (!week) return refuse(409, ASK_REFUSAL.nothingToAsk);
     const choices = memberSessionChoices(facts, week.weekNumber, now);

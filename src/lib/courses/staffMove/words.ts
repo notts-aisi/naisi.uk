@@ -122,17 +122,22 @@ export type MoveEmailFacts = {
  * To the person: "You’re moving to Group F". Their first word of the move,
  * and the approved words: the new group's line (what it has), their first
  * session, the weeks that come with them (left out when none do), and that
- * they don't go to the old group's sessions. No footnote.
+ * they don't go to the old group's sessions. No footnote. When it approves
+ * the person's own request (`approved`, `../moveRequest/decide.ts`), the
+ * approved first sentence ("Your request is approved.") opens it and the
+ * reply, when there is one, closes it; a move staff made says neither.
  */
-export function personEmailWords(facts: MoveEmailFacts): MoveEmailWords {
+export function personEmailWords(facts: MoveEmailFacts, approved: { first: string; quote: string | null } | null = null): MoveEmailWords {
   const to = groupName(facts.to.name);
   const details = groupDetailsWords(facts.to);
   const first = dayWords(facts.firstSessionDateKey);
   const weeks = weeksWords(facts.weeksThatCome);
   const lines = [
+    ...(approved ? [approved.first] : []),
     `From week ${facts.weekNumber} you’re in ${to}${details ? `: ${details}` : ""}.${first ? ` Your first session with them is ${first}.` : ""}`,
     ...(weeks ? [`Your work and feedback from ${weeks} come with you.`] : []),
     `From week ${facts.weekNumber} you’re no longer in ${groupName(facts.fromName)}, so you don’t need to go to its sessions.`,
+    ...(approved?.quote ? [approved.quote] : []),
   ];
   return { subject: `You’re moving to ${to}`, lines, button: "Open your programme page", footnote: "" };
 }

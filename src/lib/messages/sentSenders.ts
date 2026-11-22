@@ -54,7 +54,7 @@ export const SENT_KINDS: Record<EmailSendKind, SentEntry> = {
   "course-enrolment": { notListed: "Somebody joining or leaving a run: their own confirmation." },
   "course-request": {
     notListed:
-      "One email to each admin who decides them, saying a request to be excused, or to go to another group’s session for a week, has arrived, or a message to the team for an admin who switched that on. Never the reason, never what they wrote.",
+      "One email to each admin who decides them, saying a request to be excused, to go to another group’s session for a week, or to change group for good, has arrived, or a message to the team for an admin who switched that on. Never the reason, never what they wrote.",
   },
   "team-reply": { notListed: "A reply to one person’s own message to the team." },
   "course-joining-online": {
@@ -62,7 +62,7 @@ export const SENT_KINDS: Record<EmailSendKind, SentEntry> = {
   },
   "course-move": {
     notListed:
-      "A move to another group for good, made mid-term: one email to the person moved and one to each facilitator of the two groups. Never the reason.",
+      "A move to another group for good, made mid-term by staff or approved at the person’s own request: one email to the person moved and one to each facilitator of the two groups. Never the reason.",
   },
   "course-visit": {
     notListed:

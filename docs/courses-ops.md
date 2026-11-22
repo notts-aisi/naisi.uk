@@ -2846,6 +2846,71 @@ the reply. "Your requests" lists these with their requests to be excused, one
 list, newest first. The form is at `/learn/[runId]/another-session` and says
 for itself when nothing can be asked.
 
+## A member asks to change group for good
+
+The person asks from their programme page ("Change group for good", with the
+card's buttons, and a line at the foot of the one-week form); an admin
+decides. Only admins decide, and a programme's lead sees nothing of these: no
+row, no page, no count. Every sentence the person reads says "An admin
+decides." The form is at `/learn/[runId]/change-group`.
+
+**The record.** One `courseRequests` document of kind `move`, read only by its
+own normaliser (`normalizeMoveRequest`, `src/lib/firestore/courseMemberRequests.ts`),
+on the shared base the one-week request uses. `groupId` is the group they are
+in when they ask; `sessionKey` and `weekId` are empty; `change` holds the
+group they ask for, the week the move was made from once approved
+(`fromWeek`), and the place's record of groups by week as it read when they
+asked (`recordAsked`). Their reason ("Why (needed)", one line, no link) is
+kept on the request alone and read only by admins on the request's page:
+never in a row, a count, an email, a group's history or a log line. It goes
+with the account and with the run like every request.
+
+**What can be asked.** Only somebody the staff move could move (an active
+learner's told place in a group that still meets, a run that takes a move
+with more than one live group and no incubator, nobody who facilitates a live
+group of it), with a session of their own still to come to move from, and
+nothing else of theirs waiting: one request at a time across this kind and a
+request to go to another session (`src/lib/courses/requests/oneAtATime.ts`,
+asked by both kinds' asks and both ways in). Requests to be excused keep
+their own rules. "Groups with a place" is the staff move's own count (its
+capacity less its people now), full ones left out, each with the one-week
+form's "Why:" line from the times the person gave (`whyOfferedFor`, by the
+group's usual weekly slot), never read in a view-as session. The week is never asked:
+the staff move's rule decides it at the approval, and the request's page shows
+what it gives now, or its refusal.
+
+**Where it stands** is worked out at read time, never stored
+(`moveRequestStandingOf`, `src/lib/courses/moveRequest/standing.ts`, handed
+the run, its groups and the place by every reader): a stored `waiting`
+request is GONE in every state in which no move could ever approve it: the
+run takes no move; the person no longer holds a place the staff move would
+move (taken off, left, a seat Publish has not told, or they now facilitate a
+group of the run); they have been moved since they asked (a staff move, a
+move on the allocation board, its own approval); or the group they asked
+from or for no longer meets. Nothing is written and nobody is emailed; it is
+on no list and in no count, and its page says why. A staff move of somebody
+whose request waits is therefore never refused: the request goes with the
+move. A request whose person has no session left to move from stays waiting
+(the week rule refuses it at the approval): an admin declines it, and the
+person can withdraw it from their programme page, where it is drawn on its own
+when no session card is left to carry it.
+
+**Approving** calls `saveMove` with the request's decision as a hook in the
+same transaction (`approves`): the request is read again inside the move's
+own transaction after every other check, and the move and the decision (with
+`fromWeek`) are written together or not at all. Everything the staff move
+refuses is refused in its own sentence (a full group, the week rule, the
+limits on a move's emails, a week or a count that changed since the page).
+The rows on both groups' history are the staff move's own with no reason.
+
+**What the person sees** (the programme page only, never Home): while it
+waits, the request on the card with "Withdraw the request"; a decline at the
+top with "Dismiss", until dismissed or a week after the decision (there is no
+session for it to pass); once approved, "You're in Group I from week 3. Your
+work, its feedback and your attendance came with you." with who approved it,
+while they are still in that group, until their first session with it starts
+and never longer than a week. "Your requests" lists these with the other kinds, one list.
+
 ## A programme's lead on the run their programme names
 
 Each programme's lead does, for their own programme, what an admin does from
