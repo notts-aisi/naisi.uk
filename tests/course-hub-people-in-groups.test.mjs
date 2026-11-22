@@ -508,6 +508,8 @@ describe("3. the board says what the records say, in the board's words", () => {
     assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
     const { text: said } = await open(PeoplePage, "claudia");
     assert.ok(said.endsWith(words.AFTER_PUBLISH_LEAD), said.slice(-200));
+    // Once the groups have gone out there is no Select several: each move asks its own question.
+    assert.doesNotMatch(said, /Select several/, "Select several is drawn after the groups have gone out");
     assert.equal(
       words.AFTER_PUBLISH_LEAD,
       "People see their group only when an admin publishes. Somebody told their group sees a move at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until an admin publishes again.",
