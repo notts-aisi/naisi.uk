@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAddressableId } from "@/lib/addressableId";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { namingOf } from "@/lib/courses/weekPlanEdit/facts";
+import { guideWeeksOf } from "@/lib/courses/weekPlanEdit/guide";
 import { planStepOf } from "@/lib/courses/weekPlanEdit/model";
 import { NOT_NAMED, PLAN_BODY, PLAN_NOT_YOURS, RUN_GONE } from "@/lib/courses/weekPlanEdit/words";
 import { changeWeekPlan } from "@/lib/courses/weekPlanEdit/write";
@@ -74,7 +75,7 @@ export async function POST(req: Request, ctx: Params) {
   }
 
   try {
-    const answer = await changeWeekPlan(db, runId, naming, shaped.step, shaped.planKey);
+    const answer = await changeWeekPlan(db, runId, naming, shaped.step, shaped.planKey, (courseId, tx) => guideWeeksOf(db, courseId, tx));
     if (!answer.ok) return NextResponse.json({ error: answer.error }, { status: answer.status });
     return NextResponse.json({ ok: true, message: answer.message });
   } catch (err) {

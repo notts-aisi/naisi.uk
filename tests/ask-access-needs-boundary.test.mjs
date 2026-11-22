@@ -176,6 +176,7 @@ const READS_REQUESTS = new Map([
   ["src/lib/courses/weekRooms/load.ts", "a week's rooms count the visits into each session, through normalizeVisitRequest"],
   ["src/lib/firestore/accountDeletion.ts", "the account cascade deletes a person's requests by two equalities and reads none of them"],
   ["src/lib/firestore/courseDeletion.ts", "a run's destroy drains its requests by runId and counts them; it reads none of them"],
+  ["src/lib/courses/weekPlanEdit/kept.ts", "the week plan's check before a week moves or goes: it counts the run's rows by one equality on the run, and reads none of them"],
   ["src/lib/firestore/courseRequests.ts", "the collection's own module and the correction normaliser, which checks the kind first (point 1b)"],
 ]);
 

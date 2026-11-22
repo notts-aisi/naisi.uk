@@ -3482,6 +3482,16 @@ export const ROUTES = {
         "forbidden before the body is read.",
     },
   },
+  "/api/courses/runs/[runId]/week-plan": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: a run's week plan is changed by the lead " +
+        "of the programme that names the run and admins, decided from the forms before anything of the run " +
+        "is read, so every other session is forbidden and a run id says nothing. The admin meets the body " +
+        "check: an empty body names no change.",
+    },
+  },
   "/api/courses/runs/[runId]/updates": {
     GET: {
       expect: adminOnly(404),
@@ -8180,6 +8190,20 @@ export const REAL_ROUTES = {
   },
   "/api/courses/runs/[runId]/status": {
     POST: courseApprovers("Moving a run's status", c(400, "An approver meets the body check: no status.")),
+  },
+  "/api/courses/runs/[runId]/week-plan": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Not the lead of the programme that names the run, so refused from the forms before anything of the run is read: the week plan is the lead's and an admin's."),
+        admin: c(400, "An admin is admitted and meets the body check: an empty body names no change, so nothing is read or written."),
+      },
+      theirs: {
+        lead: c(400, "Leads the programme that names the run, so admitted, and meets the body check: an empty body names no change."),
+        facilitator: c(403, "Facilitating a group is not leading the programme: refused before anything of the run is read."),
+        participant: c(403, "Holding a place is not leading the programme: refused before anything of the run is read."),
+      },
+    },
   },
   "/api/courses/runs/[runId]/updates": {
     GET: {

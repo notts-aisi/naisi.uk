@@ -1,12 +1,12 @@
 import "server-only";
 import { FieldValue, type DocumentReference, type Firestore } from "firebase-admin/firestore";
 import type { NamingProgramme } from "@/lib/courses/programmeLead";
+import type { GuideWeeksReader } from "./guide";
 import { WEEK_HISTORY_SUBCOLLECTION, WEEK_LOCK_SUBCOLLECTION } from "@/lib/courses/weekEdit/paths";
 import { applyStep, breakLabelOf, finalSources, planKeyOf, touchedAddresses, type PlanStep, type StepProblem } from "./model";
 import {
   EMPTY_ADDRESS,
   docHolds,
-  guideWeeksOf,
   judgeChange,
   lockIsLive,
   readDone,
@@ -39,7 +39,9 @@ import {
  * Read in the transaction, so a change that lands first makes it run again:
  * the run, that the programme still names it, the run's weeks, what every
  * touched address holds under it (its saved versions and its edit lock),
- * everything the owner's rule asks (`readDone`) and the guide's week numbers.
+ * everything the owner's rule asks (`readDone`) and the guide's week numbers
+ * (handed in by the route, `./guide.ts`, so this module never reaches the
+ * guide's store).
  * Then `judgeChange`, the judgement the page asked, and only then the writes:
  *
  *  - each touched address is given exactly what its new week's address held
@@ -93,6 +95,7 @@ export async function changeWeekPlan(
   naming: NamingProgramme,
   step: PlanStep,
   planKey: string,
+  guideWeeksOf: GuideWeeksReader,
   now: Date = new Date(),
 ): Promise<PlanAnswer> {
   const runRef = db.collection("courseRuns").doc(runId);
@@ -147,11 +150,11 @@ export async function changeWeekPlan(
         };
       };
 
-      const [{ done, anybodyOnRun, ownCalendars }, guideWeeks] = await Promise.all([
+      const [{ done, anybodyOnRun, ownCalendars, told }, guideWeeks] = await Promise.all([
         readDone(db, run, naming, tx),
-        guideWeeksOf(db, run.courseId, tx),
+        guideWeeksOf(run.courseId, tx),
       ]);
-      const refusal = judgeChange({ standing, done, anybodyOnRun, guideWeeks, ownCalendars, holds }, change);
+      const refusal = judgeChange({ standing: told ? "gone-out" : standing, done, anybodyOnRun, guideWeeks, ownCalendars, holds }, change);
       if (refusal) throw new Refusal(refusal, 409);
 
       // ---- The writes ----

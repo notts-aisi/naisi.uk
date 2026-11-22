@@ -4,11 +4,11 @@ import { dayRangeWords } from "@/lib/courses/sessionChange/words";
 import { WEEK_HISTORY_SUBCOLLECTION, WEEK_LOCK_SUBCOLLECTION } from "@/lib/courses/weekEdit/paths";
 import { addDaysToKey, isValidDateKey } from "@/lib/courses/weekPlan";
 import { weekDocId } from "@/lib/firestore/courses";
+import { guideWeeksOf } from "./guide";
 import { applyStep, planHasDrifted, planKeyOf, type PlanStep } from "./model";
 import {
   EMPTY_ADDRESS,
   docHolds,
-  guideWeeksOf,
   judgeChange,
   lockIsLive,
   namingOf,
@@ -76,7 +76,7 @@ export async function loadWeekPlanView(db: Firestore, runId: string, now: Date =
   const run = runOf(runId, raw);
   if (!run || !raw || !naming) return null;
   const plan = storedPlan(raw);
-  const standing = standingOf(raw, run);
+  const stamped = standingOf(raw, run);
 
   // Every address a step could touch: the plan's own and each number's.
   const weeksInPlan = plan.filter((entry) => entry.kind === "week").length;
@@ -87,7 +87,7 @@ export async function loadWeekPlanView(db: Firestore, runId: string, now: Date =
   const weeks = runRef.collection("weeks");
   const [weekSnap, done, guideWeeks, under] = await Promise.all([
     weeks.get(),
-    standing === "open" ? readDone(db, run, naming) : Promise.resolve({ done: null, anybodyOnRun: true, ownCalendars: [] as string[] }),
+    stamped === "open" ? readDone(db, run, naming) : Promise.resolve({ done: null, anybodyOnRun: true, ownCalendars: [] as string[], told: false }),
     guideWeeksOf(db, run.courseId),
     Promise.all(
       [...addresses].map(async (address) => {
@@ -107,7 +107,8 @@ export async function loadWeekPlanView(db: Firestore, runId: string, now: Date =
     if (!below) return base;
     return { ...base, history: below.history, locks: below.locks.length, liveLock: below.locks.some((lock) => lockIsLive(lock, now)) };
   };
-  const facts: PlanFacts = { standing, ...done, guideWeeks, holds };
+  const standing = done.told ? "gone-out" : stamped;
+  const facts: PlanFacts = { standing, done: done.done, anybodyOnRun: done.anybodyOnRun, ownCalendars: done.ownCalendars, guideWeeks, holds };
   const judge = (step: PlanStep): string | null => {
     const applied = applyStep(plan, step);
     return applied.ok ? judgeChange(facts, applied.change) : "";

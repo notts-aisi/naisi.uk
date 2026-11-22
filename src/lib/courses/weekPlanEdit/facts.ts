@@ -3,27 +3,12 @@ import type { Firestore, Query, Transaction } from "firebase-admin/firestore";
 import { formRef } from "@/lib/applications/repo";
 import { own } from "@/lib/applications/keys";
 import { isApplicationForm, normaliseForm } from "@/lib/applications/normalise";
-import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
-import { courseGuideWeekNumbers } from "@/lib/courses/facilitatorGuide/store";
 import { readNamingProgramme, type NamingProgramme } from "@/lib/courses/programmeLead";
 import { holdIsLive, readHold } from "@/lib/courses/weekEdit/lock";
 import { WEEK_HISTORY_SUBCOLLECTION, WEEK_LOCK_SUBCOLLECTION } from "@/lib/courses/weekEdit/paths";
 import { weekIsReady } from "@/lib/courses/weekReady";
-import { CHECK_IN_WEEKS_COLLECTION } from "@/lib/firestore/checkInWeeks";
-import { COURSE_EXPLAINERS_COLLECTION } from "@/lib/firestore/courseExplainers";
-import { COURSE_FEEDBACK_COLLECTION } from "@/lib/firestore/courseFeedback";
-import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "@/lib/firestore/courseGroupSharedNotes";
-import { COURSE_MATERIAL_NOTES_COLLECTION } from "@/lib/firestore/courseMaterialNotes";
-import { COURSE_NOTE_DRAFTS_COLLECTION } from "@/lib/firestore/courseNoteDrafts";
-import { COURSE_PACKS_AND_CASES_COLLECTION } from "@/lib/firestore/coursePacksAndCases";
-import { COURSE_PAIRS_COLLECTION } from "@/lib/firestore/coursePairs";
-import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
-import { COURSE_SESSION_REPORTS_COLLECTION } from "@/lib/firestore/courseSessionReports";
-import { COURSE_WEEK_REVIEWS_COLLECTION } from "@/lib/firestore/courseWeekReviews";
-import { COURSE_WEEK_WORK_COLLECTION } from "@/lib/firestore/courseWeekWork";
-import { COURSE_WORK_LOG_COLLECTION } from "@/lib/firestore/courseWorkLog";
-import { COURSE_WORK_RATINGS_COLLECTION } from "@/lib/firestore/courseWorkRatings";
 import { normalizeCourseRun, sanitizeWeekPlan, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
+import { countWeekKept } from "./kept";
 import { finalSources, touchedAddresses, type PlanChange } from "./model";
 import {
   DONE_RECORDS,
@@ -57,14 +42,17 @@ import {
  * groups have gone out the plan is read only.
  *
  * "Nothing is kept against the run's weeks" is asked of everything on the
- * site found by a week's number or address (`WORK_COLLECTIONS` and
- * `RECORD_COLLECTIONS`, one count on the run's id each, so nobody's row is
- * read; `tests/course-week-plan.test.mjs` holds the lists against every
- * collection that stores a week), of the run's places (a one-week visit, a
+ * site found by a week's number or address (`./kept.ts`, one count on the
+ * run's id each, so nobody's row is read; `tests/course-week-plan.test.mjs`
+ * holds its lists against every collection that stores a week), of the run's places (a one-week visit, a
  * move from a week, an answer about the time naming sessions), of the run's
  * groups (their own copy of a week, a change to one week, how a week meets,
  * their own calendar), and of week 1's door: once decisions are sent and
  * week 1 is ready, everybody holding a place may open it.
+ *
+ * The groups have gone out once Publish has stamped the run
+ * (`allocationPublishedAt`) or told anybody their group (a place's
+ * `allocatedEmailAt`): either makes the plan read only.
  *
  * ## The facilitators' guide
  *
@@ -74,7 +62,9 @@ import {
  * refused whenever the guide holds anything for the old number or the new
  * one, and a week with something in the guide is never removed: a facilitator
  * of this run never reads one week's plan against another week, and a
- * facilitator of another run reads exactly what they read before.
+ * facilitator of another run reads exactly what they read before. The guide's
+ * week numbers are read in `./guide.ts` and handed in, so nothing that writes
+ * a week reaches the guide's store.
  *
  * ## What a week's address holds
  *
@@ -83,33 +73,6 @@ import {
  * all of it; a removal deletes it only when the document holds no more than
  * the week's title and settings and there is no saved version.
  */
-
-/** People's work on the run, each found by a week's number or address. */
-export const WORK_COLLECTIONS = [
-  "courseProgress",
-  "courseExerciseResponses",
-  COURSE_PACKS_AND_CASES_COLLECTION,
-  COURSE_WEEK_WORK_COLLECTION,
-  COURSE_WORK_LOG_COLLECTION,
-  COURSE_FEEDBACK_COLLECTION,
-  COURSE_WORK_RATINGS_COLLECTION,
-  COURSE_PAIRS_COLLECTION,
-  BEST_ANSWERS_COLLECTION,
-  PANGRAM_CHECKS_COLLECTION,
-] as const;
-
-/** The run's records about its weeks: registers, reviews, notes, requests, check-ins. */
-export const RECORD_COLLECTIONS = [
-  "courseAttendance",
-  COURSE_WEEK_REVIEWS_COLLECTION,
-  COURSE_MATERIAL_NOTES_COLLECTION,
-  COURSE_NOTE_DRAFTS_COLLECTION,
-  COURSE_EXPLAINERS_COLLECTION,
-  COURSE_SESSION_REPORTS_COLLECTION,
-  COURSE_GROUP_SHARED_NOTES_COLLECTION,
-  COURSE_REQUESTS_COLLECTION,
-  CHECK_IN_WEEKS_COLLECTION,
-] as const;
 
 /** Every subcollection a week's address can hold. */
 export const WEEK_SUBCOLLECTIONS = [WEEK_HISTORY_SUBCOLLECTION, WEEK_LOCK_SUBCOLLECTION] as const;
@@ -199,20 +162,13 @@ export async function readDone(
   run: CourseRunDoc,
   naming: NamingProgramme,
   tx?: Transaction,
-): Promise<{ done: string | null; anybodyOnRun: boolean; ownCalendars: string[] }> {
+): Promise<{ done: string | null; anybodyOnRun: boolean; ownCalendars: string[]; told: boolean }> {
   const get = (query: Query) => (tx ? tx.get(query) : query.get());
-  const count = async (collection: string) => {
-    const aggregate = db.collection(collection).where("runId", "==", run.id).count();
-    const snap = tx ? await tx.get(aggregate) : await aggregate.get();
-    return snap.data().count;
-  };
   const weekOneRef = db.collection("courseRuns").doc(run.id).collection("weeks").doc(weekDocId(1));
-  const [work, records, places, groups, applications, formSnap, weekOne] = await Promise.all([
-    Promise.all(WORK_COLLECTIONS.map(count)),
-    Promise.all(RECORD_COLLECTIONS.map(count)),
+  const [kept, places, groups, formSnap, weekOne] = await Promise.all([
+    countWeekKept(db, run.id, tx),
     get(db.collection("courseEnrolments").where("runId", "==", run.id)),
     get(db.collection("courseGroups").where("runId", "==", run.id)),
-    count("courseApplications"),
     tx ? tx.get(formRef(db, naming.roundId)) : formRef(db, naming.roundId).get(),
     tx ? tx.get(weekOneRef) : weekOneRef.get(),
   ]);
@@ -238,6 +194,9 @@ export async function readDone(
     if (changed && changedGroup === null) changedGroup = name;
   });
 
+  // Publish has told somebody their group: the groups have gone out, whether
+  // or not the run's own stamp says so.
+  const told = places.docs.some((doc) => (doc.data() ?? {}).allocatedEmailAt != null);
   const placeRecords = places.docs.some((doc) => {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     return nonEmptyList(data.visits) || nonEmptyList(data.groupsByWeek) || (data.timeAnswer !== undefined && data.timeAnswer !== null);
@@ -246,13 +205,13 @@ export async function readDone(
   const weekOneOpen = decisionsSent && weekOne.exists && weekIsReady(weekOne.data() as { published?: boolean; ready?: boolean });
 
   let done: string | null = null;
-  if (work.some((n) => n > 0)) done = DONE_WORK;
+  if (kept.work > 0) done = DONE_WORK;
   else if (weekOneOpen) done = DONE_WEEK_ONE;
   else if (changedGroup !== null) done = doneGroupWords(changedGroup);
-  else if (records.some((n) => n > 0) || placeRecords) done = DONE_RECORDS;
+  else if (kept.records > 0 || placeRecords) done = DONE_RECORDS;
 
-  const anybodyOnRun = decisionsSent || places.docs.length > 0 || applications > 0;
-  return { done, anybodyOnRun, ownCalendars: ownCalendars.sort((a, b) => a.localeCompare(b, "en-GB")) };
+  const anybodyOnRun = decisionsSent || places.docs.length > 0 || kept.applications > 0;
+  return { done, anybodyOnRun, ownCalendars: ownCalendars.sort((a, b) => a.localeCompare(b, "en-GB")), told };
 }
 
 /** The programme that names the run, and that it still does on its own form. */
@@ -278,11 +237,6 @@ export function runOf(id: string, raw: Record<string, unknown> | undefined): Cou
 /** The plan as stored, every entry the normaliser keeps. */
 export function storedPlan(raw: Record<string, unknown>) {
   return sanitizeWeekPlan(raw.weekPlan);
-}
-
-/** The guide's week numbers, for the course a run belongs to; none for a run tied to no course. */
-export async function guideWeeksOf(db: Firestore, courseId: string, tx?: Transaction): Promise<Set<number>> {
-  return courseId ? courseGuideWeekNumbers(db, courseId, tx) : new Set<number>();
 }
 
 /** What a lock document says, as the week's lock reads it. */
@@ -319,11 +273,8 @@ export function judgeChange(facts: PlanFacts, change: PlanChange): string | null
   const guided = numbers.find((n) => facts.guideWeeks.has(n));
   if (guided !== undefined) return guideHolds(guided);
 
-  const numberAt = (address: string) =>
-    change.weeks.find((week) => week.source === address)?.weekNumber ??
-    change.weeks.find((week) => week.target === address)?.weekNumber ??
-    change.removed?.weekNumber ??
-    0;
+  // The week an address is, as the tab shows it now: "w02" is week 2.
+  const numberAt = (address: string) => Number(/^w(\d\d)$/.exec(address)?.[1] ?? 0);
   for (const address of touched) {
     if (facts.holds(address).liveLock) return beingEdited(numberAt(address));
   }

@@ -643,6 +643,71 @@ editor under `/admin/courses` stays an admin's.
   take out are counted for that group's people and facilitators alone. The
   run's week and every other group's are never written.
 
+### The week plan
+
+The run's weeks in order, with any breaks, from which every group's dates
+are worked out (`courseRuns.weekPlan`). On a run a programme names it is
+changed only on the programme's Weeks tab, by an admin or the programme's
+lead, through `POST /api/courses/runs/[runId]/week-plan`; the older run
+editor shows a line pointing there instead of its builder, and a run no
+programme names keeps that builder as it was.
+
+| Where | What it does |
+| --- | --- |
+| `src/lib/courses/weekPlanEdit/model.ts` | Each step worked out on a plan: the new plan, each week's new address and where its page is stored now |
+| `src/lib/courses/weekPlanEdit/facts.ts` | What the owner's rule asks, and the one judgement the page and the route both ask (`judgeChange`) |
+| `src/lib/courses/weekPlanEdit/guide.ts` | Which week numbers the course's facilitator guide holds something for, by slot alone |
+| `src/lib/courses/weekPlanEdit/write.ts` | The step, in one transaction |
+| `src/lib/courses/weekPlanEdit/view.ts` | The list as the tab draws it, each control only where the route would take it |
+
+- **Every week at its number's address.** The Nth week of the plan is week N
+  and its page is `weeks/{weekDocId(N)}`: every reader by a member, a
+  register or a group opens that address. After every step each week's page
+  sits there, moved in the step's own transaction with everything stored in
+  it and under it (every field of the page, its saved versions in `history`;
+  an edit lock is let go). A plan the older editor left with a week stored at
+  another week's address is put right by the next step, as Normalise week
+  ids did.
+- **The steps.** Add a week (at the end; a page already kept at its address,
+  copied in from the course, becomes its page). Add a break after a week, with
+  a label. Move a week or a break up or down by one. Remove a week or a break.
+- **The owner's rule.** A week or a break is moved or removed only while
+  nothing is kept against the run's weeks: no tick, answer, pick or other
+  work of anybody's, no register, review, note, request, check-in, reminder
+  or My Work row, no place with a one-week visit, a move from a week or an
+  answer about the time, no group with its own copy of a week, a change to
+  one week, a week's mode or its own calendar, and week 1 not open to
+  everybody holding a place (decisions sent and week 1 ready). A break
+  anywhere, or a week at the end, can be added until the groups go out
+  (Publish has stamped the run, or told anybody their group). From then the
+  plan is read only, in the run editor's sentence. A completed, cancelled or
+  archived run's plan does not change.
+- **Removing.** A removed week's page is deleted only when it holds no more
+  than its title and settings (title, summary, questions, how long it takes,
+  owner, pitching week, published and ready) and no saved version. A week
+  with blocks, with material written before blocks, or with saved versions is
+  never removed. Removing a break deletes nothing. Undo is a revert: a
+  removed empty page is gone.
+- **The facilitators' guide.** A week's session plan and notes are kept on
+  the course by week number, and every run of the course reads them by
+  number. The route never writes them, and refuses any step that would give a
+  week a new number when the guide holds something for the old number or the
+  new one, and the removal of a week the guide holds something for. So a
+  facilitator of this run never reads one week's plan against another week,
+  and a facilitator of another run of the course reads what they read before.
+- **Refused too:** a week being edited right now, a step that would move more
+  than 450 writes or about 8 MB in one transaction, a page at an address no
+  week of the plan uses that a step would write over, and a step made on a
+  drawing of the plan older than the one stored (two changes at once: the
+  second is refused, and reloading shows the first).
+- **Dates.** A break, or a moved week or break, moves the dates of every
+  later week by seven days: each group's sessions, the Weeks tab's first
+  session and ready-by day, and the days week 1's door and the run's Home
+  cards say. Nothing is emailed by a step.
+- **Leaving draft** still meets the week id check (`src/lib/courses/draftExit.ts`).
+  On a run a programme names its sentence sends the reader to the Weeks tab,
+  where any step puts every week at its own number's address.
+
 ### Not built, on purpose
 
 - **An "Add a block" editor** (write a week block by block, no
@@ -652,8 +717,6 @@ editor under `/admin/courses` stays an admin's.
   fields to edit in place. A week is changed by copying it as Markdown,
   editing that and pasting it back; what was read is checked through What we
   found, the things to check and Preview as a fellow.
-- **Reordering weeks** (the board's drag handles and Move up or down). Once a
-  run is out of draft its plan is an admin's, in the run's editor.
 - **A course's own weeks.** A course holds none yet, so "Copy weeks from the
   course" copies another run's, through the copy route the run editor uses,
   never overwriting a week the run has.

@@ -204,6 +204,11 @@ const READERS = {
     proof: ['byRunId("courseApplications")'],
     why: "counts and deletes a run's rows when the run is destroyed, wherever they came from",
   },
+  "lib/courses/weekPlanEdit/kept.ts": {
+    kind: "no-content",
+    proof: ['count(["courseApplications", "runId"])'],
+    why: "the week plan's check counts a run's rows, for whether anybody is on the run, and reads none of them",
+  },
   "lib/applications/handover/run.ts": {
     kind: "admin",
     proof: ["if (!canRunTerm(actor)) return refuse(403, NOT_AN_ADMIN);"],

@@ -525,6 +525,7 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
       ["src/app/api/courses/runs/[runId]/work-ratings/route.ts", "the one writer: an admin's or the lead's own rating, saved or cleared"],
       ["src/lib/firestore/accountDeletion.ts", "an account takes the ratings about it and those it gave"],
       ["src/lib/firestore/courseDeletion.ts", "a run's destroy counts them, and keeps them"],
+      ["src/lib/courses/weekPlanEdit/kept.ts", "the week plan's check before a week moves or goes: it counts the run's rows by one equality on the run, and reads none of them"],
     ]);
     const found = filesMatching(/\bCOURSE_WORK_RATINGS_COLLECTION\b|["'`]courseWorkRatings["'`]/);
     assert.deepEqual(found, [...EXPECTED.keys()].sort(), "a file addresses courseWorkRatings that this list does not know: decide who it shows ratings to first");

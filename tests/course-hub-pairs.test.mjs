@@ -858,6 +858,7 @@ describe("6. who sees what, and every file that addresses the record", () => {
         ["src/lib/courses/pairs/readers.ts", "the readers, by id, for the people each page may show: a group's pairs to its staff, a person's own pair to them"],
         ["src/app/api/courses/groups/[groupId]/pairs/route.ts", "the one writer, behind the draw's gate, for the group's live facilitators, the programme's lead and admins"],
         ["src/lib/firestore/courseDeletion.ts", "destroying a run counts and deletes its records, by `runId`"],
+        ["src/lib/courses/weekPlanEdit/kept.ts", "the week plan's check before a week moves or goes: it counts the run's rows by one equality on the run, and reads none of them"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account deletes every record of that person's, by `uid`"],
       ]),
       "addressing the pairs recorded for a session in pairs",

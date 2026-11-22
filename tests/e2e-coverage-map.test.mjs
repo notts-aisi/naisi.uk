@@ -646,6 +646,12 @@ const NOT_COVERED = {
     coverWhen:
       "With the assessment route's spec, once the harness can stand in for Anthropic: a course hub world after the hand-over, Suggest, then Apply through the site's own routes.",
   },
+  "/api/courses/runs/[runId]/week-plan": {
+    reason:
+      "The week plan's one route, from a programme's Weeks tab: add a week, add a break, move or remove one. It emails nobody; who may change it, every refusal of the owner's rule, the guide check and each move of a week's page with its history are executed by tests/course-week-plan.test.mjs.",
+    coverWhen:
+      "With a course hub spec that opens a draft run's Weeks tab before decision day as its lead: add a break after week 2, move it, remove it, and see the list after each reload.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/details": {
     reason:
       "An admin's save of the run's label, year, cohort and start date from a programme's Settings. It emails nobody; who may save, each check in order and the start date held once the groups have gone out are executed by tests/course-run-stands.test.mjs.",

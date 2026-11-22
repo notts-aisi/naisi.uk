@@ -1108,6 +1108,7 @@ const ADDRESSERS = {
   "lib/courses/sessionReports/readers.ts": "the lead's and admins' reader and the tab's count, server-only, called after a page's gate",
   "app/api/courses/groups/[groupId]/session-report/route.ts": "the one writer, a live facilitator of the group, their own report",
   "lib/firestore/courseDeletion.ts": "destroying the run counts the reports and drains them",
+  "lib/courses/weekPlanEdit/kept.ts": "the week plan's check before a week moves or goes: it counts the run's rows by one equality on the run, and reads none of them",
   "lib/firestore/accountDeletion.ts": "deleting an account takes it out of every report, and unsigns the reports it wrote",
 };
 const READER_CALLERS = {
