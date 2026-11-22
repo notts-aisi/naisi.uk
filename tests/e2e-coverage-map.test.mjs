@@ -2049,13 +2049,13 @@ const NOT_COVERED = {
   },
   "/(app)/admin/courses": {
     reason:
-      "Course authoring: /(app)/admin/courses is admin-only, and a mistake there is visible to its author before a member reaches it.",
+      "Course authoring: the Courses list is for admins and course drafters and approvers, and a mistake there is visible to its author before a member reaches it; its words, its New course and its run column are executed by tests/course-pages-redrawn.test.mjs.",
     coverWhen:
       "When a second person authors a course, because the cover today is the author reading back their own screen.",
   },
   "/(app)/admin/courses/[courseId]": {
     reason:
-      "Course authoring: /(app)/admin/courses/[courseId] is admin-only, and a mistake there is visible to its author before a member reaches it.",
+      "Course authoring: a course's page is for admins and course drafters and approvers, and a mistake there is visible to its author before a member reaches it; what its Runs card is handed for every kind of reader, and each card's read and write, are executed by tests/course-pages-redrawn.test.mjs.",
     coverWhen:
       "When a second person authors a course, because the cover today is the author reading back their own screen.",
   },
