@@ -10,11 +10,12 @@
  *
  * ## What this guards
  *
- *  1. WHO MAY PRESS. Signed out is refused, and so is everybody but an admin
- *     and the run's track lead. A run the application form fills is an
- *     admin's: its track lead is refused with a sentence, on both routes and
- *     on the board's summary, and nothing is written. A view-as session is
- *     refused before anything is read.
+ *  1. WHO MAY PRESS. Signed out is refused, and so is everybody but an
+ *     admin (since November 2026: the run's track lead and the programme's
+ *     lead too, with one sentence, on every run). A run the application
+ *     form fills shows its track lead no one on the board's summary, and
+ *     nothing is written. A view-as session is refused before anything is
+ *     read.
  *  2. A TEST FIRST. A press that would send is refused until somebody has
  *     sent themselves a test of the wording in force. The test is the first
  *     person's and the first facilitator's real email, marked, to the
@@ -79,10 +80,9 @@ mock.timers.enable({ apis: ["Date"], now: NOW });
 
 const LINK = "https://meet.example/j/8675309?pwd=opensesame";
 const WAY_IN = ["meet.example", "8675309", "opensesame"];
-// Since the course hub's lead access the lead of the programme that
-// names the run publishes it too, so the sentence names both.
-const ADMIN_ONLY =
-  "This run’s people came from the application form, so only an admin or its programme’s lead can publish it or send its test.";
+// Only an admin publishes (November 2026): the run's track lead and the
+// programme's lead are refused with this, on every run.
+const ONLY_ADMINS = "Only an admin publishes. Ask an admin when the groups are ready.";
 
 /** Six taught weeks from Thu 29 Oct: a Tuesday group meets from Tue 3 Nov to Tue 8 Dec. */
 const SIX_WEEKS = Array.from({ length: 6 }, (_, i) => ({
@@ -194,17 +194,20 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("1. who may press", () => {
-  test("signed out is refused, and so is everybody but an admin, the run's track lead and the programme's lead", async () => {
+  test("signed out is refused, and so is everybody but an admin", async () => {
     await placed();
     const before = everything();
     for (const route of [routes.publishTest.POST, routes.publish.POST]) {
       assert.deepEqual(short(await call(null, route, { runId: RUN.agi }, { body: { emails: 7 }, course: true })), [401, "Not signed in"]);
       // A member placed on the run, one who is not, the run's reviewer and
-      // one of the group's facilitators. The programme's lead, Claudia,
-      // presses both since the course hub's lead access: that is held
-      // in tests/course-hub-lead-routes.test.mjs.
+      // one of the group's facilitators.
       for (const who of ["amara", "omar", "lloyd", "rahul"]) {
         assert.deepEqual(short(await call(who, route, { runId: RUN.agi }, { body: { emails: 7 }, course: true })), [403, "Forbidden"], who);
+      }
+      // The programme's lead and the run's track lead staff the run and do
+      // not publish it (November 2026; tests/course-publish-admins-only.test.mjs).
+      for (const who of ["claudia", "yusuf"]) {
+        assert.deepEqual(short(await call(who, route, { runId: RUN.agi }, { body: { emails: 7 }, course: true })), [403, ONLY_ADMINS], who);
       }
     }
     assert.equal(everything(), before, "a refused press wrote something");
@@ -214,9 +217,9 @@ describe("1. who may press", () => {
   test("on a run the application form fills, its track lead is refused with a sentence, and told nothing about who is on it", async () => {
     await placed();
     const before = everything();
-    assert.deepEqual(short(await sendTest("yusuf")), [403, ADMIN_ONLY]);
-    assert.deepEqual(short(await pressWith("yusuf", { emails: 0 })), [403, ADMIN_ONLY]);
-    assert.deepEqual(short(await pressWith("yusuf", { emails: 7 })), [403, ADMIN_ONLY]);
+    assert.deepEqual(short(await sendTest("yusuf")), [403, ONLY_ADMINS]);
+    assert.deepEqual(short(await pressWith("yusuf", { emails: 0 })), [403, ONLY_ADMINS]);
+    assert.deepEqual(short(await pressWith("yusuf", { emails: 7 })), [403, ONLY_ADMINS]);
     assert.equal(everything(), before);
     assert.deepEqual(world.mail, []);
     // The board says so, and names nobody.
@@ -238,7 +241,7 @@ describe("1. who may press", () => {
     assert.deepEqual(world.mail, []);
   });
 
-  test("on a run nobody's form fills, its track lead tests and publishes", async () => {
+  test("on a run nobody's form fills, its track lead sees the count and is refused both presses, and an admin tests and publishes", async () => {
     // The pre-course run: no programme names it, and somebody applied to it itself.
     world.db.seed(`courseRuns/${RUN.other}`, {
       ...world.db.read(`courseRuns/${RUN.other}`),
@@ -263,12 +266,19 @@ describe("1. who may press", () => {
       status: "active",
       role: "learner",
     });
-    const at = (route, body) => call("yusuf", route, { runId: RUN.other }, { body, course: true });
     const shown = (await call("yusuf", routes.board.GET, { runId: RUN.other }, { course: true })).body.publish;
     assert.deepEqual([shown.adminOnly, shown.emails, shown.people, shown.facilitators], [false, 2, 1, 1]);
+    // CHANGED ON PURPOSE (November 2026): only an admin publishes, on every run.
+    const before = everything();
+    const asTrackLead = (route, body) => call("yusuf", route, { runId: RUN.other }, { body, course: true });
+    assert.deepEqual(short(await asTrackLead(routes.publishTest.POST)), [403, ONLY_ADMINS]);
+    assert.deepEqual(short(await asTrackLead(routes.publish.POST, { emails: 2 })), [403, ONLY_ADMINS]);
+    assert.equal(everything(), before);
+    assert.deepEqual(world.mail, []);
+    const at = (route, body) => call("zach", route, { runId: RUN.other }, { body, course: true });
     const tested = await at(routes.publishTest.POST);
     assert.deepEqual([tested.status, tested.body.recorded], [200, true], JSON.stringify(tested.body));
-    assert.deepEqual(toOf(world.mail), ["yusuf@example.com", "yusuf@example.com"]);
+    assert.deepEqual(toOf(world.mail), ["zach@example.com", "zach@example.com"]);
     const published = await at(routes.publish.POST, { emails: 2 });
     assert.equal(published.status, 200, JSON.stringify(published.body));
     assert.deepEqual(toOf(realMail()), ["nobody@example.com", "rahul@example.com"]);
@@ -1094,10 +1104,11 @@ describe("7. somebody who has left the run is not waited for", () => {
     world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "tom"] });
     const shown = await summary("claudia");
     assert.deepEqual([shown.emails, shown.people, shown.facilitators, shown.refusals], [1, 0, 1, []]);
-    const tested = await sendTest("claudia");
+    // An admin tests and presses: only an admin publishes (November 2026).
+    const tested = await sendTest("zach");
     assert.deepEqual([tested.status, tested.body.emails, tested.body.recorded], [200, 1, true]);
     const before = realMail().length;
-    const pressed = await pressNow("claudia");
+    const pressed = await pressNow("zach");
     assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
     assert.deepEqual([pressed.body.unplaced, pressed.body.report.people.sent, pressed.body.report.facilitators.sent], [[], 0, 1]);
     assert.deepEqual(toOf(realMail().slice(before)), ["tom@example.com"]);
