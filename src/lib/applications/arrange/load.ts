@@ -172,7 +172,8 @@ export async function loadArranging(
   if (programme.runId === null) return refuse(409, "This programme names no course run yet.");
   const runSnap = await db.collection(RUNS_COLLECTION).doc(programme.runId).get();
   const read = runSnap.exists ? readRun(runSnap.id, runSnap.data()) : null;
-  if (!read) return refuse(409, "The course run this programme names is not there any more.");
+  // A run being destroyed is gone already for everybody it served, as every other read of a run reads it.
+  if (!read || read.destroying) return refuse(409, "The course run this programme names is not there any more.");
   // Nobody is arranged, or named, until everybody has been told.
   if (form.decisionsSentAt === null) return refuse(409, "Decisions haven’t gone out yet.");
   // The caller's standing on the run, as every staff route reads it: the rows

@@ -177,6 +177,17 @@ describe("1. who reads the lead's arranging", () => {
     assert.deepEqual(said, { zach: 200, claudia: 403, lloyd: 403, tess: 403, yusuf: 403, rahul: 403, amara: 403, "signed out": 401 });
   });
 
+  test("a run being destroyed is no run to arrange, for the lead and an admin alike", async () => {
+    await world();
+    w.world.db.poke(`courseRuns/${RUN.agi}`, { destroying: true });
+    for (const who of ["claudia", "zach"]) {
+      const answer = await arranging(who);
+      assert.deepEqual([answer.status, answer.body], [409, { error: "The course run this programme names is not there any more." }], who);
+      const said = await w.call(who, arrangementRoute.POST, PARAMS, { body: { askClaude: false } });
+      assert.equal(said.status, 409, `${who}'s suggestion reads a run being destroyed`);
+    }
+  });
+
   test("before decisions go out the lead is read nobody", async () => {
     await world({ sent: false });
     const answer = await arranging("claudia");

@@ -38,6 +38,7 @@ mock.timers.enable({ apis: ["Date"], now: new Date("2026-11-17T12:00:00Z") });
 
 const w = await makePeopleWorld("__moveTogetherSuite");
 const words = await w.loadTs("features/applications/groups/peopleInGroupsWords.ts");
+const boardParts = await w.loadTs("features/applications/groups/peopleInGroupsBoard.ts");
 const { TOGETHER_LIMIT } = await w.loadTs("app/api/courses/runs/[runId]/allocate/route.ts");
 
 async function world() {
@@ -110,6 +111,15 @@ describe("2. one of them cannot be moved, so nobody is", () => {
     assert.equal(seatOf("amara"), undefined, "Amara was moved although Dev was not");
   });
 
+  test("a group that is not on the run", async () => {
+    await world();
+    await refusedWhole("claudia", [...to(C, "amara"), ...to("no-such-group__grp99999", "bea")], {
+      uid: "bea",
+      reason: "group-not-found",
+      groupId: "no-such-group__grp99999",
+    });
+  });
+
   test("an archived group", async () => {
     await world();
     w.world.db.poke(`courseGroups/${C}`, { archived: true });
@@ -156,8 +166,18 @@ describe("3. at most one transaction of people", () => {
 
   test("a move together cannot be previewed", async () => {
     await world();
+    const before = w.everything();
     const answer = await together("claudia", to(C, "amara"), { preview: true });
-    assert.equal(answer.status, 400);
+    assert.deepEqual([answer.status, answer.body], [400, { error: "A move together can’t be previewed." }]);
+    assert.equal(w.everything(), before);
+  });
+
+  test("the same person twice in one request is one placement, the last, as every press of the route reads it", async () => {
+    await world();
+    const answer = await together("claudia", [...to(C, "amara"), ...to(B, "amara")]);
+    assert.deepEqual([answer.status, answer.body], [200, { ok: true, placed: 1, rejected: [] }]);
+    assert.equal(seatOf("amara").groupId, B);
+    assert.deepEqual([countOf(B), countOf(C)], [1, 0]);
   });
 });
 
@@ -222,6 +242,32 @@ describe("6. the board's words for a move of several", () => {
     assert.equal(words.movedTogetherWords(["Daniel", "Raj", "Tom"], "Group B"), "Daniel, Raj and Tom are in Group B. Nobody was emailed.");
     assert.equal(words.movedTogetherWords(["Daniel"], "Group B"), "Daniel is in Group B. Nobody was emailed.");
     assert.equal(words.movedTogetherWords(["Daniel", "Raj"], null), "Daniel and Raj are no longer in a group. Nobody was emailed.");
+  });
+
+  test("the bar's sentence from what the route answered, the route's own words where it named nobody", () => {
+    const nameOf = (uid) => ({ dev: "Dev Patel", bea: "Bea Lindqvist" })[uid] ?? "NAISI member";
+    const columnName = (id) => ({ [C]: "Group C", [A]: "Group A" })[id] ?? "To place";
+    const moved = words.movedTogetherWords(["Amara", "Bea"], "Group C");
+    const say = (result) => boardParts.togetherOutcomeWords(result, moved, nameOf, columnName, C);
+    assert.deepEqual(say({ ok: true }), { ok: true, text: "Amara and Bea are in Group C. Nobody was emailed." });
+    assert.deepEqual(say({ ok: false, error: "x", stopped: { uid: "dev", reason: "group-full", groupId: C, room: 2, wanting: 3 } }), {
+      ok: false,
+      text: "Group C has room for 2 of the 3. Pick fewer, or another group.",
+    });
+    assert.deepEqual(say({ ok: false, error: "x", stopped: { uid: "bea", reason: "not-accepted", groupId: A } }), {
+      ok: false,
+      text: "Bea Lindqvist no longer holds a place on the run, so nobody was moved.",
+    });
+    assert.deepEqual(say({ ok: false, error: "x", stopped: { uid: null, reason: "published", groupId: null } }), {
+      ok: false,
+      text: "The groups have gone out since this page loaded, so nobody was moved.",
+    });
+    assert.deepEqual(say({ ok: false, error: "Failed to fetch", stopped: null }), { ok: false, text: "Failed to fetch" });
+  });
+
+  test("a single move's words know the two codes a move of several can stop on, so no code the route sends reaches the board bare", () => {
+    assert.equal(words.notMovedWords("Pat Doe", "Group A", "changed"), "Pat Doe wasn’t moved: the board is out of date. Reload it to see where they are.");
+    assert.equal(words.notMovedWords("Pat Doe", "Group A", "published"), "Pat Doe wasn’t moved: the groups have gone out since this page loaded.");
   });
 
   test("each refusal in one sentence naming who stopped it", () => {

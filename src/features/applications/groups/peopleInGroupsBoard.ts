@@ -172,3 +172,26 @@ export function answerLinesOf(
     cant: answer.kind === "cant",
   };
 }
+
+/**
+ * What a move of several came to, in the bar's one sentence: everybody moved
+ * (`moved`, "Daniel, Raj and Tom are in Group B. Nobody was emailed."), or,
+ * when the allocate route refused the lot, who stopped it and why
+ * (`stoppedTogetherWords`, the person by full name and the group they were
+ * to go to by its name), or the route's own sentence when no answer named
+ * anybody. `columnId` is the column the board sent them to.
+ */
+export function togetherOutcomeWords(
+  result:
+    | { ok: true }
+    | { ok: false; error: string; stopped: { uid: string | null; reason: string; groupId: string | null; room?: number; wanting?: number } | null },
+  moved: string,
+  nameOf: (uid: string) => string,
+  columnName: (columnId: string) => string,
+  columnId: string,
+): { ok: boolean; text: string } {
+  if (result.ok) return { ok: true, text: moved };
+  const stop = result.stopped;
+  if (!stop) return { ok: false, text: result.error };
+  return { ok: false, text: words.stoppedTogetherWords(stop, stop.uid ? nameOf(stop.uid) : "", columnName(stop.groupId ?? columnId)) };
+}

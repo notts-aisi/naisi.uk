@@ -304,7 +304,7 @@ export async function POST(req: Request, ctx: Ctx) {
   // Several people moved together, or nobody (see the note at the top).
   const together = (body as { together?: unknown }).together === true;
   if (together && preview) {
-    return NextResponse.json({ error: "Malformed placements" }, { status: 400 });
+    return NextResponse.json({ error: "A move together can’t be previewed." }, { status: 400 });
   }
   if (together && parsed.length > TOGETHER_LIMIT) {
     return NextResponse.json({ error: `At most ${TOGETHER_LIMIT} people can be moved together.` }, { status: 400 });

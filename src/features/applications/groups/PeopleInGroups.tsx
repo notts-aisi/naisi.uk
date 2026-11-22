@@ -55,7 +55,7 @@ import { focusAfterPanel } from "./panelFocus";
 import RingsBoard, { type TrayPerson } from "./RingsBoard";
 import { moveHereWords, ringsOf, type BoardRing } from "./ringsModel";
 import styles from "./PeopleInGroups.module.css";
-import { POOL, TAKE_OFF, marksOf, menuOptions, notToldYet, type Mark } from "./peopleInGroupsBoard";
+import { POOL, TAKE_OFF, marksOf, menuOptions, notToldYet, togetherOutcomeWords, type Mark } from "./peopleInGroupsBoard";
 import SomeWeeks from "@/features/courses/timeAnswer/SomeWeeks";
 import { CANT_DETAILS, WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
@@ -763,21 +763,28 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
       setPending((was) => ({ ...was, ...Object.fromEntries(moving.map((uid) => [uid, groupId] as const)) }));
       const result = await placeTogether(moving.map((uid) => ({ uid, groupId })));
       setMovingTogether(false);
-      if (result.ok) {
-        setChosen([]);
-        setTogetherSaid({ ok: true, text: moved });
+      const said = togetherOutcomeWords(result, moved, nameOf, columnName, columnId);
+      setTogetherSaid(said);
+      if (!said.ok) {
+        revert(moving);
         return;
       }
-      revert(moving);
-      const stop = result.stopped;
-      setTogetherSaid({
-        ok: false,
-        text: stop
-          ? words.stoppedTogetherWords(stop, stop.uid ? nameOf(stop.uid) : "", columnName(stop.groupId ?? columnId))
-          : result.error,
+      setChosen([]);
+      // A note about the groups' weeks for each person moved between groups
+      // that keep their weeks differently, as a single move leaves one.
+      const notes = moving.flatMap((uid) => {
+        const row = rowsByUid.get(uid);
+        const from = row ? columnOf(row) : POOL;
+        const note = divergenceNote(autonomyOf(groupsById.get(from) ?? null), autonomyOf(groupsById.get(columnId) ?? null), {
+          source: columnName(from),
+          target: groupId === null ? null : columnName(columnId),
+          who: nameOf(uid),
+        });
+        return note ? [note] : [];
       });
+      setMoveNote(notes.length > 0 ? [...new Set(notes)].join(" ") : null);
     },
-    [chosenNow, rowsByUid, columnOf, firstNamesOf, columnName, nameOf, placeTogether, revert],
+    [chosenNow, rowsByUid, columnOf, groupsById, firstNamesOf, columnName, nameOf, placeTogether, revert],
   );
 
   // -------------------------------------------------------------------------
