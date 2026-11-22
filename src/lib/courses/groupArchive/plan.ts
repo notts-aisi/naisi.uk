@@ -3,6 +3,8 @@ import { runEndOf } from "@/lib/courses/finishing/runEnd";
 import { coverIsLive } from "@/lib/courses/registerCover/model";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
 import { sameName } from "@/lib/courses/groupTimes/rules";
+import { cancelDeadline, ownSessionThatWeek } from "@/lib/courses/visit/deadline";
+import { registerOwed } from "./restored";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import type { RegisterCover } from "@/lib/firestore/courseAttendance";
 import {
@@ -53,8 +55,9 @@ import {
  *  5. SOMEBODY MOVED TO ANOTHER GROUP FROM A WEEK STILL TO COME is in this
  *     group until then.
  *  6. A ONE-WEEK VISIT to one of its sessions still to come, named with the
- *     visitor and the day; once the visitor's own session that week has
- *     started it can no longer be called off, and the sentence says so.
+ *     visitor and the day; once the call-off's own deadline has passed
+ *     (`cancelDeadline`: the visitor's own session that week has started)
+ *     it can no longer be called off, and the sentence says so.
  *  7. ONE OF ITS SESSIONS NOT CALLED OFF IS GIVEN TO SOMEBODY TO COVER and
  *     the cover still holds (`coverIsLive`): they were emailed that it is
  *     theirs. Nothing takes a given session back; moving it or calling it
@@ -65,9 +68,9 @@ import {
  *
  * Restoring is refused while the run is being destroyed or is over, and
  * while another group of the run that still meets has its name. A
- * facilitator who now holds a place in another group of the run (a
- * facilitator who holds a place sits in the group they facilitate and no
- * other) is no reason to refuse: the group comes back without them, taken
+ * facilitator who now holds a place in another group of the run, or in no
+ * group (a facilitator who holds a place sits in the group they facilitate
+ * and no other) is no reason to refuse: the group comes back without them, taken
  * off through the one writer of a group's facilitators, and the question
  * says so before the press (`restorePlan`).
  *
@@ -204,7 +207,10 @@ export function archiveRefusal(facts: GroupArchiveFacts, now: Date): ArchiveRefu
   }
 
   const inGroup = placesInGroup(facts).length;
-  if (inGroup > 0) return refused(stillHasPeopleWords(group.name, inGroup), { kind: "people" });
+  if (inGroup > 0) {
+    const facilitating = placesInGroup(facts).filter((place) => group.facilitatorUids.includes(place.uid)).length;
+    return refused(stillHasPeopleWords(group.name, inGroup, facilitating), { kind: "people" });
+  }
 
   // A freed place offered in this group's name and not answered: the email
   // named this group's weekly time, and the board could not seat them in it.
@@ -241,11 +247,13 @@ export function archiveRefusal(facts: GroupArchiveFacts, now: Date): ArchiveRefu
   const visit = visits[0];
   if (visit) {
     const hosted = toCome.find((session) => session.weekNumber === visit.week && session.occurrence === 1) ?? toCome.find((session) => session.weekNumber === visit.week);
-    // A visit can no longer be called off once the visitor's own group's session that week has started.
+    // Whether staff can still call it off: the call-off's own deadline
+    // (`cancelDeadline`, with `ownSessionThatWeek`: a visitor's own session
+    // called off, or a home group archived, is no session, and the host's
+    // session is then the deadline). This group's session is still to come.
     const home = facts.runGroups.find((each) => each.id === ownGroupForWeek(visit.place, visit.week)) ?? null;
-    const own = home ? resolveSessions(run, home).find((session) => session.weekNumber === visit.week && session.occurrence === 1) : undefined;
-    const ownStart = own ? sessionInstants(own).startsAt : null;
-    const callable = !(ownStart !== null && ownStart.getTime() <= now.getTime());
+    const deadline = cancelDeadline({ host: group, hostSession: hosted ?? null, home, ownSession: ownSessionThatWeek(run, home, visit.week) });
+    const callable = deadline.until === null || now.getTime() < deadline.until.getTime();
     const person = facts.names.get(visit.place.uid) ?? { name: "", firstName: "" };
     return refused(
       visitToComeWords({
@@ -287,6 +295,8 @@ export function archiveRefusal(facts: GroupArchiveFacts, now: Date): ArchiveRefu
   }
   const unfinished = started
     .filter((session) => named.has(session.weekNumber))
+    // A session that passed while the group was archived before owes no register (`registerOwed`).
+    .filter((session) => registerOwed(group, sessionInstants(session).startsAt))
     .filter((session) => isRegisterUnmarked(facts.registers.get(session.sessionKey) ?? { exists: false, held: true, pushedAt: null }));
   if (unfinished.length > 0) {
     const first = unfinished[0];
@@ -321,12 +331,13 @@ export function restorePlan(facts: GroupArchiveFacts, now: Date): RestorePlan {
     return { ok: false, refusal: refused(nameTakenWords(group.name)) };
   }
 
+  // A facilitator who holds a place sits in the group they facilitate and no
+  // other: one who now holds a place in another group, or in no group, comes
+  // off (`groupId` "" for no group).
   const dropping: { uid: string; groupId: string }[] = [];
   for (const uid of group.facilitatorUids) {
-    const place = facts.places.find(
-      (each) => each.uid === uid && stillOnRun(each, group.runId) && typeof each.groupId === "string" && each.groupId !== "" && each.groupId !== group.id,
-    );
-    if (place && place.groupId) dropping.push({ uid, groupId: place.groupId });
+    const place = facts.places.find((each) => each.uid === uid && stillOnRun(each, group.runId) && each.groupId !== group.id);
+    if (place) dropping.push({ uid, groupId: typeof place.groupId === "string" ? place.groupId : "" });
   }
   const gone = new Set(dropping.map((each) => each.uid));
   return { ok: true, dropping, staying: group.facilitatorUids.filter((uid) => !gone.has(uid)) };

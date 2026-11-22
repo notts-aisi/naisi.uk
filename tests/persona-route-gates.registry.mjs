@@ -5802,7 +5802,10 @@ export const PAGES = {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when " +
-      "the run is missing, and the run's own roster decides the rest once it exists.",
+      "the run is missing, and the run's own roster decides the rest once it exists. The battery's made-up " +
+      "runs reach no archived group: an archived group's own facilitator (told it was archived) and everybody " +
+      "else (the same page as a missing group) are held by tests/course-group-page.test.mjs and " +
+      "tests/course-hub-not-for-you.test.mjs.",
   },
   "/(app)/learn/[runId]/group/[groupId]/edit": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),

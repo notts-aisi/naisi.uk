@@ -76,6 +76,8 @@ const SIX_ROWS = {
   facilitators: await w.courseRoute("groups", "[groupId]", "facilitators"),
   change: await w.courseRoute("groups", "[groupId]", "session", "change"),
   regular: await w.courseRoute("groups", "[groupId]", "session", "regular"),
+  cover: await w.courseRoute("groups", "[groupId]", "attendance", "cover"),
+  pace: await w.courseRoute("groups", "[groupId]", "pace"),
 };
 
 const B = "agi-autumn-2026-monday__grp00001";
@@ -245,6 +247,17 @@ describe("2. archiving is refused while it would lose something", () => {
     assert.equal(words.stillHasPeopleWords("Group I", 1), "Group I still has 1 person in it. Move them to another group first, then archive it.");
   });
 
+  test("people still in it, one of whom facilitates it too: take them off its facilitators first", async () => {
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "amara"] });
+    await refusedWith(
+      "zach",
+      B,
+      { archived: true },
+      "Group B still has 4 people in it. Move them to another group first, then archive it. " +
+        "One of them facilitates it too: take them off its facilitators on Facilitators before moving them.",
+    );
+  });
+
   const COMPLETED = "AGI Strategy’s run is completed, so its groups stay as they are for the record.";
 
   test("a run that is over by its status: every group, emptied or not, both ways", async () => {
@@ -356,6 +369,25 @@ describe("2. archiving is refused while it would lose something", () => {
         "Archive the group once that session has met and its register is finished.",
     );
     assert.equal(answer.body.fix, null);
+  });
+
+  test("the visit's own deadline decides: with the visitor's own session called off, or their group archived, it can still be called off", async () => {
+    const ordinary = `${displayName("bea")} is visiting Group D’s week 5 session on Mon 30 Nov. Call the visit off on Bea’s page first, then archive the group.`;
+    // Bea's own Group A week 5 session (Thu 26 Nov) was called off: the host's session is the deadline.
+    const calledOff = { w05: { kind: "cancelled", dateKey: "2026-11-26", reason: "Room flooded.", byUid: "claudia", at: new Date("2026-11-20T10:00:00Z") } };
+    w.reset(seed({ ...beaVisitsD(), [registerPath(D, 4)]: register(D, 4, { pushedAt: new Date("2026-11-23T20:00:00Z") }) }));
+    world.db.poke(`courseGroups/${A}`, { sessionChanges: calledOff });
+    w.at("2026-11-27T10:00:00Z");
+    let answer = await archive("zach", D);
+    assert.deepEqual([answer.status, answer.body.error], [409, ordinary], "own session called off");
+    assert.deepEqual(answer.body.fix, { kind: "person", uid: "bea", firstName: "Bea" });
+    // Her own group archived: no session of its own that week, so the same.
+    w.reset(seed({ ...beaVisitsD(), [registerPath(D, 4)]: register(D, 4, { pushedAt: new Date("2026-11-23T20:00:00Z") }) }));
+    world.db.poke(`courseGroups/${A}`, { archived: true });
+    w.at("2026-11-27T10:00:00Z");
+    answer = await archive("zach", D);
+    assert.deepEqual([answer.status, answer.body.error], [409, ordinary], "own group archived");
+    assert.notEqual(answer.body.fix, null);
   });
 
   /** Group D's week 4 session (Mon 23 Nov, 6pm), given to Sofia to cover until the end of that day. */
@@ -620,6 +652,19 @@ describe("5. restoring", () => {
     const removed = rows.find((row) => row.kind === "facilitator-removed");
     assert.equal(removed.subjectUid, "tariq");
     assert.equal(world.mail.length, 0, "restoring emails nobody");
+  });
+
+  test("a facilitator who now holds a place in no group comes off too, and the question says so", async () => {
+    w.reset(seed({ [`courseGroups/${D}`]: groupD({ archived: true, facilitatorUids: ["tom", "bea"] }) }));
+    world.db.poke(placePath("bea"), { groupId: null });
+    const answer = await restore("zach", D);
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.deepEqual(stored(D).facilitatorUids, ["tom"]);
+    assert.equal(world.db.read(placePath("bea")).groupId, null, "their place is untouched");
+    assert.equal(
+      words.sitsElsewhereWords("Group F", [{ name: "Rahul Mehta", groupName: "" }], []),
+      "Rahul Mehta now holds a place on the run in no group, so Group F comes back with no facilitator. Add one on Facilitators.",
+    );
   });
 
   test("is refused while another group of the run that still meets has its name", async () => {
@@ -1062,6 +1107,15 @@ describe("8. nothing behind the six rows changes an archived group", () => {
     ["Facilitators", (who) => w.call(who, SIX_ROWS.facilitators.POST, { groupId: B }, { body: { uids: ["rahul"] }, course: true })],
     ["Places", (who) => w.call(who, SIX_ROWS.places.PUT, programme(B), { body: { places: 12 } })],
     ["Name", (who) => w.call(who, SIX_ROWS.name.PUT, programme(B), { body: { name: "Tuesday evenings" } })],
+    // And the routes behind the live page's week cards and its other doors.
+    ["Take the register in a facilitator's place", (who) => w.call(who, SIX_ROWS.cover.POST, { groupId: B }, { body: { weekNumber: 5 }, course: true })],
+    [
+      "The group's own pace",
+      (who) => {
+        const weeks = w.run().weekPlan;
+        return w.call(who, SIX_ROWS.pace.PATCH, { groupId: B }, { body: { paceWeekPlan: [...weeks.slice(0, 5), { kind: "break", label: "Reading week" }, ...weeks.slice(5)] }, course: true });
+      },
+    ],
   ];
 
   test("each goes through on the live group, so the bodies are ones it takes", async () => {
@@ -1088,6 +1142,18 @@ describe("8. nothing behind the six rows changes an archived group", () => {
     }
   });
 
+  // Writing to an archived group is refused in tests/course-hub-facilitator-fellows.test.mjs, whose world loads the email route.
+  test("covering a session and the pace say why, to an admin", async () => {
+    world.db.poke(`courseGroups/${B}`, { archived: true });
+    for (const [what, sentence] of [
+      ["Take the register in a facilitator's place", words.COVER_ARCHIVED],
+      ["The group's own pace", words.PACE_ARCHIVED],
+    ]) {
+      const answer = await PRESSES.find(([each]) => each === what)[1]("zach");
+      assert.deepEqual([answer.status, answer.body.error], [409, sentence], what);
+    }
+  });
+
   test("the meeting link and the facilitators say why, to an admin", async () => {
     world.db.poke(`courseGroups/${B}`, { archived: true });
     const link = await PRESSES.find(([what]) => what === "Meeting link")[1]("zach");
@@ -1108,11 +1174,70 @@ describe("startedBeforeRestore, the one question every job asks", () => {
     assert.equal(restoredLib.startedBeforeRestore({ restoredAt }, null), false);
   });
 
-  test("every job that walks a live group's sessions asks it", () => {
-    for (const job of ["registerReminders", "unmarkedRegisters", "nextWeekEmail", "weekReminders"]) {
+  test("the two jobs about sessions still to come ask it too", () => {
+    for (const job of ["nextWeekEmail", "weekReminders"]) {
       const source = readFileSync(join(REPO, "src", "lib", "scheduler", "jobs", `${job}.ts`), "utf8");
       assert.match(source, /import \{ startedBeforeRestore \} from "@\/lib\/courses\/groupArchive\/restored";/, job);
       assert.match(source, /startedBeforeRestore\(group, /, job);
+    }
+  });
+
+  test("registerOwed: none while archived, none for a session that started before the restore, and every other one", () => {
+    const restoredAt = new Date("2026-11-19T10:00:00Z");
+    const before = new Date("2026-11-16T18:00:00Z");
+    const after = new Date("2026-11-23T18:00:00Z");
+    assert.equal(restoredLib.registerOwed({ archived: true }, after), false);
+    assert.equal(restoredLib.registerOwed({ archived: false, restoredAt }, before), false);
+    assert.equal(restoredLib.registerOwed({ archived: false, restoredAt }, after), true);
+    assert.equal(restoredLib.registerOwed({ archived: false }, before), true);
+  });
+});
+
+/**
+ * EVERY READER OF AN UNFINISHED REGISTER asks whether one is owed
+ * (`registerOwed`), walked from the tree: a file that calls the chase's own
+ * tests (`isRegisterUnmarked`, `followUpDueAt`, `isWithinFollowUpWindow`), the
+ * Attendance tab's facts (`groupSessions`, which carry `owed`), or the group
+ * page's ways to take a register (`coverChoicesOf`, `noticeWeekOf`). Each
+ * either asks (calls `registerOwed` or reads `owed`), or is listed below with
+ * why it asks nobody for a register. Both directions: a listed file must
+ * still be a reader, and must not have started asking.
+ */
+const ASKS_FOR_NO_REGISTER = {
+  "src/lib/courses/unmarkedRegisters.ts": "defines the chase's own tests; every caller asks",
+  "src/app/api/courses/groups/[groupId]/attendance/push/route.ts": "takes a card off the board once a register is pushed; asks nobody for anything",
+  "src/features/courses/groupPage/GroupPage.tsx": "asks through `weekRegisterFacts`, which carries each week's `owed` into `coverChoicesOf` (src/lib/courses/registerCover/pageModel.ts)",
+  "src/lib/courses/personPage/load.ts": "one person's attendance record: reads each session's marks and whether it was held; offers no register to take",
+  "src/lib/surveys/leadOverview.ts": "counts the sessions held for the reports' card; asks nobody for a register",
+};
+
+describe("every reader of an unfinished register asks whether one is owed", () => {
+  const READS = /\b(?:isRegisterUnmarked|followUpDueAt|isWithinFollowUpWindow|groupSessions|coverChoicesOf|noticeWeekOf)\(/;
+  const DEFINES = /export function (?:groupSessions|coverChoicesOf|noticeWeekOf)\(/;
+  const ASKS = /\bregisterOwed\(|\.owed\b|owed === false/;
+  const readers = new Map();
+  for (const file of sourceFiles(join(REPO, "src"))) {
+    const path = relative(REPO, file).split("\\").join("/");
+    const text = readFileSync(file, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    // A local function of the same name is not the Attendance tab's.
+    if (/function groupSessions\(opened/.test(text)) continue;
+    if (READS.test(text) || DEFINES.test(text)) readers.set(path, ASKS.test(text));
+  }
+
+  test("the walk finds the readers this guard knows by name", () => {
+    for (const path of ["src/lib/courses/programmeOverview.ts", "src/lib/scheduler/jobs/registerReminders.ts", "src/lib/scheduler/jobs/unmarkedRegisters.ts"]) {
+      assert.ok(readers.has(path), path);
+    }
+  });
+
+  test("each asks, or is listed with why it asks nobody for a register", () => {
+    const silent = [...readers].filter(([path, asks]) => !asks && !(path in ASKS_FOR_NO_REGISTER)).map(([path]) => path);
+    assert.deepEqual(silent, [], "a reader of unfinished registers that never asks registerOwed: ask it, or list it with why");
+    for (const path of Object.keys(ASKS_FOR_NO_REGISTER)) {
+      assert.ok(readers.has(path), `${path} is listed but reads no register any more: take it off the list`);
+      assert.equal(readers.get(path), false, `${path} asks registerOwed now: take it off the list`);
     }
   });
 });

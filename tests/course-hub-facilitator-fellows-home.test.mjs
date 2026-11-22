@@ -156,7 +156,10 @@ describe("Home for a facilitator whose only group on the run was archived", () =
     const { entry, text } = await rahulsHome();
     assert.deepEqual(entry.archivedFacilitates, [{ name: "Group B", archivedAt: "2026-11-02T10:15:00.000Z" }]);
     assert.ok(text.includes("Group B was archived on Mon 2 Nov."), text);
-    assert.match(text, /Its registers are kept\. (\S+, the programme’s lead,|An admin) can tell you more\./);
+    // The programme's lead by first name, as the overview names them.
+    const lead = ui.overview.programme?.leadFirstName;
+    assert.ok(lead, "the world's programme has a lead");
+    assert.ok(text.includes(`Its registers are kept. ${lead}, the programme’s lead, can tell you more.`), text);
     assert.ok(!text.includes("You don’t have a group yet."), text);
   });
 
@@ -174,9 +177,17 @@ describe("Home for a facilitator whose only group on the run was archived", () =
     assert.ok(text.includes("You don’t have a group yet."), text);
   });
 
-  test("a live group of theirs on the run: no archived group is named, and a member's row never carries the field", async () => {
-    world.db.poke(`courseGroups/${A}`, { archived: true });
-    assert.equal((await hubEntry("rahul"))?.archivedFacilitates, undefined, "Rahul still runs Group B");
+  test("two groups on the run, one archived: Home shows the live one, and names no archived group", async () => {
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "amara", "rahul"] });
+    world.db.poke(`courseGroups/${B}`, { archived: true });
+    const { entry, text } = await rahulsHome();
+    assert.equal(entry?.archivedFacilitates, undefined, "Rahul still runs Group A");
+    assert.ok(!text.includes("was archived") && !text.includes("is archived."), text);
+    assert.ok(!text.includes("You don’t have a group yet."), text);
+  });
+
+  test("a member's row never carries the field", async () => {
+    world.db.poke(`courseGroups/${B}`, { archived: true });
     assert.equal((await hubEntry("bea"))?.archivedFacilitates, undefined);
   });
 });

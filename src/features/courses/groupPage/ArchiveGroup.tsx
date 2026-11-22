@@ -48,6 +48,9 @@ async function press(groupId: string, archived: boolean): Promise<Answer> {
     });
     const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: string; fix?: ArchiveFix | null } | null;
     if (response.ok && body?.ok === true) return { ok: true };
+    // Never the route's bare "Forbidden": a sentence that says what happened.
+    if (response.status === 401) return { ok: false, error: A.ARCHIVE_SIGNED_OUT, fix: null };
+    if (response.status === 403) return { ok: false, error: A.ARCHIVE_NOT_YOURS, fix: null };
     return { ok: false, error: typeof body?.error === "string" ? body.error : UNKNOWN_OUTCOME, fix: body?.fix ?? null };
   } catch {
     return { ok: false, error: UNKNOWN_OUTCOME, fix: null };
@@ -63,7 +66,8 @@ function fixLink(fix: ArchiveFix | null, links: ArchiveFixLinks): { href: string
     case "register":
       return links.register ? { href: `${links.register}?session=${encodeURIComponent(fix.sessionKey)}`, label: A.openRegisterWords(fix.weekNumber) } : null;
     case "person":
-      return { href: `${links.person}/${encodeURIComponent(fix.uid)}`, label: A.openPersonWords(fix.firstName) };
+      // Their visit's page, where it is called off.
+      return { href: `${links.person}/${encodeURIComponent(fix.uid)}/visit`, label: A.openPersonWords(fix.firstName) };
     case "week":
       return { href: `${links.self}?week=${fix.weekNumber}`, label: A.changeWeekWords(fix.weekNumber) };
     default:

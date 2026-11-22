@@ -2328,8 +2328,9 @@ write, an admin's included (`groupArchivedUnchanged`), and a group is born
 with none set. Archiving writes the first three and `updatedAt`; restoring
 writes `archived`, `restoredAt` and `updatedAt` and keeps who archived it.
 A group archived before the day and the name were kept says "Group F is
-archived." with neither. Each writes one row of the group's History ("Maya
-Rao archived Group F.", "… restored Group F."), under Everything only.
+archived." with neither. Each writes one row of the group's History, the
+person in its own column beside "Archived Group F." or "Restored Group F.",
+under Everything only.
 
 **Archiving asks first.** The question says what it does ("Group E leaves
 the board, All groups and every reminder, and drops out of allocation. It
@@ -2362,16 +2363,21 @@ beside it on the page, and writes nothing (409), in this order:
   Alignment’s only group, so it can’t be archived. To end the programme
   early, an admin cancels the cohort.");
 - anybody still holds a place in it (a learner who has not left, as the Groups
-  tab counts them), with "Open People in groups";
+  tab counts them), with "Open People in groups"; when one of them
+  facilitates it too, whom the board will not move, the sentence says to
+  take them off its facilitators first;
 - a freed place offered in its name is not answered yet;
 - somebody moved to another group from a week still to come is in it until
   then;
 - a one-week visit to one of its sessions is still to come, naming the
-  visitor and the day, with "Open Agnes’s page", where it is called off
-  (calling it off emails the visitor and both groups' facilitators, as it
-  always has). Once the visitor's own session that week has started it can
-  no longer be called off, and the sentence says to archive the group once
-  that session has met and its register is finished;
+  visitor and the day, with "Open Agnes’s page", their visit's page, where it
+  is called off (calling it off emails the visitor and both groups'
+  facilitators, as it always has). Whether it can still be called off is the
+  call-off's own deadline (`cancelDeadline`): once the visitor's own session
+  that week has started it cannot, and the sentence says to archive the
+  group once that session has met and its register is finished; a visitor
+  whose own session that week was called off, or whose group is archived,
+  can be called off until this group's session starts;
 - one of its sessions not called off is given to somebody to cover and the
   cover still holds. Nothing takes a given session back: moving it or calling
   it off under Change this week ends the cover (a move takes it off the
@@ -2389,10 +2395,13 @@ was archived on Mon 2 Nov by Maya Rao. It is out of allocation, lists and
 reminders. Its registers and history stay here.", "Restore Group F…", "How
 Group F met" as its six rows with no buttons, "Nothing here changes while the
 group is archived. Restore it first.", then Week by week (no buttons, no
-register notice) and History. Every route behind the live page's rows
-(the time, a new regular time, Change this week, the room, the campus, the
-meeting link, the facilitators, the places and the name) refuses an
-archived group, an admin's press included. The Groups tab's "Archived:" line
+register notice, and `?take=` opens no sheet) and History. Every route
+behind the live page's rows and week cards (the time, a new regular time,
+Change this week, the room, the campus, the meeting link, the facilitators,
+the places, the name, covering a session or giving it to somebody, the
+group's own pace and writing to the group) refuses an archived group, an
+admin's press included. Saving a register is left open to an admin on
+purpose: admins correct registers. The Groups tab's "Archived:" line
 lists the run's archived groups, each to this page.
 
 **Restoring** asks first too: "Group F comes back on the board, All groups and
@@ -2407,19 +2416,32 @@ now sits in Group B as one of its people, so Group F comes back with no
 facilitator. Add one on Facilitators."), and the restore takes them off
 through the one writer of a group's facilitators (`writeFacilitatorChange`),
 with its usual `facilitator-removed` History line; their place is untouched.
+So does a facilitator who now holds a place on the run in no group.
 
-**A restore emails nobody, later as well as now.** Sessions that passed while
-the group was archived come back with no register. Every scheduled job that
-walks a live group's sessions leaves out a session that started before
-`restoredAt` (`startedBeforeRestore`, `src/lib/courses/groupArchive/restored.ts`):
-the facilitators' register reminder and the "register not taken" card never
-chase one, and next week's email and the reminders before a session, which
-are only ever about a session still to start, say so too. A check-in is
+**A restore emails nobody, later as well as now, and nothing asks for a
+register of a session that passed while the group was archived.** Those
+sessions come back with no register. One question decides whether a register
+is owed for a session of a group (`registerOwed`,
+`src/lib/courses/groupArchive/restored.ts`): none while the group is
+archived, and none for a session that started before `restoredAt`. Every
+reader of an unfinished register asks it: the Overview's sessions (such a
+session reads "Not held"), its Needs attention and its promises of a reminder
+and a task, the Remind press and its route (which sends nothing and says no
+register is owed), the Attendance tab's "not finished", the facilitator's
+own list of registers, the group page's ways to take a register, a
+correction's word on whether the chase comes back, archiving's own check,
+and the register reminder and the "register not taken" card.
+`tests/course-group-archive.test.mjs` walks every reader and fails one that
+does not ask. Next week's email and the reminders before a session, which
+are only ever about a session still to start, ask `startedBeforeRestore` too.
+A register that was taken for such a session still shows and counts as any
+register does. A check-in is
 opened by a facilitator at a session, which an archived group's facilitators
 cannot reach, so its reminder has none to send.
 
 **What its facilitators see.** A facilitator the archived group still names
-who opens its page (from My programmes, Home or an old link) is told "Group F
+who opens its page (by an old link: My programmes lists no archived group,
+and Home links to the run) is told "Group F
 was archived on Mon 2 Nov." and "Its registers are kept. Maya, the
 programme’s lead, can tell you more." (the lead's first name; "An admin can
 tell you more." with no lead), with the way to My programmes. Home says the

@@ -96,6 +96,10 @@ export function archivedSaidWords(name: string): string {
 // What archiving refuses, each with what puts it right
 // ---------------------------------------------------------------------------
 
+/** What the panel says for a press the route would not take from this account at all. */
+export const ARCHIVE_SIGNED_OUT = "You’ve been signed out. Sign in again, then come back to this group.";
+export const ARCHIVE_NOT_YOURS = "Only an admin or the programme’s lead archives or restores a group, and this account isn’t one of them now.";
+
 /** A refused press's sentences that name nothing, and the body the route answers before it reads a group. */
 export const ARCHIVE_REFUSAL = {
   body: "archived must be true or false.",
@@ -137,9 +141,17 @@ export function lastGroupWords(name: string, programmeName: string): string {
   );
 }
 
-/** Somebody still holds a place in the group: "Group C still has 6 people in it. Move them to another group first, then archive it." */
-export function stillHasPeopleWords(name: string, count: number): string {
-  return `${groupName(name)} still has ${peopleWords(count)} in it. Move them to another group first, then archive it.`;
+/**
+ * Somebody still holds a place in the group: "Group C still has 6 people in
+ * it. Move them to another group first, then archive it." When some of them
+ * facilitate it too, whom the board will not move, it says to take them off
+ * its facilitators first.
+ */
+export function stillHasPeopleWords(name: string, count: number, facilitating = 0): string {
+  const base = `${groupName(name)} still has ${peopleWords(count)} in it. Move them to another group first, then archive it.`;
+  if (facilitating <= 0) return base;
+  const who = facilitating === 1 ? "One of them facilitates it too" : `${facilitating} of them facilitate it too`;
+  return `${base} ${who}: take ${facilitating === 1 ? "them" : "those"} off its facilitators on Facilitators before moving ${facilitating === 1 ? "them" : "everybody"}.`;
 }
 
 /**
@@ -306,7 +318,7 @@ export function restoreQuestionBody(name: string, when: string, room: string): s
   return `${groupName(name)} comes back on the board, All groups and reminders, as it was when it was archived: ${parts.join(", ")}.`;
 }
 
-/** One facilitator who now sits in another group of the run as one of its people. */
+/** One facilitator who now holds a place in another group of the run, or in no group ("" for `groupName`). */
 export type SitsElsewhere = { name: string; groupName: string };
 
 /**
@@ -318,10 +330,13 @@ export type SitsElsewhere = { name: string; groupName: string };
 export function sitsElsewhereWords(name: string, elsewhere: readonly SitsElsewhere[], staying: readonly string[]): string {
   if (elsewhere.length === 0) return "";
   const group = groupName(name);
+  const one = elsewhere[0];
   const where =
     elsewhere.length === 1
-      ? `${line(elsewhere[0].name) || "One of its facilitators"} now sits in ${groupName(elsewhere[0].groupName)} as one of its people`
-      : `${andList(elsewhere.map((each) => `${line(each.name) || "One of its facilitators"} (${groupName(each.groupName)})`))} now sit in other groups as their people`;
+      ? line(one.groupName)
+        ? `${line(one.name) || "One of its facilitators"} now sits in ${groupName(one.groupName)} as one of its people`
+        : `${line(one.name) || "One of its facilitators"} now holds a place on the run in no group`
+      : `${andList(elsewhere.map((each) => `${line(each.name) || "One of its facilitators"} (${line(each.groupName) ? groupName(each.groupName) : "no group"})`))} now hold places elsewhere on the run`;
   const left = staying.map(line).filter(Boolean);
   return left.length === 0
     ? `${where}, so ${group} comes back with no facilitator. Add one on Facilitators.`
@@ -345,6 +360,15 @@ export function nameTakenWords(name: string): string {
 /** On the group's own page once it went through: "Group F is back. Nobody was emailed." */
 export function restoredSaidWords(name: string): string {
   return `${groupName(name)} is back. Nobody was emailed.`;
+}
+
+/**
+ * The Remind press about a session that passed while the group was archived:
+ * "Group F’s session on Tue 24 Nov passed while it was archived, so no
+ * register is owed and nobody is reminded."
+ */
+export function notOwedWords(name: string, dayLabel: string): string {
+  return `${groupName(name)}’s session on ${line(dayLabel) || "that day"} passed while it was archived, so no register is owed and nobody is reminded.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -382,6 +406,12 @@ export function facilitatorArchivedLine(leadFirstName: string | null): string {
 
 /** The facilitators route, on an archived group. */
 export const FACILITATORS_ARCHIVED = "That group has been archived, so its facilitators can’t change. Restore it first.";
+/** The route that covers a session or gives it to somebody, on an archived group. */
+export const COVER_ARCHIVED = "That group has been archived, so none of its sessions can be covered or given to anybody. Restore it first.";
+/** The group's own pace, on an archived group. */
+export const PACE_ARCHIVED = "That group has been archived, so its pace can’t change. Restore it first.";
+/** Writing to the group, on an archived group. */
+export const EMAIL_ARCHIVED = "That group has been archived, so nobody is written to through it. Restore it first.";
 /** The meeting link route, on an archived group. */
 export const LINK_ARCHIVED = "That group has been archived, so its meeting link can’t change. Restore it first.";
 
