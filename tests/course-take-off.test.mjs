@@ -23,7 +23,11 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render } from "@react-email/render";
+import { walkSource } from "./lib/functionScan.mjs";
 import { AGI, B, C, NOW, OPEN_RUN, ROUND, RUN, makeLeavingWorld, textOf } from "./lib/leavingWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
@@ -487,3 +491,26 @@ describe("6. Course run's list says who took them off and when", () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// 7. Every caller of the route asks in the sheet
+// ---------------------------------------------------------------------------
+
+describe("7. every way of taking somebody off asks in the one sheet", () => {
+  const SRC = new URL("../src/", import.meta.url);
+  const files = [...walkSource(fileURLToPath(SRC))].map((file) => [relative(fileURLToPath(SRC), file).split(sep).join("/"), readFileSync(file, "utf8")]);
+
+  test("the sheet is the only thing in the browser that presses the route, and both boards open it", () => {
+    const pressing = files
+      .filter(([file, code]) => !file.startsWith("app/api/") && /\/enrolments\/\$\{[^}]+\}(?:\/remove|`)/.test(code) && /\bremove\b/.test(code))
+      .map(([file]) => file)
+      .filter((file) => !file.startsWith("lib/"));
+    assert.deepEqual(pressing, ["features/courses/takeOff/TakeOffSheet.tsx"]);
+    const opening = files.filter(([, code]) => /from "@\/features\/courses\/takeOff\/TakeOffSheet"/.test(code)).map(([file]) => file).sort();
+    assert.deepEqual(opening, ["features/applications/groups/PeopleInGroups.tsx", "features/courses/AllocationBoard.tsx"]);
+    for (const [file, code] of files.filter(([file]) => opening.includes(file))) {
+      assert.doesNotMatch(code, /window\.confirm\([^)]*(?:off this run|off the run|takeOff)/, `${file} still asks in the browser's own confirmation`);
+      assert.match(code, /<TakeOffSheet runId=\{runId\} uid=\{\w+\}/, `${file} does not open the sheet`);
+    }
+  });
+});
