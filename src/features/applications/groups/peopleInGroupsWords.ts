@@ -330,3 +330,82 @@ export function panelFailedWords(status: number | undefined): string {
 
 /** Under a week only admins may see: the programme's lead may not read this person's application. */
 export const ADMINS_ONLY_FOOT = "Only admins see this.";
+
+// ---------------------------------------------------------------------------
+// Select several, before the groups go out
+// ---------------------------------------------------------------------------
+
+/** The toolbar's way into choosing several people, shown only before the groups go out. */
+export const SELECT_SEVERAL = "Select several";
+export const MOVE_TO = "Move to…";
+export const CLEAR = "Clear";
+export const DONE = "Done";
+/** The bar before anybody is chosen. */
+export const NONE_SELECTED = "Nobody selected yet.";
+
+/** "Daniel, Raj and Tom". */
+export function namesList(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** The bar: "3 selected: Daniel, Raj and Tom". First names, in the board's order. */
+export function selectedWords(firstNames: readonly string[]): string {
+  return firstNames.length === 0 ? NONE_SELECTED : `${firstNames.length} selected: ${namesList(firstNames)}`;
+}
+
+/** A card's box, for a screen reader: "Select Daniel Park". */
+export function selectLabel(name: string): string {
+  return `Select ${name}`;
+}
+
+/** Over the groups in "Move to…": "Move Daniel, Raj and Tom to". */
+export function moveChosenTitle(firstNames: readonly string[]): string {
+  return `Move ${namesList(firstNames)} to`;
+}
+
+/** Under a group in "Move to…": "Room for 2". */
+export function roomForWords(room: number): string {
+  return `Room for ${room}`;
+}
+
+/**
+ * After a move of several: "Daniel, Raj and Tom are in Group B. Nobody was
+ * emailed." Back to To place, they are no longer in a group.
+ */
+export function movedTogetherWords(firstNames: readonly string[], groupName: string | null): string {
+  const are = firstNames.length === 1 ? "is" : "are";
+  const where = groupName === null ? `${are} no longer in a group` : `${are} in ${groupName}`;
+  return `${namesList(firstNames)} ${where}. Nobody was emailed.`;
+}
+
+/**
+ * Why a move of several moved nobody, in one sentence naming who stopped it:
+ * a group without room for them all ("Group A has room for 2 of the 3. Pick
+ * fewer, or another group."), or the first person who could not be moved,
+ * by full name, and why. `groupName` is the group they were to go to.
+ */
+export function stoppedTogetherWords(
+  stop: { reason: string; room?: number; wanting?: number },
+  name: string,
+  groupName: string,
+): string {
+  switch (stop.reason) {
+    case "group-full":
+      return stop.room && stop.room > 0
+        ? `${groupName} has room for ${stop.room} of the ${stop.wanting ?? stop.room + 1}. Pick fewer, or another group.`
+        : `${groupName} is full. Pick another group.`;
+    case "group-archived":
+      return `${groupName} has been archived, so nobody was moved.`;
+    case "group-not-found":
+      return `${groupName} is no longer on the run, so nobody was moved.`;
+    case "facilitates-another-group":
+      return `${name} facilitates another group and sits in it, so nobody was moved.`;
+    case "not-accepted":
+      return `${name} no longer holds a place on the run, so nobody was moved.`;
+    case "published":
+      return "The groups have gone out since this page loaded, so nobody was moved.";
+    default:
+      return `${name} can’t be moved this way, so nobody was moved.`;
+  }
+}

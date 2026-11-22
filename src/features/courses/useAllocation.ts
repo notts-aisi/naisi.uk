@@ -253,6 +253,23 @@ export type PlacePreview = {
 
 export type PreviewResult = { ok: true; preview: PlacePreview[] } | { ok: false; error: string };
 
+/**
+ * Who stopped a move of several together, and why, as the allocate route
+ * answers it: the first person in the request who could not be moved (null
+ * when the groups had gone out), the group they were to go to, and for a
+ * group without room for them all, the room it had and how many wanted it.
+ */
+export type TogetherStop = {
+  uid: string | null;
+  reason: string;
+  groupId: string | null;
+  room?: number;
+  wanting?: number;
+};
+
+/** A move of several together: everybody moved, or nobody and who stopped it. */
+export type TogetherResult = { ok: true; placed: number } | { ok: false; error: string; stopped: TogetherStop | null };
+
 export type PublishResult =
   | { ok: true; report: PublishReport }
   | {
@@ -283,6 +300,11 @@ export type UseAllocation = {
   place: (placements: Placement[]) => Promise<PlaceResult>;
   /** What those moves would do, before the press: writes nothing. */
   previewPlace: (placements: Placement[]) => Promise<PreviewResult>;
+  /**
+   * Move several people together, before the groups have gone out: one
+   * transaction, everybody or nobody (`together: true` on the allocate route).
+   */
+  placeTogether: (placements: Placement[]) => Promise<TogetherResult>;
   /**
    * Publish, carrying the number of emails the board showed: the press is
    * refused if that is no longer what it would send. Refuses while anyone is
@@ -407,6 +429,33 @@ export function useAllocation(runId: string): UseAllocation {
     [base, reload],
   );
 
+  /**
+   * The same route with `together: true`: everybody in one transaction or
+   * nobody, and on a refusal who stopped it. The board is read again either
+   * way, as after any press.
+   */
+  const placeTogether = useCallback(
+    async (placements: Placement[]): Promise<TogetherResult> => {
+      try {
+        const res = await fetch(`${base}/allocate`, {
+          method: "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ placements, together: true }),
+        });
+        const body = await readBody<{ placed: number; stopped: TogetherStop }>(res);
+        reload();
+        if (!res.ok || !body?.ok) {
+          const stopped = body?.stopped && typeof body.stopped === "object" && typeof body.stopped.reason === "string" ? body.stopped : null;
+          return { ok: false, error: body?.error ?? `That move didn't go through (${res.status}).`, stopped };
+        }
+        return { ok: true, placed: typeof body.placed === "number" ? body.placed : 0 };
+      } catch (e: unknown) {
+        return { ok: false, error: messageFrom(e), stopped: null };
+      }
+    },
+    [base, reload],
+  );
+
   /** The same route with `preview: true`: the week of each move made mid-term, and the board's question. */
   const previewPlace = useCallback(
     async (placements: Placement[]): Promise<PreviewResult> => {
@@ -493,6 +542,7 @@ export function useAllocation(runId: string): UseAllocation {
     reload,
     place,
     previewPlace,
+    placeTogether,
     publishAllocation,
     sendPublishTest,
   };

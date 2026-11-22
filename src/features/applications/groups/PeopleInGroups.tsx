@@ -112,6 +112,16 @@ import { useBoardPanel } from "./useBoardPanel";
  * own routes) until "Back to the rings". The lead is offered none of it, as
  * before: Circles' route answers an admin alone.
  *
+ * SELECT SEVERAL, BEFORE THE GROUPS GO OUT, on Columns: the toolbar's
+ * "Select several" puts a box on every card, and a bar names who is chosen
+ * ("3 selected: Daniel, Raj and Tom") with "Move to…", "Clear" and "Done".
+ * "Move to…" lists To place and each group with its room, and moves
+ * everybody chosen in one request through the allocate route's `together`
+ * way (`placeTogether`): one transaction, everybody or nobody, and on a
+ * refusal one sentence naming who stopped it (`stoppedTogetherWords`).
+ * Nobody is emailed. Once the groups have gone out the button is not there:
+ * each move then asks its own question.
+ *
  * WHAT THE DESIGN DRAWS AND THIS LEAVES OUT, because the feature does not
  * exist yet: "Remind" (when-you're-free open until groups go out, a
  * later slice) and a facilitator's "(no reply yet)" (asking facilitators on
@@ -196,6 +206,8 @@ type CardProps = {
   onOpen: (uid: string, from: HTMLElement) => void;
   /** Their panel is the one open. */
   open: boolean;
+  /** Select several: the card's box, while choosing several before the groups go out. */
+  pick?: { checked: boolean; onToggle: () => void };
 };
 
 function PersonCard({
@@ -213,6 +225,7 @@ function PersonCard({
   onAnswerChanged,
   onOpen,
   open,
+  pick,
 }: CardProps) {
   // The six dots are a pointer's handle and nothing else: the card's menu is
   // the way to move somebody from a keyboard or a touch screen.
@@ -227,7 +240,14 @@ function PersonCard({
   };
   return (
     <div ref={setNodeRef} style={style} className={styles.cardShell}>
-      <div className={`${styles.card} ${warns ? styles.cardWarn : ""} ${isDragging ? styles.cardDragging : ""}`}>
+      <div
+        className={`${styles.card} ${warns ? styles.cardWarn : ""} ${isDragging ? styles.cardDragging : ""}${pick ? ` ${styles.cardPicking}` : ""}`}
+      >
+        {pick ? (
+          <label className={styles.pick}>
+            <input type="checkbox" checked={pick.checked} onChange={pick.onToggle} aria-label={words.selectLabel(name)} />
+          </label>
+        ) : null}
         <span ref={setActivatorNodeRef} className={styles.handle} aria-hidden="true" title="Drag" {...listeners}>
           <GripIcon size={14} />
         </span>
@@ -366,7 +386,7 @@ function Column({
 export default function PeopleInGroups({ view, views, show = "columns" }: Props) {
   const runId = view.run.id;
   const rings = show === "rings";
-  const { data, loading, error, reload, place, previewPlace } = useAllocation(runId);
+  const { data, loading, error, reload, place, previewPlace, placeTogether } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
   // "They meant some weeks" saved on a card: the board is read again, and says so.
   const onAnswerChanged = useCallback(
@@ -412,8 +432,15 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
     opening: { arrangement: ArrangementOptionsView | null; error: string | null };
   } | null>(null);
   const [openingArranging, setOpeningArranging] = useState(false);
+  // Select several, before the groups go out: whether the boxes are drawn, who is chosen, whether
+  // "Move to…" is open, what the last move of several came to, and a move of several on its way.
+  const [selecting, setSelecting] = useState(false);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [choosingGroup, setChoosingGroup] = useState(false);
+  const [togetherSaid, setTogetherSaid] = useState<{ ok: boolean; text: string } | null>(null);
+  const [movingTogether, setMovingTogether] = useState(false);
   // The cards wait while the question is open.
-  const busy = takingOff !== null || staffing;
+  const busy = takingOff !== null || staffing || movingTogether;
 
   const rows = useMemo(() => data?.people ?? [], [data]);
   const groups = useMemo(() => data?.groups ?? [], [data]);
@@ -667,6 +694,76 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
   );
 
   // -------------------------------------------------------------------------
+  // Select several, before the groups go out
+  // -------------------------------------------------------------------------
+
+  /** Everybody on the board's cards, in the board's order: To place, then each group. */
+  const boardOrder = useMemo(
+    () => [POOL, ...groups.map((group) => group.id)].flatMap((column) => (byColumn.get(column) ?? []).map((row) => row.uid)),
+    [groups, byColumn],
+  );
+  /** Who is chosen and still on a card, in the board's order. */
+  const chosenNow = useMemo(() => {
+    const picked = new Set(chosen);
+    return boardOrder.filter((uid) => picked.has(uid));
+  }, [boardOrder, chosen]);
+  const firstNamesOf = useCallback((uids: readonly string[]) => uids.map((uid) => nameOf(uid).split(" ")[0]), [nameOf]);
+
+  const toggleChosen = useCallback((uid: string) => {
+    setTogetherSaid(null);
+    setChosen((was) => (was.includes(uid) ? was.filter((each) => each !== uid) : [...was, uid]));
+  }, []);
+  const clearChosen = useCallback(() => {
+    setChosen([]);
+    setChoosingGroup(false);
+    setTogetherSaid(null);
+  }, []);
+  const stopSelecting = useCallback(() => {
+    setSelecting(false);
+    clearChosen();
+  }, [clearChosen]);
+
+  // "Move to…": everybody chosen in one request, together or not at all
+  // (`placeTogether`), and what it came to in one sentence. Nobody is emailed.
+  const moveChosen = useCallback(
+    async (columnId: string) => {
+      setChoosingGroup(false);
+      const uids = chosenNow;
+      if (uids.length === 0) return;
+      const groupId = columnId === POOL ? null : columnId;
+      const moving = uids.filter((uid) => {
+        const row = rowsByUid.get(uid);
+        return row !== undefined && columnOf(row) !== columnId;
+      });
+      const moved = words.movedTogetherWords(firstNamesOf(uids), groupId === null ? null : columnName(columnId));
+      if (moving.length === 0) {
+        setChosen([]);
+        setTogetherSaid({ ok: true, text: moved });
+        return;
+      }
+      setMovingTogether(true);
+      setTogetherSaid(null);
+      setPending((was) => ({ ...was, ...Object.fromEntries(moving.map((uid) => [uid, groupId] as const)) }));
+      const result = await placeTogether(moving.map((uid) => ({ uid, groupId })));
+      setMovingTogether(false);
+      if (result.ok) {
+        setChosen([]);
+        setTogetherSaid({ ok: true, text: moved });
+        return;
+      }
+      revert(moving);
+      const stop = result.stopped;
+      setTogetherSaid({
+        ok: false,
+        text: stop
+          ? words.stoppedTogetherWords(stop, stop.uid ? nameOf(stop.uid) : "", columnName(stop.groupId ?? columnId))
+          : result.error,
+      });
+    },
+    [chosenNow, rowsByUid, columnOf, firstNamesOf, columnName, nameOf, placeTogether, revert],
+  );
+
+  // -------------------------------------------------------------------------
   // An admin's arranging, on Rings
   // -------------------------------------------------------------------------
 
@@ -800,6 +897,9 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
   // Publish's page, carrying on how the board was shown, so its way back keeps it.
   const publishHref = withShow(`${boardHref}/publish`, show);
   const arrangingNow = rings && admin ? arranging : null;
+  // Select several is there only before the groups go out, on Columns.
+  const selectable = !rings && view.sent && data !== null && !data.run.allocationPublishedAt;
+  const picking = selectable && selecting;
   const beside = (
     <div className={styles.publish}>
       {view.sent && counts.toPlace > 0 && (
@@ -828,6 +928,18 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
           </Link>
         </span>
       </span>
+      {selectable && !selecting ? (
+        <button
+          type="button"
+          className={`${shared.btn} ${styles.publishLink}`}
+          onClick={() => {
+            setSelecting(true);
+            setTogetherSaid(null);
+          }}
+        >
+          {words.SELECT_SEVERAL}
+        </button>
+      ) : null}
       {/* Suggesting groups is an admin's, as it was on Circles. */}
       {rings && admin ? (
         <button
@@ -886,6 +998,7 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
         onAnswerChanged={onAnswerChanged}
         onOpen={openPanel}
         open={openUid === row.uid}
+        pick={picking ? { checked: chosen.includes(row.uid), onToggle: () => toggleChosen(row.uid) } : undefined}
       />
     );
   };
@@ -1091,6 +1204,59 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
               </button>
             </p>
           )}
+          {picking ? (
+            <div className={styles.selectBar} role="group" aria-label={words.SELECT_SEVERAL}>
+              <div className={styles.selectRow}>
+                <p className={styles.selectLine} aria-live="polite">
+                  {words.selectedWords(firstNamesOf(chosenNow))}
+                </p>
+                <div className={styles.selectActions}>
+                  <button
+                    type="button"
+                    className={shared.btn}
+                    aria-expanded={choosingGroup}
+                    disabled={chosenNow.length === 0 || busy}
+                    onClick={() => setChoosingGroup((was) => !was)}
+                  >
+                    {words.MOVE_TO}
+                  </button>
+                  <button type="button" className={shared.btn} disabled={chosenNow.length === 0 || busy} onClick={clearChosen}>
+                    {words.CLEAR}
+                  </button>
+                  <button type="button" className={shared.btn} disabled={movingTogether} onClick={stopSelecting}>
+                    {words.DONE}
+                  </button>
+                </div>
+              </div>
+              {choosingGroup && chosenNow.length > 0 ? (
+                <div className={styles.moveList}>
+                  <p className={styles.moveListTitle}>{words.moveChosenTitle(firstNamesOf(chosenNow))}</p>
+                  <ul className={styles.moveListItems}>
+                    <li>
+                      <button type="button" className={styles.moveListChoice} disabled={busy} onClick={() => void moveChosen(POOL)}>
+                        <span>{words.TO_PLACE}</span>
+                      </button>
+                    </li>
+                    {groups.map((group) => (
+                      <li key={group.id}>
+                        <button type="button" className={styles.moveListChoice} disabled={busy} onClick={() => void moveChosen(group.id)}>
+                          <span>{words.moveOptionWords(group.name, seated(group.id), group.capacity)}</span>
+                          {group.capacity !== null ? (
+                            <span className={styles.moveListRoom}>{words.roomForWords(Math.max(0, group.capacity - seated(group.id)))}</span>
+                          ) : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {togetherSaid ? (
+                <p className={togetherSaid.ok ? styles.togetherDone : styles.togetherStopped} role={togetherSaid.ok ? "status" : "alert"}>
+                  {togetherSaid.text}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {rings ? ringsDrawing : (
           <DndContext
             sensors={sensors}

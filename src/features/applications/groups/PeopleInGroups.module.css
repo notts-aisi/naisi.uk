@@ -670,3 +670,159 @@
     flex-wrap: wrap;
   }
 }
+
+/* --- Select several, before the groups go out ---------------------------- */
+
+/* A card with its box: the box takes the first column, and everything else moves along one. */
+.cardPicking {
+  grid-template-columns: 28px 14px 28px minmax(0, 1fr) auto;
+}
+.cardPicking > .handle {
+  grid-column: 2;
+}
+.cardPicking > .avatar {
+  grid-column: 3;
+}
+.cardPicking > .name {
+  grid-column: 4;
+}
+.cardPicking > .menu {
+  grid-column: 5;
+}
+.cardPicking > .detail {
+  grid-column: 4 / span 2;
+}
+.cardPicking > .marks,
+.cardPicking > .why {
+  grid-column: 3 / span 3;
+}
+/* The box, with a 44px target round it. */
+.pick {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-height: 44px;
+  margin: -8px 0;
+  cursor: pointer;
+}
+.pick input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+/* "3 selected: Daniel, Raj and Tom" with Move to…, Clear and Done. */
+.selectBar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: var(--radius-row);
+  background: var(--color-accent-soft);
+}
+.selectRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.selectLine {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.selectActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* "Move Daniel, Raj and Tom to", To place, and each group with its room. */
+.moveList {
+  align-self: flex-end;
+  width: min(100%, 20rem);
+  padding: 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+.moveListTitle {
+  margin: 4px 8px 8px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.moveListItems {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.moveListChoice {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+.moveListChoice:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+.moveListChoice:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: -2px;
+}
+.moveListChoice:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.moveListRoom {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+/* What a move of several came to: everybody moved, or nobody and who stopped it. */
+.togetherDone,
+.togetherStopped {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.togetherDone {
+  border-color: var(--color-ok-line);
+  background: var(--color-success-soft);
+}
+.togetherStopped {
+  border-color: var(--color-danger-line);
+  background: var(--color-danger-soft);
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .moveList {
+    align-self: stretch;
+    width: 100%;
+  }
+}
