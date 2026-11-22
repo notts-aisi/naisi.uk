@@ -282,6 +282,20 @@ const AUDIENCES = [
   {
     who: "a member who approves courses, and so authors rounds",
     access: { ...NO_ACCESS, canAuthorCourses: true, canAuthorRounds: true },
+    rules: ["memberAndUp", "courseAdmin"],
+    // CHANGED ON PURPOSE (November 2026). The course pages left the
+    // Programmes section, and they light this person's Courses entry. The
+    // admissions pages their approval lets them open lit that entry too while
+    // the course pages shared their section. They are not given a Programmes
+    // entry for them, which for somebody named on no form would open an empty
+    // page; named on a form, the flag gives them the entry, as the next row
+    // shows. So these four are reached by their addresses, and are listed
+    // here exactly.
+    darkOnPurpose: ["/admin/admissions/programmes", "/admin/admissions/forms", "/admin/admissions/requests", "/admin/admissions"],
+  },
+  {
+    who: "a member who approves courses and is named on a form",
+    access: { ...NO_ACCESS, canAuthorCourses: true, canAuthorRounds: true, isAdmissionsReviewer: true },
     rules: ["memberAndUp", "courseAdmin", "admissions"],
   },
   {
@@ -297,15 +311,15 @@ const AUDIENCES = [
 ];
 
 describe("every admin page somebody can open is lit in their own menu", () => {
-  for (const { who, access, rules } of AUDIENCES) {
+  for (const { who, access, rules, darkOnPurpose = [] } of AUDIENCES) {
     test(who, () => {
       const entries = ENTRIES.filter((e) => rules.includes(e.rule));
       const open = ADMIN_PAGES.filter((p) => p.visible(access));
       assert.ok(open.length > 0, `${who} is let into the admin area and offered no page of it`);
       const dark = open.filter((p) => currentEntry(entries, p.href) === null).map((p) => p.href);
-      assert.deepEqual(dark, [], `${who} can open these pages and no entry of their menu is marked on them`);
+      assert.deepEqual(dark, darkOnPurpose, `${who} can open these pages and no entry of their menu is marked on them`);
       // And the entry lit is one that leads into the admin area, not Home.
-      for (const page of open) {
+      for (const page of open.filter((p) => !darkOnPurpose.includes(p.href))) {
         assert.ok(currentEntry(entries, page.href).href.startsWith("/admin"), `${page.href} lights an entry outside the admin area`);
       }
     });
@@ -561,10 +575,7 @@ const ENTRY_RULES = {
   "/learn": ["memberAndUp", "Every approved account has a course area, empty or not."],
   "/tasks": ["memberAndUp", "My work lists the tasks a person is on; anybody can be on one."],
   "/profile": ["memberAndUp", "Everybody edits their own profile."],
-  "/admin/admissions/programmes": [
-    "admissions",
-    "The admissions tree admits admins, whoever is named on a form or a round, and a course approver, who authors rounds.",
-  ],
+  "/admin/admissions/programmes": ["admissions", "The admissions tree admits admins and whoever is named on a form or a round."],
   "/admin/courses": ["courseAdmin", "The course tree admits admins and a course grant; the course pages are a section of their own."],
   "/admin/members": ["adminOnly", "The (admin-only) group admits admins."],
   "/admin/membership": ["membershipAdmin", "The membership tree admits the grant; an admin reaches it through People."],
@@ -616,10 +627,8 @@ const RULE_BODIES = {
     '(v: Viewer) => v.role === "admin" || v.role === "committee" || Boolean(v.permissions.draftEvent) || Boolean(v.permissions.approveEvent)',
   ],
   // CHANGED ON PURPOSE (November 2026): the course pages left the
-  // Programmes strip, so the course approver, who authors rounds, is shown
-  // Programmes in the menu (the admissions tree's gate, canAuthorAdmissionRound,
-  // already admits them), and an admin is shown Courses.
-  admissions: ["ADMISSIONS_ACCESS", '(v: Viewer) => v.role === "admin" || v.admissionsReviewer || Boolean(v.permissions.approveCourse)'],
+  // Programmes strip for a section of their own, so an admin is shown Courses.
+  admissions: ["ADMISSIONS_ACCESS", '(v: Viewer) => v.role === "admin" || v.admissionsReviewer'],
   courseAdmin: [
     "COURSE_ADMIN_ACCESS",
     '(v: Viewer) => v.role === "admin" || Boolean(v.permissions.draftCourse) || Boolean(v.permissions.approveCourse)',

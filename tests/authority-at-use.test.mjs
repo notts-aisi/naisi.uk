@@ -1339,9 +1339,7 @@ const RAW_PERMISSION_SITES = {
       "pins the two controls.",
   },
   "src/layout/AppShell.tsx": {
-    // 8 since November 2026: the Programmes entry reads approveCourse too, the
-    // half of the admissions tree's gate a course approver passes.
-    matches: 8,
+    matches: 7,
     role: "client",
     why:
       "The sidebar draws the drafter and approver entries off the live auth snapshot. Every one " +

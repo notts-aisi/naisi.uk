@@ -106,14 +106,12 @@ export const APP_NAV: NavGroup[] = [
   {
     label: "Run NAISI",
     entries: [
-      // Admins, anybody named on a term's form or an older round, and a
-      // course approver, who authors rounds: the Programmes page, every
-      // programme of a term that is not over that the person may open.
+      // Admins, and anybody named on a term's form or an older round: the
+      // Programmes page, every programme of a term that is not over that the
+      // person may open.
       { label: "Programmes", href: PROGRAMMES_PATH, rule: "admissions", section: "programmes" },
       // The course pages, a section of their own since a course outlives its
-      // terms: for admins, and for somebody who is not an admin and holds a
-      // course grant, which reaches these pages and nothing else in the admin
-      // area unless it is approving.
+      // terms: for admins, and for somebody who holds a course grant.
       { label: "Courses", href: "/admin/courses", rule: "courseAdmin", section: "courses" },
       { label: "People", href: "/admin/members", rule: "adminOnly", section: "people", count: "joinRequests" },
       // The same word for somebody who is not an admin and looks after SU
@@ -338,7 +336,7 @@ export type AdminPage = {
   /** Who may open it. Mirrors the page's own gate, never a looser rule. */
   visible: (access: AdminTabAccess) => boolean;
   /** The count drawn beside the label. The strip owns the numbers. */
-  count?: "joinRequests" | "collaborators" | "courseApplications";
+  count?: "joinRequests" | "collaborators";
   /**
    * This page, and every page under its address, draws its own head: its own
    * name as the page's one <h1>, with the section's name as a small crumb
@@ -443,7 +441,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     id: "courses",
     label: "Courses",
     pages: [
-      { label: "Courses", href: "/admin/courses", match: under("/admin/courses"), visible: (a) => a.isAdmin || a.canAuthorCourses, count: "courseApplications" },
+      { label: "Courses", href: "/admin/courses", match: under("/admin/courses"), visible: (a) => a.isAdmin || a.canAuthorCourses },
     ],
   },
   {

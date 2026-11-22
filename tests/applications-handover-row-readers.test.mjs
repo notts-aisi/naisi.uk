@@ -176,11 +176,6 @@ const READERS = {
     proof: ["courseApplicationId(runId, uid)", "application?.uid === uid"],
     why: "the signed-in member's own row, read from the browser under the rule that allows an own row. Only the run's own apply form mounts it, and the apply page draws no form for a run the application form places people on (tests/applications-handover-older-way-in.test.mjs)",
   },
-  "features/courses/useCourseApplicationCount.ts": {
-    kind: "no-content",
-    proof: ['where("status", "==", "pending")', "getCountFromServer("],
-    why: "an admin's count of pending applications. A row from the form is never pending, and a count names nobody",
-  },
   "app/api/courses/runs/[runId]/enrolments/[uid]/reinstate/route.ts": {
     kind: "staff",
     asks: 1,

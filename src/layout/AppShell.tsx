@@ -96,15 +96,13 @@ const COURSE_ADMIN_ACCESS = (v: Viewer) =>
   v.role === "admin" || Boolean(v.permissions.draftCourse) || Boolean(v.permissions.approveCourse);
 
 // The Programmes entry. Admins always; anyone the roles route has marked as a
-// reviewer or final decider on a round; and a course approver, who authors
-// rounds and so passes the admissions tree's gate (`canAuthorAdmissionRound`)
-// and reached it from the course pages' strip until they left it. The flag is a denormalisation carried
+// reviewer or final decider on a round. The flag is a denormalisation carried
 // on the user document precisely so this predicate is a field read rather than
 // an `admissionRounds` query on every authed navigation, which is the shape
 // that would either cost every visitor a query or, worse, silently never show
 // the entry to exactly the non-admin SU reviewers it exists for.
 const ADMISSIONS_ACCESS = (v: Viewer) =>
-  v.role === "admin" || v.admissionsReviewer || Boolean(v.permissions.approveCourse);
+  v.role === "admin" || v.admissionsReviewer;
 
 // A non-admin holding `manageMembership` may use /admin/membership and nothing
 // else in the admin area, so they get a link straight to it. Admins are
