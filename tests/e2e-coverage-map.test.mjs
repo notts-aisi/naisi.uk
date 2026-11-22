@@ -670,9 +670,15 @@ const NOT_COVERED = {
     coverWhen:
       "With a course hub spec whose run names a track lead: remove them from the Course run section, see the list empty after a reload.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/arranging": {
+    reason:
+      "The programme's lead's arranging, which the lead opens with Suggest groups on People in groups, and again after a change. It writes nothing and asks Claude nothing; who may read it, that it carries nothing of Claude, Pangram or a week the lead may not read, and the lead's Apply through the site's own routes are executed by tests/course-hub-lead-arranging.test.mjs.",
+    coverWhen:
+      "With a course hub spec that signs in as a programme's lead, once the harness can make one (a lead must be SU-recognised committee, which the harness never makes).",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     reason:
-      "Circles' arranging reading the run's groups, which an admin opens with Suggest groups on People in groups shown as Rings, and again after a change. It writes nothing; who may read it, who is on the screen and that a second Apply sends nothing are executed by tests/applications-circles.test.mjs, and that the lead is never offered it by tests/course-hub-board-rings.test.mjs.",
+      "Circles' arranging reading the run's groups, which an admin opens with Suggest groups on People in groups shown as Rings, and again after a change. It writes nothing; who may read it, who is on the screen and that a second Apply sends nothing are executed by tests/applications-circles.test.mjs, and that the lead reads the lead's own route instead by tests/course-hub-board-rings.test.mjs and tests/course-hub-lead-arranging.test.mjs.",
     coverWhen:
       "When the Rings spec (scripts/e2e-fixtures/course-hub-board-rings.mjs) is verified and also drives an admin's Suggest groups, which reads this route and asks the arrangement route for a suggestion without Claude.",
   },

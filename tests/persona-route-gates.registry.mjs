@@ -1287,6 +1287,15 @@ export const ROUTES = {
         "before anything is read; the admin is then told the programme is missing.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/arranging": {
+    GET: {
+      expect: signedIn(404),
+      fields: ["circles"],
+      why:
+        "The programme's lead's arranging on People in groups, read from the form before the run or anybody is read: " +
+        "a form the address does not name is the same 404 for everybody signed in. Nothing is written and nothing is asked of Claude.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/panel": {
     GET: {
       expect: signedIn(404),
@@ -6794,6 +6803,20 @@ export const REAL_ROUTES = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     GET: adminAlone("Reading Circles", c(200, "An admin reads the run's groups as they are. Nothing is written and Claude is not asked.")),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/arranging": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run or anybody is read."),
+        admin: c(200, "An admin is answered the arranging without Claude or Pangram on any programme that names a run, and reads the fuller Circles on their own screen. Nothing is written."),
+      },
+      theirs: {
+        lead: c(200, "The programme's own lead reads the run's groups as they are, only the rows the board serves them and each week only where they may read the application, and nothing of Claude or Pangram."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/panel": {
     GET: {

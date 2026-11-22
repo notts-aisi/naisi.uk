@@ -1556,11 +1556,11 @@ names" below). Step 6, Publish, is an admin's alone.
    way saves at once and moves nobody else. Each card says which groups that
    person can make, from the week they painted on the form, or that they gave
    no availability; on Rings a red tag says the same, for the people whose
-   application the reader may read. For an admin, Rings' "Suggest groups"
-   opens Circles' arranging: a preview over the groups as they are (with or
-   without Claude) that seats only people in no group, keeps every appointed
-   facilitator in their group, and "Apply N changes" sends only what it
-   lists. Circles' old address opens People in groups shown as Rings.
+   application the reader may read. "Suggest groups", for an admin and the
+   programme's lead, opens Circles' arranging: a preview over the groups as
+   they are (an admin's with or without Claude, the lead's without) that
+   seats only people in no group, keeps every appointed facilitator in their
+   group, and "Apply N changes" sends only what it lists. Circles' old address opens People in groups shown as Rings.
    Before the groups go out, Columns' "Select several" puts a box on every
    card: choose people, then "Move to…" moves everybody chosen in one
    request, or nobody. A group without room for them all, an archived group,
@@ -3479,10 +3479,11 @@ they already open; nothing under `/admin/courses` is needed.
   only from the panel's read below, made at once on Rings: the lead is drawn
   them for the people whose application the lead may read, and nothing for
   anybody else; Pangram's flag and the legend's Claude and Pangram are an
-  admin's. An admin's "Suggest groups" there opens Circles' arranging, which
-  the lead is never offered. The arrangement route itself answers the lead a
-  suggestion without Claude, worked out only from the rows the board serves
-  them and the weeks they may read; asking Claude stays an admin's.
+  admin's. "Suggest groups", on Columns and on Rings, opens Circles'
+  arranging in place of the board: for an admin as it was, and for the
+  programme's lead read through the lead's own route, worked out only from
+  the rows the board serves them and the weeks they may read, with nothing
+  of Claude or Pangram; asking Claude stays an admin's.
 - **People in groups, Select several**: on Columns, before the groups go
   out (`allocationPublishedAt` unset), for the lead and admins. A box on
   every card, a bar naming who is chosen ("3 selected: Daniel, Raj and
@@ -3492,7 +3493,8 @@ they already open; nothing under `/admin/courses` is needed.
   transaction size) that re-reads the run, each row, each seat and each
   group, and moves everybody or nobody. A refusal is a 409 naming the first
   who stopped it (`stopped`), said on the board in one sentence. Without
-  `together` the route moves whoever fits, as it always has.
+  `together` the route moves whoever fits, as it always has. Select several
+  is on Columns alone: Rings keeps its own moves.
   `tests/course-board-move-together.test.mjs` runs it.
 - **People in groups, a person's panel**: every name on the board (a card,
   somebody invited, a facilitator in a column's head, a name in "Gave their

@@ -2407,6 +2407,24 @@ person saved or sent go out (below).
   the form, the run, its groups and seats, the form's sent applications,
   decisions and question sets, and writes nothing.
   `tests/course-hub-suggest-for-the-lead.test.mjs` runs it as every reader.
+  ON THE BOARD the lead has "Suggest groups" on Columns and on Rings, as an
+  admin does, once decisions have gone out: it opens Circles' arranging in
+  place of the board until "Back to the columns" or "Back to the rings",
+  and showing the board the other way closes it. An admin's reads the
+  groups through the `circles` GET, unchanged; the lead's through its own
+  `GET .../programmes/[programmeId]/arranging` (`loadLeadArranging` in
+  `arrange/circles.ts`, an admin or the programme's lead, a view-as session
+  refused, after decision day only), built through the same filtered
+  `loadArranging`, with no read from Claude or Pangram and Claude reported
+  as not set up. Somebody whose application the lead may not read is marked
+  `unread`: no chart, no offer, no "Open their application", no red tag and
+  "Only admins see when they’re free." The lead's screen (`forLead` on
+  `Circles` and its person panel) draws the admin's words without Claude,
+  Pangram or the Settings link, and no Suggest with Claude or Ask Claude.
+  Apply is the admin's, through the same routes with the same refusals, in
+  the same states (decisions out, the run named, a suggestion that is not a
+  preview, before and after Publish alike), and emails nobody; Publish stays
+  an admin's. `tests/course-hub-lead-arranging.test.mjs` runs it.
 - **The whole term at once.** Plan the intake
   (`/admin/admissions/forms/[roundId]/intake`, admin only, before decision
   day) drafts who goes where across every programme: applicant-proposing
