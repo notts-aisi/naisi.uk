@@ -331,9 +331,9 @@ describe("2. each step of Get ready for week 1, from records", () => {
         ],
         ["Choose group times", "todo", "0 of 3. Groups A, B and C have no time yet.", "Times (button)"],
         ["Ask facilitators", "todo", "No group has a facilitator yet.", "Facilitators (button)"],
-        // Rooms are set in the run editor, an admin's: the lead is offered nowhere to go.
-        ["Set rooms", "todo", "0 of 3. Groups A, B and C have no room yet.", null],
-        ["Put people in groups", "todo", "0 of 8 placed. 8 to place, 1 of them hasn’t said when they’re free.", "Groups (button)"],
+        // Rooms are set on the Groups tab's Sessions view, the lead's as much as an admin's.
+        ["Set rooms", "todo", "0 of 3. Groups A, B and C have no room yet.", "Set rooms (button)"],
+        ["Put people in groups", "todo", "0 of 8 placed. 8 to place, 1 of them hasn’t said when they’re free.", "People in groups (button)"],
         ["Write week 1", "todo", "Week 1 has no page yet. Paste its Markdown on the Weeks tab, then mark it ready.", "Open week 1 (button)"],
         ["Publish groups", "todo", "Emails each person their group, day and room, and each facilitator their group.", "Publish groups… (button)"],
       ],
@@ -343,7 +343,7 @@ describe("2. each step of Get ready for week 1, from records", () => {
     assert.equal(checklist.lede, "Week 1 starts Thu 29 Oct.");
   });
 
-  test("an admin is offered the hand-over on Settings and the rooms in the run editor", async () => {
+  test("an admin is offered the hand-over on Settings and the rooms on the Sessions view", async () => {
     nothingYet();
     const { checklist } = await facts("zach");
     assert.deepEqual(said(stepOf(checklist, "hand-over")), [
@@ -352,7 +352,7 @@ describe("2. each step of Get ready for week 1, from records", () => {
       "Settings (button)",
     ]);
     assert.deepEqual(stepOf(checklist, "hand-over").link.to, "settings");
-    assert.deepEqual(stepOf(checklist, "rooms").link, { to: "run-editor", label: "Set rooms", look: "button" });
+    assert.deepEqual(stepOf(checklist, "rooms").link, { to: "sessions", label: "Set rooms", look: "button" });
   });
 
   test("part done: the hand-over's own record, some placed, a room and an answer still to come, week 1 written", async () => {
@@ -364,8 +364,8 @@ describe("2. each step of Get ready for week 1, from records", () => {
         ["hand-over", "done", "Done by Zach · Mon 26 Oct, 12pm", null],
         ["times", "done", "3 groups: Tue 6pm, Wed 1pm, Thu 6pm", "Times (text)"],
         ["facilitators", "doing", "2 of 3 said yes. Nadia hasn’t replied about Group C.", "Facilitators (button)"],
-        ["rooms", "doing", "2 of 3. Group C has no room yet.", null],
-        ["people", "doing", "5 of 8 placed. 3 to place, 1 of them hasn’t said when they’re free.", "Groups (button)"],
+        ["rooms", "doing", "2 of 3. Group C has no room yet.", "Set rooms (button)"],
+        ["people", "doing", "5 of 8 placed. 3 to place, 1 of them hasn’t said when they’re free.", "People in groups (button)"],
         ["week-one", "doing", "Everyone holding a place can open week 1 once it’s marked ready.", null],
         ["publish", "todo", "Emails each person their group, day and room, and each facilitator their group.", "Publish groups… (button)"],
       ],
@@ -415,7 +415,7 @@ describe("2. each step of Get ready for week 1, from records", () => {
     assert.deepEqual(said(stepOf((await facts("claudia")).checklist, "people")), [
       "doing",
       "6 of 8 placed. 2 to place.",
-      "Groups (button)",
+      "People in groups (button)",
     ]);
   });
 
@@ -429,8 +429,8 @@ describe("2. each step of Get ready for week 1, from records", () => {
         ["times", "done", "3 groups: Tue 6pm, Wed 1pm, Thu 6pm", "Times (text)"],
         // Facilitators added by hand, not asked: no "said yes" is claimed for them.
         ["facilitators", "done", "Every group has a facilitator.", "Facilitators (text)"],
-        ["rooms", "done", "Every group has a room.", null],
-        ["people", "done", "8 of 8 placed.", "Groups (text)"],
+        ["rooms", "done", "Every group has a room.", "Set rooms (text)"],
+        ["people", "done", "8 of 8 placed.", "People in groups (text)"],
         ["week-one", "done", "Ready. Weeks 2 and 3 are ready too; 4 to 6 aren’t yet.", "Weeks (text)"],
         ["publish", "done", "Published Mon 26 Oct, 12pm.", "Publish groups… (text)"],
       ],
@@ -513,10 +513,11 @@ describe("2. each step of Get ready for week 1, from records", () => {
     }
     assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/groups/times"[^>]*><span>Times</span>`));
     assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/groups/facilitators"[^>]*><span>Facilitators</span>`));
-    assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/groups"[^>]*><span>Groups</span>`));
+    assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/groups"[^>]*><span>People in groups</span>`));
+    assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/groups/sessions"[^>]*><span>Set rooms</span>`));
     assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/groups/publish"[^>]*><span>Publish groups…</span>`));
     assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/applications/freed-places"[^>]*><span>See freed places</span>`));
-    assert.ok(!drawn.html.includes("/admin/courses/"), "the lead was sent to the run editor, which is an admin's");
+    assert.ok(!drawn.html.includes("/admin/courses/"), "the Overview sent somebody into the older run editor");
     assert.match(drawn.text, /Mark ready/);
     for (const heading of ["Not said when they’re free", "Places", "Facilitators"]) {
       assert.ok(drawn.text.includes(heading), heading);

@@ -180,13 +180,7 @@ export default function ProgrammeOverview({
 }) {
   if (getReady) {
     return (
-      <GetReady
-        model={getReady.model}
-        roundId={roundId}
-        programmeId={programmeId}
-        courseId={getReady.courseId}
-        runId={getReady.runId}
-      />
+      <GetReady model={getReady.model} roundId={roundId} programmeId={programmeId} />
     );
   }
   const { week, sessions, attention, byWeek, people } = model;

@@ -61,8 +61,9 @@ export type RunPanelOutcome =
   /** Somebody who is not an admin. Nothing was read. */
   | { status: "not-admin" };
 
-const boardPathFor = (courseId: string, runId: string) =>
-  `/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(runId)}/allocation`;
+/** People in groups: the programme's Groups tab, where the people handed over are placed. */
+const boardPathFor = (roundId: string, programmeId: string) =>
+  `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/groups`;
 const listPathFor = (courseId: string, runId: string) =>
   `/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(runId)}/applications`;
 
@@ -193,7 +194,7 @@ export async function loadRunPanel(
     runId: programme.runId,
     choices,
     runLocked: handedOver ? RUN_LOCKED : null,
-    boardPath: run ? boardPathFor(run.run.courseId, run.run.id) : null,
+    boardPath: run ? boardPathFor(roundId, programmeId) : null,
     listPath: run ? listPathFor(run.run.courseId, run.run.id) : null,
     blocked: handOverBlocker(form, programme, run),
     holders: null,

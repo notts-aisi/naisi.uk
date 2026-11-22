@@ -11,10 +11,13 @@ import PersonSelector from "@/components/ui/PersonSelector";
 import Select from "@/components/ui/Select";
 import Switch from "@/components/ui/Switch";
 import type { UserDoc } from "@/lib/firestore/users";
-import { GROUP_CAMPUSES, campusOf, type GroupCampus } from "@/lib/courses/campus";
+import { GROUP_CAMPUSES, campusLabel, campusOf, type GroupCampus } from "@/lib/courses/campus";
 import { CAMPUS, CAMPUS_HINT, CAMPUS_LABEL, CAMPUS_NOT_CHOSEN } from "@/lib/courses/campusWords";
 import { NEW_GROUP_SESSION_MINUTES } from "@/lib/courses/sessionLength";
 import {
+  LINK_SET,
+  NONE_SET,
+  NOT_SET_YET,
   SLOT_NO_PAGE_LINE,
   SLOT_READ_ONLY_LABEL,
   SLOT_READ_ONLY_LINE,
@@ -22,7 +25,15 @@ import {
   dayAndTimeWords,
   goneOutSinceOpened,
   lengthLine,
+  roomLine,
 } from "@/lib/courses/groupPage/words";
+import {
+  CAMPUS_AND_LOCATION,
+  MEETING_LINK,
+  ONLY_AN_ADMIN_HERE,
+  archiveOnGroupPageWords,
+  openGroupPageWords,
+} from "@/lib/courses/olderEditor/words";
 import {
   validateSubmissionUrl,
   type CourseEnrolMode,
@@ -56,6 +67,16 @@ import styles from "./GroupEditor.module.css";
  * The Archived switch is a route too (`setGroupArchived`), and `archived` is
  * pinned in rules: archiving is refused while it would lose something, and a
  * refusal's one sentence is what the toast shows, as for a failed save.
+ *
+ * ON A RUN A PROGRAMME NAMES (`groupPageHref` set), the group's page under
+ * that programme is where its room, campus and meeting link change, with
+ * History, and where it is archived and restored. Here the three are words
+ * with the way there, the card's save never sends them (so a card left open
+ * cannot put back a room changed on that page), and the Archived switch is a
+ * sentence and a link. On a run no programme names the card is as it was,
+ * except that the room, campus and link are an admin's: firestore.rules
+ * keeps them from every other browser writer, so for anybody else they are
+ * words too. Either way the card sends the three only when they changed.
  */
 
 type ToastRun = (
@@ -128,6 +149,8 @@ type Props = {
    * and a line says who archives a group.
    */
   canArchive?: boolean;
+  /** An admin: on a run no programme names, the only writer of the room, campus and link from here. */
+  isAdmin?: boolean;
 };
 
 export default function GroupEditor({
@@ -140,8 +163,13 @@ export default function GroupEditor({
   goneOut = false,
   groupPageHref = null,
   canArchive = true,
+  isAdmin = false,
 }: Props) {
   const fieldId = useId();
+  // The room, the campus and the link are fields only for an admin on a run
+  // no programme names; everywhere else they are words.
+  const roomEditable = groupPageHref === null && isAdmin;
+  const groupName = group.name || "the group";
 
   const [name, setName] = useState(group.name);
   const [capacity, setCapacity] = useState(
@@ -178,7 +206,7 @@ export default function GroupEditor({
       return;
     }
     const url = meetingUrlValue.trim();
-    if (url) {
+    if (roomEditable && url) {
       const urlError = validateSubmissionUrl(url, GROUP_FIELD_LIMITS.meetingUrl);
       if (urlError) {
         setError(urlError);
@@ -196,19 +224,30 @@ export default function GroupEditor({
     }
     setError(null);
 
-    const fullSession: GroupSession = {
-      ...session,
-      location: session.location.trim(),
-      // Empty stays null rather than "" — `meetingUrl` is nullable by design
-      // and the group card renders "in person only" off exactly that null.
-      meetingUrl: url ? url : null,
+    const nextLocation = session.location.trim();
+    // Empty stays null rather than "": `meetingUrl` is nullable by design
+    // and the group card renders "in person only" off exactly that null.
+    const nextMeetingUrl = url ? url : null;
+    // The room, the link and the campus, only when this card may change them
+    // and they did change: a save that leaves them alone never sends them,
+    // so it never puts back what the group's page has set meanwhile.
+    const roomChanged = roomEditable && nextLocation !== group.session.location;
+    const linkChanged = roomEditable && nextMeetingUrl !== group.session.meetingUrl;
+    const campusChanged = roomEditable && campus !== group.campus;
+    const nextSession: Partial<GroupSession> = {
+      // Once the groups have gone out the slot is the group page's: only the
+      // fields this card still edits are written (dotted paths, `updateGroup`).
+      ...(goneOut
+        ? {}
+        : {
+            weekday: session.weekday,
+            startTimeLocal: session.startTimeLocal,
+            durationMinutes: session.durationMinutes,
+          }),
+      ...(roomChanged ? { location: nextLocation } : {}),
+      ...(linkChanged ? { meetingUrl: nextMeetingUrl } : {}),
       notes: session.notes.trim(),
     };
-    // Once the groups have gone out the slot is the group page's: only the
-    // fields this card still edits are written (dotted paths, `updateGroup`).
-    const nextSession: Partial<GroupSession> = goneOut
-      ? { location: fullSession.location, meetingUrl: fullSession.meetingUrl, notes: fullSession.notes }
-      : fullSession;
     const facilitatorsChanged = !sameUids(facilitatorUids, group.facilitatorUids);
     // A card opened before the groups went out still offers the day, time
     // and length; the rules refuse a change once they have, and the toast
@@ -229,7 +268,7 @@ export default function GroupEditor({
               name: trimmedName,
               capacity: nextCapacity,
               session: nextSession,
-              campus,
+              ...(campusChanged ? { campus } : {}),
             },
             enrolMode,
           );
@@ -322,7 +361,7 @@ export default function GroupEditor({
                 <>
                   {" "}
                   <Link href={groupPageHref} className={styles.readOnlyLink}>
-                    {changeOnGroupPageWords(group.name || "the group")}
+                    {changeOnGroupPageWords(groupName)}
                   </Link>
                 </>
               )}
@@ -336,52 +375,89 @@ export default function GroupEditor({
           />
         )}
 
-        <Field id={`${fieldId}-campus`} label={CAMPUS} hint={CAMPUS_HINT}>
-          <Select
-            id={`${fieldId}-campus`}
-            value={campus ?? ""}
-            onChange={(e) => setCampus(campusOf(e.target.value))}
-            disabled={disabled}
-          >
-            <option value="">{CAMPUS_NOT_CHOSEN}</option>
-            {GROUP_CAMPUSES.map((each) => (
-              <option key={each} value={each}>
-                {CAMPUS_LABEL[each]}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        {roomEditable ? (
+          <>
+            <Field id={`${fieldId}-campus`} label={CAMPUS} hint={CAMPUS_HINT}>
+              <Select
+                id={`${fieldId}-campus`}
+                value={campus ?? ""}
+                onChange={(e) => setCampus(campusOf(e.target.value))}
+                disabled={disabled}
+              >
+                <option value="">{CAMPUS_NOT_CHOSEN}</option>
+                {GROUP_CAMPUSES.map((each) => (
+                  <option key={each} value={each}>
+                    {CAMPUS_LABEL[each]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
 
-        <div className={styles.twoCol}>
-          <Field id={`${fieldId}-location`} label="Location">
-            <Input
-              id={`${fieldId}-location`}
-              value={session.location}
-              onChange={(e) =>
-                setSession({ ...session, location: e.target.value })
-              }
-              maxLength={GROUP_FIELD_LIMITS.location}
-              disabled={disabled}
-              placeholder="e.g. Portland A21"
-            />
-          </Field>
-          <Field
-            id={`${fieldId}-meeting`}
-            label="Meeting link"
-            hint="Members only see this via their own group card."
-          >
-            <Input
-              id={`${fieldId}-meeting`}
-              value={meetingUrlValue}
-              onChange={(e) =>
-                setSession({ ...session, meetingUrl: e.target.value })
-              }
-              maxLength={GROUP_FIELD_LIMITS.meetingUrl}
-              disabled={disabled}
-              placeholder="https://…"
-            />
-          </Field>
-        </div>
+            <div className={styles.twoCol}>
+              <Field id={`${fieldId}-location`} label="Location">
+                <Input
+                  id={`${fieldId}-location`}
+                  value={session.location}
+                  onChange={(e) =>
+                    setSession({ ...session, location: e.target.value })
+                  }
+                  maxLength={GROUP_FIELD_LIMITS.location}
+                  disabled={disabled}
+                  placeholder="e.g. Portland A21"
+                />
+              </Field>
+              <Field
+                id={`${fieldId}-meeting`}
+                label="Meeting link"
+                hint="Members only see this via their own group card."
+              >
+                <Input
+                  id={`${fieldId}-meeting`}
+                  value={meetingUrlValue}
+                  onChange={(e) =>
+                    setSession({ ...session, meetingUrl: e.target.value })
+                  }
+                  maxLength={GROUP_FIELD_LIMITS.meetingUrl}
+                  disabled={disabled}
+                  placeholder="https://…"
+                />
+              </Field>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className={styles.readOnlySlot}>
+              <p className={styles.readOnlyLabel}>{CAMPUS_AND_LOCATION}</p>
+              <p className={styles.readOnlyValue}>
+                {group.session.location.trim() || group.campus
+                  ? roomLine(group.session.location, campusLabel(group.campus))
+                  : NOT_SET_YET}
+              </p>
+              <p className={styles.readOnlyHint}>
+                {groupPageHref ? (
+                  <Link href={groupPageHref} className={styles.readOnlyLink}>
+                    {changeOnGroupPageWords(groupName)}
+                  </Link>
+                ) : (
+                  ONLY_AN_ADMIN_HERE
+                )}
+              </p>
+            </div>
+            <div className={styles.readOnlySlot}>
+              <p className={styles.readOnlyLabel}>{MEETING_LINK}</p>
+              <p className={styles.readOnlyValue}>{group.session.meetingUrl ? LINK_SET : NONE_SET}</p>
+              <p className={styles.readOnlyHint}>
+                {groupPageHref ? (
+                  <Link href={groupPageHref} className={styles.readOnlyLink}>
+                    {changeOnGroupPageWords(groupName)}
+                  </Link>
+                ) : (
+                  ONLY_AN_ADMIN_HERE
+                )}
+              </p>
+            </div>
+          </>
+        )}
 
         <Field
           id={`${fieldId}-notes`}
@@ -407,14 +483,25 @@ export default function GroupEditor({
           max={GROUP_FIELD_LIMITS.maxFacilitators}
         />
 
-        <Switch
-          checked={group.archived}
-          onChange={toggleArchived}
-          disabled={disabled || !canArchive}
-          label="Archived"
-          description="Archived groups stay on the run for the record but drop out of allocation."
-        />
-        {!canArchive && <p className={styles.hint}>{ARCHIVE_IS_AN_APPROVERS}</p>}
+        {groupPageHref ? (
+          <p className={styles.readOnlyHint}>
+            {archiveOnGroupPageWords(groupName)}{" "}
+            <Link href={groupPageHref} className={styles.readOnlyLink}>
+              {openGroupPageWords(groupName)}
+            </Link>
+          </p>
+        ) : (
+          <>
+            <Switch
+              checked={group.archived}
+              onChange={toggleArchived}
+              disabled={disabled || !canArchive}
+              label="Archived"
+              description="Archived groups stay on the run for the record but drop out of allocation."
+            />
+            {!canArchive && <p className={styles.hint}>{ARCHIVE_IS_AN_APPROVERS}</p>}
+          </>
+        )}
       </div>
 
       {error && <p className={styles.error}>{error}</p>}

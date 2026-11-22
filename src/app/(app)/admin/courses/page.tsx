@@ -1,4 +1,5 @@
 import AdminCourseList from "@/features/courses/AdminCourseList";
+import OlderEditorLine from "@/features/courses/olderEditor/OlderEditorLine";
 
 /**
  * Admin course catalogue. `courses/layout.tsx` gates this whole tree with
@@ -8,5 +9,10 @@ import AdminCourseList from "@/features/courses/AdminCourseList";
  * tabs, and Firestore rules are the boundary on each one.
  */
 export default function CoursesAdminPage() {
-  return <AdminCourseList />;
+  return (
+    <>
+      <OlderEditorLine programme={null} />
+      <AdminCourseList />
+    </>
+  );
 }

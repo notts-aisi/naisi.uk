@@ -2,6 +2,7 @@ import "server-only";
 import type { Role, SessionUser } from "@/lib/firebase/session";
 import {
   canCirculateWorksheet,
+  canDraftCourse,
   isEligibleAdmissionsReviewer,
 } from "@/lib/firestore/users";
 
@@ -176,6 +177,18 @@ export const AUTHORITY: Record<string, StandingBar> = {
     appointedBy: "src/app/api/courses/runs/[runId]/roles/route.ts, via ELIGIBLE_ROLES",
     test: isApprovedAccount,
     why: "Same array, same route, same intersection with the approved accounts.",
+  },
+  "courseRuns.authorUid": {
+    field: "courseRuns.authorUid",
+    appointedBy:
+      "src/features/courses/courseMutations.ts `createRun`, under firestore.rules `courseRuns` create: " +
+      "a course drafter or approver writes their own uid",
+    test: canDraftCourse,
+    why:
+      "The run's author may author its weeks only while they still hold draftCourse, which is what " +
+      "`canEditRun()` in firestore.rules asks beside the author's uid (`canDraftCourse() && " +
+      "authorUid == uid`). A drafter whose permission is taken away, or whose account no longer " +
+      "stands, is nobody on the runs they wrote.",
   },
   "courseRuns.runFacilitatorUids": {
     field: "courseRuns.runFacilitatorUids",

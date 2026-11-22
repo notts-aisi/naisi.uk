@@ -138,9 +138,13 @@ describe("courseRuns weeks: a week's blocks and its Ready are the server's", () 
       await assertSucceeds(weeks(db).doc("w03").update({ title: `Renamed by ${uid}` }));
       await assertSucceeds(weeks(db).doc("w03").update({ questions: ["What would change your mind?"] }));
     }
-    // Taking a ready week down is saveWeek's `published` alone: Ready stays as
-    // stored, and the reader counts it only on a published week.
-    await assertSucceeds(weeks(await asUser("lead")).doc("w03").update({ published: false }));
+    // Taking a ready week down is the unpublish route's, which checks first
+    // that nobody has started it: no browser takes `published` back
+    // (course-older-editor-locks.test.mjs). Publishing stays a browser write.
+    await assertFails(weeks(await asUser("lead")).doc("w03").update({ published: false }));
+    await seed(async (db) => {
+      await weeks(db).doc("w03").update({ published: false });
+    });
     await assertSucceeds(weeks(await asUser("drafter")).doc("w03").update({ published: true }));
   });
 

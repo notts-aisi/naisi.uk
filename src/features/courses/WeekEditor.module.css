@@ -84,6 +84,18 @@
   line-height: 1.5;
 }
 
+/* In place of the Published switch once somebody has started the week: why
+   it stays published, and what to do instead. */
+.staysPublished {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger-line, var(--color-danger));
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
 .empty {
   margin: 0;
   padding: var(--space-4);

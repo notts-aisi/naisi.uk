@@ -139,14 +139,17 @@ describe("1. one week's page", () => {
     assert.ok(made.text.includes("Mark ready") && made.text.includes("Preview as a fellow"));
   });
 
-  test("an unpublished week offers Mark ready, which publishes it, with the way to the week editor for an admin alone", async () => {
+  test("an unpublished week offers Mark ready, which publishes it, and leads nobody into the older week editor", async () => {
     world.db.poke(weekPath("w03"), { published: false });
     const lead = await draw("claudia", WeekPage, at("w03"));
     assert.match(lead.text, /Week 3 isn’t published yet: marking it ready publishes it\./);
     assert.ok(lead.text.includes("Mark ready"));
     assert.ok(!lead.text.includes("Open the run’s week editor"));
     const admin = await draw("zach", WeekPage, at("w03"));
-    assert.match(admin.html, new RegExp(`href="/admin/courses/${COURSE.agi}/runs/${RUN.agi}/weeks/w03"[^>]*>Open the run’s week editor</a>`));
+    assert.match(admin.text, /Week 3 isn’t published yet: marking it ready publishes it\./);
+    assert.ok(admin.text.includes("Mark ready"));
+    assert.ok(!admin.text.includes("Open the run’s week editor"));
+    assert.ok(!admin.html.includes(`/admin/courses/${COURSE.agi}/runs/${RUN.agi}/weeks/`), "an admin was sent into the older week editor");
     const marked = await call("claudia", readyRoute.PUT, { runId: RUN.agi, weekId: "w03" }, { body: { ready: true }, course: true });
     assert.equal(marked.status, 200, JSON.stringify(marked.body));
     assert.equal(world.db.read(weekPath("w03")).published, true);

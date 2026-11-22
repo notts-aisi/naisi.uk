@@ -71,7 +71,7 @@ export const STEP_LINK = {
   times: "Times",
   facilitators: "Facilitators",
   rooms: "Set rooms",
-  groups: "Groups",
+  groups: "People in groups",
   weeks: "Weeks",
   weekOne: "Open week 1",
   publish: "Publish groups…",

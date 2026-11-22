@@ -31,6 +31,10 @@
  *    A seeded document reads as written at `options.seededAt`, or long ago
  *    (the epoch) when the suite does not say; `seed(path, data, at)` names
  *    its own.
+ *  - a query's `count()`, read alone or in a transaction, which then watches
+ *    the documents it matched as a query read does (the older editor's
+ *    checks that nobody has started a run or a week before a copy replaces
+ *    its weeks or a week is unpublished).
  *
  * ## The sentinels
  *
@@ -186,6 +190,19 @@ export function makeDb(seed = {}, options = {}) {
     // waiting list. As Firestore does, a document missing an ordered field is
     // not in the answer at all.
     orderBy: (field, direction = "asc") => query(collectionPath, filters, cap, [...orders, [field, direction]]),
+    // How many documents match, as an aggregate query answers: `data().count`.
+    count: () => {
+      const base = query(collectionPath, filters, cap, orders);
+      return {
+        path: collectionPath,
+        isAggregate: true,
+        matched: () => base.get(),
+        get: async () => {
+          const found = await base.get();
+          return { data: () => ({ count: found.docs.length }) };
+        },
+      };
+    },
     get: async () => {
       stats.reads += 1;
       const found = childrenOf(collectionPath).filter(
@@ -340,6 +357,12 @@ export function makeDb(seed = {}, options = {}) {
         };
         const tx = {
           get: async (target) => {
+            if (target.isAggregate) {
+              const found = await target.matched();
+              seen.set(`list:${target.path}`, childrenOf(target.path).join("|"));
+              for (const doc of found.docs) note(doc.ref.path);
+              return { data: () => ({ count: found.docs.length }) };
+            }
             const result = await target.get();
             if (target.isQuery) {
               seen.set(`list:${target.path}`, childrenOf(target.path).join("|"));

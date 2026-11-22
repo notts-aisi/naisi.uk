@@ -489,10 +489,11 @@ describe("the panel beside the button", () => {
     }
   });
 
-  test("says where the run's board and its own list are, and carries nothing of an application", async () => {
+  test("says where People in groups and the run's own list are, and carries nothing of an application", async () => {
     await press();
     const shown = await panel();
-    assert.equal(shown.boardPath, `/admin/courses/${COURSE.agi}/runs/${RUN.agi}/allocation`);
+    // People in groups, the programme's Groups tab, never the older allocation board.
+    assert.equal(shown.boardPath, `/admin/admissions/forms/${ROUND}/programmes/${AGI}/groups`);
     assert.equal(shown.listPath, `/admin/courses/${COURSE.agi}/runs/${RUN.agi}/applications`);
     assert.deepEqual([shown.holders, shown.onTheList, shown.otherRows, shown.blocked], [AGI_HOLDERS.length, AGI_HOLDERS.length, 0, null]);
     const said = JSON.stringify(shown);

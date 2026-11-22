@@ -3575,6 +3575,24 @@ export const ROUTES = {
         "the admin is told an id that is not w01 to w60 is no week.",
     },
   },
+  "/api/courses/runs/[runId]/weeks/[weekId]/published": {
+    PATCH: {
+      expect: adminOnly(404, { approveCourse: 404 }),
+      drive: {
+        body: { published: false },
+        why:
+          "An empty body is the same 400 for every signed-in persona; a body that unpublishes reaches the " +
+          "gate, which a course approver and an admin pass on the session and meet the week address check, " +
+          "and which everybody else fails on a run that is not there.",
+      },
+      why:
+        "View-as is refused first, then the session, then the body, then the gate: taking a week back is for " +
+        "an admin, a course approver, the course drafter who wrote the run, its track leads and the lead of " +
+        "the programme that names it. An approver needs nothing read; anybody else is decided on the run, and " +
+        "a run that is not there is the same 403. The admin and the approver are told an id that is not w01 " +
+        "to w60 is no week.",
+    },
+  },
   "/api/courses/runs/[runId]/weeks/[weekId]/owner": {
     PUT: {
       expect: adminOnly(404),
@@ -8033,6 +8051,25 @@ export const REAL_ROUTES = {
         lead: c(ACTS, "Leads the programme that names the run, so admitted, and the body is a whole one: it would mark week 1 ready, so it is not sent."),
         facilitator: c(403, "Facilitating a group is not leading the programme: refused before anything of the run is read."),
         participant: c(403, "Holding a place is not leading the programme: refused before anything of the run is read."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/published": {
+    PATCH: {
+      realDrive: {
+        body: { published: false },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin, a course approver, the run's author, one of its track leads nor the lead of the programme that names it: taking a week back is refused before anything is written."),
+        admin: c(ACTS, "An admin is admitted, and the body is a whole one: it would unpublish the week once it is checked that nobody has started it, so it is not sent."),
+        approveCourse: c(ACTS, "A course approver is admitted on the session, and the body is a whole one: it would unpublish the week once it is checked, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme that names the run, so admitted, and the body is a whole one: it would unpublish the week once it is checked, so it is not sent."),
+        facilitator: c(403, "Facilitating a group does not staff the run: taking a week back is refused before anything is written."),
+        participant: c(403, "Holding a place does not staff the run: taking a week back is refused before anything is written."),
       },
     },
   },

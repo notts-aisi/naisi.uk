@@ -788,7 +788,7 @@ describe("courseRuns weeks", () => {
     );
   });
 
-  it("gates week DELETION above authoring: drafter refused, approver allowed", async () => {
+  it("refuses week DELETION to every browser, approvers and admins included: the routes remove weeks", async () => {
     await seedCast();
     await seedRun("run1");
     await seed(async (db) => {
@@ -801,8 +801,11 @@ describe("courseRuns weeks", () => {
     });
     const ref = (db) =>
       db.collection("courseRuns").doc("run1").collection("weeks").doc("w03");
-    await assertFails(ref(await asUser("drafter")).delete());
-    await assertSucceeds(ref(await asUser("approver")).delete());
+    // The destroy cascade, Normalise week ids and the copies remove weeks
+    // (Admin SDK); course-older-editor-locks.test.mjs holds the same refusal.
+    for (const uid of ["drafter", "approver", "admin1"]) {
+      await assertFails(ref(await asUser(uid)).delete());
+    }
   });
 });
 
@@ -862,11 +865,26 @@ describe("courseGroups", () => {
           weekday: 4,
           startTimeLocal: "17:30",
           durationMinutes: 60,
-          location: "Trent Building A44",
-          meetingUrl: "https://meet.example.com/group-a",
+          // The room and the link as stored: both are the routes' now, set on
+          // the group's page (course-older-editor-locks.test.mjs holds that).
+          location: "Monica Partridge Building",
+          meetingUrl: null,
           notes: "Moved for the careers fair.",
         },
         sessionOverrides: { w05: { location: "Online only" } },
+      }),
+    );
+    // A new room in the same write is refused: it goes through the room route.
+    await assertFails(
+      db.collection("courseGroups").doc("g1").update({
+        session: {
+          weekday: 4,
+          startTimeLocal: "17:30",
+          durationMinutes: 60,
+          location: "Trent Building A44",
+          meetingUrl: null,
+          notes: "Moved for the careers fair.",
+        },
       }),
     );
     // The parent run's track lead shares the lane.
@@ -892,25 +910,36 @@ describe("courseGroups", () => {
     await assertFails(db.collection("courseGroups").doc("g1").update({ runId: "run2" }));
   });
 
-  it("lets a group's editors set its campus to one of the three or none, and nothing else", async () => {
+  it("lets an admin set a group's campus to one of the three or none, and nothing else; its other editors use the campus route", async () => {
     await seedCast();
     await seedRun("run1", { trackLeadUids: ["lead"] });
     await seed(async (db) => {
       await db.collection("courseGroups").doc("g1").set(groupDoc({ facilitatorUids: ["facil"] }));
     });
-    const facil = await asUser("facil");
+    const admin = await asUser("admin1");
     for (const campus of ["university-park", "jubilee", "online", null]) {
-      await assertSucceeds(facil.collection("courseGroups").doc("g1").update({ campus }));
+      await assertSucceeds(admin.collection("courseGroups").doc("g1").update({ campus }));
     }
-    await assertSucceeds((await asUser("lead")).collection("courseGroups").doc("g1").update({ campus: "jubilee" }));
-    // Zach's three, as stored, and nothing else: not a label, not another campus, not another type.
-    for (const campus of ["Jubilee", "sutton-bonington", "kings-meadow", "", 3, true, { name: "jubilee" }]) {
-      await assertFails(facil.collection("courseGroups").doc("g1").update({ campus }));
+    // Every other editor of the group is refused the campus from a browser:
+    // it is set on the group's page, through its route.
+    for (const uid of ["facil", "lead", "approver"]) {
+      await assertFails((await asUser(uid)).collection("courseGroups").doc("g1").update({ campus: "jubilee" }));
     }
-    // Born with one: the same list.
+    // The three campuses the owner asked for, as stored, and nothing else:
+    // not a label, not another campus, not another type. A browser meets the
+    // list only when a group is born (an admin's update takes the admin
+    // branch, which the shape checks never bound), so it is held there, for
+    // each value.
     const approver = await asUser("approver");
-    await assertSucceeds(approver.collection("courseGroups").doc("g2").set(groupDoc({ campus: "online" })));
-    await assertFails(approver.collection("courseGroups").doc("g3").set(groupDoc({ campus: "Online" })));
+    let n = 2;
+    for (const campus of ["university-park", "jubilee", "online", null]) {
+      await assertSucceeds(approver.collection("courseGroups").doc(`g${n}`).set(groupDoc({ campus })));
+      n += 1;
+    }
+    for (const campus of ["Online", "Jubilee", "sutton-bonington", "kings-meadow", "", 3, true, { name: "jubilee" }]) {
+      await assertFails(approver.collection("courseGroups").doc(`g${n}`).set(groupDoc({ campus })));
+      n += 1;
+    }
   });
 
   it("refuses client deletes even for admins (allocation must re-pool members)", async () => {
@@ -2083,12 +2112,12 @@ describe("courseGroups: V3 server-owned fields and the capacity ceiling", () => 
     });
     const db = await asUser("facil");
     // They CAN still edit their session, which is the lane the pin must not
-    // close.
+    // close (its notes: the room is the room route's).
     await assertSucceeds(
       db
         .collection("courseGroups")
         .doc("grp1")
-        .update({ session: { ...groupDoc().session, location: "Portland Building" } }),
+        .update({ session: { ...groupDoc().session, notes: "Bring the reading." } }),
     );
     await assertFails(
       db.collection("courseGroups").doc("grp1").update({ streamId: "technical" }),
@@ -2188,7 +2217,7 @@ describe("courseGroups: V3 server-owned fields and the capacity ceiling", () => 
       before
         .collection("courseGroups")
         .doc("grp-flip")
-        .update({ session: { ...groupDoc().session, location: "Portland A21" } }),
+        .update({ session: { ...groupDoc().session, notes: "Room changed." } }),
     );
 
     // The Admin SDK flips the run, exactly as the enrol-mode route would if it
@@ -2203,7 +2232,7 @@ describe("courseGroups: V3 server-owned fields and the capacity ceiling", () => 
       after
         .collection("courseGroups")
         .doc("grp-flip")
-        .update({ session: { ...groupDoc().session, location: "Monica Partridge B12" } }),
+        .update({ session: { ...groupDoc().session, notes: "Room changed again." } }),
     );
 
     // And an approver setting a capacity is the repair, so the wedge is not

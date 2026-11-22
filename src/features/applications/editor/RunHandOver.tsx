@@ -33,7 +33,7 @@ import {
  *     at once, like the Course page box above it. From then on that run's
  *     own apply page takes no applications.
  *  2. THE HAND-OVER, once decisions have been sent: everybody who holds a
- *     place on the programme is put on the run's allocation board. Nobody is
+ *     place on the programme is put on People in groups. Nobody is
  *     emailed, nobody is put in a group, and nothing in their member area
  *     changes because of it: the first thing the course system shows
  *     somebody is their group. It can be pressed again whenever somebody new
@@ -177,7 +177,7 @@ export default function RunHandOver({
               </button>
               {panel.boardPath && (
                 <Link href={panel.boardPath} className={styles.link}>
-                  Open the allocation board
+                  Open People in groups
                 </Link>
               )}
             </div>
@@ -189,7 +189,7 @@ export default function RunHandOver({
             )}
 
             <p className={styles.small}>
-              Handing over puts them on the run’s allocation board. Nobody is emailed, nobody is put in a
+              Handing over puts them on People in groups. Nobody is emailed, nobody is put in a
               group, and nothing changes in their member area until Publish has told them their group. Press it
               again whenever somebody new has a place: nothing is written twice.
             </p>

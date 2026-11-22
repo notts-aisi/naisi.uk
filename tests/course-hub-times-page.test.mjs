@@ -13,7 +13,8 @@
  *    The page counts the people holding a place by when they are free and
  *    names the ones no group suits. Since the course hub's lead access
  *    the programme's lead is drawn it as an admin is, without what only an
- *    admin can do from it (naming the run, the run editor). A reviewer is
+ *    admin can do from it (naming the run). Nobody is sent into the older
+ *    run editor: groups are added here and changed on each group's page. A reviewer is
  *    told the tab is the lead's and an admin's, and only the form's settings
  *    were read to tell them. The tree's own gate sends a run's track lead, a
  *    member, a member placed on the run and somebody signed out to the
@@ -43,7 +44,6 @@ import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
 import {
   AGI,
   CAST,
-  COURSE,
   GROUP,
   ROUND,
   RUN,
@@ -428,11 +428,10 @@ describe("what the cards say", () => {
     assert.ok(!said.includes("Bea Lindqvist"));
   });
 
-  test("the views are the tab's three, and the card names the run editor for an admin; nothing else is offered", async () => {
+  test("the views are the tab's three, and nothing leads an admin into the older run editor; nothing else is offered", async () => {
     const { html, text: said } = await draw("zach");
-    const editor = new RegExp(`<a href="/admin/courses/${COURSE.agi}/runs/${RUN.agi}" class="see editorLink">(.*?)</a>`).exec(html);
-    assert.ok(editor, "no link to the run editor");
-    assert.equal(text(editor[1]), "Add or change groups in the run editor");
+    assert.ok(!html.includes(`/admin/courses/`), "an admin was sent into the older run editor");
+    assert.ok(!said.includes("run editor"));
     assert.ok(!said.includes("set in Settings"), "the page offers set in Settings");
     // Since Times in full the page offers exactly the board's three
     // controls: "Use for a group" beside each of the 5 best times no group
@@ -535,8 +534,9 @@ describe("every state has a sentence", () => {
     const { text: said } = await draw("zach");
     // A fellowship meets for two hours (`usualLength`).
     assert.match(said, /No group has a session time yet\. This counts 2-hour sessions, how long this programme usually meets\./);
-    // "Add a group" sits above the admin's way to the run editor.
-    assert.match(said, /Your groups This run has no groups yet\. Add a group Add groups in the run editor/);
+    // "Add a group" is the way groups are made; nothing leads to the older run editor.
+    assert.match(said, /Your groups This run has no groups yet\. Add a group Arrange groups/);
+    assert.ok(!said.includes("run editor"));
     assert.match(said, /Monday 6pm: 1 of 2 free/);
   });
 

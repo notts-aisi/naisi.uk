@@ -1049,12 +1049,8 @@ const BUILT = new Map([
   [
     "src/features/applications/weeks/WeekPageView.tsx",
     {
-      built: [
-        "page.guide.href",
-        "weekEditorPath(page.courseId, runId, week.weekId)",
-        "weekPreviewPath(roundId, programmeId, week.weekId)",
-      ],
-      from: "the week's preview on the Weeks tab, the week's page of the course's facilitator guide (facilitatorGuidePath) and, for an admin, the run's week editor, each made from ids the page read and encoded",
+      built: ["page.guide.href", "weekPreviewPath(roundId, programmeId, week.weekId)"],
+      from: "the week's preview on the Weeks tab and the week's page of the course's facilitator guide (facilitatorGuidePath), each made from ids the page read and encoded",
     },
   ],
   [

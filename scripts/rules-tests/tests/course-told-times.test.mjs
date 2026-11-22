@@ -150,7 +150,8 @@ const GROUP_TIME_CHANGES = [
   ["the start", () => ({ "session.startTimeLocal": "17:30" })],
   ["the length", () => ({ "session.durationMinutes": 60 })],
   ["the whole slot, with a new day", () => ({ session: { ...SESSION, weekday: 4 } })],
-  ["the whole slot, removed", () => ({ session: removed() })],
+  // Removing the slot removes the room and the link with it, which only an admin does from a browser.
+  ["the whole slot, removed", () => ({ session: removed() }), { room: true }],
   ["one week's override", () => ({ "sessionOverrides.w04": { weekday: 4 } })],
   ["every override, cleared", () => ({ sessionOverrides: {} })],
   ["every override, removed", () => ({ sessionOverrides: removed() })],
@@ -166,20 +167,51 @@ const GROUP_TIME_CHANGES = [
 /**
  * What the pages still write to a group once its run's groups have gone out,
  * in the shapes they write it. The group card in the run editor saves the
- * name, the capacity, the campus and the room, the link and the notes by
- * dotted path (`updateGroup`). Its archive switch goes through a route,
- * and no browser changes `archived` at all: course-group-archived.test.mjs
- * holds that refusal for every writer, before and after the groups go out.
+ * name, the capacity and the notes by dotted path (`updateGroup`), and, only
+ * for an admin on a run no programme names, the room, the link and the
+ * campus (GROUP_ROOM_WRITES below: for everybody else those are the routes',
+ * at any time, which course-older-editor-locks.test.mjs holds). Its archive
+ * switch goes through a route, and no browser changes `archived` at all:
+ * course-group-archived.test.mjs holds that refusal for every writer, before
+ * and after the groups go out.
  */
 const GROUP_KEPT_WRITES = [
-  ["the room", () => ({ "session.location": "Trent Building A44", updatedAt: serverTimestamp() })],
-  ["the meeting link", () => ({ "session.meetingUrl": "https://meet.example.com/group-a", updatedAt: serverTimestamp() })],
   ["the notes", () => ({ "session.notes": "Bring the reading.", updatedAt: serverTimestamp() })],
   ["the name", () => ({ name: "Group A (Tue)", updatedAt: serverTimestamp() })],
   ["the capacity", () => ({ capacity: 10, updatedAt: serverTimestamp() })],
+  [
+    "the group card's save once the groups have gone out, on a run a programme names",
+    () => ({
+      name: "Group A",
+      capacity: 12,
+      "session.notes": "Room changed for the term.",
+      updatedAt: serverTimestamp(),
+    }),
+  ],
+  [
+    "a save sending the room, the link and the campus as stored",
+    () => ({
+      name: "Group A",
+      capacity: 12,
+      campus: "university-park",
+      "session.location": "Portland A21",
+      "session.meetingUrl": null,
+      "session.notes": "",
+      updatedAt: serverTimestamp(),
+    }),
+  ],
+];
+
+/**
+ * The card's writes that change the room, the link or the campus: an admin's
+ * alone from a browser, before the groups go out and after.
+ */
+const GROUP_ROOM_WRITES = [
+  ["the room", () => ({ "session.location": "Trent Building A44", updatedAt: serverTimestamp() })],
+  ["the meeting link", () => ({ "session.meetingUrl": "https://meet.example.com/group-a", updatedAt: serverTimestamp() })],
   ["the campus", () => ({ campus: "jubilee", updatedAt: serverTimestamp() })],
   [
-    "the group card's save once the groups have gone out",
+    "the group card's save once the groups have gone out, on a run no programme names",
     () => ({
       name: "Group A",
       capacity: 12,
@@ -344,7 +376,7 @@ describe("courseGroups: a group's time once its run's groups have gone out", () 
     }
   });
 
-  it("still saves everything else the pages write: the room, the link, the notes, the name, the capacity, the campus", async () => {
+  it("still saves everything else the pages write: the notes, the name, the capacity", async () => {
     await seedWorld();
     for (const uid of GROUP_WRITERS) {
       const db = await asUser(uid);
@@ -355,10 +387,23 @@ describe("courseGroups: a group's time once its run's groups have gone out", () 
     }
   });
 
+  it("still saves an admin's room, link and campus; everybody else's go through the routes", async () => {
+    await seedWorld();
+    for (const uid of GROUP_WRITERS) {
+      const db = await asUser(uid);
+      for (const [label, patch] of GROUP_ROOM_WRITES) {
+        await reseed("courseGroups/g-out", groupDoc("out"));
+        const write = groups(db).doc("g-out").update(patch());
+        if (NOT_ADMIN(uid)) await refused(write, `${uid}: ${label}`);
+        else await allowed(write, `${uid}: ${label}`);
+      }
+    }
+  });
+
   it("refuses a member everything, as before", async () => {
     await seedWorld();
     const db = await asUser("learner");
-    for (const [label, patch] of GROUP_KEPT_WRITES) {
+    for (const [label, patch] of [...GROUP_KEPT_WRITES, ...GROUP_ROOM_WRITES]) {
       await refused(groups(db).doc("g-out").update(patch()), label);
     }
   });
@@ -373,8 +418,9 @@ describe("courseGroups: before a run's groups have gone out, every rule stands a
         await reseed("courseGroups/g-notyet", groupDoc("notyet"));
         const write = groups(db).doc("g-notyet").update(patch());
         // An admin may change any of them from a browser before the groups go
-        // out. Everybody else was refused the server's fields at any time.
-        if (NOT_ADMIN(uid) && about.server) {
+        // out. Everybody else was refused the server's fields at any time, and
+        // the room and the link (course-older-editor-locks.test.mjs).
+        if (NOT_ADMIN(uid) && (about.server || about.room)) {
           await refused(write, `${uid}: ${label}`);
         } else {
           await allowed(write, `${uid}: ${label}`);
@@ -390,6 +436,13 @@ describe("courseGroups: before a run's groups have gone out, every rule stands a
       for (const [label, patch] of GROUP_KEPT_WRITES) {
         await reseed("courseGroups/g-notyet", groupDoc("notyet"));
         await allowed(groups(db).doc("g-notyet").update(patch()), `${uid}: ${label}`);
+      }
+      // The room, the link and the campus: an admin's alone, as once the groups have gone out.
+      for (const [label, patch] of GROUP_ROOM_WRITES) {
+        await reseed("courseGroups/g-notyet", groupDoc("notyet"));
+        const write = groups(db).doc("g-notyet").update(patch());
+        if (NOT_ADMIN(uid)) await refused(write, `${uid}: ${label}`);
+        else await allowed(write, `${uid}: ${label}`);
       }
       // The card before the groups go out also writes a new day, time and length.
       await reseed("courseGroups/g-notyet", groupDoc("notyet"));

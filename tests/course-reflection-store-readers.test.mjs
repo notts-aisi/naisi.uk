@@ -169,6 +169,14 @@ const READERS = {
     answers: true,
     why: "who finished counts written answers sent; reflections and fill-in boxes are left out",
   },
+  "lib/courses/olderEditor/runStarted.ts": {
+    treats: "every-row",
+    why: "counts a run's rows of every kind, a number for the two copies' refusal to replace weeks somebody has started",
+  },
+  "lib/courses/olderEditor/weekInUse.ts": {
+    treats: "every-row",
+    why: "counts a week's rows of every kind, by run and week id, a number for the refusal to unpublish a week somebody has started",
+  },
   "lib/courses/staffMove/plan.ts": {
     treats: "tells",
     why: "the move page asks only whether a week from the move on holds something the person wrote: a box by whether it is written, any other row by what it holds; nothing is reviewed, counted as sent or shown",

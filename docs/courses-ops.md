@@ -2256,9 +2256,11 @@ before.
 ## Archiving a group
 
 A group is archived from two places, both through
-`PATCH /api/courses/groups/[groupId]/archive`: the Archived switch on its card
-in the run editor, and Archive, the last part of "How Group B meets" on the
-group's own page under its programme's Groups tab. Nothing else changes
+`PATCH /api/courses/groups/[groupId]/archive`: Archive, the last part of "How
+Group B meets" on the group's own page under its programme's Groups tab, and,
+on a run no programme names (which has no such page), the Archived switch on
+its card in the older run editor. On a run a programme names, that card says
+"Archive and restore are on Group C’s page." with the way there instead. Nothing else changes
 `courseGroups.archived`: `firestore.rules` pins the field against every
 browser write, an admin's included (`groupArchivedUnchanged`), and a group is
 born not archived. The route admits an admin, an `approveCourse` holder (the
@@ -2326,6 +2328,101 @@ a change in between is answered rather than archived over.
 caller and in each of these states, and holds that nothing else in `src` or
 `scripts` writes the field; `scripts/rules-tests/tests/course-group-archived.test.mjs`
 holds the pin.
+
+## The older course editor, while it is retired
+
+The older course editor (`/admin/courses/**`: the list of courses, a course,
+a run, a run's week, its applications, its allocation board and its
+retrospective) is being retired: its jobs move, one at a time, to each
+programme's own pages. Until the last has moved it stays, with its risky
+controls held by checks or turned into words. Nothing here emails anybody,
+and nothing a member, a facilitator or a scheduled job reads has changed.
+
+**The line at the top of every older page.** "This editor is being retired.
+Groups, weeks and the run’s settings are on each programme’s own pages now."
+On a run a programme names it carries "Open AGI Strategy" (the programme's
+short name), to that programme's Overview. Rendered by the run's own layout
+for a run's pages and by each other page, and held by
+`tests/older-editor-doors.test.mjs`.
+
+**A group's card on a run a programme names.** The name, the capacity, the
+session notes and the facilitators stay fields. The day, time and length
+are words once the groups have gone out (as before), and the campus and
+room, and the meeting link, are words at any time, each with "Change it on
+Group C’s page"; the card's save never sends them, so a card left open
+cannot put back a room changed on that page. The Archived switch is "Archive
+and restore are on Group C’s page." and a link. New group is "Add groups on
+the programme’s Times view, which checks the name and the length." with
+Open Times, and no form.
+
+**A group's card on a run no programme names** is as it was, with its
+Archived switch through the archive route, except that the campus, room and
+link are an admin's: for anybody else they are words with "Only an admin can
+change these here." The card sends the three only when they changed.
+
+**The room, the link and the campus in the rules.** No browser write but an
+admin's changes `session.location`, `session.meetingUrl` or `campus` on a
+group (`groupRoomAndLinkUnchanged` in `firestore.rules`). Every newer writer
+of the three is an Admin SDK route that writes the group's History
+(`src/lib/courses/roomSet.ts`, `campusSet.ts`, `meetingLink/save.ts`). So a
+course approver, a run's track lead and a group's facilitator can no longer
+change them from the older card; on the group's page the lead and admins set
+the room and the campus, and the link too, as do the group's facilitators
+and the run's track leads through the link's route.
+
+**The run's status asks first.** Picking a status in the older run page's
+select opens a question saying what the move changes, that it can't be moved
+back and that nobody is emailed, with "Keep it Running" and "Move it to
+Completed" (the statuses named). Only "Move it to …" calls the status route,
+which is unchanged. The words are in `src/lib/courses/olderEditor/words.ts`,
+each with the readers that make it true.
+
+**A week stays published once it is in use.** A week stays published once
+anybody has ticked or written in it (any `courseProgress` row with its run
+and week number, any `courseExerciseResponses` row with its run and week
+id), or a live group's session for it has passed. That is the whole rule:
+week 1 open early to everybody holding a place, which nobody has started and
+no group has met for, is taken back as any week can be. Taking a week
+back is `PATCH /api/courses/runs/[runId]/weeks/[weekId]/published` alone,
+`{ "published": false }`, for an admin, a course approver, the course drafter
+who wrote the run, its track leads and the programme's lead; it checks and
+writes in one transaction and refuses with "People have started week 3, so it
+stays published. Change its blocks instead: each save is kept in its
+history." (409, nothing written; no count of people, no names). The rules
+refuse any browser write that takes `published` from true to false, admins
+included (`publishedNotTakenBack`), and no browser deletes a run's week at
+all, admins included: the routes remove weeks (the destroy cascade,
+Normalise week ids, the copies). Publishing stays a browser write. The
+older week page shows the sentence in place of its switch when it already
+knows.
+
+**Copying weeks in with Replace refuses once anybody has started.** Both
+copies, from another run (`clone-weeks`) and from a saved template
+(`apply-template`), refuse to replace a run's weeks once anybody has started
+the run (any `courseProgress` or `courseExerciseResponses` row with its id),
+counted in the transaction that writes. The copy from another run says
+"People have started this run, so copying in can’t replace its weeks. Copy
+into empty weeks only.", and copying into weeks the run does not have goes
+on. The run page counts the same rows on the server and shows the sentence
+before the press.
+
+**The doors.** Nothing in the newer pages leads into the older editor where
+the job has a newer home: the Overview's "Open week N" opens the week on the
+Weeks tab (for the lead too), Get ready's "Set rooms" opens the Groups tab's
+Sessions view (the lead too) and its "People in groups" the Groups tab,
+Course run's "Open People in groups" the Groups tab, Times and a week's page
+no longer link there, and an admin on a facilitator's week editor is sent to
+the Weeks tab. Left for a later step, each listed with why in
+`tests/older-editor-doors.test.mjs`: Pitches' and the Teams tab's "Open the
+run editor", the copy page's "Open the run's editor", Course run's link to
+the run's own applications list, Certificates' "Change it on the course",
+the menu's Courses entry, and a facilitator's week editor on a run no
+programme names. A new door fails that test.
+
+**Deploying.** The two rule changes go out with the code: to the staging
+project after the merge, and to production only with the promotion that
+carries this code, because production's older pages still write these
+fields from the browser until then.
 
 ## A person's page, for the team, and a facilitator's cut of it
 
@@ -3049,9 +3146,10 @@ already open; nothing under `/admin/courses` is needed.
 ### What stays an admin's
 
 Naming the run and the hand-over (the Settings tab's Course run panel),
-adding groups and changing a group's day, time or room (the run editor),
 changing a row on the run's own applications page, and correcting a
-finished register.
+finished register. Groups are added on the Times view and their day, time,
+room, campus and link changed on each group's page, by the lead and admins
+alike (see "The older course editor, while it is retired").
 
 ### How it is decided
 
