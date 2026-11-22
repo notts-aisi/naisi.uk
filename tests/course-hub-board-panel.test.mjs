@@ -443,7 +443,7 @@ describe("4. the panel's moves, its keys and where the focus goes", () => {
     assert.equal(focusAfterPanel(null, () => null, target(false)), null);
     const code = codeOf("features/applications/groups/PeopleInGroups.tsx");
     assert.match(code, /onClose=\{closePanel\}/);
-    assert.match(code, /querySelector<HTMLElement>\(`\[data-panel-name="\$\{CSS\.escape\(uid\)\}"\]`\)/);
+    assert.match(code, /querySelector<HTMLElement>\(`\[data-panel-name="\$\{globalThis\.CSS\.escape\(uid\)\}"\]`\)/);
     // Every name that opens a panel can be found again by it.
     assert.equal((code.match(/data-panel-name=\{/g) ?? []).length, 4);
     assert.equal((code.match(/onClick=\{\(event\) => (?:onOpen|openPanel)\(/g) ?? []).length, 4);

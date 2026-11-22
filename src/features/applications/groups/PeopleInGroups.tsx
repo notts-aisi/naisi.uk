@@ -370,7 +370,7 @@ export default function PeopleInGroups({ view, views }: Props) {
     requestAnimationFrame(() => {
       const target = focusAfterPanel(
         opener.current,
-        () => (uid ? (boardRef.current?.ownerDocument.querySelector<HTMLElement>(`[data-panel-name="${CSS.escape(uid)}"]`) ?? null) : null),
+        () => (uid ? (boardRef.current?.ownerDocument.querySelector<HTMLElement>(`[data-panel-name="${globalThis.CSS.escape(uid)}"]`) ?? null) : null),
         boardRef.current,
       );
       target?.focus();
