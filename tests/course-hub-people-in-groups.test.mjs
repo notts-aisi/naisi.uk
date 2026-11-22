@@ -58,6 +58,9 @@ const STYLESHEETS = [
   "./Modal.module.css",
   "./TakeOffSheet.module.css",
   "./PeopleInGroups.module.css",
+  // The person's panel beside the board, and the week chart's sheet it draws with.
+  "./BoardPersonPanel.module.css",
+  "@/features/applications/times/WeekChart.module.css",
   "./PublishGroups.module.css",
   // Publish's own page draws its readiness check (Get ready for week 1's) above the buttons.
   "@/features/applications/groups/PublishGroups.module.css",
@@ -351,7 +354,7 @@ describe("2. the view is the People tab's answers, field by field", () => {
     assert.ok(!("ines" in lead.people), "the lead was handed an invitation to somebody who did not rank the programme");
   });
 
-  // The lead and admins read a person's week wherever they may read the application (its review page, and the screens that ask personWeekFor); this board carries which groups each can make, never the week.
+  // The lead and admins read a person's week wherever they may read the application (its review page, and the screens that ask personWeekFor, this board's panel among them through its own read: tests/course-hub-board-panel.test.mjs); this board's page carries which groups each can make, never the week.
   test("no address, no painted week and no answer reaches the board", async () => {
     await termOnTheBoard();
     for (const who of ["claudia", "zach"]) {

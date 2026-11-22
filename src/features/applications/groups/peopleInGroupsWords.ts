@@ -235,13 +235,88 @@ export function notOnTheRunWords(count: number, admin: boolean): string {
 export const EMPTY_GROUP = "Nobody here yet. Use a card’s menu to move somebody in.";
 export const EVERYONE_PLACED = "Everyone holding a place is in a group.";
 
-/** When the run has no groups. */
-export function noGroupsWords(admin: boolean): string {
-  return admin
-    ? "This run has no groups yet. Add them on the Times view, or in the run editor."
-    : "This run has no groups yet. Add them on the Times view.";
-}
+/**
+ * When the run has no groups, for an admin and the lead alike: groups are
+ * added on the Times view, and the older run editor is not where this tab
+ * sends anybody.
+ */
+export const NO_GROUPS = "This run has no groups yet. Add them on the Times view.";
 
 export const GO_TO_TIMES = "Go to Times";
 export const LOADING = "Loading the groups…";
 export const RETRY = "Try again";
+
+/** The board could not be read: no connection, or the server failed. */
+export const LOAD_FAILED = "The groups couldn’t be loaded. Check your connection.";
+
+/**
+ * Why the board could not be read, from the allocation route's status: the
+ * route's own refusal in a sentence for somebody signed out, refused or
+ * asking about a run that is gone, and for everything else (no connection,
+ * a server error) `LOAD_FAILED`. Never the route's raw word ("Forbidden").
+ */
+export function loadFailedWords(status: number | undefined): string {
+  if (status === 401) return "You’re signed out. Sign in again to see the groups.";
+  if (status === 403) return "Only this programme’s lead or an admin can see its groups.";
+  if (status === 404) return "The course run is no longer on the site.";
+  return LOAD_FAILED;
+}
+
+// ---------------------------------------------------------------------------
+// The person's panel
+// ---------------------------------------------------------------------------
+
+/** "Open Daniel’s page". */
+export function openPageWords(firstName: string): string {
+  return `Open ${firstName}’s page`;
+}
+
+/** Under the chart, for a week they marked. */
+export const CHART_KEY =
+  "Shaded: the times they marked on their application. A bar is a group’s session: green where they can make all of it, red where they can’t. Press a bar to move them there.";
+export const MOVE_HERE = "Move here";
+export const MOVE_HERE_CANT = "Move here (can’t make it)";
+
+/** A bar's name for a screen reader: "Move Daniel Park to Group A, Mon 6pm". */
+export function barLabel(name: string, title: string): string {
+  return `Move ${name} to ${title.split(":")[0]}`;
+}
+
+export const PLACING = "Placing";
+export const NOT_IN_A_GROUP_PICK = "Not in a group. Pick a group on the chart, or another column, to move them.";
+
+/** Under the name of somebody who facilitates a group and holds no place on the run. */
+export const FACILITATING_NO_PLACE = "Facilitating, with no place on the run";
+export const INVITED = "Invited";
+
+/** "Chloe hasn’t accepted the invitation yet, so they can’t be placed." */
+export function notAcceptedWords(firstName: string): string {
+  return `${firstName} hasn’t accepted the invitation yet, so they can’t be placed.`;
+}
+
+/** "Their reason: “It clashes with a lab I can’t move.”" */
+export function theirReasonWords(reason: string): string {
+  return `Their reason: “${reason}”`;
+}
+
+/** The panel's own close button. */
+export const CLOSE_PANEL = "Close";
+/** While the panel's read of when people are free is on its way. */
+export const PANEL_LOADING = "Loading when they’re free…";
+/** The panel's read of when people are free did not come back: no connection, or the server failed. */
+export const PANEL_FAILED = "When they’re free couldn’t be loaded. Check your connection.";
+
+/**
+ * Why the panel's read did not come back, from its status, as the board says
+ * it: signed out, or no longer this programme's lead (the read answers a role
+ * that has gone as a 403, or as a 404 like a programme that is not there);
+ * anything else, `PANEL_FAILED`.
+ */
+export function panelFailedWords(status: number | undefined): string {
+  if (status === 401) return loadFailedWords(401);
+  if (status === 403 || status === 404) return loadFailedWords(403);
+  return PANEL_FAILED;
+}
+
+/** Under a week only admins may see: the programme's lead may not read this person's application. */
+export const ADMINS_ONLY_FOOT = "Only admins see this.";

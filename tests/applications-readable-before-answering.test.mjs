@@ -716,7 +716,7 @@ const ASKERS = {
   "lib/applications/handover/agenda.ts": "the hand-over's list of what waits, which leaves out every application the caller may not read",
   "lib/applications/people/load.ts": "the People tab's rows, each somebody whose application the reader may open; a person's page opens only for a row",
   "lib/applications/people/week.ts":
-    "when somebody is free, for a staff page: the week they marked only where the reader may read the application, and otherwise one answer and nothing derived from the week",
+    "when somebody is free, for a staff page (a person's page, and everybody at once on People in groups' panel): the week they marked only where the reader may read the application, and otherwise one answer and nothing derived from the week",
 };
 
 describe("every file that asks who may read an application says what it does with the answer", () => {

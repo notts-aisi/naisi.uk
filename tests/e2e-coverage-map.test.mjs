@@ -651,6 +651,12 @@ const NOT_COVERED = {
       "Circles reading the run's groups again after a change. It writes nothing; who may read it, who is on the screen and that a second Apply sends nothing are executed by tests/applications-circles.test.mjs.",
     coverWhen: "With a course hub spec after the hand-over: open Circles, move one person, see them in the new ring.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/panel": {
+    reason:
+      "The person's panel on People in groups, read once a name is pressed. It writes and emails nothing; who may read it, what each reader is sent of each person (a week only where the application may be read, Claude and Pangram for admins alone) and every panel state are executed by tests/course-hub-board-panel.test.mjs.",
+    coverWhen:
+      "With the groups page's spec after the hand-over: press a name as the lead, see the week, move them from the panel, and see Claude and Pangram only as an admin.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     reason:
       "The Claude and Pangram marks on a programme's list, and Claude's comparison of its applications or a question about them. The gate, the labels sent and the names put back are executed by tests/applications-assessment.test.mjs; a browser spec waits on the same fake as the assessment route.",

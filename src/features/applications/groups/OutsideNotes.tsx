@@ -27,7 +27,8 @@ import styles from "./OutsideNotes.module.css";
  * and how much of the session falls in what they gave, so a note is written
  * knowing the overlap. A lead sees no painted week here (a lead reads a
  * person's week wherever they may read the application: its review page,
- * and the screens that ask the one gated read, `personWeekFor`), and never
+ * and the screens that ask the one gated read, `personWeekFor`, such as the
+ * person's page and their panel on People in groups), and never
  * Claude's draft. Both come from the notes route
  * (`/api/courses/runs/[runId]/allocation/publish/notes`), which decides
  * again who may see and save what.

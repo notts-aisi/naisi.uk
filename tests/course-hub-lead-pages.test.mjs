@@ -77,6 +77,9 @@ const STYLESHEETS = [
   "./AllocationPublish.module.css",
   // People in groups as the programme's hub draws it.
   "./PeopleInGroups.module.css",
+  // The person's panel beside the board, and the week chart's sheet it draws with.
+  "./BoardPersonPanel.module.css",
+  "@/features/applications/times/WeekChart.module.css",
   "./ActionToast.module.css",
   "./Badge.module.css",
   "./Button.module.css",

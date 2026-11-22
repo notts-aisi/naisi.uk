@@ -276,7 +276,8 @@ export type UseAllocation = {
   data: AllocationPayload | null;
   /** True on the first load AND on a manual refresh (`data` stays put). */
   loading: boolean;
-  error: Error | null;
+  /** Why the board could not be read; `status` is the route's, absent when no answer came (no connection). */
+  error: (Error & { status?: number }) | null;
   reload: () => void;
   /** Move people between groups (`groupId: null` returns them to the pool). */
   place: (placements: Placement[]) => Promise<PlaceResult>;
@@ -315,7 +316,7 @@ async function readBody<T extends object>(
 
 export function useAllocation(runId: string): UseAllocation {
   const [data, setData] = useState<AllocationPayload | null>(null);
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState<(Error & { status?: number }) | null>(null);
   const [nonce, setNonce] = useState(0);
   // The nonce whose fetch has landed. Deriving `loading` from the pair (rather
   // than flipping a boolean inside the effect body, which is a cascading
@@ -337,8 +338,12 @@ export function useAllocation(runId: string): UseAllocation {
         if (!res.ok || !body || !body.run) {
           // The route's own sentence where it gave one: a track lead who has
           // been removed from the run needs to read "Forbidden", not "failed".
-          throw new Error(
-            body?.error ?? `Couldn't load the allocation board (${res.status}).`,
+          // The status rides along, so a board that words the refusal itself
+          // (People in groups) can tell a refusal from a failure; an error
+          // with no status is the browser's own (no connection).
+          throw Object.assign(
+            new Error(body?.error ?? `Couldn't load the allocation board (${res.status}).`),
+            { status: res.status },
           );
         }
         return body;

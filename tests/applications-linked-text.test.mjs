@@ -865,6 +865,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/groups/BoardPersonPanel.tsx",
+    {
+      built: ["person.applicationHref", "person.personHref"],
+      from: "the person's page on the programme and their application, as the panel's read hands them over: the People tab's own `personHref` and `applicationHref`, built on the server from the programme's own path and the person's uid, encoded, for the rows of the reader's People tab alone. Nothing anybody typed",
+    },
+  ],
+  [
     "src/features/applications/groups/PeopleInGroups.tsx",
     {
       built: ["groupPagePath(view.roundId, view.programmeId, group.id)"],

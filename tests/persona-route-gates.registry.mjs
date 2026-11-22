@@ -1280,6 +1280,15 @@ export const ROUTES = {
         "decided on the session before anything is read; the admin is then told the programme is missing.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/panel": {
+    GET: {
+      expect: signedIn(404),
+      fields: ["panel"],
+      why:
+        "The person's panel on People in groups, for everybody on the board: the Groups tab's own gate from the form, " +
+        "so a form the address does not name is the same 404 for everybody signed in. Nothing is written.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     GET: {
       expect: adminOnly(404),
@@ -6716,6 +6725,20 @@ export const REAL_ROUTES = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     GET: adminAlone("Reading Circles", c(200, "An admin reads the run's groups as they are. Nothing is written and Claude is not asked.")),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/panel": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run or anybody is read."),
+        admin: c(200, "An admin reads the panel of everybody on any programme's board, Claude's and Pangram's reads with it. Nothing is written."),
+      },
+      theirs: {
+        lead: c(200, "The programme's own lead reads the panel of everybody on its board, each week only where they may read the application, and no Claude or Pangram."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     GET: adminAlone(

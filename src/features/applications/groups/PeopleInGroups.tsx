@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { groupPagePath } from "@/lib/courses/groupPage/words";
-import { useCallback, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -26,6 +26,7 @@ import Dropdown, { type DropdownOption } from "@/components/ui/Dropdown";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { ChevronDownIcon, GripIcon, InfoIcon, MoreIcon } from "@/features/applications/editor/Icons";
 import shared from "@/features/applications/editor/editor.module.css";
+import { facilitatedGroupOf } from "@/features/courses/allocationFit";
 import { placingCounts, poolRowIsToPlace, rowHasLeft } from "@/features/courses/allocationTally";
 import { askMidTermMoves } from "@/features/courses/askMidTermMoves";
 import TakeOffSheet from "@/features/courses/takeOff/TakeOffSheet";
@@ -34,12 +35,16 @@ import type { PeopleInGroupsView } from "@/lib/applications/handover/peopleInGro
 import { own } from "@/lib/applications/keys";
 import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupResolve";
 import { movedSentence } from "@/lib/courses/moveWords";
+import { STOP_CONFIRM, facilitatorSavedWords } from "@/features/applications/circles/circlesWords";
+import BoardPersonPanel, { type PanelSubject } from "./BoardPersonPanel";
 import { GroupsFrame } from "./GroupsViews";
+import { focusAfterPanel } from "./panelFocus";
 import styles from "./PeopleInGroups.module.css";
 import { POOL, TAKE_OFF, marksOf, menuOptions, notToldYet, type Mark } from "./peopleInGroupsBoard";
 import SomeWeeks from "@/features/courses/timeAnswer/SomeWeeks";
 import { CANT_DETAILS, WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
+import { useBoardPanel } from "./useBoardPanel";
 
 /**
  * A PROGRAMME'S PEOPLE IN GROUPS: the course run's
@@ -75,6 +80,13 @@ import * as words from "./peopleInGroupsWords";
  * them ("2 moved since they were told: Ana and Raj."), and the move itself
  * leaves a sentence saying what it did (`movedSentence`). Moved back to the
  * group they were told about, they owe nothing and the card says nothing.
+ *
+ * ANY NAME OPENS THE PERSON'S PANEL (`BoardPersonPanel`) beside the board:
+ * a card's, an invited person's, a facilitator's in a column's head and a
+ * name under the board. Its week, fits and reads come from one more read,
+ * made only once a panel is opened (`useBoardPanel`), which the server
+ * answers for this reader; every move it makes is the card's own. With no
+ * panel open the board is drawn and behaves as it always has.
  *
  * WHAT THE DESIGN DRAWS AND THIS LEAVES OUT, because the feature does not
  * exist yet: "Remind" (when-you're-free open until groups go out, a
@@ -154,6 +166,10 @@ type CardProps = {
   runId: string;
   /** "They meant some weeks" saved: the board is read again. */
   onAnswerChanged: (message: string) => void;
+  /** The name opens their panel. */
+  onOpen: (uid: string, from: HTMLElement) => void;
+  /** Their panel is the one open. */
+  open: boolean;
 };
 
 function PersonCard({
@@ -169,6 +185,8 @@ function PersonCard({
   reducedMotion,
   runId,
   onAnswerChanged,
+  onOpen,
+  open,
 }: CardProps) {
   // The six dots are a pointer's handle and nothing else: the card's menu is
   // the way to move somebody from a keyboard or a touch screen.
@@ -190,7 +208,15 @@ function PersonCard({
         <span className={styles.avatar}>
           <InitialsChip name={name} uid={row.uid} size="md" />
         </span>
-        <span className={styles.name}>{name}</span>
+        <button
+          type="button"
+          className={`${styles.name} ${styles.nameButton}`}
+          aria-expanded={open}
+          data-panel-name={row.uid}
+          onClick={(event) => onOpen(row.uid, event.currentTarget)}
+        >
+          {name}
+        </button>
         <span className={styles.menu}>
           <Dropdown
             value={columnId}
@@ -238,14 +264,34 @@ function PersonCard({
 }
 
 /** Somebody invited and not answered yet: a card that holds nothing and moves nowhere. */
-function InvitedCard({ uid, name, line }: { uid: string; name: string; line: string }) {
+function InvitedCard({
+  uid,
+  name,
+  line,
+  onOpen,
+  open,
+}: {
+  uid: string;
+  name: string;
+  line: string;
+  onOpen: (uid: string, from: HTMLElement) => void;
+  open: boolean;
+}) {
   return (
     <div className={styles.invited}>
       <span className={styles.invitedAvatar}>
         <InitialsChip name={name} uid={uid} size="md" />
       </span>
       <span className={styles.invitedText}>
-        <span className={styles.invitedName}>{name}</span>
+        <button
+          type="button"
+          className={`${styles.invitedName} ${styles.nameButton}`}
+          aria-expanded={open}
+          data-panel-name={uid}
+          onClick={(event) => onOpen(uid, event.currentTarget)}
+        >
+          {name}
+        </button>
         <span className={styles.invitedLine}>{line}</span>
       </span>
     </div>
@@ -308,8 +354,33 @@ export default function PeopleInGroups({ view, views }: Props) {
   const [showGaveBack, setShowGaveBack] = useState(true);
   // The person the take-off question is open for, or null.
   const [takingOff, setTakingOff] = useState<string | null>(null);
+  // The person whose panel is open, or null.
+  const [openUid, setOpenUid] = useState<string | null>(null);
+  // The name that opened the panel, and the board, for where the focus goes back to when it closes.
+  const opener = useRef<HTMLElement | null>(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const openPanel = useCallback((uid: string, from: HTMLElement) => {
+    opener.current = from;
+    setOpenUid(uid);
+  }, []);
+  const closePanel = useCallback(() => {
+    const uid = openUid;
+    setOpenUid(null);
+    // After the panel has gone: the name that opened it, or the person's name where it is now, or the board.
+    requestAnimationFrame(() => {
+      const target = focusAfterPanel(
+        opener.current,
+        () => (uid ? (boardRef.current?.ownerDocument.querySelector<HTMLElement>(`[data-panel-name="${globalThis.CSS.escape(uid)}"]`) ?? null) : null),
+        boardRef.current,
+      );
+      target?.focus();
+      opener.current = null;
+    });
+  }, [openUid]);
+  // A change to who facilitates a group, sent from the panel and not answered yet.
+  const [staffing, setStaffing] = useState(false);
   // The cards wait while the question is open.
-  const busy = takingOff !== null;
+  const busy = takingOff !== null || staffing;
 
   const rows = useMemo(() => data?.people ?? [], [data]);
   const groups = useMemo(() => data?.groups ?? [], [data]);
@@ -372,10 +443,45 @@ export default function PeopleInGroups({ view, views }: Props) {
 
   const seated = useCallback((columnId: string) => (byColumn.get(columnId) ?? []).length, [byColumn]);
 
+  // The card's own group is left out of its menu: moving somebody to where they are does nothing.
   const moveOptions = useCallback(
-    (row: AllocRow): DropdownOption[] => menuOptions(row, groups, seated),
+    (row: AllocRow, columnId: string): DropdownOption[] => menuOptions(row, groups, seated, columnId === POOL ? null : columnId),
     [groups, seated],
   );
+
+  // -------------------------------------------------------------------------
+  // The person's panel
+  // -------------------------------------------------------------------------
+
+  // The weeks are drawn against the groups' times: read again when a group or its time changes.
+  const groupsKey = useMemo(() => groups.map((group) => `${group.id}@${group.sessionLabel}`).join("|"), [groups]);
+  const panelRead = useBoardPanel(view.roundId, view.programmeId, openUid !== null, groupsKey);
+  /** A facilitator by uid: the full name and the first name the column's head carries. */
+  const facilitatorOf = useCallback(
+    (uid: string) => {
+      for (const group of groups) {
+        const at = group.facilitatorUids.indexOf(uid);
+        if (at >= 0) return { name: group.facilitatorNames[at] ?? "NAISI member", firstName: group.facilitatorFirstNames[at] ?? "" };
+      }
+      return null;
+    },
+    [groups],
+  );
+  /** Who the open panel is about, as the board knows them now. */
+  const subject = useMemo((): PanelSubject | null => {
+    if (openUid === null) return null;
+    const row = rowsByUid.get(openUid);
+    const facilitates = groups.filter((group) => group.facilitatorUids.includes(openUid));
+    if (row && !rowHasLeft(row)) {
+      return { kind: "row", row, columnId: columnOf(row), facilitates: facilitatedGroupOf(row.uid, groups) ? facilitates : [] };
+    }
+    const invited = view.invited.find((person) => person.uid === openUid);
+    if (invited) return { kind: "invited", uid: openUid, line: words.invitedWords(invited.on, invited.fits) };
+    const gaveBack = view.gaveBack.find((person) => person.uid === openUid);
+    if (gaveBack) return { kind: "gave-back", uid: openUid, line: gaveBack.line };
+    if (facilitates.length > 0) return { kind: "facilitator", uid: openUid, facilitates };
+    return null;
+  }, [openUid, rowsByUid, groups, columnOf, view.invited, view.gaveBack]);
 
   // -------------------------------------------------------------------------
   // Moves
@@ -474,6 +580,58 @@ export default function PeopleInGroups({ view, views }: Props) {
     [moveOne],
   );
 
+  // "Stop facilitating Group C", from the panel of somebody who holds a place
+  // and facilitates the group they sit in: asked first, then the
+  // facilitators route with the group's list without them. They stay in the
+  // group as one of its people, and nobody is emailed.
+  const stopFacilitating = useCallback(
+    async (uid: string, group: AllocGroup) => {
+      // The group's facilitators as they are now, read before the question, so
+      // nobody added since the board was read is taken off with them.
+      setStaffing(true);
+      let current: string[] | null = null;
+      try {
+        const res = await fetch(`/api/courses/runs/${encodeURIComponent(runId)}/allocation`, { cache: "no-store" });
+        const body = (await res.json().catch(() => null)) as { groups?: AllocGroup[] } | null;
+        current = res.ok ? (body?.groups?.find((each) => each.id === group.id)?.facilitatorUids ?? null) : null;
+      } catch {
+        current = null;
+      }
+      setStaffing(false);
+      if (current === null) {
+        await raise(words.LOAD_FAILED);
+        return;
+      }
+      if (!current.includes(uid)) {
+        // Somebody changed the group's facilitators since: the board is read again, and says so.
+        reload();
+        await raise(facilitatorSavedWords(nameOf(uid), group.name, false));
+        return;
+      }
+      if (!window.confirm(STOP_CONFIRM(nameOf(uid), group.name))) return;
+      const next = current.filter((each) => each !== uid);
+      setStaffing(true);
+      void runAction(
+        async () => {
+          try {
+            const res = await fetch(`/api/courses/groups/${encodeURIComponent(group.id)}/facilitators`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ uids: next }),
+            });
+            const body = (await res.json().catch(() => null)) as { error?: string } | null;
+            if (!res.ok) throw new Error(body?.error || `That change didn’t go through (${res.status}).`);
+            reload();
+          } finally {
+            setStaffing(false);
+          }
+        },
+        { successMessage: facilitatorSavedWords(nameOf(uid), group.name, false) },
+      );
+    },
+    [nameOf, runAction, reload, raise, runId],
+  );
+
   // -------------------------------------------------------------------------
   // Dragging, for a pointer
   // -------------------------------------------------------------------------
@@ -555,7 +713,7 @@ export default function PeopleInGroups({ view, views }: Props) {
         <section className={shared.card}>
           {error ? (
             <>
-              <p className={shared.cardNote}>{error.message}</p>
+              <p className={shared.cardNote}>{words.loadFailedWords(error.status)}</p>
               <button type="button" className={shared.btn} onClick={reload} disabled={loading}>
                 {words.RETRY}
               </button>
@@ -582,12 +740,14 @@ export default function PeopleInGroups({ view, views }: Props) {
         marks={marks}
         warns={warns}
         columnId={columnId}
-        options={moveOptions(row)}
+        options={moveOptions(row, columnId)}
         onMenu={onMenu}
         busy={busy}
         reducedMotion={reducedMotion}
         runId={runId}
         onAnswerChanged={onAnswerChanged}
+        onOpen={openPanel}
+        open={openUid === row.uid}
       />
     );
   };
@@ -604,6 +764,8 @@ export default function PeopleInGroups({ view, views }: Props) {
           uid={person.uid}
           name={person.name}
           line={words.invitedWords(person.on, person.fits)}
+          onOpen={openPanel}
+          open={openUid === person.uid}
         />
       ));
   const dragged = draggingUid ? rowsByUid.get(draggingUid) : undefined;
@@ -625,242 +787,300 @@ export default function PeopleInGroups({ view, views }: Props) {
       .map((row) => nameOf(row.uid).split(" ")[0]),
   );
 
+  const panelGroup = subject?.kind === "row" && subject.columnId !== POOL ? (groupsById.get(subject.columnId) ?? null) : null;
+  const panel = subject ? (
+    <BoardPersonPanel
+      subject={subject}
+      name={subject.kind === "facilitator" ? (facilitatorOf(subject.uid)?.name ?? nameOf(subject.uid)) : nameOf(subject.kind === "row" ? subject.row.uid : subject.uid)}
+      firstName={
+        subject.kind === "facilitator"
+          ? facilitatorOf(subject.uid)?.firstName || nameOf(subject.uid).split(" ")[0]
+          : nameOf(subject.kind === "row" ? subject.row.uid : subject.uid).split(" ")[0]
+      }
+      detail={subject.kind === "row" ? (own(view.people, subject.row.uid)?.detail ?? "") : ""}
+      coming={subject.kind === "row" && own(view.people, subject.row.uid)?.coming === true}
+      columnName={columnName}
+      read={panelRead}
+      // The card's own menu, without "Take off the run…", which is the panel's own button.
+      options={subject.kind === "row" ? moveOptions(subject.row, subject.columnId).filter((option) => option.value !== TAKE_OFF) : []}
+      busy={busy || (subject.kind === "row" && subject.row.uid in livePending)}
+      onMove={(columnId) => {
+        if (subject.kind === "row" && columnId !== (panelGroup?.id ?? POOL)) void moveOne(subject.row.uid, columnId);
+      }}
+      onTakeOff={() => {
+        if (subject.kind === "row") setTakingOff(subject.row.uid);
+      }}
+      onStopFacilitating={(group) => {
+        if (subject.kind === "row") void stopFacilitating(subject.row.uid, group);
+      }}
+      onClose={closePanel}
+    />
+  ) : null;
+
   return (
     <GroupsFrame views={views} beside={beside}>
-      <div className={styles.body}>
-        <p className={styles.line}>{view.sent ? words.boardLine(counts) : words.NOBODY_YET}</p>
-        {placedSince.length > 0 && (
-          <p className={styles.placedSince} role="status">
-            {words.placedSinceWords(placedSince, admin).lead}{" "}
-            <Link
-              href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
-              className={styles.noteLink}
-            >
-              {words.placedSinceWords(placedSince, admin).link}
-            </Link>
-            .
-          </p>
-        )}
-        {movedSince.length > 0 && (
-          <p className={styles.placedSince} role="status">
-            {words.movedSinceWords(movedSince, admin).lead}{" "}
-            <Link
-              href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
-              className={styles.noteLink}
-            >
-              {words.movedSinceWords(movedSince, admin).link}
-            </Link>
-            .
-          </p>
-        )}
-        {moveNote && (
-          <p className={styles.moveNote} role="status">
-            {moveNote}{" "}
-            <button type="button" className={styles.textButton} onClick={() => setMoveNote(null)}>
-              Dismiss
-            </button>
-          </p>
-        )}
-        <DndContext
-          sensors={sensors}
-          collisionDetection={collisionDetection}
-          accessibility={{ announcements }}
-          onDragStart={onDragStart}
-          onDragOver={onDragOver}
-          onDragEnd={onDragEnd}
-          onDragCancel={onDragCancel}
-        >
-          <div className={styles.board} role="region" aria-label="Groups board" tabIndex={0}>
-            <div className={styles.boardInner}>
-              <Column
-                columnId={POOL}
-                label={words.TO_PLACE}
-                className={styles.toPlace}
-                hover={hoverColumn === POOL}
-                uids={poolRows.map((row) => row.uid)}
-                head={
-                  <div className={styles.toPlaceHead}>
-                    <h3 className={styles.columnTitle}>{words.TO_PLACE}</h3>
-                    <span className={styles.toPlaceCount}>{view.sent ? counts.toPlace : poolRows.length}</span>
-                  </div>
-                }
+      <div className={styles.split} data-panel={panel ? "open" : undefined}>
+        <div className={styles.body}>
+          <p className={styles.line}>{view.sent ? words.boardLine(counts) : words.NOBODY_YET}</p>
+          {placedSince.length > 0 && (
+            <p className={styles.placedSince} role="status">
+              {words.placedSinceWords(placedSince, admin).lead}{" "}
+              <Link
+                href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
+                className={styles.noteLink}
               >
-                <div className={styles.toPlaceCards}>
-                  {poolRows.map((row) => (
-                    <div key={row.uid} className={styles.toPlaceCell}>
-                      {cardFor(row, POOL)}
+                {words.placedSinceWords(placedSince, admin).link}
+              </Link>
+              .
+            </p>
+          )}
+          {movedSince.length > 0 && (
+            <p className={styles.placedSince} role="status">
+              {words.movedSinceWords(movedSince, admin).lead}{" "}
+              <Link
+                href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
+                className={styles.noteLink}
+              >
+                {words.movedSinceWords(movedSince, admin).link}
+              </Link>
+              .
+            </p>
+          )}
+          {moveNote && (
+            <p className={styles.moveNote} role="status">
+              {moveNote}{" "}
+              <button type="button" className={styles.textButton} onClick={() => setMoveNote(null)}>
+                Dismiss
+              </button>
+            </p>
+          )}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={collisionDetection}
+            accessibility={{ announcements }}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDragEnd={onDragEnd}
+            onDragCancel={onDragCancel}
+          >
+            <div ref={boardRef} className={styles.board} role="region" aria-label="Groups board" tabIndex={0}>
+              <div className={styles.boardInner}>
+                <Column
+                  columnId={POOL}
+                  label={words.TO_PLACE}
+                  className={styles.toPlace}
+                  hover={hoverColumn === POOL}
+                  uids={poolRows.map((row) => row.uid)}
+                  head={
+                    <div className={styles.toPlaceHead}>
+                      <h3 className={styles.columnTitle}>{words.TO_PLACE}</h3>
+                      <span className={styles.toPlaceCount}>{view.sent ? counts.toPlace : poolRows.length}</span>
                     </div>
-                  ))}
-                  {invitedHere(null).map((card) => (
-                    <div key={card.key} className={styles.toPlaceCell}>
-                      {card}
-                    </div>
-                  ))}
-                </div>
-                {counts.notOnTheRun > 0 && (
-                  <p className={styles.columnNote}>
-                    {admin ? (
-                      <Link
-                        href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/setup`}
-                        className={styles.noteLink}
-                      >
-                        {words.notOnTheRunWords(counts.notOnTheRun, true)}
-                      </Link>
-                    ) : (
-                      words.notOnTheRunWords(counts.notOnTheRun, false)
-                    )}
-                  </p>
-                )}
-                {view.sent && counts.toPlace === 0 && counts.holding > 0 && poolRows.length === 0 && (
-                  <p className={styles.columnNote}>{words.EVERYONE_PLACED}</p>
-                )}
-              </Column>
+                  }
+                >
+                  <div className={styles.toPlaceCards}>
+                    {poolRows.map((row) => (
+                      <div key={row.uid} className={styles.toPlaceCell}>
+                        {cardFor(row, POOL)}
+                      </div>
+                    ))}
+                    {invitedHere(null).map((card) => (
+                      <div key={card.key} className={styles.toPlaceCell}>
+                        {card}
+                      </div>
+                    ))}
+                  </div>
+                  {counts.notOnTheRun > 0 && (
+                    <p className={styles.columnNote}>
+                      {admin ? (
+                        <Link
+                          href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/setup`}
+                          className={styles.noteLink}
+                        >
+                          {words.notOnTheRunWords(counts.notOnTheRun, true)}
+                        </Link>
+                      ) : (
+                        words.notOnTheRunWords(counts.notOnTheRun, false)
+                      )}
+                    </p>
+                  )}
+                  {view.sent && counts.toPlace === 0 && counts.holding > 0 && poolRows.length === 0 && (
+                    <p className={styles.columnNote}>{words.EVERYONE_PLACED}</p>
+                  )}
+                </Column>
 
-              {groups.length === 0 ? (
-                <section className={`${shared.card} ${styles.noGroups}`}>
-                  <p className={shared.cardNote}>{words.noGroupsWords(admin)}</p>
-                  <Link
-                    href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/times`}
-                    className={shared.btn}
-                  >
-                    {words.GO_TO_TIMES}
-                  </Link>
-                </section>
-              ) : (
-                <div className={styles.columns}>
-                  {groups.map((group) => {
-                    const list = byColumn.get(group.id) ?? [];
-                    const full = group.capacity !== null && list.length >= group.capacity;
-                    const fill = group.capacity
-                      ? Math.min(100, Math.round((list.length / group.capacity) * 100))
-                      : null;
-                    return (
-                      <Column
-                        key={group.id}
-                        columnId={group.id}
-                        label={group.name}
-                        className={styles.column}
-                        hover={hoverColumn === group.id}
-                        uids={list.map((row) => row.uid)}
-                        head={
-                          <div className={styles.columnHead}>
-                            <div className={styles.columnTop}>
-                              <span className={styles.columnTitleRow}>
-                                <h3 className={styles.columnTitle}>
-                                  <Link
-                                    href={groupPagePath(view.roundId, view.programmeId, group.id)}
-                                    className={styles.columnTitleLink}
-                                  >
-                                    {group.name}
-                                  </Link>
-                                </h3>
-                                {full && <span className={`${styles.chip} ${styles.chipOk}`}>{words.FULL}</span>}
-                              </span>
-                              <span className={styles.seats}>{words.seatsWords(list.length, group.capacity)}</span>
-                            </div>
-                            <div className={styles.columnMeta}>
-                              <span>{group.when || words.NO_TIME_YET}</span>
-                              <span aria-hidden="true">·</span>
-                              {group.room ? (
-                                <span className={styles.room}>{group.room}</span>
-                              ) : (
-                                <span className={`${styles.chip} ${styles.chipWarn}`}>{words.NO_ROOM_YET}</span>
+                {groups.length === 0 ? (
+                  <section className={`${shared.card} ${styles.noGroups}`}>
+                    <p className={shared.cardNote}>{words.NO_GROUPS}</p>
+                    <Link
+                      href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/times`}
+                      className={shared.btn}
+                    >
+                      {words.GO_TO_TIMES}
+                    </Link>
+                  </section>
+                ) : (
+                  <div className={styles.columns}>
+                    {groups.map((group) => {
+                      const list = byColumn.get(group.id) ?? [];
+                      const full = group.capacity !== null && list.length >= group.capacity;
+                      const fill = group.capacity
+                        ? Math.min(100, Math.round((list.length / group.capacity) * 100))
+                        : null;
+                      return (
+                        <Column
+                          key={group.id}
+                          columnId={group.id}
+                          label={group.name}
+                          className={styles.column}
+                          hover={hoverColumn === group.id}
+                          uids={list.map((row) => row.uid)}
+                          head={
+                            <div className={styles.columnHead}>
+                              <div className={styles.columnTop}>
+                                <span className={styles.columnTitleRow}>
+                                  <h3 className={styles.columnTitle}>
+                                    <Link
+                                      href={groupPagePath(view.roundId, view.programmeId, group.id)}
+                                      className={styles.columnTitleLink}
+                                    >
+                                      {group.name}
+                                    </Link>
+                                  </h3>
+                                  {full && <span className={`${styles.chip} ${styles.chipOk}`}>{words.FULL}</span>}
+                                </span>
+                                <span className={styles.seats}>{words.seatsWords(list.length, group.capacity)}</span>
+                              </div>
+                              <div className={styles.columnMeta}>
+                                <span>{group.when || words.NO_TIME_YET}</span>
+                                <span aria-hidden="true">·</span>
+                                {group.room ? (
+                                  <span className={styles.room}>{group.room}</span>
+                                ) : (
+                                  <span className={`${styles.chip} ${styles.chipWarn}`}>{words.NO_ROOM_YET}</span>
+                                )}
+                              </div>
+                              <div className={styles.facilitators}>
+                                {group.facilitatorUids.length === 0
+                                  ? words.facilitatorsWords([])
+                                  : group.facilitatorUids.map((uid, at) => (
+                                      <span key={uid}>
+                                        {at === 0 ? "" : at === group.facilitatorUids.length - 1 ? " and " : ", "}
+                                        <button
+                                          type="button"
+                                          className={styles.nameButton}
+                                          aria-expanded={openUid === uid}
+                                          data-panel-name={uid}
+                                          onClick={(event) => openPanel(uid, event.currentTarget)}
+                                        >
+                                          {group.facilitatorFirstNames[at] || "NAISI member"}
+                                        </button>
+                                      </span>
+                                    ))}
+                              </div>
+                              {fill !== null && (
+                                <div
+                                  className={styles.bar}
+                                  role="progressbar"
+                                  aria-label={`${group.name}: ${words.seatsWords(list.length, group.capacity)}`}
+                                  aria-valuenow={fill}
+                                  aria-valuemin={0}
+                                  aria-valuemax={100}
+                                >
+                                  <span
+                                    className={full ? styles.barFull : styles.barFill}
+                                    style={{ width: `${fill}%` }}
+                                  />
+                                </div>
                               )}
                             </div>
-                            <div className={styles.facilitators}>
-                              {words.facilitatorsWords(group.facilitatorFirstNames)}
-                            </div>
-                            {fill !== null && (
-                              <div
-                                className={styles.bar}
-                                role="progressbar"
-                                aria-label={`${group.name}: ${words.seatsWords(list.length, group.capacity)}`}
-                                aria-valuenow={fill}
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                              >
-                                <span
-                                  className={full ? styles.barFull : styles.barFill}
-                                  style={{ width: `${fill}%` }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        }
-                      >
-                        {list.map((row) => cardFor(row, group.id))}
-                        {invitedHere(group.id)}
-                        {list.length === 0 && invitedHere(group.id).length === 0 && (
-                          <p className={styles.columnNote}>{words.EMPTY_GROUP}</p>
-                        )}
-                      </Column>
-                    );
-                  })}
+                          }
+                        >
+                          {list.map((row) => cardFor(row, group.id))}
+                          {invitedHere(group.id)}
+                          {list.length === 0 && invitedHere(group.id).length === 0 && (
+                            <p className={styles.columnNote}>{words.EMPTY_GROUP}</p>
+                          )}
+                        </Column>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            <DragOverlay dropAnimation={reducedMotion ? null : undefined}>
+              {dragged ? (
+                <div className={styles.overlay}>
+                  <div className={styles.card}>
+                    <span className={styles.handle} aria-hidden="true">
+                      <GripIcon size={14} />
+                    </span>
+                    <span className={styles.avatar}>
+                      <InitialsChip name={nameOf(dragged.uid)} uid={dragged.uid} size="md" />
+                    </span>
+                    <span className={styles.name}>{nameOf(dragged.uid)}</span>
+                  </div>
                 </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+
+          {view.gaveBack.length > 0 && (
+            <div className={styles.gaveBack}>
+              <button
+                type="button"
+                className={styles.gaveBackToggle}
+                aria-expanded={showGaveBack}
+                onClick={() => setShowGaveBack((was) => !was)}
+              >
+                <span className={showGaveBack ? styles.chevronOpen : styles.chevronShut}>
+                  <ChevronDownIcon size={16} />
+                </span>
+                <span>{words.gaveBackTitle(view.gaveBack.length)}</span>
+              </button>
+              {showGaveBack && (
+                <ul className={styles.gaveBackList}>
+                  {view.gaveBack.map((person) => (
+                    <li key={person.uid} className={styles.gaveBackItem}>
+                      <span className={styles.gaveBackAvatar}>
+                        <InitialsChip name={person.name} uid={person.uid} size="sm" />
+                      </span>
+                      <button
+                        type="button"
+                        className={`${styles.gaveBackName} ${styles.nameButton}`}
+                        aria-expanded={openUid === person.uid}
+                        data-panel-name={person.uid}
+                        onClick={(event) => openPanel(person.uid, event.currentTarget)}
+                      >
+                        {person.name}
+                      </button>
+                      {person.line && <span className={styles.gaveBackLine}>· {person.line}</span>}
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
-          </div>
-          <DragOverlay dropAnimation={reducedMotion ? null : undefined}>
-            {dragged ? (
-              <div className={styles.overlay}>
-                <div className={styles.card}>
-                  <span className={styles.handle} aria-hidden="true">
-                    <GripIcon size={14} />
-                  </span>
-                  <span className={styles.avatar}>
-                    <InitialsChip name={nameOf(dragged.uid)} uid={dragged.uid} size="md" />
-                  </span>
-                  <span className={styles.name}>{nameOf(dragged.uid)}</span>
-                </div>
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+          )}
 
-        {view.gaveBack.length > 0 && (
-          <div className={styles.gaveBack}>
-            <button
-              type="button"
-              className={styles.gaveBackToggle}
-              aria-expanded={showGaveBack}
-              onClick={() => setShowGaveBack((was) => !was)}
-            >
-              <span className={showGaveBack ? styles.chevronOpen : styles.chevronShut}>
-                <ChevronDownIcon size={16} />
-              </span>
-              <span>{words.gaveBackTitle(view.gaveBack.length)}</span>
-            </button>
-            {showGaveBack && (
-              <ul className={styles.gaveBackList}>
-                {view.gaveBack.map((person) => (
-                  <li key={person.uid} className={styles.gaveBackItem}>
-                    <span className={styles.gaveBackAvatar}>
-                      <InitialsChip name={person.name} uid={person.uid} size="sm" />
-                    </span>
-                    <span className={styles.gaveBackName}>{person.name}</span>
-                    {person.line && <span className={styles.gaveBackLine}>· {person.line}</span>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        <p className={styles.footnote}>
-          <span className={styles.footnoteIcon} aria-hidden="true">
-            <InfoIcon size={16} />
-          </span>
-          <span>
-            {data.run.allocationPublishedAt
-              ? admin
-                ? words.AFTER_PUBLISH
-                : words.AFTER_PUBLISH_LEAD
-              : admin
-                ? words.BEFORE_PUBLISH
-                : words.BEFORE_PUBLISH_LEAD}
-          </span>
-        </p>
+          <p className={styles.footnote}>
+            <span className={styles.footnoteIcon} aria-hidden="true">
+              <InfoIcon size={16} />
+            </span>
+            <span>
+              {data.run.allocationPublishedAt
+                ? admin
+                  ? words.AFTER_PUBLISH
+                  : words.AFTER_PUBLISH_LEAD
+                : admin
+                  ? words.BEFORE_PUBLISH
+                  : words.BEFORE_PUBLISH_LEAD}
+            </span>
+          </p>
+        </div>
+        {panel}
       </div>
+      {/* On a narrow screen the panel is a sheet over the page: the page behind is dimmed, and a press on it closes the panel. */}
+      {panel ? <div className={styles.panelScrim} aria-hidden="true" onClick={closePanel} /> : null}
 
       {takingOff && <TakeOffSheet runId={runId} uid={takingOff} onClose={() => setTakingOff(null)} onDone={takenOff} />}
       <ActionToast toast={toast} onDismiss={dismiss} />

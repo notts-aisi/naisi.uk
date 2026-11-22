@@ -930,6 +930,13 @@ const ROUND_SURFACES = {
       "which starts from the form's own loader and answers 'none' (a 404) for a round that is not a form, " +
       "before anybody's application is read",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/panel": {
+    kind: "form",
+    why:
+      "the person's panel on People in groups, read for everybody on the board through loadBoardPanel, which " +
+      "starts from the Groups tab's own loader (loadProgrammeRun, the form's) and answers 'none' (a 404) for a " +
+      "round that is not a form, before anybody's application is read",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     kind: "form",
     why:

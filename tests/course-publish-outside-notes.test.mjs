@@ -430,7 +430,7 @@ describe("4. who may see, save and draft", () => {
     assert.equal(claude.asked.length, 0);
   });
 
-  // The lead reads a person's week wherever they may read the application (its review page, and the screens that ask personWeekFor); never here.
+  // The lead reads a person's week wherever they may read the application (its review page, and the screens that ask personWeekFor, People in groups' panel among them); never here.
   test("the lead sees no painted week on Publish's page and no draft, and may not ask Claude", async () => {
     await placed();
     claude.answer = { ok: true, value: { note: "A draft.", basis: "Their interests." }, model: "m" };
