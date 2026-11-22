@@ -124,6 +124,28 @@ export async function listDecisions(db: Firestore, roundId: string): Promise<Map
   return out;
 }
 
+/**
+ * `listDecisions`, sharing one read across one page's layout and the page
+ * under it, as `listSentApplicationsOnce` shares the applications: the
+ * programme's head counts who holds a place, and the Attendance tab asks the
+ * same decisions whose names open a person's page. Only pages that read and
+ * never write use it.
+ */
+const decisionsSnapshotOnce = cache((db: Firestore, roundId: string) =>
+  db.collection(DECISIONS_COLLECTION).where("roundId", "==", roundId).get(),
+);
+
+/** `listDecisions`, sharing one read across one page's layout and the page under it. */
+export async function listDecisionsOnce(db: Firestore, roundId: string): Promise<Map<string, DecisionDoc>> {
+  const snap = await decisionsSnapshotOnce(db, roundId);
+  const out = new Map<string, DecisionDoc>();
+  for (const doc of snap.docs) {
+    const decision = normaliseDecision(doc.id, doc.data());
+    if (decision.uid) out.set(decision.uid, decision);
+  }
+  return out;
+}
+
 export async function loadDecision(
   db: Firestore,
   roundId: string,

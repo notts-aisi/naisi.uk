@@ -2570,9 +2570,14 @@ fields from the browser until then.
 ## A person's page, for the team, and a facilitator's cut of it
 
 One page per person on a programme, at
-`.../programmes/[programmeId]/people/[uid]`, reached from their name on the
-People tab and, for somebody holding a place, on the Coursework tab and its
-list of what waits for feedback. Read by `loadTeamPersonPage`
+`.../programmes/[programmeId]/people/[uid]`: the one profile staff have of a
+person on a programme. Reached from their name on the People tab, on the
+Attendance tab (every name the page opens for, which is every row of the
+reader's People tab; any other name stays words), on the Applications tab
+after decision day for an admin and the lead (the names of people holding a
+place; a reviewer, and the name of anybody holding no place, keep opening
+the application), and, for somebody holding a place, on the Coursework tab and its
+list of what waits for feedback. The facilitator's cut never links here. Read by `loadTeamPersonPage`
 (`src/lib/courses/personPage/load.ts`); the words are turned out by the pure
 functions beside it (`model.ts`, `words.ts`). NOTHING ON IT WRITES: Move is
 its own page, and the notes write through their own routes.
@@ -2595,8 +2600,10 @@ them under Gave their place back, "Left the programme"), and their seat is
 withdrawn or removed, so they are no row: the tab shows nothing of their work
 and the reading view refuses them. The Attendance tab still lists them with
 the marks a register kept. So their page, like the page of somebody who gave
-a place back before the run or is invited, is the head (no group) and their
-attendance, and nothing else.
+a place back before the run or is invited, is the head (no group), Place and
+group (where the place stands, no group line), When they're free, their
+application where it may be opened, their attendance, and for an admin
+Claude and Pangram and the account, and none of the Coursework tab's.
 
 **Each section, and who it is read for.** A section a reader may not see is
 not read for them, and its key is absent from what the page is handed.
@@ -2613,7 +2620,48 @@ not read for them, and its key is absent from what the page is handed.
   or a facilitator. "Visit another group for one week" and "Move to another
   group", drawn exactly where the People tab offers them: one decision on the
   server (`movingLinks` in `src/lib/applications/people/model.ts`, which sets
-  `visitHref` and `moveHref` together), drawn by the tab's More menu and here.
+  `visitHref` and `moveHref` together), drawn by the tab's More menu and here,
+  in the Place and group card.
+- *Place and group*, first on the page: "Place", where the place stands in the
+  People tab's words, and for somebody holding one "Holds a place on AGI
+  Strategy since Wed 28 Oct" (the day decision day accepted them, or the day
+  they said yes to an invitation, read only where the reader is handed the
+  application's link); "Group", their group as the head shows it to this
+  reader with its weekly time and "told on Fri 30 Oct" (the day Publish's
+  email went, never one held or stopped) or "Not told yet"; "Coming", for
+  somebody holding a place: "Said they’re coming", or the People tab's words.
+- *When they're free*, beside it on a wide screen: the one gated read of the
+  week they marked on their application (`personWeekFor` in
+  `src/lib/applications/people/week.ts`), which answers the week only where
+  `canReadApplication` lets this reader open that application (an admin; the
+  programme's lead for every row of their People tab, since every row is
+  somebody whose application the lead may read). Drawn read only: the chart
+  beside a person in Circles, worked out on the server (`weekChartOf`), with
+  the lighter shade and "Marked under 4 hours in the week. The lighter shade
+  runs from their first mark each day to the end of the day." for somebody
+  who marked little; under it each timed group with how much of its session
+  falls in their time ("All 2 hours in their time", "1 hour of it in their
+  time", "None of it in their time") and "In this group". "They haven’t said
+  when they’re free, so nothing is shaded." with nothing marked. A reader who
+  may not read the application is told "Only admins see when Sofia is free."
+  and nothing derived from the week (no stretch, no hours, no fit), and not
+  whether or where they applied. Never on the reader's own page, never sent
+  to Claude, never in an email. Under it, their answer about their group's
+  time ("Their answer about Group C’s time", the board's marks, Why and Would
+  work), for a reader the board reads answers to (`readsTimeAnswers`), and
+  "Admins and AGI Strategy’s lead see this. Facilitators never do."
+- *Application*: "Applied on Sat 24 Oct: AGI Strategy first, Technical AI
+  Safety second." (the day they first sent it, and the programmes they
+  ranked in their order), then, on a form that asks, "Offered to
+  facilitate." or "Didn’t offer to facilitate." (`wouldFacilitate`), and
+  "Open their application". Inside it, for an ADMIN alone and labelled "Only
+  admins see this": Claude and Pangram, Circles' own lines from Claude's
+  earlier read of the application for this programme and Pangram's check
+  (`notesFor`, read only once the reader is known to be an admin, never about
+  themselves). Claude's rating of somebody as a facilitator exists only
+  inside an arrangement an admin asked for, and is never on this page.
+- *Account*, last, for an ADMIN alone: "Open Leo’s account", their page under
+  Accounts (`/admin/members/[uid]`).
 - *The strip of section links* at the top: one link to each section this
   reader is handed, in the page's order, and none for a section that is not
   there.
@@ -2660,17 +2708,9 @@ not read for them, and its key is absent from what the page is handed.
 - *Notes*: the notes' own component (`PersonNotes`), through the notes' own
   routes, which decide who reads which note (see "Claude and Pangram on
   coursework, and the notes the team keeps"). Never on the reader's own page.
-- *Application*: the People tab's link (`applicationHref`, the review
-  screens' `canReadApplication`), "Read the application"; absent for the
-  reader's own. Beside it, and only where the link is handed, its line, read
-  from the application itself: "Ranked AGI Strategy first." where what they
-  sent ranks this programme (`choiceNumber`); then "Accepted Wed 28 Oct." where
-  decision day's result put them on it (`result.kind` accepted, its
-  `programmeId` this programme, on the day it was sent, `publishedAt`), or
-  "Said yes to an invitation Tue 27 Oct." where they accepted an invitation to
-  it (decision day's or a freed place's, on the day they answered). A part the
-  records cannot say is left out: somebody who joined by invitation never
-  ranked the programme, so their line has no ranking.
+- *The application's link* is the People tab's (`applicationHref`, the review
+  screens' `canReadApplication`); absent for the reader's own, and so is its
+  line, and so is When they're free.
 - *Events* and *Activity*: an admin's alone (`if (!isAdmin) return` comes
   before either is read). Events are the events tree's own reader
   (`eventsOfPersonInTerm`, privacy v15's "Attendance"), drawn by the admin
@@ -3147,8 +3187,10 @@ who applied to the run itself), nothing painted, a full session, or a session
 in their times whose part of the day their week does not say (somebody who
 marked little time). In a view-as session it is not read. It changes neither
 the order of the list nor what can be chosen. The staff page for arranging a
-visit has no such line: that page also serves the programme's lead, whose
-screens show no painted week.
+visit has no such line: it lists the sessions on offer, and staff read a
+person's week wherever they may read that person's application (its review
+page, and the screens that ask the one gated read, `personWeekFor`; see "A
+person's page, for the team").
 
 **What the person sees.** On the card (Home and the programme page): "Go to
 another session this week" for the week offered; while it waits, the request

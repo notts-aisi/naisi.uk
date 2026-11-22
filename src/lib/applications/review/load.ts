@@ -16,6 +16,8 @@ import type { QuestionSetDoc } from "../model";
 import type { ApplicationForm } from "../normalise";
 import { loadForm, loadQuestionSets } from "../repo";
 import { listDecisions, listReviews, listSentApplications } from "../staffRepo";
+import { hasBeenTold } from "../decisions";
+import { placeHoldersOn } from "../handover/holders";
 import { REVOCATION_AUDIT_KIND } from "./audit";
 import { buildProgrammeBoard } from "./board";
 import { buildReview } from "./detail";
@@ -130,7 +132,15 @@ function leadUids(form: ApplicationForm): string[] {
   return uids;
 }
 
-export type BoardResult = { ok: true; board: ProgrammeBoard } | Refusal;
+/**
+ * The board, and for an admin and the programme's lead after decision day
+ * the people holding a place on the programme, by uid, whose names open
+ * their page on the programme (the People tab's own test: told, and holding
+ * a place by `holdsPlaceOn`, from the applications and decisions the board
+ * already read). Never sent to a browser as it is: the page turns it into
+ * links, and the route answers the board alone.
+ */
+export type BoardResult = { ok: true; board: ProgrammeBoard; holders: string[] } | Refusal;
 
 /** One programme's applications, for a caller with a role on it. */
 export async function loadProgrammeBoard(
@@ -165,7 +175,19 @@ export async function loadProgrammeBoard(
     pendingUids,
     staffNames,
   });
-  return board ? { ok: true, board } : NOT_FOUND;
+  if (!board) return NOT_FOUND;
+  // Who holds a place here, for an admin or the lead once decisions have gone out: their names open their page.
+  const holders =
+    form.decisionsSentAt !== null && canDecideFor(user, form, programmeId)
+      ? (() => {
+          // Who holds a place, by the hand-over's own list (`placeHoldersOn`); of them, the people decision day has told, as the People tab lists them.
+          const told = new Set(term.applications.filter(hasBeenTold).map((application) => application.uid));
+          return placeHoldersOn(form, programmeId, term.applications, term.decisions)
+            .map((holder) => holder.uid)
+            .filter((uid) => told.has(uid));
+        })()
+      : [];
+  return { ok: true, board, holders };
 }
 
 /** The last time an admin took an acceptance back for this programme, if ever. */

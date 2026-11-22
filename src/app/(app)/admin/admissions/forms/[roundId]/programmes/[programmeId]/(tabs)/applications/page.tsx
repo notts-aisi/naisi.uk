@@ -43,6 +43,12 @@ export default async function ProgrammeApplicationsPage({
   // Freed places are offered after decision day, by whoever offersFreedPlaces
   // admits: the link is drawn for them alone, and its page asks again.
   const offers = result.board.round.decisionsSent && offersFreedPlaces(result.board.viewer.role);
+  // After decision day, an admin's and the lead's names of people holding a place open their page on the programme,
+  // where that page opens for them (a row of their People tab), from what the board's own loader read; everybody
+  // else, and every reviewer, keeps the application.
+  const personPath = `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/people`;
+  const personHrefs =
+    result.holders.length > 0 ? Object.fromEntries(result.holders.map((uid) => [uid, `${personPath}/${encodeURIComponent(uid)}`])) : null;
   return (
     <ApplicationsRoot>
       <ApplicationsBoard
@@ -50,6 +56,7 @@ export default async function ProgrammeApplicationsPage({
         listPath={`/admin/admissions/${base}`}
         apiPath={`/api/admissions/${base}`}
         freedPlacesPath={offers ? `/admin/admissions/${base}/freed-places` : null}
+        personHrefs={personHrefs}
         assessments={
           // Claude's and Pangram's marks are an admin's alone: the route asks
           // again, and refuses anybody else before it reads anything.

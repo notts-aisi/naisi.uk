@@ -1106,6 +1106,12 @@ describe("6. the person, the programme's lead and admins read it; nobody else do
       "lib/applications/arrange/advise.ts",
       "puts the answer on Circles' person for the admin's screen; Claude's message is written line by line and never names it (tests/applications-circles.test.mjs)",
     ],
+    [
+      "lib/courses/personPage/load.ts",
+      "a person's page for the team: their answer about the group their seat is in now, through the stale-answer rule, for a reader readsTimeAnswers admits (the programme's lead and admins)",
+    ],
+    ["lib/courses/personPage/model.ts", "a person's page: the answer in the board's own marks, with its why and what would work"],
+    ["features/courses/personPage/PersonPage.tsx", "a person's page: their answer under When they're free, drawn as the model words it"],
     ["features/applications/circles/Ring.tsx", "Circles' rings, an admin's alone: a Can't make this time mark on the live run"],
     [
       "features/applications/circles/PersonPanel.tsx",

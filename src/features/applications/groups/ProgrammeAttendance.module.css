@@ -308,6 +308,25 @@
   overflow-wrap: anywhere;
 }
 
+/* A name that opens the person's page on the programme. */
+.personLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+
+.personLink:hover {
+  color: var(--color-accent-text-hover);
+  text-decoration: underline;
+}
+
+.personLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
 .leftLine {
   font-size: 12px;
   font-weight: 400;

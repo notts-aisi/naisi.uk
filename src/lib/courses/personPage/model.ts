@@ -4,7 +4,32 @@ import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/
 import type { PersonEventsView } from "@/lib/events/attendanceWords";
 import { emailStateWords } from "@/lib/courses/feedback/words";
 import type { FeedbackDelivery } from "@/lib/firestore/courseFeedback";
+import type { PersonWeek } from "@/lib/applications/people/week";
+import type { PersonComing, PersonStatus } from "@/lib/applications/people/views";
+import { comingWords as peopleComingWords, invitedUntilWords, statusWords } from "@/lib/applications/people/words";
+import { lengthWords } from "@/lib/courses/sessionLength";
+import { weekOfSessionKey, type TimeAnswerView } from "@/lib/courses/timeAnswer/model";
+import { MARK_CANT_MAKE, MARK_CAN_MAKE, mostWeeksMark } from "@/lib/courses/timeAnswer/words";
+import { CONCERNS, LEAN, NOT_READ, STRENGTHS, pangramLine, thinLine } from "@/features/applications/circles/circlesWords";
 import {
+  COMING,
+  GROUP,
+  LITTLE_MARKED,
+  NOT_IN_A_GROUP,
+  NOT_TOLD,
+  NOTHING_MARKED,
+  TOLD,
+  NO_LONGER_ON_FILE,
+  PLACE,
+  SAID_COMING,
+  chartGroupWords,
+  groupAndTimeWords,
+  holdsPlaceWords,
+  toldOnWords,
+  inTheirTimeWords,
+  mostWeeksWords,
+  onlyAdminsSeeWords,
+  theirAnswerWords,
   ANSWER_STARTED,
   COMING_CHIP,
   DID_NOT_HAPPEN,
@@ -418,6 +443,293 @@ export function elsewhereLineOf(weeks: readonly number[]): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// When they're free, drawn
+// ---------------------------------------------------------------------------
+
+/** One stretch on a day's column, as a share of the column's height, top first. */
+export type ChartBlock = { top: number; height: number };
+
+/** One group's weekly session on the chart. */
+export type ChartBar = ChartBlock & {
+  key: string;
+  /** "C" for Group C: what the bar says. */
+  letter: string;
+  /** "Group C, Wed 3pm: they can make it": the bar's title. */
+  title: string;
+  /** Where it sits beside the day's other sessions, as shares of the column's width. */
+  left: number;
+  width: number;
+  fits: boolean;
+  current: boolean;
+};
+
+/** The chart, ready to draw: every value is a share of the column (0 to 100) or words. */
+export type WeekChartView = {
+  hours: Array<{ label: string; top: number }>;
+  days: Array<{ name: string; free: ChartBlock[]; readAs: ChartBlock | null; bars: ChartBar[] }>;
+};
+
+/** One group in the list under the chart. */
+export type FreeGroupLine = { key: string; name: string; said: string; fits: boolean; current: boolean };
+
+/**
+ * What the page draws of when somebody is free, for this reader. `may-not`
+ * carries the one sentence and nothing else; `nothing` a sentence and, while
+ * they sent the form with nothing marked, the empty chart with the groups on
+ * it; `given` the chart, the list under it and, for somebody who marked
+ * little, the line about the lighter shade.
+ */
+export type PersonFreeView =
+  | { kind: "may-not"; line: string }
+  | { kind: "nothing"; line: string; chart: WeekChartView | null }
+  | { kind: "given"; chart: WeekChartView; groups: FreeGroupLine[]; littleMarked: string | null };
+
+/** Their answer about their group's time, as the board's cards say it. */
+export type TimeAnswerLines = { title: string; said: string; why: string | null; wouldWork: string | null };
+
+/** Monday first, as every screen here lists a week. */
+const CHART_COLUMNS = [1, 2, 3, 4, 5, 6, 0];
+const CHART_DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const CHART_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const minutesOfClock = (hhmm: string) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+/** "3pm", "6:30pm", from minutes past midnight. */
+function clockOf(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${hour}${m ? `:${String(m).padStart(2, "0")}` : ""}${h < 12 ? "am" : "pm"}`;
+}
+
+/** "Wednesdays 3pm": a group's weekly session, as the person's page says it. */
+export function weeklyWords(session: { weekday: number; startTimeLocal: string }): string | null {
+  const day = CHART_DAYS[session.weekday];
+  if (!day || !/^\d{2}:\d{2}$/.test(session.startTimeLocal)) return null;
+  return `${day}s ${clockOf(minutesOfClock(session.startTimeLocal))}`;
+}
+
+type ChartGroupInput = { id: string; name: string; session: { weekday: number; startTimeLocal: string; durationMinutes: number }; fits: boolean; current: boolean };
+
+/**
+ * THE CHART OF ONE PERSON'S WEEK, read only: Monday to Sunday across, the
+ * form's hours down, every stretch they marked shaded, and for somebody who
+ * marked little a lighter shade from each day's first mark to the end of the
+ * day, which is how the site reads them. Over it each group's weekly session
+ * as a bar, green where they can make all of it, red where they cannot, the
+ * group they are in now outlined. The geometry is the chart's beside a
+ * person in Circles (`src/features/applications/times/WeekChart.tsx`), worked
+ * out here so the page draws it on the server with nothing to press.
+ */
+export function weekChartOf(input: {
+  grid: { startMinute: number; endMinute: number };
+  marked: ReadonlyArray<{ weekday: number; start: number; end: number }>;
+  fromFirstMark: boolean;
+  groups: readonly ChartGroupInput[];
+}): WeekChartView {
+  const { grid, marked, groups } = input;
+  const span = Math.max(60, grid.endMinute - grid.startMinute);
+  const top = (minutes: number) => (Math.max(0, minutes - grid.startMinute) / span) * 100;
+  const height = (from: number, to: number) => (Math.max(0, Math.min(to, grid.endMinute) - Math.max(from, grid.startMinute)) / span) * 100;
+  const hours: WeekChartView["hours"] = [];
+  for (let at = Math.ceil(grid.startMinute / 180) * 180; at <= grid.endMinute; at += 180) hours.push({ label: clockOf(at), top: top(at) });
+  const days = CHART_COLUMNS.map((weekday) => {
+    const own = marked.filter((range) => range.weekday === weekday);
+    const firstMark = own.length > 0 ? Math.min(...own.map((range) => range.start)) : null;
+    // Side by side where a day's sessions overlap: each its lane, out of how many.
+    const day = groups
+      .filter((group) => group.session.weekday === weekday)
+      .sort((a, b) => minutesOfClock(a.session.startTimeLocal) - minutesOfClock(b.session.startTimeLocal));
+    const ends: number[] = [];
+    const lanes = new Map<string, number>();
+    for (const group of day) {
+      const start = minutesOfClock(group.session.startTimeLocal);
+      let at = ends.findIndex((end) => end <= start);
+      if (at < 0) at = ends.length;
+      ends[at] = start + group.session.durationMinutes;
+      lanes.set(group.id, at);
+    }
+    const of = Math.max(1, ends.length);
+    return {
+      name: CHART_DAY[weekday],
+      free: own.map((range) => ({ top: top(range.start), height: height(range.start, range.end) })),
+      readAs: input.fromFirstMark && firstMark !== null ? { top: top(firstMark), height: height(firstMark, grid.endMinute) } : null,
+      bars: day.map((group) => {
+        const start = minutesOfClock(group.session.startTimeLocal);
+        const lane = lanes.get(group.id) ?? 0;
+        const when = `${CHART_DAY[group.session.weekday] ?? ""} ${clockOf(start)}`;
+        return {
+          key: group.id,
+          letter: group.name.replace(/^Group\s+/i, ""),
+          title: `${group.name}, ${when}: ${group.fits ? "they can make it" : "they can’t make all of it"}`,
+          top: top(start),
+          height: height(start, start + group.session.durationMinutes),
+          left: (lane / of) * 100,
+          width: 100 / of,
+          fits: group.fits,
+          current: group.current,
+        };
+      }),
+    };
+  });
+  return { hours, days };
+}
+
+/**
+ * The list under the chart: the group they are in first, then the groups
+ * they can make, then by how much of each falls in their time, then by name.
+ */
+export function freeGroupLinesOf(groups: ReadonlyArray<ChartGroupInput & { minutes: number }>): FreeGroupLine[] {
+  return [...groups]
+    .sort(
+      (a, b) =>
+        Number(b.current) - Number(a.current) ||
+        Number(b.fits) - Number(a.fits) ||
+        b.minutes - a.minutes ||
+        a.name.localeCompare(b.name, "en-GB", { numeric: true }),
+    )
+    .map((group) => ({
+      key: group.id,
+      name: chartGroupWords(group.name, weeklyWords(group.session)),
+      said: inTheirTimeWords(group.fits, group.minutes, lengthWords(group.session.durationMinutes), group.minutes > 0 ? lengthWords(group.minutes) : null),
+      fits: group.fits,
+      current: group.current,
+    }));
+}
+
+/**
+ * The week the one gated read answered (`personWeekFor`), as the page draws
+ * it. `groups` are the run's groups with a weekly session, for the empty
+ * chart of somebody who marked nothing. A `may-not` answer is turned into its
+ * sentence and nothing else: the chart, the groups and every line made from
+ * the week are never built for it.
+ */
+export function personFreeViewOf(
+  week: PersonWeek,
+  firstName: string,
+  groups: ReadonlyArray<Omit<ChartGroupInput, "fits" | "current">>,
+  grid: { startMinute: number; endMinute: number },
+): PersonFreeView | null {
+  switch (week.kind) {
+    case "own":
+      return null;
+    case "may-not":
+      return { kind: "may-not", line: onlyAdminsSeeWords(firstName) };
+    case "not-on-file":
+      return { kind: "nothing", line: NO_LONGER_ON_FILE, chart: null };
+    case "none-given":
+      return {
+        kind: "nothing",
+        line: NOTHING_MARKED,
+        chart: weekChartOf({ grid, marked: [], fromFirstMark: false, groups: groups.map((group) => ({ ...group, fits: false, current: false })) }),
+      };
+    case "given":
+      return {
+        kind: "given",
+        chart: weekChartOf({ grid: week.grid, marked: week.marked, fromFirstMark: week.fromFirstMark, groups: week.groups }),
+        groups: freeGroupLinesOf(week.groups),
+        littleMarked: week.fromFirstMark ? LITTLE_MARKED : null,
+      };
+  }
+}
+
+/**
+ * PLACE AND GROUP: where their place stands (the People tab's own status,
+ * said as the design says a place held: "Holds a place on AGI Strategy since
+ * Wed 28 Oct", the day decision day or their yes to an invitation put them
+ * on it, where the reader may open the application), their group as this
+ * reader is shown it with the day Publish told them, and, for somebody
+ * holding a place, whether they said they're coming. A group line is left
+ * out where the page shows no group (somebody who left the run).
+ */
+export function placeLinesOf(input: {
+  status: PersonStatus;
+  programmeName: string;
+  since: Date | null;
+  /**
+   * Their group as this reader is shown it, and what is true of their being
+   * told it: told about it on a day the records hold (`on`), told about it
+   * with no day the records hold for that (`undated`: a staff move's own
+   * email tells them at once and stamps no day), not told it yet
+   * (`not-yet`), or nothing to say (null: an email held or stopped).
+   */
+  group:
+    | { name: string; when: string | null; told: { kind: "on"; at: Date } | { kind: "undated" } | { kind: "not-yet" } | null }
+    | "none"
+    | null;
+  coming: PersonComing | null;
+}): PlaceLine[] {
+  const { status } = input;
+  const place =
+    status.kind === "holding"
+      ? holdsPlaceWords(input.programmeName, input.since)
+      : [
+          statusWords(status),
+          status.kind === "gave-back" ? status.reason : status.kind === "invited" && status.until ? invitedUntilWords(status.until) : null,
+          status.on,
+        ]
+          .filter((part): part is string => !!part)
+          .join(" · ");
+  const out: PlaceLine[] = [{ key: "place", label: PLACE, value: place }];
+  if (input.group === "none") out.push({ key: "group", label: GROUP, value: NOT_IN_A_GROUP });
+  else if (input.group) {
+    const said = input.group.told;
+    const told = !said ? null : said.kind === "on" ? toldOnWords(said.at) : said.kind === "undated" ? TOLD : NOT_TOLD;
+    const line = groupAndTimeWords(input.group.name, input.group.when);
+    out.push({ key: "group", label: GROUP, value: told ? `${line} · ${told}` : line });
+  }
+  if (input.coming) out.push({ key: "coming", label: COMING, value: input.coming.kind === "yes" ? SAID_COMING : peopleComingWords(input.coming) });
+  return out;
+}
+
+/** A reviewer's letter, as Circles says it to an admin: "a reviewer". */
+const reviewerWords = (text: string) => text.replace(/\bReviewer [A-Z]\b/g, "a reviewer");
+
+/**
+ * CLAUDE AND PANGRAM, as Circles says them beside a person: Claude's earlier
+ * read of the application for this programme (its lean and summary, its
+ * strengths, its concerns, how many answers were thin), or that Claude
+ * hasn't read it, then Pangram's line. Built only from what a loader read
+ * for an admin.
+ */
+export function claudeLinesOf(note: {
+  read: { lean: string | null; summary: string; strengths: readonly string[]; concerns: readonly string[]; thin: number } | null;
+  flags: number | null;
+} | null): ClaudeReadLines {
+  const read = note?.read ?? null;
+  const lines = read
+    ? [
+        `${read.lean ? LEAN(read.lean) : ""}${reviewerWords(read.summary)}`,
+        ...(read.strengths.length > 0 ? [STRENGTHS(read.strengths.map(reviewerWords))] : []),
+        ...(read.concerns.length > 0 ? [CONCERNS(read.concerns.map(reviewerWords))] : []),
+        ...(read.thin > 0 ? [thinLine(read.thin)] : []),
+      ]
+    : [NOT_READ];
+  const flags = note?.flags ?? null;
+  return { lines, pangram: pangramLine(flags), flagged: flags !== null && flags > 0 };
+}
+
+/** Their answer about the group they are in now, in the board's words; null with none to show. */
+export function timeAnswerLinesOf(answer: TimeAnswerView | null, groupName: string | null): TimeAnswerLines | null {
+  if (!answer || !groupName) return null;
+  let said: string;
+  if (answer.kind === "mostWeeks") {
+    said = mostWeeksWords(answer.sessionKeys.length > 0 ? mostWeeksMark(answer.sessionKeys.map(weekOfSessionKey)) : null);
+  } else {
+    said = answer.kind === "yes" ? MARK_CAN_MAKE : MARK_CANT_MAKE;
+  }
+  return {
+    title: theirAnswerWords(groupName),
+    said,
+    why: answer.kind !== "yes" && answer.reason ? answer.reason : null,
+    wouldWork: answer.kind !== "yes" && answer.alternatives ? answer.alternatives : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The views
 // ---------------------------------------------------------------------------
 
@@ -440,19 +752,40 @@ export type PersonAbout = {
   joined: string | null;
 };
 
+/** One line of Place and group: "Place", "Group" or "Coming", and what it says. */
+export type PlaceLine = { key: "place" | "group" | "coming"; label: string; value: string };
+
+/** Claude's and Pangram's earlier reads of the application, in Circles' words: an admin's alone. */
+export type ClaudeReadLines = { lines: string[]; pangram: string; flagged: boolean };
+
 /**
  * THE TEAM'S PAGE. Every optional key is ABSENT for a reader who may not see
- * that section (and every one but the head and attendance for somebody the
+ * that section (and every one of the Coursework tab's for somebody the
  * Coursework tab has no row for): `ratings` (an admin, and the programme's lead while they
  * stand, never about themselves), `notes` (who reads notes about a person
  * today, never about themselves), `application` (whoever may open it),
- * `move` (as the People tab offers it), `events` and `activity` (an admin's
+ * `move` (as the People tab offers it), `free` (never about themselves;
+ * the week itself only where the reader may read the application, the one
+ * gated read's answer), `timeAnswer` (whoever reads answers about a group's
+ * time today), `claude`, `account`, `events` and `activity` (an admin's
  * alone).
  */
 export type TeamPersonView = {
   reader: "admin" | "lead";
   uid: string;
   header: PersonHeader;
+  /** Place and group: where their place stands, their group and when they were told it, and whether they said they're coming. */
+  place: PlaceLine[];
+  /** When they're free, as the one gated read answered this reader. Absent on the reader's own page. */
+  free?: PersonFreeView;
+  /** Their answer about the group they are in now, with its why and what would work. */
+  timeAnswer?: TimeAnswerLines;
+  /** "Admins and AGI Strategy’s lead see this. Facilitators never do.", under the week and the answer. */
+  freeFoot?: string;
+  /** Claude's and Pangram's reads of the application: an admin's alone, never read for anybody else. */
+  claude?: ClaudeReadLines;
+  /** Their page under Accounts: an admin's alone. */
+  account?: { href: string; label: string };
   /** The name they go by and when they joined. */
   about?: PersonAbout;
   /** Their account's address: an admin's alone, absent for anybody else. */
@@ -464,7 +797,11 @@ export type TeamPersonView = {
   attendance: AttendanceView;
   feedback?: FeedbackLine[];
   notes?: { runId: string; firstName: string; lead: { roundId: string; programmeId: string } | null };
-  /** Their application, for whoever may open it: the link, and its line ("Ranked AGI Strategy first. Accepted Wed 28 Oct."), or null with nothing to say. */
+  /**
+   * Their application, for whoever may open it: the link, and its line
+   * ("Applied on Sat 24 Oct: AGI Strategy first, Technical AI Safety second.
+   * Didn’t offer to facilitate."), or null with nothing to say.
+   */
   application?: { href: string; label: string; line: string | null };
   move?: { href: string; label: string };
   /** A one-week visit to another group's session, offered exactly where Move is. */

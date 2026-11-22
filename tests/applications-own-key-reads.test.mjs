@@ -280,6 +280,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/personPage/load.ts",
+    {
+      why: "a person's page for the team: it reads the form's programmes by the programme id in the page's address, to say whether the person offered to facilitate that programme",
+    },
+  ],
+  [
     "src/lib/courses/facilitatorAsks/",
     {
       why: "asking people to facilitate: it reads a form's programmes by the programme id an ask or a request names, and each applicant's answers by the facilitator question ids of the form's own question sets",

@@ -5279,7 +5279,10 @@ export const PAGES = {
       "one person's page on the programme is the programme's lead's and an admin's, so a reviewer on the form is told it is theirs, " +
       "a programme the caller has no role on renders 'there is no programme here', and somebody who is not a row of the People tab " +
       "for the caller renders one calm not-here page, each with a 200. Nothing here writes. " +
-      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads). " +
+      "Of the sections a reader is drawn (executed per reader in tests/course-person-page.test.mjs): Place and group for both; " +
+      "when they're free only through the one gated read (personWeekFor, canReadApplication), else one sentence and nothing of the week; " +
+      "Claude and Pangram, the address, the account, events and activity for an admin alone.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),

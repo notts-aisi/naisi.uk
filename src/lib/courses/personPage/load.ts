@@ -3,9 +3,17 @@ import type { Firestore } from "firebase-admin/firestore";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { loadProgrammePeople } from "@/lib/applications/people/load";
 import { statusWords } from "@/lib/applications/people/words";
-import { loadForm } from "@/lib/applications/repo";
-import { choiceNumber } from "@/lib/applications/sections";
+import { personWeekFor, type WeekGroup } from "@/lib/applications/people/week";
+import { notesFor } from "@/lib/applications/arrange/notes";
+import { own } from "@/lib/applications/keys";
+import type { ApplicationDoc, QuestionSetDoc } from "@/lib/applications/model";
+import type { ApplicationForm } from "@/lib/applications/normalise";
+import { loadForm, loadQuestionSets } from "@/lib/applications/repo";
+import { rankedProgrammes } from "@/lib/applications/sections";
 import { loadApplication } from "@/lib/applications/staffRepo";
+import { wouldFacilitate } from "@/lib/courses/facilitatorAsks/rules";
+import { readsTimeAnswers, runStaffingOf } from "@/lib/courses/runStaffing";
+import { currentTimeAnswer, timeQuestionSinceOf } from "@/lib/courses/timeAnswer/model";
 import { NO_WORK, chooseOneIdsOf, workKey, type CourseworkPerson, type CourseworkWeek, type PersonWork } from "@/lib/courses/coursework/model";
 import { courseworkRows } from "@/lib/courses/coursework/overview";
 import { columnsOf, namesOf, weeksRead } from "@/lib/courses/coursework/reads";
@@ -14,7 +22,7 @@ import { readRunCoursework } from "@/lib/courses/facilitatorWeek/readers";
 import { readOwnFeedback, cardNamesOf } from "@/lib/courses/feedback/readers";
 import { weeklySlotWords } from "@/lib/courses/facilitatingEmail";
 import { resolveGroupCalendar, type GroupCalendar } from "@/lib/courses/groupResolve";
-import { differsByWeek } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
 import { readPackCaseRecords } from "@/lib/courses/packsAndCases/readers";
 import { buildRunAttendance, groupSessions, readRunRecords, type GroupSessionFacts, type RunRecords } from "@/lib/courses/programmeAttendance";
 import { dayWords } from "@/lib/courses/sessionChange/words";
@@ -35,6 +43,8 @@ import type { SessionUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
   groupForWeek,
+  groupToldAbout,
+  movedSinceTold,
   normalizeCourseEnrolment,
   ownGroupForWeek,
   placementIsShownTo,
@@ -49,14 +59,20 @@ import { isAddressableId } from "@/lib/addressableId";
 import {
   activityOf,
   attendanceViewOf,
+  claudeLinesOf,
   elsewhereLineOf,
   feedbackLinesOf,
+  personFreeViewOf,
+  placeLinesOf,
   ratingColumnOf,
+  timeAnswerLinesOf,
   weekRowOf,
+  weeklyWords,
   type AttendanceWeekFact,
   type FacilitatorPersonView,
   type FeedbackFact,
   type PersonAbout,
+  type PersonFreeView,
   type PersonWeekRow,
   type TeamPersonView,
   type VisitHistoryFact,
@@ -65,13 +81,13 @@ import {
   BACK_TO_GROUP,
   BACK_TO_PEOPLE,
   NOT_IN_A_GROUP,
-  READ_THE_APPLICATION,
-  acceptedWords,
+  OPEN_THEIR_APPLICATION,
+  appliedWords,
   groupLineWords,
-  invitationTakenWords,
   joinedMonthWords,
-  rankedWords,
+  openAccountWords,
   signedUpWords,
+  whoSeesWeekWords,
 } from "./words";
 
 /**
@@ -121,9 +137,26 @@ import {
  *  - VISITS: a one-week visit that stands, to a session still happening, is
  *    named on its week's attendance line and coursework row and counted;
  *    one called off, or whose session was called off, is no visit here.
+ *  - PLACE AND GROUP: where the place stands (the People tab's row), and for
+ *    somebody holding one the day decision day or their yes to an invitation
+ *    put them on it (read only where the People tab hands the application's
+ *    link); their group as the Coursework tab shows it to this reader, with
+ *    the day Publish's email about it went; whether they said they're coming.
+ *  - WHEN THEY'RE FREE: the one gated read of the week they marked
+ *    (`personWeekFor`, `src/lib/applications/people/week.ts`), which answers
+ *    the week only where `canReadApplication` admits this reader (an admin,
+ *    and the programme's lead for every row of their People tab), and for
+ *    anybody else one sentence and nothing derived from the week. Never on
+ *    the reader's own page, never sent to Claude, never in an email. Under
+ *    it, their answer about their group's time, for a reader the board reads
+ *    it to (`readsTimeAnswers`).
  *  - THE APPLICATION'S LINE: read only where the People tab hands the link
- *    (`applicationLineOf`): where they ranked the programme, and what
- *    decision day or an invitation made of it.
+ *    (`applicationFactsOf`): the day they applied, the programmes they
+ *    ranked, and whether they offered to facilitate this programme.
+ *  - CLAUDE AND PANGRAM, AND THE ACCOUNT: an ADMIN's alone. Claude's and
+ *    Pangram's earlier reads (`notesFor`, Circles' reader) are read only once
+ *    the reader is known to be an admin, never about themselves; the link to
+ *    their page under Accounts is put in the view for an admin alone.
  *
  * THE FACILITATOR'S CUT (`loadFacilitatorPersonPage`), behind their group's
  * door: a facilitator with standing of a live group, about somebody in that
@@ -356,25 +389,36 @@ function aboutOf(account: Record<string, unknown> | null, uid: string): { about:
 }
 
 /**
- * THE APPLICATION'S LINE, from what the records hold: where they ranked this
- * programme (`choiceNumber` on what they sent), then whether decision day
- * accepted them onto it (`result`, on the day it was sent) or they said yes
- * to an invitation to it (`invitation`, on the day they answered). A part
- * the records cannot say is left out; null with neither.
+ * THE APPLICATION'S LINE AND THE DAY THE PLACE BECAME THEIRS, from what the
+ * records hold, for a reader the People tab hands the application's link:
+ * the day they first sent it and the programmes they ranked, in their order
+ * (`rankedProgrammes` on what they sent), then, on a form that asks, whether
+ * they offered to facilitate this programme (`wouldFacilitate`, the
+ * facilitating screens' own rule). The day is decision day's, where it
+ * accepted them onto this programme (`result`, on the day it was sent), or
+ * their yes to an invitation to it (`invitation`, on the day they answered).
+ * Nothing else of the application leaves here: no answer, no address, no
+ * access requirement and no answer about SU membership.
  */
-async function applicationLineOf(db: Firestore, roundId: string, programmeId: string, programmeName: string, uid: string): Promise<string | null> {
-  const form = await loadForm(db, roundId);
-  if (!form) return null;
-  const application = await loadApplication(db, form, uid);
-  if (!application || application.uid !== uid) return null;
-  const parts: string[] = [];
-  const choice = application.sent ? choiceNumber(form, application.sent, programmeId) : null;
-  if (choice !== null) parts.push(rankedWords(programmeName, choice));
+function applicationFactsOf(
+  form: ApplicationForm,
+  sets: readonly QuestionSetDoc[],
+  programmeId: string,
+  application: ApplicationDoc | null,
+): { line: string | null; since: Date | null } {
+  if (!application?.sent) return { line: null, since: null };
+  const ranked = rankedProgrammes(form, application.sent).map((programme) => programme.shortName.trim() || programme.name.trim());
+  const programme = own(form.programmes, programmeId);
+  const offered = form.asksFacilitating && programme ? wouldFacilitate(form, sets, application.sent, programme) : null;
   const result = application.result;
   const invitation = application.invitation;
-  if (result?.kind === "accepted" && result.programmeId === programmeId) parts.push(acceptedWords(result.publishedAt));
-  else if (invitation?.programmeId === programmeId && invitation.response === "accepted") parts.push(invitationTakenWords(invitation.respondedAt));
-  return parts.length > 0 ? parts.join(" ") : null;
+  const since =
+    result?.kind === "accepted" && result.programmeId === programmeId
+      ? result.publishedAt
+      : invitation?.programmeId === programmeId && invitation.response === "accepted"
+        ? invitation.respondedAt
+        : null;
+  return { line: ranked.length > 0 ? appliedWords(application.submittedAt, ranked, offered) : null, since: since ?? null };
 }
 
 /** How many History rows about one person's visits on a run are read: a run holds at most 60 weeks, four rows a visit at most. */
@@ -449,17 +493,42 @@ export async function loadTeamPersonPage(
 
   const isAdmin = gate.view.viewer === "admin";
   const self = actor.uid === uid;
-  const [accountSnap, applicationLine] = await Promise.all([
+  const form = await loadForm(db, gate.view.roundId);
+  const [accountSnap, application, sets, assessment] = await Promise.all([
     // Their account, by address: the name they go by, when they joined, and for an admin alone their address.
     db.collection("users").doc(uid).get(),
-    // The application's line, read only for a reader the People tab lets open the application.
-    row.applicationHref ? applicationLineOf(db, gate.view.roundId, gate.view.programmeId, gate.view.programmeName, uid) : Promise.resolve(null),
+    // Their application on this form, never about the reader themselves: what may be shown of it is asked below, of
+    // the People tab's link for the line and of the one gated read for the week.
+    form && !self ? loadApplication(db, form, uid) : Promise.resolve(null),
+    // The form's questions, for whether they offered to facilitate: read only where the line is.
+    form && row.applicationHref && form.asksFacilitating ? loadQuestionSets(db, form.round.id) : Promise.resolve([] as QuestionSetDoc[]),
+    // Claude's and Pangram's reads, an ADMIN's alone: never read for anybody else, never about the reader.
+    isAdmin && !self ? notesFor(db, gate.view.roundId, gate.view.programmeId, [uid]) : Promise.resolve(null),
   ]);
   const { about, email } = aboutOf(accountSnap.exists ? ((accountSnap.data() ?? {}) as Record<string, unknown>) : null, uid);
+  // The application's line and the day the place became theirs: only where the People tab hands its link.
+  const appFacts = form && row.applicationHref ? applicationFactsOf(form, sets, gate.view.programmeId, application) : { line: null, since: null };
+  const foot = whoSeesWeekWords(gate.view.programmeName);
+  /** When they're free, through the one gated read: never about the reader, and only the sentence where they may not read it. */
+  const freeOf = (groups: readonly WeekGroup[], inGroupId: string | null): PersonFreeView | null =>
+    form && !self
+      ? personFreeViewOf(personWeekFor(actor, form, { uid, application }, groups, inGroupId), row.firstName, groups, form.round.availabilityGrid)
+      : null;
+  const placeOf = (group: Parameters<typeof placeLinesOf>[0]["group"]) =>
+    placeLinesOf({
+      status: row.status,
+      programmeName: gate.view.programmeName,
+      since: appFacts.since,
+      group,
+      coming: row.category === "holding" ? row.coming : null,
+    });
+  const noRunFree = freeOf([], null);
   const view: TeamPersonView = {
     reader: gate.view.viewer,
     uid,
     header: { name: row.name, programmeName: gate.view.programmeName, group: NOT_IN_A_GROUP, status: statusWords(row.status), notTold: false },
+    place: placeOf("none"),
+    ...(noRunFree ? { free: noRunFree, ...(noRunFree.kind !== "may-not" ? { freeFoot: foot } : {}) } : {}),
     about,
     // The address is an admin's alone: never handed to a lead.
     ...(isAdmin && email ? { email } : {}),
@@ -467,7 +536,10 @@ export async function loadTeamPersonPage(
     weeks: [],
     attendance: attendanceViewOf([], undefined, { coming: true }),
     feedback: [],
-    ...(row.applicationHref ? { application: { href: row.applicationHref, label: READ_THE_APPLICATION, line: applicationLine } } : {}),
+    ...(row.applicationHref ? { application: { href: row.applicationHref, label: OPEN_THEIR_APPLICATION, line: appFacts.line } } : {}),
+    // Claude, Pangram and their account: an admin's alone.
+    ...(assessment ? { claude: claudeLinesOf(assessment.get(uid) ?? null) } : {}),
+    ...(isAdmin ? { account: { href: `/admin/members/${encodeURIComponent(uid)}`, label: openAccountWords(row.firstName) } } : {}),
     // Visit and Move: the People tab's one decision (`movingLinks`), drawn as it draws them.
     ...(row.visitHref ? { visit: { href: row.visitHref, label: VISIT_LINK } } : {}),
     ...(row.moveHref ? { move: { href: row.moveHref, label: MOVE_LINK } } : {}),
@@ -479,29 +551,55 @@ export async function loadTeamPersonPage(
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  const [liveGroups, { enrolments, seats }, facts, names, records] = await Promise.all([
+  const [liveGroups, { enrolments, seats }, facts, names, records, staffing] = await Promise.all([
     liveGroupsOf(db, run.id),
     // One equality on one field: the run's seats.
     readRunSeats(db, run.id),
     reviewerFactsOf(db, actor, run.id),
     namesOf(db, [uid], actor),
     readRunRecords(db, run.id),
+    // Who reads what people said about their group's time, as the board asks it.
+    runStaffingOf(db, actor, run),
   ]);
   const name = names.get(uid) ?? row.name;
   const attended = records ? attendanceFacts(records, uid, { isAdmin, role: actor.role }, now, null) : null;
   const attendance = attended
     ? attendanceViewOf(attended.facts, { came: attended.came, online: attended.online }, { coming: true })
     : attendanceViewOf([], undefined, { coming: true });
+  // The run's live groups that meet at a weekly time, for the chart, in the board's order.
+  const timed: WeekGroup[] = liveGroups.flatMap((group) =>
+    group.session && group.session.startTimeLocal && group.session.durationMinutes > 0
+      ? [{ id: group.id, name: group.name.trim() || "Untitled group", session: { weekday: group.session.weekday, startTimeLocal: group.session.startTimeLocal, durationMinutes: group.session.durationMinutes } }]
+      : [],
+  );
+  /** The week's section and the answer under it, against the group this reader is shown them in. */
+  const freeSection = (inGroupId: string | null): Pick<TeamPersonView, "free" | "timeAnswer" | "freeFoot"> => {
+    const free = freeOf(timed, inGroupId);
+    const seat = seats.get(uid) ?? null;
+    // The group the head shows them in, which is the group their seat is in now: the answer is about that group alone.
+    const inGroup = inGroupId && seat?.groupId === inGroupId ? (liveGroups.find((group) => group.id === inGroupId) ?? null) : null;
+    // Their answer about it, where this reader reads answers today (`readsTimeAnswers`).
+    const answer =
+      readsTimeAnswers(staffing) && seat && inGroup && !self
+        ? timeAnswerLinesOf(currentTimeAnswer(seat, timeQuestionSinceOf(inGroup)), inGroup.name.trim() || "Untitled group")
+        : null;
+    const shown = (free !== null && free.kind !== "may-not") || answer !== null;
+    return { ...(free ? { free } : {}), ...(answer ? { timeAnswer: answer } : {}), ...(shown ? { freeFoot: foot } : {}) };
+  };
+  const { free: _free, timeAnswer: _timeAnswer, freeFoot: _freeFoot, ...beforeRun } = view;
 
   // A ROW OF THE COURSEWORK TAB, by the tab's own test: holding a place, facilitating one of the run's live groups, or
   // placed in one. Anybody else (somebody who left the run, gave their place back or is invited) is no row of it, and the
-  // reading view refuses them, so their page is what the People tab and the Attendance tab show of them: the head and
-  // their attendance, and nothing else.
+  // reading view refuses them, so their page is what the People tab and the Attendance tab show of them: the head, where
+  // their place stands, when they're free, their application and their attendance, and none of the Coursework tab's.
   const onTheTab =
     row.category === "holding" || liveGroups.some((group) => group.facilitatorUids.includes(uid)) || placedIn(seats.get(uid), liveGroups);
   if (!onTheTab) {
-    const { weeks: _weeks, feedback: _feedback, application: _application, move: _move, visit: _visit, ...head } = view;
-    return { status: "ok", view: { ...head, header: { ...view.header, name, group: null }, attendance } };
+    const { weeks: _weeks, feedback: _feedback, move: _move, visit: _visit, ...head } = beforeRun;
+    return {
+      status: "ok",
+      view: { ...head, header: { ...view.header, name, group: null }, place: placeOf(null), ...freeSection(null), attendance },
+    };
   }
 
   const viewer = isAdmin ? "admin" : "lead";
@@ -551,9 +649,42 @@ export async function loadTeamPersonPage(
   }
 
   const seat = seats.get(uid) ?? null;
+  // Told only once Publish's email was handed over: one held, or stopped by the do-not-email list, told nobody.
+  const told = seat !== null && seat.groupId !== null && placementIsShownTo(seat, { isAdmin: false });
+  const delivered = seat?.allocatedEmailDelivery !== "held" && seat?.allocatedEmailDelivery !== "suppressed";
+  const toldAt = told && delivered ? (seat?.allocatedEmailAt ?? null) : null;
+  /**
+   * What is true of their being told the group shown, from what the seat
+   * records. Not told yet: Publish has not told them, or they were moved on
+   * the board since it did (`movedSinceTold`: the next Publish tells them).
+   * Told on the day of Publish's email: only while that email was about this
+   * group and they have not been moved during the run, since a staff move
+   * tells them by its own email and stamps no day (`allocatedEmailAt` keeps
+   * the earlier email's). Told with no day: about this group, after a move
+   * during the run. Nothing: an email held, or stopped by the do-not-email
+   * list, told nobody.
+   */
+  const toldOfShown = (groupId: string): { kind: "on"; at: Date } | { kind: "undated" } | { kind: "not-yet" } | null => {
+    if (!seat || person.notToldYet || !told) return { kind: "not-yet" };
+    if (movedSinceTold(seat) || groupToldAbout(seat) !== groupId) return { kind: "not-yet" };
+    if (!delivered) return null;
+    if (hasGroupsByWeek(seat)) return { kind: "undated" };
+    return toldAt ? { kind: "on", at: toldAt } : null;
+  };
   const out: TeamPersonView = {
-    ...view,
+    ...beforeRun,
     header: { ...view.header, name, group: groupLineOf(shownGroup), notTold: person.notToldYet },
+    // Their group as this reader is shown it (a lead only a told one), and the day Publish told them.
+    place: placeOf(
+      shownGroup
+        ? {
+            name: shownGroup.name.trim() || "Untitled group",
+            when: shownGroup.session ? weeklyWords(shownGroup.session) : null,
+            told: toldOfShown(shownGroup.id),
+          }
+        : "none",
+    ),
+    ...freeSection(shownGroup?.id ?? null),
     weeks,
     ...(ratings ? { ratings } : {}),
     attendance,
@@ -565,9 +696,6 @@ export async function loadTeamPersonPage(
 
   // An admin's alone: read for nobody else.
   const [events, history] = await Promise.all([eventsOfPersonInTerm(db, uid, now, termOf(run, liveGroups, now)), visitHistoryOf(db, run.id, uid)]);
-  // Told only once Publish's email was handed over: one held, or stopped by the do-not-email list, told nobody.
-  const told = seat !== null && seat.groupId !== null && placementIsShownTo(seat, { isAdmin: false });
-  const delivered = seat?.allocatedEmailDelivery !== "held" && seat?.allocatedEmailDelivery !== "suppressed";
   return {
     status: "ok",
     view: {
@@ -575,7 +703,7 @@ export async function loadTeamPersonPage(
       ...(events ? { events: events.view } : {}),
       ...(events && events.signedUp !== null ? { signedUp: signedUpWords(events.signedUp.signedUp, events.signedUp.counted, events.signedUp.came) } : {}),
       activity: activityOf({
-        toldAt: told && delivered ? (seat?.allocatedEmailAt ?? null) : null,
+        toldAt,
         work,
         weeks: weekList,
         feedback,
