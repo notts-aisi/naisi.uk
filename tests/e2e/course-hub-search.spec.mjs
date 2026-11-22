@@ -4,11 +4,13 @@
  *
  * The term T2 stands on, three weeks after its run began
  * (scripts/e2e-fixtures/worlds/course-hub-term.mjs, point "week-three")
- * -> on Home, "/" opens "Search people and groups" with its box ready for
- * typing -> Ben's whole name finds him, by the name an admin is shown, with
- * his page under Members -> "Group B" and the run's label find Group B, and
- * Enter opens the group's page (the programme names no run at this point, so
- * the group's own page under /learn) -> the admin approves Gus, makes Gus
+ * -> on Home, "/" opens "Search people, groups and programmes" with its box
+ * ready for typing -> Ben's whole name finds him, by the name an admin is
+ * shown, with his page under Members -> "Group B" and the run's label find
+ * Group B, and Enter opens the group's page (the programme names no run at
+ * this point, so the group's own page under /learn) -> the programme's name
+ * finds it, first, under Programmes, and Enter opens its Overview -> the
+ * admin approves Gus, makes Gus
  * SU-recognised committee, names the running run and Gus as the programme's
  * lead -> Gus, signed in, finds Ivy (offered a place given back, not answered
  * yet), and Enter opens the People tab on her row, under Invited, which the
@@ -16,9 +18,10 @@
  *
  * WHAT EACH STEP RELIES ON, in the markup:
  *  - the sidebar's button, `<button aria-haspopup="dialog">` named "Search
- *    people and groups", drawn once `GET /api/search` has said yes;
- *  - the dialog, `role="dialog"` named "Search people and groups", and in it
- *    the box, `<input role="combobox">` labelled by the same words;
+ *    people, groups and programmes" for an admin and a programme's lead,
+ *    drawn once `GET /api/search` has said yes;
+ *  - the dialog, `role="dialog"` named the same, and in it the box,
+ *    `<input role="combobox">` labelled by the same words;
  *  - each result, `<a role="option">` whose name is the result's name and
  *    then its line, and whose `href` is the page it opens;
  *  - the first result of an answer is the active one, so Enter opens it;
@@ -58,7 +61,8 @@ const RUN_STATE_DIR = stateDir();
 const STATE_PATH = statePath(SPEC.name, RUN_STATE_DIR);
 const MARKER = markerPath(SPEC.name, RUN_STATE_DIR);
 const WAIT_MS = 30_000;
-const LABEL = "Search people and groups";
+/** An admin's and a programme's lead's words: a query can find them a programme. */
+const LABEL = "Search people, groups and programmes";
 
 let skipReasonFor = () => null;
 
@@ -176,6 +180,26 @@ test("course hub: an admin searches for a person and a group from the sidebar", 
       assert.equal(await option.getAttribute("aria-selected"), "true", "the first result is not the active one");
       await box.press("Enter");
       await page.waitForURL((url) => url.pathname === groupPath, { timeout: WAIT_MS });
+      await dialog.waitFor({ state: "hidden", timeout: WAIT_MS });
+    });
+
+    await step("the programme's name finds it, first, and Enter opens its Overview", async () => {
+      const overviewPath = `${programmePath}/overview`;
+      await page.goto(`${origin}/dashboard`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: LABEL, exact: true }).first().click({ timeout: WAIT_MS });
+      await box.waitFor({ timeout: WAIT_MS });
+      const [answer] = await Promise.all([searched(), box.fill(state.programmeName)]);
+      const body = await answer.json();
+      assert.ok(answer.ok(), `search answered ${answer.status()}`);
+      assert.equal(body.programmes?.[0]?.name, state.programmeName, `the first programme is not ${state.programmeName}: ${JSON.stringify(body.programmes)}`);
+      assert.equal(body.programmes[0].href, overviewPath);
+      const kindWord = state.programmeKind === "incubator" ? "Incubator" : "Fellowship";
+      assert.match(body.programmes[0].line, new RegExp(`^${kindWord} · ${escapeRegExp(state.formLabel)} · Lead: `));
+      const option = dialog.getByRole("option", { name: new RegExp(`^${escapeRegExp(state.programmeName)}`) }).first();
+      await option.waitFor({ timeout: WAIT_MS });
+      assert.equal(await option.getAttribute("aria-selected"), "true", "the programme is not the active result");
+      await box.press("Enter");
+      await page.waitForURL((url) => url.pathname === overviewPath, { timeout: WAIT_MS });
       await dialog.waitFor({ state: "hidden", timeout: WAIT_MS });
     });
 

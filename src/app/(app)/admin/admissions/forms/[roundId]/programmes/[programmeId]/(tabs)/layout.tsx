@@ -18,7 +18,7 @@ import { groupsGoOutDay } from "@/lib/courses/groupsGoOut";
 import { readGroupsGoOut } from "@/lib/courses/groupsGoOutRead";
 import { countRunGroups, readRunHeader } from "@/lib/courses/programmeAttendance";
 import { programmeRequestsWords } from "@/lib/courses/registerCorrection/pageWords";
-import { requestsWaitingOnRun } from "@/lib/courses/requests/home";
+import { requestsWaitingOnRunOnce } from "@/lib/courses/requests/home";
 import { REQUESTS_PATH } from "@/lib/courses/requests/paths";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { countRunWeeks } from "@/lib/courses/weeksTab/load";
@@ -215,7 +215,7 @@ export default async function ProgrammeLayout({
   // never for a lead.
   const requestsWaiting =
     db && programme.runId && opensProgrammeGroups(role)
-      ? await requestsWaitingOnRun(db, user, programme.runId, { excused: role === "admin" })
+      ? await requestsWaitingOnRunOnce(db, user, programme.runId, { excused: role === "admin" })
       : 0;
   if (requestsWaiting > 0) {
     facts.push(

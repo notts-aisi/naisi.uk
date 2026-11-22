@@ -36,6 +36,16 @@
  * own gate would admit the searcher to as a facilitator (`./load.ts`, which
  * also gives each the course's own title).
  *
+ * ## Programmes
+ *
+ * A fourth short list, `programmes`, drawn first: each programme the reader
+ * opens the Overview of (an admin every one, a lead the ones they lead;
+ * `./load.ts` asks the Programmes list's own rule), matched on its names and
+ * its term's, at most `MAX_PROGRAMMES`. Its line is "Fellowship · Autumn 2026
+ * · Lead: Maya Rao", and a chip says where it is ("Running", "Taking
+ * applications"). Like guides, it is in the answer ONLY when something
+ * matched.
+ *
  * Client safe: no import, so the box, the route and the tests run the same
  * rule.
  */
@@ -48,6 +58,8 @@ export const SEARCH_MAX_LENGTH = 80;
 export const MAX_PEOPLE = 6;
 /** The most groups one answer holds. */
 export const MAX_GROUPS = 4;
+/** The most programmes one answer holds. */
+export const MAX_PROGRAMMES = 4;
 
 /** One result, as the box draws it. */
 export type SearchHit = {
@@ -57,6 +69,8 @@ export type SearchHit = {
   line: string;
   /** A page this reader may already open. */
   href: string;
+  /** A programme's stage beside it ("Running", "Taking applications"); absent on every other result. */
+  chip?: string;
 };
 
 /** The route's answer to one query. */
@@ -73,6 +87,12 @@ export type SearchAnswer = {
    * searcher facilitates on, so never capped.
    */
   guides?: SearchHit[];
+  /**
+   * The programmes that matched, drawn first: present only when one did, for
+   * an admin or a programme's lead (see the module comment). At most
+   * `MAX_PROGRAMMES`.
+   */
+  programmes?: SearchHit[];
 };
 
 /** One row a reader may already list, as the world hands it in. */
@@ -93,6 +113,8 @@ export type SearchWorld = {
   groups: SearchCandidate[];
   /** The guides of the courses the searcher facilitates on. Absent: none. */
   guides?: SearchCandidate[];
+  /** The programmes whose Overview the searcher opens. Absent: none. */
+  programmes?: SearchCandidate[];
 };
 
 export const EMPTY_WORLD: SearchWorld = Object.freeze({ people: [], groups: [] }) as SearchWorld;
@@ -194,12 +216,18 @@ export function searchWorld(world: SearchWorld, query: unknown): SearchAnswer {
   const groups = pick(world.groups, words, MAX_GROUPS);
   const answer: SearchAnswer = { people: people.hits, groups: groups.hits, morePeople: people.more, moreGroups: groups.more };
   const guides = pick(world.guides ?? [], words, Number.POSITIVE_INFINITY).hits;
-  return guides.length > 0 ? { ...answer, guides } : answer;
+  const programmes = pick(world.programmes ?? [], words, MAX_PROGRAMMES).hits;
+  return {
+    ...answer,
+    ...(guides.length > 0 ? { guides } : {}),
+    ...(programmes.length > 0 ? { programmes } : {}),
+  };
 }
 
-/** The answer with no `guides` in it: the shape every answer without a guide has. */
+/** The answer with no `guides` in it: the shape every answer without a guide has. Programmes that matched stay. */
 export function withoutGuides(answer: SearchAnswer): SearchAnswer {
-  return { people: answer.people, groups: answer.groups, morePeople: answer.morePeople, moreGroups: answer.moreGroups };
+  const base = { people: answer.people, groups: answer.groups, morePeople: answer.morePeople, moreGroups: answer.moreGroups };
+  return answer.programmes && answer.programmes.length > 0 ? { ...base, programmes: answer.programmes } : base;
 }
 
 /** The name a facilitator guide is offered by: the guide's own name. */

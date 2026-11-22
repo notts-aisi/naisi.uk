@@ -111,6 +111,13 @@ export type RequestsPageView = {
   rows: RequestRow[];
   /** Monday this week, in London: where "done this week" starts. */
   weekStartsAt: string;
+  /**
+   * The programme the page is narrowed to (`?run=`), or null for every
+   * request the reader decides. `name` is the programme's short name for a
+   * run the reader may see, and null for any other id, real or not: the page
+   * then says "A programme", and nothing about whether one exists.
+   */
+  filter?: { name: string | null } | null;
 };
 
 export type Loaded<T> = { status: "ok"; view: T } | { status: "none" };
@@ -230,7 +237,12 @@ const ORDER: Record<RequestState, number> = { waiting: 0, handling: 1, approved:
  * approved or declined since Monday, for the programmes the reader looks
  * after, with the three counts.
  */
-export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: Date): Promise<Loaded<RequestsPageView>> {
+export async function loadRequestsPage(
+  db: Firestore,
+  actor: SessionUser,
+  now: Date,
+  options: { runId?: string | null } = {},
+): Promise<Loaded<RequestsPageView>> {
   const isAdmin = actor.role === "admin";
   const led = await ledRuns(db, actor);
   if (!isAdmin && led.runIds.length === 0) return { status: "none" };
@@ -318,7 +330,9 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
   // lead to an archived group. The runs are led already (`ledRuns`); the rest
   // is the group's, read once above. (Requests to be excused are an admin's alone.)
   requests = requests.filter((each) => requestShownTo(actor, ctx.groups.get(each.groupId), each.runId, led.runIds.includes(each.runId)));
-  const rows: RequestRow[] = [...requests.map((each) => rowOf(each, ctx, led.naming, actor)), ...excusedRows, ...visitRows, ...moveRows, ...messageRows, ...accessRows]
+  const every: RequestRow[] = [...requests.map((each) => rowOf(each, ctx, led.naming, actor)), ...excusedRows, ...visitRows, ...moveRows, ...messageRows, ...accessRows];
+  const narrowed = options.runId === undefined || options.runId === null ? null : forRun(every, options.runId, actor, led);
+  const rows: RequestRow[] = (narrowed ? narrowed.rows : every)
     .sort(
       (a, b) =>
         ORDER[a.state] - ORDER[b.state] ||
@@ -333,8 +347,33 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
       counts: (({ waiting, handling, done }) => ({ waiting, handling, doneThisWeek: done }))(tabCounts(rows)),
       rows,
       weekStartsAt: weekStartsAt.toISOString(),
+      filter: narrowed ? { name: narrowed.name } : null,
     },
   };
+}
+
+/**
+ * THE REQUESTS PAGE NARROWED TO ONE PROGRAMME (`?run=<runId>`, the run its
+ * programme names, as each programme's Overview links to it): of the rows
+ * this reader is shown anyway, only those about that run. It never widens:
+ * it filters what the loader already decided the reader sees, so a lead of
+ * one programme given another's run id, or an id that is no run at all, is
+ * shown nothing and told nothing about whether it exists. A row that belongs
+ * to no run (a message to the team, an access ask: `runId` "") is in no
+ * programme's list. The programme is named for a run the reader may see: an
+ * admin any run, a lead only a run they lead (`ledRuns`).
+ */
+function forRun(
+  rows: readonly RequestRow[],
+  runId: string,
+  actor: SessionUser,
+  led: { runIds: readonly string[]; naming: ReadonlyMap<string, NamingProgramme> },
+): { rows: RequestRow[]; name: string | null } {
+  const sees = runId !== "" && isAddressableId(runId) && (actor.role === "admin" || led.runIds.includes(runId));
+  if (!sees) return { rows: [], name: null };
+  const kept = rows.filter((row) => row.runId !== "" && row.runId === runId);
+  const name = (led.naming.get(runId)?.shortName ?? "").trim() || kept.find((row) => row.programme.name)?.programme.name || null;
+  return { rows: kept, name };
 }
 
 /** One request's page. */

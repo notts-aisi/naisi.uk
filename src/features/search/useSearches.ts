@@ -19,30 +19,41 @@ import { useAuth } from "@/auth/AuthProvider";
  * the box is not drawn: a missing box is the recoverable failure. It decides
  * whether a box is drawn, never what is found: the route asks again, of the
  * records, on every query.
+ *
+ * `programmes` says whether a query can find a programme for them: always
+ * for an admin, and for anybody else what the same answer says (a
+ * programme's lead, never a facilitator who leads nothing), so the box's
+ * label promises programmes only then.
  */
-export function useSearches(couldRunThings: boolean): boolean {
+export type SearchesAnswer = { searches: boolean; programmes: boolean };
+
+const NO_SEARCH: SearchesAnswer = { searches: false, programmes: false };
+
+export function useSearches(couldRunThings: boolean): SearchesAnswer {
   const { user, role } = useAuth();
   const uid = user?.uid ?? null;
   const asks = uid !== null && couldRunThings && (role === "member" || role === "committee");
-  const [answer, setAnswer] = useState<{ uid: string; searches: boolean } | null>(null);
+  const [answer, setAnswer] = useState<{ uid: string; searches: boolean; programmes: boolean } | null>(null);
 
   useEffect(() => {
     if (!asks || uid === null) return;
     let cancelled = false;
     fetch("/api/search", { cache: "no-store" })
       .then(async (res) => {
-        const json = (await res.json().catch(() => null)) as { searches?: unknown } | null;
-        if (!cancelled) setAnswer({ uid, searches: res.ok && json?.searches === true });
+        const json = (await res.json().catch(() => null)) as { searches?: unknown; programmes?: unknown } | null;
+        const searches = res.ok && json?.searches === true;
+        if (!cancelled) setAnswer({ uid, searches, programmes: searches && json?.programmes === true });
       })
       .catch(() => {
-        if (!cancelled) setAnswer({ uid, searches: false });
+        if (!cancelled) setAnswer({ uid, searches: false, programmes: false });
       });
     return () => {
       cancelled = true;
     };
   }, [asks, uid]);
 
-  if (role === "admin" && uid !== null) return true;
+  if (role === "admin" && uid !== null) return { searches: true, programmes: true };
   // An answer given for somebody else (signed out, then in as another) is no answer.
-  return asks && answer?.uid === uid && answer.searches;
+  if (!asks || answer?.uid !== uid || !answer.searches) return NO_SEARCH;
+  return { searches: true, programmes: answer.programmes };
 }

@@ -838,6 +838,31 @@ export function programmeRequestsWords(count: number): string {
   return count === 1 ? "1 request waiting" : `${count} requests waiting`;
 }
 
+/** The Requests card on a programme's Overview: its title and its button. */
+export const OVERVIEW_REQUESTS_TITLE = "Requests";
+export const OPEN_REQUESTS = "Open requests";
+
+/**
+ * The Requests card's sentence: "2 requests from AGI Strategy’s people are
+ * waiting for an admin." An admin reads it so; the programme's lead, who
+ * decides the register corrections they are shown, reads "waiting for you or
+ * an admin". The count is the head's (`requestsWaitingOnRun`): for a lead,
+ * register corrections alone, the only kind a lead decides.
+ */
+export function overviewRequestsWords(count: number, programme: string, viewer: "admin" | "lead"): string {
+  const who = viewer === "admin" ? "an admin" : "you or an admin";
+  return count === 1
+    ? `1 request from ${programme}’s people is waiting for ${who}.`
+    : `${count} requests from ${programme}’s people are waiting for ${who}.`;
+}
+
+/** The Requests page narrowed to one programme: the way back to every request. */
+export const ALL_REQUESTS = "All requests";
+
+/** The narrowed page's label for the programme, and its name for one it cannot name. */
+export const FILTER_PROGRAMME_LABEL = "Programme";
+export const A_PROGRAMME = "A programme";
+
 // ---------------------------------------------------------------------------
 // The group's attendance across every week
 // ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ import CertificatesSection from "./CertificatesSection";
 import GetReady from "./GetReady";
 import OverviewByWeekSections from "./OverviewByWeek";
 import OverviewMarkReady from "./OverviewMarkReady";
+import { ApplicationsToReadCard, RequestsCard, type ApplicationsToReadProps, type RequestsCardProps } from "./OverviewFrontCards";
 import RemindButton from "./RemindButton";
 import WhoFinished from "./WhoFinished";
 import styles from "./ProgrammeOverview.module.css";
@@ -43,6 +44,12 @@ import styles from "./ProgrammeOverview.module.css";
  * BEFORE ANY GROUP HAS MET the page draws "Get ready for week 1" in place of
  * all of this (`GetReady`), from
  * `getReady`, which the server hands over only then.
+ *
+ * APPLICATIONS TO READ comes first at every stage, while the programme's form
+ * takes or decides applications, and REQUESTS follows Needs attention (after
+ * Get ready, before any group has met) while requests about the programme's
+ * people wait (`OverviewFrontCards`). Each is handed in only when it has
+ * something to say.
  */
 
 function Arrow() {
@@ -156,6 +163,8 @@ export default function ProgrammeOverview({
   afterSurvey = null,
   feedbackToSend = null,
   getReady = null,
+  toRead = null,
+  requests = null,
 }: {
   model: OverviewModel;
   /** The newest updates on the run, worded on the server (`overviewUpdateRows`). */
@@ -177,15 +186,26 @@ export default function ProgrammeOverview({
   feedbackToSend?: { model: FeedbackBatchModel; runId: string } | null;
   /** "Get ready for week 1", before any group has met (`buildGetReady`); null once one has. */
   getReady?: { model: GetReadyModel; courseId: string; runId: string } | null;
+  /** Applications to read, while the form takes or decides them; null otherwise. */
+  toRead?: ApplicationsToReadProps | null;
+  /** Requests about the programme's people that wait; null when none does. */
+  requests?: RequestsCardProps | null;
 }) {
   if (getReady) {
+    const ready = <GetReady model={getReady.model} roundId={roundId} programmeId={programmeId} />;
+    if (!toRead && !requests) return ready;
     return (
-      <GetReady model={getReady.model} roundId={roundId} programmeId={programmeId} />
+      <div className={styles.page}>
+        {toRead && <ApplicationsToReadCard {...toRead} />}
+        {ready}
+        {requests && <RequestsCard {...requests} />}
+      </div>
     );
   }
   const { week, sessions, attention, byWeek, people } = model;
   return (
     <div className={styles.page}>
+      {toRead && <ApplicationsToReadCard {...toRead} />}
       {finishing?.state === "open" && (
         <WhoFinished model={finishing} roundId={roundId} programmeId={programmeId} />
       )}
@@ -329,6 +349,8 @@ export default function ProgrammeOverview({
           </ul>
         )}
       </section>
+
+      {requests && <RequestsCard {...requests} />}
 
       {feedbackToSend && (
         <div className={styles.card}>

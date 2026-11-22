@@ -10,3 +10,12 @@ export const REQUESTS_PATH = "/admin/admissions/requests";
 export function requestPath(requestId: string): string {
   return `${REQUESTS_PATH}/${encodeURIComponent(requestId)}`;
 }
+
+/**
+ * The Requests page narrowed to one programme, by the run it names: what a
+ * programme's Overview links to. The page filters only what its reader is
+ * shown anyway (`loadRequestsPage`).
+ */
+export function requestsForRunPath(runId: string): string {
+  return `${REQUESTS_PATH}?run=${encodeURIComponent(runId)}`;
+}

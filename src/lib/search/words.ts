@@ -9,14 +9,28 @@
 /** The box's label, its button's words and the dialog's name. */
 export const SEARCH_LABEL = "Search people and groups";
 
+/**
+ * The same, for somebody a query can find a programme for: an admin, or a
+ * programme's lead (`GET /api/search`'s `programmes`). Everybody else keeps
+ * `SEARCH_LABEL`, so a facilitator who leads nothing is never promised
+ * programmes.
+ */
+export const SEARCH_LABEL_WITH_PROGRAMMES = "Search people, groups and programmes";
+
+/** Which of the two labels this reader is given. */
+export function searchLabelFor(findsProgrammes: boolean): string {
+  return findsProgrammes ? SEARCH_LABEL_WITH_PROGRAMMES : SEARCH_LABEL;
+}
+
 /** The key that opens it, drawn on the button. */
 export const SEARCH_KEY = "/";
 
 /**
- * The lists' headings. Guides is drawn only when a facilitator guide matched,
- * for somebody who facilitates (`src/lib/search/model.ts`).
+ * The lists' headings. Programmes is drawn first, and only when a programme
+ * matched; Guides only when a facilitator guide matched, for somebody who
+ * facilitates (`src/lib/search/model.ts`).
  */
-export const SEARCH_HEADINGS = { people: "People", groups: "Groups", guides: "Guides" } as const;
+export const SEARCH_HEADINGS = { programmes: "Programmes", people: "People", groups: "Groups", guides: "Guides" } as const;
 
 /** The line under the results. */
 export const SEARCH_HELP = "Up and down to move, Enter to open, Esc to close. Press / anywhere to search.";

@@ -7,7 +7,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { compareGroupsByMeeting, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { opensProgrammeGroups, roleOnProgramme } from "../access";
 import { own } from "../keys";
-import { isId } from "../normalise";
+import { isId, type ApplicationForm } from "../normalise";
 import { loadForm } from "../repo";
 import { RUNS_COLLECTION, readRun } from "./run";
 
@@ -49,7 +49,8 @@ export type ProgrammeRunView = {
 };
 
 export type ProgrammeRunOutcome =
-  | { status: "ok"; view: ProgrammeRunView }
+  /** With the form as read, so a page that needs it does not read it again. */
+  | { status: "ok"; view: ProgrammeRunView; form: ApplicationForm }
   /** No form here, no such programme on it, or no role on it. */
   | { status: "none" }
   /** A role on the programme that is neither an admin's nor its lead's. The run was not read. */
@@ -80,15 +81,16 @@ export async function loadProgrammeRun(
     pitchingWeek: null,
     decisionsSent: form.decisionsSentAt !== null,
   };
-  if (programme.runId === null) return { status: "ok", view };
+  if (programme.runId === null) return { status: "ok", view, form };
   const snap = await db.collection(RUNS_COLLECTION).doc(programme.runId).get();
   const read = snap.exists ? readRun(snap.id, snap.data()) : null;
   // A run being destroyed is gone already for everybody it served.
-  if (!read || read.destroying) return { status: "ok", view: { ...view, blank: "run-gone" } };
+  if (!read || read.destroying) return { status: "ok", view: { ...view, blank: "run-gone" }, form };
   const pitchingWeek = (await readPitchingWeek(db, read.run.id))?.weekNumber ?? null;
   return {
     status: "ok",
     view: { ...view, run: { id: read.run.id, courseId: read.run.courseId }, blank: null, pitchingWeek },
+    form,
   };
 }
 

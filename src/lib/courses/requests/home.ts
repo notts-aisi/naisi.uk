@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import type { Firestore } from "firebase-admin/firestore";
 import { holdsStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -122,4 +123,24 @@ export async function requestsWaitingOnRun(
     console.warn("[programme] could not count the requests waiting", err);
     return 0;
   }
+}
+
+/**
+ * One slot per page drawn, for the run, the reader and whether requests to be
+ * excused count (React's `cache`, which lives as long as one render of one
+ * request): a programme's head and its Overview's Requests card ask the same
+ * question and get one answer from one read. Outside a render nothing is
+ * shared and each call reads.
+ */
+const waitingSlot = cache((_runId: string, _uid: string, _excused: boolean): { count: Promise<number> | null } => ({ count: null }));
+
+/**
+ * `requestsWaitingOnRun`, asked once for each page drawn: the head's count
+ * beside Requests and the Overview's Requests card are the same number, read
+ * once.
+ */
+export function requestsWaitingOnRunOnce(db: Firestore, user: SessionUser, runId: string, opts: { excused?: boolean } = {}): Promise<number> {
+  const slot = waitingSlot(runId, user.uid, opts.excused === true);
+  slot.count ??= requestsWaitingOnRun(db, user, runId, opts);
+  return slot.count;
 }

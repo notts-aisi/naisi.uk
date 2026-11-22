@@ -296,7 +296,38 @@ async function readRuns(db: Firestore, runIds: readonly string[], now: Date): Pr
   return out;
 }
 
-type Visible = { programme: ProgrammeSettings; role: ProgrammeRole };
+/**
+ * What one programme is doing, in the Programmes page's words, for a reader
+ * who has only the programme's own run document (or none): search's chip
+ * beside a programme. From the form until decision day ("Not open yet",
+ * "Taking applications", "Deciding"), and from the run after: "Running" once
+ * its calendar has begun, "Starting" before, and "Finished" once the run is
+ * marked completed or its calendar is past its last week (the run's own
+ * calendar: no group is read). "Closed" for a closed programme. Null for a
+ * term cancelled or archived, and for a run that is gone, cancelled or
+ * archived. `run` is undefined for a programme that names none, or whose run
+ * was not read because decision day is still ahead.
+ */
+export function programmeStageWords(
+  form: ApplicationForm,
+  programme: Pick<ProgrammeSettings, "closed" | "runId">,
+  run: CourseRunDoc | "gone" | undefined,
+  now: Date,
+): string | null {
+  const stage = stageSummaryFor(form, now).stage;
+  if (stage === "cancelled" || stage === "archived") return null;
+  if (programme.closed) return "Closed";
+  if (stage !== "decided" && stage !== "settled") return stageWordsFor(stage, false);
+  if (run === "gone") return null;
+  if (run?.status === "completed") return "Finished";
+  if (run && markedOver(run)) return null;
+  const current = run ? programmeWeekNow(run, now) : null;
+  if (current?.phase === "after") return "Finished";
+  return stageWordsFor(stage, current !== null && current.phase !== "before");
+}
+
+/** A programme on a form, with the reader's role on it. */
+export type Visible = { programme: ProgrammeSettings; role: ProgrammeRole };
 
 type Staged = { form: ApplicationForm; stage: TermStage };
 
@@ -335,11 +366,25 @@ function visibleOn(user: SessionUser, form: ApplicationForm): Visible[] {
 }
 
 /**
+ * THE PROGRAMMES ON A FORM THIS READER OPENS, in the form's order: the ones
+ * whose Overview and groups are theirs (`opensProgrammeGroups`), so an admin
+ * every programme and a lead the ones they lead, a reviewer, a run's track
+ * lead and a facilitator none. The one rule for every place that lists a
+ * programme to open (the menu here, and search's programmes,
+ * `src/lib/search/load.ts`), so no place offers one the Overview refuses.
+ */
+export function programmesOpenedOn(user: SessionUser, form: ApplicationForm): Visible[] {
+  return visibleOn(user, form).filter(({ role }) => opensProgrammeGroups(role));
+}
+
+/**
  * A programme the reader leads or reviews, as against one an admin merely
  * oversees: `buildTermHome`'s rule. An admin who is also the programme's lead
- * is asked as a lead is, through the live bar (`isNamedWithStanding`).
+ * is asked as a lead is, through the live bar (`isNamedWithStanding`). The
+ * Overview's Applications to read asks it too
+ * (`./overview.ts`), so its count is the reader's own wherever it is shown.
  */
-function isTheirs(user: SessionUser, { programme, role }: Visible): boolean {
+export function isTheirs(user: SessionUser, { programme, role }: Visible): boolean {
   return (
     role === "lead" ||
     role === "reviewer" ||
@@ -575,7 +620,7 @@ export async function loadProgrammesMenu(db: Firestore, user: SessionUser, now: 
     .map((form) => ({
       form,
       stage: stageSummaryFor(form, now).stage,
-      entries: visibleOn(user, form).filter(({ role }) => opensProgrammeGroups(role)),
+      entries: programmesOpenedOn(user, form),
     }))
     .filter(({ entries }) => entries.length > 0);
   if (staged.length === 0) return [];
