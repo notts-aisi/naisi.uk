@@ -193,6 +193,21 @@ export function weekOneReadyWords(readyToo: readonly number[], notYet: readonly 
 
 export const PUBLISH_STEP_LINE = "Emails each person their group, day and room, and each facilitator their group.";
 
+/**
+ * The same step for the programme's lead, who places people and does not
+ * publish: Publish emails everybody, so it is an admin's
+ * (`PUBLISH_ONLY_ADMINS`, the sentence on Publish's own page).
+ */
+export const PUBLISH_STEP_LINE_LEAD =
+  "An admin publishes: it emails each person their group, day and room, and each facilitator their group.";
+
+/**
+ * The way to Publish's own page for the programme's lead, in place of
+ * "Publish groups…": the page shows them what a press sends, and an admin
+ * presses it.
+ */
+export const PUBLISH_LINK_LEAD = "What Publish sends…";
+
 /** "Published Wed 28 Oct, 6:02pm." */
 export function publishedWords(day: string, clock: string): string {
   return `Published ${day}, ${clock}.`;
@@ -321,9 +336,14 @@ export const PUBLISHED_CHIP = "Published";
  */
 export const AFTER_PUBLISHED =
   "Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until you publish again.";
+/** The same, for the programme's lead, who places people and whom an admin publishes for. */
+export const AFTER_PUBLISHED_LEAD =
+  "Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until an admin publishes again.";
 export const NEEDED_TITLE = "Needed to publish";
 export const WORTH_TITLE = "Worth checking";
 export const WORTH_LINE = "These don’t stop you publishing.";
+/** The same, for the programme's lead: an admin publishes. */
+export const WORTH_LINE_LEAD = "These don’t stop an admin publishing.";
 
 /** The items' titles, the board's where the board's is true. */
 export const READY_ITEM = {
@@ -357,9 +377,14 @@ export function notesChosenWords(noted: number, without: number): string {
   return parts.length > 0 ? `${parts.join(", ")}.` : "Done.";
 }
 
-/** "Publish anyway, or move Joel first." */
-export function moveFirstWords(firstName: string): string {
-  return `Publish anyway, or move ${firstName} first.`;
+/**
+ * "Publish anyway, or move Joel first." The programme's lead moves people
+ * and does not publish: "Move Joel first, or an admin can publish anyway."
+ */
+export function moveFirstWords(firstName: string, viewer: "admin" | "lead" = "admin"): string {
+  return viewer === "admin"
+    ? `Publish anyway, or move ${firstName} first.`
+    : `Move ${firstName} first, or an admin can publish anyway.`;
 }
 
 /** "Move Joel…". */
@@ -480,6 +505,10 @@ export const NAMES_SHOWN = 6;
  */
 export const AFTER_YOU_PUBLISH =
   "After you publish, moving somebody shows them their new group at once, and the next publish emails them that they have moved. Anybody you place later sees nothing until you publish again. Change a session can tell a group about one week.";
+
+/** The same, for anybody but an admin, who reads Publish's page and does not press it. */
+export const AFTER_YOU_PUBLISH_LEAD =
+  "After an admin publishes, moving somebody shows them their new group at once, and the next publish emails them that they have moved. Anybody you place later sees nothing until an admin publishes again. Change a session can tell a group about one week.";
 
 // ---------------------------------------------------------------------------
 // "Remind 3 people", on the card of who has not said when they are free

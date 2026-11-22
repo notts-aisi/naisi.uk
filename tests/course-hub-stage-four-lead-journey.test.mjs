@@ -558,7 +558,7 @@ async function tellTheStory() {
   seen.previewPlaced = await call("claudia", R.preview.GET, { runId: RUN.agi }, { course: true });
   seen.board = await join_.board("claudia");
   world.mail.length = 0;
-  seen.groupsPublished = await join_.publish("claudia");
+  seen.groupsPublished = await join_.publish("zach");
   seen.publishMail = world.mail.map((message) => ({ to: message.to, subject: message.subject, kind: message.kind }));
   seen.overviewPublished = await overview("claudia");
   seen.publishAfter = await publishPage("claudia");
@@ -1009,7 +1009,9 @@ describe("B. Publish: the number on its button is the emails a press sends, to t
     assert.deepEqual([board.emails, board.people, board.facilitators], [12, 8, 4]);
   });
 
-  test("the press sends the lead's two tests, then the 12, each person their own group's day", () => {
+  // Only an admin publishes (November 2026): the lead places and chooses the
+  // notes, and an admin tests and presses.
+  test("the press sends an admin's two tests, then the 12, each person their own group's day", () => {
     assert.deepEqual(seen.groupsPublished, {
       status: 200,
       body: {
@@ -1019,8 +1021,8 @@ describe("B. Publish: the number on its button is the emails a press sends, to t
       },
     });
     assert.deepEqual(seen.publishMail.map((message) => [message.to, message.subject]), [
-      ["claudia@example.com", "[TEST] Your AGI Strategy group: Tuesdays at 6pm"],
-      ["claudia@example.com", "[TEST] You’re facilitating Group B: Tuesdays at 6pm"],
+      ["zach@example.com", "[TEST] Your AGI Strategy group: Tuesdays at 6pm"],
+      ["zach@example.com", "[TEST] You’re facilitating Group B: Tuesdays at 6pm"],
       ["amara@example.com", "Your AGI Strategy group: Tuesdays at 6pm"],
       ["bea@example.com", "Your AGI Strategy group: Thursdays at 6pm"],
       ["callum@example.com", "Your AGI Strategy group: Tuesdays at 6pm"],
@@ -1040,14 +1042,15 @@ describe("B. Publish: the number on its button is the emails a press sends, to t
     assert.equal(stepOf(seen.overviewPublished, "publish").line, "Published Tue 27 Oct, 10am.");
     // Publish's readiness card reads the run's published stamp (`buildReadiness`,
     // `facts.published`): when, in the checklist's own words, and what a later
-    // move emails, in place of "Ready to publish".
+    // move emails, in place of "Ready to publish". The lead reads that an
+    // admin publishes again (November 2026).
     assert.deepEqual(seen.publishAfter.readiness.published, {
       when: stepOf(seen.overviewPublished, "publish").line,
-      later: "Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until you publish again.",
+      later: "Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until an admin publishes again.",
     });
     assert.ok(
       seen.publishAfter.text.startsWith(
-        "People in groups Publish AGI Strategy’s groups Ready? Published Published Tue 27 Oct, 10am. Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until you publish again.",
+        "People in groups Publish AGI Strategy’s groups Ready? Published Published Tue 27 Oct, 10am. Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until an admin publishes again.",
       ),
     );
     assert.equal(seen.publishAfter.readiness.ready, true);

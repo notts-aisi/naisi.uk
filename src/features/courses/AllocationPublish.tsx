@@ -5,6 +5,7 @@ import {
   MOVED_LEAD,
   NOTHING_TO_SEND,
   PUBLISH_ADMIN_ONLY,
+  PUBLISH_ONLY_ADMINS,
   emptyGroupsLine,
   gaveBackLine,
   moreLine,
@@ -32,8 +33,15 @@ import styles from "./AllocationPublish.module.css";
  * the server holds it, while an email cannot be written, and while somebody
  * placed outside the times they gave has no note or "Send without a note". A press that
  * would send nothing says so instead of offering to send 0, and needs no
- * test. A run the application form fills is an admin's to publish: anybody
- * else is told so and offered no button.
+ * test. A run the application form fills holds nothing for a track lead,
+ * who is told why.
+ *
+ * ONLY AN ADMIN PRESSES. `admin` is what the server page decided from the
+ * session, never the browser's guess; anybody else (a programme's lead, a
+ * run's track lead) reads everything an admin reads, in words that say an
+ * admin publishes, and one line (`PUBLISH_ONLY_ADMINS`) where the two buttons
+ * are. The publish and test routes refuse them with the same sentence, so
+ * the line is not the lock.
  */
 
 type Props = {
@@ -50,6 +58,8 @@ type Props = {
   result: string[];
   onTest: () => void;
   onPublish: () => void;
+  /** An admin is looking, as the server page decided from the session: only an admin is offered the buttons. */
+  admin: boolean;
   /**
    * A sentence under the line of who a press reaches: what happens after
    * Publish, on Publish's own page. The run's allocation board passes none.
@@ -87,8 +97,10 @@ export default function AllocationPublish({
   result,
   onTest,
   onPublish,
+  admin,
   note,
 }: Props) {
+  const reader = admin ? "admin" : "lead";
   const sends = summary.emails > 0;
   const fresh = summary.test.state === "fresh";
   const notesNeeded = summary.notesNeeded ?? [];
@@ -125,7 +137,7 @@ export default function AllocationPublish({
                 </ul>
               </div>
             ) : null}
-            {summary.more > 0 ? <p className={styles.line}>{moreLine(summary.more)}</p> : null}
+            {summary.more > 0 ? <p className={styles.line}>{moreLine(summary.more, reader)}</p> : null}
             {summary.noAddress.length > 0 ? (
               <p className={styles.lineWarn}>{noAddressLine(summary.noAddress)}</p>
             ) : null}
@@ -137,7 +149,7 @@ export default function AllocationPublish({
             {summary.gaveBack && summary.gaveBack > 0 ? (
               <p className={styles.lineWarn}>{gaveBackLine(summary.gaveBack)}</p>
             ) : null}
-            {notesNeeded.length > 0 ? <p className={styles.lineWarn}>{notesNeededLine(notesNeeded)}</p> : null}
+            {notesNeeded.length > 0 ? <p className={styles.lineWarn}>{notesNeededLine(notesNeeded, reader)}</p> : null}
             {summary.refusals.map((sentence) => (
               <p key={sentence} className={styles.lineWarn}>
                 {sentence}
@@ -146,7 +158,7 @@ export default function AllocationPublish({
             {sends ? (
               <p className={fresh ? styles.lineOk : summary.test.state === "stale" ? styles.lineWarn : styles.line}>
                 {fresh ? <Tick /> : null}
-                <span>{testLine(summary.test)}</span>
+                <span>{testLine(summary.test, reader)}</span>
               </p>
             ) : null}
             {testNote ? (
@@ -178,7 +190,9 @@ export default function AllocationPublish({
         )}
       </div>
 
-      {summary.adminOnly ? null : (
+      {!admin ? (
+        <p className={styles.adminsPublish}>{PUBLISH_ONLY_ADMINS}</p>
+      ) : summary.adminOnly ? null : (
         <div className={styles.actions}>
           <Button variant="secondary" onClick={onTest} disabled={busy || testing || !sends}>
             {testing ? "Sending the test…" : "Send a test to me"}

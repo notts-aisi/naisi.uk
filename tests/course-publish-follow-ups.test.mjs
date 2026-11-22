@@ -393,7 +393,8 @@ describe("4. putting somebody back after a removal: the card, Publish, and the p
       assert.deepEqual([card.row.fromForm.holdsPlace, "putBack" in card.row, card.gaveBack], [true, false, false]);
 
       const before = world.mail.length;
-      const pressed = await w.join.publish(who);
+      // An admin presses, whoever placed her: only an admin publishes (November 2026).
+      const pressed = await w.join.publish("zach");
       assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
       const sent = world.mail.slice(before).filter((mail) => !mail.subject.startsWith("[TEST]"));
       assert.ok(sent.some((mail) => mail.to === "amara@example.com"), JSON.stringify(sent.map((mail) => mail.to)));

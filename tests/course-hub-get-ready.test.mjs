@@ -335,10 +335,21 @@ describe("2. each step of Get ready for week 1, from records", () => {
         ["Set rooms", "todo", "0 of 3. Groups A, B and C have no room yet.", "Set rooms (button)"],
         ["Put people in groups", "todo", "0 of 8 placed. 8 to place, 1 of them hasn’t said when they’re free.", "People in groups (button)"],
         ["Write week 1", "todo", "Week 1 has no page yet. Paste its Markdown on the Weeks tab, then mark it ready.", "Open week 1 (button)"],
-        ["Publish groups", "todo", "Emails each person their group, day and room, and each facilitator their group.", "Publish groups… (button)"],
+        // Only an admin publishes (November 2026): the lead is told so, and
+        // shown the way to what a press sends.
+        [
+          "Publish groups",
+          "todo",
+          "An admin publishes: it emails each person their group, day and room, and each facilitator their group.",
+          "What Publish sends… (button)",
+        ],
       ],
     );
     assert.equal(stepOf(checklist, "publish").note, "Needs a day and a time for every group.");
+    // An admin's step says what it always said.
+    const asAdmin = stepOf((await facts("zach")).checklist, "publish");
+    assert.deepEqual(said(asAdmin), ["todo", "Emails each person their group, day and room, and each facilitator their group.", "Publish groups… (button)"]);
+    assert.equal(asAdmin.note, "Needs a day and a time for every group.");
     assert.equal(stepOf(checklist, "week-one").markReady, null);
     assert.equal(checklist.lede, "Week 1 starts Thu 29 Oct.");
   });
@@ -367,7 +378,7 @@ describe("2. each step of Get ready for week 1, from records", () => {
         ["rooms", "doing", "2 of 3. Group C has no room yet.", "Set rooms (button)"],
         ["people", "doing", "5 of 8 placed. 3 to place, 1 of them hasn’t said when they’re free.", "People in groups (button)"],
         ["week-one", "doing", "Everyone holding a place can open week 1 once it’s marked ready.", null],
-        ["publish", "todo", "Emails each person their group, day and room, and each facilitator their group.", "Publish groups… (button)"],
+        ["publish", "todo", "An admin publishes: it emails each person their group, day and room, and each facilitator their group.", "What Publish sends… (button)"],
       ],
     );
     assert.deepEqual(stepOf(checklist, "week-one").markReady, { runId: RUN.agi, weekId: "w01" });
@@ -432,9 +443,10 @@ describe("2. each step of Get ready for week 1, from records", () => {
         ["rooms", "done", "Every group has a room.", "Set rooms (text)"],
         ["people", "done", "8 of 8 placed.", "People in groups (text)"],
         ["week-one", "done", "Ready. Weeks 2 and 3 are ready too; 4 to 6 aren’t yet.", "Weeks (text)"],
-        ["publish", "done", "Published Mon 26 Oct, 12pm.", "Publish groups… (text)"],
+        ["publish", "done", "Published Mon 26 Oct, 12pm.", "What Publish sends… (text)"],
       ],
     );
+    assert.deepEqual(said(stepOf((await facts("zach")).checklist, "publish")), ["done", "Published Mon 26 Oct, 12pm.", "Publish groups… (text)"]);
     assert.equal(stepOf(checklist, "publish").note, null);
   });
 
@@ -515,7 +527,8 @@ describe("2. each step of Get ready for week 1, from records", () => {
     assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/groups/facilitators"[^>]*><span>Facilitators</span>`));
     assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/groups"[^>]*><span>People in groups</span>`));
     assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/groups/sessions"[^>]*><span>Set rooms</span>`));
-    assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/groups/publish"[^>]*><span>Publish groups…</span>`));
+    assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/groups/publish"[^>]*><span>What Publish sends…</span>`));
+    assert.match((await overview("zach")).html, new RegExp(`href="${PROGRAMME_PATH}/groups/publish"[^>]*><span>Publish groups…</span>`));
     assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/applications/freed-places"[^>]*><span>See freed places</span>`));
     assert.ok(!drawn.html.includes("/admin/courses/"), "the Overview sent somebody into the older run editor");
     assert.match(drawn.text, /Mark ready/);
@@ -572,7 +585,7 @@ describe("3. the counts agree with the board and with Publish, as one function",
       "Everyone holding a place is in a group",
       "5 of 8. Bea, Kofi and Tariq have no group yet.",
     ]);
-    const pressed = await join_.publish("claudia");
+    const pressed = await join_.publish("zach");
     assert.equal(pressed.status, 409);
     assert.deepEqual([...pressed.body.unplaced].sort(), ["Bea Lindqvist", "Kofi Asante", "Tariq Mensah"]);
   });
@@ -626,12 +639,15 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
     await allDone();
     const { readiness } = await facts("claudia");
     const fit = item(readiness, "fit-tariq");
+    // The lead moves people and an admin publishes (November 2026).
     assert.deepEqual([fit.state, fit.title, fit.detail, fit.link], [
       "check",
       "Tariq Mensah is in Group A on Thursdays at 6pm, but didn’t mark that time as free.",
-      "Publish anyway, or move Tariq first.",
+      "Move Tariq first, or an admin can publish anyway.",
       { to: "groups", label: "Move Tariq…" },
     ]);
+    // An admin's words are the ones they always were.
+    assert.equal(item((await facts("zach")).readiness, "fit-tariq").detail, "Publish anyway, or move Tariq first.");
     // Nobody placed where their week fits is named.
     assert.deepEqual(readiness.worth.filter((entry) => entry.key.startsWith("fit-")).map((entry) => entry.key), ["fit-tariq"]);
     const drawn = await publishView("claudia");
@@ -662,7 +678,7 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
       ["times", "done", "Every group has a day and a time"],
       ["notes", "done", "Everyone outside the times they gave has a note, or none chosen"],
     ]);
-    assert.equal((await join_.publish("claudia")).status, 200);
+    assert.equal((await join_.publish("zach")).status, 200);
   });
 
   test("a group with no day and time is needed, and Publish refuses it", async () => {
@@ -683,7 +699,7 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
       markReady: null,
       link: null,
     });
-    const pressed = await join_.publish("claudia");
+    const pressed = await join_.publish("zach");
     assert.equal(pressed.status, 409);
   });
 
@@ -717,7 +733,13 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
     // publish" (walk 4b, L7); the next test draws the card before the press.
     assert.match(
       drawn.text,
-      /^People in groups Publish AGI Strategy’s groups Ready\? Published Published Mon 26 Oct, 12pm\. Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved\. Anybody you place who hasn’t been told sees nothing until you publish again\. Needed to publish Every group has a day, a time and a room 3 groups: Tue 6pm, Wed 1pm, Thu 6pm Worth checking These don’t stop you publishing\. Every group has a facilitator/,
+      /^People in groups Publish AGI Strategy’s groups Ready\? Published Published Mon 26 Oct, 12pm\. Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved\. Anybody you place who hasn’t been told sees nothing until an admin publishes again\. Needed to publish Every group has a day, a time and a room 3 groups: Tue 6pm, Wed 1pm, Thu 6pm Worth checking These don’t stop an admin publishing\. Every group has a facilitator/,
+    );
+    // Only an admin publishes (November 2026): the lead reads that an admin
+    // does, and an admin reads the words they always read.
+    assert.match(
+      (await publishView("zach")).text,
+      /Anybody you place who hasn’t been told sees nothing until you publish again\. Needed to publish Every group has a day, a time and a room 3 groups: Tue 6pm, Wed 1pm, Thu 6pm Worth checking These don’t stop you publishing\. Every group has a facilitator/,
     );
     assert.match(drawn.html, new RegExp(`<a href="${PROGRAMME_PATH}/groups" class="back">`));
     // What can follow by itself is read on the server from the scheduler's
@@ -757,13 +779,15 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
     const before = await publishView("claudia");
     assert.match(before.text, /^People in groups Publish AGI Strategy’s groups Ready\? Ready to publish Needed to publish /);
     assert.equal(before.readiness.published, null);
-    assert.equal((await join_.publish("claudia")).status, 200);
+    assert.equal((await join_.publish("zach")).status, 200);
     for (const who of ["claudia", "zach"]) {
       const after = await publishView(who);
       const step = (await facts(who)).checklist.steps.find((each) => each.key === "publish");
+      // Only an admin publishes (November 2026): the lead is told an admin does.
+      const until = who === "zach" ? "you publish again" : "an admin publishes again";
       assert.deepEqual(after.readiness.published, {
         when: step.line,
-        later: "Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until you publish again.",
+        later: `Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until ${until}.`,
       }, who);
       assert.equal(step.line, "Published Mon 26 Oct, 12pm.");
       assert.match(after.text, /Ready\? Published Published Mon 26 Oct, 12pm\. Once somebody has been told their group, moving them /, who);
@@ -804,7 +828,7 @@ describe("5. the two emails, as each person will get them", () => {
     assert.deepEqual([people.emails, facilitators.emails], [8, 4]);
 
     world.mail.length = 0;
-    assert.equal((await join_.publish("claudia")).status, 200);
+    assert.equal((await join_.publish("zach")).status, 200);
     const real = world.mail.filter((mail) => !mail.subject.startsWith("[TEST]"));
     // The names are the people the press sent to, in the order it sent them,
     // by the names they go by (`fullNameOfUser`, the name people go by first

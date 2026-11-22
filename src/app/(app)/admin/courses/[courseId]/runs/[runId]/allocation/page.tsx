@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AllocationBoard from "@/features/courses/AllocationBoard";
+import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
  * The admin mount of the group-allocation board.
@@ -17,6 +18,10 @@ import AllocationBoard from "@/features/courses/AllocationBoard";
  * (`/learn/[runId]/allocation`), which renders this same component against
  * these same routes. RunEditor hides the link for a caller the routes will
  * refuse, so the dead end is not offered in the first place.
+ *
+ * ONLY AN ADMIN PUBLISHES. Whether the reader is one is read here from the
+ * session and handed to the board, which draws Publish's buttons for an
+ * admin alone; the publish routes refuse everybody else anyway.
  */
 
 export default async function AdminRunAllocationPage({
@@ -24,7 +29,7 @@ export default async function AdminRunAllocationPage({
 }: {
   params: Promise<{ courseId: string; runId: string }>;
 }) {
-  const { courseId, runId } = await params;
+  const [{ courseId, runId }, user] = await Promise.all([params, getCurrentUser()]);
   const runHref = `/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(runId)}`;
 
   return (
@@ -50,7 +55,7 @@ export default async function AdminRunAllocationPage({
         ← Back to the run editor
       </Link>
 
-      <AllocationBoard courseId={courseId} runId={runId} />
+      <AllocationBoard courseId={courseId} runId={runId} admin={user?.role === "admin"} />
     </div>
   );
 }

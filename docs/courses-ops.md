@@ -1491,10 +1491,10 @@ Decide any waiting request first: it would have no page.
 The term's application form decides who holds a place on each programme
 (see [docs/applications.md](applications.md), "From the form onto a course
 run"). Groups are formed on a course run's allocation board. This is the
-order the two are joined in. Steps 1 to 4 are an admin's. From step 5 on,
-the programme's lead does it too, on the run their programme names, from
-the programme's own page (see "A programme's lead on the run their
-programme names" below).
+order the two are joined in. Steps 1 to 4 are an admin's. Steps 5 and 7
+the programme's lead does too, on the run their programme names, from the
+programme's own page (see "A programme's lead on the run their programme
+names" below). Step 6, Publish, is an admin's alone.
 
 ### The order
 
@@ -1524,7 +1524,15 @@ programme names" below).
    editor's group card ("Location"). Neither emails anybody: people see them
    on their programme page and in their calendar. "Change a session" changes
    one week's room, never the group's own.
-6. **Publish** from the board when everybody is in a group. That is the
+6. **Publish** from the board when everybody is in a group. ONLY AN ADMIN
+   PUBLISHES: it emails everybody on the run, so a press, and the test that
+   unlocks it, are refused for anybody else (the programme's lead and the
+   run's track leads included) with "Only an admin publishes. Ask an admin
+   when the groups are ready.", once the run is read and before anything
+   about its people is. They still read Publish's own page, with that line
+   where the two buttons are, in words that say an admin publishes; whether
+   the reader is an admin is decided by the server page from the session.
+   An admin who also leads the programme publishes as an admin. That is the
    email that tells each person their group, and the first email anybody
    gets after decision day. First press **Send a test to me**: it sends you
    the first person's "your group" email and the first facilitator's
@@ -1540,7 +1548,8 @@ programme names" below).
 7. **Somebody placed outside the times they gave** (the board's "Not free"
    mark, by one predicate, `placedOutsideTheirTimes`) is listed on Publish's
    own page, and Publish waits until each has a note or "Send without a
-   note". A note is the admin's or the programme lead's own words, written
+   note". A note is the admin's or the programme lead's own words (the lead
+   writes notes, and an admin then publishes), written
    or drafted by Claude (admins only, from the application alone and the
    bare fact, never anybody's times), and goes above the site's own details
    in that person's email only. Kept server-only in `coursePlacementNotes`;
@@ -1606,8 +1615,9 @@ programme names" below).
   an admin and to the lead of the programme that names the run, and to
   nobody else. A track lead still edits the run, staffs its groups and sees
   everybody who applied to the run itself. A row the form wrote is one an
-  admin or that lead places and publishes: a track lead who presses
-  Publish, or its test, on such a run is told so and nothing happens. The
+  admin or that lead places, and an admin publishes: a track lead who
+  presses Publish, or its test, on any run is told only an admin publishes,
+  and nothing happens. The
   run's own counts do include
   them, as numbers: the run's applications page shows a track lead "8
   accepted" above an empty list.
@@ -3127,16 +3137,22 @@ and never longer than a week. "Your requests" lists these with the other kinds, 
 ## A programme's lead on the run their programme names
 
 Each programme's lead does, for their own programme, what an admin does from
-the allocation board on: they place its people, staff its groups and publish
-them. Everything is reached from the programme's own page, which they
-already open; nothing under `/admin/courses` is needed.
+the allocation board on, except Publish: they place its people and staff its
+groups, and an admin publishes them (Publish emails everybody, so it stays
+with admins). Everything is reached from the programme's own page, which
+they already open; nothing under `/admin/courses` is needed.
 
 ### What the lead does, and where
 
 - **Groups tab, People in groups**: the run's allocation board, the same
-  board and routes an admin's mount uses. Place, move and remove people,
-  send the test and press Publish, with the same test lock and the same
-  count on the button.
+  board and routes an admin's mount uses. Place, move and remove people.
+  Publish's own page ("What Publish sends…" for the lead) shows the lead
+  everything it shows an admin, who a press emails by name, the emails and
+  the readiness check, with "Only an admin publishes. Ask an admin when the
+  groups are ready." in place of "Send a test to me" and Publish, and the
+  two routes refuse the lead with the same sentence. The Overview's "Get
+  ready for week 1" and the board's lines say an admin publishes, never
+  that the lead should.
 - **Groups tab, Times**: the times picture.
 - **Groups tab, Facilitators**: who facilitates each group, the people who
   said on the form they would like to facilitate the programme, and asking
@@ -3184,8 +3200,8 @@ already open; nothing under `/admin/courses` is needed.
 ### What stays an admin's
 
 Naming the run and the hand-over (the Settings tab's Course run panel),
-changing a row on the run's own applications page, and correcting a
-finished register. Groups are added on the Times view and their day, time,
+Publish and its test, changing a row on the run's own applications page,
+and correcting a finished register. Groups are added on the Times view and their day, time,
 room, campus and link changed on each group's page, by the lead and admins
 alike (see "The older course editor, while it is retired").
 

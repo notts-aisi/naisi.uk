@@ -226,13 +226,10 @@ describe("6. the allocation board", () => {
       await place("yusuf", [{ uid: "nobody", groupId: GROUP.monday }]);
       const before = everything();
       const published = await publish("yusuf");
-      // The sentence names who does publish such a run: since the course
-      // hub's lead access, an admin or the lead of the programme that
-      // names the run (tests/course-hub-lead-rows.test.mjs).
-      assert.deepEqual(short(published), [
-        403,
-        "This run’s people came from the application form, so only an admin or its programme’s lead can publish it or send its test.",
-      ]);
+      // The sentence names who does publish: since November 2026 an admin
+      // alone publishes any run, the programme's lead included
+      // (tests/course-publish-admins-only.test.mjs).
+      assert.deepEqual(short(published), [403, "Only an admin publishes. Ask an admin when the groups are ready."]);
       assert.deepEqual(world.mail, [], "a refused press, or its test, emailed somebody");
       const said = JSON.stringify(published.body);
       for (const uid of AGI_HOLDERS) assert.ok(!said.includes(CAST[uid].displayName.split(" ")[0]), uid);

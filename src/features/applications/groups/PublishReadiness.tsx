@@ -8,6 +8,7 @@ import {
   READY_CHIP,
   READY_TITLE,
   WORTH_LINE,
+  WORTH_LINE_LEAD,
   WORTH_TITLE,
 } from "@/lib/courses/getReady/words";
 import styles from "./PublishGroups.module.css";
@@ -25,6 +26,9 @@ import styles from "./PublishGroups.module.css";
  * Once the groups are published, the card says when, in the Overview's
  * checklist's words, and what a later move emails; its chip reads
  * "Published" while nothing a second press needs is missing.
+ *
+ * Only an admin publishes: `admin` is the server page's answer, and anybody
+ * else is told that what is worth checking does not stop an admin.
  */
 
 const MARK_LABEL: Record<ReadyItem["state"], string> = {
@@ -93,10 +97,13 @@ export default function PublishReadiness({
   model,
   roundId,
   programmeId,
+  admin,
 }: {
   model: ReadinessModel;
   roundId: string;
   programmeId: string;
+  /** An admin is looking, as the server page decided from the session. */
+  admin: boolean;
 }) {
   return (
     <section className={styles.card} aria-labelledby="publish-ready-title">
@@ -126,7 +133,7 @@ export default function PublishReadiness({
         <>
           <div className={styles.groupHead}>
             <h3 className={styles.eyebrow}>{WORTH_TITLE}</h3>
-            <span className={styles.groupLine}>{WORTH_LINE}</span>
+            <span className={styles.groupLine}>{admin ? WORTH_LINE : WORTH_LINE_LEAD}</span>
           </div>
           <ul className={styles.items}>
             {model.worth.map((item) => (

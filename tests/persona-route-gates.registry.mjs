@@ -6275,6 +6275,29 @@ function runStaff(what, next) {
 }
 
 /**
+ * ONLY AN ADMIN PUBLISHES. The run is read and the caller's standing on it
+ * known (`doesTrackLeadWork`): anybody who staffs nothing is refused as
+ * `runStaff` refuses them, and the programme's lead and the run's track
+ * leads, who place people on the board, are refused with Publish's one
+ * sentence before anything about the run's people is read. `admin` is what
+ * an admin meets next.
+ */
+function runAdminPresses(what, admin) {
+  return {
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": c(403, `Is not an admin: ${what} is an admin's alone, refused once the run is read and before anything about its people is.`),
+      admin,
+    },
+    theirs: {
+      lead: c(403, `Leading the programme places people and does not publish: ${what} is an admin's alone, refused with one sentence before anything about the run's people is read.`),
+      facilitator: c(403, `Facilitating one of the run's groups does not staff the run: ${what} is an admin's alone.`),
+      participant: c(403, `Holding a place does not staff the run: ${what} is an admin's alone.`),
+    },
+  };
+}
+
+/**
  * Writing in one's own seat on a run (a box, a reflection, a written answer,
  * a pack or a ready): somebody taking part, told their place, or a live
  * facilitator of one of its groups; an admin is neither. Sent a whole `body`,
@@ -7531,11 +7554,11 @@ export const REAL_ROUTES = {
   "/api/courses/runs/[runId]/allocation/publish": {
     POST: {
       realDrive: { body: { emails: 0 }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
-      ...runStaff("Publish", c(ACTS, "Admitted: a whole body is never sent to somebody the gate admits, so it is not sent (it would take the run's press lock).")),
+      ...runAdminPresses("Publish", c(ACTS, "Admitted: a whole body is never sent to somebody the gate admits, so it is not sent (it would take the run's press lock).")),
     },
   },
   "/api/courses/runs/[runId]/allocation/publish/test": {
-    POST: runStaff(
+    POST: runAdminPresses(
       "A test of Publish's emails",
       c(ACTS, "Admitted, and it takes no body: it would send a test to the caller's own address."),
     ),

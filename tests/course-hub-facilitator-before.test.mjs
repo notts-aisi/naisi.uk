@@ -70,10 +70,10 @@ async function placed() {
   assert.equal(answer.body.placed, 8, JSON.stringify(answer.body));
 }
 
-/** Placed, then Publish pressed by the programme's lead, with the test it asks for first. */
+/** Placed, then Publish pressed by an admin (only an admin publishes), with the test it asks for first. */
 async function told() {
   await placed();
-  const answer = await publish("claudia");
+  const answer = await publish("zach");
   assert.equal(answer.status, 200, JSON.stringify(answer.body));
 }
 
@@ -148,7 +148,7 @@ describe("1. only after Publish has told the group", () => {
     assert.ok(!answer.body.whosComing.map((person) => person.firstName).includes("Callum"), JSON.stringify(answer.body.whosComing));
     assert.equal(answer.body.notYetTold, true);
     // Publish tells him, and he is in the list.
-    assert.equal((await publish("claudia")).status, 200);
+    assert.equal((await publish("zach")).status, 200);
     answer = await summary("rahul");
     assert.ok(answer.body.whosComing.map((person) => person.firstName).includes("Callum"), JSON.stringify(answer.body.whosComing));
     assert.equal(answer.body.notYetTold, false);

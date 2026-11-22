@@ -544,7 +544,7 @@ export default function PeopleInGroups({ view, views }: Props) {
         href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
         className={`${shared.btn} ${styles.publishLink}`}
       >
-        {words.PUBLISH_GROUPS}
+        {view.viewer === "admin" ? words.PUBLISH_GROUPS : words.PUBLISH_GROUPS_LEAD}
       </Link>
     </div>
   );
@@ -631,24 +631,24 @@ export default function PeopleInGroups({ view, views }: Props) {
         <p className={styles.line}>{view.sent ? words.boardLine(counts) : words.NOBODY_YET}</p>
         {placedSince.length > 0 && (
           <p className={styles.placedSince} role="status">
-            {words.placedSinceWords(placedSince).lead}{" "}
+            {words.placedSinceWords(placedSince, admin).lead}{" "}
             <Link
               href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
               className={styles.noteLink}
             >
-              {words.placedSinceWords(placedSince).link}
+              {words.placedSinceWords(placedSince, admin).link}
             </Link>
             .
           </p>
         )}
         {movedSince.length > 0 && (
           <p className={styles.placedSince} role="status">
-            {words.movedSinceWords(movedSince).lead}{" "}
+            {words.movedSinceWords(movedSince, admin).lead}{" "}
             <Link
               href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
               className={styles.noteLink}
             >
-              {words.movedSinceWords(movedSince).link}
+              {words.movedSinceWords(movedSince, admin).link}
             </Link>
             .
           </p>
@@ -850,7 +850,15 @@ export default function PeopleInGroups({ view, views }: Props) {
           <span className={styles.footnoteIcon} aria-hidden="true">
             <InfoIcon size={16} />
           </span>
-          <span>{data.run.allocationPublishedAt ? words.AFTER_PUBLISH : words.BEFORE_PUBLISH}</span>
+          <span>
+            {data.run.allocationPublishedAt
+              ? admin
+                ? words.AFTER_PUBLISH
+                : words.AFTER_PUBLISH_LEAD
+              : admin
+                ? words.BEFORE_PUBLISH
+                : words.BEFORE_PUBLISH_LEAD}
+          </span>
         </p>
       </div>
 

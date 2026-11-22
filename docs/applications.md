@@ -1601,14 +1601,14 @@ and never an address:
 | --- | --- |
 | the allocation board | such a row is not listed |
 | a placement | answered `not-accepted`, exactly as for a uid with no accepted row |
-| Publish, and its test | the press is refused with a sentence that says who publishes such a run; nobody is emailed or named |
+| Publish, and its test | refused for anybody but an admin, the programme's lead included, with "Only an admin publishes. Ask an admin when the groups are ready.", before any row is read; nobody is emailed or named |
 | the run's own queue | such a row is not listed. The run's counters still count it, as a number |
 | decide, and reviewer notes | answered "Application not found", as for a row that is not there |
 
-A track lead still opens the board, and still sees, places and publishes
-everybody who applied to the run itself. A run that holds a row its presser
-is not served holds their press of Publish, with a sentence that says who
-publishes it.
+A track lead still opens the board, and still sees and places everybody
+who applied to the run itself. Only an admin publishes any run (see
+docs/courses-ops.md, step 6 of "The order"), so a track lead's press of
+Publish, or of its test, is refused whatever the run holds.
 
 **A browser reads no more than the routes serve.** `firestore.rules` gives
 a `courseApplications` document to an admin and to the person it is about,

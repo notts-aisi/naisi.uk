@@ -1375,8 +1375,10 @@ async function beforePublish() {
 }
 
 // ---------------------------------------------------------------------------
-// Publish, by each programme's lead
+// Publish, by an admin for each programme
 // ---------------------------------------------------------------------------
+// CHANGED ON PURPOSE (November 2026): only an admin publishes. Each
+// programme's lead still places its people; an admin tests and presses.
 
 async function publishAsTheLead(who, runId, label) {
   const p = {};
@@ -1398,9 +1400,9 @@ async function publishAsTheLead(who, runId, label) {
 
 async function publish() {
   at("publishing");
-  seen.publish = await publishAsTheLead("claudia", RUN, "AGI Strategy's lead");
+  seen.publish = await publishAsTheLead("zach", RUN, "an admin, for AGI Strategy");
   at("publishingIncubator");
-  seen.incubatorPublish = await publishAsTheLead("tess", INC_RUN, "the incubator's lead");
+  seen.incubatorPublish = await publishAsTheLead("zach", INC_RUN, "an admin, for the incubator");
   await lookAround("published");
 }
 
@@ -1526,7 +1528,7 @@ async function weeksOneAndTwo() {
   s.tomBeforeHeIsTold = await facilitatorSees("tom", RUN, GROUP.A);
   s.summary = await publishSummary("claudia", RUN);
   const beforeThePress = world.mail.length;
-  s.pressed = await courseStep("the lead's Publish tells Tom", 200, "claudia", courseRoutes.publish.POST, { runId: RUN }, {
+  s.pressed = await courseStep("an admin's Publish tells Tom", 200, "zach", courseRoutes.publish.POST, { runId: RUN }, {
     body: { emails: s.summary?.emails ?? -1 },
   });
   s.pressMail = await Promise.all(mailSince(beforeThePress).map(opened));
@@ -1556,14 +1558,14 @@ async function weeksOneAndTwo() {
   await lookAround("Kofi removed");
 
   // Then the lead asks Sofia to run Group A with Tom as well, which Publish
-  // has to tell her: the board owes one email, and the lead presses.
+  // has to tell her: the board owes one email, and an admin presses.
   later(30);
   l.sofiaToA = await courseStep("the lead adds Sofia to Group A as well", 200, "claudia", courseRoutes.facilitators.POST, { groupId: GROUP.A }, {
     body: { uids: ["amelia", "tom", "sofia"] },
   });
   l.owed = await publishSummary("claudia", RUN);
   const beforeSofiasPress = world.mail.length;
-  l.pressed = await courseStep("the lead's Publish tells Sofia, with Kofi's row still Accepted", 200, "claudia", courseRoutes.publish.POST, { runId: RUN }, {
+  l.pressed = await courseStep("an admin's Publish tells Sofia, with Kofi's row still Accepted", 200, "zach", courseRoutes.publish.POST, { runId: RUN }, {
     body: { emails: l.owed?.emails ?? -1 },
   });
   l.pressMail = await Promise.all(mailSince(beforeSofiasPress).map(opened));
@@ -2103,8 +2105,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
   });
 
   // -------------------------------------------------------------------------
-  describe("2. Publish, pressed by each programme's lead", () => {
-    test("AGI Strategy's lead tests and publishes as an admin would: the board's nine, two tests to her, then the nine", () => {
+  describe("2. Publish, pressed by an admin for each programme", () => {
+    test("an admin tests and publishes AGI Strategy's groups: the board's nine, two tests to the admin, then the nine", () => {
       const p = seen.publish;
       assert.deepEqual([p.before.adminOnly, p.before.emails, p.before.people, p.before.facilitators, p.before.test.state], [false, 9, 6, 3, "none"]);
       assert.deepEqual(p.test.body, { ok: true, delivery: "sent", emails: 2, recorded: true });
@@ -2112,8 +2114,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         p.testMail.map((mail) => [mail.to, mail.subject, mail.kind]),
         [
           // The board's subject since October 2026 (until then "first session Tue 3 Nov, 6pm").
-          [address("claudia"), "[TEST] Your AGI Strategy group: Tuesdays at 6pm", "course-test"],
-          [address("claudia"), "[TEST] You’re facilitating Group A: Thursdays at 6pm", "course-test"],
+          [address("zach"), "[TEST] Your AGI Strategy group: Tuesdays at 6pm", "course-test"],
+          [address("zach"), "[TEST] You’re facilitating Group A: Thursdays at 6pm", "course-test"],
         ],
       );
       assert.deepEqual(p.afterTest.test, { state: "fresh", when: "5:38pm", who: null });
@@ -2135,11 +2137,11 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     // The incubator's one group is run by its lead, who signs "You’re
     // facilitating" and is never sent it (the walk of stage one, F1), and its
     // people are sent the incubator's own email, which never says group.
-    test("the incubator's lead publishes her four, sends herself one test and no facilitators' email, in the incubator's own words", () => {
+    test("an admin publishes the incubator's four, sends themselves one test and no facilitators' email, in the incubator's own words", () => {
       const p = seen.incubatorPublish;
       assert.deepEqual([p.before.emails, p.before.people, p.before.facilitators], [4, 4, 0]);
       assert.deepEqual(p.test.body, { ok: true, delivery: "sent", emails: 1, recorded: true });
-      assert.deepEqual(p.testMail.map((mail) => [mail.to, mail.subject]), [[address("tess"), "[TEST] Your Research incubator sessions: Mondays at 5pm"]]);
+      assert.deepEqual(p.testMail.map((mail) => [mail.to, mail.subject]), [[address("zach"), "[TEST] Your Research incubator sessions: Mondays at 5pm"]]);
       assert.deepEqual(p.pressed.body.report.people, { sent: 4, held: 0, suppressed: 0 });
       assert.deepEqual(p.pressed.body.report.facilitators, { sent: 0, held: 0, suppressed: 0 });
       assert.deepEqual(

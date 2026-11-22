@@ -460,7 +460,7 @@ describe("7. Publish after a move made mid-term on the board", () => {
   test("“You’ve moved”, once, naming the first session of Group B she is due at (week 4, Tue 24 Nov), never tonight's week 3", async () => {
     await place([{ uid: "amara", groupId: B, fromWeek: 4 }]);
     world.mail.length = 0;
-    assert.equal((await w.join.publish("claudia")).status, 200);
+    assert.equal((await w.join.publish("zach")).status, 200);
     const toAmara = world.mail.filter((message) => message.to === "amara@example.com" && !message.subject.startsWith("[TEST]"));
     assert.deepEqual(toAmara.map((message) => message.subject), ["You’ve moved to Group B: Tuesdays at 6pm"]);
     const said = await wordsOf(toAmara[0]);
@@ -469,7 +469,7 @@ describe("7. Publish after a move made mid-term on the board", () => {
     assert.doesNotMatch(said, /17 Nov/);
     assert.match(said, /You’re no longer in Group A, so you don’t need to go to its sessions\./);
     world.mail.length = 0;
-    assert.equal((await w.join.publish("claudia")).status, 200);
+    assert.equal((await w.join.publish("zach")).status, 200);
     assert.equal(world.mail.filter((message) => message.to === "amara@example.com").length, 0, "told once");
   });
 
@@ -478,7 +478,7 @@ describe("7. Publish after a move made mid-term on the board", () => {
     at("2026-11-18T09:00:00Z");
     await place([{ uid: "chloe", groupId: C, fromWeek: 3 }]);
     world.mail.length = 0;
-    assert.equal((await w.join.publish("claudia")).status, 200);
+    assert.equal((await w.join.publish("zach")).status, 200);
     const toChloe = world.mail.filter((message) => message.to === "chloe@example.com" && !message.subject.startsWith("[TEST]"));
     assert.deepEqual(toChloe.map((message) => message.subject), ["You’ve moved to Group C: Wednesdays at 1pm"]);
     assert.match(await wordsOf(toChloe[0]), /, from Wed 18 Nov\./);

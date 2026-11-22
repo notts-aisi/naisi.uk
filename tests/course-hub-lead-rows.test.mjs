@@ -19,9 +19,10 @@
  *     same facts on each card: which groups their painted week covers, and
  *     whether they still hold the place.
  *  2. AND NO OTHER PROGRAMME'S. A row the form wrote for another programme,
- *     should one ever stand on the run, is not listed, placed, published or
- *     decided by the lead, and holds their press of Publish: a run that holds
- *     a row its presser is not served is not theirs to publish.
+ *     should one ever stand on the run, is not listed, placed or decided by
+ *     the lead, and the board's count holds nothing for them. Only an admin
+ *     publishes any run, so the lead's press of Publish, and of its test, is
+ *     refused in Publish's one sentence before the run's rows are read.
  *  3. A TRACK LEAD AND A REVIEWER ARE SERVED NONE OF THEM, as before.
  *  4. NEVER AN ADDRESS. Nothing a lead is served carries an email address.
  *
@@ -145,7 +146,7 @@ describe("2. a row another programme's hand-over wrote is not the lead's", () =>
     assert.equal(everything(), before);
   });
 
-  test("a run holding a row the lead is not served is not theirs to publish, and nothing is said about who it is", async () => {
+  test("a run holding a row the lead is not served holds nothing for them, the lead is refused its press as any, and nothing is said about who it is", async () => {
     await place("zach", [
       { uid: "amara", groupId: B },
       { uid: "dev", groupId: B },
@@ -155,8 +156,11 @@ describe("2. a row another programme's hand-over wrote is not the lead's", () =>
       { uid: "wen", groupId: A },
     ]);
     const before = everything();
-    assert.deepEqual(short(await call("claudia", routes.publishTest.POST, run, { course: true })), [403, words.PUBLISH_ADMIN_ONLY]);
-    assert.deepEqual(short(await call("claudia", routes.publish.POST, run, { body: { emails: 8 }, course: true })), [403, words.PUBLISH_ADMIN_ONLY]);
+    // CHANGED ON PURPOSE (November 2026): only an admin publishes, so the
+    // lead is refused for being the lead, before the rows are asked whom they
+    // are served to.
+    assert.deepEqual(short(await call("claudia", routes.publishTest.POST, run, { course: true })), [403, words.PUBLISH_ONLY_ADMINS]);
+    assert.deepEqual(short(await call("claudia", routes.publish.POST, run, { body: { emails: 8 }, course: true })), [403, words.PUBLISH_ONLY_ADMINS]);
     const summary = (await board("claudia")).body.publish;
     assert.deepEqual([summary.adminOnly, summary.emails, summary.noAddress], [true, 0, []]);
     assert.equal(everything(), before);
@@ -188,14 +192,19 @@ describe("3. a track lead and a reviewer are served none of the form's rows", ()
       assert.deepEqual((await queue(who)).body.applications.map((row) => row.uid), ["nobody"], who);
     }
     assert.deepEqual((await place("yusuf", [{ uid: "amara", groupId: B }])).body.rejected, [{ uid: "amara", reason: "not-accepted" }]);
-    assert.deepEqual(short(await call("yusuf", routes.publishTest.POST, run, { course: true })), [403, words.PUBLISH_ADMIN_ONLY]);
+    // Only an admin publishes: the track lead is refused in Publish's sentence.
+    assert.deepEqual(short(await call("yusuf", routes.publishTest.POST, run, { course: true })), [403, words.PUBLISH_ONLY_ADMINS]);
+    assert.deepEqual(short(await call("yusuf", routes.publish.POST, run, { body: { emails: 0 }, course: true })), [403, words.PUBLISH_ONLY_ADMINS]);
   });
 
-  test("the sentence a track lead is told names who may publish", () => {
+  test("the sentence a track lead is told says who sees the form's people, and the press's says who publishes", () => {
+    // CHANGED ON PURPOSE (November 2026): the lead no longer publishes, so
+    // the track lead's sentence says only who sees these people.
     assert.equal(
       words.PUBLISH_ADMIN_ONLY,
-      "This run’s people came from the application form, so only an admin or its programme’s lead can publish it or send its test.",
+      "This run’s people came from the application form, so only an admin or its programme’s lead sees who they are.",
     );
+    assert.equal(words.PUBLISH_ONLY_ADMINS, "Only an admin publishes. Ask an admin when the groups are ready.");
   });
 });
 

@@ -28,7 +28,13 @@ import {
   type PlannedPerson,
 } from "@/lib/courses/allocationPublish";
 import { markPlacementNoteSent } from "@/lib/courses/placementNotes/store";
-import { emptyPublishReport, notesNeededLine, PUBLISH_ADMIN_ONLY, type PublishReport } from "@/lib/courses/publishWords";
+import {
+  emptyPublishReport,
+  notesNeededLine,
+  PUBLISH_ADMIN_ONLY,
+  PUBLISH_ONLY_ADMINS,
+  type PublishReport,
+} from "@/lib/courses/publishWords";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
 import { courseEnrolmentId } from "@/lib/firestore/courseEnrolments";
@@ -43,12 +49,17 @@ import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
  * joins the run's cohort channel, and each facilitator of a group with
  * somebody in it gets "You’re facilitating", once per group.
  *
- * WHO MAY PUBLISH: admins ∪ the run's `trackLeadUids` ∪ the lead of the
- * programme that names the run (`runStaffingOf`), the same gate as the board
- * and the allocate route. A RUN THE APPLICATION FORM FILLS IS PUBLISHED BY AN
- * ADMIN OR BY THAT LEAD: when a row the form wrote is on the run and the
- * caller is not served it (`rowIsServedTo`), they are refused with a
- * sentence, before anything is done.
+ * WHO MAY PUBLISH: AN ADMIN, AND NOBODY ELSE. The press emails everybody on
+ * the run their group, so it is kept with admins: the run's `trackLeadUids`
+ * and the lead of the programme that names the run (`runStaffingOf`), who
+ * still place people on the board through the allocate route, are refused
+ * with one sentence (`PUBLISH_ONLY_ADMINS`) once they are known to be staff,
+ * before the press is held and before any application row is read. Anybody
+ * who is not staff of the run at all is refused as before. An admin who also
+ * leads the programme publishes as an admin. The plan's own `adminOnly` (a
+ * row the form wrote that the caller is not served, `rowIsServedTo`) is kept
+ * as a second refusal: an admin is served every row, so it holds nothing
+ * today, and it would refuse a press before anything is done.
  *
  * WHAT A PRESS DOES, AND WHAT STOPS IT, is worked out by `loadPublishPlan`
  * (`src/lib/courses/allocationPublish.ts`), the same plan the board's count
@@ -217,6 +228,12 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  // Only an admin publishes: the press emails everybody on the run their
+  // group. A programme's lead and a run's track lead are told so, before the
+  // press is held and before anything about the run's people is read.
+  if (!staffing.isAdmin) {
+    return NextResponse.json({ error: PUBLISH_ONLY_ADMINS, unplaced: [] }, { status: 403 });
+  }
 
   // ── One press at a time ───────────────────────────────────────────────────
   // Held before the plan is read, so a second press reads what the first one
@@ -235,8 +252,8 @@ export async function POST(req: Request, ctx: Ctx) {
   try {
     // A row the application form put here is served to an admin and to the
     // lead of the programme that names the run (`rowIsServedTo`): a run that
-    // holds one this caller is not served is theirs to publish, and this
-    // press is refused below without a word about who is on it.
+    // holds one this caller is not served is refused below without a word
+    // about who is on it. Only an admin reaches here, and is served them all.
     const appSnap = await db.collection("courseApplications").where("runId", "==", runId).limit(500).get();
     const rows = appSnap.docs.map((d) => normalizeCourseApplication(d.id, d.data() ?? {}));
     const served = rows.filter((a) => rowIsServedTo(a, staffing));

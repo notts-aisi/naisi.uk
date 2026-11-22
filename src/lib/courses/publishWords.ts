@@ -13,11 +13,23 @@
  */
 
 /**
- * The sentence a track lead reads on a run the application form fills, which
- * an admin or the lead of the programme that names the run publishes.
+ * ONLY AN ADMIN PUBLISHES. Publish emails everybody on a run their group, so
+ * a press, and the test that unlocks it, are an admin's alone: a programme's
+ * lead and a run's track lead still place, move and take people off, and
+ * read Publish's own page, and are told this in place of its two buttons.
+ * The same sentence is what the publish route and its test route refuse
+ * them with, so the page is never the lock.
+ */
+export const PUBLISH_ONLY_ADMINS = "Only an admin publishes. Ask an admin when the groups are ready.";
+
+/**
+ * The sentence a track lead reads on a run the application form fills: its
+ * people are served to an admin and to the lead of the programme that names
+ * the run, and to nobody else, so the board's count and Publish's own page
+ * hold nothing for a track lead.
  */
 export const PUBLISH_ADMIN_ONLY =
-  "This run’s people came from the application form, so only an admin or its programme’s lead can publish it or send its test.";
+  "This run’s people came from the application form, so only an admin or its programme’s lead sees who they are.";
 
 /** What one press did. */
 export type PublishReport = {
@@ -125,15 +137,24 @@ export const MOVED_LEAD =
   "Moved since they were told: a press emails each of them “You’ve moved” about the group they are in now, never their first email again.";
 
 /**
+ * Who is reading a sentence about the press: an admin, who presses it, or
+ * anybody else on Publish's page (a programme's lead, or a run's track lead
+ * on the older board), who cannot (`PUBLISH_ONLY_ADMINS`) and is told what an
+ * admin does instead. An admin's words are the ones these always said.
+ */
+export type PublishReader = "admin" | "lead";
+
+/**
  * Publish waits for a choice for each person placed outside the times they
  * gave: a note of our own, or "Send without a note". The sentence a press is
- * refused with, and the one the readiness check and the board say.
+ * refused with, and the one the readiness check and the board say. A lead
+ * writes the note too, and an admin presses.
  */
-export function notesNeededLine(names: readonly string[]): string {
+export function notesNeededLine(names: readonly string[], reader: PublishReader = "admin"): string {
   const one = names.length === 1;
   return `${nameList(names)} ${one ? "is" : "are"} placed outside the times they gave. Write ${
     one ? "them a note" : "each of them a note"
-  }, or choose “Send without a note”, before you publish.`;
+  }, or choose “Send without a note”, ${reader === "admin" ? "before you publish" : "before an admin publishes"}.`;
 }
 
 /** What the board says beside a press that would send nothing. */
@@ -165,8 +186,11 @@ export function gaveBackLine(n: number): string {
 }
 
 /** Emails past one press's cap. */
-export function moreLine(more: number): string {
-  return `${emailsLabel(more)} more after this. Press Publish again to send ${more === 1 ? "it" : "them"}.`;
+export function moreLine(more: number, reader: PublishReader = "admin"): string {
+  const them = more === 1 ? "it" : "them";
+  return reader === "admin"
+    ? `${emailsLabel(more)} more after this. Press Publish again to send ${them}.`
+    : `${emailsLabel(more)} more after this. An admin presses Publish again to send ${them}.`;
 }
 
 /**
@@ -307,11 +331,19 @@ export function publishResultLines(report: PublishReport): string[] {
  * somebody. `when` is the time the board writes ("5:38pm", or "Mon 26 Oct
  * at 5:38pm" on another day); `who` is null for the viewer's own test.
  */
-export function testLine(test: { state: "none" | "stale" | "fresh"; when: string | null; who: string | null }): string {
-  if (test.state === "none") return "Send yourself a test before you publish.";
+export function testLine(
+  test: { state: "none" | "stale" | "fresh"; when: string | null; who: string | null },
+  reader: PublishReader = "admin",
+): string {
+  const admin = reader === "admin";
+  if (test.state === "none") {
+    return admin ? "Send yourself a test before you publish." : "An admin sends themselves a test before publishing.";
+  }
   const sent = test.when ? `Test sent to ${test.who ?? "you"} at ${test.when}.` : `Test sent to ${test.who ?? "you"}.`;
   if (test.state === "stale") {
-    return `${sent} The wording changed in Email designs since, so send yourself another before you publish.`;
+    return admin
+      ? `${sent} The wording changed in Email designs since, so send yourself another before you publish.`
+      : `${sent} The wording changed in Email designs since, so an admin sends another before publishing.`;
   }
   return sent;
 }

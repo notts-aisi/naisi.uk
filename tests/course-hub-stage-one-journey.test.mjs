@@ -1656,15 +1656,17 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.equal(p().mailedByTheUntestedPress, 0);
     });
 
-    test("the run's track lead is told the run is an admin's or its programme's lead's; that lead is shown Publish as an admin is", () => {
-      const WHO =
-        "This run’s people came from the application form, so only an admin or its programme’s lead can publish it or send its test.";
+    test("the run's track lead is told only an admin publishes, and is shown none of the form's people; that lead is shown Publish's count as an admin is", () => {
+      // CHANGED ON PURPOSE (November 2026): only an admin publishes, so the
+      // track lead is refused in Publish's own sentence, before the rows are
+      // read, rather than the one about the form's people.
+      const WHO = "Only an admin publishes. Ask an admin when the groups are ready.";
       assert.deepEqual(short(p().trackLeadTests), [403, WHO]);
       assert.deepEqual(short(p().trackLeadPresses), [403, WHO]);
       assert.equal(p().trackLeadSummary.adminOnly, true);
       // The programme's lead is on the run through her programme, not its
       // track leads: she is served every row it holds, so her board's Publish
-      // is the admin's, count, test and all.
+      // count is the admin's, count, test and all (an admin presses it).
       assert.deepEqual(p().leadSummary, p().before);
     });
 
