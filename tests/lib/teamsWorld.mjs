@@ -38,8 +38,11 @@
  * handed: no message can leave this process. Stylesheets are their own class
  * names.
  */
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
+import { walkSource } from "./functionScan.mjs";
 import { FIELD_VALUE_STUB, makeDb } from "./applicationsStore.mjs";
 import { GRID, session, userDoc } from "./applicationsSmallTerm.mjs";
 import { courseView } from "./courseRunStore.mjs";
@@ -327,7 +330,26 @@ const STYLESHEETS = [
   // The Teams tab's Hand-ins section, from the team pages (src/features/courses/team/).
   "./team.module.css",
   "@/features/courses/team/team.module.css",
+  // Groups, Pitches, with pitching week's settings above the pitches.
+  "./ProgrammePitches.module.css",
+  "./PitchingWeekCard.module.css",
+  "./GroupsViews.module.css",
+  "./Input.module.css",
 ];
+
+/**
+ * Every stylesheet any file under `src` imports, by the specifier it is
+ * imported by, so a page drawn here (Groups, Pitches and its views among
+ * them) finds each as its own class names.
+ */
+function everyStylesheet() {
+  const src = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "src");
+  const found = new Set();
+  for (const file of walkSource(src)) {
+    for (const [, specifier] of readFileSync(file, "utf8").matchAll(/from\s+"([^"]+\.module\.css)"/g)) found.add(specifier);
+  }
+  return [...found];
+}
 
 /**
  * A world, its loaders, its routes and the way to make a request in it. `key`
@@ -397,7 +419,7 @@ export async function makeTeamsWorld(key = "__teams") {
           "}\n" +
           "export function NoProgrammeHere() { return h('section', { 'data-refusal': '' }, 'There is no programme here'); }",
       ],
-      ...STYLESHEETS.map((path) => [path, CLASS_NAMES]),
+      ...[...new Set([...STYLESHEETS, ...everyStylesheet()])].map((path) => [path, CLASS_NAMES]),
     ]),
   });
 
