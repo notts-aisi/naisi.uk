@@ -328,8 +328,8 @@ export function peopleSeed(over = {}) {
  * the clock), the join's routes (hand-over, placements, Publish, replies),
  * and the People page and the tabs' layout.
  */
-export async function makePeopleWorld(key = "__peopleWorld") {
-  const made = await makeFacilitatorPagesWorld(key);
+export async function makePeopleWorld(key = "__peopleWorld", extraStubs = []) {
+  const made = await makeFacilitatorPagesWorld(key, extraStubs);
   const join = await loadJoin(made);
   const TABS = ["app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)"];
   const peoplePageModule = await made.loadTs([...TABS, "people", "page.tsx"].join("/"));

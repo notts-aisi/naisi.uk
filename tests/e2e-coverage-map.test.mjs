@@ -656,7 +656,7 @@ const NOT_COVERED = {
     reason:
       "Circles' arranging reading the run's groups, which an admin opens with Suggest groups on People in groups shown as Rings, and again after a change. It writes nothing; who may read it, who is on the screen and that a second Apply sends nothing are executed by tests/applications-circles.test.mjs, and that the lead is never offered it by tests/course-hub-board-rings.test.mjs.",
     coverWhen:
-      "With the Rings spec (scripts/e2e-fixtures/course-hub-board-rings.mjs) once it is verified and drives Suggest groups, which asks the arrangement route, once the harness can stand in for Anthropic.",
+      "When the Rings spec (scripts/e2e-fixtures/course-hub-board-rings.mjs) is verified and also drives an admin's Suggest groups, which reads this route and asks the arrangement route for a suggestion without Claude.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/panel": {
     reason:

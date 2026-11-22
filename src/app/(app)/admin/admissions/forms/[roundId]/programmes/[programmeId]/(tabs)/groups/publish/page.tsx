@@ -80,6 +80,7 @@ export default async function ProgrammePublishPage({
           roundId={view.roundId}
           programmeId={view.programmeId}
           admin={user.role === "admin"}
+          show={boardShowOf(query?.show)}
         />
       ) : null}
       <PublishGroups runId={view.run.id} follows={follows} admin={user.role === "admin"} />

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { groupPagePath } from "@/lib/courses/groupPage/words";
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -716,6 +716,24 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
     panelRead.retry();
   }, [reload, panelRead]);
 
+  // Shown as Columns while an admin's arranging is open (the toolbar's
+  // Columns, or the browser's Back): the page stays mounted across the
+  // address's change, so the arranging is closed here, and whatever it
+  // saved (an Apply included) is read again, the board and everybody's week,
+  // exactly as "Back to the rings" reads them.
+  const [owedReads, setOwedReads] = useState(0);
+  if (arranging !== null && !rings) {
+    setArranging(null);
+    setOwedReads((n) => n + 1);
+  }
+  const retryPanel = panelRead.retry;
+  useEffect(() => {
+    if (owedReads > 0) {
+      reload();
+      retryPanel();
+    }
+  }, [owedReads, reload, retryPanel]);
+
   // -------------------------------------------------------------------------
   // Dragging, for a pointer
   // -------------------------------------------------------------------------
@@ -931,10 +949,7 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
   const noGroupsCard = (
     <section className={`${shared.card} ${styles.noGroups}`}>
       <p className={shared.cardNote}>{words.NO_GROUPS}</p>
-      <Link
-        href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/times`}
-        className={shared.btn}
-      >
+      <Link href={withShow(`${boardHref}/times`, show)} className={shared.btn}>
         {words.GO_TO_TIMES}
       </Link>
     </section>
@@ -968,6 +983,8 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
       }}
       onClose={closePanel}
       rings={rings}
+      runId={runId}
+      onAnswerChanged={onAnswerChanged}
     />
   ) : null;
 
@@ -1260,8 +1277,7 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
             </div>
           )}
 
-          {/* On Rings the legend under the rings says what each mark means, as Circles' did. */}
-          {rings ? null : (
+          {/* Under the legend on Rings too: the board is used mid-term, and who a move tells is said here. */}
           <p className={styles.footnote}>
             <span className={styles.footnoteIcon} aria-hidden="true">
               <InfoIcon size={16} />
@@ -1276,7 +1292,6 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
                   : words.BEFORE_PUBLISH_LEAD}
             </span>
           </p>
-          )}
         </div>
         {panel}
       </div>

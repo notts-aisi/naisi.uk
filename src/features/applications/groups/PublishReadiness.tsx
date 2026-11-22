@@ -11,6 +11,7 @@ import {
   WORTH_LINE_LEAD,
   WORTH_TITLE,
 } from "@/lib/courses/getReady/words";
+import { withShow, type BoardShow } from "./boardShow";
 import styles from "./PublishGroups.module.css";
 
 /**
@@ -61,7 +62,7 @@ function Mark({ state }: { state: ReadyItem["state"] }) {
   );
 }
 
-function Item({ item, roundId, programmeId }: { item: ReadyItem; roundId: string; programmeId: string }) {
+function Item({ item, roundId, programmeId, show }: { item: ReadyItem; roundId: string; programmeId: string; show?: BoardShow }) {
   const round = encodeURIComponent(roundId);
   const programme = encodeURIComponent(programmeId);
   return (
@@ -77,7 +78,7 @@ function Item({ item, roundId, programmeId }: { item: ReadyItem; roundId: string
                 <OverviewMarkReady runId={item.markReady.runId} weekId={item.markReady.weekId} ready={false} />
               ) : null}
               {item.link?.to === "groups" ? (
-                <Link href={`/admin/admissions/forms/${round}/programmes/${programme}/groups`} className={styles.itemButton}>
+                <Link href={withShow(`/admin/admissions/forms/${round}/programmes/${programme}/groups`, show)} className={styles.itemButton}>
                   {item.link.label}
                 </Link>
               ) : item.link?.to === "week-one" ? (
@@ -98,12 +99,15 @@ export default function PublishReadiness({
   roundId,
   programmeId,
   admin,
+  show,
 }: {
   model: ReadinessModel;
   roundId: string;
   programmeId: string;
   /** An admin is looking, as the server page decided from the session. */
   admin: boolean;
+  /** How People in groups was shown when Publish was opened from it: its way back keeps it. */
+  show?: BoardShow;
 }) {
   return (
     <section className={styles.card} aria-labelledby="publish-ready-title">
@@ -126,7 +130,7 @@ export default function PublishReadiness({
       </div>
       <ul className={styles.items}>
         {model.needed.map((item) => (
-          <Item key={item.key} item={item} roundId={roundId} programmeId={programmeId} />
+          <Item key={item.key} item={item} roundId={roundId} programmeId={programmeId} show={show} />
         ))}
       </ul>
       {model.worth.length > 0 ? (
@@ -137,7 +141,7 @@ export default function PublishReadiness({
           </div>
           <ul className={styles.items}>
             {model.worth.map((item) => (
-              <Item key={item.key} item={item} roundId={roundId} programmeId={programmeId} />
+              <Item key={item.key} item={item} roundId={roundId} programmeId={programmeId} show={show} />
             ))}
           </ul>
         </>

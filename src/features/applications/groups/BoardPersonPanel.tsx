@@ -25,7 +25,9 @@ import {
 } from "@/lib/courses/personPage/words";
 import type { BoardPanelRead } from "./useBoardPanel";
 import styles from "./BoardPersonPanel.module.css";
-import { POOL } from "./peopleInGroupsBoard";
+import SomeWeeks from "@/features/courses/timeAnswer/SomeWeeks";
+import { WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
+import { POOL, answerLinesOf } from "./peopleInGroupsBoard";
 import * as words from "./peopleInGroupsWords";
 
 /**
@@ -81,6 +83,10 @@ type Props = {
   onClose: () => void;
   /** People in groups is shown as Rings, so a ring, not a column, is where a person is moved. */
   rings?: boolean;
+  /** The run, for "They meant some weeks" under a can't, as on the card. */
+  runId?: string;
+  /** "They meant some weeks" saved: the board is read again. */
+  onAnswerChanged?: (message: string) => void;
 };
 
 const pct = (value: number) => `${value}%`;
@@ -192,6 +198,8 @@ export default function BoardPersonPanel({
   onStopFacilitating,
   onClose,
   rings = false,
+  runId,
+  onAnswerChanged,
 }: Props) {
   const uid = subject.kind === "row" ? subject.row.uid : subject.uid;
   const person: PanelPerson | null = (read.panel ? own(read.panel.people, uid) : undefined) ?? null;
@@ -208,6 +216,8 @@ export default function BoardPersonPanel({
   const movable = row !== null && !pinned;
   const current = subject.kind === "row" && subject.columnId !== POOL ? subject.columnId : null;
   const pick = movable ? (key: string) => onMove(key) : null;
+  // Their answer about the group they sit in, as the card has it.
+  const answer = row && current ? answerLinesOf(row, columnName(current)) : null;
   // From the application form, and its application gone: the card says so too.
   const goneFromForm = row?.fromForm?.availability === "not-on-file";
   const week: DrawnWeek | null =
@@ -361,6 +371,27 @@ export default function BoardPersonPanel({
         ) : null}
 
         {(movable || subject.kind === "facilitator") && whenFree()}
+
+        {/* Their answer about the group they sit in, from the row the board was sent: the card's own, for the same readers. */}
+        {answer ? (
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>{answer.title}</h3>
+            <p className={styles.text}>{answer.said}</p>
+            {answer.why ? (
+              <p className={styles.text}>
+                <strong>{WHY}</strong> {answer.why}
+              </p>
+            ) : null}
+            {answer.wouldWork ? (
+              <p className={styles.text}>
+                <strong>{WOULD_WORK}</strong> {answer.wouldWork}
+              </p>
+            ) : null}
+            {answer.cant && runId && row && onAnswerChanged ? (
+              <SomeWeeks runId={runId} uid={row.uid} disabled={busy} onSaved={onAnswerChanged} />
+            ) : null}
+          </section>
+        ) : null}
 
         {/* Only under a chart they can be moved from: nothing marked, a week this reader may not see, or none read yet, has no group to pick on it. */}
         {movable && subject.kind === "row" && rings && week?.kind === "given" ? (

@@ -3,6 +3,7 @@ import { cardFit, facilitatedGroupOf, facilitatesWords } from "@/features/course
 import type { AllocGroup, AllocRow } from "@/features/courses/useAllocation";
 import { movedCardWords } from "@/lib/courses/moveWords";
 import { weekOfSessionKey } from "@/lib/courses/timeAnswer/model";
+import { mostWeeksWords, theirAnswerWords } from "@/lib/courses/personPage/words";
 import { MARK_CANT_MAKE, MARK_CAN_MAKE, mostWeeksMark } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
 
@@ -141,4 +142,33 @@ export function menuOptions(
       .map((group) => ({ value: group.id, label: words.moveOptionWords(group.name, seatedIn(group.id), group.capacity) })),
     ...(row.enrolmentStatus === "active" ? [{ value: TAKE_OFF, label: words.TAKE_OFF }] : []),
   ];
+}
+
+/**
+ * Their answer about the group they sit in, as the person's panel says it, in
+ * the words a person's page uses ("Their answer about Group C’s time", "Can
+ * make most weeks · Misses week 3", their why and what would work). Read off
+ * the row the allocation route sent this reader, which carries the answer for
+ * an admin and the programme's lead alone, exactly as the card reads it; null
+ * with no answer, or for somebody in no group.
+ */
+export function answerLinesOf(
+  row: Pick<AllocRow, "timeAnswer">,
+  groupName: string | null,
+): { title: string; said: string; why: string | null; wouldWork: string | null; cant: boolean } | null {
+  const answer = row.timeAnswer;
+  if (!answer || !groupName) return null;
+  const said =
+    answer.kind === "mostWeeks"
+      ? mostWeeksWords(answer.sessionKeys.length > 0 ? mostWeeksMark(answer.sessionKeys.map(weekOfSessionKey)) : null)
+      : answer.kind === "yes"
+        ? MARK_CAN_MAKE
+        : MARK_CANT_MAKE;
+  return {
+    title: theirAnswerWords(groupName),
+    said,
+    why: answer.kind !== "yes" && answer.reason ? answer.reason : null,
+    wouldWork: answer.kind !== "yes" && answer.alternatives ? answer.alternatives : null,
+    cant: answer.kind === "cant",
+  };
 }

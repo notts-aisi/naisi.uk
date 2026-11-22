@@ -375,5 +375,5 @@ export const A_GROUP = "a group";
 
 export const TIMES_LINK_TITLE = "Arrange groups";
 export const TIMES_LINK =
-  "Rings, on People in groups, draws each group as a ring with its people, each person’s week against the groups’ times, and suggestions with or without Claude over the groups as they are.";
+  "People in groups shown as Rings draws each group as a ring with its people, and Suggest groups there arranges them, with or without Claude.";
 export const TIMES_LINK_ACTION = "Show as Rings";

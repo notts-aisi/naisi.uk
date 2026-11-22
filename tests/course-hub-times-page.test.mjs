@@ -221,7 +221,7 @@ describe("the Groups tab is the lead's and an admin's, decided before anybody is
   test("an admin is pointed to People in groups shown as Rings under the picture, where groups are arranged", async () => {
     const drawn = await draw("zach");
     assert.match(drawn.text, /Arrange groups/);
-    assert.match(drawn.text, /Rings, on People in groups, draws each group as a ring with its people/);
+    assert.match(drawn.text, /People in groups shown as Rings draws each group as a ring with its people, and Suggest groups there arranges them, with or without Claude\./);
     assert.match(drawn.html, new RegExp(`<a href="${PAGE_PATH}/groups\\?show=rings"[^>]*>Show as Rings</a>`));
     assert.doesNotMatch(drawn.html, /groups\/circles/, "the Times view still leads to Circles' old address");
     // The rings themselves are on People in groups: nothing here suggests or applies.
