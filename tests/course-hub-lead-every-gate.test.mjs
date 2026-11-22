@@ -60,7 +60,7 @@ const NOT_A_RUN_GATE = {
   "app/api/courses/me/route.ts":
     "the member area's own list of runs and the doors on them: it asks whether the caller stands as a track lead at all, to draw a door, and grants nothing on a run. A programme's lead reaches their run from the programme's page",
   "app/api/courses/[courseId]/templates/route.ts":
-    "a course's saved templates, read by the run editor's picker for a track lead of any run of the course: a course-level read for the run editor, which a programme's lead is not given",
+    "a course's saved templates, a course-level LIST for any run's track lead and, for the run their programme names (`?runId=`, `programmeLedBy`), the programme's lead: it grants a read of the list and nothing on a run. Copying one in is the apply route's, which asks the lead from the forms",
   "app/api/courses/runs/[runId]/overview/route.ts":
     "the member's run overview, which admits a learner, a facilitator or an admin and no track lead: it reports whether the caller is one in its access block, and grants nothing for it",
   "lib/courses/sessionChange/view.ts":

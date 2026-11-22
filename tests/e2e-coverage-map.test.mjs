@@ -1112,7 +1112,7 @@ const NOT_COVERED = {
   },
   "/api/courses/[courseId]/templates": {
     reason:
-      "Courses: /api/courses/[courseId]/templates is staff-facing, taken deliberately, and answered on the screen that called it.",
+      "Courses: /api/courses/[courseId]/templates is staff-facing, taken deliberately, and answered on the screen that called it. Listed and saved from the Weeks tab's copy page as well: every caller, the programme's lead's list for the run their programme names, and that a saved template holds nobody's work are executed by tests/course-hub-weeks-templates.test.mjs.",
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
@@ -1235,7 +1235,7 @@ const NOT_COVERED = {
   },
   "/api/courses/runs/[runId]/apply-template": {
     reason:
-      "Courses: /api/courses/runs/[runId]/apply-template is staff-facing, taken deliberately, and answered on the screen that called it.",
+      "Courses: /api/courses/runs/[runId]/apply-template is staff-facing, taken deliberately, and answered on the screen that called it. Its fill, which the Weeks tab's copy page always asks for and the programme's lead may: every caller, an empty run, written, titled-only and group-copied weeks left as they are, a started run, a longer template and the same copy twice are executed by tests/course-hub-weeks-templates.test.mjs.",
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
@@ -1437,7 +1437,7 @@ const NOT_COVERED = {
   },
   "/api/courses/templates/[templateId]": {
     reason:
-      "Courses: /api/courses/templates/[templateId] is staff-facing, taken deliberately, and answered on the screen that called it.",
+      "Courses: /api/courses/templates/[templateId] is staff-facing, taken deliberately, and answered on the screen that called it. Deleted from the Weeks tab's copy page by an admin: every other caller refused, and a run made from the template keeping its weeks, are executed by tests/course-hub-weeks-templates.test.mjs.",
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
@@ -2037,7 +2037,7 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": {
     reason:
-      "Course hub: Copy weeks from the course, a page of the Weeks tab; its every caller and the copy it sends (never an overwrite) are executed by tests/course-hub-weeks-tab.test.mjs.",
+      "Course hub: Copy weeks from the course, a page of the Weeks tab; its every caller and the copy it sends (never an overwrite) are executed by tests/course-hub-weeks-tab.test.mjs, and its saved templates (listed, copied into empty weeks only, saved and deleted by admins) by tests/course-hub-weeks-templates.test.mjs.",
     coverWhen:
       "When a course has two runs on dev and a browser spec copies one's weeks into the other as its programme's lead.",
   },
@@ -2223,6 +2223,12 @@ const NOT_COVERED = {
       "Course hub: an incubator team's one hand-in; the tick, the 200 words, the due day's 23:59 and every caller are executed by tests/course-hub-team-page-routes.test.mjs; handed in on the preview kit before and after the deadline.",
     coverWhen:
       "When the incubator's browser spec can seed a run whose hand-in is due, and a person in a team hands in for it.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/pitching-week": {
+    reason:
+      "Course hub: pitching week's settings, saved from the card on a programme's Groups, Pitches by its lead or an admin; every caller, every field's check, the stored fields, a save with teams made and each kind of programme are executed by tests/course-hub-pitching-week-settings.test.mjs.",
+    coverWhen:
+      "When the incubator's browser spec sets pitching week's settings on Pitches before anybody pitches, in place of the seed that writes them today.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/hand-in": {
     reason:

@@ -2711,7 +2711,10 @@ knows.
 copies, from another run (`clone-weeks`) and from a saved template
 (`apply-template`), refuse to replace a run's weeks once anybody has started
 the run (any `courseProgress` or `courseExerciseResponses` row with its id),
-counted in the transaction that writes. The copy from another run says
+counted in the transaction that writes. The Weeks tab's copy page never
+asks either to replace: "Copy its weeks" copies only the weeks the run has
+no page for, and "Copy it in" (a saved template) only the weeks that are
+empty (docs/course-weeks.md, "Saved templates"). The copy from another run says
 "People have started this run, so copying in can’t replace its weeks. Copy
 into empty weeks only.", and copying into weeks the run does not have goes
 on. The run page counts the same rows on the server and shows the sentence
@@ -6871,12 +6874,19 @@ programme's Teams tab (see Teams, below). The code is
    or team is on the run it refuses to untick pitching week or tick another
    ("Pitches or teams are on this run already, so pitching week can’t be
    moved or unticked."), because every pitch and pick is read by that week.
-2. **Set the run's numbers**, in that Pitching week section of the run
-   editor: how many pitches a person may pick, the smallest and largest a
-   team may be, and the day the teams are made. Each is blank until somebody
-   types it, and nothing stands in for a blank one: the sentence it would
-   fill is left out. With no pick limit, people can pitch and nobody can
-   pick.
+2. **Set the run's numbers** in pitching week's settings, the card at the
+   top of the programme's Groups, Pitches, by the programme's lead or an
+   admin (`PUT /api/admissions/forms/[roundId]/programmes/[programmeId]/pitching-week`,
+   `src/lib/applications/handover/pitchingWeekSave.ts`): how many pitches
+   each person may pick, the smallest and largest a team may be, and the day
+   the teams are made. The card names the week and the day of its first
+   session. Each is blank until somebody types it, and nothing stands in for
+   a blank one: the sentence it would fill is left out. With no pick limit,
+   people can pitch and nobody can pick. The run editor's Pitching week
+   section writes the same fields and stays, as it was, for whoever may edit
+   the run there. Pitches is offered on Groups for every incubator, and for
+   any other run once it has a pitching week; a programme with no teams is
+   offered only the pick limit.
 3. **Publish the week.** Pitching opens to a group once the ticked week is
    published, and closes, for each group, at the start of that group's
    session in that week, from the group's own calendar: a group that meets
@@ -7082,13 +7092,20 @@ the email); the agenda's answers are read by
 
 ### Setting it up
 
-In the run editor's **Pitching week** section, by whoever may edit the run
-(an admin, a course approver, the run's drafter or its track lead; a
-programme's lead who is none of these asks an admin):
+In pitching week's settings on the programme's Groups, Pitches, by the
+programme's lead or an admin (the run editor's **Pitching week** section
+sets the same fields, for whoever may edit the run there). An incubator
+whose teams are made from the agenda has no pitching week, and the card says
+so; its sizes and day are set there all the same. The Teams tab, before
+teams are made, says when and from what they are made and offers Go to
+Pitches.
 
 1. **Teams are made from**: the pitches from pitching week, or the agenda
    people ranked on the application form. It has no default, and the Teams
-   tab makes no team until it is set.
+   tab makes no team until it is set. Once the run has any team, it cannot
+   change from Pitches: the Teams tab draws the teams through the way they
+   were made, and another way, or none, would hide them. The sizes and the
+   day can still change, and a team already made keeps its people.
 2. **Smallest team** and **Largest team**: teams are made within them. With
    no sizes set, nothing is made.
 3. **Teams are made on**: the day the teams are due. The programme's head

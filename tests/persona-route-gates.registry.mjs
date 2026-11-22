@@ -1603,6 +1603,17 @@ export const ROUTES = {
         "body arrives; a reviewer is refused and anybody with no role on it is told the programme is not there.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/pitching-week": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is read " +
+        "(every one of pitching week's settings, each a value or null), so every signed-in persona meets the " +
+        "same 400 on an empty one. Who may save them (the programme's lead or an admin) is decided from the " +
+        "form once a valid body arrives; a reviewer is refused and anybody with no role on it is told the " +
+        "programme is not there.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates": {
     POST: {
       expect: signedIn(400),
@@ -2200,7 +2211,8 @@ export const ROUTES = {
       fields: ["templates"],
       why:
         "Course authors (admin, draftCourse, approveCourse) read a course's templates; the " +
-        "list is empty here, everyone else is forbidden.",
+        "list is empty here, everyone else is forbidden. The lead of the programme that names a run " +
+        "of the course reads it too when the query names that run, which the battery's request does not.",
     },
   },
   "/api/courses/calendar": {
@@ -3064,7 +3076,8 @@ export const ROUTES = {
       expect: adminOnly(400, { approveCourse: 400 }),
       why:
         "Course authors (admin or approveCourse) meet the validation; everyone else is " +
-        "forbidden before the body is read.",
+        "forbidden before the body is read. The lead of the programme that names the run is admitted too, " +
+        "decided from the forms, to fill its empty weeks only; the battery's run id is named by no programme.",
     },
   },
   "/api/courses/runs/[runId]/archive": {
@@ -7055,6 +7068,9 @@ export const REAL_ROUTES = {
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {
     POST: bodyFirst("An incubator's lead or an admin make its teams, decided from the form."),
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/pitching-week": {
+    PUT: bodyFirst("Then the programme's lead or an admin, decided from the form."),
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates": {
     POST: bodyFirst("The role comes from the form once a valid body arrives."),
   },
@@ -7174,15 +7190,19 @@ export const REAL_ROUTES = {
   "/api/courses/[courseId]/templates": {
     POST: adminAlone("Saving a course's version", c(400, "An admin meets the body check: a version needs a label.")),
     GET: {
+      realDrive: {
+        query: "?runId={runId}",
+        why: "The programme's lead names the run their programme names: the set's own run, of the set's own course, reaches that door.",
+      },
       another: {
         anonymous: c(401, NO_SESSION),
-        "*": c(403, "Neither a course author (admin, draftCourse, approveCourse) nor a track lead of one of its runs."),
+        "*": c(403, "Neither a course author (admin, draftCourse, approveCourse), a track lead of one of its runs, nor the lead of the programme that names the run asked about."),
         admin: c(200, "An admin reads a course's saved versions."),
         draftCourse: c(200, "A course drafter reads any course's saved versions."),
         approveCourse: c(200, "A course approver reads any course's saved versions."),
       },
       theirs: {
-        lead: c(403, "A programme's lead is not a track lead of the run: the saved versions are the course authors' and track leads'."),
+        lead: c(200, "Leads the programme that names the run asked about, a run of this course, so reads its saved templates to copy one in from the Weeks tab."),
         facilitator: c(403, "Facilitating gives no sight of the course's saved versions."),
         participant: c(403, "Holding a place gives no sight of the course's saved versions."),
       },
@@ -7817,7 +7837,19 @@ export const REAL_ROUTES = {
     },
   },
   "/api/courses/runs/[runId]/apply-template": {
-    POST: courseApprovers("Applying a saved version to a run", c(400, "An approver meets the body check: no version chosen.")),
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither a course approver (an admin or an approveCourse holder) nor the lead of the programme that names the run: refused before anything of the run is read."),
+        admin: c(400, "An approver meets the body check: no version chosen."),
+        approveCourse: c(400, "An approver meets the body check: no version chosen."),
+      },
+      theirs: {
+        lead: c(400, "Leads the programme that names the run, so admitted (to copy a saved template into its empty weeks only), and meets the body check: no version chosen."),
+        facilitator: c(403, "Facilitating a group gives no say here: copying a saved template in is a course approver's or the programme's lead's."),
+        participant: c(403, "Holding a place gives no say here: copying a saved template in is a course approver's or the programme's lead's."),
+      },
+    },
   },
   "/api/courses/runs/[runId]/archive": {
     PATCH: courseApprovers("Archiving a run", c(400, "An approver meets the body check: archived must be true or false.")),

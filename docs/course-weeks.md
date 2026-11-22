@@ -587,7 +587,7 @@ editor under `/admin/courses` stays an admin's.
 | `(tabs)/weeks/page.tsx` | Each week of the run's plan: Ready, Draft or Empty, its first session, the day it should be ready by and its owner |
 | `(tabs)/weeks/[weekId]/page.tsx` | One week's page: paste and check, its settings, Preview as a fellow, Mark ready, and the week for one group |
 | `(tabs)/weeks/[weekId]/preview/page.tsx` | The week as a fellow reads it, drawn by the member's own week page with nothing that can be pressed |
-| `(tabs)/weeks/copy/page.tsx` | Copy weeks from another run of the course |
+| `(tabs)/weeks/copy/page.tsx` | Copy weeks from another run of the course, or from a saved template; save this term's weeks as one (admins) |
 | `(tabs)/weeks/[weekId]/review/page.tsx` | The week's review, an admin's alone, from the week's first session (docs/courses-ops.md, "The week review"); each row of the tab says Review to an admin and "Review: admins only" to the lead |
 | `(tabs)/weeks/[weekId]/review/explainer/page.tsx` | Schedule an explainer from the week's review, an admin's alone (docs/courses-ops.md, "Explainers"); the week's page lists the explainers scheduled from its review to the lead and admins |
 | `(tabs)/weeks/[weekId]/notes/page.tsx` | The week's notes about people, from the week's first session (docs/courses-ops.md, "End-of-week notes"): an admin's drafts and saved notes, and the saved notes kept for leads to the lead; each row of the tab says Notes beside Review to both |
@@ -738,6 +738,44 @@ programme names keeps that builder as it was.
   On a run a programme names its sentence sends the reader to the Weeks tab's
   "Match the plan to the pages".
 
+### Saved templates
+
+"Copy weeks from the course" lists the course's saved templates beside its
+other runs (`src/lib/courses/weeksTab/templates.ts`), each with who saved it,
+the day, and its count of weeks. Its first sentence is the promise both
+copies on the page keep: "Copying fills weeks that are empty. A week with
+anything in it is left as it is."
+
+- **Who.** The programme's lead and admins see the list and Copy it in.
+  Delete… (with its question) and "Save this term's weeks as a template" are
+  an admin's, and so are their routes. `GET /api/courses/[courseId]/templates`
+  admits the lead for the run their programme names (`?runId=`), beside the
+  course's authors and its runs' track leads.
+- **Copy it in** is always `POST .../runs/[runId]/apply-template` with
+  `fill: true` (`src/lib/courses/weeksTab/fill.ts`), and the lead may ask for
+  nothing else: the older Replace stays an admin's and an approver's, in the
+  run editor, as it was. A fill writes week N only where week N is a week of
+  the run's plan and is EMPTY: the run has no page at `wNN`, or the page
+  holds nothing but its number and when and by whom it was last written
+  (every other field an empty string, list or map, null, false or 0), and no
+  group of the run has its own copy of it. A week with a title alone, a
+  summary, a question, blocks, readings, published, ready, pitching week or
+  an owner is left as it is. It deletes nothing, never touches the week
+  plan, writes each week unpublished (Mark ready publishes it), and puts the
+  template's Start here and Glossary on the run only where it has none. A
+  template's week past the run's last week is not copied, and "Copied N
+  weeks in" counts only what was written. Somebody having started the run
+  does not stop it, because nothing they have done is in an empty week.
+- **What a template holds.** Each week's blocks (or, for an older week, its
+  readings, exercises, checklist and guide prose), title, summary, questions
+  and minutes, at the week ids it was saved from, the run's Start here and
+  Glossary, and three counts about the cohort (`TemplateRetrospective`). No
+  week plan, so no breaks; not a week's pitching week, owner, way it meets
+  or Ready; and nobody's work or note (the one person it names is the admin
+  who saved it).
+- **Deleting one** deletes the template and its weeks only. A run made from
+  it keeps its weeks, and its `templateLabel` still says which it was.
+
 ### Not built, on purpose
 
 - **An "Add a block" editor** (write a week block by block, no
@@ -749,4 +787,4 @@ programme names keeps that builder as it was.
   found, the things to check and Preview as a fellow.
 - **A course's own weeks.** A course holds none yet, so "Copy weeks from the
   course" copies another run's, through the copy route the run editor uses,
-  never overwriting a week the run has.
+  never overwriting a week the run has, or a saved template's (below).

@@ -410,6 +410,7 @@ test(
     const programmePathOnSite = `/admin/admissions/forms/${enc(state.formId)}/programmes/${enc(state.programmeId)}`;
     const setupUrl = `${formBase}/setup`;
     const pitchesUrl = `${formBase}/groups/pitches`;
+    const pitchesPathOnSite = `${programmePathOnSite}/groups/pitches`;
     const learnPath = `/learn/${enc(state.runId)}`;
     const pitchingUrl = `${origin}${learnPath}/pitching`;
     const pitchingApi = `/api/courses/runs/${enc(state.runId)}/pitching`;
@@ -1076,6 +1077,10 @@ test(
           "page",
           "the Groups tab's views do not say this is Pitches",
         );
+        // Pitching week's settings sit above the pitches, naming the week.
+        const card = adminPage.getByRole("region", { name: "Pitching week", exact: true });
+        await card.getByText(new RegExp(`^Week ${pitching.weekNumber}( · |$)`)).waitFor({ timeout: WAIT_MS });
+        await card.getByRole("button", { name: "Save pitching week", exact: true }).waitFor({ timeout: WAIT_MS });
         const region = adminPage.getByRole("region", { name: `Pitches from week ${pitching.weekNumber} (${sent.length})`, exact: true });
         await region.waitFor({ timeout: WAIT_MS });
         const items = region.getByRole("listitem");
@@ -1112,9 +1117,16 @@ test(
 
         assert.deepEqual(await readTeamPitches(), teamPitchesNow(), "the Teams tab's pitches, before any team");
         assert.deepEqual(await readTeamCards(), teamCardsNow(), "the Teams tab's teams, before any team");
+        // Before teams are made the tab says when and from what, and where
+        // pitching week's settings are set (Groups, Pitches).
         await teamsRegion()
-          .getByText("No teams yet. Make a pitch a team with its Make it a team.", { exact: true })
+          .getByText(`No teams yet. They’re made on ${teamsMadeOnDay} from the pitches people pick. Pitching week’s settings are on Groups, Pitches.`, { exact: true })
           .waitFor({ timeout: WAIT_MS });
+        assert.equal(
+          await teamsRegion().getByRole("link", { name: "Go to Pitches", exact: true }).getAttribute("href"),
+          pitchesPathOnSite,
+          "Go to Pitches does not lead to Pitches",
+        );
         for (const name of ["Send a test to me", "Tell everyone their team"]) {
           assert.equal(
             await adminPage.getByRole("button", { name, exact: true }).isDisabled(),
