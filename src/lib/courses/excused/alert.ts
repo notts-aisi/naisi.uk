@@ -101,10 +101,15 @@ export type RequestAlertOutcome = { sent: number; failed: number; skipped: numbe
  * link, to every admin except the person asking and except an admin whose
  * own switch (`which`) is off. Never throws; returns counts. Through the
  * door of requests to be excused (`sendExcusedEmail`, audience admin).
+ *
+ * `namesNobody` is for an alert that must not say who asked (a message about
+ * access needs): the person asking is still left out of the recipients, and
+ * the send's row in the email log, which outlives the account, carries no
+ * actor, so nothing kept after the email ties the alert to a person.
  */
 export async function emailAdminsWords(
   db: Firestore,
-  input: { runId: string; askerUid: string; words: ExcusedEmailWords; link: string; which?: RequestEmailSwitch },
+  input: { runId: string; askerUid: string; words: ExcusedEmailWords; link: string; which?: RequestEmailSwitch; namesNobody?: boolean },
 ): Promise<RequestAlertOutcome> {
   const done: RequestAlertOutcome = { sent: 0, failed: 0, skipped: 0 };
   const which = input.which ?? "excused";
@@ -122,7 +127,7 @@ export async function emailAdminsWords(
       const outcome: ExcusedEmailOutcome = await sendExcusedEmail({
         to: email,
         name: (own.goBy ?? "").split(/\s+/)[0] ?? "",
-        actorUid: input.askerUid,
+        actorUid: input.namesNobody ? undefined : input.askerUid,
         runId: input.runId,
         audience: "admin",
         link: input.link,
