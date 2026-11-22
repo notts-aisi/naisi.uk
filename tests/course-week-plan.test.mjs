@@ -243,7 +243,7 @@ describe("2. each change keeps every week at its number's address", () => {
 
   test("Remove a week with only a title: its page goes, and every later week moves up with its own", async () => {
     const four = world.db.read(weekPath("w04"));
-    const answer = await step("claudia", { action: "remove", index: 2 });
+    const answer = await step("claudia", { action: "remove-entry", index: 2 });
     assert.deepEqual(answer.body, { ok: true, message: "Week 3 removed." });
     assert.equal(plan().length, 5);
     canonical();
@@ -255,9 +255,9 @@ describe("2. each change keeps every week at its number's address", () => {
   test("Remove the last week with no page, and a break: nothing is deleted", async () => {
     await step("claudia", { action: "add-break", afterWeek: 3, label: "Reading week" });
     const before = world.db.paths().filter((path) => path.includes("/weeks/")).sort();
-    let answer = await step("claudia", { action: "remove", index: 3 });
+    let answer = await step("claudia", { action: "remove-entry", index: 3 });
     assert.deepEqual(answer.body, { ok: true, message: "Reading week removed." });
-    answer = await step("claudia", { action: "remove", index: 5 });
+    answer = await step("claudia", { action: "remove-entry", index: 5 });
     assert.deepEqual(answer.body, { ok: true, message: "Week 6 removed." });
     assert.deepEqual(world.db.paths().filter((path) => path.includes("/weeks/")).sort(), before);
     assert.deepEqual(plan(), [1, 2, 3, 4, 5].map(week));
@@ -265,14 +265,14 @@ describe("2. each change keeps every week at its number's address", () => {
 
   test("a week with blocks, older material or saved versions is never removed, and nothing is written", async () => {
     const before = everything();
-    const blocks = await step("zach", { action: "remove", index: 1 });
+    const blocks = await step("zach", { action: "remove-entry", index: 1 });
     assert.deepEqual([blocks.status, blocks.body.error], [409, "Week 2 has blocks in it. Copy what you need, then remove it, or leave it and add a week."]);
     world.db.poke(weekPath("w03"), { materials: [{ id: "m1", title: "A reading" }] });
-    const older = await step("zach", { action: "remove", index: 2 });
+    const older = await step("zach", { action: "remove-entry", index: 2 });
     assert.deepEqual([older.status, older.body.error], [409, words.removeHasOlderMaterial(3)]);
     world.db.seed(weekPath("w04"), { weekNumber: 4, title: "Where it could go wrong", blocks: [] });
     world.db.seed(historyPath("w04", "s000001"), { seq: 1, kind: "paste", blocks: [] });
-    const history = await step("zach", { action: "remove", index: 3 });
+    const history = await step("zach", { action: "remove-entry", index: 3 });
     assert.deepEqual([history.status, history.body.error], [409, words.removeHasHistory(4)]);
     // The pokes and seeds above are the only differences.
     assert.notEqual(everything(), before);
@@ -306,7 +306,7 @@ describe("2. each change keeps every week at its number's address", () => {
 describe("3. weeks and breaks move or go only while nothing is kept against the run's weeks", () => {
   const RESHAPES = [
     { action: "move", index: 0, direction: "down" },
-    { action: "remove", index: 2 },
+    { action: "remove-entry", index: 2 },
   ];
   const ADDS = [{ action: "add-week" }, { action: "add-break", afterWeek: 2, label: "Reading week" }];
 
@@ -328,7 +328,7 @@ describe("3. weeks and breaks move or go only while nothing is kept against the 
     const answer = await step("claudia", { action: "move", index: 2, direction: "down" });
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
     // Once decisions have gone out, which page is week 1 stays as it is.
-    for (const body of [{ action: "move", index: 0, direction: "down" }, { action: "move", index: 1, direction: "up" }, { action: "remove", index: 0 }]) {
+    for (const body of [{ action: "move", index: 0, direction: "down" }, { action: "move", index: 1, direction: "up" }, { action: "remove-entry", index: 0 }]) {
       const held = await step("claudia", body);
       assert.deepEqual([held.status, held.body.error], [409, words.WEEK_ONE_FIXED], JSON.stringify(body));
     }
@@ -475,10 +475,10 @@ describe("4. the facilitators' guide, kept on the course by week number, never m
 
   test("a removal that renumbers a guided week, or removes one, is refused; a break and a week at the end are not", async () => {
     w.reset(quietSeed(Object.fromEntries([guide(5)])));
-    const removing = await step("claudia", { action: "remove", index: 2 });
+    const removing = await step("claudia", { action: "remove-entry", index: 2 });
     assert.deepEqual([removing.status, removing.body.error], [409, words.guideHolds(5)]);
     w.reset(quietSeed(Object.fromEntries([guide(6)])));
-    const last = await step("claudia", { action: "remove", index: 5 });
+    const last = await step("claudia", { action: "remove-entry", index: 5 });
     assert.deepEqual([last.status, last.body.error], [409, words.guideHolds(6)]);
     const guideBefore = world.db.read(guide(6)[0]);
     assert.equal((await step("claudia", { action: "add-break", afterWeek: 3, label: "Reading week" })).status, 200);
@@ -490,7 +490,7 @@ describe("4. the facilitators' guide, kept on the course by week number, never m
     w.reset(quietSeed(Object.fromEntries([guide(5), guide(6, "notes")])));
     const stored = world.db.paths().filter((path) => path.startsWith("courseFacilitatorGuide/")).sort().map((path) => [path, world.db.read(path)]);
     assert.equal((await step("claudia", { action: "move", index: 0, direction: "down" })).status, 200);
-    assert.equal((await step("claudia", { action: "remove", index: 2 })).status, 409);
+    assert.equal((await step("claudia", { action: "remove-entry", index: 2 })).status, 409);
     assert.deepEqual(world.db.paths().filter((path) => path.startsWith("courseFacilitatorGuide/")).sort().map((path) => [path, world.db.read(path)]), stored);
   });
 });
@@ -504,7 +504,7 @@ describe("5. two changes at once", () => {
     const key = keyNow();
     assert.equal((await step("zach", { action: "add-break", afterWeek: 1, label: "Reading week" })).status, 200);
     const before = everything();
-    const stale = await call("claudia", planRoute.POST, { runId: RUN.agi }, { body: { action: "remove", index: 1, planKey: key }, course: true });
+    const stale = await call("claudia", planRoute.POST, { runId: RUN.agi }, { body: { action: "remove-entry", index: 1, planKey: key }, course: true });
     assert.deepEqual([stale.status, stale.body.error], [409, words.PLAN_STALE]);
     assert.equal(everything(), before);
   });
@@ -544,7 +544,7 @@ describe("6. a plan out of step with its pages, and pages after its last week: n
     for (const control of [words.MOVE_UP, words.MOVE_DOWN, words.REMOVE_ASK, words.ADD_A_WEEK, words.ADD_A_BREAK]) {
       assert.ok(!page.text.includes(control), `${control} is offered on a plan out of step`);
     }
-    for (const body of [{ action: "add-week" }, { action: "add-break", afterWeek: 1, label: "Reading week" }, { action: "move", index: 0, direction: "down" }, { action: "remove", index: 1 }]) {
+    for (const body of [{ action: "add-week" }, { action: "add-break", afterWeek: 1, label: "Reading week" }, { action: "move", index: 0, direction: "down" }, { action: "remove-entry", index: 1 }]) {
       const answer = await step("zach", body);
       assert.deepEqual([answer.status, answer.body.error], [409, words.OUT_OF_STEP], JSON.stringify(body));
     }
@@ -581,7 +581,7 @@ describe("6. a plan out of step with its pages, and pages after its last week: n
     assert.ok(page.text.includes(words.putBackWords(4)) && page.text.includes(words.REMOVE_LEFT), page.text);
     assert.ok(page.text.includes(words.PLAN_CAN_CHANGE), page.text);
     assert.equal(handOver(), null);
-    const back = await step("zach", { action: "put-back", address: "w04" });
+    const back = await step("zach", { action: "put-back", weekId: "w04" });
     assert.deepEqual(back.body, { ok: true, message: words.putBackDoneWords(4) });
     assert.deepEqual(plan(), [week(1), week(2), week(3), week(4)]);
     assert.equal(titleAt("w04"), "Where it could go wrong");
@@ -592,7 +592,7 @@ describe("6. a plan out of step with its pages, and pages after its last week: n
   test("a left page holding only its title, with nothing kept: removed, and nothing else", async () => {
     w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [week(1), week(2), week(3)] } }));
     const before = everything();
-    const answer = await step("claudia", { action: "remove-left", address: "w04" });
+    const answer = await step("claudia", { action: "remove-left", weekId: "w04" });
     assert.deepEqual(answer.body, { ok: true, message: words.LEFT_REMOVED });
     assert.equal(world.db.read(weekPath("w04")), undefined);
     assert.equal(JSON.parse(everything()).length, JSON.parse(before).length - 1);
@@ -603,16 +603,16 @@ describe("6. a plan out of step with its pages, and pages after its last week: n
     // After week 1: w02 (blocks, saved versions), w03 and w04 (titles).
     const page = await draw("zach", TabPage, PARAMS);
     assert.ok(page.text.includes(words.leftBehindWords("How fast")), page.text);
-    const refused = await step("zach", { action: "remove-left", address: "w02" });
+    const refused = await step("zach", { action: "remove-left", weekId: "w02" });
     assert.deepEqual([refused.status, refused.body.error], [409, words.leftHoldsSomething(2)]);
-    const later = await step("zach", { action: "put-back", address: "w04" });
+    const later = await step("zach", { action: "put-back", weekId: "w04" });
     assert.deepEqual([later.status, later.body.error], [409, words.putBackEarlierFirst(2)]);
-    assert.equal((await step("zach", { action: "put-back", address: "w02" })).status, 200);
+    assert.equal((await step("zach", { action: "put-back", weekId: "w02" })).status, 200);
     assert.equal(historyAt("w02").length, 2);
     // w03 next, then w04: each the next week's own address.
-    assert.equal((await step("zach", { action: "remove-left", address: "w03" })).status, 200);
+    assert.equal((await step("zach", { action: "remove-left", weekId: "w03" })).status, 200);
     const saves = historyAt("w02").length;
-    const moved = await step("zach", { action: "put-back", address: "w04" });
+    const moved = await step("zach", { action: "put-back", weekId: "w04" });
     assert.deepEqual(moved.body, { ok: true, message: words.putBackDoneWords(3) });
     assert.equal(titleAt("w03"), "Where it could go wrong");
     assert.equal(world.db.read(weekPath("w04")), undefined);
@@ -625,7 +625,7 @@ describe("6. a plan out of step with its pages, and pages after its last week: n
     const page = await draw("zach", TabPage, PARAMS);
     assert.ok(page.text.includes(words.putBackByAdding(4)), page.text);
     assert.ok(!page.text.includes(words.REMOVE_LEFT), page.text);
-    const refused = await step("zach", { action: "put-back", address: "w04" });
+    const refused = await step("zach", { action: "put-back", weekId: "w04" });
     assert.deepEqual([refused.status, refused.body.error], [409, words.putBackByAdding(4)]);
     // The words are true: Add a week twice, and week 4 is the page.
     assert.equal((await step("zach", { action: "add-week" })).status, 200);
@@ -641,7 +641,7 @@ describe("6. a plan out of step with its pages, and pages after its last week: n
     ]) {
       w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [week(1), week(2), week(3)] }, ...over }));
       const before = JSON.stringify(Object.keys(over).map((path) => world.db.read(path)));
-      const answer = await step("zach", { action: "put-back", address: "w04" });
+      const answer = await step("zach", { action: "put-back", weekId: "w04" });
       assert.equal(answer.status, 200, JSON.stringify(answer.body));
       assert.equal(JSON.stringify(Object.keys(over).map((path) => world.db.read(path))), before);
     }
@@ -652,7 +652,7 @@ describe("6. a plan out of step with its pages, and pages after its last week: n
     const page = await draw("zach", TabPage, PARAMS);
     assert.ok(page.text.includes(words.WEEK_PLAN_READ_ONLY), page.text);
     assert.ok(!page.text.includes(words.MATCH_PAGES), page.text);
-    for (const body of [{ action: "match-pages" }, { action: "put-back", address: "w05" }]) {
+    for (const body of [{ action: "match-pages" }, { action: "put-back", weekId: "w05" }]) {
       const answer = await step("zach", body);
       assert.deepEqual([answer.status, answer.body.error], [409, words.WEEK_PLAN_READ_ONLY]);
     }
@@ -941,12 +941,12 @@ describe("11. every step that gives a page a new number asks the one guide check
       ["add a break", SIX, { action: "add-break", afterWeek: 2, label: "Reading week" }, false],
       ["move a week past a break", withBreak, { action: "move", index: 1, direction: "down" }, false],
       ["move a break", withBreak, { action: "move", index: 2, direction: "up" }, false],
-      ["remove a break", withBreak, { action: "remove", index: 2 }, false],
+      ["remove a break", withBreak, { action: "remove-entry", index: 2 }, false],
       ["move a week past a week", SIX, { action: "move", index: 2, direction: "down" }, true],
-      ["remove a week", SIX, { action: "remove", index: 2 }, true],
+      ["remove a week", SIX, { action: "remove-entry", index: 2 }, true],
       ["match the plan to the pages", [week(1), { kind: "week", weekNumber: 2, weekId: "w03" }], { action: "match-pages" }, false],
-      ["put a page back where it stands", [week(1), week(2), week(3)], { action: "put-back", address: "w04" }, false],
-      ["remove a page after the last week", [week(1), week(2), week(3)], { action: "remove-left", address: "w04" }, false],
+      ["put a page back where it stands", [week(1), week(2), week(3)], { action: "put-back", weekId: "w04" }, false],
+      ["remove a page after the last week", [week(1), week(2), week(3)], { action: "remove-left", weekId: "w04" }, false],
     ];
     for (const [what, plan_, body, renumbers] of STEPS) {
       w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: plan_ } }));
@@ -968,7 +968,7 @@ describe("11. every step that gives a page a new number asks the one guide check
       await world.db.collection(`${RUN_PATH}/weeks`).doc("w04").delete();
       world.db.seed(`courseFacilitatorGuide/${COURSE.agi}__w0${held}-plan`, { courseId: COURSE.agi, slot: `w0${held}-plan`, title: "Plan", blocks: [] });
       const before = everything();
-      const answer = await step("zach", { action: "put-back", address: "w05" });
+      const answer = await step("zach", { action: "put-back", weekId: "w05" });
       assert.deepEqual([answer.status, answer.body.error], [409, words.guideHolds(held)], `guide holds ${held}`);
       assert.equal(everything(), before);
       const page = await draw("zach", TabPage, PARAMS);
@@ -978,7 +978,7 @@ describe("11. every step that gives a page a new number asks the one guide check
     w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [week(1), week(2)] }, [weekPath("w05")]: { weekNumber: 5, title: "Copied in" } }));
     await world.db.collection(`${RUN_PATH}/weeks`).doc("w03").delete();
     await world.db.collection(`${RUN_PATH}/weeks`).doc("w04").delete();
-    const moved = await step("zach", { action: "put-back", address: "w05" });
+    const moved = await step("zach", { action: "put-back", weekId: "w05" });
     assert.deepEqual(moved.body, { ok: true, message: words.putBackDoneWords(3) });
   });
 
@@ -1000,7 +1000,7 @@ describe("12. a plan whose numbers are out of order is never acted on, and the s
   test("out of order: Match the plan to the pages and every step refuse, the line says why, nothing is written", async () => {
     w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: SWAPPED } }));
     const before = everything();
-    for (const body of [{ action: "match-pages" }, { action: "add-week" }, { action: "add-break", afterWeek: 1, label: "Reading week" }, { action: "move", index: 2, direction: "up" }, { action: "put-back", address: "w04" }]) {
+    for (const body of [{ action: "match-pages" }, { action: "add-week" }, { action: "add-break", afterWeek: 1, label: "Reading week" }, { action: "move", index: 2, direction: "up" }, { action: "put-back", weekId: "w04" }]) {
       const answer = await step("zach", body);
       assert.deepEqual([answer.status, answer.body.error], [409, words.NUMBERS_OUT_OF_ORDER], JSON.stringify(body));
     }
@@ -1023,7 +1023,7 @@ describe("12. a plan whose numbers are out of order is never acted on, and the s
     await world.db.collection(`${RUN_PATH}/weeks`).doc("w02").delete();
     world.db.seed(weekPath("w04"), { weekNumber: 4, title: "Blocks", blocks: syntheticWeekBlocks() });
     await world.db.collection(`${RUN_PATH}/weeks`).doc("w03").delete();
-    const answer = await step("zach", { action: "remove-left", address: "w04" });
+    const answer = await step("zach", { action: "remove-left", weekId: "w04" });
     assert.deepEqual([answer.status, answer.body.error], [409, `${words.LEFT_HOLDS} ${words.putBackByAdding(4)}`]);
   });
 

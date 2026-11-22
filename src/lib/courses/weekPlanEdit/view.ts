@@ -84,7 +84,7 @@ export type PlanEntryView =
 
 /** A page after the plan's last week, and what can be done with it here. */
 export type LeftBehindView = {
-  address: string;
+  weekId: string;
   title: string;
   /** The week it would be put back as, or why it cannot be put back here. */
   putBack: { weekNumber: number } | { sentence: string };
@@ -160,12 +160,12 @@ export async function loadWeekPlanView(db: Firestore, runId: string, now: Date =
       : Promise.resolve({ done: null, anybodyOnRun: true, ownCalendars: [] as string[], told: false, decisionDayBegun: true }),
     guideWeeksOf(db, run.courseId),
     Promise.all(
-      [...addresses].map(async (address) => {
+      [...addresses].map(async (weekId) => {
         const [history, locks] = await Promise.all([
-          weeks.doc(address).collection(WEEK_HISTORY_SUBCOLLECTION).count().get(),
-          weeks.doc(address).collection(WEEK_LOCK_SUBCOLLECTION).get(),
+          weeks.doc(weekId).collection(WEEK_HISTORY_SUBCOLLECTION).count().get(),
+          weeks.doc(weekId).collection(WEEK_LOCK_SUBCOLLECTION).get(),
         ]);
-        return [address, { history: history.data().count, locks: locks.docs.map((doc) => (doc.data() ?? {}) as Record<string, unknown>) }] as const;
+        return [weekId, { history: history.data().count, locks: locks.docs.map((doc) => (doc.data() ?? {}) as Record<string, unknown>) }] as const;
       }),
     ),
     run.courseId ? db.collection("courses").doc(run.courseId).get() : Promise.resolve(null),
@@ -177,9 +177,9 @@ export async function loadWeekPlanView(db: Firestore, runId: string, now: Date =
   ]);
   const freedOffered = auditSnap.docs.some((doc) => doc.get("kind") === FREED_PLACES_OFFERED);
   const counted = new Map(under);
-  const holds = (address: string): AddressHolds => {
-    const below = counted.get(address);
-    const base = { ...EMPTY_ADDRESS, ...docHolds(docs.get(address)) };
+  const holds = (weekId: string): AddressHolds => {
+    const below = counted.get(weekId);
+    const base = { ...EMPTY_ADDRESS, ...docHolds(docs.get(weekId)) };
     if (!below) return base;
     return { ...base, history: below.history, locks: below.locks.length, liveLock: below.locks.some((lock) => lockIsLive(lock, now)) };
   };
@@ -232,9 +232,9 @@ export async function loadWeekPlanView(db: Firestore, runId: string, now: Date =
       return { kind: "break", index, label: entry.label, range, ...shared };
     }
     weekNumber += 1;
-    const address = weekDocId(weekNumber);
-    const held = docHolds(docs.get(address));
-    return { kind: "week", index, weekNumber, weekId: address, title: held.title, hasPage: held.exists, ...shared };
+    const weekId = weekDocId(weekNumber);
+    const held = docHolds(docs.get(weekId));
+    return { kind: "week", index, weekNumber, weekId: weekId, title: held.title, hasPage: held.exists, ...shared };
   });
 
   const addWeek = !drifted && !outOfOrder && tryStep({ kind: "add-week" }).refusal === null;
@@ -249,14 +249,14 @@ export async function loadWeekPlanView(db: Firestore, runId: string, now: Date =
   const leftBehind: LeftBehindView[] =
     standingRefusal(standing) !== null
       ? []
-      : left.map((address) => {
-          const refusal = judgePutBack(facts, plan, address);
+      : left.map((weekId) => {
+          const refusal = judgePutBack(facts, plan, weekId);
           return {
-            address,
-            title: docHolds(docs.get(address)).title,
+            weekId,
+            title: docHolds(docs.get(weekId)).title,
             putBack: refusal === null ? { weekNumber: weeksInPlan + 1 } : { sentence: refusal },
-            remove: judgeRemoveLeft(facts, plan, address) === null,
-            notices: showcase && docs.get(address)?.published === true ? [PUBLIC_PAGES_CHANGE] : [],
+            remove: judgeRemoveLeft(facts, plan, weekId) === null,
+            notices: showcase && docs.get(weekId)?.published === true ? [PUBLIC_PAGES_CHANGE] : [],
           };
         });
 

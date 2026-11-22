@@ -59,10 +59,10 @@ type Step =
   | { action: "add-week" }
   | { action: "add-break"; afterWeek: number; label: string }
   | { action: "move"; index: number; direction: "up" | "down" }
-  | { action: "remove"; index: number }
+  | { action: "remove-entry"; index: number }
   | { action: "match-pages" }
-  | { action: "put-back"; address: string }
-  | { action: "remove-left"; address: string };
+  | { action: "put-back"; weekId: string }
+  | { action: "remove-left"; weekId: string };
 
 async function sendStep(runId: string, planKey: string, step: Step): Promise<string> {
   const res = await fetch(`/api/courses/runs/${encodeURIComponent(runId)}/week-plan`, {
@@ -163,7 +163,7 @@ export function PlanRowControls({
           </button>
         )}
         {remove && (
-          <button type="button" className={styles.button} aria-label={controlName(what, "remove")} onClick={pressRemove} disabled={!hydrated || busy}>
+          <button type="button" className={styles.button} aria-label={controlName(what, "remove-entry")} onClick={pressRemove} disabled={!hydrated || busy}>
             {REMOVE_ASK}
           </button>
         )}
@@ -201,7 +201,7 @@ export function PlanRowControls({
               <button
                 type="button"
                 className={`${styles.button} ${own.buttonCareful}`}
-                onClick={() => void press({ action: "remove", index }).then(() => setAsking(false))}
+                onClick={() => void press({ action: "remove-entry", index }).then(() => setAsking(false))}
                 disabled={busy}
               >
                 {entry.kind === "week" ? removeWeekWords(entry.weekNumber) : REMOVE_THE_BREAK}
@@ -370,7 +370,7 @@ export function MatchPages({ runId, planKey }: { runId: string; planKey: string 
 export function LeftBehind({
   runId,
   planKey,
-  address,
+  weekId,
   title,
   putBack,
   remove,
@@ -378,7 +378,7 @@ export function LeftBehind({
 }: {
   runId: string;
   planKey: string;
-  address: string;
+  weekId: string;
   title: string;
   putBack: { weekNumber: number } | { sentence: string };
   remove: boolean;
@@ -397,7 +397,7 @@ export function LeftBehind({
       {notices.length > 0 && <p className={styles.muted}>{notices.join(" ")}</p>}
       <div className={own.buttons}>
         {"weekNumber" in putBack && (
-          <button type="button" className={styles.button} onClick={() => void press({ action: "put-back", address })} disabled={!hydrated || busy}>
+          <button type="button" className={styles.button} onClick={() => void press({ action: "put-back", weekId })} disabled={!hydrated || busy}>
             {putBackWords(putBack.weekNumber)}
           </button>
         )}
@@ -414,8 +414,8 @@ export function LeftBehind({
       )}
       <Modal open={asking} onClose={() => setAsking(false)} ariaLabel={REMOVE_LEFT_TITLE} width="sm">
         {(dismiss) => (
-          <section className={own.dialog} aria-labelledby={`plan-left-${address}`}>
-            <h2 id={`plan-left-${address}`} className={styles.subheading}>
+          <section className={own.dialog} aria-labelledby={`plan-left-${weekId}`}>
+            <h2 id={`plan-left-${weekId}`} className={styles.subheading}>
               {REMOVE_LEFT_TITLE}
             </h2>
             <p>{leftBehindWords(title)}</p>
@@ -427,7 +427,7 @@ export function LeftBehind({
               <button
                 type="button"
                 className={`${styles.button} ${own.buttonCareful}`}
-                onClick={() => void press({ action: "remove-left", address }).then(() => setAsking(false))}
+                onClick={() => void press({ action: "remove-left", weekId }).then(() => setAsking(false))}
                 disabled={busy}
               >
                 {REMOVE_LEFT}

@@ -45,8 +45,8 @@ export type PlannedWeek = { weekNumber: number; target: string; source: string |
 export type PlanAction =
   | PlanStep
   | { kind: "match-pages" }
-  | { kind: "put-back"; address: string }
-  | { kind: "remove-left"; address: string };
+  | { kind: "put-back"; weekId: string }
+  | { kind: "remove-left"; weekId: string };
 
 /** What a step makes of a plan. */
 export type PlanChange = {
@@ -95,15 +95,15 @@ export function planStepOf(raw: unknown): { ok: true; step: PlanAction; planKey:
     case "move":
       if (index === null || (body.direction !== "up" && body.direction !== "down")) return { ok: false };
       return { ok: true, step: { kind: "move", index, direction: body.direction }, planKey };
-    case "remove":
+    case "remove-entry":
       if (index === null) return { ok: false };
       return { ok: true, step: { kind: "remove", index }, planKey };
     case "match-pages":
       return { ok: true, step: { kind: "match-pages" }, planKey };
     case "put-back":
     case "remove-left":
-      if (typeof body.address !== "string" || !/^w\d\d$/.test(body.address)) return { ok: false };
-      return { ok: true, step: { kind: body.action, address: body.address }, planKey };
+      if (typeof body.weekId !== "string" || !/^w\d\d$/.test(body.weekId)) return { ok: false };
+      return { ok: true, step: { kind: body.action, weekId: body.weekId }, planKey };
     default:
       return { ok: false };
   }

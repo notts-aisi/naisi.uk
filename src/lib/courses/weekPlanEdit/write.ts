@@ -146,7 +146,7 @@ export async function changeWeekPlan(
       // stands at the next address, or moved there from further on.
       let change: PlanChange | null = null;
       if (step.kind === "put-back") {
-        const back = putBackChange(plan, step.address);
+        const back = putBackChange(plan, step.weekId);
         if (!back.ok) throw new Refusal(PROBLEM[back.why][1], PROBLEM[back.why][0]);
         change = back.change;
       } else if (step.kind !== "match-pages" && step.kind !== "remove-left") {
@@ -158,27 +158,27 @@ export async function changeWeekPlan(
         change = applied.change;
       }
       const touched =
-        step.kind === "remove-left" ? [step.address] : step.kind === "put-back" ? [step.address, weekDocId(taught + 1)] : change ? touchedAddresses(change) : [];
+        step.kind === "remove-left" ? [step.weekId] : step.kind === "put-back" ? [step.weekId, weekDocId(taught + 1)] : change ? touchedAddresses(change) : [];
 
       const weekSnap = await tx.get(weeks);
       const docs = new Map(weekSnap.docs.map((doc) => [doc.id, (doc.data() ?? {}) as Record<string, unknown>] as const));
       const stored = new Map<string, Stored>();
       await Promise.all(
-        [...new Set(touched)].map(async (address) => {
+        [...new Set(touched)].map(async (weekId) => {
           const [history, locks] = await Promise.all([
-            tx.get(weeks.doc(address).collection(WEEK_HISTORY_SUBCOLLECTION)),
-            tx.get(weeks.doc(address).collection(WEEK_LOCK_SUBCOLLECTION)),
+            tx.get(weeks.doc(weekId).collection(WEEK_HISTORY_SUBCOLLECTION)),
+            tx.get(weeks.doc(weekId).collection(WEEK_LOCK_SUBCOLLECTION)),
           ]);
-          stored.set(address, {
-            doc: docs.get(address),
+          stored.set(weekId, {
+            doc: docs.get(weekId),
             history: new Map(history.docs.map((doc) => [doc.id, (doc.data() ?? {}) as Record<string, unknown>] as const)),
             locks: new Map(locks.docs.map((doc) => [doc.id, (doc.data() ?? {}) as Record<string, unknown>] as const)),
           });
         }),
       );
-      const holds = (address: string): AddressHolds => {
-        const at = stored.get(address);
-        const doc = at?.doc ?? docs.get(address);
+      const holds = (weekId: string): AddressHolds => {
+        const at = stored.get(weekId);
+        const doc = at?.doc ?? docs.get(weekId);
         if (!at) return { ...EMPTY_ADDRESS, ...docHolds(doc) };
         return {
           ...docHolds(doc),
@@ -208,14 +208,14 @@ export async function changeWeekPlan(
         step.kind === "match-pages"
           ? judgeMatch(facts)
           : step.kind === "put-back"
-            ? judgePutBack(facts, plan, step.address, change as PlanChange)
+            ? judgePutBack(facts, plan, step.weekId, change as PlanChange)
             : step.kind === "remove-left"
-              ? judgeRemoveLeft(facts, plan, step.address)
+              ? judgeRemoveLeft(facts, plan, step.weekId)
               : judgeChange(facts, change as PlanChange);
       if (refusal) throw new Refusal(refusal, 409);
 
       // ---- The writes ----
-      const ref = (address: string): DocumentReference => weeks.doc(address);
+      const ref = (weekId: string): DocumentReference => weeks.doc(weekId);
       if (step.kind === "match-pages") {
         // The plan's addresses rewritten to the pages people see: no page moves, nothing is deleted.
         tx.update(runRef, { weekPlan: matchedPlan(plan), updatedAt: FieldValue.serverTimestamp() });
@@ -223,23 +223,23 @@ export async function changeWeekPlan(
       }
       if (step.kind === "remove-left") {
         // Only a page with no more than its title and settings and no saved version (`judgeRemoveLeft`).
-        tx.delete(ref(step.address));
-        for (const id of stored.get(step.address)?.locks.keys() ?? []) tx.delete(ref(step.address).collection(WEEK_LOCK_SUBCOLLECTION).doc(id));
+        tx.delete(ref(step.weekId));
+        for (const id of stored.get(step.weekId)?.locks.keys() ?? []) tx.delete(ref(step.weekId).collection(WEEK_LOCK_SUBCOLLECTION).doc(id));
         return { ok: true, message: LEFT_REMOVED };
       }
       const made = change as PlanChange;
-      for (const [address, final] of finalSources(made)) {
-        const here = stored.get(address);
+      for (const [weekId, final] of finalSources(made)) {
+        const here = stored.get(weekId);
         const from = final.from ? stored.get(final.from) : undefined;
         const doc = from?.doc;
-        if (doc) tx.set(ref(address), { ...doc, weekNumber: final.weekNumber });
-        else if (here?.doc) tx.delete(ref(address));
+        if (doc) tx.set(ref(weekId), { ...doc, weekNumber: final.weekNumber });
+        else if (here?.doc) tx.delete(ref(weekId));
         const history = from?.history ?? new Map<string, Record<string, unknown>>();
         for (const id of here?.history.keys() ?? []) {
-          if (!history.has(id)) tx.delete(ref(address).collection(WEEK_HISTORY_SUBCOLLECTION).doc(id));
+          if (!history.has(id)) tx.delete(ref(weekId).collection(WEEK_HISTORY_SUBCOLLECTION).doc(id));
         }
-        for (const [id, record] of history) tx.set(ref(address).collection(WEEK_HISTORY_SUBCOLLECTION).doc(id), record);
-        for (const id of here?.locks.keys() ?? []) tx.delete(ref(address).collection(WEEK_LOCK_SUBCOLLECTION).doc(id));
+        for (const [id, record] of history) tx.set(ref(weekId).collection(WEEK_HISTORY_SUBCOLLECTION).doc(id), record);
+        for (const id of here?.locks.keys() ?? []) tx.delete(ref(weekId).collection(WEEK_LOCK_SUBCOLLECTION).doc(id));
       }
       // A week left where it was carries its own number.
       const moved = new Set(touchedAddresses(made));

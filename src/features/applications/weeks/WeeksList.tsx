@@ -186,7 +186,7 @@ export default function WeeksList({
         {plan && (
           <>
             {plan.leftBehind.map((page) => (
-              <LeftBehind key={page.address} runId={plan.runId} planKey={plan.planKey} {...page} />
+              <LeftBehind key={page.weekId} runId={plan.runId} planKey={plan.planKey} {...page} />
             ))}
             {plan.matchPages && <MatchPages runId={plan.runId} planKey={plan.planKey} />}
             <PlanAdd runId={plan.runId} planKey={plan.planKey} addWeek={plan.addWeek} addBreak={plan.addBreak} />

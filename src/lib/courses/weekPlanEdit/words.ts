@@ -28,7 +28,7 @@ export const ADD_A_WEEK = "Add a week";
 export const ADD_A_BREAK = "Add a break";
 
 /** Each control's name to assistive technology: "Move week 2 up", "Remove the break after week 2…". */
-export function controlName(what: string, control: "up" | "down" | "remove"): string {
+export function controlName(what: string, control: "up" | "down" | "remove-entry"): string {
   if (control === "up") return `Move ${what} up`;
   if (control === "down") return `Move ${what} down`;
   return `Remove ${what}…`;
