@@ -84,7 +84,7 @@ export function parseClock(text: string): string | null {
 /** Index = `GroupSession.weekday` (`Date.getDay()`, 0 = Sunday). */
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-/** "Tuesdays 6pm", a group's weekly slot as the Sessions view draws it. "" while it has no day or time. */
+/** "Tuesdays 6pm", a group's weekly slot as a session card draws it. "" while it has no day or time. */
 export function slotWords(weekday: number, hhmm: string): string {
   const day = WEEKDAYS[weekday];
   const clock = clockWords(hhmm);

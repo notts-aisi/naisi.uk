@@ -989,6 +989,7 @@ describe("6. nothing else writes a group's archived", () => {
     "src/app/api/courses/me/route.ts": "a run's archived, read into the member hub's answer",
     "src/app/api/courses/runs/[runId]/archive/route.ts": "archives a run, not a group",
     "src/app/api/courses/runs/[runId]/overview/route.ts": "whether a session's group is still one of the run's, in the run home's view",
+    "src/lib/courses/allGroups/load.ts": "All groups' rows for the run's archived groups, the foot it draws; a read, never a write",
     "src/features/courses/courseMutations.ts": "the body the run editor sends to the archive route",
     "src/lib/courses/explainers/schedule.ts": "archives an explainer's tasks, and counts them",
     "src/lib/courses/facilitatingMenuRead.ts": "a run's archived, read into the facilitating menu",
@@ -1084,7 +1085,7 @@ describe("7. the run editor and the group's page call the route", () => {
     assert.match(page, /<ArchiveFoot groupName=\{view\.groupName\} onOpen=\{\(\) => open\(\{ kind: "archive" \}\)\} \/>/);
     assert.match(page, /<ArchivePanel/);
     assert.match(page, /<RestorePanel/);
-    // After archiving, the Sessions view says it from the address.
+    // After archiving, the All groups view says it from the address, once.
     assert.match(page, /\?archived=\$\{encodeURIComponent\(view\.groupId\)\}/);
   });
 });

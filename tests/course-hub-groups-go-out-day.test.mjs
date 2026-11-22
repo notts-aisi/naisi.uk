@@ -18,7 +18,7 @@
  *  3. THE WORDS. With a day that is today or later each sentence names it;
  *     with no day, or one that has passed, each is said without a day. The
  *     first week's window comes from the run's start date and plan.
- *  4. THE PAGES. The Groups tab's Sessions view draws the card with the day
+ *  4. THE PAGES. The Groups tab's All groups view draws the card with the day
  *     as stored for the lead and an admin; the programme's head says "Groups
  *     go out" before the run is under way, and not once the day has passed.
  *
@@ -233,7 +233,7 @@ describe("4. the pages", () => {
     for (const uid of ["claudia", "lloyd", "tess"]) world.db.poke(`users/${uid}`, { admissionsReviewer: true });
   });
 
-  test("the Sessions view draws the card with the day as stored, for the lead and an admin", async () => {
+  test("All groups draws the card with the day as stored, for the lead and an admin", async () => {
     world.db.poke(RUN_PATH, { groupsGoOutOn: "2026-10-28" });
     for (const who of ["claudia", "zach"]) {
       const html = await sessionsAs(who);

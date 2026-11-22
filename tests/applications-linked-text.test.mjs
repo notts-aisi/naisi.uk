@@ -849,10 +849,10 @@ const BUILT = new Map([
     },
   ],
   [
-    "src/features/applications/groups/ArchivedGroupsLine.tsx",
+    "src/features/applications/groups/AllGroups.tsx",
     {
-      built: ["groupPagePath(roundId, programmeId, group.id)"],
-      from: "an archived group's own page under the Groups tab, from the form's, the programme's and the group's ids, encoded (`groupPagePath`). Nothing anybody typed",
+      built: ["groupPagePath(roundId, programmeId, row.id)", "groupPagePath(roundId, programmeId, row.id)", "links.addGroup.href", "links.termRooms.href", "links.weekRooms.href"],
+      from: "each group's own page under the Groups tab, live or archived, from the form's, the programme's and the group's ids, encoded (`groupPagePath`); and the week's rooms, the term's rooms and Times' Add a group, which the All groups page builds from the same ids (`weekRoomsPath`, `termRoomsPath`, `groupsViewPath`). Nothing anybody typed",
     },
   ],
   [
@@ -865,8 +865,8 @@ const BUILT = new Map([
   [
     "src/features/applications/times/TimesActions.tsx",
     {
-      built: ["groupPagePath(setup.roundId, setup.programmeId, group.id)"],
-      from: "a group's own page under the Groups tab, from the form's, the programme's and the group's ids, encoded (`groupPagePath`). Nothing anybody typed",
+      built: ["groupPagePath(setup.roundId, setup.programmeId, group.id)", "groupPagePath(setup.roundId, setup.programmeId, group.id)"],
+      from: "a group's own page under the Groups tab, from the form's, the programme's and the group's ids, encoded (`groupPagePath`): beside a told group's time, and in its Change dialog's way to change one week's session. Nothing anybody typed",
     },
   ],
   [
@@ -1265,11 +1265,12 @@ const BUILT = new Map([
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions/page.tsx",
     {
       built: [
-        "`${here}?week=${n}`",
+        "`${groupsPath(view.roundId, view.programmeId)}/publish`",
+        "`${groupsViewPath(view.roundId, view.programmeId, \"times\")}?add=1`",
         "termRoomsPath(view.roundId, view.programmeId)",
         "weekRoomsPath(view.roundId, { programme: view.programmeId })",
       ],
-      from: "the Sessions view's own path (groupsViewPath, from the form's and the programme's ids) and a taught week's number from the run's plan; and the week's rooms and the term's rooms (src/lib/courses/weekRooms/paths.ts), from the form's and the programme's ids, encoded. Nothing anybody typed",
+      from: "All groups' Publish groups… and Times' Add a group (groupsPath and groupsViewPath, from the form's and the programme's ids, with a fixed `?add=1`); and the week's rooms and the term's rooms (src/lib/courses/weekRooms/paths.ts), from the form's and the programme's ids, encoded. Nothing anybody typed",
     },
   ],
   [

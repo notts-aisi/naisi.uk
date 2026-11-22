@@ -39,7 +39,9 @@
  */
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
@@ -94,6 +96,7 @@ const rules = await made.lib("courses", "groupTimes", "rules.ts");
 const { loadTimesPicture } = await made.lib("applications", "handover", "timesLoad.ts");
 const { default: TimesPicture } = await made.loadTs(join("features", "applications", "times", "TimesPicture.tsx"));
 const controls = await made.loadTs(join("features", "applications", "times", "TimesActions.tsx"));
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 /** A group's document as it is stored now. */
 const group = (id) => world.db.read(`courseGroups/${id}`);
@@ -668,6 +671,22 @@ describe("7. the page hands its controls what the records say, and each dialog s
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
   });
 
+  test("Add a group opens on arrival from All groups (`?add=1`), and only then", async () => {
+    const setup = await setupFor("claudia");
+    const drawn = (startOpen) =>
+      renderToStaticMarkup(
+        createElement(controls.TimesActionsProvider, { setup }, createElement(controls.AddGroupButton, { suggested: null, ...(startOpen ? { startOpen } : {}) })),
+      );
+    assert.match(drawn(true), /data-dialog="Add a group"/);
+    assert.doesNotMatch(drawn(false), /data-dialog=/);
+    // The page reads the mark from the address and hands it on; the button
+    // takes it off the address once open, so a reload does not open it again.
+    const page = readFileSync(join(SRC, "app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)", "groups", "times", "page.tsx"), "utf8");
+    assert.match(page, /openAdd=\{\(Array\.isArray\(query\.add\) \? query\.add\[0\] : query\.add\) === "1"\}/);
+    const actions = readFileSync(join(SRC, "features", "applications", "times", "TimesActions.tsx"), "utf8");
+    assert.match(actions, /url\.searchParams\.delete\("add"\);\s*window\.history\.replaceState\(/);
+  });
+
   test("after Publish: the told group is marked, its Change says why and links to Change a session, and Use for a group leaves it off", async () => {
     await placed(everybodyIn(GROUP.monday));
     await published("zach");
@@ -683,7 +702,9 @@ describe("7. the page hands its controls what the records say, and each dialog s
       "Change Monday evening’s time Publish has told people when Monday evening meets, so its time can’t change here. " +
         "To move one week’s session, use Change a session. Change a session Close",
     );
-    assert.match(told.html, /href="\/admin\/admissions\/forms\/autumn-2026__sm4llt3rm\/programmes\/agi-strategy\/groups\/sessions"/);
+    // The way to one week's session is the group's own page, where Change this week is.
+    assert.match(told.html, new RegExp(`href="/admin/admissions/forms/autumn-2026__sm4llt3rm/programmes/agi-strategy/groups/${GROUP.monday}"`));
+    assert.doesNotMatch(told.html, /groups\/sessions/);
     assert.doesNotMatch(told.html, /<input|<select/, "a told group's dialog offers a field");
 
     const use = dialogText(setup, controls.UseDialog, { weekday: 1, start: "19:00", when: "Mon 7pm" });

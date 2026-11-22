@@ -14,8 +14,9 @@
  * week, and nobody else's -> Fern moves next week's session with a reason, the
  * button saying how many it emails -> Ada and Ben read the change on their
  * programme page -> the update's email reaches exactly Group A, word for word,
- * with no meeting link in any email -> the lead's Overview and Sessions view,
- * read as the admin, show the register finished and the session moved.
+ * with no meeting link in any email -> the lead's Overview, All groups and
+ * the group's page, read as the admin, show the register finished and the
+ * session moved.
  *
  * ## How to run it
  *
@@ -89,7 +90,6 @@ import {
   sessionWhenLabel,
   shiftDateKey,
   weekDocId,
-  weekSpanLabel,
 } from "../../scripts/e2e-fixtures/worlds/course-hub-term.mjs";
 
 const RUN_STATE_DIR = stateDir();
@@ -491,7 +491,9 @@ test(
     const setupUrl = `${formBase}/setup`;
     const facilitatorsUrl = `${formBase}/groups/facilitators`;
     const overviewUrl = `${formBase}/overview`;
-    const sessionsViewUrl = (weekNumber) => `${formBase}/groups/sessions?week=${weekNumber}`;
+    const allGroupsUrl = `${formBase}/groups/sessions`;
+    /** The group's page under the programme, open on one week. */
+    const programmeGroupUrl = (group, weekNumber) => `${formBase}/groups/${enc(group.id)}?week=${weekNumber}`;
     const learnPath = `/learn/${enc(state.runId)}`;
     const groupPagePath = `${learnPath}/group/${enc(facilitated.id)}`;
     const registerId = `${state.runId}__${facilitated.id}__${weekDocId(thisWeek)}`;
@@ -1807,7 +1809,7 @@ test(
       );
 
       await step(
-        "the lead's Overview and Sessions view, read as the admin, show the register finished and the session moved",
+        "the lead's Overview, All groups and the group's page, read as the admin, show the register finished and the session moved",
         async () => {
           activePage = adminPage;
           const now = new Date();
@@ -1883,60 +1885,47 @@ test(
             "the Overview's Updates card",
           );
 
-          // The Sessions view, at next week: each group's session in it, Group
-          // A's moved, with the reason's record behind its dialog.
-          await adminPage.goto(sessionsViewUrl(nextWeek), { waitUntil: "domcontentloaded" });
-          const slotStartKey = shiftDateKey(state.startDate, 7 * (nextWeek - 1));
-          await adminPage
-            .getByText(`Week ${nextWeek} of ${state.weekCount} · ${weekSpanLabel(slotStartKey)}`, { exact: true })
-            .waitFor({ timeout: WAIT_MS });
+          // All groups: one row per group in the one order, each with its
+          // regular day, time and room, each name opening the group's page.
+          await adminPage.goto(allGroupsUrl, { waitUntil: "domcontentloaded" });
+          const table = adminPage.locator("main table");
+          await table.waitFor({ timeout: WAIT_MS });
           const groupNames = state.groups.map((group) => group.name);
           assert.deepEqual(
-            (await textsOf(adminPage.locator("main").getByRole("heading", { level: 3 }))).filter((name) =>
-              groupNames.includes(name),
-            ),
+            (await textsOf(table.locator("tbody th"))).filter((name) => groupNames.includes(name)),
             ordered.map((group) => group.name),
-            "the Sessions view's cards are not the groups in the one order",
+            "All groups' rows are not the groups in the one order",
           );
           const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
           for (const group of ordered) {
-            const card = adminPage
-              .getByRole("heading", { name: group.name, level: 3, exact: true })
-              .locator("xpath=ancestor::div[.//button][1]");
-            const said = await textOf(card);
-            const session = sessionNow(group, nextWeek, now);
-            const moved = group === facilitated;
-            const expected = [
-              `${weekdays[group.weekday]}s ${clockWords(group.startTimeLocal)} · ${group.room}`,
-              `Week ${nextWeek}`,
-              `${session.dateKey === todayKey ? "Today" : dayLabel(session.dateKey)}, ${clockWords(moved ? MOVE.startTimeLocal : group.startTimeLocal)}`,
-              ...(moved ? [fern.first, MOVE.room, "Moved"] : []),
-            ];
-            for (const words of expected) {
-              assert.ok(said.includes(words), `${group.name}'s card on the Sessions view does not say ${JSON.stringify(words)}: ${said}`);
+            const row = table.locator("tbody tr").filter({ has: adminPage.getByRole("link", { name: group.name, exact: true }) });
+            const said = await textOf(row);
+            for (const words of [`${weekdays[group.weekday]}s, ${clockWords(group.startTimeLocal)} to `, group.room]) {
+              assert.ok(said.includes(words), `${group.name}'s row on All groups does not say ${JSON.stringify(words)}: ${said}`);
             }
-            if (!moved) assert.ok(!said.includes("Moved"), `${group.name}'s card says it moved`);
+            assert.equal(
+              await row.getByRole("link", { name: group.name, exact: true }).getAttribute("href"),
+              `${programmePathOnSite}/groups/${enc(group.id)}`,
+              `${group.name}'s name does not open its page`,
+            );
           }
-          // Its dialog says the session was moved, and offers it back as usual.
-          await adminPage
-            .getByRole("heading", { name: facilitated.name, level: 3, exact: true })
-            .locator("xpath=ancestor::div[.//button][1]")
-            .getByRole("button", { name: "Change a session", exact: true })
-            .click();
-          const dialog = adminPage.getByRole("dialog", { name: `Change ${facilitated.name}’s week ${nextWeek} session`, exact: true });
-          await dialog.waitFor({ timeout: WAIT_MS });
-          await dialog
-            .getByText(`${dayLabel(movedDateKey)} · ${clockWords(MOVE.startTimeLocal)} · ${MOVE.room} · ${fern.first}`, { exact: true })
-            .waitFor({ timeout: WAIT_MS });
-          await dialog.getByText("This session has been moved.", { exact: true }).waitFor({ timeout: WAIT_MS });
-          await dialog.getByRole("radio", { name: /^Hold it as usual/ }).waitFor({ timeout: WAIT_MS });
-          await dialog
-            .getByText(`Back to ${weekdays[facilitated.weekday]}s ${clockWords(facilitated.startTimeLocal)} in ${facilitated.room}, like the group’s other weeks.`, {
-              exact: true,
-            })
-            .waitFor({ timeout: WAIT_MS });
-          await dialog.getByRole("button", { name: "Keep it", exact: true }).click();
-          await dialog.waitFor({ state: "detached", timeout: WAIT_MS });
+          assert.equal(await adminPage.getByRole("button", { name: "Change a session", exact: true }).count(), 0, "All groups still changes a session");
+
+          // The group's page, at next week: the session moved, with the
+          // reason's record behind it, and offered back as usual.
+          await adminPage.goto(programmeGroupUrl(facilitated, nextWeek), { waitUntil: "domcontentloaded" });
+          const weekCard = adminPage.getByRole("region", { name: `Week ${nextWeek}`, exact: true });
+          await weekCard.waitFor({ timeout: WAIT_MS });
+          const card = await textOf(weekCard);
+          for (const words of [
+            `Week ${nextWeek} · moved for this week`,
+            `${dayLabel(movedDateKey)}, ${clockWords(MOVE.startTimeLocal)}`,
+            MOVE.room,
+            `Usually ${weekdays[facilitated.weekday]}s, ${clockWords(facilitated.startTimeLocal)}, ${facilitated.room}.`,
+          ]) {
+            assert.ok(card.includes(words), `${facilitated.name}'s week ${nextWeek} card does not say ${JSON.stringify(words)}: ${card}`);
+          }
+          await weekCard.getByRole("button", { name: "Put it back as usual", exact: true }).waitFor({ timeout: WAIT_MS });
         },
       );
     } finally {

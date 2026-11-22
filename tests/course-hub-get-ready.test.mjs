@@ -331,7 +331,7 @@ describe("2. each step of Get ready for week 1, from records", () => {
         ],
         ["Choose group times", "todo", "0 of 3. Groups A, B and C have no time yet.", "Times (button)"],
         ["Ask facilitators", "todo", "No group has a facilitator yet.", "Facilitators (button)"],
-        // Rooms are set on the Groups tab's Sessions view, the lead's as much as an admin's.
+        // Set rooms opens the Groups tab's All groups view, whose names open each group's page, the lead's as much as an admin's.
         ["Set rooms", "todo", "0 of 3. Groups A, B and C have no room yet.", "Set rooms (button)"],
         ["Put people in groups", "todo", "0 of 8 placed. 8 to place, 1 of them hasn’t said when they’re free.", "People in groups (button)"],
         ["Write week 1", "todo", "Week 1 has no page yet. Paste its Markdown on the Weeks tab, then mark it ready.", "Open week 1 (button)"],
@@ -354,7 +354,7 @@ describe("2. each step of Get ready for week 1, from records", () => {
     assert.equal(checklist.lede, "Week 1 starts Thu 29 Oct.");
   });
 
-  test("an admin is offered the hand-over on Settings and the rooms on the Sessions view", async () => {
+  test("an admin is offered the hand-over on Settings and the rooms on All groups", async () => {
     nothingYet();
     const { checklist } = await facts("zach");
     assert.deepEqual(said(stepOf(checklist, "hand-over")), [

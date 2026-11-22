@@ -212,16 +212,16 @@ describe("the page", () => {
     }
     assert.ok(!/<button/.test(html), "the list has a button");
     // The Groups tab's views are drawn for whoever may open the tab, which the
-    // programme's lead may, with Pitches the one on screen. Sessions is the
-    // row's first view since changing a session landed.
-    assert.deepEqual(viewsIn(html), ["Sessions", "People in groups", "Times", "Facilitators", "Pitches"]);
+    // programme's lead may, with Pitches the one on screen. All groups (the
+    // view that was Sessions) follows People in groups, as the design draws the row.
+    assert.deepEqual(viewsIn(html), ["People in groups", "All groups", "Times", "Facilitators", "Pitches"]);
     assert.match(html, PITCHES_CURRENT);
   });
 
   test("an admin also gets the Groups tab's views, with Pitches current", async () => {
     const { html } = await draw("zach");
-    // Circles, beside People in groups, is an admin's alone.
-    assert.deepEqual(viewsIn(html), ["Sessions", "People in groups", "Circles", "Times", "Facilitators", "Pitches"]);
+    // Circles, after All groups, is an admin's alone.
+    assert.deepEqual(viewsIn(html), ["People in groups", "All groups", "Circles", "Times", "Facilitators", "Pitches"]);
     assert.match(html, PITCHES_CURRENT);
   });
 
@@ -254,15 +254,15 @@ describe("the page", () => {
       });
       return viewsIn(renderToStaticMarkup(element));
     };
-    // Sessions leads the row for every run since changing a session landed.
+    // People in groups leads the row for every run, All groups after it.
     // Circles is offered to an admin alone.
     for (const who of ["zach", "tess"]) {
       assert.deepEqual(
         await viewsOnTimes(who, INCUBATOR),
-        ["Sessions", "People in groups", ...(who === "zach" ? ["Circles"] : []), "Times", "Facilitators", "Pitches"],
+        ["People in groups", "All groups", ...(who === "zach" ? ["Circles"] : []), "Times", "Facilitators", "Pitches"],
         who,
       );
     }
-    assert.deepEqual(await viewsOnTimes("zach", AGI), ["Sessions", "People in groups", "Circles", "Times", "Facilitators"]);
+    assert.deepEqual(await viewsOnTimes("zach", AGI), ["People in groups", "All groups", "Circles", "Times", "Facilitators"]);
   });
 });

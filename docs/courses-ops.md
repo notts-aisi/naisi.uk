@@ -1520,10 +1520,13 @@ names" below). Step 6, Publish, is an admin's alone.
    as they are: it seats only people in no group, keeps every appointed
    facilitator in their group, and "Apply N changes" sends only what it
    lists. Give each group its campus (University Park, Jubilee or Online) and
-   the room it meets in every week on Circles, the Sessions view or the run
-   editor's group card ("Location"). Neither emails anybody: people see them
-   on their programme page and in their calendar. "Change a session" changes
-   one week's room, never the group's own.
+   the room it meets in every week on the group's own page (its Room row: the
+   Room panel holds both), or on Circles. The campus emails nobody: it saves
+   as it is chosen. On the group's page the room's own button says how many
+   it emails, and it tells the group whenever anybody is in it (Circles'
+   room field emails nobody). People see both on their programme page and in
+   their calendar. One week's room is that week's Change this week on the
+   group's page, or The week's rooms, never the group's own.
 6. **Publish** from the board when everybody is in a group. ONLY AN ADMIN
    PUBLISHES: it emails everybody on the run, so a press, and the test that
    unlocks it, are refused for anybody else (the programme's lead and the
@@ -2336,10 +2339,11 @@ under Everything only.
 the board, All groups and every reminder, and drops out of allocation. It
 stays on the run for the record, with its registers and history, and can be
 restored.") and "Nobody is emailed.", with "Archive Group E" and "Keep Group
-E". Once it goes through the page goes to the Groups tab's Sessions view,
+E". Once it goes through the page goes to the Groups tab's All groups view,
 which says "Group E is archived. Nobody was emailed." from its address
-(`?archived=`) only while the group is archived, so a reload after a restore
-says nothing.
+(`?archived=`) only while the group is archived, and once: as soon as it is
+said the address loses the mark, so a reload or a second visit says
+nothing.
 
 **What archiving keeps.** The group stays on the run for the record, with its
 registers, its history and its places as they are; nothing is moved, counted
@@ -2401,8 +2405,14 @@ Change this week, the room, the campus, the meeting link, the facilitators,
 the places, the name, covering a session or giving it to somebody, the
 group's own pace and writing to the group) refuses an archived group, an
 admin's press included. Saving a register is left open to an admin on
-purpose: admins correct registers. The Groups tab's "Archived:" line
-lists the run's archived groups, each to this page.
+purpose: admins correct registers. The run's archived groups are at the
+foot of the Groups tab's All groups view, under "Archived groups (N)",
+closed until opened: each with what it was ("Was Fridays, 11am to 1pm"),
+when and by whom it was archived ("Archived Mon 2 Nov by Maya Rao", or
+"Archived" alone for a group archived before those were kept), whether
+anybody is in it, the way to this page and "Restore Group F…", which opens
+this page's own restore question (`RestorePanel`, its words read by
+`readRestoreQuestion` for both).
 
 **Restoring** asks first too: "Group F comes back on the board, All groups and
 reminders, as it was when it was archived: Fridays, 11am to 1pm, no room.",
@@ -2539,7 +2549,7 @@ before the press.
 **The doors.** Nothing in the newer pages leads into the older editor where
 the job has a newer home: the Overview's "Open week N" opens the week on the
 Weeks tab (for the lead too), Get ready's "Set rooms" opens the Groups tab's
-Sessions view (the lead too) and its "People in groups" the Groups tab,
+All groups view (the lead too) and its "People in groups" the Groups tab,
 Course run's "Open People in groups" the Groups tab, Times and a week's page
 no longer link there, and an admin on a facilitator's week editor is sent to
 the Weeks tab. Left for a later step, each listed with why in
@@ -5648,12 +5658,18 @@ The code is `src/lib/courses/sessionChange/` and one route,
 
 ### Who, and where
 
-- **The programme's lead and admins**: the Groups tab's Sessions view, one week
-  of the run with each group's session in it. `?week=5` shows another week.
+- **The programme's lead and admins**: the group's own page under the
+  Groups tab, "Change this week" on any week's card (the same five choices:
+  online, move, cancel keeping pace, cancel and push the rest back, put it
+  back as usual). The Groups tab's All groups view lists every group with its
+  session in the programme's week, each name opening that page; it changes
+  nothing. An old address with `?week=5` (from when the view was Sessions)
+  opens All groups as it is; a week is chosen on the group's page now, or on
+  The week's rooms for every group's room in one week.
 - **A group's facilitators**: "Change a session" on their group's page, which
   lists the group's sessions from today.
 - **A run's track leads** may change a session through the same route; the
-  Sessions view is the lead's and admins', as the tab's other views are.
+  group's page is the lead's and admins', as the tab's views are.
 - Nobody else.
 
 ### A session whose time has passed
@@ -5972,7 +5988,7 @@ Two pages on a term's application form, across its programmes: every group's
 room for one week, and every group's room for every week. The code is
 `src/lib/courses/weekRooms/`; the pages are
 `/admin/admissions/forms/[roundId]/rooms` and `.../rooms/term`. Each
-programme's Sessions view links to both, filtered to that programme.
+programme's All groups view links to both, filtered to that programme.
 
 ### Who may open them
 
@@ -6624,10 +6640,10 @@ laptop. The code is `src/lib/courses/pairs/`.
 - **The group's live facilitators, the programme's lead and admins** type
   them and see every pair, on the pairs page; the group's facilitators and
   admins also on the group page. The lead (and an admin) reaches it from the
-  Sessions view of the programme's Groups tab: each group's session in a
-  week that asks for pairs, by the group's own copy of the week, has
-  "Pairs and laptops" (or "Pairs") under "Change a session", to that group's
-  pairs page for that week.
+  group's page under the programme's Groups tab: the card of a week that asks
+  for pairs, by the group's own copy of the week, has "Pairs and laptops" (or
+  "Pairs") beside "Change this week", to that group's pairs page for that
+  week (`readPairsLink`).
 - **Each person** sees their own pair on that week's page, under the
   guide's "Before you come": who they are paired with, by first name, and
   who in their pair is bringing a laptop ("You’re paired with Kofi.",

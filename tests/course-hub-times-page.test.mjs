@@ -443,17 +443,17 @@ describe("what the cards say", () => {
       [...Array(5).fill("Use for a group"), ...Array(3).fill("Change"), "Add a group"],
     );
     for (const m of html.matchAll(/<button([^>]*)>/g)) assert.match(m[1], /type="button"/, "a button that would send a form");
-    // The views are the five an admin has, each a page of the tab: Sessions
-    // (first since changing a session landed, as the design for changing a session draws the row), the
-    // run's allocation board (People in groups), Circles (an admin's alone),
-    // this one, and Facilitators.
+    // The views are the five an admin has, each a page of the tab: the run's
+    // allocation board (People in groups), All groups (the view that was
+    // Sessions, at its address), Circles (an admin's alone), this one, and
+    // Facilitators.
     const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(html);
     assert.ok(views, "no views");
     assert.deepEqual(
       [...views[1].matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => [m[2], m[1]]),
       [
-        ["Sessions", `${PAGE_PATH}/groups/sessions`],
         ["People in groups", `${PAGE_PATH}/groups`],
+        ["All groups", `${PAGE_PATH}/groups/sessions`],
         ["Circles", `${PAGE_PATH}/groups/circles`],
         ["Times", `${PAGE_PATH}/groups/times`],
         ["Facilitators", `${PAGE_PATH}/groups/facilitators`],

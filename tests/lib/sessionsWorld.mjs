@@ -8,7 +8,7 @@
  * door. On top of that, the change route and the way the dialog presses it.
  *
  * THE CLOCK. The run's six taught weeks start on Thu 29 Oct 2026, so week 4
- * runs Thu 19 to Wed 25 Nov, as the board's Sessions view draws it. A suite
+ * runs Thu 19 to Wed 25 Nov, as All groups' week column reads it. A suite
  * starts at `NOW`, the Thursday morning of week 4, and moves the clock with
  * `at(...)`: the route's own `new Date()` and the database's
  * `serverTimestamp()` both read it.

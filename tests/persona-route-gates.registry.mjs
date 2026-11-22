@@ -1504,7 +1504,7 @@ export const ROUTES = {
     PUT: {
       expect: signedIn(400),
       why:
-        "A group's campus, from the Groups tab's Sessions view: view-as is refused first, then the session, " +
+        "A group's campus, from the Room panel of the group's page (and Circles): view-as is refused first, then the session, " +
         "then the body (one of the three campuses, or null) is checked before anything is read, then the role " +
         "from the form. Only the programme's lead and admins change it, before Publish and after.",
     },
@@ -5313,8 +5313,9 @@ export const PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
-      "The admissions tree's gate, then the programme layout's and the page's own: the Sessions view is the " +
-      "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the caller " +
+      "The admissions tree's gate, then the programme layout's and the page's own: All groups (the view that was " +
+      "Sessions, at its address; one row per group, each to its page, and the archived groups at the foot with " +
+      "Restore) is the programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the caller " +
       "has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
@@ -8637,7 +8638,7 @@ export const REAL_PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/report": programmePage(
     "the report page's calm not-here: the address names no session, and nobody here took one's register in a facilitator's place.",
   ),
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": programmePage("the Sessions view."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": programmePage("All groups, the view that was Sessions: the rows and the archived groups at the foot."),
   "/(app)/admin/admissions/forms/[roundId]/rooms": termRoomsPage("the week's rooms, its programme's groups alone."),
   "/(app)/admin/admissions/forms/[roundId]/rooms/term": termRoomsPage("the term's rooms, its programme's groups alone."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": programmePage("Circles for an admin; the lead is drawn a note that Circles is an admin's."),

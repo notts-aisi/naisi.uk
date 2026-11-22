@@ -407,7 +407,7 @@ const ROUND_SURFACES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": {
     kind: "form",
     why:
-      "one programme's Groups tab, its Sessions view, each group's session in one week of the run it names. It " +
+      "one programme's Groups tab, its All groups view (once Sessions), each group of the run it names, and its archived groups. It " +
       "reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' " +
       "for a round that is not a form",
   },
@@ -1092,7 +1092,7 @@ const ROUND_SURFACES = {
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus": {
     kind: "form",
     why:
-      "sets one group's campus on the run a programme names, from the Groups tab's Sessions view, " +
+      "sets one group's campus on the run a programme names, from the Room panel of the group's page, " +
       "reaching the round only through loadProgrammeRun, which answers a round that is not a form as a " +
       "programme that is not here",
   },

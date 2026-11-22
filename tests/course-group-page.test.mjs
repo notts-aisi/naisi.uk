@@ -730,6 +730,35 @@ describe("3. the group's page, and the facilitator's cut", () => {
     assert.ok(nonsense.text.includes(words.GROUP_NOT_HERE_TITLE));
   });
 
+  test("the Room row shows the room with the campus, and its panel holds the campus picker, which emails nobody", async () => {
+    // The row: the room and the campus as the group's page draws them, or the campus alone, or "Not set yet".
+    world.db.poke(`courseGroups/${B}`, { campus: "university-park" });
+    assert.ok((await groupPage("claudia")).text.includes("Room Hallward B12, University Park"));
+    world.db.poke(`courseGroups/${B}`, { "session.location": "", campus: "jubilee" });
+    assert.ok((await groupPage("claudia")).text.includes("Room Room to be confirmed, Jubilee Set the room"));
+    world.db.poke(`courseGroups/${B}`, { campus: null });
+    assert.ok((await groupPage("claudia")).text.includes(`Room ${words.NOT_SET_YET} Set the room`));
+    // The page hands the panel the programme whose campus route saves it.
+    const [body] = find((await groupPage("claudia")).element, "GroupPage");
+    assert.deepEqual(body.props.links.campusAt, { roundId: ROUND, programmeId: AGI });
+    // The panel: the campus picker first, saving on its own and emailing
+    // nobody, then the room with its own button, which says what it emails.
+    world.db.poke(`courseGroups/${B}`, { "session.location": "Hallward B12", campus: "jubilee" });
+    const view = await read("lead", "claudia");
+    const { default: RoomPanel } = await loadTs(join("features", "courses", "groupPage", "RoomPanel.tsx"));
+    const html = renderToStaticMarkup(
+      createElement(RoomPanel, { view, roomPath: "/room", campusAt: { roundId: ROUND, programmeId: AGI }, onCampusSaved() {}, onClose() {}, onDone() {} }),
+    );
+    const said = text(html);
+    assert.match(said, /Change Group B’s room Close The room the group meets in every week\. One week’s room is changed with Change this week\. Campus Not chosen yet University Park Jubilee Online The campus saves as soon as you choose it\. Nobody is emailed\. Room/);
+    assert.match(html, /<option value="jubilee" selected="">Jubilee<\/option>/);
+    assert.match(html, /aria-label="Campus for Group B"/);
+    // The room's own button keeps its words with the count it emails.
+    assert.ok(said.includes(model.roomButtonWords(0)), said);
+    // Without the programme's ids there is no campus control.
+    assert.doesNotMatch(text(renderToStaticMarkup(createElement(RoomPanel, { view, roomPath: "/room", onClose() {}, onDone() {} }))), /Campus/);
+  });
+
   test("how the group meets ends with Archive Group B… and its line, which opens the question", async () => {
     // Archiving goes through PATCH /api/courses/groups/[groupId]/archive and
     // its checks (tests/course-group-archive.test.mjs presses it).
