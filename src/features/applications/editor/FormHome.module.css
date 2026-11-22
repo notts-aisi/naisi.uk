@@ -258,3 +258,21 @@
     padding: var(--space-4);
   }
 }
+
+/*
+  A card that opens its programme: Open, then the applications and Settings
+  beside it in one row, wrapping as the card narrows. The plain foot gives
+  its first button the whole row.
+*/
+.programmeFootOpen {
+  justify-content: flex-start;
+}
+.programmeFootOpen > :first-child {
+  flex: 0 1 auto;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .programmeFootOpen > :first-child {
+    flex: 1 1 100%;
+  }
+}

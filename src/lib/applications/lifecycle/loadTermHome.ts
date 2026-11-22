@@ -4,6 +4,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { canDecideFor, canRunTerm, programmeRolesFor } from "../access";
 import { termsFor } from "../decisionDay/plan";
 import { isPooled } from "../decisions";
+import type { ApplicationDoc, DecisionDoc } from "../model";
 import type { ApplicationForm } from "../normalise";
 import { loadQuestionSets } from "../repo";
 import { buildProgrammeBoard } from "../review/board";
@@ -54,12 +55,18 @@ export async function loadTermNumbers(
   db: Firestore,
   user: SessionUser,
   form: ApplicationForm,
+  /**
+   * The form's sent applications and its decisions, for a caller that has
+   * read them already (the Programmes page, which counts places from the same
+   * two reads). Left out, both are read here.
+   */
+  read?: { applications: ApplicationDoc[]; decisions: Map<string, DecisionDoc> },
 ): Promise<TermNumbers> {
   const roles = programmeRolesFor(user, form);
   const scores = roles.some((entry) => entry.role === "reviewer");
   const [applications, decisions, sets, reviews] = await Promise.all([
-    listSentApplications(db, form),
-    listDecisions(db, form.round.id),
+    read ? read.applications : listSentApplications(db, form),
+    read ? read.decisions : listDecisions(db, form.round.id),
     scores ? loadQuestionSets(db, form.round.id) : [],
     scores ? listReviews(db, form.round.id) : [],
   ]);

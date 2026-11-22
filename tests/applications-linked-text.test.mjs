@@ -758,6 +758,8 @@ const FOLDERS = [
   "src/app/(public)/apply",
   "src/app/(public)/applications",
   "src/app/(app)/admin/admissions/forms",
+  // The Programmes page (November 2026): every card's buttons lead into a form's pages.
+  "src/app/(app)/admin/admissions/programmes",
   "src/app/api/admissions/forms",
 ];
 
@@ -1257,8 +1259,10 @@ const BUILT = new Map([
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/page.tsx",
     {
-      built: ["`${base}/setup`", "`${home}/form`", "`${home}/intake`", "card?.action.href ?? `${base}/applications`"],
-      from: "pages of this term: the term's own path and a programme's id",
+      // CHANGED (November 2026): the card's first button opens the
+      // programme's Overview, and the crumb leads to the Programmes page.
+      built: ["PROGRAMMES_PATH", "`${base}/overview`", "`${base}/setup`", "`${home}/form`", "`${home}/intake`", "card?.action.href ?? `${base}/applications`"],
+      from: "pages of this term: the term's own path and a programme's id; and the Programmes page, a fixed address in the code (`PROGRAMMES_PATH`)",
     },
   ],
   [
@@ -1398,6 +1402,23 @@ const BUILT = new Map([
   [
     "src/app/(app)/admin/admissions/forms/page.tsx",
     { built: ["applicationFormPath(form.id)"], from: "a form's own page, from its id" },
+  ],
+  [
+    // ADDED (November 2026), with the Programmes page: a term's page, and a
+    // programme's Overview and applications, from the form's and the
+    // programme's ids.
+    "src/lib/applications/programmesList.ts",
+    {
+      built: ["`${base}/applications`", "`${base}/overview`", "applicationFormPath(entry.form.round.id)", "applications.href", "applications.href", "home"],
+      from: "pages of a term: the term's own path from the form's id, and a programme's Overview and applications from its id",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/programmes/page.tsx",
+    {
+      built: ["programme.open.href", "programme.review.href", "term.href", "term.href"],
+      from: "the addresses the Programmes list builds (src/lib/applications/programmesList.ts): a term's page and a programme's pages, from ids",
+    },
   ],
 ]);
 

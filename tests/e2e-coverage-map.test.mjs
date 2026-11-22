@@ -1942,6 +1942,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]": {
+    reason:
+      "A programme's own address, with no tab: it draws nothing of its own and forwards an admin or the lead to the Overview and a reviewer to the applications, or draws the tabs' 'there is no programme here'. tests/programmes-page.test.mjs renders it as every kind of caller, and the persona battery asks it in both passes.",
+    coverWhen:
+      "When a browser spec follows a link to a programme itself (the menu's programme entries, or Home's), since that link is the journey this address serves.",
+  },
+  "/(app)/admin/admissions/programmes": {
+    reason:
+      "The Programmes page: a committee screen whose every card, count and line comes from src/lib/applications/programmesList.ts, which tests/programmes-page.test.mjs runs and renders as every kind of caller against a whole term; a fault in it is seen by the lead or admin using it.",
+    coverWhen:
+      "When a browser spec walks a lead from the menu into their programme, which is the journey this page starts.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/pool": {
     reason:
       "Application system: /(app)/admin/admissions/forms/[roundId]/pool is an admin's page whose every number is worked out by modules the unit suite executes; nobody has applied through the new form yet, so there is no term to drive it against.",

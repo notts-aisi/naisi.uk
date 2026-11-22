@@ -21,6 +21,7 @@ import { clearSelfHealAttempt } from "@/lib/navigation/selfHealGuard";
 import { InstallLink } from "@/features/pwa/InstallLink";
 import { FOOTER_LINK } from "@/lib/societyFeedback/words";
 import { ASK_THE_TEAM, ASK_THE_TEAM_PATH } from "@/lib/courses/teamAsk/words";
+import { PROGRAMMES_PATH } from "@/lib/applications/programmesPath";
 import {
   BOTTOM_BAR_MENU_LABEL,
   barTitleFor,
@@ -87,22 +88,23 @@ const EVENTS_ACCESS = (v: Viewer) =>
   v.role === "committee" ||
   Boolean(v.permissions.draftEvent) ||
   Boolean(v.permissions.approveEvent);
-// A non-admin holding draftCourse or approveCourse may use /admin/courses and
-// nothing else in the admin area, so they get a link straight to the course
-// tree. Admins are excluded here on purpose: they reach the same pages through
-// Programmes, and the two links would land on the same console.
+// The course tree, a section of its own: admins, and a non-admin holding
+// draftCourse or approveCourse, whose grant reaches /admin/courses. Admins
+// reached it through Programmes until the course pages left that section's
+// strip (a course outlives its terms), so they are shown it too.
 const COURSE_ADMIN_ACCESS = (v: Viewer) =>
-  v.role !== "admin" &&
-  (Boolean(v.permissions.draftCourse) || Boolean(v.permissions.approveCourse));
+  v.role === "admin" || Boolean(v.permissions.draftCourse) || Boolean(v.permissions.approveCourse);
 
 // The Programmes entry. Admins always; anyone the roles route has marked as a
-// reviewer or final decider on a round. The flag is a denormalisation carried
+// reviewer or final decider on a round; and a course approver, who authors
+// rounds and so passes the admissions tree's gate (`canAuthorAdmissionRound`)
+// and reached it from the course pages' strip until they left it. The flag is a denormalisation carried
 // on the user document precisely so this predicate is a field read rather than
 // an `admissionRounds` query on every authed navigation, which is the shape
 // that would either cost every visitor a query or, worse, silently never show
 // the entry to exactly the non-admin SU reviewers it exists for.
 const ADMISSIONS_ACCESS = (v: Viewer) =>
-  v.role === "admin" || v.admissionsReviewer;
+  v.role === "admin" || v.admissionsReviewer || Boolean(v.permissions.approveCourse);
 
 // A non-admin holding `manageMembership` may use /admin/membership and nothing
 // else in the admin area, so they get a link straight to it. Admins are
@@ -160,6 +162,8 @@ const WIDE_ROUTES: ((pathname: string) => boolean)[] = [
   // for a wider page than the default cap gives, and each stays inside
   // whatever width it is handed, so nothing under here scrolls sideways.
   (pathname) => pathname.startsWith("/admin/admissions/forms"),
+  // The Programmes page: its cards sit two to a row, each inside its width.
+  (pathname) => pathname === PROGRAMMES_PATH,
 ];
 
 function isWideRoute(pathname: string): boolean {

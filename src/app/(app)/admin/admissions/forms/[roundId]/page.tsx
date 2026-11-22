@@ -10,6 +10,7 @@ import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import kit from "@/features/applications/kit/kit.module.css";
 import { AlsoThisTerm, NeedsYou } from "@/features/applications/lifecycle/TermHome";
 import { TermState } from "@/features/applications/lifecycle/TermState";
+import { opensProgrammeGroups } from "@/lib/applications/access";
 import { loadFormForStaff } from "@/lib/applications/editor/load";
 import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
 import { projectFormForStaff, type FormStaffView } from "@/lib/applications/editor/views";
@@ -26,6 +27,7 @@ import {
   wantsReadiness,
   type LifecycleView,
 } from "@/lib/applications/lifecycle/view";
+import { PROGRAMMES_PATH } from "@/lib/applications/programmesPath";
 import { PROGRAMME_STANDING_LABEL } from "@/lib/applications/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -33,6 +35,12 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 /**
  * One term's programmes: the form's dates in a strip, then a card for each
  * programme with who leads it and where its applications stand.
+ *
+ * Titled by the term's one name, the form's label ("Autumn 2026"), under the
+ * crumb back to Programmes. For an admin and a programme's lead the card's
+ * first button opens the programme itself, on its Overview ("Open AGI
+ * Strategy"): the two who open its groups (`opensProgrammeGroups`). A
+ * reviewer's card keeps the applications as its first button.
  *
  * For anybody with a role on the form. Somebody with none is told there is no
  * form here, whether or not there is one. What each person is shown follows
@@ -96,18 +104,19 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
   return (
     <ApplicationsRoot className={shared.page}>
       <nav className={shared.crumb} aria-label="Breadcrumb">
-        <Link href="/admin/admissions/forms">Application forms</Link>
+        <Link href={PROGRAMMES_PATH}>Programmes</Link>
       </nav>
       <header className={shared.head}>
         <div className={shared.headMain}>
+          <div className={kit.mono}>Term</div>
           <div className={shared.titleRow}>
-            <h1 className={shared.title}>Programmes</h1>
+            <h1 className={shared.title}>{form.label}</h1>
             <div className={shared.chips}>
               <StageChip lifecycle={lifecycle} />
             </div>
           </div>
           <p className={shared.lede}>
-            {form.label}. Each lead decides their own programme.
+            Each lead decides their own programme.
             {form.decisions ? ` Everyone hears together on ${form.decisions.day}.` : ""}
           </p>
         </div>
@@ -192,7 +201,13 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
                   </p>
                 )}
                 {programme.role && (
-                  <div className={styles.programmeFoot}>
+                  <div className={`${styles.programmeFoot} ${opensProgrammeGroups(programme.role) ? styles.programmeFootOpen : ""}`}>
+                    {/* The programme itself, on its Overview, for the two who open its groups. */}
+                    {opensProgrammeGroups(programme.role) && (
+                      <Link href={`${base}/overview`} className={kit.primary}>
+                        {`Open ${programme.shortName.trim() || programme.name}`}
+                      </Link>
+                    )}
                     <Link href={card?.action.href ?? `${base}/applications`} className={shared.btn}>
                       <span>{card?.action.label ?? "See applications"}</span>
                       <ArrowRightIcon />

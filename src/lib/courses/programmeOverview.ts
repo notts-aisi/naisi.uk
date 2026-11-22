@@ -41,8 +41,9 @@ import { weekIsReady } from "@/lib/courses/weekReady";
 import { courseNudgeSessionWhere } from "@/lib/email/courseNudgeEmail";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
 import { ownGroupForWeek, visitInWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
-import { campusForWeek, sessionModeForWeek } from "@/lib/firestore/courseGroups";
-import { weekDocId } from "@/lib/firestore/courses";
+import { normalizeCourseAttendance, type CourseAttendanceDoc } from "@/lib/firestore/courseAttendance";
+import { campusForWeek, sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 
 /**
@@ -427,6 +428,101 @@ function leaversOfRun(records: RunRecords, listed: readonly ListedGroup[], viewe
   return out.sort((a, b) => (b.leftDateKey ?? "").localeCompare(a.leftDateKey ?? ""));
 }
 
+// ---------------------------------------------------------------------------
+// Two of Needs attention's lines, shared with the Programmes page
+// ---------------------------------------------------------------------------
+
+/** "Week 3 isn’t ready, and Group C has reached it": a week not published that a group has reached. */
+export function weekReachedTitle(weekNumber: number, names: readonly string[]): string {
+  return `Week ${weekNumber} isn’t ready, and ${groupsInWords(names)} ${names.length === 1 ? "has" : "have"} reached it`;
+}
+
+/** "Group B’s register for Tue 10 Nov isn’t finished": a register not finished once its session has ended. */
+export function registerNotDoneTitle(groupName: string, dateKey: string, ending: "finished" | "pushed"): string {
+  return `${groupName}’s register for ${dayLabel(dateKey)} isn’t ${ending}`;
+}
+
+type ReachedWeek = { names: string[]; lastKey: string; nextKey: string };
+
+/**
+ * The weeks a group has reached that are not published, lowest first: the
+ * group's previous session is over and its next is still to come, and the
+ * week that next session teaches is not published for the group. Reads that
+ * week, for each such group alone (`resolveWeekDoc`, the group's copy beside
+ * the run's).
+ */
+async function reachedWeeksOf(
+  db: Firestore,
+  runId: string,
+  entries: readonly { group: { id: string; name: string }; sessions: Map<number, GroupSessionFacts> }[],
+): Promise<[number, ReachedWeek][]> {
+  const reached = new Map<number, ReachedWeek>();
+  for (const entry of entries) {
+    const ordered = [...entry.sessions.values()]
+      .filter((facts) => facts.startsAt !== null)
+      .sort((a, b) => (a.startsAt as Date).getTime() - (b.startsAt as Date).getTime());
+    const nextAt = ordered.findIndex((facts) => !facts.started);
+    if (nextAt <= 0) continue;
+    const previous = ordered[nextAt - 1];
+    const next = ordered[nextAt];
+    if (!previous.ended) continue;
+    const resolved = await resolveWeekDoc(db, runId, entry.group.id, next.session.weekId);
+    if (resolved.week?.published) continue;
+    const found = reached.get(next.session.weekNumber) ?? { names: [], lastKey: "", nextKey: "" };
+    found.names.push(entry.group.name);
+    if (!found.lastKey || previous.session.dateKey < found.lastKey) found.lastKey = previous.session.dateKey;
+    if (!found.nextKey || next.session.dateKey < found.nextKey) found.nextKey = next.session.dateKey;
+    reached.set(next.session.weekNumber, found);
+  }
+  return [...reached].sort((a, b) => a[0] - b[0]);
+}
+
+/**
+ * THE FIRST THING THAT NEEDS THE LEAD, as the Programmes page's card says it:
+ * one line, or null. Only two of Needs attention's kinds, in the Overview's
+ * own words and its own order: a week not ready that a group has reached,
+ * then a register not finished once its session has ended. Neither names a
+ * member, and neither needs anybody's place read, which is what keeps this
+ * cheap enough to ask of every programme on one page; the Overview's other
+ * lines (absences, week 1 before the start, slips, leavers) are left to the
+ * Overview, so the card's line is not always the Overview's first.
+ *
+ * `groups` are the run's live groups in the order every tab lists them
+ * (`readRunEnd`'s). Reads the run's registers once a group has met (one
+ * equality on one field, so no declared index), and the reached weeks'
+ * documents; nothing before any group has met.
+ */
+export async function firstNeedsYou(
+  db: Firestore,
+  run: CourseRunDoc,
+  groups: readonly CourseGroupDoc[],
+  ending: "finished" | "pushed",
+  now: Date,
+): Promise<string | null> {
+  const named = groups.map((group) => ({ ...group, name: group.name.trim() || "Untitled group" }));
+  const clockOnly = { run, registers: new Map<string, CourseAttendanceDoc>() };
+  const anyMet = named.some((group) => [...groupSessions(clockOnly, group, now).values()].some((facts) => facts.started));
+  if (!anyMet) return null;
+
+  const snap = await db.collection("courseAttendance").where("runId", "==", run.id).get();
+  const registers = new Map<string, CourseAttendanceDoc>();
+  for (const doc of snap.docs) {
+    const register = normalizeCourseAttendance(doc.id, doc.data() ?? {});
+    if (register.runId === run.id) registers.set(doc.id, register);
+  }
+  const entries = named.map((group) => ({ group, sessions: groupSessions({ run, registers }, group, now) }));
+
+  const [first] = await reachedWeeksOf(db, run.id, entries);
+  if (first) return weekReachedTitle(first[0], first[1].names);
+  for (const { group, sessions } of entries) {
+    const unfinished = [...sessions.values()]
+      .filter((facts) => facts.tag === "not-finished")
+      .sort((a, b) => a.session.weekNumber - b.session.weekNumber)[0];
+    if (unfinished) return registerNotDoneTitle(group.name, unfinished.session.dateKey, ending);
+  }
+  return null;
+}
+
 /**
  * THE OVERVIEW. Reads the week docs it needs, the reminder markers of the
  * registers not finished, the settings the chase reads and, for a group past
@@ -623,30 +719,13 @@ export async function buildProgrammeOverview(
 
   // A week not published that a group has reached: its previous session is
   // over and its next is still to come.
-  const reached = new Map<number, { names: string[]; lastKey: string; nextKey: string }>();
-  for (const entry of listed) {
-    const ordered = [...entry.sessions.values()]
-      .filter((facts) => facts.startsAt !== null)
-      .sort((a, b) => (a.startsAt as Date).getTime() - (b.startsAt as Date).getTime());
-    const nextAt = ordered.findIndex((facts) => !facts.started);
-    if (nextAt <= 0) continue;
-    const previous = ordered[nextAt - 1];
-    const next = ordered[nextAt];
-    if (!previous.ended) continue;
-    const resolved = await resolveWeekDoc(db, records.run.id, entry.group.id, next.session.weekId);
-    if (resolved.week?.published) continue;
-    const found = reached.get(next.session.weekNumber) ?? { names: [], lastKey: "", nextKey: "" };
-    found.names.push(entry.group.name);
-    if (!found.lastKey || previous.session.dateKey < found.lastKey) found.lastKey = previous.session.dateKey;
-    if (!found.nextKey || next.session.dateKey < found.nextKey) found.nextKey = next.session.dateKey;
-    reached.set(next.session.weekNumber, found);
-  }
-  for (const [weekNumber, found] of [...reached].sort((a, b) => a[0] - b[0])) {
+  const reached = await reachedWeeksOf(db, records.run.id, listed);
+  for (const [weekNumber, found] of reached) {
     const who = groupsInWords(found.names);
     const one = found.names.length === 1;
     attention.push({
       kind: "week",
-      title: `Week ${weekNumber} isn’t ready, and ${who} ${one ? "has" : "have"} reached it`,
+      title: weekReachedTitle(weekNumber, found.names),
       detail: one
         ? `${who} met on ${dayLabel(found.lastKey)} and meets again on ${dayLabel(found.nextKey)}. Week ${weekNumber} isn’t published, so people in the group can’t open it yet.`
         : `${who} meet again from ${dayLabel(found.nextKey)}. Week ${weekNumber} isn’t published, so people in these groups can’t open it yet.`,
@@ -666,7 +745,7 @@ export async function buildProgrammeOverview(
       const state = reminderStates.get(`${entry.group.id}__${facts.session.sessionKey}`) ?? { sendable: [], reminded: [] };
       attention.push({
         kind: "register",
-        title: `${entry.group.name}’s register for ${dayLabel(facts.session.dateKey)} isn’t ${ending}`,
+        title: registerNotDoneTitle(entry.group.name, facts.session.dateKey, ending),
         detail: chaseDetail(entry, facts, state, records, config, lead, viewer, now, ending),
         // The ways to take it in a facilitator's place, on the group's page,
         // open on that week (`?take=`): taking it, giving the session to

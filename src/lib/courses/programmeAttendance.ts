@@ -478,7 +478,11 @@ export type GroupSessionFacts = {
 };
 
 /** Every week's first session of a group, keyed by week, with the clock's and the register's facts. */
-export function groupSessions(records: RunRecords, group: CourseGroupDoc, now: Date): Map<number, GroupSessionFacts> {
+export function groupSessions(
+  records: Pick<RunRecords, "run" | "registers">,
+  group: CourseGroupDoc,
+  now: Date,
+): Map<number, GroupSessionFacts> {
   const todayKey = londonDateKey(now);
   const tomorrowKey = addDaysToKey(todayKey, 1);
   const out = new Map<number, GroupSessionFacts>();
