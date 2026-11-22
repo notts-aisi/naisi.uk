@@ -14,7 +14,10 @@ import styles from "./GroupsViews.module.css";
  * Sessions, so every link to it keeps working), Times (when the people
  * holding a place are free) and Facilitators (who staffs each group). A run
  * with a pitching week has one more, Pitches (the pitches from that week,
- * which teams are made from). Each is its own address under the tab, so a
+ * which teams are made from, and pitching week's settings), and so does
+ * every incubator, which has teams whether or not it has a pitching week:
+ * one whose teams are made from the agenda sets their sizes and day there.
+ * Each is its own address under the tab, so a
  * view is a link and the one on screen says so (`aria-current`). The tab
  * itself opens on People in groups.
  *
@@ -56,7 +59,7 @@ export default function GroupsViews({
   roundId: string;
   programmeId: string;
   current: GroupsView;
-  /** The run has a pitching week, so its Pitches view is offered. */
+  /** The run has a pitching week, or the programme has teams, so its Pitches view is offered. */
   pitches?: boolean;
   /** How People in groups was shown on the address this page was reached by, carried on by every link here. */
   show?: BoardShow;

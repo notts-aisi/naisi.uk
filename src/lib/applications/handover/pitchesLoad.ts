@@ -5,6 +5,9 @@ import type { StaffPitchRow } from "@/lib/courses/pitching/model";
 import { seatsOn } from "@/lib/courses/pitching/people";
 import { readPitchingWeek } from "@/lib/courses/pitching/week";
 import { pitchedByWords } from "@/lib/courses/pitching/words";
+import { bodyOf } from "@/lib/courses/pitching/settings";
+import { dayWords } from "@/lib/courses/sessionChange/words";
+import { weekSessions } from "@/lib/courses/weeksTab/load";
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { canRunTerm, opensProgrammeGroups, roleOnProgramme } from "../access";
@@ -27,6 +30,11 @@ import { RUNS_COLLECTION, readRun } from "./run";
  * in the pitch's group, told by Publish (`seatsOn`), with an account that
  * stands, so somebody who left, moved or was refused stops counting. Who picked what is not on this list: that is for
  * making teams, which is not built yet. Read only: it writes nothing.
+ *
+ * Beside the list, pitching week's settings as stored on the run, for the
+ * card the lead and admins set them in (`PUT .../pitching-week`), the day of
+ * the week's first session for its heading, and whether the programme has
+ * teams (an incubator), which decides what the card offers.
  *
  * Most would join first, then by title, as the board orders them.
  */
@@ -51,6 +59,16 @@ export type StaffPitchesView = {
   pitches: StaffPitchRow[];
   /** The run editor is this caller's to open (an admin). */
   canOpenRunEditor: boolean;
+  /** The programme is an incubator, so it has teams and a Teams tab. */
+  hasTeams: boolean;
+  /**
+   * Pitching week's settings as stored on the run (`bodyOf`: how teams are
+   * made, the picks, the sizes and the day), for the card above the pitches;
+   * null with no run.
+   */
+  settings: ReturnType<typeof bodyOf> | null;
+  /** The pitching week's first session across the run's groups ("Wed 25 Nov"), or null. */
+  firstSession: string | null;
 };
 
 export type StaffPitchesOutcome =
@@ -86,6 +104,9 @@ export async function loadProgrammePitches(
     pickLimitSet: false,
     pitches: [],
     canOpenRunEditor: canRunTerm(user),
+    hasTeams: programme.kind === "incubator",
+    settings: null,
+    firstSession: null,
   };
   if (programme.runId === null) return { status: "ok", view };
 
@@ -95,6 +116,7 @@ export async function loadProgrammePitches(
   const run = read.run;
   view.run = { id: run.id, courseId: run.courseId };
   view.pickLimitSet = run.pitchSettings.pickLimit !== null;
+  view.settings = bodyOf({ teamsFrom: run.teamsFrom, settings: run.pitchSettings });
 
   const week = await readPitchingWeek(db, run.id);
   if (!week) return { status: "ok", view: { ...view, blank: "no-week" } };
@@ -109,6 +131,13 @@ export async function loadProgrammePitches(
     db.collection("courseGroups").where("runId", "==", run.id).get(),
   ]);
   const pitches = allPitches.filter((pitch) => pitch.weekId === week.weekId);
+  // The week's first session, as the Weeks tab finds it: the earliest of the
+  // groups that still meet, each on its own calendar.
+  const liveGroups = groupSnap.docs
+    .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
+    .filter((group) => !group.archived && group.runId === run.id);
+  const first = weekSessions(run, liveGroups, week.weekNumber).firstSession;
+  view.firstSession = first ? dayWords(first) || null : null;
   const groupOf = new Map(seats.map((seat) => [seat.uid, seat.groupId] as const));
   const groupNames = new Map(
     groupSnap.docs.map((doc) => {

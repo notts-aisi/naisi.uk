@@ -263,9 +263,9 @@ describe("2. teams from the pitches", () => {
 
   test("with no sizes, or the run's teams made another way, or no way set, nothing is made", async () => {
     for (const [seed, error] of [
-      [teamsSeed({ sizes: null }), "Set the smallest and largest team in the run editor’s Pitching week section first, so teams are made within them."],
+      [teamsSeed({ sizes: null }), "Set the smallest and largest team in pitching week’s settings on Groups, Pitches first, so teams are made within them."],
       [teamsSeed({ madeFrom: "agenda" }), "This programme’s teams are made from the agenda, not from pitches."],
-      [teamsSeed({ madeFrom: null }), "Nobody has said how this programme’s teams are made yet. Set it in the run editor’s Pitching week section."],
+      [teamsSeed({ madeFrom: null }), "Nobody has said how this programme’s teams are made yet. Set it in pitching week’s settings on Groups, Pitches."],
     ]) {
       reset(seed);
       const before = everything();

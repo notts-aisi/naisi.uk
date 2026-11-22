@@ -254,7 +254,7 @@ export async function POST(
         left: outcome.left.length,
         extra: outcome.extra,
         guide: outcome.guide,
-        templateId: template.id,
+        templateId,
         templateLabel: template.label,
       });
     } catch (err) {

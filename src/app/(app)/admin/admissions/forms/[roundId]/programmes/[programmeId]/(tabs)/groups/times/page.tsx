@@ -62,7 +62,7 @@ export default async function ProgrammeTimesPage({
           roundId={view.roundId}
           programmeId={view.programmeId}
           current="times"
-          pitches={view.pitchingWeek !== null}
+          pitches={view.pitchingWeek !== null || view.hasTeams}
           show={boardShowOf(query?.show)}
         />
       }

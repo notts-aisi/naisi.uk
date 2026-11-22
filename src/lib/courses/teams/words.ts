@@ -119,9 +119,30 @@ export const NOT_AN_INCUBATOR = "Teams are an incubator’s. This programme is a
 export const NO_RUN = "This programme doesn’t name a course run yet, so there is nobody to put in a team.";
 export const RUN_GONE = "The course run this programme names is no longer on the site.";
 export const NO_WAY_SET =
-  "Nobody has said how this programme’s teams are made yet. Set it in the run editor’s Pitching week section.";
+  "Nobody has said how this programme’s teams are made yet. Set it in pitching week’s settings on Groups, Pitches.";
 export const NO_SIZES =
-  "Set the smallest and largest team in the run editor’s Pitching week section first, so teams are made within them.";
+  "Set the smallest and largest team in pitching week’s settings on Groups, Pitches first, so teams are made within them.";
+
+// ---------------------------------------------------------------------------
+// The tab before teams are made: each sentence points to pitching week's
+// settings, which are set on Groups, Pitches.
+// ---------------------------------------------------------------------------
+
+export const GO_TO_PITCHES = "Go to Pitches";
+/** "No teams yet. They’re made on Thu 26 Nov from the pitches people pick. ..." (the board's), or without a day while none is set. */
+export function noTeamsFromPitchesWords(teamsBy: string | null): string {
+  const when = teamsBy ? `They’re made on ${teamsBy} from the pitches people pick.` : "They’re made from the pitches people pick.";
+  return `No teams yet. ${when} Pitching week’s settings are on Groups, Pitches.`;
+}
+/** Nobody has said how the teams are made: where it is said now. */
+export function noWaySetWords(programmeName: string): string {
+  return `Nobody has said how ${programmeName}’s teams are made yet: from the pitches, or from the agenda people ranked on the application form. Pitching week’s settings are on Groups, Pitches.`;
+}
+export const SIZES_ON_PITCHES = "Set the smallest and largest team in pitching week’s settings on Groups, Pitches, and teams are made within them.";
+/** No week is pitching week: the Pitches view's own sentence. */
+export function noPitchingWeekWords(programmeName: string): string {
+  return `No week of ${programmeName}’s course run is pitching week. Tick “This is pitching week” in that week’s settings on the Weeks tab, and its pitches show here.`;
+}
 export const FROM_THE_AGENDA_HERE = "This programme’s teams are made from the agenda, not from pitches.";
 export const FROM_PITCHES_HERE = "This programme’s teams are made from the pitches, not from the agenda.";
 export const NO_SUCH_PITCH = "That pitch isn’t one of this programme’s pitching week.";

@@ -90,6 +90,8 @@ export type TimesView = {
    * Groups tab's views can offer that week's pitches; null otherwise.
    */
   pitchingWeek: number | null;
+  /** The programme is an incubator, so it has teams, and pitching week's settings, on Groups, Pitches. */
+  hasTeams: boolean;
   /**
    * What the view's controls need. Null while there is no run to act on.
    *  - `told`: the groups Publish has told somebody the time of. Their time
@@ -183,6 +185,7 @@ export async function loadTimesPicture(
     length: { counted: 0, options: [], source: { kind: "none" }, usual: usualLength(programme.kind) },
     picture: null,
     pitchingWeek: null,
+    hasTeams: programme.kind === "incubator",
     actions: null,
   };
 

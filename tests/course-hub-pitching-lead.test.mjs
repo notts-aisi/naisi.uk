@@ -210,7 +210,13 @@ describe("the page", () => {
     for (const absent of ["Became a team", "Not taken forward", "Move to", "Tell everyone their team", "Teams ("]) {
       assert.ok(!said.includes(absent), `the page offers ${absent}`);
     }
-    assert.ok(!/<button/.test(html), "the list has a button");
+    // CHANGED ON PURPOSE (pitching week's settings on this view): the list
+    // itself still has no button; the one button on the page is the card's
+    // Save pitching week, above the list.
+    const list = /<section[^>]*aria-labelledby="pitches-heading"[^>]*>(.*?)<\/section>/.exec(html);
+    assert.ok(list, "no list");
+    assert.ok(!/<button/.test(list[1]), "the list has a button");
+    assert.deepEqual([...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]), ["Save pitching week"]);
     // The Groups tab's views are drawn for whoever may open the tab, which the
     // programme's lead may, with Pitches the one on screen. All groups (the
     // view that was Sessions) follows People in groups, as the design draws the row.
@@ -234,13 +240,21 @@ describe("the page", () => {
     assert.equal((await draw("amara")).to, "/dashboard");
   });
 
-  test("with no pitching week it says how to make one, and offers the run editor to an admin only", async () => {
+  // CHANGED ON PURPOSE (pitching week's settings on this view): the week is
+  // ticked in its settings on the Weeks tab, which the lead opens as an
+  // admin does, so both are sent there and neither to the run editor.
+  test("with no pitching week it says where to tick one, and sends the lead and an admin to the Weeks tab", async () => {
     world.db.poke(`courseRuns/${INC.run}/weeks/w03`, { pitching: false });
-    const admin = await draw("zach");
-    assert.match(admin.text, /No week of Research incubator’s course run is pitching week\./);
-    assert.match(admin.html, new RegExp(`href="/admin/courses/${INC.course}/runs/${INC.run}"`));
-    const lead = await draw("tess");
-    assert.ok(!lead.html.includes(`/admin/courses/${INC.course}/runs/${INC.run}"`));
+    for (const who of ["zach", "tess"]) {
+      const page = await draw(who);
+      assert.match(
+        page.text,
+        /No week of Research incubator’s course run is pitching week\. Tick “This is pitching week” in that week’s settings on the Weeks tab, and its pitches show here\. Open the Weeks tab/,
+        who,
+      );
+      assert.match(page.html, new RegExp(`<a href="/admin/admissions/forms/${ROUND}/programmes/${INCUBATOR}/weeks"[^>]*>Open the Weeks tab</a>`), who);
+      assert.ok(!page.html.includes(`/admin/courses/${INC.course}/runs/${INC.run}"`), who);
+    }
   });
 
   test("the times picture's views name Pitches only for a run with a pitching week, for the lead and an admin", async () => {

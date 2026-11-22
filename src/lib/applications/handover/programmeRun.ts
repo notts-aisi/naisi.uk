@@ -41,6 +41,8 @@ export type ProgrammeRunView = {
   blank: "no-run" | "run-gone" | null;
   /** The run's pitching week, when one of its weeks is ticked as one; null otherwise. */
   pitchingWeek: number | null;
+  /** The programme is an incubator, so it has teams, and pitching week's settings, on Groups, Pitches. */
+  hasTeams: boolean;
   /**
    * Decisions have gone out on the form. Until then Times draws no picture
    * and no "Add a group", so nothing leads there to add one.
@@ -79,6 +81,7 @@ export async function loadProgrammeRun(
     run: null,
     blank: "no-run",
     pitchingWeek: null,
+    hasTeams: programme.kind === "incubator",
     decisionsSent: form.decisionsSentAt !== null,
   };
   if (programme.runId === null) return { status: "ok", view, form };
