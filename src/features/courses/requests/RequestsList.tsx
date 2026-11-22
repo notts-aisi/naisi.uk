@@ -15,7 +15,7 @@ import * as R from "@/lib/courses/excused/requestWords";
 import * as P from "@/lib/courses/registerCorrection/pageWords";
 import type { RequestRow, RequestsPageView } from "@/lib/courses/requests/load";
 import { REQUEST_KINDS, isDone, rowsOfKind, tabCounts } from "@/lib/courses/requests/kinds";
-import { requestPath } from "@/lib/courses/requests/paths";
+import { REQUESTS_PATH, requestPath } from "@/lib/courses/requests/paths";
 import styles from "./Requests.module.css";
 
 /**
@@ -54,6 +54,11 @@ import styles from "./Requests.module.css";
  * tagged "Admins only": who, "Access needs", when, who has it or who
  * replied. A row NEVER carries what was written (the loader's row has no
  * field for it); the ask's own page opens it, and records the opening.
+ *
+ * NARROWED TO ONE PROGRAMME (`?run=`, from a programme's Overview): the
+ * loader has already kept only that run's rows and counted them
+ * (`view.filter`), so the page names the programme at the top, with "All
+ * requests" beside it to clear the filter, and draws no Programme picker.
  */
 
 type Tab = "waiting" | "handling" | "done";
@@ -189,7 +194,16 @@ export default function RequestsList({
             </button>
           ))}
         </div>
-        {view.viewer === "admin" && programmes.size > 0 && (
+        {view.filter ? (
+          <p className={styles.filterOn}>
+            <span className={styles.filterLabel}>{P.FILTER_PROGRAMME_LABEL}</span>{" "}
+            <strong>{view.filter.name || P.A_PROGRAMME}</strong>{" "}
+            <Link href={REQUESTS_PATH} className={styles.filterClear}>
+              {P.ALL_REQUESTS}
+            </Link>
+          </p>
+        ) : null}
+        {!view.filter && view.viewer === "admin" && programmes.size > 0 && (
           <label className={styles.filter}>
             <span className={styles.filterLabel}>Programme</span>
             <Select value={programme} onChange={(event) => setProgramme(event.target.value)}>

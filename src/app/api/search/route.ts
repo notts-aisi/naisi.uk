@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
-import { answerSearch, searcherOf } from "@/lib/search/load";
+import { answerSearch, findsProgrammes, searcherOf } from "@/lib/search/load";
 import { NO_ANSWER, isAskableQuery, queryWords } from "@/lib/search/model";
 import { SEARCH_REFUSAL } from "@/lib/search/words";
 
@@ -20,9 +20,12 @@ import { SEARCH_REFUSAL } from "@/lib/search/words";
  *
  * ## GET: does the sidebar draw the box?
  *
- * `{ searches: true }` for somebody this route answers, the refusal for
- * anybody else. The shell asks once, because who leads and who facilitates
- * is in the records and not on the session.
+ * `{ searches: true, programmes }` for somebody this route answers, the
+ * refusal for anybody else. The shell asks once, because who leads and who
+ * facilitates is in the records and not on the session. `programmes` says
+ * whether a query can find a programme for them (an admin, or a programme's
+ * lead: `findsProgrammes`), so the box promises programmes only to those it
+ * can find one for; a facilitator who leads nothing is told false.
  *
  * ## POST: one query
  *
@@ -31,7 +34,8 @@ import { SEARCH_REFUSAL } from "@/lib/search/words";
  * A POST so the words typed travel in the body and never in an address that
  * a request log would keep. The answer is at most six people and four groups
  * (`src/lib/search/model.ts`), each a name as the reader is already shown it,
- * what it is, and a page the reader may already open. Fewer than two letters
+ * what it is, and a page the reader may already open; and, only when one
+ * matched, at most four programmes whose Overview the reader opens. Fewer than two letters
  * is answered with nothing, without a read.
  *
  * LIMITS, checked BEFORE anything decides who the caller is, so a caller
@@ -80,13 +84,15 @@ export async function GET(req: Request) {
   if (!user) return refused();
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: SEARCH_REFUSAL.notConfigured }, { status: 500, headers: NO_STORE });
+  let searcher;
   try {
-    if (!(await searcherOf(db, user))) return refused();
+    searcher = await searcherOf(db, user);
   } catch {
     console.error("[search] could not work out who may search");
     return NextResponse.json({ error: SEARCH_REFUSAL.failed }, { status: 500, headers: NO_STORE });
   }
-  return NextResponse.json({ searches: true }, { headers: NO_STORE });
+  if (!searcher) return refused();
+  return NextResponse.json({ searches: true, programmes: findsProgrammes(searcher) }, { headers: NO_STORE });
 }
 
 export async function POST(req: Request) {

@@ -1,7 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { SessionUser } from "@/lib/firebase/session";
-import { canDecideFor, canRunTerm, programmeRolesFor } from "../access";
+import { canDecideFor, canRunTerm, programmeRolesFor, roleOnProgramme } from "../access";
 import { termsFor } from "../decisionDay/plan";
 import { isPooled } from "../decisions";
 import type { ApplicationForm } from "../normalise";
@@ -9,8 +9,11 @@ import { loadQuestionSets } from "../repo";
 import { buildProgrammeBoard } from "../review/board";
 import { viewerFor } from "../review/load";
 import { termPictureFor } from "../review/term";
-import { listDecisions, listReviews, listSentApplications } from "../staffRepo";
+import { listDecisions, listReviews, listSentApplications, listSentApplicationsOnce } from "../staffRepo";
 import type { ProgrammeWork } from "./termHome";
+
+type Term = ReturnType<typeof termPictureFor>;
+type Sets = Awaited<ReturnType<typeof loadQuestionSets>>;
 
 /**
  * The numbers the term page shows, each from the code behind the screen its
@@ -65,10 +68,29 @@ export async function loadTermNumbers(
   ]);
 
   const term = termPictureFor({ form, applications, decisions, reviews, viewerUid: user.uid });
+  const work = workOn(user, form, roles.map((entry) => entry.programmeId), term, sets);
+
+  let pool: TermNumbers["pool"] = null;
+  if (canRunTerm(user)) {
+    const { shown } = termsFor(form, applications, decisions, user.uid);
+    pool = {
+      pooled: shown.people.filter((person) => isPooled(person.outcome)).length,
+      needsOutcome: shown.readiness.needsOutcome,
+    };
+  }
+  return { work, pool };
+}
+
+/**
+ * Each of these programmes' numbers, from the term as this caller may see it
+ * (`termPictureFor`, which each caller makes with the caller's own
+ * application left out): the term page's own arithmetic.
+ */
+function workOn(user: SessionUser, form: ApplicationForm, programmeIds: readonly string[], term: Term, sets: Sets): Record<string, ProgrammeWork> {
   const noNames = new Map<string, string>();
   const { viewer } = viewerFor(user, form, noNames);
   const work: Record<string, ProgrammeWork> = {};
-  for (const { programmeId } of roles) {
+  for (const programmeId of programmeIds) {
     const board = buildProgrammeBoard({
       form,
       sets,
@@ -97,14 +119,36 @@ export async function loadTermNumbers(
       waiting: board.queue.length,
     };
   }
+  return work;
+}
 
-  let pool: TermNumbers["pool"] = null;
-  if (canRunTerm(user)) {
-    const { shown } = termsFor(form, applications, decisions, user.uid);
-    pool = {
-      pooled: shown.people.filter((person) => isPooled(person.outcome)).length,
-      needsOutcome: shown.readiness.needsOutcome,
-    };
-  }
-  return { work, pool };
+/**
+ * ONE PROGRAMME'S NUMBERS, as `loadTermNumbers` gives them for it: for a
+ * page about one programme (its Overview's Applications to read), which
+ * needs no other programme's. Null when the caller has no role on it.
+ *
+ * Reads: the form's sent applications (shared with the programme's head,
+ * which reads them for the Applications tab's count:
+ * `listSentApplicationsOnce`) and its decisions, one equality each; the
+ * question sets and the reviews only when the caller's role on THIS
+ * programme is a reviewer's, whose number alone depends on what they have
+ * scored.
+ */
+export async function loadProgrammeWork(
+  db: Firestore,
+  user: SessionUser,
+  form: ApplicationForm,
+  programmeId: string,
+): Promise<ProgrammeWork | null> {
+  const role = roleOnProgramme(user, form, programmeId);
+  if (!role) return null;
+  const scores = role === "reviewer";
+  const [applications, decisions, sets, reviews] = await Promise.all([
+    listSentApplicationsOnce(db, form),
+    listDecisions(db, form.round.id),
+    scores ? loadQuestionSets(db, form.round.id) : [],
+    scores ? listReviews(db, form.round.id) : [],
+  ]);
+  const term = termPictureFor({ form, applications, decisions, reviews, viewerUid: user.uid });
+  return workOn(user, form, [programmeId], term, sets)[programmeId] ?? null;
 }

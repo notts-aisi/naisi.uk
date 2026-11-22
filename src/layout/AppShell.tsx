@@ -186,8 +186,9 @@ export default function AppShell({
   // nobody else costs the database anything. Until it answers, none.
   const programmeTerms = useProgrammesMenu(role === "admin" || admissionsReviewer);
   // Search for a person or a group: drawn only for somebody its route answers,
-  // and asked about only for somebody who could run something.
-  const searches = useSearches(writesMessages || admissionsReviewer);
+  // and asked about only for somebody who could run something. Its label
+  // promises programmes only to somebody a query can find one for.
+  const { searches, programmes: findsProgrammes } = useSearches(writesMessages || admissionsReviewer);
   const [searchOpen, setSearchOpen] = useState(false);
   useSlashToSearch(searches && !searchOpen && !loading, () => setSearchOpen(true));
   const [exiting, setExiting] = useState(false);
@@ -582,7 +583,7 @@ export default function AppShell({
                 </span>
               </button>
             </div>
-            {searches && <SearchButton onOpen={() => setSearchOpen(true)} />}
+            {searches && <SearchButton programmes={findsProgrammes} onOpen={() => setSearchOpen(true)} />}
             {renderNav({ label: "Main" })}
             {renderFoot()}
           </aside>
@@ -675,6 +676,7 @@ export default function AppShell({
             </div>
             {searches && (
               <SearchButton
+                programmes={findsProgrammes}
                 onOpen={() => {
                   setDrawerOpen(false);
                   setSearchOpen(true);
@@ -688,7 +690,7 @@ export default function AppShell({
             {renderFoot()}
           </div>
         </Drawer>
-        {searches && <PeopleSearch open={searchOpen} onClose={() => setSearchOpen(false)} />}
+        {searches && <PeopleSearch open={searchOpen} programmes={findsProgrammes} onClose={() => setSearchOpen(false)} />}
       </div>
       {/*
         The phone's bottom bar, shown wherever the sidebar is hidden. A few of

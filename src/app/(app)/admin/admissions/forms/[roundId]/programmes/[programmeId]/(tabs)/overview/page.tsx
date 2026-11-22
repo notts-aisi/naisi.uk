@@ -1,9 +1,10 @@
 import { NoProgrammeHere, Refusal } from "@/features/applications/editor/Refusals";
 import RunBlank from "@/features/applications/groups/RunBlank";
+import { BeforeTheRun } from "@/features/applications/overview/OverviewFrontCards";
 import ProgrammeOverview from "@/features/applications/overview/ProgrammeOverview";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { own } from "@/lib/applications/keys";
-import { loadForm } from "@/lib/applications/repo";
+import { APPLICATIONS_TO_READ_TITLE, applicationsToReadOn } from "@/lib/applications/programmes/overview";
 import { loadCertificatesSection } from "@/lib/courses/certificates/send";
 import { loadFeedbackBatch } from "@/lib/courses/feedback/send";
 import { loadWhoFinished } from "@/lib/courses/finishing/whoFinished";
@@ -11,6 +12,9 @@ import { buildGetReady } from "@/lib/courses/getReady/model";
 import { readGetReady } from "@/lib/courses/getReady/read";
 import { readRunRecords } from "@/lib/courses/programmeAttendance";
 import { anyGroupHasMet, buildProgrammeOverview } from "@/lib/courses/programmeOverview";
+import { OPEN_REQUESTS, OVERVIEW_REQUESTS_TITLE, overviewRequestsWords } from "@/lib/courses/registerCorrection/pageWords";
+import { requestsWaitingOnRunOnce } from "@/lib/courses/requests/home";
+import { requestsForRunPath } from "@/lib/courses/requests/paths";
 import { loadRunGroups, loadUpdatesFor, updateReadingOf } from "@/lib/courses/updates/readers";
 import { overviewUpdateRows } from "@/lib/courses/updates/views";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -58,6 +62,22 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * checklist, who has not said when they are free, the places and the
  * facilitators, read once (`readGetReady`) and worked out by `buildGetReady`,
  * the same facts Publish's own page checks itself against.
+ *
+ * APPLICATIONS TO READ comes first while the programme's form takes or
+ * decides applications (`applicationsToReadOn`): the reader's own count and
+ * the way to them, and for an admin who neither leads nor reviews it no count
+ * that is not theirs. With no run yet, it comes first and "no run yet" under
+ * it. It reads the form's decisions for a reader whose count it is; the
+ * applications are the head's own read, shared.
+ *
+ * REQUESTS follows Needs attention while requests about the programme's
+ * people wait: the head's own count (`requestsWaitingOnRunOnce`, one read for
+ * the head and this card), so for the lead only the register corrections a
+ * lead decides, never a kind that is an admin's alone; and for an admin
+ * requests to be excused, to go to another session and to change group too.
+ * Messages to the team and access needs belong to no programme and are in no
+ * programme's count. "Open requests" opens the Requests page narrowed to this
+ * programme's run, whose rows are the ones counted here.
  */
 export default async function ProgrammeOverviewPage({
   params,
@@ -90,12 +110,43 @@ export default async function ProgrammeOverviewPage({
       </Refusal>
     );
   }
-  const { view } = outcome;
-  if (!view.run) return <RunBlank view={view} />;
-  const [records, form] = await Promise.all([readRunRecords(db, view.run.id), loadForm(db, view.roundId)]);
-  if (!records) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
-  const groups = await loadRunGroups(db, records.run.id);
+  const { view, form } = outcome;
   const now = new Date();
+  // While the form takes or decides applications: the reader's own count, first.
+  const toReadOf = (reading: Awaited<ReturnType<typeof applicationsToReadOn>>) =>
+    reading ? { title: APPLICATIONS_TO_READ_TITLE, ...reading } : null;
+  const reading = applicationsToReadOn(db, user, form, view.programmeId, now);
+  if (!view.run) {
+    return (
+      <BeforeTheRun toRead={toReadOf(await reading)}>
+        <RunBlank view={view} />
+      </BeforeTheRun>
+    );
+  }
+  const [read, records] = await Promise.all([reading, readRunRecords(db, view.run.id)]);
+  const toRead = toReadOf(read);
+  if (!records) {
+    return (
+      <BeforeTheRun toRead={toRead}>
+        <RunBlank view={{ ...view, blank: "run-gone" }} />
+      </BeforeTheRun>
+    );
+  }
+  // Requests about this programme's people, as the head counts them for this reader.
+  const [groups, waiting] = await Promise.all([
+    loadRunGroups(db, records.run.id),
+    requestsWaitingOnRunOnce(db, user, records.run.id, { excused: view.viewer === "admin" }),
+  ]);
+  const programmeName = view.programmeName.trim() || own(form.programmes, view.programmeId)?.name.trim() || "";
+  const requests =
+    waiting > 0
+      ? {
+          title: OVERVIEW_REQUESTS_TITLE,
+          count: waiting,
+          line: overviewRequestsWords(waiting, programmeName, view.viewer),
+          action: { label: OPEN_REQUESTS, href: requestsForRunPath(records.run.id) },
+        }
+      : null;
   // The role decides the name each person is shown by (`nameForViewer`).
   const viewer = { isAdmin: view.viewer === "admin", uid: user.uid, role: user.role };
   // Before any group has met: "Get ready for week 1".
@@ -108,8 +159,8 @@ export default async function ProgrammeOverviewPage({
       {
         programmePath,
         courseId: view.run.courseId,
-        decisionsSentAt: form?.decisionsSentAt ?? null,
-        incubator: form ? own(form.programmes, view.programmeId)?.kind === "incubator" : false,
+        decisionsSentAt: form.decisionsSentAt,
+        incubator: own(form.programmes, view.programmeId)?.kind === "incubator",
       },
       now,
       chosenWeek,
@@ -140,6 +191,8 @@ export default async function ProgrammeOverviewPage({
       afterSurvey={afterSurvey}
       feedbackToSend={feedbackToSend?.show ? { model: feedbackToSend, runId: records.run.id } : null}
       getReady={ready ? { model: buildGetReady(ready.facts), courseId: ready.courseId, runId: records.run.id } : null}
+      toRead={toRead}
+      requests={requests}
     />
   );
 }

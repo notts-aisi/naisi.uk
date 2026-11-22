@@ -1,10 +1,13 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { roleOnProgramme } from "@/lib/applications/access";
+import { roleOnProgramme, type ProgrammeRole } from "@/lib/applications/access";
 import { listForms } from "@/lib/applications/handover/run";
 import { own } from "@/lib/applications/keys";
+import type { ProgrammeSettings } from "@/lib/applications/model";
 import type { ApplicationForm } from "@/lib/applications/normalise";
 import { readProgrammePeople, type FormPeopleRead } from "@/lib/applications/people/load";
+import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
+import { isTheirs, programmesOpenedOn, programmeStageWords } from "@/lib/applications/programmes/list";
 import { listDecisions, listSentApplications } from "@/lib/applications/staffRepo";
 import { listGroups, readRunRecords, slotLine, weeksOf } from "@/lib/courses/programmeAttendance";
 import { namingProgrammeIn } from "@/lib/courses/programmeLead";
@@ -47,6 +50,17 @@ import { guideCandidate, lineOf, searchWorld, withoutGuides, type SearchAnswer, 
  *  - ANYBODY ELSE: nothing, and the route answers them as it answers a
  *    stranger.
  *
+ *  - AND PROGRAMMES, for an admin and a programme's lead: each programme
+ *    whose Overview the reader opens, by the Programmes list's own rule
+ *    (`programmesOpenedOn`: an admin every programme on every form, a lead
+ *    the ones they lead; a reviewer, a run's track lead and a facilitator
+ *    none), as "AGI Strategy", "Fellowship · Autumn 2026 · Lead: Maya Rao",
+ *    to its Overview. Built from the forms already read. Its chip
+ *    ("Running", "Taking applications": `programmeStageWords`) needs a
+ *    programme's run only past decision day, so the one read added is one
+ *    `getAll` of the runs of the programmes that MATCHED (at most four),
+ *    none when nothing matched or none needs it (`chipProgrammes`).
+ *
  *  - AND, FOR ANYBODY WHO FACILITATES (an admin, a lead or a group's
  *    facilitator alike): the facilitator guide of each course they
  *    facilitate a live group on, as its own short list (`guides`), to the
@@ -79,7 +93,10 @@ import { guideCandidate, lineOf, searchWorld, withoutGuides, type SearchAnswer, 
  *
  *  - admin: every account (U, three fields each), every group (G), each
  *    group's run (R, addressed), every application form (F); then, for the
- *    six people at most in the answer, their seats on courses (one `in`).
+ *    six people at most in the answer, their seats on courses (one `in`),
+ *    and for the four programmes at most in it, their runs (one `getAll`).
+ *  - a lead's programmes: from the forms read to find them (F); then the
+ *    runs of the ones in the answer (one `getAll`, at most four).
  *  - lead: every form (F); per form whose decisions have gone out, its sent
  *    applications (A) and decisions (D), once however many of its
  *    programmes they lead; per programme, its run (1), the run's groups (g)
@@ -156,8 +173,9 @@ async function ledProgrammesOf(db: Firestore, user: SessionUser): Promise<LedPro
   if (!opensAdmissionsPages(user)) return [];
   const out: LedProgramme[] = [];
   for (const form of await listForms(db)) {
-    for (const programmeId of form.programmeIds) {
-      if (roleOnProgramme(user, form, programmeId) === "lead") out.push({ form, programmeId });
+    // The Programmes list's own rule (an admin is never asked here, so this is the lead's role alone).
+    for (const { programme } of programmesOpenedOn(user, form)) {
+      if (roleOnProgramme(user, form, programme.id) === "lead") out.push({ form, programmeId: programme.id });
     }
   }
   return out;
@@ -278,21 +296,140 @@ async function confirmGuides(db: Firestore, answer: SearchAnswer, world: SearchW
 }
 
 // ---------------------------------------------------------------------------
+// Programmes: the ones whose Overview the reader opens
+// ---------------------------------------------------------------------------
+
+/** What a programme's result was made from, by the address it opens, for its chip. */
+type ProgrammeBehind = Map<string, { form: ApplicationForm; programme: ProgrammeSettings }>;
+
+/** Whether the form itself says its term is over: cancelled or archived. Nothing else is read to ask it. */
+function formSaysOver(form: ApplicationForm, now: Date): boolean {
+  const stage = stageSummaryFor(form, now).stage;
+  return stage === "cancelled" || stage === "archived";
+}
+
+/**
+ * The place of each form's programmes in the list, from what is in memory:
+ * a term the form says is over after every other, and within each the newest
+ * form first (by when it was made, then its name), so older terms never
+ * crowd out the one being run.
+ */
+function termOrder(forms: readonly ApplicationForm[], now: Date): Map<string, number> {
+  const sorted = [...new Map(forms.map((form) => [form.round.id, form])).values()].sort(
+    (a, b) =>
+      Number(formSaysOver(a, now)) - Number(formSaysOver(b, now)) ||
+      (b.round.createdAt?.getTime() ?? 0) - (a.round.createdAt?.getTime() ?? 0) ||
+      a.round.label.localeCompare(b.round.label, "en-GB") ||
+      a.round.id.localeCompare(b.round.id),
+  );
+  return new Map(sorted.map((form, at) => [form.round.id, at]));
+}
+
+/**
+ * These programmes as results: the short name; "Fellowship · Autumn 2026 ·
+ * Lead: Maya Rao" (the Programmes page's own words for the lead, "Lead: you"
+ * for the reader's own and "Lead: No lead yet"); its Overview. Matched on its
+ * names and its term's name, and ordered by its term (`termOrder`).
+ */
+function programmeCandidates(
+  viewer: SessionUser,
+  entries: readonly { form: ApplicationForm; programme: ProgrammeSettings; role: ProgrammeRole }[],
+  leadNameOf: (uid: string) => string,
+  now: Date,
+): { candidates: SearchCandidate[]; behind: ProgrammeBehind } {
+  const candidates: SearchCandidate[] = [];
+  const behind: ProgrammeBehind = new Map();
+  const order = termOrder(entries.map((entry) => entry.form), now);
+  for (const { form, programme, role } of entries) {
+    const name = programme.shortName.trim() || programme.name.trim();
+    if (!name) continue;
+    // "you" for the reader's own, by the Programmes list's own rule (`isTheirs`: a lead, or an admin who leads it).
+    const lead = programme.leadUid
+      ? isTheirs(viewer, { programme, role })
+        ? "Lead: you"
+        : `Lead: ${leadNameOf(programme.leadUid)}`
+      : "Lead: No lead yet";
+    const href = `${programmePathOf(form.round.id, programme.id)}/overview`;
+    behind.set(href, { form, programme });
+    candidates.push({
+      name,
+      line: lineOf([programme.kind === "incubator" ? "Incubator" : "Fellowship", form.round.label, lead]),
+      href,
+      matchOn: `${name} ${programme.name} ${form.round.label}`,
+      key: `programme:${form.round.id}/${programme.id}`,
+      order: order.get(form.round.id) ?? 0,
+    });
+  }
+  return { candidates, behind };
+}
+
+/**
+ * Each programme in the answer with its chip (`programmeStageWords`). Past
+ * decision day it needs the programme's run: those already read (`known`,
+ * an admin's world, which holds the run of every live group) are used as
+ * they are, and the rest in one `getAll`, none when nothing is missing. A
+ * programme on a form the form says is over (cancelled or archived) has no
+ * chip whatever its run says, so its run is not asked for.
+ */
+async function chipProgrammes(
+  db: Firestore,
+  answer: SearchAnswer,
+  behind: ProgrammeBehind,
+  now: Date,
+  known: ReadonlyMap<string, CourseRunDoc> = new Map(),
+): Promise<SearchAnswer> {
+  if (!answer.programmes || answer.programmes.length === 0) return answer;
+  const runs = new Map<string, CourseRunDoc | "gone">();
+  const wanted = new Set<string>();
+  for (const hit of answer.programmes) {
+    const entry = behind.get(hit.href);
+    const runId = entry?.programme.runId ?? null;
+    if (!entry || !runId || !isAddressableId(runId) || entry.form.decisionsSentAt === null || entry.programme.closed) continue;
+    if (formSaysOver(entry.form, now)) continue;
+    const already = known.get(runId);
+    if (already) runs.set(runId, already);
+    else wanted.add(runId);
+  }
+  if (wanted.size > 0) {
+    const snaps = await db.getAll(...[...wanted].map((id) => db.collection("courseRuns").doc(id)));
+    for (const snap of snaps) {
+      runs.set(snap.id, !snap.exists || snap.data()?.destroying === true ? "gone" : normalizeCourseRun(snap.id, snap.data() ?? {}));
+    }
+  }
+  const programmes = answer.programmes.map((hit) => {
+    const entry = behind.get(hit.href);
+    if (!entry) return hit;
+    const runId = entry.programme.runId;
+    const chip = programmeStageWords(entry.form, entry.programme, runId ? runs.get(runId) : undefined, now);
+    return chip ? { ...hit, chip } : hit;
+  });
+  return { ...answer, programmes };
+}
+
+// ---------------------------------------------------------------------------
 // An admin's world
 // ---------------------------------------------------------------------------
 
 /** The three fields of an account a name is made of. Never an address. */
 const NAME_FIELDS = ["displayName", "profile.preferredName", "profile.fullName"] as const;
 
-type AdminWorld = { world: SearchWorld; uidOf: Map<string, string>; runs: Map<string, CourseRunDoc>; groups: Map<string, CourseGroupDoc>; forms: ApplicationForm[] };
+type AdminWorld = {
+  world: SearchWorld;
+  uidOf: Map<string, string>;
+  runs: Map<string, CourseRunDoc>;
+  groups: Map<string, CourseGroupDoc>;
+  forms: ApplicationForm[];
+  programmes: ProgrammeBehind;
+};
 
-async function adminWorld(db: Firestore, viewer: SessionUser): Promise<AdminWorld> {
+async function adminWorld(db: Firestore, viewer: SessionUser, now: Date): Promise<AdminWorld> {
   const [accounts, groupSnap, forms] = await Promise.all([
     db.collection("users").select(...NAME_FIELDS).get(),
     db.collection("courseGroups").get(),
     listForms(db),
   ]);
   const uidOf = new Map<string, string>();
+  const nameOf = new Map<string, string>();
   const people: SearchCandidate[] = [];
   for (const doc of accounts.docs) {
     if (!isPlainId(doc.id)) continue;
@@ -300,8 +437,16 @@ async function adminWorld(db: Firestore, viewer: SessionUser): Promise<AdminWorl
     if (!name) continue;
     const href = memberPathOf(doc.id);
     uidOf.set(href, doc.id);
+    nameOf.set(doc.id, name);
     people.push({ name, line: "", href, matchOn: name });
   }
+  // Every programme on every form, by the Programmes list's own rule: an admin opens each one's Overview.
+  const opened = programmeCandidates(
+    viewer,
+    forms.flatMap((form) => programmesOpenedOn(viewer, form).map(({ programme, role }) => ({ form, programme, role }))),
+    (uid) => nameOf.get(uid) ?? "NAISI member",
+    now,
+  );
 
   const liveGroups = groupSnap.docs
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
@@ -331,7 +476,9 @@ async function adminWorld(db: Firestore, viewer: SessionUser): Promise<AdminWorl
       : facilitatorGroupPathOf(run.id, group.id);
     groups.push(groupCandidate(group, programmeNameFor(forms, run), run.label, href));
   }
-  return { world: guides.length > 0 ? { people, groups, guides } : { people, groups }, uidOf, runs, groups: groupById, forms };
+  const world: SearchWorld = guides.length > 0 ? { people, groups, guides } : { people, groups };
+  if (opened.candidates.length > 0) world.programmes = opened.candidates;
+  return { world, uidOf, runs, groups: groupById, forms, programmes: opened.behind };
 }
 
 /**
@@ -485,17 +632,39 @@ export async function answerSearch(
   now: Date,
 ): Promise<SearchAnswer> {
   if (searcher.kind === "admin") {
-    const read = await adminWorld(db, actor);
-    return confirmGuides(db, await adminPeopleLines(db, read, searchWorld(read.world, query)), read.world);
+    const read = await adminWorld(db, actor, now);
+    const answer = await adminPeopleLines(db, read, searchWorld(read.world, query));
+    return chipProgrammes(db, await confirmGuides(db, answer, read.world), read.programmes, now, read.runs);
   }
   const [led, facilitated] = await Promise.all([
     leadWorld(db, actor, searcher.leads),
     facilitatorWorld(db, actor, searcher.facilitates, now),
   ]);
+  // The programmes they lead, from the forms already read to find them: their own name is "you".
+  const opened = programmeCandidates(
+    actor,
+    searcher.leads.flatMap(({ form, programmeId }) => {
+      const programme = own(form.programmes, programmeId);
+      return programme ? [{ form, programme, role: "lead" as const }] : [];
+    }),
+    () => "NAISI member",
+    now,
+  );
   const world: SearchWorld = {
     people: [...led.people, ...facilitated.people],
     groups: [...led.groups, ...facilitated.groups],
     guides: facilitated.guides,
   };
-  return confirmGuides(db, searchWorld(world, query), world);
+  if (opened.candidates.length > 0) world.programmes = opened.candidates;
+  return chipProgrammes(db, await confirmGuides(db, searchWorld(world, query), world), opened.behind, now);
+}
+
+/**
+ * Whether this searcher can be given a programme result: an admin, or
+ * somebody who leads a programme whose Overview opens for them. The box's
+ * label promises programmes only then (`GET /api/search`'s `programmes`), so
+ * a facilitator who leads nothing is never promised them.
+ */
+export function findsProgrammes(searcher: Searcher): boolean {
+  return searcher.kind === "admin" || searcher.leads.length > 0;
 }

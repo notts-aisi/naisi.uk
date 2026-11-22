@@ -45,7 +45,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { walkSource } from "./lib/functionScan.mjs";
 import { makeWorld } from "./lib/handoverWorld.mjs";
-import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
+import { INCUBATOR, session, userDoc } from "./lib/applicationsSmallTerm.mjs";
 import { A, B, C } from "./lib/surveyWorld.mjs";
 import { AFTER, AGI, ROUND, RUN, TAIS, TAIS_GROUP, termSeed } from "./lib/termWorld.mjs";
 import { PERSONA_NAMES } from "./persona-route-gates.registry.mjs";
@@ -219,6 +219,10 @@ describe("the pure half", () => {
     assert.equal(words.noGroupsWords("leo"), "No group matches “leo”.");
     assert.equal(words.SEARCH_HELP, "Up and down to move, Enter to open, Esc to close. Press / anywhere to search.");
     assert.equal(words.SEARCH_LABEL, "Search people and groups");
+    // Somebody a query can find a programme for is promised programmes; everybody else keeps today's words.
+    assert.equal(words.SEARCH_LABEL_WITH_PROGRAMMES, "Search people, groups and programmes");
+    assert.equal(words.searchLabelFor(true), "Search people, groups and programmes");
+    assert.equal(words.searchLabelFor(false), "Search people and groups");
   });
 
   test("the words carry no dash of either kind, no gendered pronoun and never the word the house bans", () => {
@@ -251,7 +255,8 @@ describe("who may search, as every persona", () => {
       const response = await call(uid, route.GET);
       if (["admin", "lead", "facilitator"].includes(persona)) {
         assert.equal(response.status, 200, persona);
-        assert.deepEqual(response.body, { searches: true }, persona);
+        // Programmes are promised to an admin and a programme's lead, never to a facilitator who leads nothing.
+        assert.deepEqual(response.body, { searches: true, programmes: persona !== "facilitator" }, persona);
       } else {
         assert.equal(response.status, 403, persona);
         assert.deepEqual(response.body, { error: words.SEARCH_REFUSAL.notYours }, persona);
@@ -641,14 +646,17 @@ describe("the pages", () => {
 
   test("the shell draws the box and listens for the key only for somebody the route answers", () => {
     const shell = read("src", "layout", "AppShell.tsx");
-    assert.match(shell, /const searches = useSearches\(writesMessages \|\| admissionsReviewer\);/);
+    assert.match(shell, /const \{ searches, programmes: findsProgrammes \} = useSearches\(writesMessages \|\| admissionsReviewer\);/);
     assert.match(shell, /useSlashToSearch\(searches && !searchOpen && !loading,/);
-    assert.equal((shell.match(/\{searches && <SearchButton/g) ?? []).length, 1);
-    assert.equal((shell.match(/\{searches && \(\s*<SearchButton/g) ?? []).length, 1);
-    assert.match(shell, /\{searches && <PeopleSearch open=\{searchOpen\}/);
+    assert.equal((shell.match(/\{searches && <SearchButton programmes=\{findsProgrammes\}/g) ?? []).length, 1);
+    assert.equal((shell.match(/\{searches && \(\s*<SearchButton\s+programmes=\{findsProgrammes\}/g) ?? []).length, 1);
+    assert.match(shell, /\{searches && <PeopleSearch open=\{searchOpen\} programmes=\{findsProgrammes\}/);
     const hook = read("src", "features", "search", "useSearches.ts");
     assert.match(hook, /fetch\("\/api\/search", \{ cache: "no-store" \}\)/);
-    assert.match(hook, /res\.ok && json\?\.searches === true/);
+    assert.match(hook, /const searches = res\.ok && json\?\.searches === true;/);
+    // Programmes are promised only on the route's own yes, and never without search itself.
+    assert.match(hook, /programmes: searches && json\?\.programmes === true/);
+    assert.match(hook, /if \(role === "admin" && uid !== null\) return \{ searches: true, programmes: true \};/);
     // A member who could run nothing on what the shell knows is never asked about: no read for them.
     assert.match(hook, /const asks = uid !== null && couldRunThings && \(role === "member" \|\| role === "committee"\);/);
   });
@@ -883,15 +891,227 @@ describe("the facilitator guide", () => {
   test("the box draws Guides only when the answer has one, after the two lists, and moves through it with them", () => {
     const box = read("src", "features", "search", "PeopleSearch.tsx");
     assert.match(box, /function guidesOf\(answer: SearchAnswer\): SearchHit\[\] \{\s+return Array\.isArray\(answer\.guides\) \? answer\.guides : \[\];\s+\}/);
-    assert.match(box, /\[\.\.\.state\.answer\.people, \.\.\.state\.answer\.groups, \.\.\.guidesOf\(state\.answer\)\]/);
+    assert.match(box, /\[\.\.\.programmesOf\(state\.answer\), \.\.\.state\.answer\.people, \.\.\.state\.answer\.groups, \.\.\.guidesOf\(state\.answer\)\]/);
     assert.match(box, /\{guides\.length > 0 \? \(\s+<section/);
-    assert.match(box, /renderList\(guides, answered\.answer\.people\.length \+ answered\.answer\.groups\.length\)/);
+    // Guides come after the programmes, the people and the groups, in the keys' order too.
+    assert.match(box, /const peopleAt = programmes\.length;/);
+    assert.match(box, /const groupsAt = peopleAt \+ \(answered\?\.answer\.people\.length \?\? 0\);/);
+    assert.match(box, /const guidesAt = groupsAt \+ \(answered\?\.answer\.groups\.length \?\? 0\);/);
+    assert.match(box, /renderList\(guides, guidesAt\)/);
     assert.equal(words.SEARCH_HEADINGS.guides, "Guides");
-    // When only a guide matched, the two empty lists are not drawn above it.
-    assert.match(box, /const onlyGuides = guides\.length > 0 && answered !== null && answered\.answer\.people\.length === 0 && answered\.answer\.groups\.length === 0;/);
-    assert.match(box, /\{onlyGuides \? null : \(/);
+    // When only a guide (or a programme) matched, the two empty lists are not drawn above it.
+    assert.match(
+      box,
+      /const noPeopleOrGroups =\s+\(guides\.length > 0 \|\| programmes\.length > 0\) &&\s+answered !== null &&\s+answered\.answer\.people\.length === 0 &&\s+answered\.answer\.groups\.length === 0;/,
+    );
+    assert.match(box, /\{noPeopleOrGroups \? null : \(/);
     // The two lists every other answer draws are drawn as before, with their empty states.
     assert.match(box, /answered\.answer\.people\.length === 0 \? <p className=\{styles\.empty\}>\{noPeopleWords\(answered\.query\)\}/);
     assert.match(box, /answered\.answer\.groups\.length === 0 \? <p className=\{styles\.empty\}>\{noGroupsWords\(answered\.query\)\}/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Programmes
+// ---------------------------------------------------------------------------
+
+describe("programmes", () => {
+  const overviewOf = (programmeId) => `${programmePath(programmeId)}/overview`;
+  const programmeHrefs = (answer) => (answer.programmes ?? []).map((hit) => hit.href).sort();
+
+  test("an admin finds every programme on every form by its name or its term's, first, each to its Overview with its stage", async (t) => {
+    freshTerm(t);
+    const agi = await search("zach", "agi");
+    assert.equal(agi.programmes.length, 1);
+    assert.equal(agi.programmes[0].name, "AGI Strategy");
+    assert.match(agi.programmes[0].line, /^Fellowship · Autumn 2026 · Lead: Claudia /);
+    assert.equal(agi.programmes[0].href, overviewOf(AGI));
+    // The day after AGI Strategy's last session: its run's own calendar is over.
+    assert.equal(agi.programmes[0].chip, "Finished");
+    const term = await search("zach", "autumn 2026");
+    assert.deepEqual(programmeHrefs(term), [overviewOf(AGI), overviewOf(INCUBATOR), overviewOf(TAIS)].sort());
+    const chips = Object.fromEntries(term.programmes.map((hit) => [hit.name, hit.chip ?? null]));
+    // Technical AI Safety's run began on Thu 3 Dec; the incubator names no run yet.
+    assert.deepEqual(chips, { "AGI Strategy": "Finished", "Research incubator": "Starting", "Technical AI Safety": "Running" });
+    const incubator = term.programmes.find((hit) => hit.name === "Research incubator");
+    assert.match(incubator.line, /^Incubator · Autumn 2026 · Lead: Tess /);
+    // A hit carries a name, a line, an address and its stage, and nothing else.
+    for (const hit of term.programmes) assert.deepEqual(Object.keys(hit).sort(), ["chip", "href", "line", "name"]);
+  });
+
+  test("a programme's lead finds the programmes they lead and no other, as theirs", async (t) => {
+    freshTerm(t);
+    const claudia = await search("claudia", "autumn");
+    assert.deepEqual(programmeHrefs(claudia), [overviewOf(AGI)]);
+    assert.equal(claudia.programmes[0].line, "Fellowship · Autumn 2026 · Lead: you");
+    // Another programme's name finds nothing: the answer has no programmes at all, as for a name nobody holds.
+    assert.ok(!Object.hasOwn(await search("claudia", "technical"), "programmes"));
+    assert.deepEqual(await search("claudia", "technical"), await search("claudia", "zzqx"));
+    // Tess leads two on the form, and not AGI Strategy.
+    assert.deepEqual(programmeHrefs(await search("tess", "autumn")), [overviewOf(INCUBATOR), overviewOf(TAIS)].sort());
+    assert.ok(!Object.hasOwn(await search("tess", "agi strategy"), "programmes"));
+  });
+
+  test("a facilitator, a reviewer, a run's track lead and everybody else find no programme", async (t) => {
+    freshTerm(t);
+    // Tom facilitates a group of AGI Strategy's run and leads nothing.
+    const tom = await search("tom", "agi");
+    assert.ok(!Object.hasOwn(tom, "programmes"));
+    // Lloyd reviews AGI Strategy and runs nothing: search is not for him at all.
+    for (const uid of ["lloyd", "amara", "iris", "sue", null]) {
+      const response = await call(uid, route.POST, { body: { query: "agi" } });
+      assert.notEqual(response.status, 200, String(uid));
+      assert.ok(!JSON.stringify(response.body).includes("AGI Strategy"), String(uid));
+    }
+  });
+
+  test("in a view-as session the lead's programmes are the lead's, nobody else's", async (t) => {
+    freshTerm(t);
+    const viewed = await call("claudia", route.POST, { body: { query: "autumn" }, viewAs: true });
+    assert.equal(viewed.status, 200);
+    assert.deepEqual(programmeHrefs(viewed.body), [overviewOf(AGI)]);
+  });
+
+  test("every programme offered is one whose Overview opens for that reader, by the Programmes list's own rule", async (t) => {
+    freshTerm(t);
+    const { loadProgrammeRun } = await w.loadTs(join("lib", "applications", "handover", "programmeRun.ts"));
+    for (const uid of ["zach", "claudia", "tess"]) {
+      const answer = await search(uid, "autumn 2026");
+      for (const hit of answer.programmes ?? []) {
+        const programmeId = decodeURIComponent(hit.href.split("/programmes/")[1].split("/")[0]);
+        const outcome = await loadProgrammeRun(w.world.db, sessionFor(uid), ROUND, programmeId);
+        assert.equal(outcome.status, "ok", `${uid}: ${hit.href}`);
+      }
+    }
+    const source = read("src", "lib", "search", "load.ts");
+    // One rule: the list module's, for an admin's candidates and a lead's alike.
+    assert.match(source, /programmesOpenedOn\(viewer, form\)/);
+    assert.match(source, /for \(const \{ programme \} of programmesOpenedOn\(user, form\)\)/);
+  });
+
+  test("what a programme costs: nothing more when none matched, one getAll of the matched programmes' runs when one did", async (t) => {
+    freshTerm(t);
+    const db = w.world.db;
+    async function getAllsFor(who, query) {
+      let calls = 0;
+      let refs = 0;
+      const getAll = db.getAll.bind(db);
+      const spy = t.mock.method(db, "getAll", (...asked) => {
+        calls += 1;
+        refs += asked.length;
+        return getAll(...asked);
+      });
+      await search(who, query);
+      spy.mock.restore();
+      return { calls, refs };
+    }
+    const nothing = await getAllsFor("claudia", "zzqx");
+    const matched = await getAllsFor("claudia", "agi strategy");
+    assert.deepEqual(matched, { calls: nothing.calls + 1, refs: nothing.refs + 1 });
+    const zachNothing = await getAllsFor("zach", "zzqx");
+    const zachAll = await getAllsFor("zach", "autumn 2026");
+    // Three programmes matched; the two that name a run past decision day name runs an admin's world already read.
+    assert.deepEqual(zachAll, zachNothing);
+    // A programme on a cancelled form has no chip, so its run is never asked for.
+    w.world.db.poke(`admissionRounds/${ROUND}`, { status: "cancelled" });
+    const cancelled = await getAllsFor("claudia", "agi strategy");
+    assert.deepEqual(cancelled, nothing);
+    assert.ok(!Object.hasOwn((await search("claudia", "agi strategy")).programmes[0], "chip"));
+  });
+
+  /** Another form for the same term's programmes, made `daysLater` days after this one, under its own name. */
+  function anotherForm(id, label, daysLater, over = {}) {
+    const form = stored(`admissionRounds/${ROUND}`);
+    const made = new Date(new Date("2026-09-01T09:00:00Z").getTime() + daysLater * 86_400_000);
+    const programmes = Object.fromEntries(
+      Object.entries(form.programmes).map(([key, programme]) => [key, { ...programme, runId: null }]),
+    );
+    w.world.db.seed(`admissionRounds/${id}`, { ...form, label, slug: id, createdAt: made, programmes, ...over });
+  }
+
+  test("five terms of one programme: the newest terms first, one the form says is over last, and More programmes when more matched", async (t) => {
+    freshTerm(t);
+    w.world.db.poke(`admissionRounds/${ROUND}`, { createdAt: new Date("2026-09-01T09:00:00Z") });
+    anotherForm("spring-2027", "Spring 2027", 100);
+    anotherForm("autumn-2027", "Autumn 2027", 300);
+    anotherForm("spring-2028", "Spring 2028", 450);
+    anotherForm("autumn-2028", "Autumn 2028", 650);
+    // The newest of all, archived: over, so after every other.
+    anotherForm("archived-2029", "Spring 2029", 800, { archived: true });
+    const answer = await search("zach", "agi");
+    assert.deepEqual(
+      answer.programmes.map((hit) => hit.line.split(" · ")[1]),
+      ["Autumn 2028", "Spring 2028", "Autumn 2027", "Spring 2027"],
+    );
+    assert.equal(answer.moreProgrammes, true);
+    // The lead, who leads it every term, is answered in the same order.
+    const lead = await search("claudia", "agi");
+    assert.deepEqual(lead.programmes.map((hit) => hit.line.split(" · ")[1]), ["Autumn 2028", "Spring 2028", "Autumn 2027", "Spring 2027"]);
+    assert.equal(lead.moreProgrammes, true);
+    // Typing the term finds the one left out.
+    const older = await search("zach", "agi autumn 2026");
+    assert.deepEqual(older.programmes.map((hit) => hit.href), [`${programmePath(AGI)}/overview`]);
+    assert.ok(!Object.hasOwn(older, "moreProgrammes"));
+  });
+
+  test("five programmes on one term: four, by name, and More programmes; four or fewer, and no More", async (t) => {
+    freshTerm(t);
+    const form = stored(`admissionRounds/${ROUND}`);
+    const extra = {};
+    for (const [id, short] of [["alignment", "Alignment"], ["governance", "Governance and Macrostrategy"]]) {
+      extra[id] = { ...form.programmes[AGI], name: `${short} Fellowship`, shortName: short, runId: null, leadUid: "zach" };
+    }
+    w.world.db.poke(`admissionRounds/${ROUND}`, { programmeIds: [...form.programmeIds, ...Object.keys(extra)], programmes: { ...form.programmes, ...extra } });
+    const answer = await search("zach", "autumn 2026");
+    assert.equal(answer.programmes.length, 4);
+    assert.equal(answer.moreProgrammes, true);
+    assert.deepEqual(
+      answer.programmes.map((hit) => hit.name),
+      ["AGI Strategy", "Alignment", "Governance and Macrostrategy", "Research incubator"],
+    );
+    // One fewer, and the answer says nothing of more.
+    w.world.db.poke(`admissionRounds/${ROUND}`, { programmeIds: [...form.programmeIds, "alignment"] });
+    const four = await search("zach", "autumn 2026");
+    assert.equal(four.programmes.length, 4);
+    assert.ok(!Object.hasOwn(four, "moreProgrammes"));
+    assert.equal(words.SEARCH_MORE.programmes, "More programmes match. Type more of the name.");
+    const box = read("src", "features", "search", "PeopleSearch.tsx");
+    assert.match(box, /\{answered\.answer\.moreProgrammes \? <p className=\{styles\.more\}>\{SEARCH_MORE\.programmes\}<\/p> : null\}/);
+  });
+
+  test("the pure half: in the answer only when one matched, at most four, kept when guides are taken off", () => {
+    const candidate = (name, at) => ({ name, line: "", href: `/p/${at}`, matchOn: `${name} Autumn 2026`, key: `programme:${at}` });
+    const world = { people: [], groups: [], programmes: Array.from({ length: 6 }, (_, at) => candidate(`Programme ${at}`, at)) };
+    assert.ok(!Object.hasOwn(model.searchWorld(world, "zzqx"), "programmes"));
+    assert.equal(model.searchWorld(world, "autumn").programmes.length, model.MAX_PROGRAMMES);
+    assert.equal(model.MAX_PROGRAMMES, 4);
+    const answer = model.searchWorld(world, "programme 3");
+    assert.deepEqual(answer.programmes.map((hit) => hit.href), ["/p/3"]);
+    assert.deepEqual(model.withoutGuides({ ...answer, guides: [] }).programmes, answer.programmes);
+    // More, beside them only, and kept when guides are taken off.
+    const many = model.searchWorld(world, "autumn");
+    assert.equal(many.moreProgrammes, true);
+    assert.equal(model.withoutGuides({ ...many, guides: [] }).moreProgrammes, true);
+    assert.ok(!Object.hasOwn(answer, "moreProgrammes"));
+    // A candidate's order comes before how well it matched.
+    const ordered = model.searchWorld(
+      { people: [], groups: [], programmes: [{ ...candidate("Autumn Zeta", 9), order: 0 }, { ...candidate("Autumn Alpha", 8), order: 1 }] },
+      "autumn",
+    );
+    assert.deepEqual(ordered.programmes.map((hit) => hit.name), ["Autumn Zeta", "Autumn Alpha"]);
+    assert.ok(!Object.hasOwn(model.withoutGuides(model.searchWorld({ people: [], groups: [] }, "zzqx")), "programmes"));
+  });
+
+  test("the box draws Programmes first, with its heading, and moves through it before the people", () => {
+    const box = read("src", "features", "search", "PeopleSearch.tsx");
+    assert.equal(words.SEARCH_HEADINGS.programmes, "Programmes");
+    assert.ok(box.indexOf("{programmes.length > 0 ? (") < box.indexOf("{noPeopleOrGroups ? null : ("), "Programmes is not drawn first");
+    assert.match(box, /renderList\(programmes, 0\)/);
+    assert.match(box, /renderList\(answered\.answer\.people, peopleAt\)/);
+    assert.match(box, /renderList\(answered\.answer\.groups, groupsAt\)/);
+    // The label is the route's yes, the box's, the button's and the dialog's alike.
+    assert.match(box, /<span>\{searchLabelFor\(programmes\)\}<\/span>/);
+    assert.match(box, /const label = searchLabelFor\(programmes\);\s+return \(\s+<Modal open=\{open\} onClose=\{onClose\} ariaLabel=\{label\}/);
+    assert.match(box, /<span className=\{styles\.label\}>\{label\}<\/span>/);
   });
 });

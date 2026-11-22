@@ -4276,16 +4276,18 @@ export const ROUTES = {
   "/api/search": {
     GET: {
       expect: everyone(403, { admin: 200, lead: 200, facilitator: 200 }),
-      fields: ["searches"],
+      fields: ["programmes", "searches"],
       why:
         "Whether the sidebar draws the search box: yes for an admin, a programme's lead (the lead persona leads " +
         "THEIRS) and a group's facilitator (the facilitator persona runs one of its groups), worked out from the " +
-        "records. Everybody else, signed out included, gets one 403 with one sentence, so nobody learns whether " +
+        "records, with `programmes` saying whether a query can find them a programme (true for an admin and a " +
+        "lead, false for a facilitator who leads nothing), so the box's label promises programmes only then. " +
+        "Everybody else, signed out included, gets one 403 with one sentence, so nobody learns whether " +
         "they are signed in as somebody who runs nothing. It writes nothing.",
     },
     POST: {
       expect: everyone(403, { admin: 200, lead: 200, facilitator: 200 }),
-      fields: ["groups", "guides", "moreGroups", "morePeople", "people"],
+      fields: ["groups", "guides", "moreGroups", "morePeople", "moreProgrammes", "people", "programmes"],
       drive: {
         body: { query: "an" },
         why:
@@ -4297,7 +4299,9 @@ export const ROUTES = {
         "programme's lead and a facilitator with standing are answered, people and groups each with whether more " +
         "matched. For somebody who facilitates, a query that matches a facilitator guide (\"guide\", the course's title) " +
         "adds a third list, guides, and only then (this two-letter query matches none, so its answer carries the other " +
-        "four fields for everybody). What each finds is held as every kind of reader against a real term in tests/search.test.mjs. " +
+        "four fields for everybody). For an admin and a programme's lead, a query that matches a programme whose Overview " +
+        "they open (every programme for an admin, the ones they lead for a lead, by the Programmes list's own rule) adds " +
+        "programmes, and only then (with moreProgrammes when more matched than it holds). What each finds is held as every kind of reader against a real term in tests/search.test.mjs. " +
         "It writes nothing.",
     },
   },
@@ -5081,7 +5085,11 @@ export const PAGES = {
       "round authors (admin or approveCourse) and named reviewers and leads, and sends everybody else to the dashboard. " +
       "What it lists is the loader's (loadRequestsPage): an admin every programme's requests, a lead the runs they lead, " +
       "and an approveCourse holder who leads nothing a calm 'no requests for you here', each with a 200. A facilitator and " +
-      "a member are sent to the dashboard by the tree: they ask on the register, and never read this list.",
+      "a member are sent to the dashboard by the tree: they ask on the register, and never read this list. " +
+      "`?run=<runId>` (each programme's Overview links so) narrows the rows the reader is shown anyway to that run's and " +
+      "never widens them: the gate and every answer above are the same with it, a run the reader may not see (another " +
+      "programme's, or no run at all) is shown nothing and named 'A programme', and tests/programme-overview-front-door.test.mjs " +
+      "holds the narrowed list as every kind of reader.",
   },
   "/(app)/admin/admissions/requests/[requestId]": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),

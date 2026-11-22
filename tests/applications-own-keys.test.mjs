@@ -750,6 +750,7 @@ const CONTRACT = {
     reviewRef: "addresses a document by id; reads no map",
     loadApplication: "addresses a document by id and normalises it; reads no map by an id",
     listSentApplications: "queries a collection and normalises each document; reads no map by an id",
+    listSentApplicationsOnce: "the same query, shared within one page render, and normalises each document; reads no map by an id",
     listDecisions: "queries a collection and keys the answer in a Map",
     loadDecision: "addresses a document by id and normalises it; reads no map by an id",
     listReviews: "queries a collection and normalises each document; reads no map by an id",

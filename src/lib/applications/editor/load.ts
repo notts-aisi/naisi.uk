@@ -11,7 +11,7 @@ import { isApplicationForm, isId, normaliseForm, type ApplicationForm } from "..
 import { loadForm, loadQuestionSets } from "../repo";
 import { reviewingHasBegunOn } from "../scoring";
 import { rankedProgrammes } from "../sections";
-import { listDecisions, listReviews, listSentApplications } from "../staffRepo";
+import { listDecisions, listReviews, listSentApplications, listSentApplicationsOnce } from "../staffRepo";
 import { listCourseChoices, readsCourseDrafts } from "./courses";
 import { own } from "./own";
 import { eligibleReviewers, namesOnForm } from "./people";
@@ -143,7 +143,8 @@ export async function countApplicationsTo(
   programmeId: string,
 ): Promise<number> {
   const applicants = [];
-  for (const application of await listSentApplications(db, form)) {
+  // Shared with the page under the head that asks this (`listSentApplicationsOnce`).
+  for (const application of await listSentApplicationsOnce(db, form)) {
     if (!isInTerm(application) || !application.sent) continue;
     applicants.push({
       uid: application.uid,

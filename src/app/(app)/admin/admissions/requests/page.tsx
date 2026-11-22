@@ -23,14 +23,32 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * anybody else the tree admits (an author who leads nothing) is told calmly
  * that there are none for them here. Names only, never an address. Nothing
  * here emails anybody.
+ *
+ * `?run=<runId>` NARROWS THE PAGE TO ONE PROGRAMME, by the run it names (each
+ * programme's Overview links here so): the loader keeps only that run's rows
+ * of the ones the reader is shown anyway, so the filter never widens what
+ * anybody sees, and an id that is not a run the reader may see (another
+ * programme's, or none at all) is shown nothing and named "A programme".
  */
 
 export const dynamic = "force-dynamic";
 
-export default async function RequestsPage() {
-  const user = await requireAdmissionsPage();
+/** The run asked for, as the address gives it: the first `run`, or none. */
+function runAskedIn(query: { run?: string | string[] }): string | null {
+  const asked = Array.isArray(query.run) ? query.run[0] : query.run;
+  if (typeof asked !== "string" || asked === "") return null;
+  // Too long to be an id names nothing: the page filters to nothing.
+  return asked.length > 128 ? "" : asked;
+}
+
+export default async function RequestsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ run?: string | string[] }>;
+}) {
+  const [user, query] = await Promise.all([requireAdmissionsPage(), searchParams ?? Promise.resolve({} as { run?: string | string[] })]);
   const db = getAdminDb();
-  const loaded = db ? await loadRequestsPage(db, user, new Date()) : null;
+  const loaded = db ? await loadRequestsPage(db, user, new Date(), { runId: runAskedIn(query) }) : null;
   if (!loaded || loaded.status === "none") {
     return (
       <Refusal title={NO_REQUESTS_HERE} href="/dashboard" action="Go to Home">

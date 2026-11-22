@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import type { DocumentReference, Firestore, Query, Transaction } from "firebase-admin/firestore";
 import { APPLICATIONS_COLLECTION } from "@/lib/firestore/admissionApplications";
 import {
@@ -80,6 +81,30 @@ export async function listSentApplications(
     .collection(APPLICATIONS_COLLECTION)
     .where("roundId", "==", form.round.id)
     .get();
+  const out: ApplicationDoc[] = [];
+  for (const doc of snap.docs) {
+    const application = normaliseApplication(doc.id, doc.data(), form.round.availabilityGrid);
+    if (application?.sent) out.push(application);
+  }
+  return out;
+}
+
+/**
+ * The same query, asked once for each page the server draws: a programme's
+ * head (`countApplicationsTo`, from the tabs' layout) and the Overview's
+ * Applications to read under it share one read of the form's applications
+ * (React's `cache`, which lives as long as one render of one request, keyed
+ * on the database handle and the round's id). Outside a render (a route, a
+ * job) there is nothing to share, and each call reads, as
+ * `listSentApplications` does. Only pages that read and never write use it.
+ */
+const sentSnapshotOnce = cache((db: Firestore, roundId: string) =>
+  db.collection(APPLICATIONS_COLLECTION).where("roundId", "==", roundId).get(),
+);
+
+/** `listSentApplications`, sharing one read across one page's layout and the page under it. */
+export async function listSentApplicationsOnce(db: Firestore, form: ApplicationForm): Promise<ApplicationDoc[]> {
+  const snap = await sentSnapshotOnce(db, form.round.id);
   const out: ApplicationDoc[] = [];
   for (const doc of snap.docs) {
     const application = normaliseApplication(doc.id, doc.data(), form.round.availabilityGrid);

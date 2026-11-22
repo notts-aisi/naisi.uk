@@ -96,7 +96,7 @@ const inSrc = (file) => posix(relative(SRC, file));
 // ---------------------------------------------------------------------------
 
 /** The staff repository's reads of everybody's applications, decisions and reviews. */
-const LIST_READERS = ["listSentApplications", "listDecisions", "listReviews", "listReviewsOf", "loadReviewedIn"];
+const LIST_READERS = ["listSentApplications", "listSentApplicationsOnce", "listDecisions", "listReviews", "listReviewsOf", "loadReviewedIn"];
 /** A parameter that is the person the screen is for, by the names this library gives one. */
 const THE_VIEWER = ["user", "viewerUid", "viewer", "actor"];
 /** The functions that leave the viewer's own application out, each of which takes the viewer. */
@@ -119,6 +119,10 @@ const READS_THE_LISTS = {
   "lib/applications/lifecycle/loadTermHome.ts#loadTermNumbers": {
     kind: "viewer",
     why: "the term page's numbers are each the number of rows on the screen behind them",
+  },
+  "lib/applications/lifecycle/loadTermHome.ts#loadProgrammeWork": {
+    kind: "viewer",
+    why: "one programme's share of the term page's numbers, for its Overview's Applications to read: the queue on the Applications tab behind it",
   },
   "lib/applications/decisionDay/term.ts#loadTerm": {
     kind: "viewer",

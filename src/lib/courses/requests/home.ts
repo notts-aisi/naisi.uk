@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import type { Firestore } from "firebase-admin/firestore";
 import { holdsStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -7,6 +8,7 @@ import { COURSE_REQUESTS_COLLECTION, normalizeCourseRequest, type CourseRequestD
 import { canAuthorAdmissionRound } from "@/lib/firestore/users";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
+import { normalizeExcusedRequest, type ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
 import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
 import { liveWaitingVisitRequests } from "@/lib/courses/visitRequest/page";
 import { normalizeMoveRequest, type MoveRequestDoc } from "@/lib/firestore/courseMemberRequests";
@@ -86,12 +88,12 @@ export async function requestsWaitingOnRun(
     const groups = new Map<string, CourseGroupDoc>();
     for (const each of snaps) if (each.exists) groups.set(each.id, normalizeCourseGroup(each.id, each.data() ?? {}));
     // A request to be excused is no correction (the reader above leaves it out): counted apart, for an admin.
+    // Through the list's own normaliser, so a document the list would not show is not counted either.
     const excused =
       opts.excused === true
-        ? snap.docs.filter((doc) => {
-            const data = doc.data() ?? {};
-            return data.kind === "excused" && data.status === "waiting" && data.runId === runId;
-          }).length
+        ? snap.docs
+            .map((doc) => normalizeExcusedRequest(doc.id, doc.data() ?? {}))
+            .filter((each): each is ExcusedRequestDoc => each !== null && each.status === "waiting" && each.runId === runId).length
         : 0;
     // Requests to go to another session, still waiting for a decision, live
     // (not closed by itself, not gone with the place): counted for an admin alone, as those to be excused are.
@@ -122,4 +124,24 @@ export async function requestsWaitingOnRun(
     console.warn("[programme] could not count the requests waiting", err);
     return 0;
   }
+}
+
+/**
+ * One slot per page drawn, for the run, the reader and whether requests to be
+ * excused count (React's `cache`, which lives as long as one render of one
+ * request): a programme's head and its Overview's Requests card ask the same
+ * question and get one answer from one read. Outside a render nothing is
+ * shared and each call reads.
+ */
+const waitingSlot = cache((_runId: string, _uid: string, _excused: boolean): { count: Promise<number> | null } => ({ count: null }));
+
+/**
+ * `requestsWaitingOnRun`, asked once for each page drawn: the head's count
+ * beside Requests and the Overview's Requests card are the same number, read
+ * once.
+ */
+export function requestsWaitingOnRunOnce(db: Firestore, user: SessionUser, runId: string, opts: { excused?: boolean } = {}): Promise<number> {
+  const slot = waitingSlot(runId, user.uid, opts.excused === true);
+  slot.count ??= requestsWaitingOnRun(db, user, runId, opts);
+  return slot.count;
 }

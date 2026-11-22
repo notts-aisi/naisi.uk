@@ -59,6 +59,7 @@ const { loadTs } = createLoader({
       "../staffRepo",
       [
         "export async function listSentApplications() { return globalThis.__inTerm.applications; }",
+        "export async function listSentApplicationsOnce() { return globalThis.__inTerm.applications; }",
         "export async function listDecisions() { return globalThis.__inTerm.decisions; }",
         "export async function listReviews() { return []; }",
       ].join("\n"),
@@ -442,7 +443,7 @@ describe("a place given back is free on every screen at once", () => {
 // ---------------------------------------------------------------------------
 
 /** A call of the arithmetic, or a read of every sent application on a form. */
-const COUNTS = /(?<!function\s)\b(?:tallyTerm|listSentApplications)\s*\(/;
+const COUNTS = /(?<!function\s)\b(?:tallyTerm|listSentApplications(?:Once)?)\s*\(/;
 /** The predicate, called or handed to a filter. */
 const ASKS = /\bisInTerm\b/;
 /** An import or a re-export names the predicate without asking it. */

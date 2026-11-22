@@ -485,6 +485,41 @@ browser.
 `tests/programmes-menu-home.test.mjs` runs the route, the menu and Home as
 every kind of reader.
 
+### A programme's Overview, where every way in lands
+
+The menu, the Programmes page, Home, search and a programme's own address
+all open its Overview, for an admin and the programme's lead (a reviewer is
+told the tab is theirs, as before). Two cards join today's, each worked out
+on the server and drawn only when it has something to say:
+
+- **Applications to read**, first, while the form takes or decides
+  applications, and never for a closed programme (`applicationsToReadOn`,
+  `programmes/overview.ts`): "14
+  applications · 3 for you to read" and "Review 3" (or "See applications"),
+  to the Applications tab. The count is the reader's own, by the term page's
+  rule (`isTheirs`): the lead's, or an admin's who also leads it. An admin
+  who neither leads nor reviews it reads "none for you to read" and is
+  offered no count that is not theirs. Once decisions have gone out it is
+  not shown. With no run yet, it comes first and "no run yet" under it. It
+  reads the form's decisions for a reader whose count it is; the form's
+  applications are the head's own read, shared within the page
+  (`listSentApplicationsOnce`, React's `cache`), and an admin whose count it
+  is not costs nothing more.
+- **Requests**, after Needs attention, while requests about the
+  programme's people wait: the head's own count (`requestsWaitingOnRunOnce`,
+  one read shared by the head and the card), and "Open requests", the
+  Requests page narrowed to the programme's run, where the head's "2 requests
+  waiting" now goes too. For the lead that is the
+  register corrections a lead decides (on a group they do not facilitate,
+  not archived); for an admin requests to be excused, to go to another
+  session and to change group too. Messages to the team and access needs
+  belong to no programme and are in no programme's count. An admin reads "2
+  requests from AGI Strategy’s people are waiting for an admin."; the lead
+  "…waiting for you or an admin.".
+
+Everything else on the Overview is as it was. `tests/programme-overview-front-door.test.mjs`
+draws it, the narrowed Requests page and search as every kind of reader.
+
 ## A programme and its course page
 
 A programme is for a course, and `programmes.<id>.courseId` says which: the
@@ -2425,6 +2460,7 @@ All in `src/lib/applications/`.
 | `programmes/path.ts` | Where the Programmes page is | anywhere |
 | `programmes/menu.ts` | The menu's programmes as they travel from the route to the shell: their shape, a term's heading, and the browser's parse | anywhere |
 | `programmes/home.ts` | Home's share of the list: the Programmes card's rows and what waits for an admin's reading | anywhere |
+| `programmes/overview.ts` | The Overview's Applications to read: the reader's own count, its line and its door | server, staff |
 
 ## Rules for anything built on this
 

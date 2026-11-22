@@ -61,6 +61,7 @@ const { loadTs } = createLoader({
       "../staffRepo",
       [
         "export async function listSentApplications() { return globalThis.__places.applications; }",
+        "export async function listSentApplicationsOnce() { return globalThis.__places.applications; }",
         "export async function listDecisions() { return globalThis.__places.decisions; }",
         "export async function listReviews() { return []; }",
       ].join("\n"),

@@ -3259,7 +3259,10 @@ they already open; nothing under `/admin/courses` is needed.
   programme, one row per group for a chosen week, each group's session this
   week and its register, what needs attention and how many are taking part
   (see "The lead's Overview and Attendance" and "The Overview, by week"
-  below).
+  below). Applications to read comes first while the form takes or decides
+  applications, and a Requests card follows Needs attention while requests
+  about the programme's people wait (docs/applications.md, "A programme's
+  Overview, where every way in lands").
 - **Attendance tab**: every register of the run as one grid, By person or
   By week, read only, with Download CSV. Marking stays with the group's
   facilitators and admins. Under the grid, the notes each group's
@@ -3423,7 +3426,11 @@ writes or emails anything.
 "Search people and groups" sits at the top of the app's sidebar, and in the
 phone's menu, for the people who run things. "/" anywhere opens it, except
 while somebody is typing in a field or an editor, with a modifier held, or
-over another dialog. It finds people and groups and nothing else.
+over another dialog. It finds people and groups, and for an admin and a
+programme's lead programmes too; their box reads "Search people, groups and
+programmes" (`GET /api/search` answers `programmes: true` for them), and
+everybody else's keeps today's words, so a facilitator who leads nothing is
+never promised programmes.
 
 ### Who may, and what each finds
 
@@ -3435,6 +3442,20 @@ the lists each reader can already open, through those lists' own gates:
 | An admin | every account, by the full name the Members page shows | every live group of every run that is not being destroyed | the person's page under Members; the group's page under the programme that names its run, or the group's own page when no programme names it |
 | A programme's lead | the People tab's rows of each programme they lead (`readProgrammePeople`, after the tab's own gate and the admissions tree's page gate), by the tab's names | the live groups of the run each of those programmes names | the People tab opened on the person's row (`?person=`: under the filter that holds the row, Invited for somebody invited, with the search set to their name and enough pages to reach it, `openedOn`); the group's page under the programme |
 | A group's facilitator | the people their group's page lists (`listGroups` over `readRunRecords`, as `loadFacilitatorGroup` reads them), by the page's names | the live groups that name them, held to the facilitator's bar | the group's page, for both |
+
+Programmes, drawn first and only when one matched, at most four: for an
+admin every programme on every form, for a lead the ones they lead, by the
+Programmes list's own rule (`programmesOpenedOn`); a reviewer, a run's track
+lead and a facilitator find none. Each reads "AGI Strategy", then
+"Fellowship · Autumn 2026 · Lead: Maya Rao" ("Lead: you" for the reader's
+own), with where it is beside it in the Programmes page's words (Not open
+yet, Taking applications, Deciding, Starting, Running, and Finished or
+Closed), and opens its Overview. It matches on the programme's names and its
+term's. They come in their term's order: a term its form says is over
+(cancelled or archived) after every other, the newest form first within
+each, then how well they matched and their name, so older terms never crowd
+out the one being run; when more matched than the four shown, "More
+programmes match. Type more of the name." follows, as for people and groups.
 
 Somebody who is both a lead and a facilitator finds each person once, by the
 People tab. Anybody else (a reviewer, the committee, a member, a waiting or
@@ -3479,6 +3500,11 @@ At most six people and four groups, with a line when more matched.
 - An admin: every account (three fields each), every group, each group's run
   by address, every application form, and for the six people at most in the
   answer, their places on courses (one `in`).
+- Programmes, for an admin or a lead: nothing more to find them (the forms
+  are already read), and for the four at most in the answer, past decision
+  day and on a form not cancelled or archived, their runs in one `getAll`,
+  for the chip; an admin's world already holds every live group's run, so
+  only the runs it lacks are read. None when no programme matched.
 - A lead: every form, then per form whose decisions have gone out its sent
   applications and decisions once, however many of its programmes they lead,
   and per programme the run, its groups and its places, each once (the People
@@ -4500,6 +4526,16 @@ requests of the runs it names (`programmeLedBy`), less what one request's page
 would not open for them (a group they facilitate, or an archived one); anybody
 else, a run's track lead who is neither among them, `none`. Home's count and
 the programme's head count the same.
+`?run=<runId>` narrows the page to one programme, by the run it names (each
+programme's head and its Overview's Requests card link there, with one count
+from one read): of the rows the
+reader is shown anyway, only that run's, counted again, with the programme
+named at the top and "All requests" beside it. It never widens: a lead given
+another programme's run, or an id that is no run at all, is shown nothing
+and the programme is called "A programme", so nothing says whether it
+exists. A message to the team or an access ask belongs to no run and is in
+no programme's list. The Overview's count is the head's, so it is the
+number of open rows behind the link.
 Counts for waiting,
 being handled and done this week (since Monday in London), and each row with
 who asked, about whom, what, when and who has it. `loadRequestPage`, for the
@@ -4677,7 +4713,8 @@ Nothing on any page changes a finished register without asking why.
   The page offers the person who asked neither Approve nor Decline. Home links
   to it while something waits (an admin's To do; a card under the lead's
   greeting, `requestsWaitingFor`, never in a view-as session), and so does the
-  programme's head ("2 requests waiting").
+  programme's head ("2 requests waiting"), narrowed to the programme as its
+  Overview's Requests card is.
 - **Attendance, all weeks**: the group's page's third tab, handed by the page
   only to admins and the programme's lead (never to somebody the register's
   gate answers as the group's facilitator, a lead who runs the group

@@ -24,8 +24,9 @@
  * The spec (`tests/e2e/course-hub-search.spec.mjs`) is the admin, then Gus:
  * "/" opens the box on Home, a person's name finds them with the page under
  * Members, a group's name and run find the group and Enter opens its page;
- * the admin makes Gus the programme's lead; and Gus finds Ivy, and Enter
- * opens the People tab on her row, under Invited.
+ * the programme's name finds it under Programmes and Enter opens its
+ * Overview; the admin makes Gus the programme's lead; and Gus finds Ivy, and
+ * Enter opens the People tab on her row, under Invited.
  *
  * ## What it does not drive
  *
@@ -47,6 +48,7 @@ export const SEARCH_STEPS = [
   "the admin presses / on Home and the search opens, its box ready for typing",
   "a person's name finds them, by the name the admin is shown, with their page under Members",
   "a group's name and run find it, and Enter opens the group's page",
+  "the programme's name finds it, first, and Enter opens its Overview",
   "the admin approves the account that will lead the programme and makes it SU-recognised committee",
   "the admin names the running course run and the programme's lead on the Settings tab",
   "the lead finds somebody invited, and Enter opens the People tab on their row, under Invited",
@@ -171,8 +173,12 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people",
     ],
   },
-  /** Passed locally on 19 Nov 2026, all six steps, the lead's included, with a teardown manifest of zero. */
-  status: "verified",
+  /**
+   * Passed locally on 19 Nov 2026 with its six steps then, the lead's included, with a teardown manifest of
+   * zero. A seventh step (the programme's name finds it and Enter opens its Overview) has been added since and
+   * has never run in a browser, so the spec as written has not passed: unverified until it passes whole again.
+   */
+  status: "unverified",
   seed,
   countRows: countTerm,
   teardown,

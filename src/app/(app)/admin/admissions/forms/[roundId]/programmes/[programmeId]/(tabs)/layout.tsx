@@ -18,8 +18,8 @@ import { groupsGoOutDay } from "@/lib/courses/groupsGoOut";
 import { readGroupsGoOut } from "@/lib/courses/groupsGoOutRead";
 import { countRunGroups, readRunHeader } from "@/lib/courses/programmeAttendance";
 import { programmeRequestsWords } from "@/lib/courses/registerCorrection/pageWords";
-import { requestsWaitingOnRun } from "@/lib/courses/requests/home";
-import { REQUESTS_PATH } from "@/lib/courses/requests/paths";
+import { requestsWaitingOnRunOnce } from "@/lib/courses/requests/home";
+import { requestsForRunPath } from "@/lib/courses/requests/paths";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { countRunWeeks } from "@/lib/courses/weeksTab/load";
 import { formatRunStartShort } from "@/lib/courses/window";
@@ -215,11 +215,12 @@ export default async function ProgrammeLayout({
   // never for a lead.
   const requestsWaiting =
     db && programme.runId && opensProgrammeGroups(role)
-      ? await requestsWaitingOnRun(db, user, programme.runId, { excused: role === "admin" })
+      ? await requestsWaitingOnRunOnce(db, user, programme.runId, { excused: role === "admin" })
       : 0;
-  if (requestsWaiting > 0) {
+  // The same place the Overview's Requests card opens: the Requests page narrowed to this programme's run.
+  if (requestsWaiting > 0 && programme.runId) {
     facts.push(
-      <Link href={REQUESTS_PATH} className={styles.metaItem} key="requests">
+      <Link href={requestsForRunPath(programme.runId)} className={styles.metaItem} key="requests">
         <strong>{programmeRequestsWords(requestsWaiting)}</strong>
       </Link>,
     );

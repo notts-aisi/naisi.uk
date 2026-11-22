@@ -108,6 +108,20 @@
   background: var(--color-surface-hover);
 }
 
+/* Applications to read and Requests: a line, and one button across the card. */
+.frontLine {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text-body);
+}
+
+.frontAction {
+  justify-content: center;
+  width: 100%;
+  margin-top: 16px;
+}
+
 .textLink:focus-visible,
 .buttonLink:focus-visible,
 .remindButton:focus-visible {

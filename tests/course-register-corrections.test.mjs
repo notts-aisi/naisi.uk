@@ -510,7 +510,9 @@ describe("2. asking for a correction, and deciding it", () => {
     assert.equal((await requestsHome.requestsWaitingFor(world.courseDb, sessionOf("yusuf"), LATER)).count, 0);
     // The head asks with its reader, and the list and the count ask one predicate.
     const layout = sourceOf("app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx");
-    assert.match(layout, /await requestsWaitingOnRun\(db, user, programme\.runId, \{ excused: role === "admin" \}\)/);
+    assert.match(layout, /await requestsWaitingOnRunOnce\(db, user, programme\.runId, \{ excused: role === "admin" \}\)/);
+    // Once per page drawn, and still the head's own question: the slot asks requestsWaitingOnRun itself.
+    assert.match(sourceOf("lib/courses/requests/home.ts"), /slot\.count \?\?= requestsWaitingOnRun\(db, user, runId, opts\);/);
     assert.match(sourceOf("lib/courses/requests/home.ts"), /return waiting\.filter\(\(each\) => requestShownTo\(user, groups\.get\(each\.groupId\), runId, leadsRun\)\)\.length \+ excused \+ visits \+ moves;/);
     assert.match(sourceOf("lib/courses/requests/load.ts"), /requests = requests\.filter\(\(each\) => requestShownTo\(actor, ctx\.groups\.get\(each\.groupId\), each\.runId, led\.runIds\.includes\(each\.runId\)\)\);/);
   });
