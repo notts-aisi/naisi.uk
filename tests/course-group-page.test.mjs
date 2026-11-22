@@ -96,12 +96,12 @@ function sessionFor(uid) {
 }
 
 /** A page as `who` sees it: its element, HTML and text, and whether it wrote. */
-async function draw(Page, who, params) {
+async function draw(Page, who, params, search = {}) {
   world.user = who === null ? null : sessionFor(who);
   world.course = true;
   const before = w.everything();
   try {
-    const element = await Page({ params: Promise.resolve(params), searchParams: Promise.resolve({}) });
+    const element = await Page({ params: Promise.resolve(params), searchParams: Promise.resolve(search) });
     const html = renderToStaticMarkup(element);
     return { element, html, text: text(html), to: null, wrote: w.everything() !== before };
   } catch (err) {
@@ -783,6 +783,15 @@ describe("3. the group's page, and the facilitator's cut", () => {
     assert.ok(older.text.includes("Group B is archived. It is out of allocation"), older.text.slice(0, 600));
     const reviewer = await groupPage("lloyd");
     assert.doesNotMatch(reviewer.text, /Restore Group B/, "a reviewer is not offered Restore");
+  });
+
+  test("an archived group's page opens no sheet: ?take= is read only on a live group", async () => {
+    const live = await draw(ProgrammeGroupPage, "zach", { roundId: ROUND, programmeId: AGI, groupId: B }, { take: "3" });
+    assert.equal(find(live.element, "GroupPage")[0].props.take, 3, "a live group opens on the week asked for");
+    world.db.poke(`courseGroups/${B}`, { archived: true });
+    const archived = await draw(ProgrammeGroupPage, "zach", { roundId: ROUND, programmeId: AGI, groupId: B }, { take: "3" });
+    assert.equal(find(archived.element, "GroupPage")[0].props.take, null);
+    assert.doesNotMatch(archived.html, /cover-sheet|I’m covering it|Someone else is covering it/);
   });
 
   test("the restore question says beforehand who it comes back without", async () => {

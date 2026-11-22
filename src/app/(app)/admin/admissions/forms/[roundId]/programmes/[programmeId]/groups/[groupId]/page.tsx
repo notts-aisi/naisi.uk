@@ -168,7 +168,11 @@ export default async function ProgrammeGroupPage({
       facts && plan?.ok
         ? sitsElsewhereWords(
             group.name,
-            plan.dropping.map((each) => ({ name: facts.names.get(each.uid)?.name ?? "", groupName: groupNames.get(each.groupId) ?? "another group" })),
+            plan.dropping.map((each) => ({
+              name: facts.names.get(each.uid)?.name ?? "",
+              // "" says no group.
+              groupName: each.groupId ? (groupNames.get(each.groupId) ?? "another group") : "",
+            })),
             plan.staying.map((uid) => facts.names.get(uid)?.name ?? "").filter(Boolean),
           )
         : "";
@@ -188,8 +192,9 @@ export default async function ProgrammeGroupPage({
       <GroupPage
         archived={archived}
         said={said}
+        // An archived group's page opens no sheet: `?take=` is read only on a live group.
         view={{ ...page, programmeName: view.programmeName || page.programmeName }}
-        take={take}
+        take={group.archived ? null : take}
         attendance={attendance.status === "ok" && attendance.view.viewer !== "facilitator" ? attendance.view : null}
         links={{
           programme: `${base}/overview`,

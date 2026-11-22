@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { EMAIL_ARCHIVED } from "@/lib/courses/groupArchive/words";
 import { dispatchSends } from "@/lib/email/dispatch";
 import {
   parseStaffMessage,
@@ -233,6 +234,10 @@ export async function POST(
   }
   if (!group) {
     return NextResponse.json({ error: "Group not found" }, { status: 404 });
+  }
+  // An archived group is written to by nobody, an admin included: it is out of every list.
+  if (group.archived) {
+    return NextResponse.json({ error: EMAIL_ARCHIVED }, { status: 409 });
   }
   if (!group.runId) {
     return NextResponse.json(

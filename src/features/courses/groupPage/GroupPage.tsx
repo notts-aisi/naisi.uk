@@ -204,7 +204,8 @@ export default function GroupPage({
   const router = useRouter();
   const hydrated = useHydrated();
   const [choosing, startChoosing] = useTransition();
-  const takeWeek = take !== null && view.weeks.some((each) => each.weekNumber === take) ? take : null;
+  // An archived group's page opens no sheet that changes anything.
+  const takeWeek = archived === null && take !== null && view.weeks.some((each) => each.weekNumber === take) ? take : null;
   const [tab, setTab] = useState<"weeks" | "attendance" | "history">("weeks");
   const [shown, setShown] = useState<number | null>(takeWeek ?? view.workWeek ?? view.openWeek);
   const [filter, setFilter] = useState<W.HistoryFilter>("everything");
