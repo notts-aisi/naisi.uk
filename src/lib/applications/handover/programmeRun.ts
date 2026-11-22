@@ -41,6 +41,11 @@ export type ProgrammeRunView = {
   blank: "no-run" | "run-gone" | null;
   /** The run's pitching week, when one of its weeks is ticked as one; null otherwise. */
   pitchingWeek: number | null;
+  /**
+   * Decisions have gone out on the form. Until then Times draws no picture
+   * and no "Add a group", so nothing leads there to add one.
+   */
+  decisionsSent: boolean;
 };
 
 export type ProgrammeRunOutcome =
@@ -73,6 +78,7 @@ export async function loadProgrammeRun(
     run: null,
     blank: "no-run",
     pitchingWeek: null,
+    decisionsSent: form.decisionsSentAt !== null,
   };
   if (programme.runId === null) return { status: "ok", view };
   const snap = await db.collection(RUNS_COLLECTION).doc(programme.runId).get();

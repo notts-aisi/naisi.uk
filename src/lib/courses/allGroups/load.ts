@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { CAMPUS_LABEL } from "@/lib/courses/campusWords";
 import { placesInGroup } from "@/lib/courses/groupArchive/plan";
 import { registerOwed } from "@/lib/courses/groupArchive/restored";
-import { archivedWhenWords, readRestoreQuestion } from "@/lib/courses/groupArchive/restoreQuestion";
+import { archivedWhenWords } from "@/lib/courses/groupArchive/restoreQuestion";
 import { weekStateOf, type WeekChange } from "@/lib/courses/groupPage/model";
 import { dayAndTimeWords, roomLine, weekWords } from "@/lib/courses/groupPage/words";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
@@ -50,16 +50,15 @@ import { archivedRowWords, weekCellWords } from "./words";
  *
  * AN ARCHIVED GROUP: what it was ("Was Fridays, 11am to 1pm"), when and by
  * whom it was archived (the day alone, or "Archived" alone for one archived
- * before those were recorded), whether anybody is in it, and what the restore
- * question says before it is pressed (`readRestoreQuestion`, the archived
- * group's own page's reader).
+ * before those were recorded), and whether anybody is in it, all from the
+ * list's own reads. What its restore question says is read only when it is
+ * asked, one group at a time (the archive route's GET).
  *
- * WHAT IS READ, one read serving the list: the run's groups and the run's
- * places (one equality each, so no declared index), the registers of the
- * week's sessions and the accounts the rows name (each addressed by id, in one
- * batch apiece); then, for each archived group only, what its restore
- * question says. No address, no link and no account field leaves this module:
- * the rows are words.
+ * WHAT IS READ, and nothing per group: the run's groups and the run's places
+ * (one equality each, so no declared index), and in one batch apiece the
+ * registers of the week's sessions and the accounts the rows name (each
+ * addressed by id). No address, no link and no account field leaves this
+ * module: the rows are words.
  *
  * WHAT IS WRITTEN: nothing.
  */
@@ -84,8 +83,6 @@ export type ArchivedGroupRow = {
   name: string;
   /** "Was Fridays, 11am to 1pm · Archived Mon 2 Nov by Maya Rao · Nobody in it". */
   line: string;
-  /** What the restore question says: how it comes back, and who it comes back without (or ""). */
-  restore: { body: string; note: string };
 };
 
 export type AllGroupsView = {
@@ -96,7 +93,7 @@ export type AllGroupsView = {
 };
 
 /** The programme's week, as the column names it, and its seven days. Null while the run has no dates. */
-function weekShown(run: CourseRunDoc, now: Date): { label: string; fromKey: string; toKey: string } | null {
+function weekShown(run: CourseRunDoc, now: Date): { label: string; weekNumber: number | null; fromKey: string; toKey: string } | null {
   if (!isValidDateKey(run.startDate) || run.weekPlan.length === 0) return null;
   const plan = run.weekPlan;
   // The programme's own week, asked the one way the lead's tabs ask it: its
@@ -108,6 +105,7 @@ function weekShown(run: CourseRunDoc, now: Date): { label: string; fromKey: stri
   const fromKey = addDaysToKey(run.startDate, index * 7);
   return {
     label: entry?.kind === "week" ? weekWords(entry.weekNumber) : entry?.label || "Break",
+    weekNumber: entry?.kind === "week" ? entry.weekNumber : null,
     fromKey,
     toKey: addDaysToKey(fromKey, 6),
   };
@@ -148,10 +146,9 @@ export async function loadAllGroups(
       [...live.flatMap((group) => group.facilitatorUids), ...archived.map((group) => group.archivedByUid ?? "")].filter((uid) => uid && isAddressableId(uid)),
     ),
   ];
-  const [registerSnaps, userSnaps, questions] = await Promise.all([
+  const [registerSnaps, userSnaps] = await Promise.all([
     registerRefs.length ? db.getAll(...registerRefs) : Promise.resolve([]),
     uids.length ? db.getAll(...uids.map((uid) => db.collection("users").doc(uid))) : Promise.resolve([]),
-    Promise.all(archived.map((group) => readRestoreQuestion(db, { group, liveGroups: live, viewer, now }))),
   ]);
   const registers = new Map(withSession.map((group, index) => [group.id, registerSnaps[index]?.exists ? (registerSnaps[index].data() ?? {}) : null] as const));
   const accounts = new Map(userSnaps.filter((snap) => snap.exists).map((snap) => [snap.id, (snap.data() ?? {}) as Record<string, unknown>] as const));
@@ -164,6 +161,8 @@ export async function loadAllGroups(
   const tomorrowKey = addDaysToKey(todayKey, 1);
   const weekCell = (group: CourseGroupDoc): string | null => {
     if (!week) return null;
+    // A group with no time yet has no session to say: the Meets column says "No time yet".
+    if (!group.session.startTimeLocal) return "";
     const found = sessions.get(group.id);
     const one = found?.one ?? null;
     if (!one) {
@@ -186,8 +185,21 @@ export async function loadAllGroups(
       todayKey,
       tomorrowKey,
     });
-    // A register is owed only for a session that did not pass while the group was archived.
-    return weekCellWords(state, one.dateKey, one.session.startTimeLocal, registerOwed(group, startsAt));
+    // What this week's session really is: online, moved (or pushed into
+    // this week), and this week's room where it is not the regular one.
+    const online = sessionModeForWeek(group, one.weekId) === "virtual";
+    const weekRoom = one.session.location.trim();
+    const said = weekCellWords({
+      state,
+      dateKey: one.dateKey,
+      hhmm: one.session.startTimeLocal,
+      // A register is owed only for a session that did not pass while the group was archived.
+      owed: registerOwed(group, startsAt),
+      change: online ? "online" : change === "moved" || change === "pushed" ? "moved" : null,
+      room: !online && weekRoom && weekRoom !== group.session.location.trim() ? weekRoom : null,
+    });
+    // A group running behind or ahead holds another of its weeks in these days: say which.
+    return one.weekNumber !== week.weekNumber ? `${weekWords(one.weekNumber)}, ${said}` : said;
   };
 
   const rows: AllGroupsRow[] = live.map((group) => {
@@ -214,7 +226,7 @@ export async function loadAllGroups(
     };
   });
 
-  const archivedRows: ArchivedGroupRow[] = archived.map((group, index) => ({
+  const archivedRows: ArchivedGroupRow[] = archived.map((group) => ({
     id: group.id,
     name: nameOf(group),
     line: archivedRowWords({
@@ -223,7 +235,6 @@ export async function loadAllGroups(
       byName: group.archivedAt && group.archivedByUid ? named(group.archivedByUid) : "",
       inGroup: inGroup(group),
     }),
-    restore: questions[index] ?? { body: "", note: "" },
   }));
 
   return { week: week?.label ?? null, rows, archived: archivedRows };

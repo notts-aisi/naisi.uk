@@ -85,7 +85,7 @@ export function canMakeHint(count: number, said: number): string {
 
 /** Said when there is a told group "Use for a group" leaves off its list. */
 export const TOLD_LEFT_OUT =
-  "Groups Publish has told their time aren’t listed. To move one week’s session, use Change a session.";
+  "Groups Publish has told their time aren’t listed. To move one week’s session, use Change this week on the group’s page.";
 
 // ---------------------------------------------------------------------------
 // A group whose time Publish has told
@@ -97,11 +97,8 @@ export const TOLD_LEFT_OUT =
  * by the dialog before anything is pressed.
  */
 export function toldWords(groupName: string): string {
-  return `Publish has told people when ${groupName} meets, so its time can’t change here. To move one week’s session, use Change a session.`;
+  return `Publish has told people when ${groupName} meets, so its time can’t change here. To move one week’s session, use Change this week on its page.`;
 }
-
-/** The way there: the group's own page, where one week's session is changed. */
-export const CHANGE_A_SESSION = "Change a session";
 
 // ---------------------------------------------------------------------------
 // What a press came to

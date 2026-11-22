@@ -39,28 +39,42 @@ export const COLUMN = {
 
 /**
  * One group's session in the week the column names, as its cell says it:
- * "Met Mon 9 Nov", "Today, 1pm", "Tomorrow, 3pm", "Thu 12 Nov"; any other
- * state as the group page's week pill says it ("Thu 12 Nov · cancelled").
- * A session that started with no register, for which none is owed (it
- * passed while the group was archived: `registerOwed`), is "not held", as
- * the Overview says it, never "no register".
+ * "Met Mon 9 Nov", "Today, 1pm", "Tomorrow, 3pm", "Thu 12 Nov".
+ *
+ * WHAT THIS WEEK'S SESSION REALLY IS, on every day, today and tomorrow
+ * included: a session moved or held online says so, at its real time, in
+ * the group page's own state words ("Today, 7pm · moved", "Thu 12 Nov, 6pm
+ * · online"), and a room that is not the group's regular one is named
+ * ("Today, 7pm · moved · Portland A21"). A session called off, one that did
+ * not happen and one with no register say it as the group page's week pill
+ * does ("Thu 12 Nov · cancelled"). A session that started with no register,
+ * for which none is owed (it passed while the group was archived:
+ * `registerOwed`), is "not held", as the Overview says it, never "no
+ * register".
  */
-export function weekCellWords(state: WeekState, dateKey: string, hhmm: string, owed = true): string {
+export function weekCellWords(input: {
+  state: WeekState;
+  dateKey: string;
+  /** The session's own start this week, after any change. */
+  hhmm: string;
+  owed?: boolean;
+  /** What changed this week's session, when it was moved or is held online. */
+  change?: "moved" | "online" | null;
+  /** This week's room, only where it is not the group's regular room. */
+  room?: string | null;
+}): string {
+  const { state, dateKey, hhmm, owed = true, change = null, room = null } = input;
   const day = dayWords(dateKey);
   const clock = clockWords(hhmm);
   if (state === "no-register" && !owed) return `${day} · not held`;
-  switch (state) {
-    case "met":
-      return `Met ${day}`;
-    case "today":
-      return ["Today", clock].filter(Boolean).join(", ");
-    case "tomorrow":
-      return ["Tomorrow", clock].filter(Boolean).join(", ");
-    case "upcoming":
-      return day;
-    default:
-      return [day, WEEK_STATE_WORDS[state]].filter(Boolean).join(" · ");
+  if (state === "met") return `Met ${day}`;
+  if (state === "today" || state === "tomorrow" || state === "upcoming" || state === "moved" || state === "online") {
+    const label = state === "today" ? "Today" : state === "tomorrow" ? "Tomorrow" : day;
+    // A plain upcoming session is its day alone; a changed one, or today's and tomorrow's, says its time too.
+    const when = state === "upcoming" && !change && !room ? label : [label, clock].filter(Boolean).join(", ");
+    return [when, change ? WEEK_STATE_WORDS[change] : "", room ?? ""].filter(Boolean).join(" · ");
   }
+  return [day, WEEK_STATE_WORDS[state]].filter(Boolean).join(" · ");
 }
 
 // ---------------------------------------------------------------------------

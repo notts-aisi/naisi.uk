@@ -102,6 +102,7 @@ const { default: SessionNotice } = await loadTs(join("features", "courses", "ses
 const cardFacts = await loadTs(join("features", "courses", "sessionChange", "cardFacts.ts"));
 const roomNotice = await loadTs(join("features", "courses", "RoomNoticeComposer.tsx"));
 const overview = await w.courseRoute("runs", "[runId]", "overview");
+const archiveRoute = await w.courseRoute("groups", "[groupId]", "archive");
 
 const PAGE_PATH = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
 const GROUP_PATH = (groupId) => `/learn/${RUN.agi}/group/${groupId}`;
@@ -237,9 +238,12 @@ describe("1. All groups is the lead's and an admin's, and changes nothing", () =
       }
       assert.match(drawn.text, /Groups The week’s rooms The term’s rooms Add a group Each group’s name opens its page, where everything about it is changed\./);
       assert.match(drawn.text, /Group Meets Room Facilitators People Week 4 Group B Tuesdays, 6pm to 8pm Hallward B12 Rahul Mehta, Sofia Rossi 4 of 8 Tue 24 Nov/);
-      // "Add a group" is Times' own, opened from the address; "Publish groups…" beside the views.
+      // "Add a group" is Times' own, opened from the address. Beside the views,
+      // the way to Publish's page in People in groups' own words for the
+      // reader: only an admin publishes, and the lead is shown what it sends.
       assert.ok(drawn.html.includes(`<a href="${PAGE_PATH}/groups/times?add=1" class="btn">Add a group</a>`), drawn.html);
-      assert.ok(drawn.html.includes(`<a href="${PAGE_PATH}/groups/publish" class="btn">Publish groups…</a>`));
+      const publishLabel = who === "zach" ? "Publish groups…" : "What Publish sends…";
+      assert.ok(drawn.html.includes(`<a href="${PAGE_PATH}/groups/publish" class="btn">${publishLabel}</a>`), who);
       // "When groups go out" stays, with its control.
       assert.equal(find(drawn.element, "GroupsGoOut").length, 1);
       // Nothing about a group is changed here: no session's change, no campus, no room.
@@ -260,6 +264,17 @@ describe("1. All groups is the lead's and an admin's, and changes nothing", () =
     // A campus with no room yet is the room the group page draws.
     world.db.poke(`courseGroups/${C}`, { campus: "jubilee" });
     assert.equal((await allGroupsFor("claudia")).row("Group C").room, "Room to be confirmed, Jubilee");
+  });
+
+  test("before decisions go out there is no Add a group, because Times draws none then", async () => {
+    world.db.poke(`admissionRounds/${ROUND}`, { decisionsSentAt: null });
+    for (const who of ["claudia", "zach"]) {
+      const { drawn } = await allGroupsFor(who);
+      assert.ok(!drawn.html.includes("groups/times?add=1"), `${who} is offered an Add a group that leads nowhere`);
+      assert.doesNotMatch(drawn.text, /Add a group/);
+      // The rows are there all the same.
+      assert.match(drawn.text, /Group B Tuesdays, 6pm to 8pm/);
+    }
   });
 
   test("a reviewer is told the tab is the lead's and an admin's, having read only the form", async () => {
@@ -307,6 +322,39 @@ describe("1. All groups is the lead's and an admin's, and changes nothing", () =
     assert.equal((await allGroupsFor("claudia")).row("Group A").week, "Thu 19 Nov · no register");
   });
 
+  test("today's session says what it really is: held online, or moved, at its real time and in its room", async () => {
+    world.db.poke(`courseGroups/${A}`, { "session.meetingUrl": LINK });
+    const online = await press("sofia", A, { week: 4, dateKey: "2026-11-19", kind: "online" }, { tell: false });
+    assert.equal(online.changed.status, 200, JSON.stringify(online.changed.body));
+    assert.equal((await allGroupsFor("claudia")).row("Group A").week, "Today, 6pm · online");
+    await press("sofia", A, { week: 4, dateKey: "2026-11-19", kind: "restore" }, { tell: false });
+    const moved = await press("sofia", A, { week: 4, dateKey: "2026-11-19", kind: "move", move: { dateKey: "2026-11-19", time: "7pm", room: "Hallward B12" } }, { tell: false });
+    assert.equal(moved.changed.status, 200, JSON.stringify(moved.changed.body));
+    // The Room column stays the group's regular room; the cell names this week's.
+    const { row } = await allGroupsFor("claudia");
+    assert.equal(row("Group A").room, "Portland A13");
+    assert.equal(row("Group A").week, "Today, 7pm · moved · Hallward B12");
+  });
+
+  test("a session called off says so, and a group running behind says which of its weeks it holds", async () => {
+    // Called off: the group page's word for it, whatever the day.
+    const off = await press("tom", C, { week: 4, dateKey: "2026-11-25", kind: "cancel" }, { tell: false });
+    assert.equal(off.changed.status, 200, JSON.stringify(off.changed.body));
+    assert.equal((await allGroupsFor("claudia")).row("Group C").week, "Wed 25 Nov · cancelled");
+    // Group B pushed back a week: in the programme's week 5 it holds its week 4.
+    await press("rahul", B, { week: 4, dateKey: TUE_24, kind: "push" }, { tell: false });
+    at("2026-11-26T10:00:00Z");
+    const { view, row } = await allGroupsFor("claudia");
+    assert.equal(view.week, "Week 5");
+    assert.equal(row("Group B").week, "Week 4, Tue 1 Dec, 6pm · moved");
+  });
+
+  test("a group with no time yet has nothing in the week's column", async () => {
+    world.db.poke(`courseGroups/${C}`, { "session.startTimeLocal": "" });
+    const { row } = await allGroupsFor("claudia");
+    assert.deepEqual([row("Group C").meets, row("Group C").week], ["No time yet", ""]);
+  });
+
   test("a session that passed while its group was archived owes no register, and the column says it was not held", async () => {
     at("2026-11-19T18:30:00Z");
     // Restored after Group A's session that evening started: none is owed (`registerOwed`).
@@ -341,10 +389,13 @@ describe("1b. the archived groups at the foot of All groups, and the line after 
         view.archived.map((row) => [row.id, row.name, row.line]),
         [[C, "Group C", "Was Wednesdays, 1pm to 3pm · Archived Mon 16 Nov by Zach Levin · 1 person in it"]],
       );
-      // Closed by default: the heading and Show, nothing of the rows until it is opened.
+      // Closed by default: the heading and Show, the rows hidden until it is
+      // opened, in the element the button names.
       assert.match(drawn.text, /Archived groups \(1\) Show/);
       assert.match(drawn.html, /<button type="button" class="btn" aria-expanded="false" aria-controls="archived-groups-list">Show<\/button>/);
-      assert.doesNotMatch(drawn.text, /Was Wednesdays|Restore Group C/);
+      assert.match(drawn.html, /<div id="archived-groups-list" hidden=""><p class="cardNote">Archived groups stay on the run/);
+      // Nothing of the restore question is read with the list: its facts' query of freed places is never made.
+      assert.ok(!drawn.reads.includes("admissionApplications"), `the list read the restore question's facts: ${drawn.reads.join(", ")}`);
       assert.equal(drawn.wrote, false);
     });
   }
@@ -361,20 +412,36 @@ describe("1b. the archived groups at the foot of All groups, and the line after 
     assert.match((await allGroupsFor("claudia")).view.archived[0].line, /^Archived Mon 16 Nov by Zach Levin · Nobody in it$/);
   });
 
-  test("Restore asks the archived group's own question: the same panel, the same words", async () => {
+  test("Restore asks the archived group's own question, read as it is pressed: the same panel, the same words", async () => {
     await emptyC();
     archiveC();
     const { view } = await allGroupsFor("claudia");
+    assert.deepEqual(Object.keys(view.archived[0]).sort(), ["id", "line", "name"], "the list carries the restore question's words");
     const page = await programmeGroupPage("claudia", C);
     const [groupPage] = find(page.element, "GroupPage");
     assert.ok(groupPage?.props.archived, "the archived group's page drew no restore question");
-    assert.deepEqual(view.archived[0].restore, { body: groupPage.props.archived.restoreBody, note: groupPage.props.archived.restoreNote });
-    assert.match(view.archived[0].restore.body, /^Group C comes back on the board, All groups and reminders, as it was when it was archived: Wednesdays, 1pm to 3pm, Room B8\.$/);
-    // One panel, imported, never a second.
+    // The archive route's GET, which the foot asks as Restore is pressed.
+    for (const who of ["claudia", "zach"]) {
+      const asked = await w.call(who, archiveRoute.GET, { groupId: C }, { course: true });
+      assert.equal(asked.status, 200, `${who}: ${JSON.stringify(asked.body)}`);
+      assert.deepEqual(asked.body, { archived: true, body: groupPage.props.archived.restoreBody, note: groupPage.props.archived.restoreNote }, who);
+    }
+    assert.match(groupPage.props.archived.restoreBody, /^Group C comes back on the board, All groups and reminders, as it was when it was archived: Wednesdays, 1pm to 3pm, Room B8\.$/);
+    // A group that still meets has no question to ask.
+    assert.deepEqual((await w.call("claudia", archiveRoute.GET, { groupId: B }, { course: true })).body, { archived: false, body: "", note: "" });
+    // The press's own gate: nobody but an admin and the programme's lead, and nothing written.
+    const before = w.everything();
+    for (const who of ["lloyd", "tess", "rahul", "yusuf", "amara"]) {
+      assert.equal((await w.call(who, archiveRoute.GET, { groupId: C }, { course: true })).status, 403, String(who));
+    }
+    assert.equal((await w.call(null, archiveRoute.GET, { groupId: C }, { course: true })).status, 401);
+    assert.equal(w.everything(), before, "asking the question wrote something");
+    // One panel, imported, never a second; its words asked of the route on press.
     const source = readFileSync(join(SRC, "features", "applications", "groups", "AllGroups.tsx"), "utf8");
     assert.match(source, /import \{ RestorePanel, type ArchiveFixLinks \} from "@\/features\/courses\/groupPage\/ArchiveGroup";/);
     assert.match(source, /<RestorePanel/);
     assert.match(source, /restoreLinkWords\(row\.name\)/);
+    assert.match(source, /fetch\(`\/api\/courses\/groups\/\$\{encodeURIComponent\(row\.id\)\}\/archive`\)/);
   });
 
   test("a reviewer and another programme's lead are shown no archived group", async () => {
@@ -391,6 +458,9 @@ describe("1b. the archived groups at the foot of All groups, and the line after 
     // Restored again, or a live group, or another run's: nothing.
     assert.equal(find((await sessionsView("claudia", { archived: B })).element, "AllGroups")[0].props.said, null);
     assert.equal(find((await sessionsView("claudia", { archived: "not/an/id" })).element, "AllGroups")[0].props.said, null);
+    // An archived group of another run, named in the address, says nothing here.
+    world.db.poke(`courseGroups/${C}`, { runId: RUN.tais });
+    assert.equal(find((await sessionsView("claudia", { archived: C })).element, "AllGroups")[0].props.said, null);
     // Once: the page takes the mark off the address as soon as it has said it,
     // without reading the page again, so a reload or a second visit says nothing.
     const source = readFileSync(join(SRC, "features", "applications", "groups", "AllGroups.tsx"), "utf8");

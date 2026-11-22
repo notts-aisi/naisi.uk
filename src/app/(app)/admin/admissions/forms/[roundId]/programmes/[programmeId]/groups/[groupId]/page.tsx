@@ -160,7 +160,7 @@ export default async function ProgrammeGroupPage({
         ? db.collection("users").doc(group.archivedByUid).get().then((snap) => (snap.exists ? (snap.data() ?? {}) : null))
         : Promise.resolve(null),
       // The question All groups asks too, from the same reader.
-      readRestoreQuestion(db, { group, liveGroups: live, viewer: user, now }),
+      readRestoreQuestion(db, { group, viewer: user, now }),
     ]);
     // As the reader may see them (the names rule): the committee and admins the full name.
     const byName = byData ? nameForViewer(user, accountNamesOf(byData), "") : "";

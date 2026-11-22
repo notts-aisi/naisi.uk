@@ -52,6 +52,8 @@ export default function RoomPanel({
   const [emails, setEmails] = useState(view.notice.refused ? 0 : view.notice.emails);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // What the campus route said once it saved, said here too: the page's own line is behind the sheet.
+  const [campusSaid, setCampusSaid] = useState<string | null>(null);
   const off = !hydrated || busy;
   const value = tbc ? "" : room.replace(/\s+/g, " ").trim();
   const changed = value !== view.meets.room;
@@ -110,9 +112,17 @@ export default function RoomPanel({
             groupId={view.groupId}
             groupName={view.groupName}
             value={view.meets.campus}
-            onSaved={(words) => onCampusSaved?.(words)}
+            onSaved={(words) => {
+              setCampusSaid(words || null);
+              onCampusSaved?.(words);
+            }}
           />
           <p className={styles.optionHint}>{W.CAMPUS_SAVES_AT_ONCE}</p>
+          {campusSaid && (
+            <p className={styles.optionHint} role="status">
+              {campusSaid}
+            </p>
+          )}
         </div>
       )}
       <div className={styles.field}>

@@ -135,6 +135,15 @@
   overflow-wrap: anywhere;
 }
 
+/* Why Restore could not be asked, under its row. */
+.archivedProblem {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 48rem) {
   .scroll {
     overflow-x: visible;

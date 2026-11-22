@@ -2412,7 +2412,10 @@ when and by whom it was archived ("Archived Mon 2 Nov by Maya Rao", or
 "Archived" alone for a group archived before those were kept), whether
 anybody is in it, the way to this page and "Restore Group F…", which opens
 this page's own restore question (`RestorePanel`, its words read by
-`readRestoreQuestion` for both).
+`readRestoreQuestion` for both). All groups reads them only when Restore is
+pressed, one group at a time, through `GET /api/courses/groups/[groupId]/archive`
+(the press's own gate: an admin or the programme's lead; reads only), so the
+list itself costs no read per archived group.
 
 **Restoring** asks first too: "Group F comes back on the board, All groups and
 reminders, as it was when it was archived: Fridays, 11am to 1pm, no room.",
@@ -5663,7 +5666,12 @@ The code is `src/lib/courses/sessionChange/` and one route,
   online, move, cancel keeping pace, cancel and push the rest back, put it
   back as usual). The Groups tab's All groups view lists every group with its
   session in the programme's week, each name opening that page; it changes
-  nothing. An old address with `?week=5` (from when the view was Sessions)
+  nothing. Its week cell says what this week's session really is, today and
+  tomorrow included: its real time, moved, online or cancelled in the group
+  page's words, this week's room where it is not the regular one, and the
+  group's own week when it is running behind ("Week 4, Tue 1 Dec, 6pm ·
+  moved"). Its "Add a group" opens Times' own, and is offered only once
+  decisions have gone out, as Times draws one only then. An old address with `?week=5` (from when the view was Sessions)
   opens All groups as it is; a week is chosen on the group's page now, or on
   The week's rooms for every group's room in one week.
 - **A group's facilitators**: "Change a session" on their group's page, which

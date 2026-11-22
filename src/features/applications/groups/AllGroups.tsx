@@ -9,9 +9,9 @@ import { RestorePanel, type ArchiveFixLinks } from "@/features/courses/groupPage
 import groupStyles from "@/features/courses/groupPage/GroupPage.module.css";
 import type { AllGroupsView, ArchivedGroupRow } from "@/lib/courses/allGroups/load";
 import * as W from "@/lib/courses/allGroups/words";
-import { restoreLinkWords, restoreQuestionTitle, restoredSaidWords } from "@/lib/courses/groupArchive/words";
+import { ARCHIVE_NOT_YOURS, ARCHIVE_SIGNED_OUT, restoreLinkWords, restoreQuestionTitle, restoredSaidWords } from "@/lib/courses/groupArchive/words";
 import { groupPagePath } from "@/lib/courses/groupPage/words";
-import { NO_GROUPS_YET } from "@/lib/courses/sessionChange/words";
+import { NO_GROUPS_YET, UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
 import { useHydrated } from "@/hooks/useHydrated";
 import { NO_FACILITATOR_YET, NO_ROOM_YET } from "./peopleInGroupsWords";
 import styles from "./AllGroups.module.css";
@@ -24,8 +24,10 @@ import styles from "./AllGroups.module.css";
  * then the archived groups at the foot, closed until opened, each with what
  * it was, when and by whom it was archived, whether anybody is in it, the way
  * to its page and "Restore Group F…", which opens the same restore question
- * the archived group's page asks (`RestorePanel`). Nothing about a group is
- * changed here but restoring it.
+ * the archived group's page asks (`RestorePanel`), its words read for that
+ * one group as it is pressed (`GET /api/courses/groups/[groupId]/archive`,
+ * the press's own gate). Nothing about a group is changed here but restoring
+ * it.
  *
  * THE LINE AFTER ARCHIVING ("Group E is archived. Nobody was emailed.") is
  * the server's, read from the address while it is true. Once drawn, the
@@ -52,8 +54,8 @@ export default function AllGroups({
     /** "The week’s rooms" and "The term’s rooms", already filtered to the programme. */
     weekRooms: { href: string; label: string };
     termRooms: { href: string; label: string };
-    /** Times, opening its own Add a group. */
-    addGroup: { href: string; label: string };
+    /** Times, opening its own Add a group; null while Times draws none (before decisions go out). */
+    addGroup: { href: string; label: string } | null;
     /** People in groups, for a refusal's way to put it right. */
     people: string;
     /** The programme's people, before the person, for a refusal's "Open Agnes’s page". */
@@ -64,8 +66,34 @@ export default function AllGroups({
   const hydrated = useHydrated();
   const [said, setSaid] = useState<string | null>(saidFirst);
   const [archivedOpen, setArchivedOpen] = useState(false);
-  const [restoring, setRestoring] = useState<ArchivedGroupRow | null>(null);
+  const [restoring, setRestoring] = useState<(ArchivedGroupRow & { body: string; note: string }) | null>(null);
+  const [asking, setAsking] = useState<string | null>(null);
+  const [problem, setProblem] = useState<{ id: string; error: string } | null>(null);
   const [opened, setOpened] = useState(0);
+
+  /** The restore question's words for one group, read as its Restore is pressed. */
+  async function askRestore(row: ArchivedGroupRow) {
+    setSaid(null);
+    setProblem(null);
+    setAsking(row.id);
+    try {
+      const response = await fetch(`/api/courses/groups/${encodeURIComponent(row.id)}/archive`);
+      const body = (await response.json().catch(() => null)) as { archived?: boolean; body?: string; note?: string } | null;
+      if (response.ok && body?.archived === true && typeof body.body === "string") {
+        setOpened((n) => n + 1);
+        setRestoring({ ...row, body: body.body, note: typeof body.note === "string" ? body.note : "" });
+      } else if (response.ok) {
+        // Restored somewhere else meanwhile: the list is read again.
+        router.refresh();
+      } else {
+        setProblem({ id: row.id, error: response.status === 401 ? ARCHIVE_SIGNED_OUT : response.status === 403 ? ARCHIVE_NOT_YOURS : UNKNOWN_OUTCOME });
+      }
+    } catch {
+      setProblem({ id: row.id, error: UNKNOWN_OUTCOME });
+    } finally {
+      setAsking(null);
+    }
+  }
 
   // Said once: the address loses the line's mark, so a reload says nothing.
   useEffect(() => {
@@ -101,9 +129,11 @@ export default function AllGroups({
             <Link href={links.termRooms.href} className={styles.textLink}>
               {links.termRooms.label}
             </Link>
-            <Link href={links.addGroup.href} className={shared.btn}>
-              {links.addGroup.label}
-            </Link>
+            {links.addGroup && (
+              <Link href={links.addGroup.href} className={shared.btn}>
+                {links.addGroup.label}
+              </Link>
+            )}
           </div>
         </div>
         <p className={shared.cardNote}>{W.NAMES_OPEN_PAGES}</p>
@@ -161,35 +191,35 @@ export default function AllGroups({
               {archivedOpen ? W.HIDE : W.SHOW}
             </button>
           </div>
-          {archivedOpen && (
-            <div id="archived-groups-list">
-              <p className={shared.cardNote}>{W.ARCHIVED_GROUPS_LINE}</p>
-              <ul className={styles.archived}>
-                {view.archived.map((row) => (
-                  <li key={row.id} className={styles.archivedRow}>
-                    <div className={styles.archivedMain}>
-                      <Link href={groupPagePath(roundId, programmeId, row.id)} className={styles.nameLink}>
-                        {row.name}
-                      </Link>
-                      <p className={styles.archivedLine}>{row.line}</p>
-                    </div>
-                    <button
-                      type="button"
-                      className={shared.btn}
-                      disabled={!hydrated}
-                      onClick={() => {
-                        setSaid(null);
-                        setOpened((n) => n + 1);
-                        setRestoring(row);
-                      }}
-                    >
-                      {restoreLinkWords(row.name)}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* Always there, so the button's aria-controls names it; hidden until opened. */}
+          <div id="archived-groups-list" hidden={!archivedOpen}>
+            <p className={shared.cardNote}>{W.ARCHIVED_GROUPS_LINE}</p>
+            <ul className={styles.archived}>
+              {view.archived.map((row) => (
+                <li key={row.id} className={styles.archivedRow}>
+                  <div className={styles.archivedMain}>
+                    <Link href={groupPagePath(roundId, programmeId, row.id)} className={styles.nameLink}>
+                      {row.name}
+                    </Link>
+                    <p className={styles.archivedLine}>{row.line}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className={shared.btn}
+                    disabled={!hydrated || asking !== null}
+                    onClick={() => void askRestore(row)}
+                  >
+                    {restoreLinkWords(row.name)}
+                  </button>
+                  {problem?.id === row.id && (
+                    <p className={styles.archivedProblem} role="status">
+                      {problem.error}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       )}
 
@@ -205,8 +235,8 @@ export default function AllGroups({
               key={opened}
               groupId={restoring.id}
               groupName={restoring.name}
-              body={restoring.restore.body}
-              note={restoring.restore.note}
+              body={restoring.body}
+              note={restoring.note}
               links={fixLinksOf(restoring.id)}
               onClose={dismiss}
               onDone={() => {

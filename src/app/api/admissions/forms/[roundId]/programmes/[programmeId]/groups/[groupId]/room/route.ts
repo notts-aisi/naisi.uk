@@ -16,9 +16,10 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * A GROUP'S ROOM, from the Groups tab: `{ room }`, the room it meets in every
- * week ("" for none), the same field as the run editor's group card's
- * "Location". One week's room is "Change a session"'s.
+ * A GROUP'S ROOM, from the group's page (its Room panel) and Circles:
+ * `{ room }`, the room it meets in every week ("" for none), the same field
+ * as the run editor's group card's "Location". One week's room is the group
+ * page's Change this week, or The week's rooms.
  *
  * WHO MAY is the programme's lead or an admin, decided from the form once a
  * valid body has arrived and before the run is read (`loadProgrammeRun`, the

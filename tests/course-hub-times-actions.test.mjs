@@ -368,7 +368,7 @@ describe("4. once Publish has told somebody when a group meets, its time is not 
         [told.status, told.body.error],
         [
           409,
-          "Publish has told people when Monday evening meets, so its time can’t change here. To move one week’s session, use Change a session.",
+          "Publish has told people when Monday evening meets, so its time can’t change here. To move one week’s session, use Change this week on its page.",
         ],
         who,
       );
@@ -687,7 +687,7 @@ describe("7. the page hands its controls what the records say, and each dialog s
     assert.match(actions, /url\.searchParams\.delete\("add"\);\s*window\.history\.replaceState\(/);
   });
 
-  test("after Publish: the told group is marked, its Change says why and links to Change a session, and Use for a group leaves it off", async () => {
+  test("after Publish: the told group is marked, its Change says why and links to the group's page, where Change this week is, and Use for a group leaves it off", async () => {
     await placed(everybodyIn(GROUP.monday));
     await published("zach");
     const setup = await setupFor("claudia");
@@ -700,7 +700,7 @@ describe("7. the page hands its controls what the records say, and each dialog s
     assert.equal(
       told.text,
       "Change Monday evening’s time Publish has told people when Monday evening meets, so its time can’t change here. " +
-        "To move one week’s session, use Change a session. Change a session Close",
+        "To move one week’s session, use Change this week on its page. Change it on Monday evening’s page Close",
     );
     // The way to one week's session is the group's own page, where Change this week is.
     assert.match(told.html, new RegExp(`href="/admin/admissions/forms/autumn-2026__sm4llt3rm/programmes/agi-strategy/groups/${GROUP.monday}"`));

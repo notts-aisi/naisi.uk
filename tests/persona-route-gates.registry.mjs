@@ -2614,6 +2614,15 @@ export const ROUTES = {
     },
   },
   "/api/courses/groups/[groupId]/archive": {
+    GET: {
+      expect: adminOnly(404),
+      fields: ["archived", "body", "note"],
+      why:
+        "What the restore question says, read as All groups' Restore is pressed: the press's own gate, before the group is " +
+        "said to be there or not. An admin is admitted on the session and told the battery's id names no group; anybody " +
+        "else is asked whether they lead the programme naming the group's run, so an id that addresses nothing is one 403 " +
+        "for them. A signed-out caller is a 401. Reads only.",
+    },
     PATCH: {
       expect: adminOnly(400),
       why:
@@ -7237,6 +7246,18 @@ export const REAL_ROUTES = {
     },
   },
   "/api/courses/groups/[groupId]/archive": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Does not lead the programme naming the group's run, a course approver included: refused before the group is read for them."),
+        admin: c(200, "An admin is admitted to any group: the group still meets, so the answer is that it is not archived, with no words."),
+      },
+      theirs: {
+        lead: c(200, "Leads the programme that names the group's run, so admitted: the group still meets, so it is not archived, with no words."),
+        facilitator: c(403, "Facilitating the group gives no say in restoring it, so no question to read: refused like anybody else."),
+        participant: c(403, "Holds a place in the run's other group and staffs nothing: refused."),
+      },
+    },
     PATCH: {
       another: {
         anonymous: c(401, NO_SESSION),

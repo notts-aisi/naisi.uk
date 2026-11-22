@@ -21,7 +21,6 @@ import {
   A_NEW_GROUP,
   CANCEL,
   CHANGE,
-  CHANGE_A_SESSION,
   CHANGE_CONFIRM,
   CLOSE,
   DAY,
@@ -397,7 +396,7 @@ export function ChangeDialog({ group, close }: { group: TimesActionGroup; close:
         <p className={shared.dialogText}>{toldWords(group.name)}</p>
         <p>
           <Link href={groupPagePath(setup.roundId, setup.programmeId, group.id)} className={styles.see}>
-            {CHANGE_A_SESSION}
+            {changeOnGroupPageWords(group.name)}
           </Link>
         </p>
       </DialogFrame>

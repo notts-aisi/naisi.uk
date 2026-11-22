@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, type DocumentReference, type Firestore } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { facilitatorRemovedHeadline, historyDetail } from "@/lib/courses/groupChange/words";
 import { enrolmentRefsFor, writeFacilitatorChange } from "@/lib/courses/groupFacilitators";
 import { archiveRefusal, restorePlan, type ArchiveFix, type GroupArchiveFacts } from "@/lib/courses/groupArchive/plan";
 import { readGroupArchiveFacts } from "@/lib/courses/groupArchive/read";
+import { readRestoreQuestion } from "@/lib/courses/groupArchive/restoreQuestion";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { ARCHIVE_REFUSAL, archivedHistoryWords, restoredHistoryWords } from "@/lib/courses/groupArchive/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
+import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 
@@ -64,7 +66,52 @@ import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
  * `restoredAt` (`src/lib/courses/groupArchive/restored.ts`).
  *
  * Pressing for the state the group already has is a 200 that writes nothing.
+ *
+ *   GET
+ *
+ * WHAT THE RESTORE QUESTION SAYS, read when it is asked (All groups' archived
+ * groups load one group's question as "Restore Group F…" is pressed): for an
+ * archived group, how it comes back and who it comes back without
+ * (`readRestoreQuestion`, the archived group's own page's reader, each name
+ * as the caller may see it); for a group that still meets, `archived: false`
+ * and no words. The same WHO as the press, decided the same way and before
+ * the group is said to be there or not (`admitted`). Reads only.
  */
+
+/**
+ * WHO may archive or restore this group, or read its restore question: an
+ * admin whatever the group is; the lead of the programme that names the
+ * group's run, read only to ask. Anybody else holds nothing here.
+ */
+async function admitted(db: Firestore, actor: SessionUser, groupRef: DocumentReference | null): Promise<boolean> {
+  if (actor.role === "admin") return true;
+  if (!groupRef) return false;
+  const groupSnap = await groupRef.get();
+  const runId = groupSnap.exists ? groupSnap.data()?.runId : null;
+  return typeof runId === "string" && isAddressableId(runId) && (await programmeLedBy(db, actor, runId)) !== null;
+}
+
+export type RestoreQuestionAnswer = { archived: boolean; body: string; note: string };
+
+export async function GET(_req: Request, ctx: { params: Promise<{ groupId: string }> }) {
+  const { groupId } = await ctx.params;
+  const actor = await getCurrentUser();
+  if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const db = getAdminDb();
+  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+  const groupRef = isAddressableId(groupId) ? db.collection("courseGroups").doc(groupId) : null;
+  if (!(await admitted(db, actor, groupRef))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const snap = groupRef ? await groupRef.get() : null;
+  if (!snap?.exists) return NextResponse.json({ error: "Group not found" }, { status: 404 });
+  const group = normalizeCourseGroup(snap.id, snap.data() ?? {});
+  if (!group.archived) {
+    const answer: RestoreQuestionAnswer = { archived: false, body: "", note: "" };
+    return NextResponse.json(answer);
+  }
+  const question = await readRestoreQuestion(db, { group, viewer: actor, now: new Date() });
+  const answer: RestoreQuestionAnswer = { archived: true, body: question.body, note: question.note };
+  return NextResponse.json(answer);
+}
 
 type Outcome =
   | { kind: "gone" }
@@ -88,18 +135,8 @@ export async function PATCH(
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
   // WHO, before the body and before the group is said to be there or not.
-  // An admin holds it whatever the group is; the lead of the programme that
-  // names the group's run holds it of this group, read only to ask. Anybody
-  // else holds nothing here.
-  const isAdmin = actor.role === "admin";
-  let admitted = isAdmin;
   const groupRef = isAddressableId(groupId) ? db.collection("courseGroups").doc(groupId) : null;
-  if (!admitted && groupRef) {
-    const groupSnap = await groupRef.get();
-    const runId = groupSnap.exists ? groupSnap.data()?.runId : null;
-    admitted = typeof runId === "string" && isAddressableId(runId) && (await programmeLedBy(db, actor, runId)) !== null;
-  }
-  if (!admitted) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await admitted(db, actor, groupRef))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   let body: { archived?: unknown };
   try {

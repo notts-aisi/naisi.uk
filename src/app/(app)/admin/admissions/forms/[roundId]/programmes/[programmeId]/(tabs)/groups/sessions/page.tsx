@@ -5,7 +5,7 @@ import GroupsGoOut from "@/features/applications/groups/GroupsGoOut";
 import GroupsViews, { GroupsFrame, groupsPath, groupsViewPath } from "@/features/applications/groups/GroupsViews";
 import NotYours from "@/features/applications/groups/NotYours";
 import RunBlank from "@/features/applications/groups/RunBlank";
-import { PUBLISH_GROUPS } from "@/features/applications/groups/peopleInGroupsWords";
+import { publishLinkWords } from "@/features/applications/groups/peopleInGroupsWords";
 import { ADD_A_GROUP } from "@/lib/courses/groupTimes/words";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { canRunTerm } from "@/lib/applications/access";
@@ -29,7 +29,8 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
  * time, its room and campus, one week's session, its link, facilitators,
  * places, name and pairs). Above the rows: the week's rooms and the term's
  * rooms, filtered to this programme, and "Add a group", which opens Times' own
- * Add a group. At the foot, the run's archived groups, closed until opened,
+ * Add a group, offered only once decisions have gone out, as Times draws it
+ * only then. At the foot, the run's archived groups, closed until opened,
  * each with "Restore Group F…" (`AllGroups`, from `loadAllGroups`).
  *
  * NOTHING ABOUT A GROUP IS CHANGED HERE but restoring an archived one,
@@ -97,7 +98,7 @@ export default async function ProgrammeAllGroupsPage({
       views={views}
       beside={
         <Link href={`${groupsPath(view.roundId, view.programmeId)}/publish`} className={shared.btn}>
-          {PUBLISH_GROUPS}
+          {publishLinkWords(view.viewer)}
         </Link>
       }
     >
@@ -110,7 +111,8 @@ export default async function ProgrammeAllGroupsPage({
         links={{
           weekRooms: { href: weekRoomsPath(view.roundId, { programme: view.programmeId }), label: TO_WEEK_ROOMS },
           termRooms: { href: termRoomsPath(view.roundId, view.programmeId), label: TO_TERM_ROOMS },
-          addGroup: { href: `${groupsViewPath(view.roundId, view.programmeId, "times")}?add=1`, label: ADD_A_GROUP },
+          // Times' own Add a group, which Times draws only once decisions have gone out: before then, none.
+          addGroup: view.decisionsSent ? { href: `${groupsViewPath(view.roundId, view.programmeId, "times")}?add=1`, label: ADD_A_GROUP } : null,
           people: groupsPath(view.roundId, view.programmeId),
           person: `${base}/people`,
         }}
