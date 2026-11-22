@@ -642,7 +642,7 @@ const NOT_COVERED = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement": {
     reason:
-      "An admin's proposed arrangement into groups, with Claude's facilitators and moves. It writes nothing; the plan and the checks on Claude's advice are executed by tests/applications-arrange-plan.test.mjs and tests/applications-arrange-advice.test.mjs.",
+      "An admin's proposed arrangement into groups, with Claude's facilitators and moves, and the programme's lead's without Claude. It writes nothing; the plan and the checks on Claude's advice are executed by tests/applications-arrange-plan.test.mjs and tests/applications-arrange-advice.test.mjs, and who is answered, that Claude is never asked for a lead and that a lead's suggestion is built from no row or week the lead may not read by tests/course-hub-suggest-for-the-lead.test.mjs.",
     coverWhen:
       "With the assessment route's spec, once the harness can stand in for Anthropic: a course hub world after the hand-over, Suggest, then Apply through the site's own routes.",
   },

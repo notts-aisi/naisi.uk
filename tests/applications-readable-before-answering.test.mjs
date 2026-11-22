@@ -715,6 +715,8 @@ const ASKERS = {
   "lib/applications/freedPlaces/offer.ts": "offering a freed place to somebody, refused as nobody where the caller may not read their application",
   "lib/applications/handover/agenda.ts": "the hand-over's list of what waits, which leaves out every application the caller may not read",
   "lib/applications/people/load.ts": "the People tab's rows, each somebody whose application the reader may open; a person's page opens only for a row",
+  "lib/applications/arrange/load.ts":
+    "what a programme's lead's suggestion of groups is worked out from: a person whose application the lead may not read is arranged as somebody who has not said when they are free, with no offer to facilitate and the name on the run's own row, so nothing of the application reaches the suggestion",
   "lib/applications/people/week.ts":
     "when somebody is free, for a staff page (a person's page, and everybody at once on People in groups' panel): the week they marked only where the reader may read the application, and otherwise one answer and nothing derived from the week",
 };

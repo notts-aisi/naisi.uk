@@ -1136,11 +1136,11 @@ export const ROUTES = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement": {
     POST: {
-      expect: adminOnly(400),
+      expect: signedIn(400),
       why:
-        "Asking for an arrangement into groups is admin only, decided before the body is read; " +
-        "the admin then meets the body check, which an empty body fails before anything is read " +
-        "or sent anywhere.",
+        "Session required, then the request is checked before anything is read: anything asking Claude is an " +
+        "admin's alone, refused before the form is read, and an empty body asks nothing (not whether to ask " +
+        "Claude), so every signed-in persona meets the same 400 before the form, the run or anybody is read.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
@@ -6678,10 +6678,25 @@ export const REAL_ROUTES = {
     POST: bodyFirst("A bulk decision is decided from the form once a valid one arrives."),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement": {
-    POST: adminAlone(
-      "Asking for an arrangement into groups",
-      c(400, "An admin meets the body check: an empty body does not say whether to ask Claude, so nothing is read or sent."),
-    ),
+    POST: {
+      realDrive: {
+        body: { askClaude: false },
+        why: "An empty body is the same 400 for everybody before the gate; a suggestion without Claude reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run or anybody is read."),
+        admin: c(ACTS, "An admin is admitted on any programme: a whole body is never sent to somebody the gate admits, so it is not sent. It writes nothing."),
+      },
+      theirs: {
+        lead: c(
+          ACTS,
+          "The programme's own lead is admitted to a suggestion without Claude, worked out only from the rows the board serves them and the weeks they may read: not sent, as the gate admits them. It writes nothing.",
+        ),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
     GET: {

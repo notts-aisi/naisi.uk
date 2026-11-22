@@ -6,15 +6,15 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { readsOf, toldGroupIds } from "@/lib/courses/groupTimes/told";
 import { currentTimeAnswer } from "@/lib/courses/timeAnswer/model";
 import { enrolmentHasLeft, movedSinceTold, normalizeCourseEnrolment, groupToldAbout } from "@/lib/firestore/courseEnrolments";
-import { rowIsServedTo } from "@/lib/firestore/courseApplications";
+import { normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
 import { runStaffingOf } from "@/lib/courses/runStaffing";
-import { canRunTerm, roleOnProgramme } from "../access";
-import { isInTerm, placementFor } from "../decisions";
+import { canReadApplication, canRunTerm, roleOnProgramme } from "../access";
+import { isInTerm, joinedByInvitation, placementFor } from "../decisions";
 import { compareWithRun, nameOnRecord, placeHoldersOn, type PlaceHolder } from "../handover/holders";
 import { markedRanges } from "@/lib/admissions/availability";
 import { paintedWeekOf } from "../handover/paintedWeek";
-import { personWeekFor } from "../people/week";
-import { RUNS_COLLECTION, listRunRows, readRun } from "../handover/run";
+import { rankedProgrammes } from "../sections";
+import { RUNS_COLLECTION, RUN_APPLICATIONS_COLLECTION, readRun } from "../handover/run";
 import { defaultLength, hasSessionTime, lengthFromGroups, lengthOptions, pickLength, timesPicture, WEEK_FROM_MONDAY } from "../handover/times";
 import { groupsOf, type LiveGroup } from "../handover/timesLoad";
 import { own } from "../keys";
@@ -49,9 +49,9 @@ import type { ArrangeGroup, ArrangePerson, CandidateTime } from "./plan";
  * for a lead goes to Claude. FOR THE LEAD THE PEOPLE ARE ONLY THOSE THE
  * BOARD SERVES THEM: the run's rows this lead is served on every staff
  * route (`rowIsServedTo`, with the lead's standing on the run from
- * `runStaffingOf`), and of each person's application only what the one
- * gated read lets this lead have (`personWeekFor`, which asks
- * `canReadApplication`): somebody whose application the lead may not read
+ * `runStaffingOf`), and of each person's application only what the
+ * application's own gate lets this lead have (`canReadApplication`, asked
+ * as the one gated read of a week asks it): somebody whose application the lead may not read
  * is arranged as somebody who has not said when they are free, with no
  * offer to facilitate and the name on the run's own row, so nothing the
  * suggestion says is worked out from their week. An admin's reading is
@@ -144,19 +144,24 @@ export function arrangingReader(user: SessionUser, form: ApplicationForm, progra
 }
 
 /**
- * May this lead have this person's application, as the one gated read
- * answers it (`personWeekFor`, which asks `canReadApplication`): never their
- * own, never one they may not read. Asked with no groups, so nothing of the
- * week is worked out here.
+ * May this lead have this person's application: the application's own gate
+ * (`canReadApplication`, over the SENT ranking and the programme joined by
+ * an accepted invitation, asked exactly as the one gated read of a week asks
+ * it in `../people/week.ts`), and never their own, as nobody opens their own
+ * application on the staff screens. Asked before anything of the week is read.
  */
-function leadMayRead(user: SessionUser, form: ApplicationForm, uid: string, application: ApplicationDoc | null): boolean {
-  const answer = personWeekFor(user, form, { uid, application }, [], null);
-  return answer.kind !== "may-not" && answer.kind !== "own";
+function leadMayRead(reader: SessionUser, form: ApplicationForm, uid: string, application: ApplicationDoc | null): boolean {
+  if (uid === reader.uid) return false;
+  const own = application && application.uid === uid ? application : null;
+  const sent = own?.sent ?? null;
+  if (!own || !sent) return false;
+  const ranked = rankedProgrammes(form, sent).map((programme) => programme.id);
+  return canReadApplication(reader, form, ranked, joinedByInvitation(own));
 }
 
 export async function loadArranging(
   db: Firestore,
-  user: SessionUser,
+  actor: SessionUser,
   roundId: string,
   programmeId: string,
   wanted: { minutes?: unknown; size?: unknown },
@@ -165,7 +170,7 @@ export async function loadArranging(
   if (!form) return NOT_FOUND;
   const programme = own(form.programmes, programmeId);
   if (!programme) return NOT_FOUND;
-  const reader = arrangingReader(user, form, programme.id);
+  const reader = arrangingReader(actor, form, programme.id);
   if (typeof reader !== "string") return reader;
   const isAdmin = reader === "admin";
   if (programme.runId === null) return refuse(409, "This programme names no course run yet.");
@@ -174,10 +179,10 @@ export async function loadArranging(
   if (!read) return refuse(409, "The course run this programme names is not there any more.");
   // Nobody is arranged, or named, until everybody has been told.
   if (form.decisionsSentAt === null) return refuse(409, "Decisions haven’t gone out yet.");
-  // The lead's standing on the run, as every staff route reads it: the rows
-  // this lead is served (`rowIsServedTo`). An admin is served every row.
-  const staffing = isAdmin ? null : await runStaffingOf(db, user, read.run);
-  if (staffing && staffing.leadOf === null) return refuse(403, ARRANGE_ADMIN_OR_LEAD);
+  // The caller's standing on the run, as every staff route reads it: the rows
+  // they are served (`rowIsServedTo`). An admin is served every row.
+  const staffing = await runStaffingOf(db, actor, read.run);
+  if (!isAdmin && staffing.leadOf === null) return refuse(403, ARRANGE_ADMIN_OR_LEAD);
 
   const runId = read.run.id;
   const askedSince = new Map<string, Date>();
@@ -193,8 +198,13 @@ export async function loadArranging(
     loadQuestionSets(db, form.round.id),
     // One equality on one field, so no declared index: every seat on the run.
     db.collection("courseEnrolments").where("runId", "==", runId).get(),
-    // The run's own list: who the allocate route places. For a lead, the rows this lead is served, below.
-    listRunRows(db, runId),
+    // The run's own list: who the allocate route places. One equality on one
+    // field, so no declared index. Only the rows the caller is served, below.
+    db
+      .collection(RUN_APPLICATIONS_COLLECTION)
+      .where("runId", "==", runId)
+      .get()
+      .then((snap) => snap.docs.map((doc) => normalizeCourseApplication(doc.id, doc.data() ?? {}))),
     toldGroupIds(db, readsOf(db), runId, live),
   ]);
   const inTerm = applications.filter(isInTerm);
@@ -238,8 +248,8 @@ export async function loadArranging(
     for (const uid of group.facilitatorUids) appointed.set(uid, [...(appointed.get(uid) ?? []), group.id]);
   }
 
-  // The lead is arranged only the rows the board serves them.
-  const servedRows = staffing ? rows.filter((row) => rowIsServedTo(row, staffing)) : rows;
+  // Everybody is arranged only the rows the board serves them: every row for an admin.
+  const servedRows = rows.filter((row) => rowIsServedTo(row, staffing));
   const holders = placeHoldersOn(form, programme.id, inTerm, decisions);
   const holding = new Set(holders.map((holder) => holder.uid));
   const names = new Map(holders.map((holder) => [holder.uid, holder.name] as const));
@@ -258,7 +268,7 @@ export async function loadArranging(
     // For a lead, an application they may not read is none at all: no week,
     // no offer, no name from it. The person is arranged as one who has not
     // said when they are free.
-    const readable = isAdmin || leadMayRead(user, form, row.uid, onFile);
+    const readable = isAdmin || leadMayRead(actor, form, row.uid, onFile);
     const application = readable ? onFile : null;
     people.set(row.uid, {
       uid: row.uid,

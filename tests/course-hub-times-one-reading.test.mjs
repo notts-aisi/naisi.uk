@@ -230,7 +230,8 @@ const WEEK_READERS = {
   "src/lib/applications/handover/boardPanel.ts":
     "the person's panel on People in groups, and every mark Rings draws about a person's time (src/features/applications/groups/ringsModel.ts reads its answer and no week), for an admin or the programme's lead (loadProgrammeRun): everybody on the board through boardWeeksFor alone, never about the reader",
   "src/lib/courses/personPage/load.ts": "a person's page for the team: When they're free through personWeekFor alone",
-  "src/lib/applications/arrange/load.ts": "Circles' arranging (an admin's Suggest groups on People in groups shown as Rings) and an arrangement's preview, which loadCircles and the arrangement route open for an admin alone (canRunTerm)",
+  "src/lib/applications/arrange/load.ts":
+    "Circles' arranging (an admin's Suggest groups on People in groups shown as Rings) and an arrangement's preview, which loadCircles and the preview open for an admin alone (canRunTerm); and the arrangement route's suggestion without Claude for the programme's lead (arrangingReader), worked out only from the rows rowIsServedTo serves the lead and each week only where canReadApplication lets the lead read the application, asked before the week is read",
   "src/lib/courses/facilitatorAsks/people.ts": "the chart beside an ask to facilitate, which the Facilitators view leaves out for anybody but an admin, and never sends to Claude",
   "src/lib/courses/placementNotes/section.ts": "Outside the times they gave, on Publish's page: the week drawn for an admin alone; a lead is sent no week there",
   "src/lib/applications/freedPlaces/words.ts": "a freed place's words about a person's week (\"Free Wed afternoons\"), for the freed places page and the offer's email",

@@ -194,7 +194,11 @@ export function notMovedWords(name: string, where: string, reason: string, words
               ? "their row on the run’s own list doesn’t say Accepted."
               : reason === "failed"
                 ? "the move couldn’t be saved. Reload the board to see where they are."
-                : "the move was refused. Try again.";
+                : reason === "changed"
+                  ? "the board is out of date. Reload it to see where they are."
+                  : reason === "published"
+                    ? "the groups have gone out since this page loaded."
+                    : "the move was refused. Try again.";
   return `${name} wasn’t moved: ${why}`;
 }
 
