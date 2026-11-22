@@ -2387,6 +2387,26 @@ person saved or sent go out (below).
   `tests/applications-arrange-options.test.mjs`,
   `tests/applications-arrange-changes.test.mjs` and
   `tests/applications-circles.test.mjs` run it.
+- **A suggestion for the programme's lead, without Claude.** The
+  arrangement route (`POST .../programmes/[programmeId]/arrangement`)
+  answers the programme's lead as well as an admin once decisions have gone
+  out, with `askClaude: false`. Asking Claude (`askClaude: true`) and a
+  question about the arrangement (`ask`) stay an admin's, refused for
+  anybody else before anything is read, whatever else the request says; the
+  preview before decision day stays an admin's too. For the lead the
+  suggestion is worked out only from what the lead may have
+  (`loadArranging` in `arrange/load.ts`): the run's rows the board serves
+  them (`rowIsServedTo`, with the lead's standing from `runStaffingOf`), and
+  of each person's application only what `canReadApplication` lets the lead
+  read. Somebody whose application the lead may not read is arranged as
+  somebody who has not said when they are free, with no offer to facilitate
+  and the name on the run's own row, so nothing in the answer (who can make
+  each group, who is near their time, the times picture) is worked out from
+  their week. Claude's and Pangram's earlier reads are never read for a lead,
+  Claude is never called, and the answer says Claude was not asked. It reads
+  the form, the run, its groups and seats, the form's sent applications,
+  decisions and question sets, and writes nothing.
+  `tests/course-hub-suggest-for-the-lead.test.mjs` runs it as every reader.
 - **The whole term at once.** Plan the intake
   (`/admin/admissions/forms/[roundId]/intake`, admin only, before decision
   day) drafts who goes where across every programme: applicant-proposing

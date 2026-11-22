@@ -1560,7 +1560,15 @@ names" below). Step 6, Publish, is an admin's alone.
    opens Circles' arranging: a preview over the groups as they are (with or
    without Claude) that seats only people in no group, keeps every appointed
    facilitator in their group, and "Apply N changes" sends only what it
-   lists. Circles' old address opens People in groups shown as Rings. Give each group its campus (University Park, Jubilee or Online) and
+   lists. Circles' old address opens People in groups shown as Rings.
+   Before the groups go out, Columns' "Select several" puts a box on every
+   card: choose people, then "Move to…" moves everybody chosen in one
+   request, or nobody. A group without room for them all, an archived group,
+   a facilitator who sits in their group, somebody who no longer holds a
+   place, or the groups having gone out since the board was loaded refuses
+   the whole move with nothing written, in one sentence that says who stopped
+   it. Nobody is emailed. Once the groups have gone out the button is not
+   there: each move asks its own question. Give each group its campus (University Park, Jubilee or Online) and
    the room it meets in every week on the group's own page (its Room row: the
    Room panel holds both), or on Circles. The campus emails nobody: it saves
    as it is chosen. On the group's page the room's own button says how many
@@ -3472,7 +3480,20 @@ they already open; nothing under `/admin/courses` is needed.
   them for the people whose application the lead may read, and nothing for
   anybody else; Pangram's flag and the legend's Claude and Pangram are an
   admin's. An admin's "Suggest groups" there opens Circles' arranging, which
-  the lead is never offered.
+  the lead is never offered. The arrangement route itself answers the lead a
+  suggestion without Claude, worked out only from the rows the board serves
+  them and the weeks they may read; asking Claude stays an admin's.
+- **People in groups, Select several**: on Columns, before the groups go
+  out (`allocationPublishedAt` unset), for the lead and admins. A box on
+  every card, a bar naming who is chosen ("3 selected: Daniel, Raj and
+  Tom") with "Move to…", "Clear" and "Done", and "Move to…" listing To place
+  and each group with its room. The move goes to the allocate route with
+  `together: true`: one transaction of at most 100 people (the route's own
+  transaction size) that re-reads the run, each row, each seat and each
+  group, and moves everybody or nobody. A refusal is a 409 naming the first
+  who stopped it (`stopped`), said on the board in one sentence. Without
+  `together` the route moves whoever fits, as it always has.
+  `tests/course-board-move-together.test.mjs` runs it.
 - **People in groups, a person's panel**: every name on the board (a card,
   somebody invited, a facilitator in a column's head, a name in "Gave their
   place back") opens a panel beside the board, which then scrolls sideways
