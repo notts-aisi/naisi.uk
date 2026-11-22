@@ -1345,6 +1345,22 @@ export const ROUTES = {
         "the form exists, and the admin meets the validation. Changing a run's details has to send them.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/new": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read: every other session is forbidden whether or not " +
+        "the form exists, and the admin meets the validation. Making a run has to send its details.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/roles": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read: every other session is forbidden whether or not " +
+        "the form exists, and the admin meets the validation. Taking somebody off a role has to say who and which.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over": {
     POST: {
       expect: adminOnly(404),
@@ -6774,6 +6790,12 @@ export const REAL_ROUTES = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/details": {
     PUT: adminAlone("Changing the run's details", c(400, "An admin meets the body check: an empty body sends no details.")),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/new": {
+    POST: adminAlone("Making a new run", c(400, "An admin meets the body check: an empty body sends no details.")),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/roles": {
+    POST: adminAlone("Taking somebody off a run's older roles", c(400, "An admin meets the body check: an empty body names nobody.")),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over": {
     POST: adminAlone(

@@ -979,6 +979,20 @@ const ROUND_SURFACES = {
       "the round with the form's own loader, which reads only a form, before it reads the run, " +
       "and answers with the panel, which starts from the same loader",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/new": {
+    kind: "form",
+    why:
+      "makes a new course run and names it on a programme, through makeProgrammeRun, a transaction " +
+      "that reads the round and stops unless it is a form before it writes, and answers with the " +
+      "panel, which starts from the form's own loader",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/roles": {
+    kind: "form",
+    why:
+      "takes somebody off a role of the course run a programme names, through removeFromRunRole, " +
+      "which loads the round with the form's own loader before it reads the run, and answers with " +
+      "the panel, which starts from the same loader",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places": {
     kind: "form",
     why:
@@ -1978,12 +1992,13 @@ const ROUND_READERS = new Map([
     "src/lib/applications/handover/run.ts",
     {
       kind: "form",
-      asks: 2,
+      asks: 3,
       proof: ['.where("formVersion", "==", FORM_VERSION)', "const snap = await tx.get(roundRef);"],
       why:
-        "the one writer of the course run a programme names. Its transaction reads the round " +
-        "and asks before it writes. To see whether another programme already names the run it " +
-        "asks the database for forms only, and asks each stored document the question again",
+        "the one writer of the course run a programme names, by naming one or by making a new one. " +
+        "Each of its two transactions reads the round and asks before it writes. To see whether " +
+        "another programme already names the run it asks the database for forms only, and asks " +
+        "each stored document the question again",
     },
   ],
   [
