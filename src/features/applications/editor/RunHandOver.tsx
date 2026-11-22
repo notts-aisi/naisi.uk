@@ -260,6 +260,7 @@ function People({ title, people }: { title: string; people: HandOverPersonView[]
             <Link href={person.applicationPath} className={styles.person}>
               {person.name}
             </Link>
+            {person.note ? <span className={styles.small}> · {person.note}</span> : null}
           </li>
         ))}
       </ul>

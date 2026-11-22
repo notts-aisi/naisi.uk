@@ -301,6 +301,16 @@ export type CourseEnrolmentDoc = {
    */
   droppedOutAt: Date | null;
   /**
+   * WHO TOOK THEM OFF THE RUN, beside `droppedOutAt` (when): the uid of
+   * whoever pressed Take off the run, written by the remove route in the
+   * removal's own write and by nothing else (the Admin SDK only: no client
+   * writes a seat). Course run's "Taken off the programme" says who and when
+   * from these two. Read only on a seat that is `removed`, so a seat put
+   * back reads none, and a later removal writes it afresh. Null on every
+   * seat not taken off, and on one taken off before this was kept.
+   */
+  removedByUid: string | null;
+  /**
    * WHEN STAFF LAST PUT THEM BACK on the run after they had left it (by
    * themselves or by Remove), where the application form had no place to
    * give them again: the allocate route writes it as it brings the seat back.
@@ -778,6 +788,7 @@ export function normalizeCourseEnrolment(id: string, data: Raw): CourseEnrolment
     attendance: asAttendanceRollup(data.attendance),
     submissionDone: data.submissionDone === true,
     droppedOutAt: tsToDate(data.droppedOutAt),
+    removedByUid: status === "removed" && typeof data.removedByUid === "string" && data.removedByUid && !data.removedByUid.includes("/") ? data.removedByUid : null,
     putBackAt: tsToDate(data.putBackAt),
     dropOutReason:
       typeof data.dropOutReason === "string" && data.dropOutReason

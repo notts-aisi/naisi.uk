@@ -435,6 +435,19 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/lib/courses/takeOff/send.ts#plan.recipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by `planTakeOff` (src/lib/courses/takeOff/plan.ts) inside the removal's transaction from the person's own " +
+        "account and, only when Publish had told them their group, the facilitators named on that group's document " +
+        "(`visitRecipients`: standing behind the role, an address, never the person twice and never the presser). " +
+        "Nothing in the request names anybody but the person in the address.",
+      why: "The people taking somebody off a run emails beside the visits it ends: the person, then their group's facilitators.",
+    },
+  ],
+  [
     "src/lib/courses/visit/hostOff.ts#local:recipients",
     {
       reads: 1,

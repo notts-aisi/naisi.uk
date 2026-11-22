@@ -68,6 +68,10 @@ export const SENT_KINDS: Record<EmailSendKind, SentEntry> = {
     notListed:
       "A one-week visit to another group’s session, arranged, approved at the person’s own request, or called off: one email to the person when staff pressed, and one to each facilitator of the two groups. Never the reason.",
   },
+  "course-taken-off": {
+    notListed:
+      "Somebody taken off a run by staff: one email to them saying their place has ended and, when they had been told their group, one to each of its facilitators saying they have left it. Never a reason.",
+  },
   "course-feedback": { notListed: "One email to each person saying feedback on their own week is waiting." },
   "course-certificate": { notListed: "One email to each person with their own certificates." },
   admissions: { notListed: "Somebody’s own application to a round: its receipt, a decision or an invitation." },

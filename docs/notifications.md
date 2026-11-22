@@ -317,6 +317,25 @@ person and both groups' facilitators are sent exactly the move's emails
 approved." first and the reply last. Withdrawing, dismissing a decline and a
 request a staff move made moot email nobody.
 
+**Taking somebody off a run is transactional.** Every way staff take
+somebody off (the card's menu on People in groups, Remove on the older
+allocation board) asks first in one sheet and presses one route
+(`POST /api/courses/runs/[runId]/enrolments/[uid]/remove`). Once the removal
+has committed (`src/lib/courses/takeOff/send.ts`, through
+`src/lib/email/takenOffEmail.ts`, `kind: "course-taken-off"`): the person is
+emailed that their place has ended, a decision about their own place, so
+whatever their settings; and, only when Publish had told them their group,
+each of that group's facilitators with standing and an address, never
+whoever pressed, that they have left it and from which week they come off
+the register, a change to a group the reader runs, as the move's email to the
+old group's facilitators is. Each visit still to come sends the visit's own
+called-off email to its host's facilitators, as before. NEVER A REASON: an
+optional line staff may type goes in the person's email alone and is stored
+nowhere. The count on the button is checked again in the removal's
+transaction, and the press is held to its own daily counters (four presses
+about one person on one run, forty by one presser) and, with a visit, the
+visits' own.
+
 **A message to the team, to the admins, has a second switch, off unless
 switched on.** When a member sends the team a message from Ask the team
 (`src/lib/courses/teamAsk/ask.ts`), only an admin who switched on "Email me

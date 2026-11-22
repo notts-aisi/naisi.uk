@@ -489,7 +489,7 @@ describe("7. Publish after a move made mid-term on the board", () => {
 // 8. Remove, with a visit still to come
 // ---------------------------------------------------------------------------
 
-describe("8. Remove tells the host's facilitators of a visit still to come", () => {
+describe("8. Remove tells the host's facilitators of a visit still to come, beside the person and their group's", () => {
   const visit = (body) => call("zach", visitRoute.POST, { roundId: ROUND, programmeId: AGI, uid: "chloe" }, { body, course: true });
   async function arrange(weekNumber, hostGroupId) {
     const shown = await visit({ weekNumber, hostGroupId, preview: true });
@@ -498,24 +498,49 @@ describe("8. Remove tells the host's facilitators of a visit still to come", () 
   }
   const remove = (body) => call("claudia", removeRoute.POST, { runId: RUN.agi, uid: "chloe" }, { ...(body ? { body } : {}), course: true });
 
-  test("with no visit: no count, the same answer and nothing sent, as always", async () => {
+  // Changed on purpose (taking somebody off now asks first, and emails them
+  // and the facilitators of the group they had been told): until then a
+  // removal with no visit took no count and emailed nobody, and one with a
+  // visit emailed the host's facilitators alone. tests/course-take-off.test.mjs
+  // presses every case of the new sheet.
+  test("with no visit: Chloe and Group B's facilitators, counted before the press", async () => {
     const shown = await remove({ preview: true });
-    assert.deepEqual(shown.body, { ok: true, preview: { emails: 0, visits: [] } });
+    assert.deepEqual([shown.body.preview.emails, shown.body.preview.visits, shown.body.preview.sheet.go], [3, [], "Take Chloe off and email 3 people"]);
     world.mail.length = 0;
-    const done = await remove();
-    assert.deepEqual([done.status, done.body], [200, { ok: true }]);
-    assert.equal(world.mail.length, 0);
+    const done = await remove({ emails: 3 });
+    assert.deepEqual([done.status, done.body.said], [200, "Chloe is off AGI Strategy. 3 people were emailed."]);
+    assert.deepEqual(
+      world.mail.map((message) => [message.to, message.subject]),
+      [
+        ["chloe@example.com", "Your place on AGI Strategy has ended"],
+        ["rahul@example.com", "Chloe has left Group B"],
+        ["sofia@example.com", "Chloe has left Group B"],
+      ],
+    );
   });
 
-  test("the count before the press, the host's facilitators sent the visit's called-off email, the person nothing", async () => {
+  test("the count before the press, the host's facilitators sent the visit's called-off email beside the rest", async () => {
     await arrange(4, A);
     const shown = await remove({ preview: true });
-    assert.deepEqual(shown.body.preview, { emails: 1, visits: [{ hostName: "Group A", weekNumber: 4 }] });
+    // Sofia facilitates both groups: two emails, one person, so the button counts three people.
+    assert.deepEqual(
+      [shown.body.preview.emails, shown.body.preview.visits, shown.body.preview.sheet.go],
+      [4, [{ hostName: "Group A", weekNumber: 4 }], "Take Chloe off and email 3 people"],
+    );
     world.mail.length = 0;
-    const done = await remove({ emails: 1 });
+    const done = await remove({ emails: 4 });
     assert.equal(done.status, 200, JSON.stringify(done.body));
     await w.settle();
-    assert.deepEqual(world.mail.map((message) => [message.to, message.subject]), [["sofia@example.com", "Chloe Nguyen’s visit to Group A for week 4 is off"]]);
+    assert.deepEqual(
+      world.mail.map((message) => [message.to, message.subject]),
+      [
+        ["chloe@example.com", "Your place on AGI Strategy has ended"],
+        ["rahul@example.com", "Chloe has left Group B"],
+        ["sofia@example.com", "Chloe has left Group B"],
+        ["sofia@example.com", "Chloe Nguyen’s visit to Group A for week 4 is off"],
+      ],
+    );
+    assert.equal(done.body.said, "Chloe is off AGI Strategy. 3 people were emailed.");
     assert.equal(read(seatPath("chloe")).status, "removed");
     assert.equal(read(seatPath("chloe")).visits, undefined);
   });
@@ -523,9 +548,11 @@ describe("8. Remove tells the host's facilitators of a visit still to come", () 
   test("a changed count is refused with the count as it is now, and nothing is written", async () => {
     await arrange(4, A);
     const before = everything();
-    const refused = await remove({ emails: 0 });
-    assert.deepEqual([refused.status, refused.body.emails], [409, 1]);
-    assert.equal(refused.body.error, "Taking them off the run now emails 1 person about their visits, so nothing was changed. Check it, then press again.");
+    for (const body of [undefined, { emails: 0 }, { emails: 3 }]) {
+      const refused = await remove(body);
+      assert.deepEqual([refused.status, refused.body.emails], [409, 4], JSON.stringify(body));
+      assert.equal(refused.body.error, "Taking them off now emails 3 people, so nothing was changed. Check it, then press again.");
+    }
     assert.equal(everything(), before);
   });
 
@@ -534,7 +561,7 @@ describe("8. Remove tells the host's facilitators of a visit still to come", () 
     world.db.seed(`courseNudges/emailrate__visitperson__${RUN.agi}__chloe`, { kind: "staff-email-throttle", key: `visitperson__${RUN.agi}__chloe`, windowStartAt: new Date(), count: 10, updatedAt: new Date() });
     const before = everything();
     world.mail.length = 0;
-    const refused = await remove({ emails: 1 });
+    const refused = await remove({ emails: 4 });
     assert.equal(refused.status, 429, JSON.stringify(refused.body));
     assert.equal(everything(), before);
     assert.equal(world.mail.length, 0);

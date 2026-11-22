@@ -36,6 +36,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ANSWER, B, C, MONDAY, RUN, makePeopleWorld, termSeed } from "./lib/peopleWorld.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
@@ -139,7 +140,7 @@ describe("1. only after Publish has told the group", () => {
   test("somebody placed after Publish is not in the list until Publish tells them", async () => {
     await told();
     // Taken off the run and put back in Group B: coming back is told afresh.
-    const removed = await w.call("claudia", w.join.routes.remove.POST, { runId: RUN.agi, uid: "callum" }, { course: true });
+    const removed = await takeOff(w.call, "claudia", w.join.routes.remove.POST, { runId: RUN.agi, uid: "callum" });
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
     const back = await place("claudia", [{ uid: "callum", groupId: B }]);
     assert.equal(back.body.placed, 1, JSON.stringify(back.body));

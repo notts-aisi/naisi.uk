@@ -76,6 +76,7 @@ import {
   subscriptionPath,
   textOf,
 } from "./lib/leavingWorld.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -130,7 +131,7 @@ function changedSince(before) {
   return [...new Set([...before.keys(), ...now.keys()])].filter((path) => before.get(path) !== now.get(path)).sort();
 }
 
-const remove = (who, uid) => call(who, routes.remove.POST, { runId: RUN.agi, uid }, { course: true });
+const remove = (who, uid) => takeOff(call, who, routes.remove.POST, { runId: RUN.agi, uid });
 
 /** A person's own reply, as their page sends it, and what it sends after its answer. */
 async function replies(who, body = { reply: "cant-make-it", reason: TIMES }) {
@@ -214,7 +215,7 @@ describe("1. a seat the form placed gives its place on the form back when staff 
       const before = snapshot();
 
       const answer = await remove(who, "amara");
-      assert.deepEqual([answer.status, answer.body], [200, { ok: true }]);
+      assert.deepEqual([answer.status, answer.body], [200, { ok: true, emails: { sent: 2, suppressed: 0, failed: 0 }, said: "Amara is off AGI Strategy. 2 people were emailed." }]);
       await w.settle();
 
       assert.deepEqual(seatOf("amara"), { status: "removed", groupId: null, told: false, droppedOutAt: NOW.toISOString() });
@@ -226,7 +227,10 @@ describe("1. a seat the form placed gives its place on the form back when staff 
       });
       assert.deepEqual(formCounts(), { ...counts, accepted: counts.accepted - 1, withdrawn: counts.withdrawn + 1 });
       // The seat, its group's count, the application and the form's counts,
-      // and the cohort's list: nothing else, and nobody is emailed.
+      // the cohort's list, and (changed on purpose: taking somebody off now
+      // writes a line on the group's History and emails them and their group's
+      // facilitators, held to its daily counters) the History line and the two
+      // counters: nothing else. Amara and Group A's facilitator are emailed.
       assert.deepEqual(changedSince(before), [
         applicationPath("amara"),
         formPath,
@@ -234,8 +238,11 @@ describe("1. a seat the form placed gives its place on the form back when staff 
         `courseGroups/${A}`,
         subscriptionPath("amara"),
         "subscriptionEvents/auto",
+        "courseAudit/auto",
+        `courseNudges/emailrate__takenoff__${RUN.agi}__amara`,
+        `courseNudges/emailrate__takeoffpresser__${who}`,
       ].sort());
-      assert.equal(world.mail.length, 0);
+      assert.deepEqual(world.mail.map((sent) => [sent.to, sent.kind]), [["amara@example.com", "course-taken-off"], ["sofia@example.com", "course-taken-off"]]);
 
       // Amara's card says Removed, and Gave their place back.
       const card = await cardOf(who, "amara");
@@ -247,7 +254,9 @@ describe("1. a seat the form placed gives its place on the form back when staff 
       await w.settle();
       const counts = formCounts();
       const before = snapshot();
-      assert.deepEqual([(await remove(who, "amara")).status, formCounts()], [200, counts]);
+      // The question says Amara is off already; a press is answered as before, and writes nothing.
+      assert.deepEqual([(await remove(who, "amara")).status, formCounts()], [409, counts]);
+      assert.deepEqual([(await call(who, routes.remove.POST, { runId: RUN.agi, uid: "amara" }, { course: true })).status, formCounts()], [200, counts]);
       await w.settle();
       assert.deepEqual(changedSince(before), []);
     });
@@ -497,7 +506,9 @@ describe("6. the hand-over panel lists who left and who was taken off apart from
     const { panel, text } = await panelOf("zach");
     assert.deepEqual([names(panel.left), names(panel.takenOff)], [["Dev Patel", "Sam Whitfield"], ["Amara Okafor", "Omar Haddad"]]);
     assert.ok(text.includes(`Left the programme (2) Dev Patel Sam Whitfield ${panelWords.LEFT_NOTE}`), text);
-    assert.ok(text.includes(`Taken off the programme (2) Amara Okafor Omar Haddad ${panelWords.TAKEN_OFF_NOTE}`), text);
+    // Who took Amara off, and when, beside the name; Omar was taken off before the seat kept who, so Omar's name stands alone.
+    assert.deepEqual(panel.takenOff.map((person) => person.note ?? null), ["Taken off by Claudia Reyes on Tue 17 Nov", null]);
+    assert.ok(text.includes(`Taken off the programme (2) Amara Okafor · Taken off by Claudia Reyes on Tue 17 Nov Omar Haddad ${panelWords.TAKEN_OFF_NOTE}`), text);
     for (const person of [...panel.left, ...panel.takenOff]) {
       assert.equal(person.applicationPath, `/admin/admissions/forms/${ROUND}/programmes/${AGI}/applications/${person.uid}`);
     }

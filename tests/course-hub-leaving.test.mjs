@@ -90,6 +90,7 @@ import {
   taskPath,
   textOf,
 } from "./lib/leavingWorld.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -814,7 +815,7 @@ describe("4. what somebody who left reads", () => {
     assert.deepEqual((await cardsOf("kai")).cards, [[`/learn/${OPEN_RUN}`, "You left Pre-course"]]);
     // Nobody else has one: somebody taking part, somebody staff removed (the
     // run closes to them), somebody placed and not told, staff, an admin.
-    const removed = await call("claudia", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true });
+    const removed = await takeOff(call, "claudia", routes.remove.POST, { runId: RUN.agi, uid: "tariq" });
     assert.equal(removed.status, 200);
     for (const who of ["dev", "tariq", "una", "sofia", "claudia", "zach"]) {
       assert.deepEqual((await cardsOf(who)).cards, [], `${who} is shown a run they did not leave`);
@@ -968,7 +969,7 @@ describe("5. what everybody else sees of somebody who left", () => {
 // ---------------------------------------------------------------------------
 
 describe("6. Remove records the day somebody was taken off", () => {
-  const remove = (who, uid) => call(who, routes.remove.POST, { runId: RUN.agi, uid }, { course: true });
+  const remove = (who, uid) => takeOff(call, who, routes.remove.POST, { runId: RUN.agi, uid });
 
   test("the lead removes Tariq: the day is on his row, and the grid, the Overview and the register all say it", async () => {
     assert.equal((await remove("claudia", "tariq")).status, 200);
@@ -1006,7 +1007,7 @@ describe("6. Remove records the day somebody was taken off", () => {
   });
 
   test("somebody staff took off an open run is not shown the page that says they left", async () => {
-    const removed = await call("zach", routes.remove.POST, { runId: OPEN_RUN, uid: "kai" }, { course: true });
+    const removed = await takeOff(call, "zach", routes.remove.POST, { runId: OPEN_RUN, uid: "kai" });
     assert.equal(removed.status, 200);
     assert.equal((await home("kai", OPEN_RUN)).to, "/learn");
   });

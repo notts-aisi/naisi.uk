@@ -2,7 +2,10 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
-import { courseEnrolmentId, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import { londonDayLabel } from "@/lib/courses/londonLabels";
+import { takenOffByWords } from "@/lib/courses/takeOff/words";
+import { courseEnrolmentId, normalizeCourseEnrolment, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { COURSE_RUN_STATUS_LABEL } from "@/lib/firestore/courses";
 import { canRunTerm } from "../access";
 import { applicationFormPath } from "../editor/olderRounds";
@@ -133,26 +136,48 @@ async function listRunChoices(
 }
 
 /**
- * The status of each of these people's seats on the run, by uid: one read,
- * each seat at the one id that is that person's on this run. A seat that is
- * not a learner's on this run is left out, as no seat.
+ * Each of these people's seats on the run, by uid: one read, each seat at
+ * the one id that is that person's on this run. A seat that is not a
+ * learner's on this run is left out, as no seat.
  */
-async function seatStatusesOn(
+async function seatsOn(
   db: Firestore,
   runId: string,
   people: readonly PlaceHolder[],
-): Promise<Map<string, string>> {
-  const statuses = new Map<string, string>();
-  if (people.length === 0) return statuses;
+): Promise<Map<string, CourseEnrolmentDoc>> {
+  const seats = new Map<string, CourseEnrolmentDoc>();
+  if (people.length === 0) return seats;
   const snaps = await db.getAll(
     ...people.map((person) => db.collection("courseEnrolments").doc(courseEnrolmentId(runId, person.uid))),
   );
   for (const snap of snaps) {
     if (!snap.exists) continue;
     const seat = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
-    if (seat.runId === runId && seat.role === "learner") statuses.set(seat.uid, seat.status);
+    if (seat.runId === runId && seat.role === "learner") seats.set(seat.uid, seat);
   }
-  return statuses;
+  return seats;
+}
+
+/**
+ * Who took each of these people off the run and when, as their seat says
+ * (`removedByUid`, `droppedOutAt`): "Taken off by Maya Rao on Fri 20 Nov".
+ * The names are read from the accounts, one read, for an admin's panel.
+ */
+async function takenOffNotes(db: Firestore, viewer: SessionUser, seats: readonly CourseEnrolmentDoc[]): Promise<Map<string, string>> {
+  const byUids = [...new Set(seats.map((seat) => seat.removedByUid).filter((uid): uid is string => uid !== null))];
+  const names = new Map<string, string>();
+  if (byUids.length > 0) {
+    for (const snap of await db.getAll(...byUids.map((uid) => db.collection("users").doc(uid)))) {
+      if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data()), ""));
+    }
+  }
+  const notes = new Map<string, string>();
+  for (const seat of seats) {
+    const by = seat.removedByUid !== null ? names.get(seat.removedByUid) || null : null;
+    const note = takenOffByWords(by, seat.droppedOutAt ? londonDayLabel(seat.droppedOutAt) : null);
+    if (note) notes.set(seat.uid, note);
+  }
+  return notes;
 }
 
 /** The panel, for an admin. See the note at the top. */
@@ -219,16 +244,25 @@ export async function loadRunPanel(
   // Of the people who no longer hold a place, who left the run and who was
   // taken off it: nothing is left to do for either, so they are listed apart
   // from the people whose seat is still on the run.
-  const bySeat = splitBySeat(
-    compared.gaveBack,
-    programme.runId === null ? new Map() : await seatStatusesOn(db, programme.runId, compared.gaveBack),
+  const seats = programme.runId === null ? new Map<string, CourseEnrolmentDoc>() : await seatsOn(db, programme.runId, compared.gaveBack);
+  const bySeat = splitBySeat(compared.gaveBack, new Map([...seats].map(([uid, seat]) => [uid, seat.status] as const)));
+  const notes = await takenOffNotes(
+    db,
+    actor,
+    bySeat.takenOff.flatMap((person) => {
+      const seat = seats.get(person.uid);
+      return seat ? [seat] : [];
+    }),
   );
   panel.holders = holders.length;
   panel.onTheList = compared.onTheList.length;
   panel.toHandOver = compared.toHandOver.map(person);
   panel.gaveBack = bySeat.stillOnTheRun.map(person);
   panel.left = bySeat.left.map(person);
-  panel.takenOff = bySeat.takenOff.map(person);
+  panel.takenOff = bySeat.takenOff.map((holder) => {
+    const note = notes.get(holder.uid);
+    return note ? { ...person(holder), note } : person(holder);
+  });
   panel.notAccepted = compared.notAccepted.map(person);
   panel.otherRows = compared.otherRows;
   return { status: "ok", panel };

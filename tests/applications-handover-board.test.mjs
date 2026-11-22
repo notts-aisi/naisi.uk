@@ -61,6 +61,7 @@ import {
   short,
 } from "./lib/handoverWorld.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 const made = makeWorld();
 const { world, reset, call, everything } = made;
@@ -490,9 +491,14 @@ describe("8. a place given back", () => {
     await place("zach", [{ uid: "tariq", groupId: GROUP.monday }]);
     await reply("tariq", { reply: "cant-make-it", reason: WHY });
 
-    const removed = await call("zach", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true });
+    world.mail.length = 0;
+    const removed = await takeOff(call, "zach", routes.remove.POST, { runId: RUN.agi, uid: "tariq" });
     assert.equal(removed.status, 200, removed.body?.error);
     assert.equal(world.db.read(`courseGroups/${GROUP.monday}`).memberCount, 0);
+    // Taking Tariq off tells Tariq the place has ended, as asked, and nobody
+    // else: Publish had not told Tariq a group, so no facilitator ever knew them.
+    assert.deepEqual(world.mail.map((sent) => [sent.to, sent.subject, sent.kind]), [["tariq@example.com", "Your place on AGI Strategy has ended", "course-taken-off"]]);
+    world.mail.length = 0;
     // Removed, Tariq holds Publish up no longer, though his row still says
     // Accepted (the walk of stage two's fixes, G4): it waits for the people
     // still to place, and names only them.

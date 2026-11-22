@@ -3082,11 +3082,12 @@ export const ROUTES = {
   },
   "/api/courses/runs/[runId]/enrolments/[uid]/remove": {
     POST: {
-      expect: signedIn(404),
+      expect: adminOnly(404),
       why:
-        "Session required, then the document is read and its own membership decides. The " +
-        "battery's id addresses nothing, so every signed-in persona is told that the document " +
-        "is missing.",
+        "View-as is refused first, then the session, then the gate (an admin, the run's track leads, the lead of the " +
+        "programme that names the run) BEFORE the run is looked for, so somebody with no right is answered the same 403 " +
+        "whether the run exists or not. The battery's id addresses no run and no programme names it, so only an admin " +
+        "is admitted, and told the run is not found.",
     },
   },
   "/api/courses/runs/[runId]/enrolments/[uid]/time-answer": {
@@ -7678,7 +7679,7 @@ export const REAL_ROUTES = {
   "/api/courses/runs/[runId]/enrolments/[uid]/remove": {
     POST: runStaff(
       "Taking somebody off the run",
-      c(ACTS, "Admitted, and its body is optional (none is a press that sends no email about a visit): it would take the participant off the run."),
+      c(ACTS, "Admitted, and its body is optional (none is a press that confirms no email, which the transaction refuses when the person has an address): it would take the participant off the run and email them."),
     ),
   },
   "/api/courses/runs/[runId]/enrolments/[uid]/time-answer": {

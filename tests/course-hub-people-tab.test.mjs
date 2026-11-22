@@ -42,6 +42,7 @@ import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ACCESS, AGI, ANSWER, B, COURSE, MONDAY, ROUND, RUN, SAM_SAID, TOLD, makePeopleWorld, peopleSeed } from "./lib/peopleWorld.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
@@ -336,7 +337,7 @@ describe("3. one count", () => {
     const before = (await open("claudia")).view;
     assert.equal(rowOf(before, "amara").category, "holding");
     // The programme's lead presses Remove, through the real route.
-    const removed = await call("claudia", joinRoutes.remove.POST, { runId: RUN.agi, uid: "amara" }, { course: true });
+    const removed = await takeOff(call, "claudia", joinRoutes.remove.POST, { runId: RUN.agi, uid: "amara" });
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
     const after = (await open("claudia")).view;
     const amara = rowOf(after, "amara");
@@ -372,7 +373,7 @@ describe("3. one count", () => {
     });
     const before = (await open("claudia")).view;
     // The programme's lead takes Amara off and puts her back in Group B, through the real routes.
-    assert.equal((await call("claudia", joinRoutes.remove.POST, { runId: RUN.agi, uid: "amara" }, { course: true })).status, 200);
+    assert.equal((await takeOff(call, "claudia", joinRoutes.remove.POST, { runId: RUN.agi, uid: "amara" })).status, 200);
     const placed = await w.join.place("claudia", [{ uid: "amara", groupId: B }]);
     assert.deepEqual([placed.status, placed.body.placed], [200, 1], JSON.stringify(placed.body));
     const after = (await open("claudia")).view;

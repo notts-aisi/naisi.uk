@@ -25,6 +25,8 @@ export type HandOverPersonView = {
   name: string;
   /** Their application, on the programme's own review screen. */
   applicationPath: string;
+  /** Beside the name, where the list says more: "Taken off by Maya Rao on Fri 20 Nov". */
+  note?: string;
 };
 
 export type RunPanelView = {
@@ -60,7 +62,7 @@ export type RunPanelView = {
   gaveBack: HandOverPersonView[];
   /** The same, having left the run by themselves: nothing is left to do. */
   left: HandOverPersonView[];
-  /** The same, taken off the run by staff (Remove): nothing is left to do. */
+  /** The same, taken off the run by staff (Remove): nothing is left to do. Each says who took them off and when. */
   takenOff: HandOverPersonView[];
   /** Hold a place, and their row on the run says something other than accepted. */
   notAccepted: HandOverPersonView[];

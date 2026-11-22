@@ -45,7 +45,7 @@ import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupRe
 import { MOVED_CARD_WHY, movedBatchSentence, movedCardWords, movedSentence } from "@/lib/courses/moveWords";
 import { sessionLabelWords } from "@/lib/courses/outsideTheirTimes";
 import { emailsLabel, publishConfirmText, publishResultLines } from "@/lib/courses/publishWords";
-import { visitsOffSentence } from "@/features/applications/groups/peopleInGroupsWords";
+import TakeOffSheet from "@/features/courses/takeOff/TakeOffSheet";
 import AllocationPublish from "./AllocationPublish";
 import { askMidTermMoves } from "./askMidTermMoves";
 import {
@@ -716,8 +716,6 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
     previewPlace,
     publishAllocation,
     sendPublishTest,
-    removeEnrolment,
-    previewRemove,
   } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
   const reducedMotion = useReducedMotion();
@@ -1145,45 +1143,17 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
     [liveSelection, columnIdOf, columnNameOf, commit, divergenceMessage, nameOf, peopleByUid],
   );
 
-  const handleRemove = useCallback(
-    (row: AllocRow) => {
-      const name = row.displayName || "this applicant";
-      void (async () => {
-        // Their visits still to come, asked first: a host's facilitators are emailed that one is off.
-        const said = await previewRemove(row.uid);
-        if (!said.ok) {
-          await raiseError(said.error);
-          return;
-        }
-        const off = visitsOffSentence(said.visits, said.emails);
-        if (
-          !window.confirm(
-            `Take ${name} off this run?\n\n` +
-              `Their enrolment ends and their place in ${columnNameOf(columnIdOf(row.uid))} is freed up. ` +
-              `Their application and its decision are not changed, so they stay on this board and can be placed again.` +
-              (off ? `\n\n${off}` : ""),
-          )
-        ) {
-          return;
-        }
-        setBusy(true);
-        try {
-          await runAction(
-            async () => {
-              const result = await removeEnrolment(row.uid, said.emails);
-              if (!result.ok) throw new Error(result.error);
-            },
-            {
-              savingMessage: `Removing ${name}…`,
-              successMessage: `${name} is off this run`,
-            },
-          );
-        } finally {
-          setBusy(false);
-        }
-      })();
+  // Remove asks first, in the same sheet as People in groups (`TakeOffSheet`):
+  // everything the route will do and who it emails. The board is read again
+  // once the press has gone, and says what it came to.
+  const [removing, setRemoving] = useState<string | null>(null);
+  const handleRemove = useCallback((row: AllocRow) => setRemoving(row.uid), []);
+  const removed = useCallback(
+    (said: string) => {
+      setRemoving(null);
+      void runAction(async () => reload(), { successMessage: said || undefined });
     },
-    [columnIdOf, columnNameOf, removeEnrolment, previewRemove, raiseError, runAction],
+    [runAction, reload],
   );
 
   /**
@@ -1726,6 +1696,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
         ) : null}
       </div>
 
+      {removing && <TakeOffSheet runId={runId} uid={removing} onClose={() => setRemoving(null)} onDone={removed} />}
       <ActionToast toast={toast} onDismiss={dismiss} />
     </>
   );

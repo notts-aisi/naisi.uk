@@ -65,6 +65,7 @@ import {
 } from "./lib/handoverWorld.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 const made = makeWorld();
 const { world, reset, call } = made;
@@ -367,7 +368,7 @@ describe("once an admin puts them in a group, the run and the group show when Pu
       assert.equal((await access(who)).canLearn, true, who);
     }
     // Taken off the run and put back with no group: nobody has told them anything since.
-    const removed = await call("zach", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true });
+    const removed = await takeOff(call, "zach", routes.remove.POST, { runId: RUN.agi, uid: "tariq" });
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
     await place("zach", [{ uid: "tariq", groupId: null }]);
     const seat = world.db.read(`courseEnrolments/${RUN.agi}__tariq`);

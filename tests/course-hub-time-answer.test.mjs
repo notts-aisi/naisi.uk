@@ -89,6 +89,7 @@ import {
 } from "./lib/leavingWorld.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
 import { pressedBefore } from "./lib/saidBefore.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -798,7 +799,7 @@ describe("4. a told seat keeps its answer through a move, shown only while it is
 
   test("Remove", async () => {
     await answer("dev", CANT);
-    const removed = await call("zach", w.join.routes.remove.POST, { runId: RUN.agi, uid: "dev" }, { course: true });
+    const removed = await takeOff(call, "zach", w.join.routes.remove.POST, { runId: RUN.agi, uid: "dev" });
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
     assert.deepEqual([seat("dev").status, seat("dev").timeAnswer], ["removed", undefined]);
   });

@@ -58,6 +58,7 @@ import {
   short,
 } from "./lib/handoverWorld.mjs";
 import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 const made = makeWorld("__hubPublish");
 const { world, reset, call, everything, lib } = made;
@@ -1081,7 +1082,7 @@ describe("7. somebody who has left the run is not waited for", () => {
     assert.equal((await pressNow()).status, 200);
     // The programme's lead removes Tariq; Bea leaves the run herself, as the
     // drop-out form leaves her enrolment (her group kept, her stamp gone).
-    const removed = await call("claudia", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true });
+    const removed = await takeOff(call, "claudia", routes.remove.POST, { runId: RUN.agi, uid: "tariq" });
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
     world.db.poke(`courseEnrolments/${RUN.agi}__bea`, { status: "withdrawn", droppedOutAt: new Date(), allocatedEmailAt: null });
     // Both rows still say Accepted on the run's own list.
@@ -1104,7 +1105,7 @@ describe("7. somebody who has left the run is not waited for", () => {
 
   test("somebody accepted with no place on the run still holds Publish, and is who the board would name", async () => {
     await placed();
-    assert.equal((await call("zach", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true })).status, 200);
+    assert.equal((await takeOff(call, "zach", routes.remove.POST, { runId: RUN.agi, uid: "tariq" })).status, 200);
     // Accepted on the run's own list, and never given a place: no enrolment at all.
     world.db.seed(rowPath("nobody"), {
       runId: RUN.agi,

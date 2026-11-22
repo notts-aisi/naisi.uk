@@ -213,7 +213,14 @@ export type CourseAuditKind =
    */
   | "member-moved"
   | "member-visits"
-  | "member-visit-off";
+  | "member-visit-off"
+  /**
+   * Somebody was taken off the run by staff (Remove, Take off the run): ONE
+   * ROW ON THE GROUP THEIR SEAT WAS IN, about the person (`subjectUid`),
+   * saying who took them off and how many were emailed. Never a reason: the
+   * line staff may type for the person goes in their own email alone.
+   */
+  | "member-taken-off";
 
 export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "attendance-edit",
@@ -258,6 +265,7 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "member-moved",
   "member-visits",
   "member-visit-off",
+  "member-taken-off",
 ];
 
 /** The label for a kind this build does not know. See `courseAuditKindLabel`. */
@@ -306,6 +314,7 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "member-moved": "Moved to another group for good",
   "member-visits": "Visit to another group for one week",
   "member-visit-off": "Visit to another group called off",
+  "member-taken-off": "Taken off the run",
 };
 
 /**
@@ -347,6 +356,7 @@ const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory
   "member-moved": "people",
   "member-visits": "people",
   "member-visit-off": "people",
+  "member-taken-off": "people",
 };
 
 /**

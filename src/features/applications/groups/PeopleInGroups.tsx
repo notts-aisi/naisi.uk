@@ -28,6 +28,7 @@ import { ChevronDownIcon, GripIcon, InfoIcon, MoreIcon } from "@/features/applic
 import shared from "@/features/applications/editor/editor.module.css";
 import { placingCounts, poolRowIsToPlace, rowHasLeft } from "@/features/courses/allocationTally";
 import { askMidTermMoves } from "@/features/courses/askMidTermMoves";
+import TakeOffSheet from "@/features/courses/takeOff/TakeOffSheet";
 import { useAllocation, type AllocGroup, type AllocRow, type Placement } from "@/features/courses/useAllocation";
 import type { PeopleInGroupsView } from "@/lib/applications/handover/peopleInGroups";
 import { own } from "@/lib/applications/keys";
@@ -292,7 +293,7 @@ function Column({
 
 export default function PeopleInGroups({ view, views }: Props) {
   const runId = view.run.id;
-  const { data, loading, error, reload, place, previewPlace, removeEnrolment, previewRemove } = useAllocation(runId);
+  const { data, loading, error, reload, place, previewPlace } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
   // "They meant some weeks" saved on a card: the board is read again, and says so.
   const onAnswerChanged = useCallback(
@@ -301,11 +302,14 @@ export default function PeopleInGroups({ view, views }: Props) {
   );
   const reducedMotion = useReducedMotion();
   const [pending, setPending] = useState<Record<string, string | null>>({});
-  const [busy, setBusy] = useState(false);
   const [draggingUid, setDraggingUid] = useState<string | null>(null);
   const [hoverColumn, setHoverColumn] = useState<string | null>(null);
   const [moveNote, setMoveNote] = useState<string | null>(null);
   const [showGaveBack, setShowGaveBack] = useState(true);
+  // The person the take-off question is open for, or null.
+  const [takingOff, setTakingOff] = useState<string | null>(null);
+  // The cards wait while the question is open.
+  const busy = takingOff !== null;
 
   const rows = useMemo(() => data?.people ?? [], [data]);
   const groups = useMemo(() => data?.groups ?? [], [data]);
@@ -451,45 +455,23 @@ export default function PeopleInGroups({ view, views }: Props) {
     [rowsByUid, columnOf, groupsById, columnName, nameOf, place, previewPlace, revert, raise],
   );
 
-  const takeOff = useCallback(
-    (row: AllocRow) => {
-      const name = nameOf(row.uid);
-      void (async () => {
-        // What it does about their visits still to come, asked first: the
-        // confirmation counts the emails to the hosts' facilitators, and the
-        // press sends the count back.
-        const said = await previewRemove(row.uid);
-        if (!said.ok) {
-          await raise(said.error);
-          return;
-        }
-        if (!window.confirm(words.takeOffConfirm(name, columnName(columnOf(row)), view.programmeName, said.visits, said.emails))) return;
-        setBusy(true);
-        try {
-          await runAction(
-            async () => {
-              const result = await removeEnrolment(row.uid, said.emails);
-              if (!result.ok) throw new Error(result.error);
-            },
-            {
-              savingMessage: `Taking ${name} off the run…`,
-              successMessage: `${name} is off the run`,
-            },
-          );
-        } finally {
-          setBusy(false);
-        }
-      })();
+  // Taking somebody off the run asks first, in the sheet (`TakeOffSheet`),
+  // which says everything the route will do and who it emails; the board is
+  // read again once the press has gone, and says what it came to.
+  const takenOff = useCallback(
+    (said: string) => {
+      setTakingOff(null);
+      void runAction(async () => reload(), { successMessage: said || undefined });
     },
-    [nameOf, columnName, columnOf, view.programmeName, runAction, removeEnrolment, previewRemove, raise],
+    [runAction, reload],
   );
 
   const onMenu = useCallback(
     (row: AllocRow, value: string) => {
-      if (value === TAKE_OFF) takeOff(row);
+      if (value === TAKE_OFF) setTakingOff(row.uid);
       else void moveOne(row.uid, value);
     },
-    [takeOff, moveOne],
+    [moveOne],
   );
 
   // -------------------------------------------------------------------------
@@ -872,6 +854,7 @@ export default function PeopleInGroups({ view, views }: Props) {
         </p>
       </div>
 
+      {takingOff && <TakeOffSheet runId={runId} uid={takingOff} onClose={() => setTakingOff(null)} onDone={takenOff} />}
       <ActionToast toast={toast} onDismiss={dismiss} />
     </GroupsFrame>
   );

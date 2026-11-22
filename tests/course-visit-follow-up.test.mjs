@@ -466,8 +466,19 @@ describe("11. a host session called off or archived, the person leaving, and the
     const removed = await call("zach", removeRoute.POST, { runId: RUN.agi, uid: "chloe" }, { body: { emails: shown.body.preview.emails }, course: true });
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
     assert.equal(world.mail.length, shown.body.preview.emails);
-    assert.ok(world.mail.every((message) => /’s visit to Group A for week 4 is off$/.test(message.subject)), JSON.stringify(world.mail.map((m) => m.subject)));
-    assert.ok(!world.mail.some((message) => message.to.startsWith("chloe@")), "the person removed is sent nothing");
+    // The visit's own called-off email to Group A's facilitators, as before.
+    const visitOff = world.mail.filter((message) => message.kind === "course-visit");
+    assert.ok(visitOff.length >= 1, JSON.stringify(world.mail.map((m) => m.subject)));
+    assert.ok(visitOff.every((message) => /’s visit to Group A for week 4 is off$/.test(message.subject)), JSON.stringify(visitOff.map((m) => m.subject)));
+    assert.ok(!visitOff.some((message) => message.to.startsWith("chloe@")), "the person removed is sent no visit email");
+    // Changed on purpose (taking somebody off now emails them, and the
+    // facilitators of the group they had been told): Chloe is told the place
+    // has ended, and Group B's facilitators that Chloe has left it; nothing else.
+    assert.deepEqual(
+      world.mail.filter((message) => message.kind === "course-taken-off").map((message) => [message.to.startsWith("chloe@"), message.subject]),
+      [[true, "Your place on AGI Strategy has ended"], ...world.mail.filter((message) => message.kind === "course-taken-off" && !message.to.startsWith("chloe@")).map(() => [false, "Chloe has left Group B"])],
+    );
+    assert.equal(visitOff.length + world.mail.filter((message) => message.kind === "course-taken-off").length, world.mail.length);
     assert.equal(read(seatPath("chloe")).visits, undefined);
     const rows = (await loadRegisterMembers(world.courseDb, RUN.agi, A, { isAdmin: true }, 4)).members.map((row) => row.uid);
     assert.equal(rows.includes("chloe"), false);

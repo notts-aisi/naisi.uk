@@ -40,6 +40,7 @@ import assert from "node:assert/strict";
 import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
 import { groupDoc, loadJoin, makeWorld } from "./lib/handoverWorld.mjs";
 import { A, AGI, B, C, PERSONAS, RUN, formPath, leadSeed, slot } from "./lib/leadWorld.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 const FIRESTORE = FIELD_VALUE_STUB.replace(
   "export class Timestamp {}",
@@ -217,7 +218,7 @@ describe("1. the lead reads every register of their run", () => {
   });
 
   test("somebody placed and not yet told is not on the lead's register, as on the facilitators'", async () => {
-    const removed = await call("claudia", join_.routes.remove.POST, { runId: RUN.agi, uid: "dev" }, { course: true });
+    const removed = await takeOff(call, "claudia", join_.routes.remove.POST, { runId: RUN.agi, uid: "dev" });
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
     await join_.place("claudia", [{ uid: "dev", groupId: A }]);
     for (const who of ["claudia", "sofia"]) {
