@@ -479,6 +479,7 @@ describe("8. a place given back", () => {
         firstName: "Tariq",
         line: "Gave their place back on Sat 24 Oct · still in Monday evening",
         canTakeOff: true,
+        noSeat: false,
       },
     ]);
     assert.deepEqual(shown.toHandOver, []);

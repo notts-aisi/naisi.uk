@@ -339,6 +339,13 @@ const READS_WITHOUT_A_LIST = new Map([
 
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
+  // ADDED (November 2026), with Careful in Course run on a programme's Settings.
+  [
+    "src/features/courses/useDestroy.ts",
+    "Destroying one run from Careful: the run's destroy manifest (counts, blockers and an interrupted destroy) and " +
+      "its destroy route, both addressed by the one run's id. Neither lists the run's groups for anybody to read in an " +
+      "order: the manifest counts them, and the destroy removes them.",
+  ],
   // ADDED (November 2026), with a one-week visit to another group's session.
   [
     "src/features/courses/visit/VisitPage.tsx",
