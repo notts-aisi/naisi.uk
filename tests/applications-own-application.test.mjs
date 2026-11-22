@@ -216,6 +216,11 @@ const READS_THE_LISTS = {
     why: "the number beside a programme's People tab: everybody who holds a place on it, an admin who applied included, by the hand-over's own test. It counts nobody until the term is marked as sent",
     holds: "after-the-send",
   },
+  "lib/applications/people/load.ts#peopleRowUidsOf": {
+    kind: "everybody",
+    why: "whose page on the programme would open for the reader, for the Attendance tab's names: the People tab's own rows, by its own model over the applications and decisions the programme's head reads for its count, an admin who applied included, as the People tab lists them. It reads nobody until the term is marked as sent",
+    holds: "after-the-send",
+  },
   "lib/applications/intake/load.ts#loadIntake": {
     kind: "viewer",
     why: "a plan of who goes where is a decision about each person in it, so the admin's own application is left out of the term as on every review screen, and Claude is never told about it",

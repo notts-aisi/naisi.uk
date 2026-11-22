@@ -269,9 +269,10 @@ export async function peopleRowUidsOf(
   form: ApplicationForm,
   programmeId: string,
 ): Promise<Set<string>> {
+  // Nobody is read until decisions have gone out, whoever asks.
+  if (form.decisionsSentAt === null) return new Set();
   const programme = own(form.programmes, programmeId);
-  if (!programme || form.decisionsSentAt === null) return new Set();
-  if (!opensProgrammeGroups(roleOnProgramme(actor, form, programmeId))) return new Set();
+  if (!programme || !opensProgrammeGroups(roleOnProgramme(actor, form, programmeId))) return new Set();
   const [applications, decisions] = await Promise.all([listSentApplicationsOnce(db, form), listDecisionsOnce(db, form.round.id)]);
   const model = programmePeople({
     form,

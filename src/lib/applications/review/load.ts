@@ -17,7 +17,7 @@ import type { ApplicationForm } from "../normalise";
 import { loadForm, loadQuestionSets } from "../repo";
 import { listDecisions, listReviews, listSentApplications } from "../staffRepo";
 import { hasBeenTold } from "../decisions";
-import { holdsPlaceOn } from "../handover/holders";
+import { placeHoldersOn } from "../handover/holders";
 import { REVOCATION_AUDIT_KIND } from "./audit";
 import { buildProgrammeBoard } from "./board";
 import { buildReview } from "./detail";
@@ -179,9 +179,13 @@ export async function loadProgrammeBoard(
   // Who holds a place here, for an admin or the lead once decisions have gone out: their names open their page.
   const holders =
     form.decisionsSentAt !== null && canDecideFor(user, form, programmeId)
-      ? term.applications
-          .filter((application) => hasBeenTold(application) && holdsPlaceOn(form, programmeId, application, term.decisions.get(application.uid) ?? null))
-          .map((application) => application.uid)
+      ? (() => {
+          // Who holds a place, by the hand-over's own list (`placeHoldersOn`); of them, the people decision day has told, as the People tab lists them.
+          const told = new Set(term.applications.filter(hasBeenTold).map((application) => application.uid));
+          return placeHoldersOn(form, programmeId, term.applications, term.decisions)
+            .map((holder) => holder.uid)
+            .filter((uid) => told.has(uid));
+        })()
       : [];
   return { ok: true, board, holders };
 }
