@@ -2686,11 +2686,11 @@ service cloud.firestore {
       // `sessionChanges`) and the moment answers to "Can you make this
       // time?" count from (`timeQuestionSince`) change only through the
       // routes, which refuse to move a session whose register was taken. No
-      // browser writes them then, admins included. The notes, the name and
-      // the capacity stay as they were (the room, the meeting link and the
-      // campus are the routes' for everybody but an admin at any time:
-      // groupRoomAndLinkUnchanged), and before the groups go out nothing
-      // here applies.
+      // browser writes them then, admins included. The notes stay as they
+      // were (the room, the meeting link, the campus, the name and the
+      // capacity are the routes' for everybody but an admin at any time:
+      // groupRoomAndLinkUnchanged, groupNameAndPlacesUnchanged), and before
+      // the groups go out nothing here applies.
       //
       // For everybody but an admin, `runId`, the pace pair, `sessionModes`
       // and `sessionChanges` are already the server's at any time (the three
@@ -2752,6 +2752,20 @@ service cloud.firestore {
             == resource.data.get(['session', 'meetingUrl'], null)
           && request.resource.data.get('campus', null)
             == resource.data.get('campus', null);
+      }
+      // THE NAME AND THE CAPACITY ARE THE ROUTES', for everybody but an
+      // admin, as the room is (groupRoomAndLinkUnchanged). They are changed
+      // on the group's page under its programme, through Admin SDK routes
+      // that refuse places below the people in the group and write the
+      // group's History (src/lib/courses/placesAndName/set.ts), and the older
+      // group card no longer sends them on a run a programme names. An admin
+      // keeps them from a browser, which is what a run no programme names
+      // still needs; creating a group is unchanged. Null defaults, so an
+      // absent capacity and a stored null compare equal and a save that
+      // leaves both alone passes.
+      function groupNameAndPlacesUnchanged() {
+        return request.resource.data.get('name', null) == resource.data.get('name', null)
+          && request.resource.data.get('capacity', null) == resource.data.get('capacity', null);
       }
       // Caps mirror GROUP_FIELD_LIMITS (courseGroups.ts) — the session fields
       // are client-editable by facilitators, so these ARE the boundary.
@@ -2865,7 +2879,8 @@ service cloud.firestore {
       // drop the term's overrides), per-doc by construction, same trust
       // shape as an event collaborator. The room, the meeting link and the
       // campus are the routes' for everybody but an admin
-      // (groupRoomAndLinkUnchanged). The `sessionModes` map
+      // (groupRoomAndLinkUnchanged), and so are the name and the capacity
+      // (groupNameAndPlacesUnchanged). The `sessionModes` map
       // rides along UNCHANGED (see groupSessionModesUnchanged): flipping a
       // week virtual/in-person without the route lane's notice-and-audit
       // step is exactly what the pin exists to stop. `archived` is the
@@ -2882,6 +2897,7 @@ service cloud.firestore {
             && groupSessionModesUnchanged()
             && groupSessionChangesUnchanged()
             && groupRoomAndLinkUnchanged()
+            && groupNameAndPlacesUnchanged()
             && groupContentOk()
           )
         )

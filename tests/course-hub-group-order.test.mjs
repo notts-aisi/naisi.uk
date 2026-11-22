@@ -386,6 +386,17 @@ const FETCHES_IT_CANNOT_READ = new Map([
     "A group's page's room panel: the programme's room route for the one group it is handed (`roomPath`, built by " +
       "the page from the form's, the programme's and the group's ids): one group's room, never a run's groups.",
   ],
+  // ADDED (November 2026), with a group's places and name on its page.
+  [
+    "src/features/courses/groupPage/PlacesPanel.tsx",
+    "A group's page's places panel: the programme's places route for the one group it is handed (`placesPath`, built " +
+      "by the page from the form's, the programme's and the group's ids): one group's places, never a run's groups.",
+  ],
+  [
+    "src/features/courses/groupPage/NamePanel.tsx",
+    "A group's page's name panel: the programme's name route for the one group it is handed (`namePath`, built by " +
+      "the page from the form's, the programme's and the group's ids): one group's name, never a run's groups.",
+  ],
   [
     "src/features/courses/feedback/FeedbackToSend.tsx",
     "Feedback to send's two presses (its test and its send), at the address built from the run id it is handed " +

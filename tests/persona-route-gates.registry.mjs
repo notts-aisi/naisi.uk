@@ -1509,6 +1509,26 @@ export const ROUTES = {
         "from the form. Only the programme's lead and admins change it, before Publish and after.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/places": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "A group's own places, from its page under the programme: view-as is refused first, then the session, " +
+        "then the body (a number, or null for no limit) is checked before anything is read, then the role from " +
+        "the form. Only the programme's lead and admins change it, never below the people in the group and the " +
+        "freed places offered in it, and it emails nobody.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/name": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "A group's name, from its page under the programme: view-as is refused first, then the session, then the " +
+        "body (a name that is not blank and at most 80 characters) is checked before anything is read, then the " +
+        "role from the form. Only the programme's lead and admins rename a group, never to another live group's " +
+        "name, and it emails nobody.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
     PUT: {
       expect: signedIn(400),
@@ -6813,6 +6833,36 @@ export const REAL_ROUTES = {
       },
       theirs: {
         lead: c(ACTS, "The programme's own lead sets its groups' campuses, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/places": {
+    PUT: {
+      realDrive: { body: { places: 12 }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its group is read."),
+        admin: c(ACTS, "An admin sets any programme's group places, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead sets its groups' places, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/name": {
+    PUT: {
+      realDrive: { body: { name: "Group E2E" }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its group is read."),
+        admin: c(ACTS, "An admin renames any programme's groups, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead renames its groups, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
         facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
         participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
       },

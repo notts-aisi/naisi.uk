@@ -145,6 +145,13 @@ export type CourseAuditKind =
   /** A session's meeting link set, for one week or every week. The row never holds the link. */
   | "group-link-set"
   /**
+   * The group's own limit changed from its page (`before.places` and
+   * `after.places`, a number or null for no limit). Nobody is emailed.
+   */
+  | "group-places-changed"
+  /** The group renamed from its page (`before.name`, `after.name`). Nobody is emailed. */
+  | "group-renamed"
+  /**
    * The five below are a session's REGISTER: who took it in whose place, and
    * what was done when a session did not happen or moved. Each carries `weekId`.
    *
@@ -252,6 +259,8 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "group-time-changed",
   "group-room-changed",
   "group-link-set",
+  "group-places-changed",
+  "group-renamed",
   "register-covered",
   "register-given",
   "facilitator-record-changed",
@@ -301,6 +310,8 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "group-time-changed": "Regular time changed",
   "group-room-changed": "Room changed",
   "group-link-set": "Meeting link set",
+  "group-places-changed": "Places changed",
+  "group-renamed": "Group renamed",
   "register-covered": "Register taken in a facilitator’s place",
   "register-given": "Session given to somebody covering",
   "facilitator-record-changed": "Whether a facilitator was there changed",
@@ -318,14 +329,16 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
 };
 
 /**
- * Which filter of a group's history a row sits under: "Time and room",
- * "People", "Link" or "Registers". `other` is a row about the run or an
+ * Which filter of a group's history a row sits under: "Name and places",
+ * "Time and room", "People", "Link" or "Registers". `other` is a row about the run or an
  * application, which a group's history does not offer a filter for (it still
  * shows under Everything). An unknown kind is `other`.
  */
-export type CourseAuditCategory = "time-and-room" | "people" | "link" | "registers" | "other";
+export type CourseAuditCategory = "name-and-places" | "time-and-room" | "people" | "link" | "registers" | "other";
 
 const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory>> = {
+  "group-places-changed": "name-and-places",
+  "group-renamed": "name-and-places",
   "session-moved": "time-and-room",
   "session-online": "time-and-room",
   "session-cancelled": "time-and-room",

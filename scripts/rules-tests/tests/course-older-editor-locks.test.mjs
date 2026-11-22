@@ -13,6 +13,15 @@
  *    needs. A save that leaves the three alone passes for every writer, and
  *    so does one that sends them as they are stored.
  *
+ * 3. A GROUP'S NAME AND CAPACITY. They are changed on the group's page
+ *    under its programme, through Admin SDK routes that refuse places below
+ *    the people in the group and write the group's History, and the older
+ *    group card no longer sends them on a run a programme names. As for the
+ *    room: every writer but an admin is refused a change to either, a save
+ *    that leaves both alone (or sends them as stored) passes for every
+ *    writer, an admin's change passes, and creating a group with both is
+ *    unchanged.
+ *
  * 2. TAKING A WEEK BACK. No browser write takes a run's week's `published`
  *    from true to false, or removes it from a published week, admins
  *    included: PATCH /api/courses/runs/[runId]/weeks/[weekId]/published does
@@ -133,10 +142,30 @@ const ROOM_CHANGES = [
   ],
 ];
 
+/**
+ * Every way a browser could change the name or the capacity, each on its own.
+ * (Until the group's page had Places and Name, both were here among the
+ * writes every writer saves; they are now refused to all but an admin.)
+ */
+const NAME_AND_PLACES_CHANGES = [
+  ["the name", () => ({ name: "Group I (Tue)", updatedAt: serverTimestamp() })],
+  ["the name, a change of case alone", () => ({ name: "group i" })],
+  ["the capacity", () => ({ capacity: 10, updatedAt: serverTimestamp() })],
+  ["the capacity, raised", () => ({ capacity: 13 })],
+  ["the capacity, no limit", () => ({ capacity: null })],
+  ["the capacity, removed", () => ({ capacity: removed() })],
+  [
+    "a card opened before the places were changed on the group's page",
+    () => ({ name: "Group I", capacity: 8, "session.notes": "", updatedAt: serverTimestamp() }),
+  ],
+  [
+    "a card opened before the group was renamed on its page",
+    () => ({ name: "Group I (old)", capacity: 12, "session.notes": "", updatedAt: serverTimestamp() }),
+  ],
+];
+
 /** What the older card still sends, and the group's other writes: every writer saves them. */
 const KEPT_GROUP_WRITES = [
-  ["the name", () => ({ name: "Group I (Tue)", updatedAt: serverTimestamp() })],
-  ["the capacity", () => ({ capacity: 10, updatedAt: serverTimestamp() })],
   ["the notes", () => ({ "session.notes": "Bring the reading.", updatedAt: serverTimestamp() })],
   ["the day and time, before the groups go out", () => ({ "session.weekday": 4, "session.startTimeLocal": "17:30" })],
   [
@@ -212,7 +241,7 @@ describe("courseGroups: the room, the meeting link and the campus are the routes
       }
       // Sending nothing of them, and a null link or campus where none is stored, is no change.
       await reseed("courseGroups/g1", bare);
-      await allowed(groups(db).doc("g1").update({ name: "Group I (Tue)", "session.meetingUrl": null, campus: null }), `${uid}: nulls where none stored`);
+      await allowed(groups(db).doc("g1").update({ "session.notes": "Bring the reading.", "session.meetingUrl": null, campus: null }), `${uid}: nulls where none stored`);
     }
   });
 
@@ -240,10 +269,72 @@ describe("courseGroups: the room, the meeting link and the campus are the routes
     await seedWorld();
     for (const uid of ["drafter", "learner"]) {
       const db = await asUser(uid);
-      for (const [label, patch] of [...KEPT_GROUP_WRITES, ...ROOM_CHANGES]) {
+      for (const [label, patch] of [...KEPT_GROUP_WRITES, ...ROOM_CHANGES, ...NAME_AND_PLACES_CHANGES]) {
         await reseed("courseGroups/g1", groupDoc());
         await refused(groups(db).doc("g1").update(patch()), `${uid}: ${label}`);
       }
+    }
+  });
+});
+
+describe("courseGroups: the name and the capacity are the routes', for everybody but an admin", () => {
+  it("refuses an approver, the run's track lead and the group's facilitator every change to either", async () => {
+    await seedWorld();
+    for (const uid of GROUP_STAFF) {
+      const db = await asUser(uid);
+      for (const [label, patch] of NAME_AND_PLACES_CHANGES) {
+        await reseed("courseGroups/g1", groupDoc());
+        await refused(groups(db).doc("g1").update(patch()), `${uid}: ${label}`);
+      }
+    }
+  });
+
+  it("refuses a capacity set on a group that stored none, and passes a null sent where none is stored", async () => {
+    await seedWorld();
+    const bare = groupDoc();
+    delete bare.capacity;
+    for (const uid of GROUP_STAFF) {
+      const db = await asUser(uid);
+      await reseed("courseGroups/g1", bare);
+      await refused(groups(db).doc("g1").update({ capacity: 8 }), `${uid}: a capacity where none is stored`);
+      await reseed("courseGroups/g1", bare);
+      await allowed(groups(db).doc("g1").update({ capacity: null, "session.notes": "Bring the reading." }), `${uid}: a null where none is stored`);
+    }
+  });
+
+  it("lets an admin change both, which a run no programme names still needs", async () => {
+    await seedWorld();
+    const db = await asUser("admin1");
+    for (const [label, patch] of NAME_AND_PLACES_CHANGES) {
+      await reseed("courseGroups/g1", groupDoc());
+      await allowed(groups(db).doc("g1").update(patch()), `admin1: ${label}`);
+    }
+  });
+
+  it("still saves, from every writer, a save that leaves both alone and one that sends them as they are stored", async () => {
+    await seedWorld();
+    for (const uid of ["admin1", ...GROUP_STAFF]) {
+      const db = await asUser(uid);
+      for (const [label, patch] of [
+        ["both left out", () => ({ "session.notes": "Bring the reading.", updatedAt: serverTimestamp() })],
+        ["both sent as stored", () => ({ name: "Group I", capacity: 12, "session.notes": "", updatedAt: serverTimestamp() })],
+        ["the whole document written back as stored", () => groupDoc({ updatedAt: serverTimestamp() })],
+      ]) {
+        await reseed("courseGroups/g1", groupDoc());
+        const ref = groups(db).doc("g1");
+        await allowed(label.startsWith("the whole") ? ref.set(patch()) : ref.update(patch()), `${uid}: ${label}`);
+      }
+    }
+  });
+
+  it("still lets an admin and an approver create a group with its name and capacity", async () => {
+    await seedWorld();
+    for (const uid of ["admin1", "approver"]) {
+      const db = await asUser(uid);
+      await allowed(
+        groups(db).doc(`new-${uid}`).set(groupDoc({ name: "Group J", capacity: 8, facilitatorUids: [] })),
+        `${uid}: create a group`,
+      );
     }
   });
 });

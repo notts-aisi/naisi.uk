@@ -735,6 +735,7 @@ describe("6. nothing else writes a group's archived", () => {
     "src/features/courses/courseMutations.ts": "the body the run editor sends to the archive route",
     "src/lib/courses/explainers/schedule.ts": "archives an explainer's tasks, and counts them",
     "src/lib/courses/facilitatingMenuRead.ts": "a run's archived, read into the facilitating menu",
+    "src/lib/courses/placesAndName/words.ts": "the places and name routes' refusal sentences, keyed by why",
     "src/lib/courses/roomWords.ts": "a refusal sentence, keyed by why",
     "src/lib/courses/sessionChange/didNotHappen.ts": "archives the register follow-up task",
     "src/lib/firestore/courseDeletion.ts": "marks a run archived as its destroy begins",

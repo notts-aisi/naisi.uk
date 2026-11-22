@@ -1077,6 +1077,18 @@ const ROUND_SURFACES = {
       "sets a group's weekly room through setGroupRoom, after loadProgrammeRun, which reaches the round only " +
       "through the form's own loader and answers a round that is not a form as a programme that is not here",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/places": {
+    kind: "form",
+    why:
+      "sets a group's own places through setGroupPlaces, after loadProgrammeRun, which reaches the round only " +
+      "through the form's own loader and answers a round that is not a form as a programme that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/name": {
+    kind: "form",
+    why:
+      "renames a group through renameGroup, after loadProgrammeRun, which reaches the round only through the " +
+      "form's own loader and answers a round that is not a form as a programme that is not here",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus": {
     kind: "form",
     why:

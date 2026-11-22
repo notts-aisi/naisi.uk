@@ -1224,6 +1224,15 @@ a.pill {
     display: none;
   }
 
+  /* Places and Name as sheets: the primary button first, the width of the sheet. */
+  .panelActionsSheet {
+    flex-direction: column-reverse;
+  }
+
+  .panelActionsSheet > * {
+    width: 100%;
+  }
+
   .coverNarrow {
     display: flex;
   }

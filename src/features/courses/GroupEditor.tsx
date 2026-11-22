@@ -34,6 +34,7 @@ import {
   archiveOnGroupPageWords,
   openGroupPageWords,
 } from "@/lib/courses/olderEditor/words";
+import { placesWords } from "@/lib/courses/placesAndName/words";
 import {
   validateSubmissionUrl,
   type CourseEnrolMode,
@@ -77,6 +78,15 @@ import styles from "./GroupEditor.module.css";
  * except that the room, campus and link are an admin's: firestore.rules
  * keeps them from every other browser writer, so for anybody else they are
  * words too. Either way the card sends the three only when they changed.
+ *
+ * THE NAME AND THE CAPACITY follow the room exactly. On a run a programme
+ * names they are words with "Change it on Group C's page", where the places
+ * and name routes check them (places never below the people in the group)
+ * and write History, and the save never sends them, for an admin too. On a
+ * run no programme names they stay fields for an admin, unchecked against
+ * the people in the group and writing no History, as before; for anybody
+ * else they are words, since firestore.rules keeps both from every browser
+ * writer but an admin.
  */
 
 type ToastRun = (
@@ -169,6 +179,10 @@ export default function GroupEditor({
   // The room, the campus and the link are fields only for an admin on a run
   // no programme names; everywhere else they are words.
   const roomEditable = groupPageHref === null && isAdmin;
+  // The name and the capacity likewise: on a run a programme names they are
+  // changed on the group's page, with its checks and History; firestore.rules
+  // keeps them from every browser writer but an admin.
+  const nameAndPlacesEditable = roomEditable;
   const groupName = group.name || "the group";
 
   const [name, setName] = useState(group.name);
@@ -201,7 +215,7 @@ export default function GroupEditor({
 
   async function save() {
     const trimmedName = name.trim();
-    if (!trimmedName) {
+    if (nameAndPlacesEditable && !trimmedName) {
       setError("Give the group a name.");
       return;
     }
@@ -217,12 +231,17 @@ export default function GroupEditor({
     // instead of a permission-denied: firestore.rules refuses this exact write
     // and has no way to say why.
     const nextCapacity = capacityFromInput(capacity);
-    const capacityError = groupCapacityError(nextCapacity, enrolMode);
+    const capacityError = nameAndPlacesEditable ? groupCapacityError(nextCapacity, enrolMode) : null;
     if (capacityError) {
       setError(capacityError);
       return;
     }
     setError(null);
+    // The name and the capacity, only when this card may change them and they
+    // did change: a save that leaves them alone never sends them, so it never
+    // puts back a name or a number changed on the group's page meanwhile.
+    const nameChanged = nameAndPlacesEditable && trimmedName !== group.name;
+    const capacityChanged = nameAndPlacesEditable && nextCapacity !== group.capacity;
 
     const nextLocation = session.location.trim();
     // Empty stays null rather than "": `meetingUrl` is nullable by design
@@ -265,8 +284,8 @@ export default function GroupEditor({
           await updateGroup(
             group.id,
             {
-              name: trimmedName,
-              capacity: nextCapacity,
+              ...(nameChanged ? { name: trimmedName } : {}),
+              ...(capacityChanged ? { capacity: nextCapacity } : {}),
               session: nextSession,
               ...(campusChanged ? { campus } : {}),
             },
@@ -317,35 +336,66 @@ export default function GroupEditor({
       </div>
 
       <div className={styles.fields}>
-        <div className={styles.twoCol}>
-          <Field id={`${fieldId}-name`} label="Group name">
-            <Input
-              id={`${fieldId}-name`}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={GROUP_FIELD_LIMITS.name}
-              disabled={disabled}
-              placeholder="e.g. Tuesday evening"
-            />
-          </Field>
-          <Field
-            id={`${fieldId}-capacity`}
-            label="Capacity"
-            hint={CAPACITY_HINT[enrolMode]}
-          >
-            <Input
+        {nameAndPlacesEditable ? (
+          <div className={styles.twoCol}>
+            <Field id={`${fieldId}-name`} label="Group name">
+              <Input
+                id={`${fieldId}-name`}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={GROUP_FIELD_LIMITS.name}
+                disabled={disabled}
+                placeholder="e.g. Tuesday evening"
+              />
+            </Field>
+            <Field
               id={`${fieldId}-capacity`}
-              type="number"
-              min={1}
-              max={MAX_OPEN_MODE_CAPACITY}
-              inputMode="numeric"
-              value={capacity}
-              onChange={(e) => setCapacity(e.target.value)}
-              disabled={disabled}
-              placeholder="e.g. 8"
-            />
-          </Field>
-        </div>
+              label="Capacity"
+              hint={CAPACITY_HINT[enrolMode]}
+            >
+              <Input
+                id={`${fieldId}-capacity`}
+                type="number"
+                min={1}
+                max={MAX_OPEN_MODE_CAPACITY}
+                inputMode="numeric"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                disabled={disabled}
+                placeholder="e.g. 8"
+              />
+            </Field>
+          </div>
+        ) : (
+          <>
+            <div className={styles.readOnlySlot}>
+              <p className={styles.readOnlyLabel}>Group name</p>
+              <p className={styles.readOnlyValue}>{group.name || "Untitled group"}</p>
+              <p className={styles.readOnlyHint}>
+                {groupPageHref ? (
+                  <Link href={groupPageHref} className={styles.readOnlyLink}>
+                    {changeOnGroupPageWords(groupName)}
+                  </Link>
+                ) : (
+                  ONLY_AN_ADMIN_HERE
+                )}
+              </p>
+            </div>
+            <div className={styles.readOnlySlot}>
+              <p className={styles.readOnlyLabel}>Capacity</p>
+              <p className={styles.readOnlyValue}>{placesWords(group.capacity)}</p>
+              <p className={styles.readOnlyHint}>
+                {groupPageHref ? (
+                  <Link href={groupPageHref} className={styles.readOnlyLink}>
+                    {changeOnGroupPageWords(groupName)}
+                  </Link>
+                ) : (
+                  ONLY_AN_ADMIN_HERE
+                )}
+              </p>
+            </div>
+          </>
+        )}
 
         {goneOut ? (
           <div className={styles.readOnlySlot}>

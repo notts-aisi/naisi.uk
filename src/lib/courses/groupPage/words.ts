@@ -125,9 +125,9 @@ export function roomLine(room: string, campusLabel: string): string {
 
 export const ROOM_TO_BE_CONFIRMED = "Room to be confirmed";
 
-/** Under how the group meets, on the page admins and the lead use. The design's words. */
+/** Under how the group meets, on the page admins and the lead use: its six rows. The design's words. */
 export const WHO_CHANGES_WHAT =
-  "Leads and admins change the regular time, room and facilitators. Facilitators change one week and set the link.";
+  "Leads and admins change all of this. Facilitators change one week and set the link.";
 
 /** Under how the group meets, on the facilitator's page: "Claudia or an admin changes the regular time or room." */
 export function facilitatorWhoLine(leadFirstName: string | null): string {
@@ -285,7 +285,7 @@ export const NOBODY_IN_GROUP_LINE = "Place people on People in groups. They show
 export const OPEN_PEOPLE_IN_GROUPS = "Open People in groups";
 
 export const NO_HISTORY_LINE =
-  "Nothing has changed yet. Each change to the group’s time, room, link or people is kept here from the day it’s made.";
+  "Nothing has changed yet. Each change to the group’s name, places, time, room, link or people is kept here from the day it’s made.";
 
 // ---------------------------------------------------------------------------
 // History
@@ -293,10 +293,11 @@ export const NO_HISTORY_LINE =
 
 export const WHO_CHANGED_WHAT = "Who changed what";
 
-export type HistoryFilter = "everything" | "time-and-room" | "people" | "link" | "registers";
+export type HistoryFilter = "everything" | "name-and-places" | "time-and-room" | "people" | "link" | "registers";
 
 export const HISTORY_FILTERS: readonly { value: HistoryFilter; label: string }[] = [
   { value: "everything", label: "Everything" },
+  { value: "name-and-places", label: "Name and places" },
   { value: "time-and-room", label: "Time and room" },
   { value: "people", label: "People" },
   { value: "link", label: "Link" },

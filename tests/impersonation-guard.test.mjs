@@ -494,6 +494,14 @@ const MUST_GUARD = [
     "sets a group's campus on the run a programme names, from the Groups tab's Sessions view",
   ],
   [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/places/route.ts",
+    "sets a group's own places on the run a programme names, from the group's page, never below the people in it",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/name/route.ts",
+    "renames a group on the run a programme names, from the group's page",
+  ],
+  [
     "src/app/api/courses/runs/[runId]/time-answer/route.ts",
     "records the person's own answer to can you make this time most weeks on their own seat, which the programme's lead and admins read, and for most weeks, not all, records them excused on the registers of the sessions they tick",
   ],

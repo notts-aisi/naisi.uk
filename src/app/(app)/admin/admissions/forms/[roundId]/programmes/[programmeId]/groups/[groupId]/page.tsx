@@ -144,6 +144,7 @@ export default async function ProgrammeGroupPage({
         .map((seat) => seat.uid)
     : [];
   const base = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
+  const groupApi = `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/${encodeURIComponent(group.id)}`;
 
   return (
     <ApplicationsRoot className={shared.page}>
@@ -168,7 +169,10 @@ export default async function ProgrammeGroupPage({
           // on an incubator's run, or one with no other group to go to.
           move: movesHere ? `${base}/people` : null,
           movable,
-          roomPath: `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/${encodeURIComponent(group.id)}/room`,
+          roomPath: `${groupApi}/room`,
+          // Places and Name: the programme's own routes, which count and check again.
+          placesPath: `${groupApi}/places`,
+          namePath: `${groupApi}/name`,
         }}
       />
     </ApplicationsRoot>

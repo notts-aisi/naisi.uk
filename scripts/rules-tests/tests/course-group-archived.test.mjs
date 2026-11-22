@@ -243,7 +243,8 @@ describe("courseGroups: every other write stands as it was", () => {
     await seedWorld(groupDoc({ archived: undefined }));
     for (const uid of GROUP_WRITERS) {
       const db = await asUser(uid);
-      await allowed(groups(db).doc("g1").update({ name: "Group I (Tue)", updatedAt: serverTimestamp() }), uid);
+      // The notes: the name is the name route's for all but an admin now (course-older-editor-locks.test.mjs).
+      await allowed(groups(db).doc("g1").update({ "session.notes": "Bring the reading.", updatedAt: serverTimestamp() }), uid);
     }
   });
 

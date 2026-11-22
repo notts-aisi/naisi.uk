@@ -226,8 +226,9 @@ describe("courseGroups — pace fields are server-owned (routes only)", () => {
     );
     // …while an ordinary session edit on that same re-paced group still
     // lands: the pin compares the merged doc, so untouched pace rides along.
+    // (The notes: the name is the name route's for all but an admin now.)
     await assertSucceeds(
-      again.collection("courseGroups").doc("g1").update({ name: "Group A (Tue)" }),
+      again.collection("courseGroups").doc("g1").update({ "session.notes": "Moved for the careers fair." }),
     );
   });
 

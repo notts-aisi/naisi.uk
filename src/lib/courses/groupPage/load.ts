@@ -9,6 +9,8 @@ import { slotDays } from "@/lib/courses/sessionChange/model";
 import { updateEmailAudience } from "@/lib/courses/updates/audience";
 import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { loadGroupHistory } from "@/lib/courses/groupHistory/load";
+import { placesInGroup } from "@/lib/courses/groupArchive/plan";
+import { freedOffersIn, freedOffersQuery } from "@/lib/courses/groupArchive/read";
 import { excuseFactsForGroup, type ExcuseFacts } from "@/lib/courses/excused/facts";
 import { groupWeekWorkView, readGroupWeekWork } from "@/lib/courses/groupWeekWork/load";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -284,7 +286,23 @@ export async function loadGroupPage(
         )
       : Promise.resolve<ExcuseFacts>({});
 
-  const [naming, registerSnaps, weekSnaps, seats, audience, history, withRecords, lead, names, worked, excuseFacts, visitors] = await Promise.all([
+  // The group's places and what they can't go below, for the page's staff:
+  // every place on the run whose group this is (two equalities, so no
+  // declared index), counted as the Groups tab counts them
+  // (`placesInGroup`), and the freed places offered in its name and not
+  // answered (`freedOffersIn`), as the places route counts both.
+  const placesRead = staff
+    ? Promise.all([
+        db.collection("courseEnrolments").where("runId", "==", run.id).where("groupId", "==", group.id).get(),
+        freedOffersQuery(db, group.id).get(),
+      ]).then(([placeSnap, offersSnap]) => ({
+        capacity: group.capacity,
+        inGroup: placesInGroup({ group, places: placeSnap.docs.map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {})) }).length,
+        freedOffers: freedOffersIn(offersSnap, group.id),
+      }))
+    : Promise.resolve(null);
+
+  const [naming, registerSnaps, weekSnaps, seats, audience, history, withRecords, lead, names, worked, excuseFacts, visitors, places] = await Promise.all([
     namingRead,
     registerRead,
     weekRefs.length ? db.getAll(...weekRefs) : Promise.resolve([]),
@@ -304,6 +322,7 @@ export async function loadGroupPage(
     workRead,
     excuseRead,
     visitorsRead,
+    placesRead,
   ]);
   const awayHosts = await awayHostsRead;
   const awayNameOf = (groupId: string) => awayHosts.get(groupId) || "another group";
@@ -498,6 +517,7 @@ export async function loadGroupPage(
       campus: group.campus,
       hasLink: Boolean(group.session.meetingUrl),
     },
+    places,
     canChangeRegular: staff,
     leadFirstName: lead?.firstName || null,
     weeks,
