@@ -12,6 +12,8 @@ import { explainersFromWeek } from "@/lib/courses/explainers/readers";
 import { WEEK_EXPLAINER_WORDS } from "@/lib/courses/explainers/words";
 import { facilitatorGuideReader, facilitatorGuideWriter } from "@/lib/courses/facilitatorGuide/access";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
+import { readWeekInUse } from "@/lib/courses/olderEditor/weekInUse";
+import { weekStaysPublishedWords } from "@/lib/courses/olderEditor/words";
 import { loadWeekEditor } from "@/lib/courses/weekEdit/editor";
 import { loadEditWeek } from "@/lib/courses/weekEdit/gate";
 import { loadWeeksTab } from "@/lib/courses/weeksTab/load";
@@ -43,6 +45,16 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * page's client half, which reads it again through the editor route after a
  * save. Every change goes through the editing routes, which ask again.
  *
+ * PUBLISHED. Whether the week is in use (`readWeekInUse`: somebody has
+ * ticked or written in it, or a group's session for it has passed) is asked
+ * here, the question the unpublish route asks again with its write, so the
+ * page says before the press what the route would answer: the route's own
+ * sentence for a week in use, counts only, no names.
+ *
+ * HOW IT LANDED is read in the browser from the run's look back, whose
+ * route admits both the admins and the lead this page is drawn for; the page
+ * hands it only the ids of this week's readings.
+ *
  * The explainers an admin scheduled from the week's review are listed under
  * the week, for the lead as for an admin: each one's topic (the admin's
  * words), how long, who explains and the sessions it opens. Never the review
@@ -72,10 +84,11 @@ export default async function ProgrammeWeekPage({
   ]);
   const loadedWeeks = reader && writer ? (await readGuideIndex(db, reader)).weeks : [];
   const guide = weekGuideBox(tab.courseId, week.weekNumber, { reads: reader !== null, loads: writer !== null }, loadedWeeks);
-  const [page, explainers, editWeek] = await Promise.all([
+  const [page, explainers, editWeek, inUse] = await Promise.all([
     loadWeekPage(db, tab, week, guide),
     explainersFromWeek(db, user, tab.runId, week.weekNumber, tab.groups),
     loadEditWeek(db, tab.runId, week.weekId),
+    week.published ? readWeekInUse(db, { runId: tab.runId, weekId: week.weekId, now: new Date() }) : Promise.resolve(null),
   ]);
   const editor = "status" in editWeek ? null : await loadWeekEditor(db, editWeek, user.uid, new Date());
 
@@ -96,6 +109,7 @@ export default async function ProgrammeWeekPage({
         viewer={view.viewer}
         editor={editor}
         programme={view.programmeName}
+        stays={inUse?.inUse ? weekStaysPublishedWords(inUse.weekNumber) : null}
       />
       {explainers.length > 0 && (
         <section className={explainerStyles.weekCard} aria-labelledby="week-explainers-title">

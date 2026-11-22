@@ -56,11 +56,12 @@ import styles from "./WeekEditor.module.css";
  * blocks are changed on that programme's Weeks page, one block at a time or
  * the whole week pasted, one editor at a time and with a history of every
  * save (`weeksHref`). There the paste and Mark ready stand; here each is a
- * link to it. Everything else this editor changes stays here, because the
- * Weeks page cannot change it on its own: the title, summary, estimated
- * minutes, Published (the Weeks page publishes by marking ready and never
- * unpublishes), pitching week, the questions, and a week not written as
- * blocks (guide, materials, exercises, checklist). A run no programme names
+ * link to it. The Weeks page also holds the title, summary, pitching week
+ * and questions (its week's settings) and unpublishing, while nobody has
+ * started the week. Everything else this editor changes stays here, because
+ * the Weeks page cannot change it on its own: the estimated minutes, and a
+ * week not written as blocks (guide, materials, exercises, checklist). A run
+ * no programme names
  * keeps its paste and Mark ready here: there is nowhere else for them.
  */
 

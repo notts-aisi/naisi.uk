@@ -5,7 +5,7 @@ import { weeklySlotWords } from "@/lib/courses/facilitatingEmail";
 import { groupWeekRef } from "@/lib/courses/groupResolve";
 import { dayBeforeWords } from "@/lib/courses/weekBlocks/markdownWrite";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
-import { weekReadiness } from "@/lib/courses/weekBlocks/reader";
+import { weekReadiness, weekSources } from "@/lib/courses/weekBlocks/reader";
 import { weekIsReady } from "@/lib/courses/weekReady";
 import { normalizeGroupWeek, sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { normalizeCourse, normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses";
@@ -62,6 +62,16 @@ export type WeekPage = {
   guide: { slots: WeekGuideSlot[] | null; href: string } | null;
   groups: WeekPageGroup[];
   courseId: string;
+  /**
+   * This week's settings as stored, for "This week’s settings": the
+   * summary, the pitching week tick and the questions to think about (the
+   * title is `title`).
+   */
+  summary: string;
+  pitching: boolean;
+  questions: string[];
+  /** The ids of the week's readings (`weekSources`), in order: How it landed reads these rows of the run's look back. */
+  sourceIds: string[];
 };
 
 /** The week's two places in the facilitator guide: its session plan, then its notes. */
@@ -133,5 +143,9 @@ export async function loadWeekPage(db: Firestore, tab: WeeksTab, week: WeeksTabW
     guide,
     groups,
     courseId: tab.courseId,
+    summary: doc?.summary ?? "",
+    pitching: doc?.pitching === true,
+    questions: doc ? [...doc.questions] : [],
+    sourceIds: doc ? weekSources(doc).map((source) => source.id) : [],
   };
 }

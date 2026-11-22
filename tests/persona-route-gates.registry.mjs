@@ -3653,6 +3653,22 @@ export const ROUTES = {
         "told an id that is not w01 to w60 is no week.",
     },
   },
+  "/api/courses/runs/[runId]/weeks/[weekId]/settings": {
+    PUT: {
+      expect: adminOnly(404),
+      drive: {
+        body: { title: "Week one", summary: "", pitching: false, questions: [] },
+        why:
+          "An empty body is the same 400 for every signed-in persona; a whole one reaches the gate, which " +
+          "every persona here but the admin fails, and the admin meets the week address check.",
+      },
+      why:
+        "View-as is refused first, then the session, then the body's shape, then the gate: a week's title, " +
+        "summary, pitching week and questions are for the lead of the programme that names the run and " +
+        "admins, the week's other edits' gate, decided before anything of the run is read (only the forms). " +
+        "Every other session is forbidden, and the admin is told an id that is not w01 to w60 is no week.",
+    },
+  },
   "/api/courses/runs/[runId]/weeks/[weekId]/mode": {
     PUT: {
       expect: adminOnly(404),
@@ -8228,6 +8244,24 @@ export const REAL_ROUTES = {
       },
       theirs: {
         lead: c(ACTS, "Leads the programme that names the run, so admitted, and the body is a whole one: it would give week 1 back to the lead, so it is not sent."),
+        facilitator: c(403, "Facilitating a group is not leading the programme: refused before anything of the run is read."),
+        participant: c(403, "Holding a place is not leading the programme: refused before anything of the run is read."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/settings": {
+    PUT: {
+      realDrive: {
+        body: { title: "Week one", summary: "", pitching: false, questions: [] },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Not the lead of the programme that names the run, so refused from the forms before anything of the run is read: a week's settings are the lead's and an admin's."),
+        admin: c(ACTS, "An admin is admitted, and the body is a whole one: it would change week 1's title, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme that names the run, so admitted, and the body is a whole one: it would change week 1's title, so it is not sent."),
         facilitator: c(403, "Facilitating a group is not leading the programme: refused before anything of the run is read."),
         participant: c(403, "Holding a place is not leading the programme: refused before anything of the run is read."),
       },

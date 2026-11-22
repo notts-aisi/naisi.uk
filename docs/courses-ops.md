@@ -5490,6 +5490,77 @@ route and is untouched. Neither the run's editor nor a group's routes write the 
 so a week they change is found again ("as it stood") before the next save
 here.
 
+## A week's settings, unpublishing, how it landed, and the course documents
+
+Four jobs that only the older course editor did now sit on a programme's
+Weeks tab and a week's page there, for admins and the programme's lead (the
+tab's own gate, `loadProgrammeRun`). Nothing here emails anybody, and nothing
+a member, a facilitator or a scheduled job reads changes until somebody
+presses Save, Unpublish or a loader's Save.
+
+**Course documents, first on the tab** (`loadCourseDocuments`,
+`src/lib/courses/weeksTab/documents.ts`). The run's Start here and Glossary,
+and the course's Handbook and Printables, each saying whose it is and whether
+it is loaded; Load or Replace opens today's paste under the row (the run
+editor's `GuideLoader`, the facilitator guide's `FacilitatorGuideLoader` on
+that one place). A row is offered only to somebody its loader admits: the
+run's two to admins (`/api/courses/runs/[runId]/guide/[doc]` is admins'),
+the course's two to admins and the programme's lead
+(`facilitatorGuideWriter`), so a lead sees the Handbook and Printables and
+the line "Start here and the Glossary: an admin loads these." A course
+document says the day it was last saved ("Loaded on Mon 19 Oct", its guide
+row's `updatedAt`); the run's two live on the run's own document, whose time
+any save of the run moves, so they say only "Loaded". Nothing new is written.
+
+**This week's settings** gains the title, the summary, "This is pitching
+week" and "Questions to think about", saved together by "Save the week’s
+settings" through `PUT /api/courses/runs/[runId]/weeks/[weekId]/settings`.
+Its gate is the week's other edits' (an admin, or the lead of the programme
+that names the run, from the forms before anything is read); then the
+address, the run, the week (a week with no page is refused), then each field
+with the older editor's checks and the rules' limits (`checkSettings`,
+`src/lib/courses/weekSettings/model.ts`): a title that is not empty and at
+most 120 characters, a summary of at most 1,000, the tick true or false, and
+at most five questions of one line each, none empty and none over 160, in
+the group week route's words. A save that changes nothing writes nothing
+("Nothing changed, so nothing was saved."). A save writes the changed fields
+and, for a week written as blocks, one line in the week's history (kind
+`edit`, no block named, the blocks kept as they stand: "This week’s
+settings: new title and questions"), with the week as found first when the
+history does not end with it. A week not written as blocks has no history,
+so its settings save with no line. "How long it takes" (the older estimated
+minutes) is not offered: only a course's public week page shows it, and only
+for a week not written as blocks. A group with its own copy of the week
+keeps the summary and questions in its copy, which a save never touches:
+its facilitators and its people go on seeing the questions as the copy has
+them, and the line under the questions says so.
+
+**Published, and unpublishing.** The week's page asks `readWeekInUse`
+(`src/lib/courses/olderEditor/weekInUse.ts`) for a published week and says,
+in use, the unpublish route's own sentence ("People have started week 3, so
+it stays published. Change its blocks instead: each save is kept in its
+history."), and otherwise "Nobody has started week 5 yet." with
+"Unpublish week 5…", which asks first and then sends the checked route
+(`PATCH .../published`, above). Whatever that route refuses is said in its
+own words: a week somebody has ticked or written in and a week whose session
+has passed get the sentence above, which tells the lead to change its blocks
+instead. Week 1 open early to everybody holding a place is not refused while
+nobody has started it, as the route's rule says. After the press: "Week 5 is
+back to draft. Nobody was emailed." Unpublishing writes `published` only; a
+week reads as ready only while published (`weekIsReady`), so Mark ready
+publishes it again.
+
+**How it landed**, staff only, for each reading of the week: its rating and
+how many finished it, from the run's look back
+(`GET /api/courses/runs/[runId]/retrospective`, through `useRetrospective`)
+filtered to the week's own readings, and the team's notes through
+`POST .../material-notes`. The look back admits admins, course drafters and
+approvers, the run's track leads and the programme's lead; the week's page is
+drawn for admins and the lead, so they see it. An average shows once three
+people have rated a reading (`RETRO_ANONYMITY_FLOOR`); below that "Rated by 2
+so far" with no average; nobody's name or id is beside a rating, and the only
+names are on the notes, each signed by the member of staff who wrote it.
+
 ## The week stays open
 
 A week written as blocks saves as its person goes, and NOTHING CLOSES AT THE

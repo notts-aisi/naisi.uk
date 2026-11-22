@@ -1375,12 +1375,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the page that shows a lead somebody's reflections exists and a browser spec opens it.",
   },
-  "/api/courses/runs/[runId]/retrospective": {
-    reason:
-      "Learn hub: /api/courses/runs/[runId]/retrospective belongs to the curriculum surface being rebuilt in October.",
-    coverWhen:
-      "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
-  },
   "/api/courses/runs/[runId]/roles": {
     reason:
       "Courses: /api/courses/runs/[runId]/roles is staff-facing, taken deliberately, and answered on the screen that called it.",

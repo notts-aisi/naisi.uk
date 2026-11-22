@@ -109,6 +109,24 @@ export async function readGuidePage(db: Firestore, reader: GuideReader, page: Gu
     .map((doc) => ({ slot: doc.slot, doc: { title: doc.title, blocks: doc.blocks } }));
 }
 
+/**
+ * Whether some of the course's own documents are loaded, and when each was
+ * last saved: for the Weeks tab's Course documents card, which offers each
+ * one's loader. Takes the loader's own gate (`GuideWriter`), so it answers
+ * only somebody that loader admits. Titles and times, never the words.
+ */
+export async function readCourseDocumentsLoaded(
+  db: Firestore,
+  writer: GuideWriter,
+  keys: readonly CourseDocumentKey[],
+): Promise<Array<{ key: CourseDocumentKey; title: string | null; savedAt: Date | null }>> {
+  const found = await Promise.all(keys.map((key) => readSlot(db, writer.courseId, { kind: "course", key })));
+  return keys.map((key, at) => {
+    const doc = found[at];
+    return { key, title: doc ? doc.title : null, savedAt: doc ? doc.updatedAt : null };
+  });
+}
+
 /** One stored document, for the loader to copy out. */
 export async function readGuideSlot(db: Firestore, writer: GuideWriter, slot: GuideSlot): Promise<GuideDocument | null> {
   const doc = await readSlot(db, writer.courseId, slot);
