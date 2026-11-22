@@ -1163,11 +1163,11 @@ export const REGISTRY = [
   },
   {
     id: "admin-course-list-runs",
-    file: "src/features/courses/AdminCourseList.tsx",
+    file: "src/features/courses/CoursesList.tsx",
     path: "courseRuns",
     clauses: [],
     reason:
-      "One unfiltered run list for the whole course index page, used to label each course row. /admin/courses is admin, draftCourse or approveCourse, which is exactly the set the run rule admits without a status clause.",
+      "One unfiltered run list for the whole Courses list, used to name each course's live runs in its row. /admin/courses is admin, draftCourse or approveCourse, which is exactly the set the run rule admits without a status clause.",
     outcomes: {
       "signed-out": "refused",
       pending: "refused",

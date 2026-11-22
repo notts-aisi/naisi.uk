@@ -61,6 +61,7 @@ const {
   ADMIN_SECTIONS,
   adminSectionFor,
   adminPageFor,
+  drawsOwnHead,
   currentEntry,
   barTitleFor,
   roleInWords,
@@ -1061,8 +1062,6 @@ const SECOND_HEADING_STILL_DRAWN = {
     "The older round editor names the round in an <h1>, while the list of older rounds under the same entry draws no head. No redesign covers the older rounds.",
   "/admin/admissions/[roundId]/appointments":
     "The appointments queue of an older round writes its own <h1>, under the same entry as the list of older rounds, which draws none.",
-  "/admin/courses/[courseId]":
-    "The course editor names the course in an <h1>, while the list of courses under the same entry draws no head. No redesign covers the course editors.",
   "/admin/courses/[courseId]/page":
     "The editor of a course's public page writes its own <h1>, under the same entry as the list of courses.",
   "/admin/courses/[courseId]/runs/[runId]/retrospective":
@@ -1094,7 +1093,7 @@ describe("every admin page has one heading: its own, or the shared one", () => {
     const route = routeOf(file);
     const sample = route.replace(/\[[^\]]+\]/g, "sample");
     const entry = ADMIN_PAGES.find((p) => p.match(sample)) ?? null;
-    pages.set(route, { entry, marked: entry?.ownHead === true, heads: headsDrawnBy(file) });
+    pages.set(route, { entry, marked: drawsOwnHead(entry, sample), heads: headsDrawnBy(file) });
   }
 
   test("the admin pages were walked, and the walk sees a head where there is one", () => {
@@ -1102,6 +1101,17 @@ describe("every admin page has one heading: its own, or the shared one", () => {
     assert.ok(headEdgesFollowed > 400, `only ${headEdgesFollowed} imports were followed from the admin pages: the resolver is broken`);
     assert.ok(ADMIN_PAGES.some((p) => p.ownHead === true), "no admin page is marked ownHead, so one direction below is about nothing");
     assert.ok(ADMIN_PAGES.some((p) => p.ownHead !== true), "every admin page is marked ownHead, so the other direction is about nothing");
+    // The mark for some addresses under an entry: the Courses list and a
+    // course's page are marked, and the older pages beneath a course are not.
+    const courses = ADMIN_PAGES.find((p) => p.href === "/admin/courses");
+    assert.equal(drawsOwnHead(courses, "/admin/courses"), true, "the Courses list draws its own head");
+    assert.equal(drawsOwnHead(courses, "/admin/courses/sample"), true, "a course's page draws its own head");
+    assert.equal(drawsOwnHead(courses, "/admin/courses/sample/page"), false, "the public page editor is under the shared head");
+    assert.equal(drawsOwnHead(courses, "/admin/courses/sample/runs/sample"), false, "an older run page is under the shared head");
+    assert.equal(drawsOwnHead(null, "/admin/courses"), false);
+    assert.equal(pages.get("/admin/courses")?.marked, true);
+    assert.equal(pages.get("/admin/courses/[courseId]")?.marked, true);
+    assert.equal(pages.get("/admin/courses/[courseId]/facilitator-guide")?.marked, false);
     // A head two files down from its page (the page mounts a component that
     // draws it) is found, and so is one a nested layout draws for its pages.
     assert.ok(pages.get("/admin/membership")?.heads.includes("features/admin/MembershipConsole.tsx"));
@@ -1178,8 +1188,14 @@ describe("every admin page has one heading: its own, or the shared one", () => {
     const tabs = codeOf(join(ADMIN_DIR, "AdminTabs.tsx"));
     assert.match(
       tabs,
-      /const pageDrawsHead = !closed && activePage\?\.ownHead === true;/,
-      "the shared head decides whether to draw from the active page's `ownHead` mark, and never stands down while the page beneath is not drawn",
+      /const pageDrawsHead = !closed && drawsOwnHead\(activePage, pathname\);/,
+      "the shared head decides whether to draw from the active page's mark (`ownHead`, or `ownHeadAt` for its address), and never stands down while the page beneath is not drawn",
+    );
+    const nav = codeOf(join(SRC, "layout", "appNav.ts"));
+    assert.match(
+      nav,
+      /export function drawsOwnHead\(page: AdminPage \| null, pathname: string\): boolean \{\s*return page\?\.ownHead === true \|\| page\?\.ownHeadAt\?\.\(pathname\) === true;\s*\}/,
+      "a page draws its own head when its entry is marked for every page or for this address, and for no other reason",
     );
     assert.match(
       tabs,

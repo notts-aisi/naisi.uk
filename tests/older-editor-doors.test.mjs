@@ -23,7 +23,10 @@
  *
  * Also holds the line at the top of every older page: every page under
  * `src/app/(app)/admin/courses` renders it, a run's pages through the run's
- * own layout.
+ * own layout, except the two that are no longer the older editor: the
+ * Courses list and a course's own page, redrawn in the newer pages at the
+ * same addresses (`NEWER_PAGES`). Their components are newer files, so their
+ * links into the older editor are doors like any other.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -36,12 +39,18 @@ const SRC = join(REPO_ROOT, "src");
 const OLDER_PAGES_DIR = join(SRC, "app", "(app)", "admin", "courses");
 const OLDER_PAGES = "src/app/(app)/admin/courses/";
 
+/**
+ * The two pages under the older editor's folder that are newer pages now,
+ * each with what it renders instead of the older line.
+ */
+const NEWER_PAGES = new Map([
+  ["src/app/(app)/admin/courses/page.tsx", /<CoursesList \/>/],
+  ["src/app/(app)/admin/courses/[courseId]/page.tsx", /<CourseEditor courseId=\{courseId\} programmes=\{programmes\} \/>/],
+]);
+
 /** The older editor's own components, whose links stay inside it. */
 const OLDER_TREE = new Map([
-  ["src/features/courses/AdminCourseList.tsx", "the older list of courses"],
-  ["src/features/courses/CourseEditor.tsx", "the older course page"],
   ["src/features/courses/CoursePageEditor.tsx", "the older public page editor"],
-  ["src/features/courses/CourseDangerZone.tsx", "the older course page's archive and destroy"],
   ["src/features/courses/RunEditor.tsx", "the older run page"],
   ["src/features/courses/RunDangerZone.tsx", "the older run page's archive and destroy"],
   ["src/features/courses/WeekEditor.tsx", "the older week page"],
@@ -73,6 +82,43 @@ const DOORS = [
     count: 3,
     why: "the menu's Courses entry, in both menus, and the match that lights it",
     step: "step 8, when the older tree goes",
+  },
+  {
+    file: "src/features/courses/CoursesList.tsx",
+    line: "`/admin/courses/${encodeURIComponent(",
+    count: 2,
+    why: "the Courses list's way to a course's own page, from a course's row and after New course: the redrawn course page at the address it always had, not the older editor",
+    step: "step 8, and it stays: the course's own page keeps this address",
+  },
+  {
+    file: "src/features/courses/CourseEditor.tsx",
+    line: '<Link href="/admin/courses" className={page.crumb}>',
+    why: "a course's page's crumb back to the Courses list, which is a newer page at the address it always had",
+    step: "step 8, and it stays: the list keeps this address",
+  },
+  {
+    file: "src/features/courses/CourseEditor.tsx",
+    line: "<Link href={`/admin/courses/${encodeURIComponent(courseId)}/page`}",
+    why: "the Public page card's Edit the public page, to today's public page editor, which is not redrawn",
+    step: "step 8, until the public page editor has a newer home",
+  },
+  {
+    file: "src/features/courses/CourseEditor.tsx",
+    line: "href={`/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(run.id)}`}",
+    why: "the Runs card's Open the run, only on a run no programme names (a run people join without applying is one): such a run has no programme's pages, so it keeps the older run page",
+    step: "step 8, until a run no programme names has a newer home",
+  },
+  {
+    file: "src/features/courses/CourseEditor.tsx",
+    line: "facilitatorGuideAdminPath(courseId)",
+    why: "the Facilitator guide card's Load the facilitator guide, for an admin, to the loader page beneath the course",
+    step: "step 8, when the guide's loader has a newer home",
+  },
+  {
+    file: "src/features/courses/CourseDangerZone.tsx",
+    line: 'doneHref="/admin/courses"',
+    why: "after a course is destroyed, the way back to the Courses list, a newer page at the address it always had",
+    step: "step 8, and it stays: the list keeps this address",
   },
   {
     file: "src/features/courses/GroupWeekEditor.tsx",
@@ -283,8 +329,14 @@ test("every page of the older editor opens with the line that says it is being r
   const runLayout = join(OLDER_PAGES_DIR, "[courseId]", "runs", "[runId]", "layout.tsx");
   assert.match(readFileSync(runLayout, "utf8"), /<OlderEditorLine programme=\{programme\} \/>/);
   const runTree = join(OLDER_PAGES_DIR, "[courseId]", "runs", "[runId]") + sep;
+  for (const [name, renders] of NEWER_PAGES) {
+    const text = readFileSync(join(REPO_ROOT, name), "utf8");
+    assert.doesNotMatch(text, /OlderEditorLine/, `${name} is a newer page now, and says nothing of the older editor`);
+    assert.match(text, renders, `${name} no longer renders the newer page it is listed for`);
+  }
   for (const path of pages) {
     if (path.startsWith(runTree)) continue;
+    if (NEWER_PAGES.has(rel(path))) continue;
     assert.match(readFileSync(path, "utf8"), /<OlderEditorLine programme=\{null\} \/>/, `${rel(path)} has no line at the top`);
   }
 });

@@ -1988,9 +1988,15 @@ test("GUARD — `archived` is READ by every surface the danger-zone copy names",
   // 4. The admin list default, with a way back to the archived ones — a soft
   //    archive nobody can see is one nobody can undo.
   assert.match(ADMIN_RUNS_HOOK, /Number\(a\.archived\) - Number\(b\.archived\)/);
-  assert.match(COURSE_EDITOR, /showArchivedRuns/);
-  assert.match(COURSE_EDITOR, /Show archived \(\$\{archivedRunCount\}\)/);
+  //    A course's page lists the live runs, and folds the archived ones
+  //    under them, each with the same row: none is ever dropped.
   assert.match(COURSE_EDITOR, /runs\.items\.filter\(\(r: CourseRunDoc\) => !r\.archived\)/);
+  assert.match(COURSE_EDITOR, /runs\.items\.filter\(\(r: CourseRunDoc\) => r\.archived\)/);
+  assert.match(COURSE_EDITOR, /\{liveRuns\.length > 0 && <ul className=\{page\.runs\}>\{liveRuns\.map\(runRow\)\}<\/ul>\}/);
+  assert.match(
+    COURSE_EDITOR,
+    /<details className=\{page\.fold\}>\s*<summary className=\{page\.foldSummary\}>\{archivedRunsWords\(archivedRuns\.length\)\}<\/summary>\s*<ul className=\{page\.runs\}>\{archivedRuns\.map\(runRow\)\}<\/ul>/,
+  );
 
   // The type carries it, so none of the above is reading through a cast.
   assert.equal(normalizeCourseRun("run1", {}).archived, false);
