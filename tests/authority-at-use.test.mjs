@@ -834,6 +834,8 @@ const MATRIX = {
   "courseRuns.admissionsReviewerUids": "-- Y Y - Y Y Y".replace(/ /g, ""),
   "courseRuns.trackLeadUids": "-- Y Y - Y Y Y".replace(/ /g, ""),
   "courseRuns.runFacilitatorUids": "-- Y Y - Y Y Y".replace(/ /g, ""),
+  // A run's author stands while they hold draftCourse, which no persona above but the admin does.
+  "courseRuns.authorUid": "-- - - - - - Y".replace(/ /g, ""),
   "courseEnrolments.uid": "-- Y Y - Y Y Y".replace(/ /g, ""),
   "courseGroups.facilitatorUids": "-- Y Y - Y Y Y".replace(/ /g, ""),
   "courseAttendance.cover.byUid": "-- Y Y - Y Y Y".replace(/ /g, ""),
@@ -847,6 +849,15 @@ const MATRIX = {
 };
 
 describe("the bars, executed", () => {
+  test("a run's author stands while they hold draftCourse on an account that stands, and not after", () => {
+    const withDraft = (role) => session({ role, permissions: { ...session().permissions, draftCourse: true } });
+    assert.equal(holdsStanding(withDraft("member"), "courseRuns.authorUid"), true);
+    assert.equal(holdsStanding(withDraft("committee"), "courseRuns.authorUid"), true);
+    assert.equal(holdsStanding(withDraft("rejected"), "courseRuns.authorUid"), false);
+    assert.equal(holdsStanding(withDraft("pending"), "courseRuns.authorUid"), false);
+    assert.equal(holdsStanding(session({ role: "member" }), "courseRuns.authorUid"), false);
+  });
+
   test("the matrix names every authority, and only authorities", () => {
     assert.deepEqual(Object.keys(MATRIX).sort(), Object.keys(AUTHORITY).sort());
     for (const [key, row] of Object.entries(MATRIX)) {

@@ -922,14 +922,20 @@ describe("courseGroups", () => {
     for (const uid of ["facil", "lead", "approver"]) {
       await assertFails((await asUser(uid)).collection("courseGroups").doc("g1").update({ campus: "jubilee" }));
     }
-    // Zach's three, as stored, and nothing else: not a label, not another campus, not another type.
-    for (const campus of ["Jubilee", "sutton-bonington", "kings-meadow", "", 3, true, { name: "jubilee" }]) {
-      await assertFails(admin.collection("courseGroups").doc("g1").update({ campus }));
-    }
-    // Born with one: the same list.
+    // Zach's three, as stored, and nothing else: not a label, not another
+    // campus, not another type. A browser now meets the list only when a
+    // group is born (an admin's update takes the admin branch, which the
+    // shape checks never bound), so it is held there, for each value.
     const approver = await asUser("approver");
-    await assertSucceeds(approver.collection("courseGroups").doc("g2").set(groupDoc({ campus: "online" })));
-    await assertFails(approver.collection("courseGroups").doc("g3").set(groupDoc({ campus: "Online" })));
+    let n = 2;
+    for (const campus of ["university-park", "jubilee", "online", null]) {
+      await assertSucceeds(approver.collection("courseGroups").doc(`g${n}`).set(groupDoc({ campus })));
+      n += 1;
+    }
+    for (const campus of ["Online", "Jubilee", "sutton-bonington", "kings-meadow", "", 3, true, { name: "jubilee" }]) {
+      await assertFails(approver.collection("courseGroups").doc(`g${n}`).set(groupDoc({ campus })));
+      n += 1;
+    }
   });
 
   it("refuses client deletes even for admins (allocation must re-pool members)", async () => {

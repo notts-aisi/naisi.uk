@@ -9,7 +9,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { asUidList } from "@/lib/firestore/events";
-import { canApproveCourse, canDraftCourse } from "@/lib/firestore/users";
+import { canApproveCourse } from "@/lib/firestore/users";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 
 /**
  * UNPUBLISH A RUN'S WEEK, ONCE IT IS CHECKED THAT NOBODY HAS STARTED IT:
@@ -85,7 +86,7 @@ export async function PATCH(req: Request, ctx: Params) {
   if (!canApproveCourse(actor)) {
     const runSnap = isAddressableId(runId) ? await db.collection("courseRuns").doc(runId).get() : null;
     const data = runSnap?.exists ? (runSnap.data() ?? {}) : null;
-    const author = data !== null && canDraftCourse(actor) && data.authorUid === actor.uid;
+    const author = data !== null && isNamedWithStanding(actor, "courseRuns.authorUid", data.authorUid);
     const staffing = data !== null ? await runStaffingOf(db, actor, { id: runId, trackLeadUids: asUidList(data.trackLeadUids) }) : null;
     if (!author && !(staffing && doesTrackLeadWork(staffing))) {
       return NextResponse.json({ error: NOT_YOURS }, { status: 403 });

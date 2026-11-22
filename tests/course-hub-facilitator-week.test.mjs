@@ -1088,6 +1088,8 @@ const PROGRESS_ADDRESSERS = {
   "lib/courses/leftView.ts": ["own", "a person's own notes and ratings, on their own notes page"],
   "lib/courses/weekWork/readers.ts": ["count", "how many of This week's tasks each person shown has done, by the one count, for a group's This week's work: numbers, through a projection with no rating, comment or note"],
   "lib/courses/sourceRatings.ts": ["aggregate", "the sources people rated as totals, for a programme lead's Surveys tab: the retrospective's projection, with no uid, and its count"],
+  "lib/courses/olderEditor/runStarted.ts": ["count", "counts a run's rows for the two copies' refusal to replace weeks somebody has started: a number, never a row"],
+  "lib/courses/olderEditor/weekInUse.ts": ["count", "counts a week's rows for the refusal to unpublish a week somebody has started: a number, never a row"],
   "lib/firestore/accountDeletion.ts": ["deletion", "deleting an account deletes its rows"],
   "lib/firestore/courseDeletion.ts": ["deletion", "destroying a run counts and deletes its rows"],
 };

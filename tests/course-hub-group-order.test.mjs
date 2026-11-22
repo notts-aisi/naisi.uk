@@ -62,6 +62,15 @@ const READS_WITHOUT_A_LIST = new Map([
         "a facilitator sits in: never a list of groups on a page.",
     },
   ],
+  // Whether a week is in use, for the older week editor's unpublish refusal.
+  [
+    "src/lib/courses/olderEditor/weekInUse.ts",
+    {
+      why:
+        "Asking whether any live group's session for a week has passed reads the run's groups for their sessions: " +
+        "a yes or no for a refusal, never a list of groups on a page.",
+    },
+  ],
   // A move made mid-term on the board, reached from the allocate route.
   [
     "src/lib/courses/moveFromWeek.ts",

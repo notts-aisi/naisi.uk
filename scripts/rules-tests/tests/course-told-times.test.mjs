@@ -150,7 +150,8 @@ const GROUP_TIME_CHANGES = [
   ["the start", () => ({ "session.startTimeLocal": "17:30" })],
   ["the length", () => ({ "session.durationMinutes": 60 })],
   ["the whole slot, with a new day", () => ({ session: { ...SESSION, weekday: 4 } })],
-  ["the whole slot, removed", () => ({ session: removed() })],
+  // Removing the slot removes the room and the link with it, which only an admin does from a browser.
+  ["the whole slot, removed", () => ({ session: removed() }), { room: true }],
   ["one week's override", () => ({ "sessionOverrides.w04": { weekday: 4 } })],
   ["every override, cleared", () => ({ sessionOverrides: {} })],
   ["every override, removed", () => ({ sessionOverrides: removed() })],
@@ -417,8 +418,9 @@ describe("courseGroups: before a run's groups have gone out, every rule stands a
         await reseed("courseGroups/g-notyet", groupDoc("notyet"));
         const write = groups(db).doc("g-notyet").update(patch());
         // An admin may change any of them from a browser before the groups go
-        // out. Everybody else was refused the server's fields at any time.
-        if (NOT_ADMIN(uid) && about.server) {
+        // out. Everybody else was refused the server's fields at any time, and
+        // the room and the link (course-older-editor-locks.test.mjs).
+        if (NOT_ADMIN(uid) && (about.server || about.room)) {
           await refused(write, `${uid}: ${label}`);
         } else {
           await allowed(write, `${uid}: ${label}`);
