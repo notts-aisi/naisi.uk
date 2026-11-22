@@ -116,14 +116,14 @@ const ARCHIVE_CHANGES = [
 
 /**
  * What the pages still write to a group, and must still save. `adminOnly`
- * marks the room and the campus, which only an admin writes from a browser
- * (everybody else sets them through the routes on the group's page:
- * course-older-editor-locks.test.mjs).
+ * marks the name, the room, the capacity and the campus, which only an admin
+ * writes from a browser (everybody else sets them through the routes on the
+ * group's page: course-older-editor-locks.test.mjs).
  */
 const KEPT_WRITES = [
-  ["the name", () => ({ name: "Group I (Tue)", updatedAt: serverTimestamp() })],
+  ["the name", () => ({ name: "Group I (Tue)", updatedAt: serverTimestamp() }), { adminOnly: true }],
   ["the room", () => ({ "session.location": "Trent Building A44", updatedAt: serverTimestamp() }), { adminOnly: true }],
-  ["the capacity", () => ({ capacity: 10, updatedAt: serverTimestamp() })],
+  ["the capacity", () => ({ capacity: 10, updatedAt: serverTimestamp() }), { adminOnly: true }],
   ["the campus", () => ({ campus: "jubilee", updatedAt: serverTimestamp() }), { adminOnly: true }],
   ["a save that sends archived as it is", () => ({ name: "Group I", archived: false, updatedAt: serverTimestamp() })],
 ];
