@@ -15,6 +15,10 @@ import Link from "next/link";
 import roomsStyles from "@/features/courses/weekRooms/WeekRooms.module.css";
 import { termRoomsPath, weekRoomsPath } from "@/lib/courses/weekRooms/paths";
 import { TO_TERM_ROOMS, TO_WEEK_ROOMS } from "@/lib/courses/weekRooms/words";
+import { isAddressableId } from "@/lib/addressableId";
+import { archivedSaidWords } from "@/lib/courses/groupArchive/words";
+import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import groupStyles from "@/features/courses/groupPage/GroupPage.module.css";
 
 /**
  * One programme's Groups tab, its Sessions view: one week of the
@@ -34,6 +38,11 @@ import { TO_TERM_ROOMS, TO_WEEK_ROOMS } from "@/lib/courses/weekRooms/words";
  * THE WEEK'S ROOMS AND THE TERM'S ROOMS, every group's room for one week and
  * for the whole term, are linked from here filtered to this programme.
  *
+ * AFTER A GROUP IS ARCHIVED from its page, the page comes here with
+ * `?archived=<groupId>`, and "Group E is archived. Nobody was emailed." is
+ * said only while that group is one of this run's and is archived, read
+ * afresh, so a reload after it was restored says nothing.
+ *
  * WHEN GROUPS GO OUT is the run's own setting, set here above the sessions
  * by the same people (`GroupsGoOut`, saved through its own route, which asks
  * the gate again).
@@ -43,7 +52,7 @@ export default async function ProgrammeSessionsPage({
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
-  searchParams: Promise<{ week?: string | string[] }>;
+  searchParams: Promise<{ week?: string | string[]; archived?: string | string[] }>;
 }) {
   const [{ roundId, programmeId }, query, user] = await Promise.all([params, searchParams, requireAdmissionsPage()]);
   const db = getAdminDb();
@@ -74,9 +83,19 @@ export default async function ProgrammeSessionsPage({
   const shown = await loadSessionsWeek(db!, run, week, new Date(), user.uid);
   const here = groupsViewPath(view.roundId, view.programmeId, "sessions");
   const link = (n: number | null) => (n === null ? null : { href: `${here}?week=${n}`, label: weekLinkWords(n) });
+  // "Group E is archived. Nobody was emailed.", only while it is so.
+  const archivedId = Array.isArray(query.archived) ? query.archived[0] : query.archived;
+  const archivedSnap = archivedId && isAddressableId(archivedId) ? await db!.collection("courseGroups").doc(archivedId).get() : null;
+  const archivedGroup = archivedSnap?.exists ? normalizeCourseGroup(archivedSnap.id, archivedSnap.data() ?? {}) : null;
+  const said = archivedGroup && archivedGroup.runId === run.id && archivedGroup.archived ? archivedSaidWords(archivedGroup.name) : null;
 
   return (
     <GroupsFrame views={views}>
+      {said && (
+        <p className={groupStyles.said} role="status">
+          {said}
+        </p>
+      )}
       <div className={roomsStyles.toolbar}>
         <Link href={weekRoomsPath(view.roundId, { programme: view.programmeId })} className={roomsStyles.textLink}>
           {TO_WEEK_ROOMS}

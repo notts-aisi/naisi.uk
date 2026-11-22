@@ -66,6 +66,7 @@ const { world, loadTs, at } = w;
 
 const model = await loadTs("lib/courses/groupPage/model.ts");
 const words = await loadTs("lib/courses/groupPage/words.ts");
+const archiveWords = await loadTs("lib/courses/groupArchive/words.ts");
 const { loadGroupPage } = await loadTs("lib/courses/groupPage/load.ts");
 const { normalizeCourseRun } = await loadTs("lib/firestore/courses.ts");
 const { normalizeCourseGroup } = await loadTs("lib/firestore/courseGroups.ts");
@@ -729,25 +730,84 @@ describe("3. the group's page, and the facilitator's cut", () => {
     assert.ok(nonsense.text.includes(words.GROUP_NOT_HERE_TITLE));
   });
 
-  test("how the group meets ends with Archive; an archived group of the run opens on Restore alone", async () => {
+  test("how the group meets ends with Archive Group B… and its line, which opens the question", async () => {
     // Archiving goes through PATCH /api/courses/groups/[groupId]/archive and
     // its checks (tests/course-group-archive.test.mjs presses it).
     const live = await groupPage("claudia");
-    for (const said of [words.ARCHIVE, words.ARCHIVE_LINE, "Archive Group B"]) {
+    for (const said of [archiveWords.archiveLinkWords("Group B"), archiveWords.archiveLineWords("Group B")]) {
       assert.ok(live.text.includes(said), `missing "${said}"`);
     }
-    world.db.poke(`courseGroups/${B}`, { archived: true });
+    assert.doesNotMatch(live.text, /Archive Group B\?/, "the question waits for the press");
+    const { ArchivePanel } = await loadTs(join("features", "courses", "groupPage", "ArchiveGroup.tsx"));
+    const links = { people: "/people", register: "/register", person: "/people", self: "/self" };
+    const question = text(renderToStaticMarkup(createElement(ArchivePanel, { groupId: B, groupName: "Group B", links, onClose() {}, onDone() {} })));
+    for (const said of [
+      "Archive Group B?",
+      archiveWords.archiveQuestionBody("Group B"),
+      "Nobody is emailed.",
+      "Archive Group B",
+      "Keep Group B",
+      words.CLOSE,
+    ]) {
+      assert.ok(question.includes(said), `missing "${said}" in: ${question}`);
+    }
+  });
+
+  test("an archived group of the run: read only, with when and by whom, Restore, how it met, its weeks and History", async () => {
+    world.db.poke(`courseGroups/${B}`, { archived: true, archivedAt: new Date("2026-11-02T10:15:00Z"), archivedByUid: "claudia" });
     for (const who of ["zach", "claudia"]) {
       const archived = await groupPage(who);
       assert.equal(archived.wrote, false);
-      assert.ok(archived.text.includes(words.ARCHIVED_LINE), archived.text.slice(0, 300));
-      assert.ok(archived.text.includes("Restore Group B"));
       assert.ok(!archived.text.includes(words.GROUP_NOT_HERE_TITLE));
-      assert.doesNotMatch(archived.text, /How Group B meets|Take the register/, "an archived group's page offers only Restore");
+      for (const said of [
+        "Archived",
+        "Group B was archived on Mon 2 Nov by ",
+        "It is out of allocation, lists and reminders. Its registers and history stay here.",
+        "Restore Group B…",
+        "How Group B met",
+        "Nothing here changes while the group is archived. Restore it first.",
+        "Week by week",
+        "History",
+      ]) {
+        assert.ok(archived.text.includes(said), `${who}: missing "${said}" in: ${archived.text.slice(0, 900)}`);
+      }
+      assert.doesNotMatch(archived.text, /How Group B meets|Take the register|Write to Group B|Change this week|Set the link|Rename|Attendance, all weeks/, `${who}: an archived group's page offers a change`);
+      assert.doesNotMatch(archived.text, /Archive Group B…/);
       assert.ok(archived.html.includes(`href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/groups"`), "the way back to the Groups tab");
+      const [body] = find(archived.element, "GroupPage");
+      assert.ok(body.props.archived.restoreBody.startsWith("Group B comes back on the board, All groups and reminders, as it was when it was archived: Tuesdays, 6pm to 8pm, "));
     }
+    // A group archived before the day and the name were kept.
+    world.db.poke(`courseGroups/${B}`, { archivedAt: null, archivedByUid: null });
+    const older = await groupPage("zach");
+    assert.ok(older.text.includes("Group B is archived. It is out of allocation"), older.text.slice(0, 600));
     const reviewer = await groupPage("lloyd");
     assert.doesNotMatch(reviewer.text, /Restore Group B/, "a reviewer is not offered Restore");
+  });
+
+  test("the restore question says beforehand who it comes back without", async () => {
+    // Amara, who holds a place in Group B, is made a facilitator of archived Group C.
+    world.db.poke(`courseGroups/${C}`, { archived: true, facilitatorUids: ["amara"] });
+    const archived = await groupPage("zach", C);
+    const [body] = find(archived.element, "GroupPage");
+    assert.match(body.props.archived.restoreNote, /^.+ now sits in Group B as one of its people, so Group C comes back with no facilitator\. Add one on Facilitators\.$/);
+  });
+
+  test("its own facilitator is told it was archived, when, and who to ask; anybody else gets the page a missing group gets", async () => {
+    world.db.poke(`courseGroups/${B}`, { archived: true, archivedAt: new Date("2026-11-02T10:15:00Z"), archivedByUid: "claudia" });
+    const own = await draw(FacilitatorGroupPage, "rahul", { runId: RUN.agi, groupId: B });
+    assert.equal(own.to, null);
+    assert.ok(own.text.includes("Group B was archived on Mon 2 Nov."), own.text);
+    assert.match(own.text, /Its registers are kept\. \S+, the programme’s lead, can tell you more\./);
+    assert.ok(own.text.includes("My programmes"));
+    assert.doesNotMatch(own.text, /Claudia Reyes/, "a facilitator is given the lead's first name");
+    for (const who of ["tom", "amara"]) {
+      const archived = await draw(FacilitatorGroupPage, who, { runId: RUN.agi, groupId: B });
+      const missing = await draw(FacilitatorGroupPage, who, { runId: RUN.agi, groupId: "no-such-group" });
+      assert.equal(archived.to, missing.to, who);
+      assert.equal(archived.html, missing.html, `${who}: an archived group is told apart from a missing one`);
+      assert.doesNotMatch(archived.text, /archived/, who);
+    }
   });
 
   test("the facilitator's own group page carries the cut: words, Change one week, Set the link, the weeks, and each week's meeting link inside it", async () => {

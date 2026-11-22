@@ -4,7 +4,6 @@ import { groupsPath, groupsViewPath } from "@/features/applications/groups/Group
 import NotYours from "@/features/applications/groups/NotYours";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
-import { ArchivedGroup } from "@/features/courses/groupPage/ArchiveGroup";
 import GroupPage from "@/features/courses/groupPage/GroupPage";
 import { isAddressableId } from "@/lib/addressableId";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
@@ -20,6 +19,13 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { placeTakesMove, runMoveRefusal } from "@/lib/courses/staffMove/plan";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
+import { restorePlan } from "@/lib/courses/groupArchive/plan";
+import { readGroupArchiveFacts } from "@/lib/courses/groupArchive/read";
+import { archivedSentence, restoreQuestionBody, restoredSaidWords, sitsElsewhereWords } from "@/lib/courses/groupArchive/words";
+import { dayAndTimeWords, roomLine } from "@/lib/courses/groupPage/words";
+import { CAMPUS_LABEL } from "@/lib/courses/campusWords";
+import { londonDayLabel } from "@/lib/courses/londonLabels";
+import { accountNamesOf, seesFullNames } from "@/lib/names/staffName";
 
 /**
  * ONE GROUP'S PAGE, under the programme's Groups tab, at
@@ -35,10 +41,16 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * reviewer is told the tab is the lead's and an admin's, and anybody with no
  * role on the programme that there is no programme here. The group must be
  * a group of the run the programme names, or the page says, calmly, that it
- * is not here. An archived one opens on Restore and nothing else
- * (`ArchivedGroup`); "How Group B meets" ends with Archive. Both go through
- * `PATCH /api/courses/groups/[groupId]/archive` and its checks. The routes
- * behind every button ask again who the caller is.
+ * is not here. "How Group B meets" ends with "Archive Group B…", which asks
+ * first. An archived group of the run is drawn read only (`archived`): when
+ * and by whom it was archived (the name as the reader may see it), "Restore
+ * Group B…" with what restoring would take off it (`restorePlan`, the
+ * route's own rule, read here for the question's words), how it met, its
+ * weeks and its History. Both go through
+ * `PATCH /api/courses/groups/[groupId]/archive` and its checks, and every
+ * route behind the live page's buttons refuses an archived group. The routes
+ * behind every button ask again who the caller is. `?restored=1` says "Group
+ * B is back. Nobody was emailed." while the group is live.
  *
  * THIS PAGE STANDS ALONE, as one person's coursework does: it is outside the
  * `(tabs)` route group beside it, so it is drawn with no programme head and
@@ -62,10 +74,10 @@ export default async function ProgrammeGroupPage({
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string; groupId: string }>;
-  searchParams?: Promise<{ take?: string | string[]; week?: string | string[] }>;
+  searchParams?: Promise<{ take?: string | string[]; week?: string | string[]; restored?: string | string[] }>;
 }) {
   const [{ roundId, programmeId, groupId }, user] = await Promise.all([params, requireAdmissionsPage()]);
-  const search = await (searchParams ?? Promise.resolve({} as { take?: string | string[]; week?: string | string[] }));
+  const search = await (searchParams ?? Promise.resolve({} as { take?: string | string[]; week?: string | string[]; restored?: string | string[] }));
   // "Take the register" on Overview's Needs attention: open on that week, with its ways to take it shown.
   const takeParam = search.take;
   const take = typeof takeParam === "string" && /^\d{1,2}$/.test(takeParam) ? Number(takeParam) : null;
@@ -100,16 +112,6 @@ export default async function ProgrammeGroupPage({
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
   if (group.runId !== run.id) return notHere;
-  // An archived group of this run opens on the one thing left to do with it:
-  // put it back, through the same route and checks as archiving.
-  if (group.archived) {
-    return (
-      <ApplicationsRoot className={shared.page}>
-        <ArchivedGroup groupId={group.id} groupName={group.name.trim() || "Untitled group"} groupsHref={tabPath} />
-      </ApplicationsRoot>
-    );
-  }
-
   const now = new Date();
   const [page, messages, attendance, runGroups] = await Promise.all([
     loadGroupPage(db, { run, group, viewer: view.viewer, viewerUid: user.uid, now, week }),
@@ -144,11 +146,48 @@ export default async function ProgrammeGroupPage({
         .map((seat) => seat.uid)
     : [];
   const base = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
+  const self = `${base}/groups/${encodeURIComponent(group.id)}`;
   const groupApi = `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/${encodeURIComponent(group.id)}`;
+
+  // AN ARCHIVED GROUP: when and by whom, and what restoring it would do,
+  // by the route's own rule, for the question's words. Read only, so a read
+  // that fails draws the page without the facilitators' line.
+  let archived: { sentence: string; restoreBody: string; restoreNote: string } | null = null;
+  if (group.archived) {
+    const [byData, facts] = await Promise.all([
+      group.archivedByUid && isAddressableId(group.archivedByUid)
+        ? db.collection("users").doc(group.archivedByUid).get().then((snap) => (snap.exists ? (snap.data() ?? {}) : null))
+        : Promise.resolve(null),
+      readGroupArchiveFacts(db, group.id, now, undefined, user).catch(() => null),
+    ]);
+    const byNames = byData ? accountNamesOf(byData) : null;
+    const byName = byNames ? ((seesFullNames(user) ? (byNames.full ?? byNames.goBy) : byNames.goBy) ?? "") : "";
+    const plan = facts ? restorePlan(facts, now) : null;
+    const groupNames = new Map(live.map((each) => [each.id, each.name] as const));
+    const restoreNote =
+      facts && plan?.ok
+        ? sitsElsewhereWords(
+            group.name,
+            plan.dropping.map((each) => ({ name: facts.names.get(each.uid)?.name ?? "", groupName: groupNames.get(each.groupId) ?? "another group" })),
+            plan.staying.map((uid) => facts.names.get(uid)?.name ?? "").filter(Boolean),
+          )
+        : "";
+    const when = group.session.startTimeLocal ? dayAndTimeWords(group.session.weekday, group.session.startTimeLocal, group.session.durationMinutes) : "";
+    const room = group.session.location.trim() ? roomLine(group.session.location, group.campus ? CAMPUS_LABEL[group.campus] : "") : "";
+    archived = {
+      sentence: archivedSentence(group.name, group.archivedAt ? londonDayLabel(group.archivedAt) : "", group.archivedAt ? byName : ""),
+      restoreBody: restoreQuestionBody(group.name, when, room),
+      restoreNote,
+    };
+  }
+  const restoredParam = Array.isArray(search.restored) ? search.restored[0] : search.restored;
+  const said = !group.archived && restoredParam === "1" ? restoredSaidWords(group.name) : null;
 
   return (
     <ApplicationsRoot className={shared.page}>
       <GroupPage
+        archived={archived}
+        said={said}
         view={{ ...page, programmeName: view.programmeName || page.programmeName }}
         take={take}
         attendance={attendance.status === "ok" && attendance.view.viewer !== "facilitator" ? attendance.view : null}
@@ -173,6 +212,10 @@ export default async function ProgrammeGroupPage({
           // Places and Name: the programme's own routes, which count and check again.
           placesPath: `${groupApi}/places`,
           namePath: `${groupApi}/name`,
+          // For a refusal's way to put it right, and where archiving goes next.
+          self,
+          person: `${base}/people`,
+          sessions: groupsViewPath(view.roundId, view.programmeId, "sessions"),
         }}
       />
     </ApplicationsRoot>

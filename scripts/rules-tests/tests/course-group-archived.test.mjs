@@ -1,5 +1,6 @@
 /**
- * Rules tests for a group's `archived` field.
+ * Rules tests for a group's `archived` field, and when and by whom it was
+ * archived and restored (`archivedAt`, `archivedByUid`, `restoredAt`).
  *
  * Archiving and restoring a group go through
  * PATCH /api/courses/groups/[groupId]/archive (Admin SDK, which rules do not
@@ -11,9 +12,10 @@
  *
  * WHO. Every writer the group's update rule admits (an admin, an approver,
  * the run's track lead and the group's own facilitator) is refused a change
- * to the field, and so are a course drafter and a member. The route admits
- * only an admin, an approver and the lead of the programme that names the
- * run; a facilitator and a track lead are refused there too
+ * to any of the four fields, and so are a course drafter and a member, and
+ * no group is created carrying the three stamps. The route admits only an
+ * admin and the lead of the programme that names the run; an approver, a
+ * facilitator and a track lead are refused there too
  * (tests/course-group-archive.test.mjs).
  *
  * Everything else a browser could write to a group before stands as it was:
@@ -255,6 +257,64 @@ describe("courseGroups: every other write stands as it was", () => {
       for (const [label, patch] of KEPT_WRITES) {
         await refused(groups(db).doc("g1").update(patch()), `${uid}: ${label}`);
       }
+    }
+  });
+});
+
+/** When and by whom a group was archived, and when it was restored: the route's alone, as `archived` is. */
+const ARCHIVED_AT = new Date("2026-11-02T10:15:00Z");
+const RESTORED_AT = new Date("2026-11-09T09:00:00Z");
+const STAMP_CHANGES = [
+  ["set when it was archived", groupDoc({ archived: true }), () => ({ archivedAt: serverTimestamp() })],
+  ["change when it was archived", groupDoc({ archived: true, archivedAt: ARCHIVED_AT }), () => ({ archivedAt: RESTORED_AT })],
+  ["remove when it was archived", groupDoc({ archived: true, archivedAt: ARCHIVED_AT }), () => ({ archivedAt: removed() })],
+  ["set who archived it", groupDoc({ archived: true }), () => ({ archivedByUid: "admin1" })],
+  ["change who archived it", groupDoc({ archived: true, archivedByUid: "admin1" }), () => ({ archivedByUid: "facil" })],
+  ["remove who archived it", groupDoc({ archived: true, archivedByUid: "admin1" }), () => ({ archivedByUid: removed() })],
+  ["set when it was restored", groupDoc(), () => ({ restoredAt: serverTimestamp() })],
+  ["change when it was restored", groupDoc({ restoredAt: RESTORED_AT }), () => ({ restoredAt: ARCHIVED_AT })],
+  ["remove when it was restored", groupDoc({ restoredAt: RESTORED_AT }), () => ({ restoredAt: removed() })],
+  ["set them inside a save of the card", groupDoc(), () => ({ name: "Group I", capacity: 12, archivedAt: ARCHIVED_AT, updatedAt: serverTimestamp() })],
+];
+
+describe("courseGroups: no browser changes when or by whom a group was archived or restored", () => {
+  it("refuses every change to the three, from every writer, admins included, before and after the groups go out", async () => {
+    for (const [when, run] of RUNS) {
+      await seedWorld(groupDoc(), run);
+      for (const uid of [...GROUP_WRITERS, ...NOT_WRITERS]) {
+        const db = await asUser(uid);
+        for (const [label, start, patch] of STAMP_CHANGES) {
+          await reseedGroup(start);
+          await refused(groups(db).doc("g1").update(patch()), `${uid}, ${when}: ${label}`);
+        }
+      }
+      await clearData();
+    }
+  });
+
+  it("refuses a group created carrying any of the three", async () => {
+    await seedWorld();
+    for (const uid of ["admin1", "approver"]) {
+      const db = await asUser(uid);
+      for (const [field, value] of [["archivedAt", ARCHIVED_AT], ["archivedByUid", "admin1"], ["restoredAt", RESTORED_AT]]) {
+        await refused(groups(db).doc(`born-${field}-${uid}`).set(groupDoc({ facilitatorUids: [], [field]: value })), `${uid}: born with ${field}`);
+      }
+    }
+  });
+
+  it("still saves every writer's ordinary save of a group that carries them, leaving them as they are", async () => {
+    await seedWorld(groupDoc({ archivedAt: ARCHIVED_AT, archivedByUid: "admin1", restoredAt: RESTORED_AT }));
+    for (const uid of GROUP_WRITERS) {
+      const db = await asUser(uid);
+      await allowed(groups(db).doc("g1").update({ "session.notes": "Bring the reading.", updatedAt: serverTimestamp() }), `${uid}: the notes`);
+      await allowed(
+        groups(db).doc("g1").update({ "session.notes": "Bring the reading.", restoredAt: RESTORED_AT, updatedAt: serverTimestamp() }),
+        `${uid}: the notes, sending when it was restored as it is`,
+      );
+    }
+    for (const uid of NOT_WRITERS) {
+      const db = await asUser(uid);
+      await refused(groups(db).doc("g1").update({ "session.notes": "Bring the reading.", updatedAt: serverTimestamp() }), `${uid}: the notes`);
     }
   });
 });

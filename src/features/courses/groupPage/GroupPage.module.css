@@ -1229,7 +1229,107 @@ a.pill {
   color: var(--color-text-muted);
 }
 
+/* === Archiving and an archived group =====================
+   "Archive Group C…" under the six rows with its line; an
+   archived group's chip, the card with when and by whom and
+   Restore; a refusal's sentence with the way to put it right. */
+
+.archiveFoot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.archiveLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-1);
+  border: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: var(--text-base);
+  cursor: pointer;
+}
+
+.archiveLink:hover {
+  color: var(--color-accent-text-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.archiveLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.archiveLink:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.archivedChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.archivedCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-accent);
+  background: var(--color-bg-elevated);
+  min-width: 0;
+}
+
+.archivedSentence {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--color-text);
+}
+
+.refusedLine {
+  margin: 0;
+}
+
+.fixLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.fixLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.fixLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
 @media (max-width: 36rem) { /* --bp-sm */
+  .archivedCard {
+    padding: var(--space-4);
+  }
+
   .coverWide {
     display: none;
   }

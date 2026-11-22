@@ -22,7 +22,7 @@ import {
   validateQuestionLimits,
   type FormQuestion,
 } from "@/lib/firestore/events";
-import { ACADEMIC_YEAR_PATTERN, canApproveCourse, type UserDoc } from "@/lib/firestore/users";
+import { ACADEMIC_YEAR_PATTERN, type UserDoc } from "@/lib/firestore/users";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
 import { START_DATE_READ_ONLY, goneOutSinceOpened, groupPagePath } from "@/lib/courses/groupPage/words";
 import { programmePath } from "@/lib/courses/weeksTab/paths";
@@ -272,7 +272,7 @@ export default function RunEditor({
   // Who is looking. The admissions and allocation ROUTES answer to a narrower
   // set than this page's gate does (see the two links below), so the editor
   // needs the caller's identity to avoid offering a door that answers 403.
-  const { user: authUser, role, suRecognised, permissions } = useAuth();
+  const { user: authUser, role, suRecognised } = useAuth();
   const { run, loading, notFound, error, reload } = useCourseRun(runId);
   const {
     items: groups,
@@ -416,9 +416,10 @@ export default function RunEditor({
       && (onRun(run.admissionsReviewerUids) || onRun(run.trackLeadUids)));
   const canAllocate = isAdmin || (run !== null && onRun(run.trackLeadUids));
   // Whether this caller may archive or restore a group from its card: the
-  // archive route's bar here, an admin or a course approver on the roster.
-  // This page also opens to a course drafter, whom the route refuses.
-  const canArchiveGroups = role !== null && canApproveCourse({ role, permissions });
+  // archive route's bar on a run no programme names, an admin. This page
+  // also opens to a course drafter and a course approver, whom the route
+  // refuses (it admits the programme's lead too, from the group's page).
+  const canArchiveGroups = role === "admin";
 
   if (loading) return <AdminLoadingBar label="Loading run…" />;
 

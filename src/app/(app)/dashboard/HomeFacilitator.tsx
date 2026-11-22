@@ -56,6 +56,8 @@ import { WRITE_FEEDBACK, toWriteWords } from "@/lib/courses/feedback/words";
 import { sessionEyebrow, weekTitleWords } from "@/lib/courses/memberPageWords";
 import { writeToGroupLine, writeToGroupWords } from "@/lib/courses/updates/words";
 import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
+import { facilitatorArchivedLine, facilitatorArchivedTitle } from "@/lib/courses/groupArchive/words";
+import { londonDayLabel } from "@/lib/courses/londonLabels";
 import { ArrowRight } from "./icons";
 import { tilePartsOfDay } from "./homeWords";
 import { useFacilitatedRuns, type ReadRun } from "./useFacilitatedRuns";
@@ -101,6 +103,12 @@ import styles from "./home.module.css";
  * nothing else from an application); and Say hello, the way to write to the
  * group, while anybody in it has been told. From the day of the first
  * session it is the weekly Home above, with "Take the register".
+ *
+ * A FACILITATOR WHOSE ONLY GROUP ON THE RUN WAS ARCHIVED is told what the
+ * group's own page tells them, "Group F was archived on Mon 2 Nov." and
+ * "Its registers are kept. Maya, the programme’s lead, can tell you more.",
+ * in place of "You don’t have a group yet.", which stays for somebody with
+ * no group at all (`archivedFacilitates` on their row of the hub).
  *
  * SOMEBODY WITH TWO GROUPS sees the one that meets next, and a line saying
  * there are more with the way to all of them, My programmes, which lists
@@ -351,6 +359,8 @@ export default function HomeFacilitator({ given, invite, entry: first, comingUp,
       : NO_GUIDE_LINKS;
   const guide = guideFor(facts && facts.weekNumber >= 1 ? facts.weekNumber : null);
   const openGroup = group ? openGroupWords(group.name) : "";
+  // Somebody whose only group on the run was archived: Home says so, as the group's page does.
+  const archivedGroup = entry.archivedFacilitates?.[0] ?? null;
 
   // This week: its title and the guide, and, from the day of the first
   // session, the work waiting for a review and when next week's email goes.
@@ -447,9 +457,19 @@ export default function HomeFacilitator({ given, invite, entry: first, comingUp,
           the programme's page. */}
       {data && !(group && facts) && (
         <section className={styles.card}>
-          <p className={styles.quiet}>
-            {group ? NO_MORE_SESSIONS : "You don’t have a group yet."}
-          </p>
+          {!group && archivedGroup ? (
+            // Their only group on the run was archived: what its own page says.
+            <>
+              <p className={styles.quiet}>
+                {facilitatorArchivedTitle(archivedGroup.name, archivedGroup.archivedAt ? londonDayLabel(new Date(archivedGroup.archivedAt)) : "")}
+              </p>
+              <p className={styles.quiet}>{facilitatorArchivedLine(data.programme?.leadFirstName ?? null)}</p>
+            </>
+          ) : (
+            <p className={styles.quiet}>
+              {group ? NO_MORE_SESSIONS : "You don’t have a group yet."}
+            </p>
+          )}
           <div className={facilitator.groupLinkWraps}>
             <Link href={groupHref} className={styles.textLink}>
               {group ? openGroup : `Open ${entry.courseTitle}`}

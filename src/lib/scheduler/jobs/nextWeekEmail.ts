@@ -1,4 +1,5 @@
 import "server-only";
+import { startedBeforeRestore } from "@/lib/courses/groupArchive/restored";
 import type { Firestore } from "firebase-admin/firestore";
 import { buildHeldEmailTask, buildRoomLinkTask, heldEmailTaskId, roomLinkTaskId } from "@/lib/courses/heldEmailTask";
 import { nextWeekEmailMarkerId, sendNextWeekEmail } from "@/lib/courses/nextWeekEmail";
@@ -218,7 +219,9 @@ async function sendForGroup(
     const markerId = nextWeekEmailMarkerId(run.id, group.id, session);
     // A due session always has a date, and so a marker id; the check is for
     // the type, and for a plan somebody broke by hand.
-    if (timing.state === "due" && markerId) {
+    // A session that started before the group was last restored passed while
+    // it was archived; one due is still to start, so this only says so.
+    if (timing.state === "due" && markerId && !startedBeforeRestore(group, timing.startsAt)) {
       due.push({ session, startsAt: timing.startsAt, markerId });
     }
   });

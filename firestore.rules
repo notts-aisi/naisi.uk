@@ -2732,10 +2732,18 @@ service cloud.firestore {
       // holds a place in another group. A rule cannot count any of that, so
       // no browser write changes the field at all. False default, so absent
       // (an older group) and false compare equal and the pin never wedges a
-      // save that leaves it alone.
+      // save that leaves it alone. When and by whom it was archived, and when
+      // it was restored, are the same route's and pinned the same way: null
+      // defaults, so a group that never stored them saves as before.
       function groupArchivedUnchanged() {
         return request.resource.data.get('archived', false)
-          == resource.data.get('archived', false);
+            == resource.data.get('archived', false)
+          && request.resource.data.get('archivedAt', null)
+            == resource.data.get('archivedAt', null)
+          && request.resource.data.get('archivedByUid', null)
+            == resource.data.get('archivedByUid', null)
+          && request.resource.data.get('restoredAt', null)
+            == resource.data.get('restoredAt', null);
       }
       // THE ROOM, THE MEETING LINK AND THE CAMPUS ARE THE ROUTES', for
       // everybody but an admin. They are set on the group's page under its
@@ -2871,8 +2879,12 @@ service cloud.firestore {
         // the life of the group. Same argument as the pace fields above.
         && request.resource.data.get('streamId', null) == null
         && request.resource.data.get('facilitatorAppointments', {}).size() == 0
-        // Born not archived: archiving is the route's (groupArchivedUnchanged).
+        // Born not archived, and never archived or restored: archiving is
+        // the route's (groupArchivedUnchanged).
         && request.resource.data.get('archived', false) == false
+        && request.resource.data.get('archivedAt', null) == null
+        && request.resource.data.get('archivedByUid', null) == null
+        && request.resource.data.get('restoredAt', null) == null
         && groupContentOk();
 
       // A named facilitator edits their own group's session (move the slot,

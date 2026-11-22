@@ -22,7 +22,8 @@ import * as C from "@/lib/courses/registerCover/pageWords";
 import { UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
 import { ATTENDANCE_TAB } from "@/lib/courses/registerCorrection/pageWords";
 import type { GroupAttendanceView } from "@/lib/courses/groupAttendance/load";
-import { ArchiveItem } from "./ArchiveGroup";
+import { ArchiveFoot, ArchivePanel, RestorePanel, type ArchiveFixLinks } from "./ArchiveGroup";
+import * as A from "@/lib/courses/groupArchive/words";
 import AttendanceTab from "./AttendanceTab";
 import ChangePanel, { type ChangeStart } from "./ChangePanel";
 import GivePanel from "./GivePanel";
@@ -58,6 +59,17 @@ import styles from "./GroupPage.module.css";
  * server for the week the address names (`?week=2`). Choosing a week puts it
  * in the address, so the server reads that week's work; until it arrives the
  * card says it is on its way.
+ *
+ * AN ARCHIVED GROUP'S PAGE (`archived`): the chip, when and by whom it was
+ * archived with "Restore Group F…", "How Group F met" as its six rows read
+ * only (no buttons), "Nothing here changes while the group is archived.
+ * Restore it first.", then Week by week (its weeks and their cards, without
+ * a button or a register's notice) and History. Every route behind the live
+ * page's buttons refuses an archived group as well.
+ *
+ * ARCHIVE AND RESTORE are each a question in the page's panel
+ * (`ArchivePanel`, `RestorePanel`); once archived the reader goes to the
+ * Groups tab's Sessions view, and once restored the page is read again.
  *
  * Everything drawn is the server's (`loadGroupPage`); the state here is the
  * tab, the week shown, the history's filter and which panel is open. A
@@ -98,6 +110,22 @@ export type GroupPageLinks = {
   move?: string | null;
   /** Whose names get it: the places the move would not refuse for what is known of them (told, facilitating no group). */
   movable?: readonly string[];
+  /** The group's own page, for a refusal's "Change week 3’s session" and after a restore. */
+  self?: string;
+  /** The programme's people, before the person, for a refusal's "Open Agnes’s page". */
+  person?: string;
+  /** The Groups tab's Sessions view, where the page goes once the group is archived. */
+  sessions?: string;
+};
+
+/** What an archived group's page says, from the server. */
+export type ArchivedGroupView = {
+  /** "Group F was archived on Mon 2 Nov by Maya Rao. It is out of allocation, …". */
+  sentence: string;
+  /** The restore question's body. */
+  restoreBody: string;
+  /** Who it comes back without, or "". */
+  restoreNote: string;
 };
 
 type Panel =
@@ -106,6 +134,8 @@ type Panel =
   | { kind: "room" }
   | { kind: "places" }
   | { kind: "name" }
+  | { kind: "archive" }
+  | { kind: "restore" }
   | { kind: "give"; weekNumber: number }
   | { kind: "remind"; weekNumber: number; only: { uid: string; firstName: string } | null };
 
@@ -153,9 +183,15 @@ export default function GroupPage({
   links,
   take = null,
   attendance = null,
+  archived = null,
+  said: saidFirst = null,
 }: {
   view: GroupPageView;
   links: GroupPageLinks;
+  /** The group is archived: its page reads only, with Restore (see the note above). */
+  archived?: ArchivedGroupView | null;
+  /** A line the page opens with, read from the address by the server while it is true ("Group F is back. Nobody was emailed."). */
+  said?: string | null;
   /**
    * The group's attendance across every week (`loadGroupAttendance`), for
    * admins and the programme's lead: its tab is drawn only with it. Never
@@ -174,7 +210,7 @@ export default function GroupPage({
   const [filter, setFilter] = useState<W.HistoryFilter>("everything");
   const [panel, setPanel] = useState<Panel | null>(null);
   const [opened, setOpened] = useState(0);
-  const [said, setSaid] = useState<string | null>(null);
+  const [said, setSaid] = useState<string | null>(saidFirst);
   // The ways to take one week's register, as a sheet: open on arrival from Overview.
   const [sheet, setSheet] = useState<number | null>(takeWeek);
   const [covering, setCovering] = useState(false);
@@ -226,6 +262,14 @@ export default function GroupPage({
   const timeSet = Boolean(view.meets.hhmm);
   const history = view.history;
   const rows = history ? filterHistory(history.rows, filter) : [];
+  // An archived group's page reads only: no button but Restore.
+  const live = archived === null;
+  const fixLinks: ArchiveFixLinks = {
+    people: links.people,
+    register: links.register,
+    person: links.person ?? links.people,
+    self: links.self ?? links.groups,
+  };
 
   const weekCard = (each: GroupPageWeek) => {
     const choices = oneWeekChoicesOf(each, view.weeks);
@@ -243,6 +287,7 @@ export default function GroupPage({
               <p className={styles.weekWhere}>{W.usuallyWords(view.meets.weekday, view.meets.hhmm, view.meets.room)}</p>
             )}
           </div>
+          {live && (
           <div className={styles.weekActions}>
             {takeButton(each)}
             {!choices.met && !choices.putRight && (
@@ -276,6 +321,7 @@ export default function GroupPage({
               </button>
             )}
           </div>
+          )}
         </div>
         <ul className={styles.chips} aria-label="This session">
           {chipsOf(each).map((chip) => (
@@ -384,7 +430,7 @@ export default function GroupPage({
   };
 
   const putRightLine = (each: GroupPageWeek) =>
-    oneWeekChoicesOf(each, view.weeks).putRight ? (
+    live && oneWeekChoicesOf(each, view.weeks).putRight ? (
       <div className={styles.putRight}>
         <p>{W.noRegisterLine(each.weekNumber, each.dateKey, each.hhmm)}</p>
         <button
@@ -410,8 +456,13 @@ export default function GroupPage({
         <div className={styles.headMain}>
           <div className={styles.titleRow}>
             <h1 className={styles.title}>{view.groupName}</h1>
-            {view.chip && <span className={styles.termChip}>{view.chip}</span>}
+            {archived ? (
+              <span className={styles.archivedChip}>{A.ARCHIVED_CHIP}</span>
+            ) : (
+              view.chip && <span className={styles.termChip}>{view.chip}</span>
+            )}
           </div>
+          {live && (
           <p className={styles.facts}>
             {view.facilitatorNames.length > 0 ? (
               <span>
@@ -422,7 +473,9 @@ export default function GroupPage({
             )}
             <span>{W.groupPeopleWords(view.peopleCount)}</span>
           </p>
+          )}
         </div>
+        {live && (
         <div className={styles.headActions}>
           {links.register && (
             <Link href={links.register} className={styles.button}>
@@ -435,6 +488,7 @@ export default function GroupPage({
             </Link>
           )}
         </div>
+        )}
       </header>
 
       {said && (
@@ -443,14 +497,25 @@ export default function GroupPage({
         </p>
       )}
 
-      {noticeWeek && links.register && notice(noticeWeek)}
+      {live && noticeWeek && links.register && notice(noticeWeek)}
+
+      {archived && (
+        <section className={styles.archivedCard} aria-label={A.ARCHIVED_CHIP}>
+          <p className={styles.archivedSentence}>{archived.sentence}</p>
+          <div>
+            <button type="button" className={styles.buttonPrimary} disabled={!hydrated} onClick={() => open({ kind: "restore" })}>
+              {A.restoreLinkWords(view.groupName)}
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className={styles.card} aria-labelledby="group-meets">
         <div className={styles.meetsHead}>
           <h2 id="group-meets" className={styles.cardTitle}>
-            {W.howMeetsTitle(view.groupName)}
+            {live ? W.howMeetsTitle(view.groupName) : A.howMetTitle(view.groupName)}
           </h2>
-          <p className={styles.meetsWho}>{W.WHO_CHANGES_WHAT}</p>
+          {live && <p className={styles.meetsWho}>{W.WHO_CHANGES_WHAT}</p>}
         </div>
         <dl className={styles.meets}>
           {/* Six rows, in this order: Day and time (with the length), Room,
@@ -465,6 +530,7 @@ export default function GroupPage({
                     .join(" · ")
                 : W.NOT_SET_YET}
             </dd>
+            {live && (
             <dd className={styles.meetsAction}>
               {timeSet && view.weeks.length > 0 ? (
                 <button
@@ -482,10 +548,12 @@ export default function GroupPage({
                 </Link>
               )}
             </dd>
+            )}
           </div>
           <div className={styles.meetsItem}>
             <dt className={styles.meetsLabel}>{W.ROOM}</dt>
             <dd className={styles.meetsValue}>{view.meets.room ? W.roomLine(view.meets.room, campus) : W.NOT_SET_YET}</dd>
+            {live && (
             <dd className={styles.meetsAction}>
               <button
                 type="button"
@@ -497,11 +565,12 @@ export default function GroupPage({
                 {view.meets.room ? W.CHANGE : W.SET_THE_ROOM}
               </button>
             </dd>
+            )}
           </div>
           <div className={styles.meetsItem}>
             <dt className={styles.meetsLabel}>{W.MEETING_LINK}</dt>
             <dd className={styles.meetsValue}>{view.meets.hasLink ? W.LINK_SET : W.NONE_SET}</dd>
-            {view.linkSessionKey && (
+            {live && view.linkSessionKey && (
               <dd className={styles.meetsAction}>
                 <button
                   type="button"
@@ -517,6 +586,7 @@ export default function GroupPage({
           <div className={styles.meetsItem}>
             <dt className={styles.meetsLabel}>{W.FACILITATORS}</dt>
             <dd className={styles.meetsValue}>{view.facilitatorNames.length > 0 ? view.facilitatorNames.join(", ") : W.NOBODY_YET}</dd>
+            {live && (
             <dd className={styles.meetsAction}>
               <Link
                 href={links.facilitators}
@@ -526,12 +596,17 @@ export default function GroupPage({
                 {view.facilitatorNames.length > 0 ? W.CHANGE : W.ADD_A_FACILITATOR}
               </Link>
             </dd>
+            )}
           </div>
           {view.places && (
             <div className={styles.meetsItem}>
               <dt className={styles.meetsLabel}>{P.PLACES}</dt>
-              <dd className={styles.meetsValue}>{P.placesRowWords(view.places.capacity, view.places.inGroup)}</dd>
-              {links.placesPath && (
+              <dd className={styles.meetsValue}>
+                {live || view.places.inGroup > 0
+                  ? P.placesRowWords(view.places.capacity, view.places.inGroup)
+                  : `${P.placesWords(view.places.capacity)} · ${A.NOBODY_IN_THE_GROUP}`}
+              </dd>
+              {live && links.placesPath && (
                 <dd className={styles.meetsAction}>
                   <button
                     type="button"
@@ -549,7 +624,7 @@ export default function GroupPage({
           <div className={styles.meetsItem}>
             <dt className={styles.meetsLabel}>{P.NAME}</dt>
             <dd className={styles.meetsValue}>{view.groupName}</dd>
-            {links.namePath && (
+            {live && links.namePath && (
               <dd className={styles.meetsAction}>
                 <button type="button" className={styles.button} disabled={!hydrated} onClick={() => open({ kind: "name" })}>
                   {P.RENAME}
@@ -557,8 +632,12 @@ export default function GroupPage({
               </dd>
             )}
           </div>
-          <ArchiveItem groupId={view.groupId} groupName={view.groupName} />
         </dl>
+        {live ? (
+          <ArchiveFoot groupName={view.groupName} onOpen={() => open({ kind: "archive" })} />
+        ) : (
+          <p className={styles.cardLine}>{A.NOTHING_CHANGES_WHILE_ARCHIVED}</p>
+        )}
       </section>
 
       <div className={styles.tabs} role="tablist" aria-label={view.groupName}>
@@ -573,7 +652,7 @@ export default function GroupPage({
         >
           {W.WEEK_BY_WEEK}
         </button>
-        {attendance && (
+        {live && attendance && (
           <button
             type="button"
             role="tab"
@@ -599,7 +678,7 @@ export default function GroupPage({
         </button>
       </div>
 
-      {tab === "attendance" && attendance ? (
+      {live && tab === "attendance" && attendance ? (
         <div id="group-panel-attendance" role="tabpanel" aria-labelledby="group-tab-attendance" className={styles.tabPanel}>
           <AttendanceTab view={attendance} runId={view.runId} requestsBase={links.requests ?? null} />
         </div>
@@ -623,7 +702,7 @@ export default function GroupPage({
                         {each.online ? "Online" : W.roomLine(each.room, each.campus ? CAMPUS_LABEL[each.campus] : "")}
                       </span>
                       <span className={styles.rowAction}>
-                        {!choices.met && (
+                        {live && !choices.met && (
                           <button
                             type="button"
                             className={styles.button}
@@ -667,7 +746,7 @@ export default function GroupPage({
             </>
           )}
 
-          {view.peopleCount === 0 ? (
+          {!live ? null : view.peopleCount === 0 ? (
             <section className={styles.card} aria-labelledby="group-nobody">
               <h2 id="group-nobody" className={styles.cardTitle}>
                 {W.NOBODY_IN_GROUP_TITLE}
@@ -788,7 +867,7 @@ export default function GroupPage({
         </div>
       ) : (
         <div id="group-panel-history" role="tabpanel" aria-labelledby="group-tab-history" className={styles.tabPanel}>
-          {week && week.change && !week.started && weekCard(week)}
+          {live && week && week.change && !week.started && weekCard(week)}
           <section className={styles.card} aria-labelledby="group-history">
             <div className={styles.historyHead}>
               <h2 id="group-history" className={styles.cardTitle}>
@@ -843,6 +922,10 @@ export default function GroupPage({
             ? W.SET_THE_LINK
             : panel?.kind === "room"
               ? W.roomPanelTitle(view.groupName)
+              : panel?.kind === "archive"
+                ? A.archiveQuestionTitle(view.groupName)
+              : panel?.kind === "restore"
+                ? A.restoreQuestionTitle(view.groupName)
               : panel?.kind === "places"
                 ? P.placesPanelTitle(view.groupName)
                 : panel?.kind === "name"
@@ -900,6 +983,37 @@ export default function GroupPage({
                 router.refresh();
               }}
             />
+          ) : panel.kind === "archive" ? (
+            <ArchivePanel
+              key={opened}
+              groupId={view.groupId}
+              groupName={view.groupName}
+              links={fixLinks}
+              onClose={dismiss}
+              onDone={() => {
+                // The Groups tab's Sessions view says it, from the address, while it is so.
+                router.push(`${links.sessions ?? links.groups}?archived=${encodeURIComponent(view.groupId)}`);
+              }}
+            />
+          ) : panel.kind === "restore" ? (
+            archived ? (
+              <RestorePanel
+                key={opened}
+                groupId={view.groupId}
+                groupName={view.groupName}
+                body={archived.restoreBody}
+                note={archived.restoreNote}
+                links={fixLinks}
+                onClose={dismiss}
+                onDone={() => {
+                  // The page is read again, live, and says it; the address says it on a reload while it is so.
+                  setPanel(null);
+                  setSaid(A.restoredSaidWords(view.groupName));
+                  router.replace(`${links.self ?? window.location.pathname}?restored=1`, { scroll: false });
+                  router.refresh();
+                }}
+              />
+            ) : null
           ) : panel.kind === "places" ? (
             view.places && links.placesPath ? (
               <PlacesPanel

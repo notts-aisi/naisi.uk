@@ -303,6 +303,22 @@ export type CourseGroupDoc = {
    */
   timeQuestionSince?: Date | null;
   archived: boolean;
+  /**
+   * WHEN AND BY WHOM THE GROUP WAS LAST ARCHIVED, and when it was last
+   * restored: written only by `PATCH /api/courses/groups/[groupId]/archive`
+   * and pinned in firestore.rules exactly as `archived` is. A group archived
+   * before the fields existed has neither `archivedAt` nor `archivedByUid`,
+   * and its page says only that it is archived. Restoring keeps the two and
+   * stamps `restoredAt`; archiving again writes both afresh.
+   *
+   * `restoredAt` is what keeps a restore from emailing anybody later: a
+   * session that started before it passed while the group was archived, has
+   * no register, and is chased, reminded and written about by no job
+   * (`startedBeforeRestore` in src/lib/courses/groupArchive/restored.ts).
+   */
+  archivedAt?: Date | null;
+  archivedByUid?: string | null;
+  restoredAt?: Date | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
@@ -776,6 +792,9 @@ export function normalizeCourseGroup(id: string, data: Raw): CourseGroupDoc {
     // Missing means no answer is stale for a change of time (see the type).
     timeQuestionSince: tsToDate(data.timeQuestionSince),
     archived: data.archived === true,
+    archivedAt: tsToDate(data.archivedAt),
+    archivedByUid: typeof data.archivedByUid === "string" && data.archivedByUid ? data.archivedByUid : null,
+    restoredAt: tsToDate(data.restoredAt),
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };

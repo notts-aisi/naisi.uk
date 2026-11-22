@@ -320,6 +320,37 @@ describe("5. called off after the fact", () => {
     assert.equal(JSON.stringify(read(W1)), draft, "the archived group's register changed");
   });
 
+  test("a group restored after a session that passed while it was archived is chased by neither job about it", async () => {
+    // Week 1 met while Group B was archived, so nobody opened its register;
+    // the group was restored an hour after the session ended. Neither the
+    // facilitators' reminder nor the "register not taken" card is about it
+    // (`startedBeforeRestore`), though the register is as unfinished as one can be.
+    world.db.poke(`courseGroups/${GROUP.b}`, { restoredAt: new Date(ENDS.getTime() + HOUR) });
+    world.mail.length = 0;
+    const remindAt = new Date(ENDS.getTime() + 37 * HOUR);
+    at(remindAt);
+    await registerRemindersJob.handler(jobContext(registerRemindersJob, remindAt).ctx);
+    assert.deepEqual(world.mail.filter((mail) => /Group B/.test(mail.subject)), [], "a restored group's facilitators were reminded about a session that passed while it was archived");
+    assert.ok(world.mail.some((mail) => /Pre-course group/.test(mail.subject)), "the job did not run");
+    const cardAt = new Date(ENDS.getTime() + 61 * HOUR);
+    at(cardAt);
+    await unmarkedRegistersJob.handler(jobContext(unmarkedRegistersJob, cardAt).ctx);
+    assert.equal(read(`tasks/${registerFollowUpTaskId(RUN, GROUP.b, "w01")}`), undefined, "a card was raised for a session that passed while the group was archived");
+  });
+
+  test("restored before the session started: chased as any session is", async () => {
+    world.db.poke(`courseGroups/${GROUP.b}`, { restoredAt: new Date(ENDS.getTime() - 3 * HOUR) });
+    world.mail.length = 0;
+    const remindAt = new Date(ENDS.getTime() + 37 * HOUR);
+    at(remindAt);
+    await registerRemindersJob.handler(jobContext(registerRemindersJob, remindAt).ctx);
+    assert.ok(world.mail.some((mail) => /Group B/.test(mail.subject)), "a session after the restore was not reminded about");
+    const cardAt = new Date(ENDS.getTime() + 61 * HOUR);
+    at(cardAt);
+    await unmarkedRegistersJob.handler(jobContext(unmarkedRegistersJob, cardAt).ctx);
+    assert.ok(read(`tasks/${registerFollowUpTaskId(RUN, GROUP.b, "w01")}`), "no card for a session after the restore");
+  });
+
   test("a card already made is archived when the session is called off", async () => {
     await aDraft();
     const cardAt = new Date(ENDS.getTime() + 61 * HOUR);

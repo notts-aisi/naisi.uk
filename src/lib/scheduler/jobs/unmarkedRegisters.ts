@@ -1,4 +1,5 @@
 import "server-only";
+import { startedBeforeRestore } from "@/lib/courses/groupArchive/restored";
 import type { Firestore } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import {
@@ -413,6 +414,9 @@ async function scanRun(
       due = resolveSessions(run, group).filter(
         (session) =>
           !session.cancelled &&
+          // A session that started before the group was last restored passed
+          // while it was archived: nobody met, and no card is raised for it.
+          !startedBeforeRestore(group, sessionInstants(session).startsAt) &&
           isWithinFollowUpWindow(
             sessionEnd(session),
             ctx.now,

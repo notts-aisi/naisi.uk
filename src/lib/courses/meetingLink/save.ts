@@ -1,4 +1,5 @@
 import "server-only";
+import { LINK_ARCHIVED } from "@/lib/courses/groupArchive/words";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -96,6 +97,8 @@ export async function saveSessionLink(
     const staffs = Boolean(group && !group.archived && staffsRunId && group.runId === staffsRunId);
     if (!isAdmin && !facilitates && !staffs) return { ok: false, status: 403, error: "Forbidden" };
     if (!group) return { ok: false, status: 404, error: "Group not found" };
+    // An archived group's link changes for nobody, an admin included: its page says to restore it first.
+    if (group.archived) return { ok: false, status: 409, error: LINK_ARCHIVED };
     if (!group.runId || group.runId.includes("/")) return { ok: false, status: 404, error: "Group not found" };
     const runSnap = await tx.get(db.collection("courseRuns").doc(group.runId));
     if (!runSnap.exists || runSnap.data()?.destroying === true) return { ok: false, status: 404, error: "Group not found" };
