@@ -18,7 +18,8 @@ import { startedSessions, type GroupArchiveFacts } from "./plan";
  * the caller's: one equality on that map field, so no declared index):
  * still in the term, and the invitation standing (`standingOf`). One
  * accepted is a place the board seats, so it is not counted here. Archiving
- * waits on these, and a group's places can't go below its people plus them.
+ * waits on these. (A group's places count the accepted ones too, until they
+ * are placed: `readHeldSeats` in src/lib/courses/placesAndName/held.ts.)
  */
 export function freedOffersIn(snap: QuerySnapshot, groupId: string): number {
   return snap.docs

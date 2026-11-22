@@ -125,7 +125,7 @@ export function roomLine(room: string, campusLabel: string): string {
 
 export const ROOM_TO_BE_CONFIRMED = "Room to be confirmed";
 
-/** Under how the group meets, on the page admins and the lead use: its six rows. The design's words. */
+/** Under how the group meets, on the page admins and the lead use: who changes its six rows. */
 export const WHO_CHANGES_WHAT =
   "Leads and admins change all of this. Facilitators change one week and set the link.";
 

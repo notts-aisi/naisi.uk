@@ -910,6 +910,8 @@ export default function GroupPage({
                 onClose={dismiss}
                 onDone={(words) => {
                   dismiss();
+                  // A save that changed nothing closes the panel and says nothing.
+                  if (words === null) return;
                   setSaid(words);
                   router.refresh();
                 }}
@@ -924,6 +926,8 @@ export default function GroupPage({
                 onClose={dismiss}
                 onDone={(words) => {
                   dismiss();
+                  // A save that changed nothing closes the panel and says nothing.
+                  if (words === null) return;
                   setSaid(words);
                   router.refresh();
                 }}

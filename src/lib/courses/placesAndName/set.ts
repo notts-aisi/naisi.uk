@@ -6,9 +6,9 @@ import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { GROUP_FIELD_LIMITS, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { placesInGroup } from "../groupArchive/plan";
-import { freedOffersIn, freedOffersQuery } from "../groupArchive/read";
 import { groupHistoryRow } from "../groupChange/facts";
 import { placesProblem, sameName } from "../groupTimes/rules";
+import { readHeldSeats } from "./held";
 import {
   NAME_REFUSAL,
   PLACES_REFUSAL,
@@ -36,7 +36,8 @@ import {
  *    Times' own sentence for a number that is not one, then
  *    `groupCapacityError`, at most 40 and none left out on an
  *    open-enrolment run), and can't go below the people in the group plus
- *    the freed places offered in it and not answered (`floorOf`). People are
+ *    the seats freed places hold in it (`readHeldSeats`: offered and not
+ *    answered, or accepted by somebody not placed yet; `floorOf`). People are
  *    counted as the Groups tab counts them (`placesInGroup`: learner places
  *    on the run whose group it is and who have not left), never by the
  *    stored `memberCount`. A group already below that floor is refused a
@@ -48,7 +49,14 @@ import {
  *
  * A change writes the field, `updatedAt`, and one row of the group's History
  * in the same transaction. NOBODY IS EMAILED. A press for what the group
- * already has writes nothing.
+ * already has (the same number, or the same name once both are trimmed and
+ * their spaces folded) writes nothing and answers `changed: false` with no
+ * sentence, so the page closes the panel and says nothing.
+ *
+ * The places route reads every place on the run inside its transaction, not
+ * only the group's: one equality, bounded by the run, and the query the test
+ * store watches whole, so a place moved into the group between the page's
+ * read and the press is seen there and in the suite alike.
  */
 
 export type Refusal = { ok: false; status: 400 | 404 | 409; error: string };
@@ -86,9 +94,9 @@ export type PlacesSet = {
   groupId: string;
   groupName: string;
   places: number | null;
-  /** The people in the group and the freed places offered in it, as the transaction counted them. */
+  /** The people in the group and the seats freed places hold in it, as the transaction counted them. */
   floor: PlacesFloor;
-  /** The sentence the page shows. */
+  /** The sentence the page shows; "" when nothing changed. */
   message: string;
 };
 
@@ -101,16 +109,14 @@ export async function setGroupPlaces(
 ): Promise<PlacesSet | Refusal> {
   const groupRef = db.collection("courseGroups").doc(groupId);
   const runRef = db.collection("courseRuns").doc(runId);
-  // One equality each, so no declared index: every place on the run, and the
-  // applications a freed place in this group's name was offered on.
+  // One equality, so no declared index: every place on the run.
   const placesQuery = db.collection("courseEnrolments").where("runId", "==", runId);
-  const offersQuery = freedOffersQuery(db, groupId);
   return db.runTransaction(async (tx) => {
-    const [groupSnap, runSnap, placesSnap, offersSnap] = await Promise.all([
+    const [groupSnap, runSnap, placesSnap, heldSeats] = await Promise.all([
       tx.get(groupRef),
       tx.get(runRef),
       tx.get(placesQuery),
-      tx.get(offersQuery),
+      readHeldSeats(db, runId, groupId, tx),
     ]);
     if (!groupSnap.exists) return { ok: false, status: 404, error: PLACES_REFUSAL.noGroup };
     const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
@@ -126,7 +132,7 @@ export async function setGroupPlaces(
     const enrolments = placesSnap.docs.map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}));
     const floor: PlacesFloor = {
       inGroup: placesInGroup({ group, places: enrolments }).length,
-      freedOffers: freedOffersIn(offersSnap, group.id),
+      heldSeats,
     };
     // Below the floor is refused, a press that leaves the number as it is
     // included: no limit is never below it.
@@ -134,10 +140,10 @@ export async function setGroupPlaces(
       return { ok: false, status: 409, error: belowFloorWords(name, floor) };
     }
 
-    const message = placesSavedWords(name, places);
     if (group.capacity === places) {
-      return { ok: true, changed: false, groupId: group.id, groupName: name, places, floor, message };
+      return { ok: true, changed: false, groupId: group.id, groupName: name, places, floor, message: "" };
     }
+    const message = placesSavedWords(name, places);
     tx.update(groupRef, { capacity: places, updatedAt: FieldValue.serverTimestamp() });
     tx.set(
       db.collection(COURSE_AUDIT_COLLECTION).doc(),
@@ -163,7 +169,7 @@ export type NameSet = {
   groupId: string;
   /** The name it has now. */
   groupName: string;
-  /** The sentence the page shows. */
+  /** The sentence the page shows; "" when nothing changed. */
   message: string;
 };
 
@@ -185,8 +191,9 @@ export async function renameGroup(
     if (group.archived) return { ok: false, status: 409, error: NAME_REFUSAL.archived };
 
     const was = group.name.trim() || "This group";
-    if (group.name === name) {
-      return { ok: true, changed: false, groupId: group.id, groupName: name, message: renamedWords(was, name) };
+    // The name it has, once trimmed and its spaces folded as the new one was: nothing to write.
+    if (group.name.replace(/\s+/g, " ").trim() === name) {
+      return { ok: true, changed: false, groupId: group.id, groupName: group.name, message: "" };
     }
     // Another live group of the run with this name, compared as Add a group
     // compares (case and spacing aside). The group itself never counts, so a

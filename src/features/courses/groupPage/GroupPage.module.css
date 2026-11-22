@@ -183,25 +183,38 @@
   color: var(--color-text-muted);
 }
 
+/* How the group meets: one row per part, ruled between, with the label,
+   the value and its button side by side; on a phone the label sits above,
+   and the value and the button share a line (see the bp-sm block). */
 .meets {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: var(--space-4);
+  display: flex;
+  flex-direction: column;
   margin: 0;
 }
 
 .meetsItem {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-4);
+  row-gap: var(--space-2);
   min-width: 0;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.meetsItem:first-child {
+  border-top: 0;
+}
+
+/* A refusal under a row takes the row's whole width, after its button. */
+.meetsItem > .problem {
+  grid-column: 1 / -1;
+  order: 1;
 }
 
 .meetsLabel {
-  font-family: var(--font-meta);
-  font-size: var(--text-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: var(--text-ui);
   color: var(--color-text-muted);
 }
 
@@ -213,12 +226,9 @@
 }
 
 .meetsAction {
-  margin: auto 0 0;
+  margin: 0;
   display: flex;
-}
-
-.meetsAction .button {
-  flex: 1;
+  justify-content: flex-end;
 }
 
 /* The tabs */
@@ -1224,6 +1234,26 @@ a.pill {
     display: none;
   }
 
+  /* How the group meets on a phone: the label above, then the value with its button to the right. */
+  .meetsItem {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "label label"
+      "value action";
+  }
+
+  .meetsLabel {
+    grid-area: label;
+  }
+
+  .meetsValue {
+    grid-area: value;
+  }
+
+  .meetsAction {
+    grid-area: action;
+  }
+
   /* Places and Name as sheets: the primary button first, the width of the sheet. */
   .panelActionsSheet {
     flex-direction: column-reverse;
@@ -1336,9 +1366,6 @@ a.pill {
   /* A card inside a facilitator's card keeps its rule and no side padding. */
   .facCard .facCard {
     padding: var(--space-4) 0 0;
-  }
-  .meets {
-    grid-template-columns: minmax(0, 1fr);
   }
   .row {
     grid-template-columns: 2rem minmax(0, 1fr);

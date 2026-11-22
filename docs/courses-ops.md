@@ -5803,7 +5803,9 @@ programme, for an admin and the programme's lead (`loadProgrammeRun`, the
 gate of the room, campus and time routes beside them). Neither emails
 anybody. Each route decides inside one transaction, and a change writes the
 field, `updatedAt` and one row of the group's History; a press for what the
-group already has writes nothing (`src/lib/courses/placesAndName/set.ts`).
+group already has (the same number, or the same name once trimmed and its
+spaces folded) writes nothing and closes the panel with nothing said
+(`src/lib/courses/placesAndName/set.ts`).
 
 - **Places** (`PUT .../programmes/[programmeId]/groups/[groupId]/places`,
   `{ places }`, a whole number or null for no limit) is the group's own limit
@@ -5811,12 +5813,21 @@ group already has writes nothing (`src/lib/courses/placesAndName/set.ts`).
   reached. What the programme's public page says about places is Settings',
   under Dates and places, and is never copied onto a group. The number passes
   Times' rule (`placesProblem`: at least one, then `groupCapacityError`, at most
-  40 and none left out on an open-enrolment run), and can't go below the
-  people in the group plus the freed places offered in it and not answered.
-  People are counted as the Groups tab counts them (`placesInGroup`: learner
-  places on the run whose group it is and who have not left), never by the
-  stored `memberCount`; a freed place counts while its invitation stands
-  (`freedOffersIn`, the archive check's own count). A group already below that
+  40 and none left out on an open-enrolment run, whose hint then does not
+  offer no limit), and can't go below the people in the group plus the seats
+  freed places hold in it. People are counted as the Groups tab counts them
+  (`placesInGroup`: learner places on the run whose group it is and who have
+  not left), never by the stored `memberCount`. Held seats are the site's own
+  count wherever it says how many seats a group has free (`waitingOnGroups`,
+  which `seatsFree` relies on, read by `readHeldSeats`): a freed place offered
+  in the group's name and not answered, and one accepted by somebody not put
+  in a group yet. A visit arranged into the group, or a request to move into
+  it, holds no seat here: lowering the places to the people in it can leave a
+  host week over its number, or a request meeting Full when it is decided.
+  Nothing acts on either by itself; staff see it on the group's week and on
+  Requests. A typo in the Places field is refused in the panel ("Places must be
+  a whole number, or left empty for no limit."), never saved as no limit. A
+  group already below that
   floor reads true on its page ("1 place · 12 in the group") and is refused
   every save but a number at least the floor or no limit, a save of the number
   it has included. History: `group-places-changed`, "Changed the places from 8

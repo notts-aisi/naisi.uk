@@ -616,8 +616,10 @@ export async function POST(req: Request, ctx: Ctx) {
           // CAPACITY IS HARD here: the in-transaction effective count (stored
           // memberCount adjusted by this chunk's earlier placements) must stay
           // within capacity. The board surfaces a "group-full" rejection;
-          // admins raise the cap in the group editor if the group really
-          // should take more.
+          // the programme's lead or an admin raises the group's places on
+          // its page (Places, under How the group meets) if the group really
+          // should take more; on a run no programme names, an admin raises
+          // it on the older group card.
           if (groupId && targetGroup) {
             // A same-group reactivation adds a seat too, so it is checked the
             // same as any other placement.

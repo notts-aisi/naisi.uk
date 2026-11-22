@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useHydrated } from "@/hooks/useHydrated";
+import * as W from "@/lib/courses/groupPage/words";
 import * as P from "@/lib/courses/placesAndName/words";
 import { UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
 import styles from "./GroupPage.module.css";
@@ -14,9 +15,12 @@ import styles from "./GroupPage.module.css";
  * (`PUT .../groups/[groupId]/places`, the programme's lead or an admin; the
  * route asks again and counts again). The hint names what the places can't
  * go below, the people in the group and any freed place offered in it and
- * not answered, as the page read them; the route's own count, in one
- * transaction, is what decides. A refusal's sentence stands where the hint
- * was. Nobody is emailed.
+ * answered or accepted by somebody not placed yet, as the page read them;
+ * the route's own count, in one transaction, is what decides. The hint sits
+ * under the field, and a refusal's sentence stands where the hint was. An
+ * entry the browser cannot read as a number (a number field holding "1o"
+ * reads as empty) is refused here and never sent as no limit. A save that
+ * changes nothing closes the panel. Nobody is emailed.
  */
 export default function PlacesPanel({
   groupName,
@@ -26,21 +30,28 @@ export default function PlacesPanel({
   onDone,
 }: {
   groupName: string;
-  places: { capacity: number | null; inGroup: number; freedOffers: number };
+  places: { capacity: number | null; inGroup: number; heldSeats: number; noLimitAllowed: boolean };
   /** The programme's places route for this group. */
   placesPath: string;
   onClose: () => void;
-  onDone: (said: string) => void;
+  /** Said once saved; null for a save that changed nothing, which closes the panel and says nothing. */
+  onDone: (said: string | null) => void;
 }) {
   const ids = useId();
   const hydrated = useHydrated();
   const [value, setValue] = useState(places.capacity === null ? "" : String(places.capacity));
+  // The browser's own word that what is in the field is not a number: its value then reads as empty.
+  const [badInput, setBadInput] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const off = !hydrated || busy;
 
   async function save() {
     const typed = value.trim();
+    if (badInput) {
+      setProblem(P.PLACES_REFUSAL.notANumber);
+      return;
+    }
     // Empty is no limit. Anything typed that is not a number goes as typed,
     // so the route answers it with its own sentence rather than reading it as
     // no limit (a NaN would be sent as null).
@@ -68,7 +79,7 @@ export default function PlacesPanel({
       setProblem(typeof body?.error === "string" ? body.error : UNKNOWN_OUTCOME);
       return;
     }
-    onDone(typeof body.message === "string" ? body.message : "");
+    onDone(body.changed === false ? null : typeof body.message === "string" ? body.message : "");
   }
 
   const titleId = `${ids}-title`;
@@ -79,21 +90,15 @@ export default function PlacesPanel({
         <h2 id={titleId} className={styles.panelTitle}>
           {P.placesPanelTitle(groupName)}
         </h2>
+        <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+          {W.CLOSE}
+        </Button>
       </div>
       <p className={styles.panelLede}>{P.placesLede(groupName)}</p>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor={`${ids}-places`}>
           {P.PLACES_FIELD}
         </label>
-        {problem ? (
-          <p id={hintId} className={styles.problem} role="status">
-            {problem}
-          </p>
-        ) : (
-          <p id={hintId} className={styles.fieldHint}>
-            {P.placesHint(groupName, places)}
-          </p>
-        )}
         <Input
           id={`${ids}-places`}
           type="number"
@@ -103,13 +108,24 @@ export default function PlacesPanel({
           step={1}
           autoComplete="off"
           aria-describedby={hintId}
+          aria-invalid={problem ? true : undefined}
           value={value}
           disabled={off}
           onChange={(e) => {
             setValue(e.target.value);
+            setBadInput(e.target.validity?.badInput === true);
             setProblem(null);
           }}
         />
+        {problem ? (
+          <p id={hintId} className={styles.problem} role="status">
+            {problem}
+          </p>
+        ) : (
+          <p id={hintId} className={styles.fieldHint}>
+            {P.placesHint(groupName, { inGroup: places.inGroup, heldSeats: places.heldSeats }, places.noLimitAllowed)}
+          </p>
+        )}
       </div>
       <p className={styles.panelNote}>{P.placesOwnLimitNote(groupName)}</p>
       <p className={styles.panelNote}>{P.EMAILS_NOBODY}</p>

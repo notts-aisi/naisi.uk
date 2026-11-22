@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useHydrated } from "@/hooks/useHydrated";
 import { GROUP_FIELD_LIMITS } from "@/lib/firestore/courseGroups";
+import * as W from "@/lib/courses/groupPage/words";
 import * as P from "@/lib/courses/placesAndName/words";
 import { UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
 import styles from "./GroupPage.module.css";
@@ -13,8 +14,10 @@ import styles from "./GroupPage.module.css";
  * RENAMING THE GROUP, from its page, through the programme's name route
  * (`PUT .../groups/[groupId]/name`, the programme's lead or an admin; the
  * route asks again). The next email, register and calendar entry use the
- * new name; nobody is told. A refusal's sentence (a blank name, or one
- * another group of the run has) stands under the hint.
+ * new name; nobody is told. The hint sits under the field, and a refusal's
+ * sentence (a blank name, or one another group of the run has) under the
+ * hint. A save that changes nothing (the same name once trimmed and its
+ * spaces folded) closes the panel.
  */
 export default function NamePanel({
   groupName,
@@ -26,7 +29,8 @@ export default function NamePanel({
   /** The programme's name route for this group. */
   namePath: string;
   onClose: () => void;
-  onDone: (said: string) => void;
+  /** Said once saved; null for a save that changed nothing, which closes the panel and says nothing. */
+  onDone: (said: string | null) => void;
 }) {
   const ids = useId();
   const hydrated = useHydrated();
@@ -58,7 +62,7 @@ export default function NamePanel({
       setProblem(typeof body?.error === "string" ? body.error : UNKNOWN_OUTCOME);
       return;
     }
-    onDone(typeof body.message === "string" ? body.message : "");
+    onDone(body.changed === false ? null : typeof body.message === "string" ? body.message : "");
   }
 
   const titleId = `${ids}-title`;
@@ -69,11 +73,28 @@ export default function NamePanel({
         <h2 id={titleId} className={styles.panelTitle}>
           {P.renamePanelTitle(groupName)}
         </h2>
+        <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+          {W.CLOSE}
+        </Button>
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor={`${ids}-name`}>
           {P.NAME_FIELD}
         </label>
+        <Input
+          id={`${ids}-name`}
+          type="text"
+          autoComplete="off"
+          maxLength={GROUP_FIELD_LIMITS.name}
+          aria-describedby={hintId}
+          aria-invalid={problem ? true : undefined}
+          value={name}
+          disabled={off}
+          onChange={(e) => {
+            setName(e.target.value);
+            setProblem(null);
+          }}
+        />
         <p id={hintId} className={styles.fieldHint}>
           {P.NAME_HINT}
         </p>
@@ -82,19 +103,6 @@ export default function NamePanel({
             {problem}
           </p>
         )}
-        <Input
-          id={`${ids}-name`}
-          type="text"
-          autoComplete="off"
-          maxLength={GROUP_FIELD_LIMITS.name}
-          aria-describedby={hintId}
-          value={name}
-          disabled={off}
-          onChange={(e) => {
-            setName(e.target.value);
-            setProblem(null);
-          }}
-        />
       </div>
       <div className={`${styles.panelActions} ${styles.panelActionsSheet}`}>
         <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>

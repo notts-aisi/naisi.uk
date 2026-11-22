@@ -57,31 +57,36 @@ export function placesLede(groupName: string): string {
 
 export const PLACES_FIELD = "Places";
 
-/** What the places can't go below: the people in the group, and the freed places offered in it and not answered. */
-export type PlacesFloor = { inGroup: number; freedOffers: number };
+/**
+ * What the places can't go below: the people in the group, and the seats
+ * freed places hold in it (offered and not answered, or accepted by somebody
+ * not placed yet: `waitingOnGroups`, the count `seatsFree` relies on).
+ */
+export type PlacesFloor = { inGroup: number; heldSeats: number };
 
 /** The smallest number of places the group may have. */
 export function floorOf(floor: PlacesFloor): number {
-  return floor.inGroup + floor.freedOffers;
+  return floor.inGroup + floor.heldSeats;
 }
 
-/** "6 people in it", "1 person in it", "6 people in it and 1 freed place offered". */
+/** "6 people in it", "1 person in it", "6 people in it and 1 freed place offered or accepted". */
 function holdsWords(floor: PlacesFloor): string {
   const people = `${peopleWords(floor.inGroup)} in it`;
-  if (floor.freedOffers === 0) return people;
-  const offered = floor.freedOffers === 1 ? "1 freed place offered" : `${floor.freedOffers} freed places offered`;
-  return floor.inGroup === 0 ? offered : `${people} and ${offered}`;
+  if (floor.heldSeats === 0) return people;
+  const held = floor.heldSeats === 1 ? "1 freed place offered or accepted" : `${floor.heldSeats} freed places offered or accepted`;
+  return floor.inGroup === 0 ? held : `${people} and ${held}`;
 }
 
 /**
  * The field's hint: "Leave it empty for no limit. Group C has 6 people in it,
- * so it can’t be fewer than 6." With nobody in the group and nothing offered,
- * the first sentence alone.
+ * so it can’t be fewer than 6." The first sentence only where no limit is
+ * allowed (never on an open-enrolment run); the second only when something
+ * holds a seat. "" with neither.
  */
-export function placesHint(groupName: string, floor: PlacesFloor): string {
-  const empty = "Leave it empty for no limit.";
-  if (floorOf(floor) === 0) return empty;
-  return `${empty} ${groupName} has ${holdsWords(floor)}, so it can’t be fewer than ${floorOf(floor)}.`;
+export function placesHint(groupName: string, floor: PlacesFloor, noLimitAllowed = true): string {
+  const parts = noLimitAllowed ? ["Leave it empty for no limit."] : [];
+  if (floorOf(floor) > 0) parts.push(`${groupName} has ${holdsWords(floor)}, so it can’t be fewer than ${floorOf(floor)}.`);
+  return parts.join(" ");
 }
 
 /** Keeps the group's own limit apart from what the programme's public page says. */
@@ -95,13 +100,17 @@ export const CANCEL = "Cancel";
 export const SAVING = "Saving…";
 
 /**
- * The refusal below the floor: "Group C has 6 people in it, so its places
- * can’t go below 6. Move somebody out first, or set 6 or more." With freed
- * places offered and not answered, they are counted and named too.
+ * The refusal below the floor. With people alone: "Group C has 6 people in
+ * it, so its places can’t go below 6. Move somebody out first, or set 6 or
+ * more." Once a freed place holds a seat, the seats are named too and the
+ * sentence stops at the number ("Group C has 6 people in it and 1 freed place
+ * offered or accepted, so its places can’t go below 7."), so it never tells
+ * anybody to move somebody out of a group nobody is in.
  */
 export function belowFloorWords(groupName: string, floor: PlacesFloor): string {
   const least = floorOf(floor);
-  return `${groupName} has ${holdsWords(floor)}, so its places can’t go below ${least}. Move somebody out first, or set ${least} or more.`;
+  const said = `${groupName} has ${holdsWords(floor)}, so its places can’t go below ${least}.`;
+  return floor.heldSeats === 0 ? `${said} Move somebody out first, or set ${least} or more.` : said;
 }
 
 /** "Group C now takes 10. Nobody was emailed." */

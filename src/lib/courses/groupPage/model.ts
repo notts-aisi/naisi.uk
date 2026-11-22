@@ -158,11 +158,13 @@ export type GroupPageView = {
   /**
    * The group's own limit (`capacity`, null for no limit), the people in it
    * as the Groups tab counts them (learner places whose group it is that have
-   * not left, `placesInGroup`) and the freed places offered in it and not
-   * answered: the places can't go below the two together. For admins and the
-   * lead; null on the facilitator's page.
+   * not left, `placesInGroup`) and the seats freed places hold in it (offered
+   * and not answered, or accepted by somebody not placed yet): the places
+   * can't go below the two together. `noLimitAllowed` is false on an
+   * open-enrolment run, whose groups always have a number. For admins and
+   * the lead; null on the facilitator's page.
    */
-  places: { capacity: number | null; inGroup: number; freedOffers: number } | null;
+  places: { capacity: number | null; inGroup: number; heldSeats: number; noLimitAllowed: boolean } | null;
   /** Admins, the programme's lead and the run's track leads change the regular time and room. */
   canChangeRegular: boolean;
   /** The programme's lead's first name, for the facilitator's "Claudia or an admin ..." */
