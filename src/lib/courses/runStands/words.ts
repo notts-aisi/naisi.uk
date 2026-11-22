@@ -46,7 +46,7 @@ export const WHERE_IT_STANDS = "Where it stands";
 
 /** Under a draft. */
 export const DRAFT_LINE =
-  "Draft: people holding a place see only week 1, from decision day once it is ready. It starts running by itself the first time people are handed over.";
+  "Draft: people holding a place see week 1, from decision day once it is ready. It starts running by itself the first time people are handed over.";
 
 /** "Running since Thu 29 Oct, when people were first handed over." */
 export function runningSinceWords(day: string): string {
@@ -87,15 +87,15 @@ export const STAGES_MEANING =
 
 export type RunStandsFacts = {
   status: CourseRunStatus;
-  /** When the course log first records people handed over to this run, or null. */
+  /** When the hand-over that started this run from draft was pressed, from the course log, or null. */
   firstHandedOverAt: Date | null;
   /** The day work closes, "Wed 23 Dec", or null with no session dated. */
   workClosesOn: string | null;
   /** Whether work has closed by `now`. */
   workClosed: boolean;
-  /** The day of the last session, "Wed 9 Dec", or null. */
+  /** The day of the last session once it has happened, "Wed 9 Dec", or null. */
   lastSessionOn: string | null;
-  /** Whether the job that completes a run when its work closes would run. */
+  /** Whether the job that completes a run when its work closes would complete this one. */
   completesByItself: boolean;
   /** Formats an instant as the house day ("Thu 29 Oct"). */
   dayOf: (at: Date) => string;

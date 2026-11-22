@@ -41,7 +41,8 @@ CAST.ada = {
 
 const made = makeWorld("__runStands");
 const { world, reset, call, everything, formRoute, courseRoute, lib } = made;
-const { press } = await loadJoin(made);
+const join_ = await loadJoin(made);
+const { press, place, withoutNotes } = join_;
 const routes = {
   run: await formRoute("programmes", "[programmeId]", "run"),
   details: await formRoute("programmes", "[programmeId]", "run", "details"),
@@ -50,6 +51,7 @@ const routes = {
 const W = await lib("courses", "runStands", "words.ts");
 const D = await lib("courses", "runStands", "details.ts");
 const { START_DATE_READ_ONLY } = await lib("courses", "groupPage", "words.ts");
+const { BEING_PUBLISHED } = await lib("courses", "runStands", "saveDetails.ts");
 const { stepsThroughRunning, canTransition } = await lib("courses", "runStatus.ts");
 
 /** Saturday 24 October 2026, 11am BST. The run's groups meet in weeks 1 and 2: last session Thu 5 Nov. */
@@ -197,13 +199,20 @@ describe("2. where it stands, for every stored status", () => {
     const shown = await stands();
     assert.deepEqual([shown.stage, shown.line, shown.meaning], [
       "draft",
-      "Draft: people holding a place see only week 1, from decision day once it is ready. It starts running by itself the first time people are handed over.",
+      "Draft: people holding a place see week 1, from decision day once it is ready. It starts running by itself the first time people are handed over.",
       "",
     ]);
   });
 
-  test("running with the job off: since the first hand-over, and an admin marks it completed after work closes", async () => {
-    await press();
+  /** The first hand-over to a draft run, which starts it. */
+  const startedByPress = async () => {
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "draft" });
+    assert.equal((await press()).status, 200);
+    assert.equal(runAgi().status, "running");
+  };
+
+  test("running with the job off: since the hand-over that started it, and an admin marks it completed after work closes", async () => {
+    await startedByPress();
     for (const status of ["applications-open", "applications-closed", "running"]) {
       world.db.poke(`courseRuns/${RUN.agi}`, { status });
       const shown = await stands();
@@ -221,7 +230,7 @@ describe("2. where it stands, for every stored status", () => {
   });
 
   test("running with the job on: it completes by itself on the day work closes", async () => {
-    await press();
+    await startedByPress();
     scheduler({ enabled: true, jobs: { "courses-runs-complete": { enabled: true } } });
     assert.equal(
       (await stands()).line,
@@ -232,8 +241,17 @@ describe("2. where it stands, for every stored status", () => {
     assert.match((await stands()).line, /Work closes on Thu 19 Nov\. An admin marks it completed after that\.$/);
   });
 
+  test("with the job on, an archived run or one being destroyed does not say it completes by itself: the job skips them", async () => {
+    await startedByPress();
+    scheduler({ enabled: true, jobs: { "courses-runs-complete": { enabled: true } } });
+    for (const patch of [{ archived: true }, { archived: false, destroying: true }]) {
+      world.db.poke(`courseRuns/${RUN.agi}`, patch);
+      assert.match((await stands()).line, /Work closes on Thu 19 Nov\. An admin marks it completed after that\.$/, JSON.stringify(patch));
+    }
+  });
+
   test("once work has closed: by itself shortly with the job on, by an admin with it off", async () => {
-    await press();
+    await startedByPress();
     mock.timers.setTime(new Date("2026-11-20T09:00:00Z").getTime());
     assert.match((await stands()).line, /Work closed on Thu 19 Nov\. An admin marks it completed\.$/);
     scheduler({ enabled: true, jobs: { "courses-runs-complete": { enabled: true } } });
@@ -250,21 +268,45 @@ describe("2. where it stands, for every stored status", () => {
     assert.equal((await stands()).line, "It is running.");
   });
 
-  test("the first hand-over is the earliest line of the course log, whatever came after", async () => {
-    await press();
+  test("the day is the hand-over that started it from draft, the earliest such line, whatever came after", async () => {
+    await startedByPress();
+    // The line records the start in the log's own change fields.
+    const lines = world.db.paths().filter((path) => path.startsWith("courseAudit/")).map((path) => world.db.read(path));
+    assert.deepEqual(
+      lines.filter((row) => row.kind === "run-hand-over").map((row) => [row.before, row.after]),
+      [[{ status: "draft" }, { status: "running" }]],
+    );
     mock.timers.setTime(new Date("2026-10-30T09:00:00Z").getTime());
-    world.db.seed("courseAudit/later", { kind: "run-hand-over", runId: RUN.agi, at: new Date("2026-10-30T09:00:00Z") });
-    world.db.seed("courseAudit/other-run", { kind: "run-hand-over", runId: RUN.tais, at: new Date("2026-10-01T09:00:00Z") });
-    world.db.seed("courseAudit/other-kind", { kind: "group-renamed", runId: RUN.agi, at: new Date("2026-10-01T09:00:00Z") });
+    world.db.seed("courseAudit/later", { kind: "run-hand-over", runId: RUN.agi, after: { status: "running" }, at: new Date("2026-10-30T09:00:00Z") });
+    world.db.seed("courseAudit/other-run", { kind: "run-hand-over", runId: RUN.tais, after: { status: "running" }, at: new Date("2026-10-01T09:00:00Z") });
+    world.db.seed("courseAudit/other-kind", { kind: "group-renamed", runId: RUN.agi, after: { status: "running" }, at: new Date("2026-10-01T09:00:00Z") });
     assert.match((await stands()).line, /^Running since Sat 24 Oct, when people were first handed over\./);
   });
 
-  test("completed says its last session; cancelled says nothing and offers nothing", async () => {
+  test("started early, then handed over: no day is said, because no hand-over started it", async () => {
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "draft" });
+    assert.equal((await move("zach", "running")).status, 200);
+    mock.timers.setTime(new Date("2026-10-29T09:00:00Z").getTime());
+    assert.equal((await press()).status, 200);
+    const rows = world.db.paths().filter((path) => path.startsWith("courseAudit/")).map((path) => world.db.read(path));
+    assert.deepEqual(rows.filter((row) => row.kind === "run-hand-over").map((row) => [row.before, row.after]), [[undefined, undefined]]);
+    assert.match((await stands()).line, /^It is running\. /);
+    // A run out of draft before the hand-over (every Autumn run) says the same.
+    reset(namedSeed());
+    await press();
+    assert.match((await stands()).line, /^It is running\. /);
+  });
+
+  test("completed says its last session once it has happened; cancelled says nothing and offers nothing", async () => {
     world.db.poke(`courseRuns/${RUN.agi}`, { status: "completed" });
+    // Marked completed early, before its last session: no day is said.
     assert.deepEqual(
       [(await stands()).stage, (await stands()).line, (await stands()).meaning],
-      ["completed", "Completed. Its last session was on Thu 5 Nov.", ""],
+      ["completed", "Completed.", ""],
     );
+    // After Thu 5 Nov, 11:30am, the last session has happened.
+    mock.timers.setTime(new Date("2026-11-05T12:00:00Z").getTime());
+    assert.equal((await stands()).line, "Completed. Its last session was on Thu 5 Nov.");
     world.db.poke(`courseRuns/${RUN.agi}`, { status: "cancelled" });
     const shown = await stands();
     assert.deepEqual([shown.stage, shown.line, shown.meaning, shown.move], ["cancelled", "", "", null]);
@@ -277,7 +319,7 @@ describe("2. where it stands, for every stored status", () => {
     assert.equal(everything(), before);
   });
 
-  test("the questions, in the design's words and the corrected start", () => {
+  test("the questions, word for word", () => {
     assert.equal(W.startTitle("AGI Strategy, Spring 2027"), "Start AGI Strategy, Spring 2027 running?");
     assert.equal(
       W.START_BODY,
@@ -460,6 +502,51 @@ describe("4. the run's details", () => {
     delete noDate.startDate;
     assert.equal((await saveDetails("zach", noDate)).status, 200);
     assert.deepEqual([runAgi().label, runAgi().startDate], ["Renamed again", "2026-11-02"]);
+  });
+
+  test("while a Publish holds its lock a new start date is refused, and the rest still saves", async () => {
+    const lock = `courseNudges/publishing__${RUN.agi}`;
+    world.db.seed(lock, { kind: "allocation-press", runId: RUN.agi, byUid: "zach", token: "t", claimedAtMs: Date.now() - 60_000 });
+    const before = everything();
+    assert.deepEqual(short(await saveDetails("zach", { ...DETAILS, startDate: "2026-11-02" })), [409, BEING_PUBLISHED]);
+    assert.equal(everything(), before);
+    assert.equal(BEING_PUBLISHED, "Groups are being published. Try again in a minute.");
+    // The same date, or none: the label and the cohort save.
+    assert.equal((await saveDetails("zach", { ...DETAILS, label: "Renamed" })).status, 200);
+    assert.equal(runAgi().label, "Renamed");
+    // A lock left over from a press that stopped (as old as Publish itself treats as gone) holds nothing.
+    world.db.poke(lock, { claimedAtMs: Date.now() - 6 * 60_000 });
+    assert.equal((await saveDetails("zach", { ...DETAILS, startDate: "2026-11-02" })).status, 200);
+    assert.equal(runAgi().startDate, "2026-11-02");
+  });
+
+  test("Publish works out what it sends from the run as it is once its lock is held", async () => {
+    await press();
+    await place("zach", [
+      { uid: "amara", groupId: GROUP.thursday },
+      { uid: "dev", groupId: GROUP.monday },
+      { uid: "bea", groupId: GROUP.monday },
+      { uid: "tariq", groupId: GROUP.thursday },
+    ]);
+    await withoutNotes("zach");
+    const board = async () =>
+      (await call("zach", join_.routes.board.GET, { runId: RUN.agi }, { course: true })).body?.publish ?? null;
+    let summary = await board();
+    if (summary && summary.emails > 0 && summary.test?.state !== "fresh") {
+      await call("zach", join_.routes.publishTest.POST, { runId: RUN.agi }, { course: true });
+      summary = await board();
+    }
+    const sentBefore = world.mail.length;
+    // The start date is lost in the moment the press takes its lock: the
+    // press's own first transaction. A press that kept its earlier read would
+    // send every email from the date that was there before.
+    world.db.beforeCommit = () => world.db.poke(`courseRuns/${RUN.agi}`, { startDate: "" });
+    const answer = await call("zach", join_.routes.publish.POST, { runId: RUN.agi }, { body: { emails: summary.emails }, course: true });
+    world.db.beforeCommit = null;
+    assert.equal(answer.status, 409, JSON.stringify(answer.body));
+    assert.match(answer.body.error, /^Nothing was published and nobody was emailed\./);
+    assert.equal(world.mail.length, sentBefore, "Publish emailed from the run it read before its lock");
+    assert.equal(runAgi().allocationPublishedAt, undefined);
   });
 
   test("a run being destroyed, or no longer on the site, is not saved", async () => {

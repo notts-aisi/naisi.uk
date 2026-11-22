@@ -968,7 +968,7 @@ test(
         assert.equal(body.changed, true, "naming the run changed nothing");
         assert.equal(body.panel?.runId, state.runId, "the panel names another run");
         // The section says where the draft stands.
-        await panel.getByText("Draft: people holding a place see only week 1, from decision day once it is ready. It starts running by itself the first time people are handed over.", { exact: true }).waitFor({ timeout: WAIT_MS });
+        await panel.getByText("Draft: people holding a place see week 1, from decision day once it is ready. It starts running by itself the first time people are handed over.", { exact: true }).waitFor({ timeout: WAIT_MS });
         const form = (await fixtureDoc("admissionRounds", state.formId).get()).data();
         assert.equal(form?.programmes?.[state.programmeId]?.runId, state.runId, "the form does not name the run");
 

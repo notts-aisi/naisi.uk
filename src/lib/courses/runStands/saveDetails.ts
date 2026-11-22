@@ -5,6 +5,7 @@ import { canRunTerm } from "@/lib/applications/access";
 import { own } from "@/lib/applications/keys";
 import { isId } from "@/lib/applications/normalise";
 import { loadForm } from "@/lib/applications/repo";
+import { PRESS_STALE_MS, pressLockId } from "@/lib/courses/publishLock";
 import { START_DATE_READ_ONLY } from "@/lib/courses/groupPage/words";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { RunDetailsPatch } from "./details";
@@ -25,11 +26,20 @@ import type { RunDetailsPatch } from "./details";
  *    the sentence the form shows under the date). The rules pin it for a
  *    browser (`runDatesKeptOnceGroupsOut`), but the Admin SDK skips the
  *    rules, so the server asks itself. The same date sent again is no change.
+ *  - NOR WHILE A PUBLISH IS UNDER WAY (409): Publish holds its press lock
+ *    (`pressLockId`) from before it reads the run until after it has stamped
+ *    and sent, and works out every email from the run it reads once the lock
+ *    is held. So a new start date is refused while that lock is held and
+ *    fresh (`PRESS_STALE_MS`, the age Publish itself treats as left over),
+ *    read in this same transaction: a date saved before the lock is the one
+ *    Publish reads, and none can be saved after it until Publish is done.
  *
  * Then it writes the label, the year, the cohort (deleted, never stored as
  * null, when cleared: see `CourseRunPatch.cohort`), the start date when one
  * was sent, and `updatedAt`. Nobody is emailed.
  */
+
+export const BEING_PUBLISHED = "Groups are being published. Try again in a minute.";
 
 export const ONLY_AN_ADMIN_CHANGES_DETAILS = "Only an admin can change a course run’s details here.";
 
@@ -52,16 +62,21 @@ export async function saveRunDetails(
   if (runId === null || !isId(runId)) return { ok: false, status: 409, error: NO_RUN_NAMED };
 
   const ref = db.collection("courseRuns").doc(runId);
+  const lockRef = db.collection("courseNudges").doc(pressLockId(runId));
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
+    const lock = await tx.get(lockRef);
     if (!snap.exists) return { ok: false, status: 404, error: "The run this programme names is no longer on the site." } as const;
     const data = snap.data() ?? {};
     if (data.destroying === true) {
       return { ok: false, status: 409, error: "This run is being destroyed and its details can't be changed." } as const;
     }
     const goneOut = data.allocationPublishedAt != null;
-    if (patch.startDate !== undefined && goneOut && patch.startDate !== data.startDate) {
-      return { ok: false, status: 409, error: START_DATE_READ_ONLY } as const;
+    const newStart = patch.startDate !== undefined && patch.startDate !== data.startDate;
+    if (newStart && goneOut) return { ok: false, status: 409, error: START_DATE_READ_ONLY } as const;
+    const claimedAtMs = lock.exists ? (lock.data() ?? {}).claimedAtMs : null;
+    if (newStart && typeof claimedAtMs === "number" && Date.now() - claimedAtMs < PRESS_STALE_MS) {
+      return { ok: false, status: 409, error: BEING_PUBLISHED } as const;
     }
     tx.update(ref, {
       label: patch.label,

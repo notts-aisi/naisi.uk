@@ -116,7 +116,11 @@ export function statusQuestionBody(
     return `Members can see it, its groups join each facilitator’s My programmes, the weekly emails and reminders start${opens}. ${back}`;
   }
   if (from === "draft" && next === "running") {
-    const opens = open ? ", sign-ups open on the dates set below" : "";
+    const opens = open
+      ? ", sign-ups open on the dates set below"
+      : ownForm
+        ? ", its own application form never opens"
+        : "";
     return `Members can see it, its groups join each facilitator’s My programmes, the weekly emails and reminders start${opens}, and ${movesUp}. ${back}`;
   }
   if (from === "applications-open" && next === "applications-closed") {

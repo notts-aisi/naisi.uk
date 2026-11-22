@@ -246,6 +246,9 @@ async function writeChunk(
         programmeName: programme.shortName,
         count: handedOver,
       }),
+      // The press that started a draft says so, in the log's own change
+      // fields: Course run's "Running since" reads it (`runStands/load.ts`).
+      ...(run.run.status === "draft" ? { before: { status: "draft" }, after: { status: "running" } } : {}),
       at: FieldValue.serverTimestamp(),
     });
   }

@@ -1706,7 +1706,7 @@ that transaction read.
 | --- | --- |
 | `courseApplications/{runId}__{uid}`, for each holder with no row | `runId`, `courseId`, `uid`, `displayName`, `status: "accepted"`, `fromForm: { roundId, programmeId }` and two timestamps (`buildFormPlaceRow`) |
 | `courseRuns/{runId}` | `applicationCounts.accepted` moves by the number of rows made, in the same transaction; on a draft run, `status: "running"` too |
-| `courseAudit/{auto}` | one line of kind `run-hand-over`: who pressed, the programme, how many. It is keyed to the run and names nobody |
+| `courseAudit/{auto}` | one line of kind `run-hand-over`: who pressed, the programme, how many. It is keyed to the run and names nobody. The press that starts a draft adds `before: { status: "draft" }` and `after: { status: "running" }` |
 
 It puts nobody in a group: the board's first placement goes on making the
 place on the run. It emails nobody. It writes no subscription.

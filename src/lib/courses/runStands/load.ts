@@ -24,7 +24,8 @@ import { STAGES_MEANING, moveFor, stageOf, standsLine } from "./words";
  *    session and the day its work closes (`workClosesAt`, the moment the
  *    job that completes runs goes by);
  *  - the course log's hand-over lines for the run (two equalities, no
- *    declared index), for "Running since", the earliest of them;
+ *    declared index), for "Running since": the line of the press that
+ *    started the run from draft, which says so in its change fields;
  *  - the scheduler's switches, for whether that job would run: the global
  *    switch and the job's own, with its own default
  *    (`RUNS_COMPLETE_JOB`), exactly as the tick resolves them.
@@ -54,17 +55,28 @@ export async function loadRunStands(
   ]);
   const groups = groupSnap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}));
 
+  // The hand-over that started the run: the line whose change fields say it
+  // moved the run from Draft to Running. A run started any other way (the
+  // status route, the older editor, or before the hand-over did it) has no
+  // such line, and the section says only that it is running.
   let first: Date | null = null;
   for (const doc of handOvers.docs) {
-    const at = toDate(doc.data()?.at);
+    const row = doc.data() ?? {};
+    const after = row.after as { status?: unknown } | undefined;
+    if (after?.status !== "running") continue;
+    const at = toDate(row.at);
     if (at && (!first || at.getTime() < first.getTime())) first = at;
   }
 
   const closes = workClosesAt(run, groups);
   const closeDay = workClosesOnDayKey(run, groups);
   const end = runEndOf(run, groups, now);
+  // As the job decides: it skips an archived run and one being destroyed.
   const completesByItself =
-    config.enabled && jobStateFor(config, RUNS_COMPLETE_JOB.id, RUNS_COMPLETE_JOB.enabledByDefault).enabled;
+    !run.archived &&
+    data.destroying !== true &&
+    config.enabled &&
+    jobStateFor(config, RUNS_COMPLETE_JOB.id, RUNS_COMPLETE_JOB.enabledByDefault).enabled;
 
   const stage = stageOf(run.status);
   const move = moveFor(run.status);
@@ -75,7 +87,8 @@ export async function loadRunStands(
       firstHandedOverAt: first,
       workClosesOn: closes && closeDay ? (formatRunStartShort(closeDay) ?? null) : null,
       workClosed: closes !== null && now.getTime() >= closes.getTime(),
-      lastSessionOn: end.lastDay,
+      // Said only once it has happened: an early completion is before it.
+      lastSessionOn: end.over ? end.lastDay : null,
       completesByItself,
       dayOf: londonDayLabel,
     }),

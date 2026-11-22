@@ -310,6 +310,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/runStands/saveDetails.ts",
+    {
+      why: "saving the run's details from a programme's Settings: it reads a form's programmes by the programme id the request's address names, to take the run that programme names",
+    },
+  ],
+  [
     "src/lib/courses/weekOne/",
     {
       why: "week 1's door before groups go out and the cards it words: each reads a form's programmes by an id on that form's own programmeIds (the door the one namingProgrammeIn found, the cards each one in turn), to take the programme's kind, short name, course and run",

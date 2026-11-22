@@ -30,12 +30,15 @@ export default function RunDetails({
   details,
   live,
   onSaved,
+  onRefused,
 }: {
   roundId: string;
   programmeId: string;
   details: RunDetailsView;
   live: boolean;
   onSaved: (panel: RunPanelView) => void;
+  /** A save the server refused: the section is read again, so the form says what is stored now. */
+  onRefused: () => void;
 }) {
   const ids = useId();
   const [label, setLabel] = useState(details.label);
@@ -72,6 +75,9 @@ export default function RunDetails({
       onSaved(answer.panel);
     } catch (err) {
       setProblem(err instanceof Error ? err.message : "That did not go through. Try again.");
+      // The groups may have gone out since the page loaded: read the section
+      // again, so the start date shows as words if they have.
+      onRefused();
     } finally {
       setBusy(false);
     }

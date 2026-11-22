@@ -269,6 +269,8 @@ describe("3. the question before a status move", () => {
       "Members can see it, its groups join each facilitator’s My programmes, the weekly emails and reminders start, and the run moves up each member’s list of programmes, with any other running ones. It can’t be moved back.",
     );
     assert.match(words.statusQuestionBody("draft", "running", "open", false), /reminders start, sign-ups open on the dates set below, and the run moves up/);
+    // A run with its own form that skips Applications open never takes an application through it.
+    assert.match(words.statusQuestionBody("draft", "running", "admissions", false), /reminders start, its own application form never opens, and the run moves up/);
     for (const [from, to] of [["draft", "applications-open"], ["draft", "running"], ["applications-open", "applications-closed"], ["applications-open", "running"], ["applications-closed", "running"]]) {
       assert.doesNotMatch(words.statusQuestionBody(from, to, "admissions", true), /application form|sign-ups/, `${from} to ${to}`);
     }

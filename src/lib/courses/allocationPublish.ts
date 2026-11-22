@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
+import { PRESS_STALE_MS, pressLockId } from "./publishLock";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
 import {
@@ -261,8 +262,9 @@ import { formatRunStart, formatRunStartShort } from "./window";
  */
 export const MAX_EMAILS_PER_PRESS = 200;
 
-/** How long a press in progress holds the run before another may take it. */
-export const PRESS_STALE_MS = 5 * 60_000;
+// How long a press in progress holds the run, and the lock's document id:
+// in `./publishLock.ts`, which the run's details read too.
+export { PRESS_STALE_MS, pressLockId } from "./publishLock";
 
 const NUDGES = "courseNudges";
 
@@ -1033,10 +1035,6 @@ export async function forgetMoveMarkers(db: Firestore, moved: Pick<PlannedMoved,
       .delete()
       .catch((err) => console.error("[allocation publish] could not forget a marker", id, err));
   }
-}
-
-export function pressLockId(runId: string): string {
-  return `publishing__${runId}`;
 }
 
 export type PressLock = { ok: true; token: string } | { ok: false; since: Date | null };

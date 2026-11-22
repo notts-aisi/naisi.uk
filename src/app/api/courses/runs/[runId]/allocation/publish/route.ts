@@ -223,9 +223,9 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!runSnap.exists) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
-  const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
+  const runBefore = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  const staffing = await runStaffingOf(db, actor, run);
+  const staffing = await runStaffingOf(db, actor, runBefore);
   if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -251,6 +251,16 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   try {
+    // The run read again now the press is held: every email below is worked
+    // out from this read. A start date saved before the lock is the one read
+    // here, and Course run's details refuse a new one while the lock is held
+    // (`saveRunDetails`), so nothing sent can carry a date changed under it.
+    const lockedSnap = await runRef.get();
+    if (!lockedSnap.exists) {
+      return NextResponse.json({ error: "Run not found" }, { status: 404 });
+    }
+    const run = normalizeCourseRun(lockedSnap.id, lockedSnap.data() ?? {});
+
     // A row the application form put here is served to an admin and to the
     // lead of the programme that names the run (`rowIsServedTo`): a run that
     // holds one this caller is not served is refused below without a word

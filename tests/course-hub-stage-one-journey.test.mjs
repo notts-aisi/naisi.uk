@@ -1455,7 +1455,7 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.deepEqual([draft.stands.stage, draft.stands.move], ["draft", "start"]);
       assert.equal(
         draft.stands.line,
-        "Draft: people holding a place see only week 1, from decision day once it is ready. It starts running by itself the first time people are handed over.",
+        "Draft: people holding a place see week 1, from decision day once it is ready. It starts running by itself the first time people are handed over.",
       );
       assert.deepEqual(seen.naming.movedOn.body, { ok: true, status: "applications-open" });
       assert.equal(seen.naming.status, "applications-open");

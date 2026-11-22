@@ -757,7 +757,11 @@ The programme's Settings reads the same switch (`RUNS_COMPLETE_JOB` in
 `src/lib/scheduler/registerJobs.ts`, held to the registration by
 `tests/course-register-jobs.test.mjs`), with the scheduler's own switch, to
 say whether a run completes by itself. When an admin first switches it on,
-every live run whose work closed long ago is completed on the next tick.
+every live run in the project whose work has already closed is completed on
+its first tick: older runs nobody marked completed, a pre-course still in
+Applications open, runs no programme names. Each leaves the catalogue,
+people's Home and the facilitators' menu at once. Before switching it on,
+look at which live runs those are.
 
 #### `courses-unmarked-registers`
 
@@ -1984,8 +1988,15 @@ Running. Cancelled shows as itself and offers nothing.
   on Wed 23 Dec, when work closes." with the job on, and "Work closes on Wed 23
   Dec. An admin marks it completed after that." with it off (the scheduler's
   own switch counts too). A run with no session dated says neither.
-- "Running since Thu 29 Oct, when people were first handed over." reads the
-  earliest `run-hand-over` line of the course log for the run.
+- "Running since Thu 29 Oct, when people were first handed over." is said
+  only for a run the hand-over started: the press that starts a draft writes
+  `before: { status: "draft" }, after: { status: "running" }` on its
+  `run-hand-over` line of the course log, and the earliest such line gives
+  the day. A run started any other way (the early move, the older editor, or
+  out of draft before this was built) says "It is running." With the job on,
+  an archived run or one being destroyed says an admin marks it completed,
+  because the job skips them. A completed run names its last session only
+  once that session has happened.
 
 **Two early moves, each asking first.** "Start it running now…" on a draft and
 "Mark it completed now…" on a live run, through `POST
@@ -2006,7 +2017,12 @@ bounds. Once Publish has sent the groups out (`allocationPublishedAt`), the
 route itself refuses a new start date (the Admin SDK skips the rules that pin
 it for a browser), and the form shows the date as words with "The groups have
 gone out, so the start date can’t change here: a new one would move every
-group’s weeks, the ones that met included."
+group’s weeks, the ones that met included." While a Publish holds its press lock
+(`courseNudges/publishing__<runId>`, `src/lib/courses/publishLock.ts`) the
+route refuses a new start date too, with "Groups are being published. Try
+again in a minute.", read in the same transaction; and Publish works out
+every email from the run as it reads it once its lock is held. So no email
+Publish sends can carry a start date that changed under it.
 
 A new label is read from then on wherever the run's label is read: the admin
 lists and pages, search, the run's eyebrow on staff pages, a member's run

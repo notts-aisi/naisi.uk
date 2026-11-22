@@ -192,6 +192,7 @@ export default function RunHandOver({
               setMoved(null);
               setPanel(next);
             }}
+            onRefused={() => void check()}
           />
         )}
 

@@ -213,7 +213,8 @@ describe("4. how: the checked move, the status alone, once", () => {
   });
 
   test("an admin completing the run while the job runs: the job writes nothing more", async () => {
-    world.db.beforeCommit = () => world.db.poke(`courseRuns/${RUN}`, { status: "completed" });
+    // The hook lives on the store under the course view (`courseView`).
+    Object.getPrototypeOf(world.db).beforeCommit = () => world.db.poke(`courseRuns/${RUN}`, { status: "completed" });
     const { result } = await runJob(DAY_AFTER);
     assert.equal(status(RUN), "completed");
     assert.equal(result.processed, 1, "the other run, and RUN counted by nobody twice");
