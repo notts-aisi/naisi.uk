@@ -818,6 +818,7 @@ describe("7. neither document is public", () => {
       ["app/api/courses/runs/[runId]/apply-template/route.ts", "a saved version carries the guide to a run"],
       ["app/api/courses/[courseId]/templates/route.ts", "a saved version holds the run's guide"],
       ["lib/courses/weeksTab/documents.ts", "whether the run has each, for the Weeks tab's Course documents, built for an admin alone"],
+      ["lib/courses/weeksTab/fill.ts", "a saved template copied into a run's empty weeks puts the guide it holds on the run only where the run has none: a write, drawn nowhere"],
     ]);
     const found = new Map();
     for (const file of walkSource(SRC)) {
