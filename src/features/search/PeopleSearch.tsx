@@ -231,7 +231,7 @@ function SearchPanel({ onClose, label }: { onClose: () => void; label: string })
   const guides = answered ? guidesOf(answered.answer) : [];
   const programmes = answered ? programmesOf(answered.answer) : [];
   // Only a guide or a programme matched: the two empty lists are left out, so what matched leads.
-  const onlyGuides =
+  const noPeopleOrGroups =
     (guides.length > 0 || programmes.length > 0) &&
     answered !== null &&
     answered.answer.people.length === 0 &&
@@ -241,8 +241,8 @@ function SearchPanel({ onClose, label }: { onClose: () => void; label: string })
   const guidesAt = groupsAt + (answered?.answer.groups.length ?? 0);
   const controls = [
     programmes.length > 0 ? programmesListId : null,
-    onlyGuides ? null : peopleListId,
-    onlyGuides ? null : groupsListId,
+    noPeopleOrGroups ? null : peopleListId,
+    noPeopleOrGroups ? null : groupsListId,
     guides.length > 0 ? guidesListId : null,
   ]
     .filter(Boolean)
@@ -314,9 +314,10 @@ function SearchPanel({ onClose, label }: { onClose: () => void; label: string })
               <div id={programmesListId} role="listbox" aria-labelledby={`${ids}-programmes`} className={styles.list}>
                 {renderList(programmes, 0)}
               </div>
+              {answered.answer.moreProgrammes ? <p className={styles.more}>{SEARCH_MORE.programmes}</p> : null}
             </section>
           ) : null}
-          {onlyGuides ? null : (
+          {noPeopleOrGroups ? null : (
             <>
               <section className={styles.section} aria-labelledby={`${ids}-people`}>
                 <h2 id={`${ids}-people`} className={styles.heading}>

@@ -6,6 +6,7 @@ import { own } from "@/lib/applications/keys";
 import type { ProgrammeSettings } from "@/lib/applications/model";
 import type { ApplicationForm } from "@/lib/applications/normalise";
 import { readProgrammePeople, type FormPeopleRead } from "@/lib/applications/people/load";
+import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
 import { isTheirs, programmesOpenedOn, programmeStageWords } from "@/lib/applications/programmes/list";
 import { listDecisions, listSentApplications } from "@/lib/applications/staffRepo";
 import { listGroups, readRunRecords, slotLine, weeksOf } from "@/lib/courses/programmeAttendance";
@@ -301,19 +302,44 @@ async function confirmGuides(db: Firestore, answer: SearchAnswer, world: SearchW
 /** What a programme's result was made from, by the address it opens, for its chip. */
 type ProgrammeBehind = Map<string, { form: ApplicationForm; programme: ProgrammeSettings }>;
 
+/** Whether the form itself says its term is over: cancelled or archived. Nothing else is read to ask it. */
+function formSaysOver(form: ApplicationForm, now: Date): boolean {
+  const stage = stageSummaryFor(form, now).stage;
+  return stage === "cancelled" || stage === "archived";
+}
+
+/**
+ * The place of each form's programmes in the list, from what is in memory:
+ * a term the form says is over after every other, and within each the newest
+ * form first (by when it was made, then its name), so older terms never
+ * crowd out the one being run.
+ */
+function termOrder(forms: readonly ApplicationForm[], now: Date): Map<string, number> {
+  const sorted = [...new Map(forms.map((form) => [form.round.id, form])).values()].sort(
+    (a, b) =>
+      Number(formSaysOver(a, now)) - Number(formSaysOver(b, now)) ||
+      (b.round.createdAt?.getTime() ?? 0) - (a.round.createdAt?.getTime() ?? 0) ||
+      a.round.label.localeCompare(b.round.label, "en-GB") ||
+      a.round.id.localeCompare(b.round.id),
+  );
+  return new Map(sorted.map((form, at) => [form.round.id, at]));
+}
+
 /**
  * These programmes as results: the short name; "Fellowship · Autumn 2026 ·
  * Lead: Maya Rao" (the Programmes page's own words for the lead, "Lead: you"
  * for the reader's own and "Lead: No lead yet"); its Overview. Matched on its
- * names and its term's name.
+ * names and its term's name, and ordered by its term (`termOrder`).
  */
 function programmeCandidates(
   viewer: SessionUser,
   entries: readonly { form: ApplicationForm; programme: ProgrammeSettings; role: ProgrammeRole }[],
   leadNameOf: (uid: string) => string,
+  now: Date,
 ): { candidates: SearchCandidate[]; behind: ProgrammeBehind } {
   const candidates: SearchCandidate[] = [];
   const behind: ProgrammeBehind = new Map();
+  const order = termOrder(entries.map((entry) => entry.form), now);
   for (const { form, programme, role } of entries) {
     const name = programme.shortName.trim() || programme.name.trim();
     if (!name) continue;
@@ -331,6 +357,7 @@ function programmeCandidates(
       href,
       matchOn: `${name} ${programme.name} ${form.round.label}`,
       key: `programme:${form.round.id}/${programme.id}`,
+      order: order.get(form.round.id) ?? 0,
     });
   }
   return { candidates, behind };
@@ -338,18 +365,31 @@ function programmeCandidates(
 
 /**
  * Each programme in the answer with its chip (`programmeStageWords`). Past
- * decision day it needs the programme's run: one `getAll` of the runs of the
- * programmes in the answer that need one, none otherwise.
+ * decision day it needs the programme's run: those already read (`known`,
+ * an admin's world, which holds the run of every live group) are used as
+ * they are, and the rest in one `getAll`, none when nothing is missing. A
+ * programme on a form the form says is over (cancelled or archived) has no
+ * chip whatever its run says, so its run is not asked for.
  */
-async function chipProgrammes(db: Firestore, answer: SearchAnswer, behind: ProgrammeBehind, now: Date): Promise<SearchAnswer> {
+async function chipProgrammes(
+  db: Firestore,
+  answer: SearchAnswer,
+  behind: ProgrammeBehind,
+  now: Date,
+  known: ReadonlyMap<string, CourseRunDoc> = new Map(),
+): Promise<SearchAnswer> {
   if (!answer.programmes || answer.programmes.length === 0) return answer;
+  const runs = new Map<string, CourseRunDoc | "gone">();
   const wanted = new Set<string>();
   for (const hit of answer.programmes) {
     const entry = behind.get(hit.href);
     const runId = entry?.programme.runId ?? null;
-    if (entry && runId && isAddressableId(runId) && entry.form.decisionsSentAt !== null && !entry.programme.closed) wanted.add(runId);
+    if (!entry || !runId || !isAddressableId(runId) || entry.form.decisionsSentAt === null || entry.programme.closed) continue;
+    if (formSaysOver(entry.form, now)) continue;
+    const already = known.get(runId);
+    if (already) runs.set(runId, already);
+    else wanted.add(runId);
   }
-  const runs = new Map<string, CourseRunDoc | "gone">();
   if (wanted.size > 0) {
     const snaps = await db.getAll(...[...wanted].map((id) => db.collection("courseRuns").doc(id)));
     for (const snap of snaps) {
@@ -382,7 +422,7 @@ type AdminWorld = {
   programmes: ProgrammeBehind;
 };
 
-async function adminWorld(db: Firestore, viewer: SessionUser): Promise<AdminWorld> {
+async function adminWorld(db: Firestore, viewer: SessionUser, now: Date): Promise<AdminWorld> {
   const [accounts, groupSnap, forms] = await Promise.all([
     db.collection("users").select(...NAME_FIELDS).get(),
     db.collection("courseGroups").get(),
@@ -405,6 +445,7 @@ async function adminWorld(db: Firestore, viewer: SessionUser): Promise<AdminWorl
     viewer,
     forms.flatMap((form) => programmesOpenedOn(viewer, form).map(({ programme, role }) => ({ form, programme, role }))),
     (uid) => nameOf.get(uid) ?? "NAISI member",
+    now,
   );
 
   const liveGroups = groupSnap.docs
@@ -591,9 +632,9 @@ export async function answerSearch(
   now: Date,
 ): Promise<SearchAnswer> {
   if (searcher.kind === "admin") {
-    const read = await adminWorld(db, actor);
+    const read = await adminWorld(db, actor, now);
     const answer = await adminPeopleLines(db, read, searchWorld(read.world, query));
-    return chipProgrammes(db, await confirmGuides(db, answer, read.world), read.programmes, now);
+    return chipProgrammes(db, await confirmGuides(db, answer, read.world), read.programmes, now, read.runs);
   }
   const [led, facilitated] = await Promise.all([
     leadWorld(db, actor, searcher.leads),
@@ -607,6 +648,7 @@ export async function answerSearch(
       return programme ? [{ form, programme, role: "lead" as const }] : [];
     }),
     () => "NAISI member",
+    now,
   );
   const world: SearchWorld = {
     people: [...led.people, ...facilitated.people],

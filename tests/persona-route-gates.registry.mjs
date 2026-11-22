@@ -4287,7 +4287,7 @@ export const ROUTES = {
     },
     POST: {
       expect: everyone(403, { admin: 200, lead: 200, facilitator: 200 }),
-      fields: ["groups", "guides", "moreGroups", "morePeople", "people", "programmes"],
+      fields: ["groups", "guides", "moreGroups", "morePeople", "moreProgrammes", "people", "programmes"],
       drive: {
         body: { query: "an" },
         why:
@@ -4301,7 +4301,7 @@ export const ROUTES = {
         "adds a third list, guides, and only then (this two-letter query matches none, so its answer carries the other " +
         "four fields for everybody). For an admin and a programme's lead, a query that matches a programme whose Overview " +
         "they open (every programme for an admin, the ones they lead for a lead, by the Programmes list's own rule) adds " +
-        "programmes, and only then. What each finds is held as every kind of reader against a real term in tests/search.test.mjs. " +
+        "programmes, and only then (with moreProgrammes when more matched than it holds). What each finds is held as every kind of reader against a real term in tests/search.test.mjs. " +
         "It writes nothing.",
     },
   },

@@ -25,8 +25,9 @@ import { applicationsLine, isTheirs } from "./list";
  * the card with no count that is not theirs: "none for you to read", and
  * "See applications".
  *
- * WHEN. Only while the form is open or deciding (`stageSummaryFor`). Once
- * decisions have gone out, and before the form opens, there is no card. The
+ * WHEN. Only while the form is open or deciding (`stageSummaryFor`), and
+ * never for a closed programme. Once decisions have gone out, and before the
+ * form opens, there is no card. The
  * Overview is an admin's and the programme's lead's (`opensProgrammeGroups`),
  * so nobody else is given one.
  *
@@ -63,6 +64,8 @@ export async function applicationsToReadOn(
   const programme = own(form.programmes, programmeId);
   const role = programme ? roleOnProgramme(user, form, programmeId) : null;
   if (!programme || !role || !opensProgrammeGroups(role)) return null;
+  // A closed programme takes no applications: the Programmes page's card says "Closed" for it.
+  if (programme.closed) return null;
   const href = `${applicationFormPath(form.round.id)}/programmes/${programme.id}/applications`;
   try {
     if (isTheirs(user, { programme, role })) {

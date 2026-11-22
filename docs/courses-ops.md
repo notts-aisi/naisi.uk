@@ -3451,7 +3451,11 @@ lead and a facilitator find none. Each reads "AGI Strategy", then
 own), with where it is beside it in the Programmes page's words (Not open
 yet, Taking applications, Deciding, Starting, Running, and Finished or
 Closed), and opens its Overview. It matches on the programme's names and its
-term's.
+term's. They come in their term's order: a term its form says is over
+(cancelled or archived) after every other, the newest form first within
+each, then how well they matched and their name, so older terms never crowd
+out the one being run; when more matched than the four shown, "More
+programmes match. Type more of the name." follows, as for people and groups.
 
 Somebody who is both a lead and a facilitator finds each person once, by the
 People tab. Anybody else (a reviewer, the committee, a member, a waiting or
@@ -3498,8 +3502,9 @@ At most six people and four groups, with a line when more matched.
   answer, their places on courses (one `in`).
 - Programmes, for an admin or a lead: nothing more to find them (the forms
   are already read), and for the four at most in the answer, past decision
-  day, their runs in one `getAll`, for the chip. None when no programme
-  matched.
+  day and on a form not cancelled or archived, their runs in one `getAll`,
+  for the chip; an admin's world already holds every live group's run, so
+  only the runs it lacks are read. None when no programme matched.
 - A lead: every form, then per form whose decisions have gone out its sent
   applications and decisions once, however many of its programmes they lead,
   and per programme the run, its groups and its places, each once (the People
@@ -4522,7 +4527,8 @@ would not open for them (a group they facilitate, or an archived one); anybody
 else, a run's track lead who is neither among them, `none`. Home's count and
 the programme's head count the same.
 `?run=<runId>` narrows the page to one programme, by the run it names (each
-programme's Overview links there from its Requests card): of the rows the
+programme's head and its Overview's Requests card link there, with one count
+from one read): of the rows the
 reader is shown anyway, only that run's, counted again, with the programme
 named at the top and "All requests" beside it. It never widens: a lead given
 another programme's run, or an id that is no run at all, is shown nothing
@@ -4707,7 +4713,8 @@ Nothing on any page changes a finished register without asking why.
   The page offers the person who asked neither Approve nor Decline. Home links
   to it while something waits (an admin's To do; a card under the lead's
   greeting, `requestsWaitingFor`, never in a view-as session), and so does the
-  programme's head ("2 requests waiting").
+  programme's head ("2 requests waiting"), narrowed to the programme as its
+  Overview's Requests card is.
 - **Attendance, all weeks**: the group's page's third tab, handed by the page
   only to admins and the programme's lead (never to somebody the register's
   gate answers as the group's facilitator, a lead who runs the group

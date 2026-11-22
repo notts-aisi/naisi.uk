@@ -55,6 +55,7 @@ export function noGroupsWords(query: string): string {
 export const SEARCH_MORE = {
   people: "More people match. Type more of the name.",
   groups: "More groups match. Type more of the name.",
+  programmes: "More programmes match. Type more of the name.",
 } as const;
 
 /** What the route answers, and what the box says when it cannot ask. */

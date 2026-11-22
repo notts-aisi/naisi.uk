@@ -8,6 +8,7 @@ import { COURSE_REQUESTS_COLLECTION, normalizeCourseRequest, type CourseRequestD
 import { canAuthorAdmissionRound } from "@/lib/firestore/users";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
+import { normalizeExcusedRequest, type ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
 import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
 import { liveWaitingVisitRequests } from "@/lib/courses/visitRequest/page";
 import { normalizeMoveRequest, type MoveRequestDoc } from "@/lib/firestore/courseMemberRequests";
@@ -87,12 +88,12 @@ export async function requestsWaitingOnRun(
     const groups = new Map<string, CourseGroupDoc>();
     for (const each of snaps) if (each.exists) groups.set(each.id, normalizeCourseGroup(each.id, each.data() ?? {}));
     // A request to be excused is no correction (the reader above leaves it out): counted apart, for an admin.
+    // Through the list's own normaliser, so a document the list would not show is not counted either.
     const excused =
       opts.excused === true
-        ? snap.docs.filter((doc) => {
-            const data = doc.data() ?? {};
-            return data.kind === "excused" && data.status === "waiting" && data.runId === runId;
-          }).length
+        ? snap.docs
+            .map((doc) => normalizeExcusedRequest(doc.id, doc.data() ?? {}))
+            .filter((each): each is ExcusedRequestDoc => each !== null && each.status === "waiting" && each.runId === runId).length
         : 0;
     // Requests to go to another session, still waiting for a decision, live
     // (not closed by itself, not gone with the place): counted for an admin alone, as those to be excused are.

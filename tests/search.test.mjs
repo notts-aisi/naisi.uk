@@ -902,9 +902,9 @@ describe("the facilitator guide", () => {
     // When only a guide (or a programme) matched, the two empty lists are not drawn above it.
     assert.match(
       box,
-      /const onlyGuides =\s+\(guides\.length > 0 \|\| programmes\.length > 0\) &&\s+answered !== null &&\s+answered\.answer\.people\.length === 0 &&\s+answered\.answer\.groups\.length === 0;/,
+      /const noPeopleOrGroups =\s+\(guides\.length > 0 \|\| programmes\.length > 0\) &&\s+answered !== null &&\s+answered\.answer\.people\.length === 0 &&\s+answered\.answer\.groups\.length === 0;/,
     );
-    assert.match(box, /\{onlyGuides \? null : \(/);
+    assert.match(box, /\{noPeopleOrGroups \? null : \(/);
     // The two lists every other answer draws are drawn as before, with their empty states.
     assert.match(box, /answered\.answer\.people\.length === 0 \? <p className=\{styles\.empty\}>\{noPeopleWords\(answered\.query\)\}/);
     assert.match(box, /answered\.answer\.groups\.length === 0 \? <p className=\{styles\.empty\}>\{noGroupsWords\(answered\.query\)\}/);
@@ -1010,8 +1010,73 @@ describe("programmes", () => {
     assert.deepEqual(matched, { calls: nothing.calls + 1, refs: nothing.refs + 1 });
     const zachNothing = await getAllsFor("zach", "zzqx");
     const zachAll = await getAllsFor("zach", "autumn 2026");
-    // Three programmes matched; two name a run past decision day.
-    assert.deepEqual(zachAll, { calls: zachNothing.calls + 1, refs: zachNothing.refs + 2 });
+    // Three programmes matched; the two that name a run past decision day name runs an admin's world already read.
+    assert.deepEqual(zachAll, zachNothing);
+    // A programme on a cancelled form has no chip, so its run is never asked for.
+    w.world.db.poke(`admissionRounds/${ROUND}`, { status: "cancelled" });
+    const cancelled = await getAllsFor("claudia", "agi strategy");
+    assert.deepEqual(cancelled, nothing);
+    assert.ok(!Object.hasOwn((await search("claudia", "agi strategy")).programmes[0], "chip"));
+  });
+
+  /** Another form for the same term's programmes, made `daysLater` days after this one, under its own name. */
+  function anotherForm(id, label, daysLater, over = {}) {
+    const form = stored(`admissionRounds/${ROUND}`);
+    const made = new Date(new Date("2026-09-01T09:00:00Z").getTime() + daysLater * 86_400_000);
+    const programmes = Object.fromEntries(
+      Object.entries(form.programmes).map(([key, programme]) => [key, { ...programme, runId: null }]),
+    );
+    w.world.db.seed(`admissionRounds/${id}`, { ...form, label, slug: id, createdAt: made, programmes, ...over });
+  }
+
+  test("five terms of one programme: the newest terms first, one the form says is over last, and More programmes when more matched", async (t) => {
+    freshTerm(t);
+    w.world.db.poke(`admissionRounds/${ROUND}`, { createdAt: new Date("2026-09-01T09:00:00Z") });
+    anotherForm("spring-2027", "Spring 2027", 100);
+    anotherForm("autumn-2027", "Autumn 2027", 300);
+    anotherForm("spring-2028", "Spring 2028", 450);
+    anotherForm("autumn-2028", "Autumn 2028", 650);
+    // The newest of all, archived: over, so after every other.
+    anotherForm("archived-2029", "Spring 2029", 800, { archived: true });
+    const answer = await search("zach", "agi");
+    assert.deepEqual(
+      answer.programmes.map((hit) => hit.line.split(" · ")[1]),
+      ["Autumn 2028", "Spring 2028", "Autumn 2027", "Spring 2027"],
+    );
+    assert.equal(answer.moreProgrammes, true);
+    // The lead, who leads it every term, is answered in the same order.
+    const lead = await search("claudia", "agi");
+    assert.deepEqual(lead.programmes.map((hit) => hit.line.split(" · ")[1]), ["Autumn 2028", "Spring 2028", "Autumn 2027", "Spring 2027"]);
+    assert.equal(lead.moreProgrammes, true);
+    // Typing the term finds the one left out.
+    const older = await search("zach", "agi autumn 2026");
+    assert.deepEqual(older.programmes.map((hit) => hit.href), [`${programmePath(AGI)}/overview`]);
+    assert.ok(!Object.hasOwn(older, "moreProgrammes"));
+  });
+
+  test("five programmes on one term: four, by name, and More programmes; four or fewer, and no More", async (t) => {
+    freshTerm(t);
+    const form = stored(`admissionRounds/${ROUND}`);
+    const extra = {};
+    for (const [id, short] of [["alignment", "Alignment"], ["governance", "Governance and Macrostrategy"]]) {
+      extra[id] = { ...form.programmes[AGI], name: `${short} Fellowship`, shortName: short, runId: null, leadUid: "zach" };
+    }
+    w.world.db.poke(`admissionRounds/${ROUND}`, { programmeIds: [...form.programmeIds, ...Object.keys(extra)], programmes: { ...form.programmes, ...extra } });
+    const answer = await search("zach", "autumn 2026");
+    assert.equal(answer.programmes.length, 4);
+    assert.equal(answer.moreProgrammes, true);
+    assert.deepEqual(
+      answer.programmes.map((hit) => hit.name),
+      ["AGI Strategy", "Alignment", "Governance and Macrostrategy", "Research incubator"],
+    );
+    // One fewer, and the answer says nothing of more.
+    w.world.db.poke(`admissionRounds/${ROUND}`, { programmeIds: [...form.programmeIds, "alignment"] });
+    const four = await search("zach", "autumn 2026");
+    assert.equal(four.programmes.length, 4);
+    assert.ok(!Object.hasOwn(four, "moreProgrammes"));
+    assert.equal(words.SEARCH_MORE.programmes, "More programmes match. Type more of the name.");
+    const box = read("src", "features", "search", "PeopleSearch.tsx");
+    assert.match(box, /\{answered\.answer\.moreProgrammes \? <p className=\{styles\.more\}>\{SEARCH_MORE\.programmes\}<\/p> : null\}/);
   });
 
   test("the pure half: in the answer only when one matched, at most four, kept when guides are taken off", () => {
@@ -1023,13 +1088,24 @@ describe("programmes", () => {
     const answer = model.searchWorld(world, "programme 3");
     assert.deepEqual(answer.programmes.map((hit) => hit.href), ["/p/3"]);
     assert.deepEqual(model.withoutGuides({ ...answer, guides: [] }).programmes, answer.programmes);
+    // More, beside them only, and kept when guides are taken off.
+    const many = model.searchWorld(world, "autumn");
+    assert.equal(many.moreProgrammes, true);
+    assert.equal(model.withoutGuides({ ...many, guides: [] }).moreProgrammes, true);
+    assert.ok(!Object.hasOwn(answer, "moreProgrammes"));
+    // A candidate's order comes before how well it matched.
+    const ordered = model.searchWorld(
+      { people: [], groups: [], programmes: [{ ...candidate("Autumn Zeta", 9), order: 0 }, { ...candidate("Autumn Alpha", 8), order: 1 }] },
+      "autumn",
+    );
+    assert.deepEqual(ordered.programmes.map((hit) => hit.name), ["Autumn Zeta", "Autumn Alpha"]);
     assert.ok(!Object.hasOwn(model.withoutGuides(model.searchWorld({ people: [], groups: [] }, "zzqx")), "programmes"));
   });
 
   test("the box draws Programmes first, with its heading, and moves through it before the people", () => {
     const box = read("src", "features", "search", "PeopleSearch.tsx");
     assert.equal(words.SEARCH_HEADINGS.programmes, "Programmes");
-    assert.ok(box.indexOf("{programmes.length > 0 ? (") < box.indexOf("{onlyGuides ? null : ("), "Programmes is not drawn first");
+    assert.ok(box.indexOf("{programmes.length > 0 ? (") < box.indexOf("{noPeopleOrGroups ? null : ("), "Programmes is not drawn first");
     assert.match(box, /renderList\(programmes, 0\)/);
     assert.match(box, /renderList\(answered\.answer\.people, peopleAt\)/);
     assert.match(box, /renderList\(answered\.answer\.groups, groupsAt\)/);

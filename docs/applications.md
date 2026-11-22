@@ -493,7 +493,8 @@ told the tab is theirs, as before). Two cards join today's, each worked out
 on the server and drawn only when it has something to say:
 
 - **Applications to read**, first, while the form takes or decides
-  applications (`applicationsToReadOn`, `programmes/overview.ts`): "14
+  applications, and never for a closed programme (`applicationsToReadOn`,
+  `programmes/overview.ts`): "14
   applications · 3 for you to read" and "Review 3" (or "See applications"),
   to the Applications tab. The count is the reader's own, by the term page's
   rule (`isTheirs`): the lead's, or an admin's who also leads it. An admin
@@ -507,7 +508,8 @@ on the server and drawn only when it has something to say:
 - **Requests**, after Needs attention, while requests about the
   programme's people wait: the head's own count (`requestsWaitingOnRunOnce`,
   one read shared by the head and the card), and "Open requests", the
-  Requests page narrowed to the programme's run. For the lead that is the
+  Requests page narrowed to the programme's run, where the head's "2 requests
+  waiting" now goes too. For the lead that is the
   register corrections a lead decides (on a group they do not facilitate,
   not archived); for an admin requests to be excused, to go to another
   session and to change group too. Messages to the team and access needs

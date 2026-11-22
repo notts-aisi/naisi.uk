@@ -1568,6 +1568,11 @@ const NOT_COVERED = {
     coverWhen:
       "When a marker or cursor change has to be proven against real Firestore rather than the fake.",
   },
+  "/api/search": {
+    reason:
+      "Search from the sidebar: its browser journey is the spec course-hub-search, unverified since its programmes step was added and not yet run in a browser; who may search and what every kind of reader finds, programmes included, is run against a real term by tests/search.test.mjs, and every persona's answer by the standing red team.",
+    coverWhen: "When course-hub-search passes locally again, all seven steps, with a teardown manifest of zero and its status becomes verified, in the same diff as this entry goes.",
+  },
   "/api/subscriptions": {
     reason:
       "Subscriptions: /api/subscriptions is covered by unit tests over the junction rows, and its answer is read on the page that posted it.",

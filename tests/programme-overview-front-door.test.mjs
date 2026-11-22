@@ -42,10 +42,12 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { A, AGI, B, C, NOW, ROUND, RUN, formPath, makeLeavingWorld, textOf } from "./lib/leavingWorld.mjs";
+import { A, AGI, B, C, NOW, ROUND, RUN, enrolmentPath, formPath, makeLeavingWorld, textOf } from "./lib/leavingWorld.mjs";
 import { TAIS } from "./lib/leadWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
@@ -53,6 +55,7 @@ mock.timers.enable({ apis: ["Date"], now: NOW });
 const w = await makeLeavingWorld("__frontDoor");
 const { world, call, loadTs } = w;
 
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 const TABS = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)");
 const OverviewPage = (await loadTs(join(TABS, "overview", "page.tsx"))).default;
 const RequestsPage = (await loadTs(join("app", "(app)", "admin", "admissions", "requests", "page.tsx"))).default;
@@ -301,6 +304,17 @@ describe("Applications to read, first on the Overview", () => {
     assert.equal(card.action, "Review 2");
   });
 
+  test("a closed programme gets no card, whatever the form is doing", async () => {
+    await twoWaitForTheLead();
+    const form = read(formPath);
+    world.db.poke(formPath, { programmes: { ...form.programmes, [AGI]: { ...form.programmes[AGI], closed: true } } });
+    for (const who of ["claudia", "zach"]) {
+      const page = await overview(who);
+      assert.equal(toReadCard(page.html), null, who);
+      assert.equal(page.html.includes("Applications to read"), false, who);
+    }
+  });
+
   test("once decisions are out there is no card, and nothing else on the page changes", async () => {
     const before = await overview("claudia");
     assert.equal(toReadCard(before.html), null);
@@ -328,7 +342,7 @@ describe("Applications to read, first on the Overview", () => {
     assert.equal(after.text, blank);
   });
 
-  test("it reads the decisions and nothing the head has not read: the applications are the head's own read", async (t) => {
+  test("outside a page render, the card adds one read of the decisions and one of the applications", async (t) => {
     await twoWaitForTheLead();
     const asked = [];
     const collection = world.courseDb.collection.bind(world.courseDb);
@@ -339,8 +353,8 @@ describe("Applications to read, first on the Overview", () => {
     const withCard = asked.length;
     await overview("claudia");
     const reads = asked.slice(withCard);
-    // Outside a page render nothing is shared, so the card reads the applications once itself here; on the
-    // site the head's read is the one used (`listSentApplicationsOnce`). The decisions are the card's own.
+    // Outside a render nothing is shared, so the applications are read here too; whether the head's read is
+    // shared inside one is not something a test outside a render can show.
     assert.equal(reads.filter((path) => path === "admissionDecisions").length, 1);
     assert.equal(reads.filter((path) => path === "admissionApplications").length, 1);
   });
@@ -398,6 +412,96 @@ describe("the Requests card, with requests of every kind waiting", () => {
     const all = await loadRequestsPage(world.courseDb, sessionFor("zach"), new Date());
     assert.ok(all.view.rows.some((row) => row.id === ids.message));
     assert.ok(all.view.rows.some((row) => row.id === ids.access));
+  });
+
+  /** The card's count (0 with no card), the open rows behind its link and the head's count, for one reader. */
+  async function countsOf(who) {
+    const card = requestsCard((await overview(who)).html);
+    return {
+      card: card ? card.count : 0,
+      rows: (await openRowsBehindTheLink(who, RUN.agi)).length,
+      head: await head(who),
+    };
+  }
+
+  /** The lead's and an admin's card, rows and head all agree; and the ids an admin is shown, for a state's own check. */
+  async function agree(state) {
+    for (const who of ["claudia", "zach"]) {
+      const counts = await countsOf(who);
+      assert.equal(counts.card, counts.rows, `${state}: ${who}'s card is not the rows behind its link`);
+      assert.equal(counts.head, counts.rows, `${state}: ${who}'s head is not the rows behind its link`);
+    }
+    const lead = await openRowsBehindTheLink("claudia", RUN.agi);
+    assert.ok(lead.every((row) => row.kind === "register-correction"), `${state}: the lead is shown a kind that is an admin's alone`);
+    return new Set((await openRowsBehindTheLink("zach", RUN.agi)).map((row) => row.id));
+  }
+
+  test("a lead's count is unmoved by every kind that is an admin's alone", async () => {
+    correction("corr-agi-b-1");
+    correction("corr-agi-b-2", { subjectUid: "farah", handlingUid: "zach" });
+    const before = await countsOf("claudia");
+    const adminBefore = await countsOf("zach");
+    await everyKindWaits();
+    const after = await countsOf("claudia");
+    assert.deepEqual(after, before);
+    // An admin's count grew by the kinds that are theirs, and by the correction on the group archived since.
+    assert.ok((await countsOf("zach")).card > adminBefore.card);
+    await agree("every kind waiting at once");
+  });
+
+  const STATES = {
+    "a correction on a group the lead also facilitates": async () => {
+      world.db.poke(`courseGroups/${B}`, { facilitatorUids: [...read(`courseGroups/${B}`).facilitatorUids, "claudia"] });
+      return (shown) => assert.ok(shown.has("corr-agi-b-1"), "an admin still decides it");
+    },
+    "a visit request that closed by itself": async (ids) => {
+      // Group C's session she asked for (Wed 18 Nov, 1pm) has started: the request closed by itself.
+      mock.timers.setTime(new Date("2026-11-18T13:00:00Z").getTime());
+      return (shown) => assert.ok(!shown.has(ids.visit), "the visit request did not close");
+    },
+    "a move request whose person's place has gone": async (ids) => {
+      world.db.poke(enrolmentPath("farah"), { allocatedEmailAt: null });
+      return (shown) => assert.ok(!shown.has(ids.move), "the move request did not go");
+    },
+    "a request to be excused that the list's normaliser does not read": async () => {
+      world.db.seed("courseRequests/excused-with-no-weeks", {
+        kind: "excused",
+        status: "waiting",
+        runId: RUN.agi,
+        groupId: B,
+        roundId: ROUND,
+        programmeId: AGI,
+        subjectUid: "kofi",
+        askedByUid: "kofi",
+        askedAt: new Date("2026-11-16T10:00:00Z"),
+        change: { weeks: [] },
+        reason: "",
+        history: [],
+      });
+      return (shown) => assert.ok(!shown.has("excused-with-no-weeks"));
+    },
+  };
+
+  for (const [state, change] of Object.entries(STATES)) {
+    test(`${state}: the card, the head and the rows behind the link agree, for the lead and an admin`, async () => {
+      const ids = await everyKindWaits();
+      const before = await agree("every kind waiting");
+      const check = await change(ids);
+      const shown = await agree(state);
+      check(shown);
+      assert.ok(shown.size <= before.size + 1, state);
+    });
+  }
+
+  test("the head's link and the card's go to one place, with one count from one read", () => {
+    const layout = readFileSync(join(SRC, TABS, "layout.tsx"), "utf8");
+    const page = readFileSync(join(SRC, TABS, "overview", "page.tsx"), "utf8");
+    assert.match(layout, /<Link href=\{requestsForRunPath\(programme\.runId\)\}/);
+    assert.match(page, /href: requestsForRunPath\(records\.run\.id\)/);
+    // The same question, with the same excused flag for the same reader, answered once per page.
+    assert.match(layout, /requestsWaitingOnRunOnce\(db, user, programme\.runId, \{ excused: role === "admin" \}\)/);
+    assert.match(page, /requestsWaitingOnRunOnce\(db, user, records\.run\.id, \{ excused: view\.viewer === "admin" \}\)/);
+    assert.ok(!layout.includes("REQUESTS_PATH"), "the head still opens the whole Requests page");
   });
 
   test("the lead of another programme counts their own run's and none of this one's", async () => {

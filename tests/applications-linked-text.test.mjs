@@ -1399,7 +1399,8 @@ const BUILT = new Map([
     // ADDED (November 2026), with correcting a register: the way to the
     // Requests page while something waits, a fixed address.
     // CHANGED (November 2026): the crumb is `TermCrumb`'s, so the term's own page is no longer built here.
-    { built: ["REQUESTS_PATH"], from: "the Requests page, a fixed address in the code (`REQUESTS_PATH`)" },
+    // CHANGED (November 2026): narrowed to the programme's run, as its Overview's Requests card is.
+    { built: ["requestsForRunPath(programme.runId)"], from: "the Requests page narrowed to the run the programme names, from the run's stored id, encoded (`requestsForRunPath`)" },
   ],
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages/page.tsx",

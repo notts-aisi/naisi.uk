@@ -44,7 +44,9 @@
  * its term's, at most `MAX_PROGRAMMES`. Its line is "Fellowship · Autumn 2026
  * · Lead: Maya Rao", and a chip says where it is ("Running", "Taking
  * applications"). Like guides, it is in the answer ONLY when something
- * matched.
+ * matched, with `moreProgrammes` when more did than it holds. Its order is
+ * its term's first (a term not over before one that is, the newest first,
+ * `order`), then how well it matched, then its name.
  *
  * Client safe: no import, so the box, the route and the tests run the same
  * rule.
@@ -81,6 +83,8 @@ export type SearchAnswer = {
   morePeople: boolean;
   /** More groups matched than the answer holds. */
   moreGroups: boolean;
+  /** More programmes matched than the answer holds: present, as `true`, only beside `programmes`. */
+  moreProgrammes?: boolean;
   /**
    * The facilitator guides that matched, one per course: present only when
    * one did (see the module comment). Never more than the courses the
@@ -105,6 +109,13 @@ export type SearchCandidate = SearchHit & {
    * result, the first list's. Never sent. Absent: the name and the page.
    */
   key?: string;
+  /**
+   * Where it comes in its list before anything else is compared, lower
+   * first; never sent. Only a programme carries one: its term's place (a
+   * term not over before one that is, the newest first), so the term being
+   * run is never crowded out by older ones. Absent: 0.
+   */
+  order?: number;
 };
 
 /** Everything one reader may find, read once per query by `./load.ts`. */
@@ -186,17 +197,22 @@ function pick(
   cap: number,
 ): { hits: SearchHit[]; more: boolean } {
   const seen = new Set<string>();
-  const ranked: { hit: SearchHit; rank: number }[] = [];
+  const ranked: { hit: SearchHit; rank: number; order: number }[] = [];
   for (const candidate of candidates) {
     if (!matches(words, foldForSearch(candidate.matchOn))) continue;
     // One row per person or group, or per name and page: the same person on two lists is one result.
     const key = candidate.key ?? `${candidate.href}\u0000${candidate.name}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    ranked.push({ hit: { name: candidate.name, line: candidate.line, href: candidate.href }, rank: rankOf(words, candidate.name) });
+    ranked.push({
+      hit: { name: candidate.name, line: candidate.line, href: candidate.href },
+      rank: rankOf(words, candidate.name),
+      order: candidate.order ?? 0,
+    });
   }
   ranked.sort(
     (a, b) =>
+      a.order - b.order ||
       a.rank - b.rank ||
       a.hit.name.localeCompare(b.hit.name, "en-GB") ||
       a.hit.line.localeCompare(b.hit.line, "en-GB") ||
@@ -216,18 +232,20 @@ export function searchWorld(world: SearchWorld, query: unknown): SearchAnswer {
   const groups = pick(world.groups, words, MAX_GROUPS);
   const answer: SearchAnswer = { people: people.hits, groups: groups.hits, morePeople: people.more, moreGroups: groups.more };
   const guides = pick(world.guides ?? [], words, Number.POSITIVE_INFINITY).hits;
-  const programmes = pick(world.programmes ?? [], words, MAX_PROGRAMMES).hits;
+  const programmes = pick(world.programmes ?? [], words, MAX_PROGRAMMES);
   return {
     ...answer,
     ...(guides.length > 0 ? { guides } : {}),
-    ...(programmes.length > 0 ? { programmes } : {}),
+    ...(programmes.hits.length > 0 ? { programmes: programmes.hits } : {}),
+    ...(programmes.hits.length > 0 && programmes.more ? { moreProgrammes: true } : {}),
   };
 }
 
 /** The answer with no `guides` in it: the shape every answer without a guide has. Programmes that matched stay. */
 export function withoutGuides(answer: SearchAnswer): SearchAnswer {
   const base = { people: answer.people, groups: answer.groups, morePeople: answer.morePeople, moreGroups: answer.moreGroups };
-  return answer.programmes && answer.programmes.length > 0 ? { ...base, programmes: answer.programmes } : base;
+  if (!answer.programmes || answer.programmes.length === 0) return base;
+  return answer.moreProgrammes ? { ...base, programmes: answer.programmes, moreProgrammes: true } : { ...base, programmes: answer.programmes };
 }
 
 /** The name a facilitator guide is offered by: the guide's own name. */

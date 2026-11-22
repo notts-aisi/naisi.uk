@@ -173,8 +173,12 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people",
     ],
   },
-  /** Passed locally on 19 Nov 2026, all six steps, the lead's included, with a teardown manifest of zero. */
-  status: "verified",
+  /**
+   * Passed locally on 19 Nov 2026 with its six steps then, the lead's included, with a teardown manifest of
+   * zero. A seventh step (the programme's name finds it and Enter opens its Overview) has been added since and
+   * has never run in a browser, so the spec as written has not passed: unverified until it passes whole again.
+   */
+  status: "unverified",
   seed,
   countRows: countTerm,
   teardown,
