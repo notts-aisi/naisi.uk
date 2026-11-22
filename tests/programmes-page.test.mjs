@@ -565,7 +565,7 @@ describe("5. the pages", () => {
     assert.match(drawn.text, /^Programmes Every programme of a term that isn’t over\. Open one to run it: its groups, weeks, people and settings are all inside\./);
     assert.match(drawn.text, /Autumn 2026 Running Every decision went out on Fri 23 Oct\. Autumn 2026’s term page/);
     assert.match(drawn.html, new RegExp(`<a href="${at(AGI, "overview")}" class="primary">Open AGI Strategy</a>`));
-    assert.match(drawn.text, /Earlier terms None yet A term moves here once its last session is over\. Everything in it stays\./);
+    assert.match(drawn.text, /Earlier terms None yet A term moves here once its last session is over, and its programmes leave the menu then\. Everything in it stays\./);
   });
 
   test("the Programmes page, as a lead: their programme, and no Earlier terms while there are none", async () => {
@@ -588,7 +588,7 @@ describe("5. the pages", () => {
     world.db.poke(formPath, { programmeIds: [], programmes: {}, status: "draft", decisionsSentAt: null });
     const drawn = await draw(ProgrammesPage, "zach");
     assert.ok(!drawn.text.includes("No application forms yet"));
-    assert.match(drawn.text, /Earlier terms None yet A term moves here once its last session is over\. Everything in it stays\./);
+    assert.match(drawn.text, /Earlier terms None yet A term moves here once its last session is over, and its programmes leave the menu then\. Everything in it stays\./);
   });
 
   test("somebody admitted who is on no form: the area's own empty state, not an error", async () => {

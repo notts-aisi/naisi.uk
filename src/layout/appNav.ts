@@ -17,13 +17,16 @@
  * To add an entry: one line in `APP_NAV` naming an address and a rule. To put
  * it in the phone's bottom bar as well: one more line in `BOTTOM_BAR`.
  *
- * One part of the menu is not a fixed list: Facilitating, whose entries are
+ * Two parts of the menu are not a fixed list: Facilitating, whose entries are
  * the groups the person facilitates and the guide to their courses, made
- * from what `GET /api/messages` answers (`menuFor`). Its addresses are
- * written here as shapes (`FACILITATING_ADDRESSES`), which the same test
- * holds to page files.
+ * from what `GET /api/messages` answers; and the programmes listed under
+ * Programmes, term by term, made from what `GET
+ * /api/admissions/programmes/menu` answers (`menuFor` puts both in). Their
+ * addresses are written here as shapes (`FACILITATING_ADDRESSES`,
+ * `PROGRAMME_ADDRESSES`), which the same test holds to page files.
  */
 
+import type { MenuTerm } from "@/lib/applications/programmes/menu";
 import { PROGRAMMES_PATH } from "@/lib/applications/programmes/path";
 import { FACILITATOR_GUIDE } from "@/lib/courses/facilitatorGuide/words";
 import { UNNAMED_GROUP_WORDS, facilitatingCourses, type FacilitatingGroup } from "@/lib/courses/facilitatingMenu";
@@ -83,6 +86,15 @@ export type NavEntry = {
    * the group's address.
    */
   also?: string[];
+  /**
+   * A term's heading ("Spring 2027 · applying"), drawn above this entry: set
+   * on the first programme of each term under Programmes.
+   */
+  heading?: string;
+  /** Drawn in from the edge, under the entry above it: the programmes under Programmes. */
+  nested?: boolean;
+  /** "Review 3" beside the name: applications waiting for this reader's reading on the programme. */
+  review?: number;
 };
 
 export type NavGroup = {
@@ -232,14 +244,72 @@ export function facilitatingPartOf(groups: readonly FacilitatingGroup[]): NavGro
   };
 }
 
+// ---------------------------------------------------------------------------
+// The programmes under Programmes
+// ---------------------------------------------------------------------------
+
 /**
- * The whole menu for somebody facilitating these groups: `APP_NAV` with the
- * Facilitating part after the first group. With no groups, `APP_NAV` itself,
- * so somebody who facilitates nothing is drawn exactly the menu they had.
+ * The addresses the programmes under Programmes lead to, as shapes, held to
+ * page files by `tests/app-frame.test.mjs`:
+ *
+ *  - `overview`: a programme's Overview, which each entry opens;
+ *  - `programme`: the programme's own address, under which every one of its
+ *    pages sits, so the entry is lit on all of them.
  */
-export function menuFor(groups: readonly FacilitatingGroup[]): NavGroup[] {
+export const PROGRAMME_ADDRESSES = {
+  overview: "/admin/admissions/forms/[roundId]/programmes/[programmeId]/overview",
+  programme: "/admin/admissions/forms/[roundId]/programmes/[programmeId]",
+} as const;
+
+/** "Review 3": the words beside a programme with applications waiting for the reader. */
+export function reviewWords(count: number): string {
+  return `Review ${count}`;
+}
+
+/**
+ * The entries under Programmes for these terms, in the answer's order: each
+ * programme by its name, opening its Overview, lit anywhere under its own
+ * address, the first of each term carrying the term's heading. Each is the
+ * way into the Programmes section, and drawn by the Programmes entry's own
+ * rule, so nobody the entry is not drawn for is drawn these.
+ */
+export function programmeEntriesOf(terms: readonly MenuTerm[]): NavEntry[] {
+  return terms.flatMap((term) =>
+    term.programmes.map(
+      (programme, index): NavEntry => ({
+        label: programme.name,
+        href: programme.href,
+        rule: "admissions",
+        section: "programmes",
+        nested: true,
+        also: [programme.href.replace(/\/overview$/, "")],
+        ...(index === 0 ? { heading: term.heading } : {}),
+        ...(programme.review > 0 ? { review: programme.review } : {}),
+      }),
+    ),
+  );
+}
+
+/**
+ * The whole menu for somebody facilitating these groups, with these terms'
+ * programmes: `APP_NAV` with the Facilitating part after the first group,
+ * and the programmes straight after the Programmes entry. With neither,
+ * `APP_NAV` itself, so somebody who facilitates nothing and has no
+ * programme listed (or whose answer has not come) is drawn exactly the menu
+ * they had.
+ */
+export function menuFor(groups: readonly FacilitatingGroup[], terms: readonly MenuTerm[] = []): NavGroup[] {
   const part = facilitatingPartOf(groups);
-  return part ? [APP_NAV[0], part, ...APP_NAV.slice(1)] : APP_NAV;
+  const programmes = programmeEntriesOf(terms);
+  const withProgrammes =
+    programmes.length === 0
+      ? APP_NAV
+      : APP_NAV.map((group) => {
+          const at = group.entries.findIndex((entry) => entry.href === PROGRAMMES_PATH);
+          if (at < 0) return group;
+          return { ...group, entries: [...group.entries.slice(0, at + 1), ...programmes, ...group.entries.slice(at + 1)] };
+        });
+  return part ? [withProgrammes[0], part, ...withProgrammes.slice(1)] : withProgrammes;
 }
 
 // ---------------------------------------------------------------------------

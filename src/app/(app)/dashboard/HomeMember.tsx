@@ -51,6 +51,10 @@ import styles from "./home.module.css";
  * every form. Worded on the server by week 1's door; what it may say is held
  * by `MAY_SHOW` in `tests/applications-place-in-the-member-area.test.mjs`.
  *
+ * A LEAD'S PROGRAMMES come before everything under the greeting
+ * (`programmes`, "Your programmes", made on the server from the Programmes
+ * list, in its own Suspense boundary), in every form and while the runs load.
+ *
  * A SURVEY WAITING FOR THEM is Home's first card (`surveys`): "A
  * survey for you", above the cards for a place, in every form. Worded on the
  * server by `surveysWaitingFor`; never how many others have answered.
@@ -69,6 +73,8 @@ type Slots = {
    * open, and the invitation to install the site as an app.
    */
   invite: ReactNode;
+  /** Server-rendered, in its own Suspense boundary: "Your programmes", for a lead. Nothing for anybody else. */
+  programmes?: ReactNode;
   termCard: ReactNode;
   comingUpRows: ReactNode;
   comingUpCards: ReactNode;
@@ -99,6 +105,7 @@ type Slots = {
 export default function HomeMember({
   given,
   invite,
+  programmes = null,
   termCard,
   comingUpRows,
   comingUpCards,
@@ -128,6 +135,7 @@ export default function HomeMember({
     return (
       <>
         <PageHead title={greeting} />
+        {programmes}
         {invite}
         <Skeleton height="14rem" />
       </>
@@ -164,6 +172,7 @@ export default function HomeMember({
   );
   const underGreeting = (
     <>
+      {programmes}
       {invite}
       {cards}
     </>
@@ -210,6 +219,7 @@ export default function HomeMember({
   return (
     <>
       <PageHead title={greeting} description={onNothing ? "You’re not on a programme." : undefined} />
+      {programmes}
       {invite}
       {cards}
       {termCard}

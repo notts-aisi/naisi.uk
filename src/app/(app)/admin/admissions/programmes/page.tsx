@@ -144,7 +144,7 @@ function EarlierTerms({ terms }: { terms: ProgrammesList["earlier"] }) {
         {terms.length === 0 && <Chip>None yet</Chip>}
       </div>
       <p className={shared.cardNote}>
-        A term moves here once its last session is over. Everything in it stays.
+        A term moves here once its last session is over, and its programmes leave the menu then. Everything in it stays.
       </p>
       {terms.length > 0 && (
         <ul className={styles.earlierList}>

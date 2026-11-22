@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import BrandMark from "@/components/BrandMark";
 import Button from "@/components/ui/Button";
 import Drawer from "@/components/ui/Drawer";
@@ -11,6 +11,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { exitImpersonation } from "@/auth/impersonation";
 import { signOut } from "@/auth/signInWithGoogle";
 import { usePendingCount } from "@/features/admin/usePendingCount";
+import { useProgrammesMenu } from "@/features/applications/programmes/useProgrammesMenu";
 import { useMenuAnswer } from "@/features/messages/useWritesMessages";
 import PeopleSearch, { SearchButton, useSlashToSearch } from "@/features/search/PeopleSearch";
 import { useSearches } from "@/features/search/useSearches";
@@ -28,6 +29,7 @@ import {
   bottomBarFor,
   currentEntry,
   menuFor,
+  reviewWords,
   roleInWords,
   type NavRule,
 } from "./appNav";
@@ -179,6 +181,10 @@ export default function AppShell({
   const { user, role, permissions, suRecognised, admissionsReviewer, loading } = useAuth();
   const pendingCount = usePendingCount();
   const { writes: writesMessages, facilitating } = useMenuAnswer();
+  // The programmes under Programmes, term by term: asked once, and only for
+  // somebody the Programmes entry is drawn for (see ADMISSIONS_ACCESS), so
+  // nobody else costs the database anything. Until it answers, none.
+  const programmeTerms = useProgrammesMenu(role === "admin" || admissionsReviewer);
   // Search for a person or a group: drawn only for somebody its route answers,
   // and asked about only for somebody who could run something.
   const searches = useSearches(writesMessages || admissionsReviewer);
@@ -306,9 +312,10 @@ export default function AppShell({
       ? { role, permissions, suRecognised, admissionsReviewer, writesMessages, facilitatesGroups: facilitating.length }
       : null;
   // The menu: `APP_NAV`, with the Facilitating part when the records name
-  // this person on a live group, each entry filtered by its rule.
+  // this person on a live group and the programmes under Programmes when the
+  // server lists some for them, each entry filtered by its rule.
   const visibleGroups = viewer
-    ? menuFor(facilitating)
+    ? menuFor(facilitating, programmeTerms)
         .map((g) => ({ ...g, entries: g.entries.filter((entry) => RULES[entry.rule](viewer)) }))
         .filter((g) => g.entries.length > 0)
     : [];
@@ -388,10 +395,14 @@ export default function AppShell({
             const active = entry === current;
             const count = entry.count === "joinRequests" ? pendingCount : 0;
             return (
+              <Fragment key={entry.href}>
+              {/* A term's heading, above the first of its programmes under Programmes. */}
+              {entry.heading && (
+                <div className={`meta ${styles.navTermLabel}`}>{entry.heading}</div>
+              )}
               <Link
-                key={entry.href}
                 href={entry.href}
-                className={`${styles.navLink} ${active ? styles.active : ""}`}
+                className={`${styles.navLink} ${entry.nested ? styles.navNested : ""} ${active ? styles.active : ""}`}
                 aria-current={active ? "page" : undefined}
                 onClick={opts.onLinkClick}
               >
@@ -411,7 +422,11 @@ export default function AppShell({
                     {count}
                   </span>
                 )}
+                {entry.review !== undefined && entry.review > 0 && (
+                  <span className={styles.navReview}>{reviewWords(entry.review)}</span>
+                )}
               </Link>
+              </Fragment>
             );
           })}
         </div>

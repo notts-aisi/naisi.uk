@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, use, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import Chip from "@/components/ui/Chip";
 import DateTile from "@/components/ui/DateTile";
@@ -18,6 +18,7 @@ import { ChevronRight } from "./icons";
 import type { HomeEvent } from "./homeData";
 import { requestsWaitingLine, requestsWaitingTitle } from "@/lib/courses/registerCorrection/pageWords";
 import { REQUESTS_PATH } from "@/lib/courses/requests/paths";
+import type { ApplicationsToRead } from "@/lib/applications/programmes/home";
 import HomeAdminFacilitating from "./HomeAdminFacilitating";
 import { firstName } from "./homeWords";
 import styles from "./home.module.css";
@@ -36,9 +37,13 @@ import styles from "./home.module.css";
  * already reads for My programmes: an admin who facilitates nothing asks
  * nothing new and sees nothing new.
  *
- * WHERE A FIGURE HAS NO READ A PAGE CAN MAKE, THE ROW HAS NO FIGURE. How many
- * applications are waiting for a lead is worked out on the server for the
- * term's own page, so the applications row here is a sentence and a link.
+ * THE PROGRAMMES CARD comes first (`programmes`, made on the server from the
+ * Programmes list, in its own Suspense boundary). "Applications to read"
+ * takes its figure, its line and its door from the same list when it
+ * arrives (`toRead`): how many applications wait for this admin's own
+ * reading, and the term's page, where the Review buttons are. Until then,
+ * and when the list cannot be read, the row is the one it always was: a
+ * sentence and the list of forms.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -159,6 +164,57 @@ type ToDo = {
   href: string;
 };
 
+/** One row of To do. */
+function TodoRow({ item, primary }: { item: ToDo; primary: boolean }) {
+  return (
+    <li className={styles.todoRow}>
+      <span className={styles.todoFigure} aria-hidden={item.figure === null}>
+        {item.figure ?? ""}
+      </span>
+      <div className={styles.todoBody}>
+        <h3 className={styles.todoTitle}>{item.title}</h3>
+        <p className={styles.small}>{item.line}</p>
+      </div>
+      <Link href={item.href} className={primary ? styles.primary : styles.secondary}>
+        {item.action}
+        <ChevronRight />
+      </Link>
+    </li>
+  );
+}
+
+/**
+ * "Applications to read" once the Programmes list has answered: the figure
+ * is how many applications wait for this admin's own reading ("Review N" on
+ * a programme they lead or review), the line says where ("Spring 2027: 3 for
+ * AGI Strategy."), and Open goes to the term's page. With none waiting for
+ * them the row keeps today's line, and opens the term's page all the same.
+ * The promise never rejects: an unread list is null, and the row is today's.
+ */
+function ApplicationsToReadRow({
+  item,
+  primary,
+  toRead,
+}: {
+  item: ToDo;
+  primary: boolean;
+  toRead: Promise<ApplicationsToRead | null>;
+}) {
+  const answer = use(toRead);
+  if (!answer) return <TodoRow item={item} primary={primary} />;
+  return (
+    <TodoRow
+      item={{
+        ...item,
+        figure: answer.count > 0 ? String(answer.count) : null,
+        line: answer.line ?? item.line,
+        href: answer.href,
+      }}
+      primary={primary}
+    />
+  );
+}
+
 type Facts = {
   /** The admin's first name, for the greeting. */
   given: string;
@@ -180,6 +236,10 @@ type Facts = {
   weekEndsAt: string;
   /** Server-rendered: the admin's own applications, when they have any. */
   applications: ReactNode;
+  /** Server-rendered, in its own Suspense boundary: the Programmes card, drawn first. */
+  programmes?: ReactNode;
+  /** What waits for this admin's reading, from the Programmes list, when it comes; null when it is not asked for. */
+  toRead?: Promise<ApplicationsToRead | null> | null;
   /** Requests waiting for somebody to decide them (`loadRequestsPage`'s waiting and being handled), read on the server; 0 with none. */
   requestsWaiting?: number;
   /** How many of them are requests to be excused, so the line says what waits. */
@@ -207,6 +267,8 @@ export default function HomeAdmin({
   weekStartsAt,
   weekEndsAt,
   applications,
+  programmes = null,
+  toRead = null,
   requestsWaiting = 0,
   excusedWaiting = 0,
   visitsWaiting = 0,
@@ -325,7 +387,9 @@ export default function HomeAdmin({
 
       <div className={styles.columns}>
         <div className={styles.stack}>
-          {/* An admin who facilitates: their own group first. */}
+          {/* The programmes of each term that is not over, first. */}
+          {programmes}
+          {/* An admin who facilitates: their own group next. */}
           {facilitating.length > 0 && <HomeAdminFacilitating runs={facilitating} />}
 
           <section className={styles.card} aria-labelledby="home-todo">
@@ -339,21 +403,16 @@ export default function HomeAdmin({
               <p className={styles.quiet}>Nothing is waiting on you.</p>
             ) : (
               <ul className={styles.todo} role="list">
-                {todo.map((item, index) => (
-                  <li key={item.key} className={styles.todoRow}>
-                    <span className={styles.todoFigure} aria-hidden={item.figure === null}>
-                      {item.figure ?? ""}
-                    </span>
-                    <div className={styles.todoBody}>
-                      <h3 className={styles.todoTitle}>{item.title}</h3>
-                      <p className={styles.small}>{item.line}</p>
-                    </div>
-                    <Link href={item.href} className={index === 0 ? styles.primary : styles.secondary}>
-                      {item.action}
-                      <ChevronRight />
-                    </Link>
-                  </li>
-                ))}
+                {todo.map((item, index) =>
+                  item.key === "applications" && toRead ? (
+                    // Today's row until the list answers, and if it never does.
+                    <Suspense key={item.key} fallback={<TodoRow item={item} primary={index === 0} />}>
+                      <ApplicationsToReadRow item={item} primary={index === 0} toRead={toRead} />
+                    </Suspense>
+                  ) : (
+                    <TodoRow key={item.key} item={item} primary={index === 0} />
+                  ),
+                )}
               </ul>
             )}
           </section>

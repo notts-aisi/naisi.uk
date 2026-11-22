@@ -7,7 +7,7 @@ import { firstNeedsYou } from "@/lib/courses/programmeOverview";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { registerSwitchesIn } from "@/lib/scheduler/registerSwitches";
 import { opensProgrammeGroups, roleOnProgramme, type ProgrammeRole } from "../access";
@@ -21,11 +21,14 @@ import type { TermStage } from "../lifecycle/status";
 import { lineFor, stageSummaryFor } from "../lifecycle/view";
 import type { ProgrammeKind, ProgrammeSettings } from "../model";
 import type { ApplicationForm } from "../normalise";
+import { menuHeadingFor, type MenuTerm } from "./menu";
 
 /**
  * THE PROGRAMMES A READER MAY OPEN, term by term: what the Programmes page
  * draws, made once on the server so that anything else that lists
- * programmes asks the same question.
+ * programmes asks the same question. Home's Programmes card is made from
+ * this list (`./home.ts`), and the menu from a cut of it that reads none of
+ * the cards' figures (`loadProgrammesMenu`, at the foot).
  *
  * ## Who is given what
  *
@@ -110,6 +113,14 @@ export type ProgrammeCard = {
   open: { label: string; href: string };
   /** "Review 3" beside it, for a programme the reader leads with applications waiting for them. */
   review: { label: string; href: string } | null;
+  /** Whether the reader opens its groups (an admin or its lead): the Overview is theirs, and Home lists it. */
+  opensGroups: boolean;
+  /** How many applications wait for this reader's reading on it: the N of "Review N", 0 with none. */
+  waiting: number;
+  /** Where its run is ("Week 2 of 6"), for the reader who opens its groups, or null. */
+  week: string | null;
+  /** Whether nobody leads it yet. */
+  noLead: boolean;
 };
 
 /** One term that is not over. */
@@ -287,6 +298,31 @@ async function readRuns(db: Firestore, runIds: readonly string[], now: Date): Pr
 
 type Visible = { programme: ProgrammeSettings; role: ProgrammeRole };
 
+type Staged = { form: ApplicationForm; stage: TermStage };
+
+/**
+ * These terms split into the ones that are not over and the ones that are,
+ * with the runs read to tell: every run named by a term past decision day
+ * that is not cancelled or archived, in one `getAll`, and the groups of each
+ * run not marked over (see `readRuns`). Both orders are the forms' own.
+ */
+async function splitByOver<T extends Staged>(
+  db: Firestore,
+  staged: readonly T[],
+  now: Date,
+): Promise<{ runs: Map<string, RunRead>; current: T[]; over: T[] }> {
+  const runIds = staged
+    .filter(({ form, stage }) => form.decisionsSentAt !== null && stage !== "cancelled" && stage !== "archived")
+    .flatMap(({ form }) =>
+      form.programmeIds.map((id) => own(form.programmes, id)?.runId ?? null).filter((id): id is string => !!id),
+    );
+  const runs = await readRuns(db, runIds, now);
+  const current: T[] = [];
+  const over: T[] = [];
+  for (const each of staged) (termIsOver(each.form, each.stage, runs) ? over : current).push(each);
+  return { runs, current, over };
+}
+
 /** The programmes on a form this reader may open, in the form's order. */
 function visibleOn(user: SessionUser, form: ApplicationForm): Visible[] {
   const out: Visible[] = [];
@@ -352,19 +388,8 @@ export async function loadProgrammesList(
 ): Promise<ProgrammesList> {
   const forms = await listVisibleForms(db, user);
   const staged = forms.map((form) => ({ form, stage: stageSummaryFor(form, now).stage }));
-
-  // The runs of every term that could be over or running: past decision day, and not cancelled or archived.
-  const runIds = staged
-    .filter(({ form, stage }) => form.decisionsSentAt !== null && stage !== "cancelled" && stage !== "archived")
-    .flatMap(({ form }) =>
-      form.programmeIds.map((id) => own(form.programmes, id)?.runId ?? null).filter((id): id is string => !!id),
-    );
-  const runs = await readRuns(db, runIds, now);
-
-  const current = staged.filter(({ form, stage }) => !termIsOver(form, stage, runs));
-  const earlier = staged
-    .filter(({ form, stage }) => termIsOver(form, stage, runs))
-    .map(({ form }) => ({ id: form.round.id, label: form.round.label, href: applicationFormPath(form.round.id) }));
+  const { runs, current, over } = await splitByOver(db, staged, now);
+  const earlier = over.map(({ form }) => ({ id: form.round.id, label: form.round.label, href: applicationFormPath(form.round.id) }));
 
   // The register's own word for finishing it, read once, and only if a card needs it.
   let ending: Promise<"finished" | "pushed"> | null = null;
@@ -451,6 +476,7 @@ async function termEntry(
     const groupsOpen = opensProgrammeGroups(role);
     const card = cards.get(programme.id);
 
+    const week = !programme.closed && groupsOpen && decided ? runWeekWords(read, now) : null;
     let line: string | null = null;
     if (programme.closed) {
       line = "Closed";
@@ -458,7 +484,6 @@ async function termEntry(
       line = applicationsLine(work.counts.all, waiting);
     } else if (groupsOpen && decided) {
       const parts: string[] = [];
-      const week = runWeekWords(read, now);
       if (week) parts.push(week);
       if (read && read !== "gone" && read.end) parts.push(plural(read.groups.length, "group", "groups"));
       if (card?.holding) parts.push(`${card.holding} holding a place`);
@@ -478,6 +503,10 @@ async function termEntry(
         ? { label: `Open ${shortName}`, href: `${base}/overview` }
         : { label: waiting > 0 ? `Review ${waiting}` : "See applications", href: applications },
       review: groupsOpen && waiting > 0 ? { label: `Review ${waiting}`, href: applications } : null,
+      opensGroups: groupsOpen,
+      waiting,
+      week,
+      noLead: !projected?.lead,
     };
   });
 
@@ -496,4 +525,74 @@ async function termEntry(
     pageLabel: `${form.round.label}’s term page`,
     programmes,
   };
+}
+
+// ---------------------------------------------------------------------------
+// The menu's part: the same programmes, cut down to what the menu draws
+// ---------------------------------------------------------------------------
+
+/**
+ * The programmes the menu lists under Programmes for this reader: those of
+ * each term that is not over whose groups the reader opens (an admin every
+ * one, a lead the ones they lead; a reviewer, a run's track lead and a
+ * facilitator none), each by its short name, opening its Overview, with the
+ * N of "Review N" where applications wait for this reader's reading as the
+ * list counts them. Terms in the list's order, the term being run first.
+ *
+ * It decides "over" as the list does and reads nothing the menu does not
+ * draw: no names on the form, no seats, no needs-you line.
+ *
+ *  1. Every form, one equality on one field. A reader who opens no
+ *     programme's groups on any of them is answered here, with nothing.
+ *  2. For the forms that hold one of the reader's programmes and are past
+ *     decision day, every run they name, in one `getAll`, and in parallel
+ *     the groups of each run not marked over.
+ *  3. Only while a term takes or decides applications and the reader leads
+ *     one of its programmes: its sent applications and decisions
+ *     (`loadTermNumbers`). A failed read of them leaves that term's Review
+ *     counts at nothing.
+ */
+export async function loadProgrammesMenu(db: Firestore, user: SessionUser, now: Date = new Date()): Promise<MenuTerm[]> {
+  const forms = await listVisibleForms(db, user);
+  const staged = forms
+    .map((form) => ({
+      form,
+      stage: stageSummaryFor(form, now).stage,
+      entries: visibleOn(user, form).filter(({ role }) => opensProgrammeGroups(role)),
+    }))
+    .filter(({ entries }) => entries.length > 0);
+  if (staged.length === 0) return [];
+  const { current } = await splitByOver(db, staged, now);
+  const terms = await Promise.all(
+    [...current].reverse().map(async ({ form, stage, entries }): Promise<MenuTerm> => {
+      const inSession = stage === "open" || stage === "deciding";
+      const numbers =
+        inSession && entries.some((each) => isTheirs(user, each))
+          ? await loadTermNumbers(db, user, form).catch(() => null)
+          : null;
+      const home = applicationFormPath(form.round.id);
+      return {
+        heading: menuHeadingFor(form.round.label, stage),
+        programmes: entries.map((each) => {
+          const work = numbers ? own(numbers.work, each.programme.id) : undefined;
+          return {
+            name: each.programme.shortName.trim() || each.programme.name,
+            href: `${home}/programmes/${each.programme.id}/overview`,
+            review: work && isTheirs(user, each) ? work.waiting : 0,
+          };
+        }),
+      };
+    }),
+  );
+  return terms;
+}
+
+/**
+ * Whether the menu's route answers this reader, and Home reads the list for
+ * them: an admin, or an account named on a form as a lead or a reviewer that
+ * still stands (the flag the admissions tree's gate reads). Anybody else has
+ * no programme to be shown and is not asked about.
+ */
+export function readsProgrammesFor(user: SessionUser): boolean {
+  return user.role === "admin" || (user.admissionsReviewer === true && holdsStanding(user, "admissionRounds.reviewerUids"));
 }

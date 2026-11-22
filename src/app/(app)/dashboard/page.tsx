@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import type { Firestore } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
@@ -14,6 +16,8 @@ import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import { termCivilDay } from "@/features/term/termWords";
 import { policyUpdateLine } from "@/lib/legal/updateLine";
 import { NO_REQUESTS_WAITING, requestsWaitingFor } from "@/lib/courses/requests/home";
+import { homeProgrammesOf, type HomeProgrammes } from "@/lib/applications/programmes/home";
+import { loadProgrammesList, readsProgrammesFor } from "@/lib/applications/programmes/list";
 import ComingUp from "./ComingUp";
 import ForYou from "./ForYou";
 import FullNameCard from "./FullNameCard";
@@ -21,6 +25,7 @@ import { FinishProfile, NoApplicationsYet } from "./HomeAside";
 import HomeAdmin from "./HomeAdmin";
 import HomeMember from "./HomeMember";
 import PolicyUpdate from "./PolicyUpdate";
+import ProgrammesHome from "./ProgrammesHome";
 import RequestsWaiting from "./RequestsWaiting";
 import TermCard from "./TermCard";
 import { forYouEvents, fullNameQuestion, homeEvents, profileSteps, type ForYouEvent } from "./homeData";
@@ -134,6 +139,21 @@ async function surveyCards(user: SessionUser, now: Date): Promise<SurveyCard[]> 
   }
 }
 
+/**
+ * THE PROGRAMMES CARD's rows, and what waits for an admin's reading, from the
+ * Programmes list (`loadProgrammesList`), as the reader may see it. Never
+ * rejects: a list that cannot be read is null, and Home then draws neither
+ * the card nor a figure, and says nothing about it.
+ */
+async function programmesOf(db: Firestore, user: SessionUser, now: Date): Promise<HomeProgrammes | null> {
+  try {
+    return homeProgrammesOf(await loadProgrammesList(db, user, now));
+  } catch (err) {
+    console.warn("[dashboard] could not read the programmes", err);
+    return null;
+  }
+}
+
 /** "Morning", "Afternoon" or "Evening", by the site's own clock. */
 function partOfDay(now: Date): string {
   const hour = Number(formatSiteDate(now, { hour: "2-digit" }));
@@ -149,6 +169,13 @@ export default async function DashboardPage() {
   const applications = user ? await applicationsOf(user.uid, viewingAs) : [];
   const now = new Date();
   const db = getAdminDb();
+  // "Programmes" (an admin's) or "Your programmes" (a lead's): asked for only
+  // for an admin or somebody named on a form, and not in a view-as session,
+  // as Requests waiting is not. Started here and never awaited by the page:
+  // the card sits in its own Suspense boundary and arrives when the list
+  // does, so Home never waits on it, and an admin's Applications to read
+  // takes its figure from the same answer when it comes.
+  const programmes = user && db && !viewingAs && readsProgrammesFor(user) ? programmesOf(db, user, now) : null;
   const [term, events, steps, held, cards, surveys, askFullName, forYou, requestsWaiting] = await Promise.all([
     fetchPublicTerm(now),
     homeEvents(now),
@@ -172,6 +199,12 @@ export default async function DashboardPage() {
     user && db && !viewingAs ? requestsWaitingFor(db, user, now) : NO_REQUESTS_WAITING,
   ]);
   const given = firstName(user?.displayName);
+
+  const programmesCard = programmes ? (
+    <Suspense fallback={null}>
+      <ProgrammesHome programmes={programmes} title={user?.role === "admin" ? "Programmes" : "Your programmes"} />
+    </Suspense>
+  ) : null;
 
   // The way back to somebody's applications. It draws nothing for a member
   // who has not applied; while applications are open, a member who is not on
@@ -216,6 +249,8 @@ export default async function DashboardPage() {
           weekStartsAt={events.week.startsAt}
           weekEndsAt={events.week.endsAt}
           applications={yourApplications}
+          programmes={programmesCard}
+          toRead={programmes ? programmes.then((answer) => answer?.toRead ?? null) : null}
           requestsWaiting={requestsWaiting.count}
           excusedWaiting={requestsWaiting.excused}
           visitsWaiting={requestsWaiting.visits}
@@ -228,6 +263,7 @@ export default async function DashboardPage() {
         <HomeMember
           given={given}
           invite={invite}
+          programmes={programmesCard}
           termCard={<TermCard term={term} />}
           comingUpRows={<ComingUp events={events.upcoming} layout="rows" />}
           comingUpCards={<ComingUp events={events.upcoming} layout="cards" />}

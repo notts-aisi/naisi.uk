@@ -865,6 +865,18 @@ export const ROUTES = {
         "a rejected one is refused, and every approved account sees its own.",
     },
   },
+  "/api/admissions/programmes/menu": {
+    GET: {
+      expect: adminOnly(200, { lead: 200 }),
+      fields: ["terms"],
+      why:
+        "The programmes the menu lists under Programmes, asked once by the shell: answered to an admin and to an " +
+        "account named on a form that still stands (readsProgrammesFor, the flag the admissions tree reads, which " +
+        "appointing the lead persona sets), and refused to everybody else before anything is read, an approveCourse " +
+        "holder on no form included. The answer is names, Overview addresses, term headings and Review counts: an " +
+        "admin every programme of a term that is not over, a lead the ones they lead, a reviewer none. It writes nothing.",
+    },
+  },
   "/api/admissions/forms": {
     GET: {
       expect: signedIn(200),
