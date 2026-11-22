@@ -23,7 +23,7 @@ import styles from "./weekly.module.css";
  * which decides everything again): the register keeps their word, never as a
  * mark, and the group's facilitators are asked for a meeting link for that
  * week. Nothing asks why, and nobody is emailed. Once said, the ticket says
- * so and where the link is, with "I'll be in the room after all" to take it
+ * so and where the link is, with "I'll be in the room instead" to take it
  * back while the session has not started. A refusal is the route's own
  * sentence.
  *
@@ -38,11 +38,14 @@ export default function JoiningOnline({
   view,
   hasLink,
   locked = false,
+  facilitatorFirstNames = [],
   onSaidChange,
 }: {
   view: JoiningOnlineView;
   hasLink: boolean;
   locked?: boolean;
+  /** The session's facilitators by first name: who can see it, and who adds the link. */
+  facilitatorFirstNames?: readonly string[];
   onSaidChange?: (said: boolean) => void;
 }) {
   const hydrated = useHydrated();
@@ -52,7 +55,7 @@ export default function JoiningOnline({
   // Once pressed, the line says what the press did, either way.
   const [pressed, setPressed] = useState(false);
   const inactive = !hydrated || locked || busy;
-  const line = error ?? (pressed ? onlineSavedWords(said, hasLink) : said ? saidOnlineWords(hasLink) : "");
+  const line = error ?? (pressed ? onlineSavedWords(said, hasLink, facilitatorFirstNames) : said ? saidOnlineWords(hasLink, facilitatorFirstNames) : "");
 
   async function press(online: boolean) {
     setBusy(true);

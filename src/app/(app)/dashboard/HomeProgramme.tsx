@@ -9,14 +9,15 @@ import { useAuth } from "@/auth/AuthProvider";
 import type { MyRunEntry } from "@/app/api/courses/me/route";
 import { weekHref } from "@/features/courses/links";
 import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
-import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
+import NextSessionCards, { nextCardSession } from "@/features/courses/nextSession/NextSessionCards";
+import { CardRefresh } from "@/features/courses/nextSession/refresh";
+import { useNextSessionAnswers } from "@/features/courses/nextSession/useNextSessionAnswers";
 import { AfterLastSession, WhatsNextCard } from "@/features/courses/weekly/ProgrammeEnd";
 import EndSurveyCard, { type LastSession } from "@/features/surveys/cards/EndSurveyCard";
 import { inLastWeek } from "@/lib/courses/programmeEnd";
 import type { SurveyCard } from "@/lib/surveys/waiting";
 import { useRunOverview } from "@/features/courses/useRunOverview";
 import { useWeek } from "@/features/courses/useWeek";
-import SessionTicket from "@/features/courses/weekly/SessionTicket";
 import TickRows, { tickItemsOf } from "@/features/courses/weekly/TickRows";
 import YourGroup from "@/features/courses/weekly/YourGroup";
 import { whoStepsOut } from "@/features/courses/weekly/whoStepsOut";
@@ -31,12 +32,9 @@ import {
   BEFORE_YOUR_SESSION,
   afterLastSessionHeading,
   doneWords,
-  groupHoursWords,
   homeEyebrow,
-  hoursWords,
   notUpYetWords,
   openWeekWords,
-  sessionEyebrow,
   tonightWord,
   weekTitleWords,
 } from "@/lib/courses/memberPageWords";
@@ -64,12 +62,16 @@ import styles from "./home.module.css";
  * here and a tick on the week's page are the same record of the same item.
  * Only somebody taking part, on an active enrolment, ticks.
  *
- * "Add to calendar" fills the row under the ticket (the
- * member's own calendar link).
- *
- * A CHANGED WEEK reads here as on the programme page: a
- * cancelled evening's notice over the ticket, and the ticket's eyebrow naming
- * the weeks a session covers or that it is online (`sessionEyebrow`).
+ * THE NEXT SESSION IS THE PROGRAMME PAGE'S OWN CARD (`NextSessionCards`),
+ * decided from the same overview and the same server answers, which Home
+ * reads from `GET /api/courses/runs/[runId]/next-session`
+ * (`useNextSessionAnswers`): a one-week visit when it comes first, with
+ * "Cancel this visit"; otherwise their own group's session, moved this week
+ * with why, a cancelled evening's notice over it; and its buttons, "Can't make
+ * it" and "I'm joining online", acting on the session the card shows. A press
+ * that changes what the card says has it read again (`CardRefresh`). "Add to
+ * calendar" fills the row under it (the member's own calendar link). The
+ * reading below is that session's week.
  *
  * THE LAST WEEK, by the member's own calendar
  * (`inLastWeek`): the ticket says "Tonight · your last session" on its day;
@@ -84,9 +86,8 @@ import styles from "./home.module.css";
  * week 1, `src/lib/courses/weekBlocks/progress.ts`) and lists the sources on
  * its path to tick, with no bar: the boards draw no percentages for it.
  *
- * WHAT IS NOT HERE: "Can’t make it" beside it on the ticket, which is the
- * programme page's alone (`CantMakeIt`). The member's marks are on their
- * programme's own page, with no count, and not on Home, which the board
+ * WHAT IS NOT HERE: the member's own requests, and their marks, which are on
+ * their programme's own page, with no count, and not on Home, which the board
  * draws without them.
  */
 
@@ -137,6 +138,8 @@ type Slots = {
 export default function HomeProgramme({ given, invite, entry, comingUp, applications, more, endSurvey = null }: Slots) {
   const { user } = useAuth();
   const { data, error } = useRunOverview(entry.runId);
+  // Asked beside the overview: Home draws this form for somebody taking part.
+  const { answers, reload } = useNextSessionAnswers(entry.runId, true);
   const [tickFailed, setTickFailed] = useState(false);
   const head = headLine(entry, data?.programme?.name || entry.courseTitle);
 
@@ -144,9 +147,11 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
   const facts = group ? ticketFacts(group) : null;
   const learner = data?.enrolment?.role === "learner" ? data.enrolment : null;
 
-  // The reading before the next session: that session's own week, open to
-  // read once it is published, as every published week is.
-  const weekNumber = facts?.weekNumber ?? 0;
+  // The reading before the next session: the week of the session the card
+  // shows (a visit's, when one comes first), open to read once it is
+  // published, as every published week is.
+  const cardSession = data ? nextCardSession(data) : null;
+  const weekNumber = cardSession?.weekNumber ?? 0;
   const schedule = data?.weekSchedule.find((week) => week.weekNumber === weekNumber) ?? null;
   const doc = data?.weeks.find((week) => week.weekNumber === weekNumber) ?? null;
   const readable = schedule?.open === true;
@@ -166,20 +171,16 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
 
   const runHref = `/learn/${encodeURIComponent(entry.runId)}`;
   const todayKey = londonDateKey(new Date());
-  const isToday = facts !== null && facts.dateKey === todayKey;
-  const isFirst = facts !== null && facts.dateKey === (group?.calendar.firstSessionDate ?? "");
-  const facilitators = (group?.facilitatorNames ?? []).map((name, index) => ({
-    uid: `${group?.id ?? "group"}-${index}`,
-    name,
-    firstName: firstName(name) || name,
-  }));
+  const isToday = cardSession !== null && cardSession.dateKey === todayKey;
+  const isFirst = cardSession !== null && !cardSession.visiting && cardSession.dateKey === (group?.calendar.firstSessionDate ?? "");
 
   // The last week, by the member's own calendar. The
   // group's last session is the last one its calendar holds, a cancelled one
   // left out; once it is over there is no ticket, and the cards say so.
   const lastWeek = inLastWeek(entry.currentWeek, entry.totalWeeks);
   const lastDateKey = group?.calendar.lastSessionDate ?? "";
-  const isLast = facts !== null && lastDateKey !== "" && facts.dateKey === lastDateKey;
+  // Their own group's last session, while the card is about it: never while a visit comes first.
+  const isLast = facts !== null && cardSession !== null && !cardSession.visiting && lastDateKey !== "" && facts.dateKey === lastDateKey;
   const onTheDay = isLast && isToday && facts ? (tonightWord(facts.startTimeLocal) === "Tonight" ? "tonight" : "today") : null;
   // The group's names, read once for the group's card and for who steps out
   // while the survey at the end is answered: the group's facilitators who
@@ -206,10 +207,10 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
   const total = byTasks ? byTasks.of : countable.length;
   const done = byTasks ? byTasks.done : countable.filter((id) => ticks.isDone(id)).length;
   const ticksKnown = !ticks.loading && !ticks.error;
-  const beforeTitle = !facts
+  const beforeTitle = !cardSession
     ? BEFORE_YOUR_SESSION
     : isToday
-      ? tonightWord(facts.startTimeLocal) === "Tonight"
+      ? tonightWord(cardSession.startTimeLocal) === "Tonight"
         ? BEFORE_TONIGHT
         : BEFORE_TODAY
       : isFirst
@@ -239,32 +240,24 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
         </section>
       )}
 
-      {/* An evening is off: the notice the programme page
-          shows, over the session the group meets at next. */}
-      {data && group?.sessionNotice && <SessionNotice notice={group.sessionNotice} />}
-
-      {data && group && facts && (
-        <SessionTicket
-          home
-          facts={facts}
-          eyebrow={sessionEyebrow({
-            isToday,
-            isFirst,
-            isLast,
-            startTimeLocal: facts.startTimeLocal,
-            weekNumbers: facts.weekNumbers,
-            dateKey: facts.dateKey,
-            online: facts.mode === "virtual",
-            home: true,
-          })}
-          heading={groupHoursWords(group.name, hoursWords(facts.startTimeLocal, facts.durationMinutes))}
-          roomChanged={schedule?.roomChanged === true}
-          facilitators={facilitators}
-          calendar={learner !== null && learner.groupId === group.id}
-        />
+      {/* The next session's card, the programme page's own: a visit when it
+          comes first, else their group's session with a cancelled evening's
+          notice over it, and the buttons the server's answers offer. */}
+      {data && (group || (data.visits ?? []).length > 0) && (
+        <CardRefresh.Provider value={reload}>
+          <NextSessionCards
+            runId={entry.runId}
+            data={data}
+            answers={answers}
+            // Nothing can be pressed until the answers say this is not an admin looking as the member.
+            locked={answers ? answers.viewAs : true}
+            home
+            calendar={learner !== null && group !== null && learner.groupId === group.id}
+          />
+        </CardRefresh.Provider>
       )}
 
-      {data && !(group && facts) && (
+      {data && !(group && facts) && !cardSession && (
         <section className={styles.card}>
           <p className={styles.quiet}>
             {!group
@@ -288,7 +281,7 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
           )}
           {data && lastWeek && <AfterLastSession heading={afterLastSessionHeading(onTheDay ?? "around")} certificateNeeds={data.certificateNeeds ?? null} />}
           {data && lastWeek && <WhatsNextCard whatsNext={data.whatsNext} look="card" />}
-          {data && facts && weekNumber >= 1 && (
+          {data && cardSession && weekNumber >= 1 && (
             <section className={`${weekly.card} ${weekly.cardTight}`} aria-labelledby="home-before">
               <div className={weekly.cardHead}>
                 <h2 id="home-before" className={weekly.cardTitle}>
@@ -297,7 +290,7 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
                 {readable && ticksKnown && total > 0 ? (
                   <p className={weekly.cardCount}>{doneWords(done, total)}</p>
                 ) : (
-                  !isToday && <span className={weekly.cardMeta}>{dayWords(facts.dateKey)}</span>
+                  !isToday && <span className={weekly.cardMeta}>{dayWords(cardSession.dateKey)}</span>
                 )}
               </div>
               <p className={`${weekly.cardLine} ${weekly.cardLineSpaced}`}>{weekTitleWords(weekNumber, doc?.title ?? "")}</p>

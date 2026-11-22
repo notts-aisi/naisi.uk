@@ -1349,12 +1349,12 @@ who told us, for each session still to come.
 
 ### "Joining online", before a session
 
-Somebody taking part in a group can press **Joining online** on the ticket
-of their group's next session, on their programme page, until the session
+Somebody taking part in a group can press **I'm joining online** on the card
+of their next session, on their programme page and on Home, until the session
 starts (`POST /api/courses/groups/[groupId]/joining-online`,
 `src/lib/courses/joiningOnline/`). It keeps their word on that session's
 register (`onlineSaid.<uid>`, when they said it), never as a mark; **I'll be
-in the room after all** takes it back. The box at the top of the
+in the room instead** takes it back. The box at the top of the
 facilitators' group page and register asks for a meeting link for that week
 while the session has none.
 

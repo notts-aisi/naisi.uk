@@ -113,9 +113,9 @@ const READERS = {
     does: "shows",
     why: "Join online on the visitor's own card for the session they go to, behind sign-in, with the line that says the link is only here",
   },
-  "features/courses/RunHome.tsx": {
+  "features/courses/nextSession/NextSessionCards.tsx": {
     does: "asks",
-    why: "the programme page asks whether a visit's card carries a link, to tell the joining-online answer whether there is one; it shows nothing of it itself",
+    why: "the next session's cards, on Home and the programme page, ask whether a visit's card carries a link, to tell the joining-online answer whether there is one; they show nothing of it themselves",
   },
   "features/courses/SessionCard.tsx": {
     does: "shows",

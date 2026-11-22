@@ -252,16 +252,21 @@ export function cardChangeFacts(
   next: ResolvedSession | null,
   todayKey: string,
 ): {
-  next: { weekNumbers: number[]; location: string; meetingUrl: string | null } | null;
+  next: { weekNumbers: number[]; location: string; meetingUrl: string | null; moved: { reason: string } | null } | null;
   notice: SessionNotice | null;
   cancelled: { weekNumber: number; dateKey: string; reason: string }[];
 } {
+  // The next session was moved for its week alone through "Change a session":
+  // the reason typed there ("Reason (the group sees this)") travels with it.
+  // A week's later meetings keep their own arrangement: only its first is moved.
+  const change = next && next.occurrence === 1 ? group.sessionChanges?.[next.weekId] : undefined;
   return {
     next: next
       ? {
           weekNumbers: coveredWeeks(sessions, next),
           location: next.session.location,
           meetingUrl: next.session.meetingUrl,
+          moved: change?.kind === "moved" ? { reason: change.reason ?? "" } : null,
         }
       : null,
     notice: sessionNoticeFor(sessions, group, todayKey),

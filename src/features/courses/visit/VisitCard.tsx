@@ -27,9 +27,12 @@ export default function VisitCard({
   visit,
   answers = null,
   locked = false,
+  label = "",
 }: {
   runId: string;
   visit: OverviewVisit;
+  /** "Your next session · week 2" beside the chip, when the visit is their next session; "" draws the chip alone. */
+  label?: string;
   /** "I’m joining online", about this session, or nothing. */
   answers?: ReactNode;
   /** A view-as session: the cancel is drawn as the person sees it, and never pressed. */
@@ -79,9 +82,12 @@ export default function VisitCard({
   return (
     <section className={weekly.ticket} aria-labelledby={`${ids}-chip`}>
       <div className={weekly.visitBody}>
-        <span id={`${ids}-chip`} className={weekly.visitChip}>
-          {visit.chip}
-        </span>
+        <div className={weekly.nextHead}>
+          {label && <p className={weekly.ticketEyebrow}>{label}</p>}
+          <span id={`${ids}-chip`} className={weekly.visitChip}>
+            {visit.chip}
+          </span>
+        </div>
         <h2 className={weekly.ticketWhen}>{visit.when}</h2>
         {visit.place && <p className={weekly.visitLine}>{visit.place}</p>}
         <p className={weekly.visitLine}>{visit.withLine}</p>

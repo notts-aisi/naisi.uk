@@ -433,7 +433,7 @@ describe("5. the programme page offers it on the ticket of the next session, to 
     assert.deepEqual(await ticketFor("chloe"), { groupId: B, sessionKey: "w03", day: "Tue 17 Nov", told: false });
     await w.asBrowser("chloe");
     const before = w.programmeHome("chloe", { cantMakeIt: await ticketFor("chloe"), excused: facilitates });
-    assert.ok(before.text.includes("Tue 17 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar Can’t make it"), before.text);
+    assert.ok(before.text.includes("Tue 17 Nov, 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia Add to calendar Can’t make it"), before.text);
     assert.match(before.html, /aria-label="Can’t make it on Tue 17 Nov"/);
 
     assert.equal((await cantMake("chloe", "w03")).status, 200);

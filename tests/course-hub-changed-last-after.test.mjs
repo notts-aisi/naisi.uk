@@ -129,9 +129,9 @@ describe("1. a changed week", () => {
     const { text, html } = w.programmeHome("chloe");
     assert.match(
       text,
-      /No session tonight Tue 24 Nov is cancelled\. Rahul and Sofia are both away\. Do week 4’s reading anyway\. On Tue 1 Dec you’ll talk about weeks 4 and 5 together\. Tue 1 Dec Tue 1 Dec · weeks 4 and 5 6pm to 8pm Hallward B12/,
+      /No session tonight Tue 24 Nov is cancelled\. Rahul and Sofia are both away\. Do week 4’s reading anyway\. On Tue 1 Dec you’ll talk about weeks 4 and 5 together\. Tue 1 Dec · weeks 4 and 5 6pm to 8pm Hallward B12/,
     );
-    // The day is said under the stub and in the eyebrow, never a third time in the heading.
+    // The day is said in the eyebrow, never again in the heading.
     assert.doesNotMatch(words(ticketOf(html)), /Tue 1 Dec, 6pm/);
     assert.doesNotMatch(text, /Your next session/);
   });
@@ -143,10 +143,12 @@ describe("1. a changed week", () => {
     const home = await w.homeCard("chloe");
     assert.match(
       home.text,
-      /No session tonight Tue 24 Nov is cancelled\. Rahul and Sofia are both away\. Do week 4’s reading anyway\. On Tue 1 Dec you’ll talk about weeks 4 and 5 together\. Tue 1 Dec Tue 1 Dec · weeks 4 and 5 Group B, 6pm to 8pm/,
+      /No session tonight Tue 24 Nov is cancelled\. Rahul and Sofia are both away\. Do week 4’s reading anyway\. On Tue 1 Dec you’ll talk about weeks 4 and 5 together\. Tue 1 Dec · weeks 4 and 5 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia/,
     );
-    // The notice comes before the ticket, as on the programme page.
-    assert.ok(home.text.indexOf("No session tonight") < home.text.indexOf("Group B, 6pm to 8pm"));
+    // The day is said in the eyebrow, never again in the heading, as on the programme page.
+    assert.doesNotMatch(words(ticketOf(home.html)), /Tue 1 Dec, 6pm/);
+    // The notice comes before the card, as on the programme page.
+    assert.ok(home.text.indexOf("No session tonight") < home.text.indexOf("Tue 1 Dec · weeks 4 and 5"));
   });
 
   test("before the evening: the notice names the day; once it has passed, the notice goes and the ticket still names both weeks", async () => {
@@ -162,10 +164,10 @@ describe("1. a changed week", () => {
     await w.asBrowser("chloe");
     const after = w.programmeHome("chloe").text;
     assert.doesNotMatch(after, /No session/);
-    assert.match(after, /Tue 1 Dec Tue 1 Dec · weeks 4 and 5 6pm to 8pm Hallward B12/);
+    assert.match(after, /Tue 1 Dec · weeks 4 and 5 6pm to 8pm Hallward B12/);
     const home = await w.homeCard("chloe");
     assert.doesNotMatch(home.text, /No session/);
-    assert.match(home.text, /Tue 1 Dec · weeks 4 and 5 Group B, 6pm to 8pm/);
+    assert.match(home.text, /Tue 1 Dec · weeks 4 and 5 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia/);
   });
 
   test("on the covering session's own day: Tonight with both weeks, and the heading dates it", async () => {
@@ -173,9 +175,9 @@ describe("1. a changed week", () => {
     at("2026-12-01T12:00:00Z");
     await w.asBrowser("chloe");
     const { text } = w.programmeHome("chloe");
-    assert.match(text, /Tue 1 Dec Tonight · weeks 4 and 5 Tue 1 Dec, 6pm to 8pm Hallward B12/);
+    assert.match(text, /Tonight · weeks 4 and 5 Tue 1 Dec, 6pm to 8pm Hallward B12/);
     const home = await w.homeCard("chloe");
-    assert.match(home.text, /Tue 1 Dec Tonight · weeks 4 and 5 Group B, 6pm to 8pm/);
+    assert.match(home.text, /Tonight · weeks 4 and 5 Tue 1 Dec, 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia/);
   });
 
   test("an online week, on the day: online in the eyebrow, Join online with its line, no room and no chip", async () => {
@@ -186,7 +188,7 @@ describe("1. a changed week", () => {
     const { html } = w.programmeHome("chloe");
     const ticket = ticketOf(html);
     const said = words(ticket);
-    assert.match(said, /^Tue 8 Dec Tonight · week 6 · online Tue 8 Dec, 6pm to 8pm/);
+    assert.match(said, /^Tonight · week 6 · online Tue 8 Dec, 6pm to 8pm/);
     assert.match(ticket, new RegExp(`<a class="joinButton" href="${LINK}" target="_blank" rel="noopener noreferrer">Join online</a>`));
     assert.match(said, /Join online The link is here, not in your emails, so it can’t be forwarded\.$/);
     // The row under the card holds it, as the design for a changed session draws it.
@@ -196,7 +198,7 @@ describe("1. a changed week", () => {
     // Home names the last session as such on its day, and says it is online.
     const home = await w.homeCard("chloe");
     const homeTicket = ticketOf(home.html);
-    assert.match(words(homeTicket), /Tonight · your last session · online Group B, 6pm to 8pm/);
+    assert.match(words(homeTicket), /^Tonight · your last session · online Tue 8 Dec, 6pm to 8pm R S Group B with Rahul and Sofia/);
     assert.match(homeTicket, new RegExp(`href="${LINK}"`));
     assert.match(words(homeTicket), /The link is here, not in your emails, so it can’t be forwarded\./);
     assert.doesNotMatch(words(homeTicket), /Hallward B12|Online this week/);
@@ -219,10 +221,10 @@ describe("1. a changed week", () => {
     at("2026-11-26T12:00:00Z");
     await w.asBrowser("chloe");
     const ticket = ticketOf(w.programmeHome("chloe").html);
-    assert.match(words(ticket), /^Tue 1 Dec Your next session · week 5 · online Tue 1 Dec, 6pm to 8pm/);
+    assert.match(words(ticket), /^Your next session · week 5 · online Tue 1 Dec, 6pm to 8pm/);
     assert.match(ticket, new RegExp(`href="${LINK}"`));
     const home = await w.homeCard("chloe");
-    assert.match(words(ticketOf(home.html)), /Your next session · week 5 · online Group B, 6pm to 8pm/);
+    assert.match(words(ticketOf(home.html)), /^Your next session · week 5 · online Tue 1 Dec, 6pm to 8pm R S Group B with Rahul and Sofia/);
   });
 
   test("a week like any other: no online in the eyebrow, and the room and the people on the ticket", async () => {
@@ -471,7 +473,7 @@ describe("3. the last week on Home", () => {
     assert.match(
       text,
       new RegExp(
-        "Thu 3 Dec Tonight · your last session Group A, 6pm to 8pm Portland A13 S with Sofia Add to calendar " +
+        "Tonight · your last session Thu 3 Dec, 6pm to 8pm Portland A13 S Group A with Sofia Add to calendar " +
           "The survey at the end At the end of tonight’s session: the same 9 questions as week 1, then how it went\\. About 10 minutes\\. " +
           "Sofia leaves you 10 minutes for it and steps out of the room\\. Open the survey It closes on Fri 18 Dec\\. " +
           "After tonight Everyone who finishes gets a certificate\\. " +
@@ -493,7 +495,7 @@ describe("3. the last week on Home", () => {
     // Group B meets on Tuesdays: on Sat 5 Dec, week 6, its last session is Tue 8 Dec.
     at("2026-12-05T12:00:00Z");
     const { text } = await homeOf("chloe");
-    assert.match(text, /Tue 8 Dec Your last session · week 6 Group B, 6pm to 8pm/);
+    assert.match(text, /Your last session · week 6 Tue 8 Dec, 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia/);
     assert.match(text, /After your last session Everyone who finishes gets a certificate\. What’s next Applications for Spring 2027 close on Sun 13 Dec\./);
     // Chloe was sent no survey: there is no card for one.
     assert.doesNotMatch(text, /The survey at the end/);

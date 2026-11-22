@@ -138,11 +138,15 @@ const WORDS = Object.freeze({
   toldUs:
     "You’ve told us you can’t make this session, so the register records you as excused. Your facilitators see it there.",
   canMakeItAfterAll: "I can make it after all",
-  joiningOnline: (day) => `Joining online on ${day}`,
+  joiningOnline: (day) => `I’m joining online on ${day}`,
+  // What the route answers once it has saved (src/lib/courses/joiningOnline/words.ts, `onlineSavedWords`).
   saidOnline:
     "You’ve said you’re joining online, and your facilitators can see that. The link to join will be on this ticket, not in your emails.",
+  // What the card says once it is said, before the link is added, with one facilitator to name.
+  saidOnlineCard: (name) => `${name} can see you’re joining online. The link to join shows here once ${name} adds it: not yet.`,
+  joiningOnlineChip: "Joining online",
   saidOnlineLinked: "You’ve said you’re joining online, and your facilitators can see that. The link to join is on this ticket.",
-  inTheRoomAfterAll: "I’ll be in the room after all",
+  inTheRoomAfterAll: "I’ll be in the room instead",
   // The email that tells the group's facilitators (src/lib/courses/joiningOnline/words.ts).
   toldFacilitators: (name, week) => `${name} is joining week ${week} online`,
   whereChoice: (name, week, online) =>
@@ -745,7 +749,8 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
         const [said] = await Promise.all([responseTo(adaPage, `/groups/${group.id}/joining-online`, "POST"), join.click()]);
         assert.deepEqual(said.request().postDataJSON(), { sessionKey: nextKey, online: true }, "the press named another session");
         assert.deepEqual(await okBody(said, "Joining online"), { ok: true, online: true, message: WORDS.saidOnline });
-        await ticket.getByRole("status").filter({ hasText: WORDS.saidOnline }).waitFor({ timeout: WAIT_MS });
+        await ticket.getByRole("status").filter({ hasText: WORDS.saidOnlineCard(fern.first) }).waitFor({ timeout: WAIT_MS });
+        await ticket.getByText(WORDS.joiningOnlineChip, { exact: true }).waitFor({ timeout: WAIT_MS });
         await ticket.getByRole("button", { name: WORDS.inTheRoomAfterAll, exact: true }).waitFor({ timeout: WAIT_MS });
         // And now Can't make it waits until Ada is in the room after all.
         assert.equal(await ticket.getByRole("button", { name: WORDS.cantMakeIt(day), exact: true }).count(), 0, "Can't make it is offered beside Joining online");
@@ -770,7 +775,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
           "the email that tells the facilitators went to somebody else, or said something else",
         );
         await adaPage.reload({ waitUntil: "domcontentloaded" });
-        await ticket.getByRole("status").filter({ hasText: WORDS.saidOnline }).waitFor({ timeout: WAIT_MS });
+        await ticket.getByRole("status").filter({ hasText: WORDS.saidOnlineCard(fern.first) }).waitFor({ timeout: WAIT_MS });
         await ticket.getByRole("button", { name: WORDS.inTheRoomAfterAll, exact: true }).waitFor({ timeout: WAIT_MS });
       },
     );

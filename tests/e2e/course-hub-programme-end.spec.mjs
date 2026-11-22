@@ -989,11 +989,13 @@ test(
         const [hour, minute] = lwGroup.startTimeLocal.split(":").map(Number);
         const endsAt = (hour * 60 + minute + lwGroup.durationMinutes) % 1440;
         const endClock = `${String(Math.floor(endsAt / 60)).padStart(2, "0")}:${String(endsAt % 60).padStart(2, "0")}`;
+        // The card's heading is the session's day and hours, and its group is on a line of its own.
         assert.equal(
           await textOf(ticket.getByRole("heading", { level: 2 })),
-          `${lwGroup.name}, ${clockWords(lwGroup.startTimeLocal)} to ${clockWords(endClock)}`,
+          `${dayLabel(lastSession.dateKey)}, ${clockWords(lwGroup.startTimeLocal)} to ${clockWords(endClock)}`,
           "Home's ticket is not the group's last session",
         );
+        assert.ok((await textOf(ticket)).includes(lwGroup.name), "Home's card does not name the group");
 
         // The survey at the end, under it: when to answer it, what it asks,
         // how long, who steps out, the person's own link and when it closes.

@@ -235,6 +235,14 @@ export type OverviewNextSession = {
    * or the review it came from (`src/lib/courses/explainers/`).
    */
   explainer: MemberExplainer | null;
+  /**
+   * The session was moved for its week alone ("Change a session"), with the
+   * reason typed there, which the panel labels "Reason (the group sees
+   * this)" and the email about the move already carries: written for exactly
+   * the people this card is for, and it can hold no link. Null when it was
+   * not moved. Optional so a card built before the field reads as not moved.
+   */
+  moved?: { reason: string } | null;
 };
 
 /**
@@ -1644,6 +1652,7 @@ export async function GET(
               // The same gate as the group's own link, below.
               meetingUrl: canSeeMeetingUrlFor(source) ? (changes.next?.meetingUrl ?? null) : null,
               explainer: memberExplainerOn(explainers, source.id, range.next.sessionKey),
+              moved: changes.next?.moved ?? null,
             }
           : null,
       },

@@ -1591,8 +1591,13 @@ test(
         // The card is the first thing under the greeting, above the programme's own session.
         const ticket = benPage.getByRole("region", { name: "Your next session", exact: true });
         await ticket.waitFor({ timeout: WAIT_MS });
+        // Compared by the card's heading (its day and hours), which is there
+        // from the first draw: the card's buttons arrive on a read of their
+        // own, so the card's whole text may change between two reads.
+        const when = await textOf(ticket.getByRole("heading", { level: 2 }));
         const home = await mainText(benPage);
-        assert.ok(home.indexOf("A survey for you") < home.indexOf(await textOf(ticket)), "the survey's card is not above the programme's own session");
+        assert.ok(when !== "" && home.indexOf(when) >= 0, `Home's text does not hold the card's heading: ${when}`);
+        assert.ok(home.indexOf("A survey for you") < home.indexOf(when), "the survey's card is not above the programme's own session");
 
         await Promise.all([benPage.waitForURL(`${origin}${linkOf.get("ben")}`, { timeout: WAIT_MS }), answer.click()]);
         await readSurveyHead(benPage, now, { facilitators: [fern.first] });

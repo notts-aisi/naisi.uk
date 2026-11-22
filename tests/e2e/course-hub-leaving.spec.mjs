@@ -819,12 +819,13 @@ test(
             assert.equal(answer.status, 200, `${path} answered ${ben.first} ${answer.status} while still in the group`);
           }
 
-          // Home: Ben's next session, named by the group, with the same way to join.
+          // Home: Ben's next session, the programme page's own card, its group
+          // line naming the group, with the same way to join.
           await benPage.goto(`${origin}/dashboard`, { waitUntil: "domcontentloaded" });
           const homeTicket = benPage.getByRole("region", { name: "Your next session", exact: true });
           await homeTicket.waitFor({ timeout: WAIT_MS });
-          const homeWhen = await textOf(homeTicket.getByRole("heading", { level: 2 }));
-          assert.ok(homeWhen.startsWith(`${groupA.name}, `), `Home's ticket does not name Ben's group: ${homeWhen}`);
+          assert.equal(await textOf(homeTicket.getByRole("heading", { level: 2 })), ticketWhen, "Home's card is not Group A's next session");
+          await homeTicket.getByText(`${groupA.name} with ${fern.first}`, { exact: true }).waitFor({ timeout: WAIT_MS });
           assert.equal(
             await homeTicket.getByRole("link", { name: "Join online", exact: true }).getAttribute("href"),
             groupA.meetingUrl,

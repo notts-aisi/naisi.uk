@@ -414,10 +414,13 @@ describe("3. the person's programme page: their own card, sent and drawn for the
   });
 
   test("the instant button is drawn for the facilitator's entry alone, in the source as on the page", () => {
-    const runHome = readSource("src/features/courses/RunHome.tsx");
-    assert.match(runHome, /const entry = ticketEntryOf\(excused, group\?\.id \?\? null\);/);
-    assert.match(runHome, /cantMakeIt=\{entry === "instant" \? ticketCantMakeIt : null\}/);
-    assert.match(runHome, /ticketJoiningOnline \|\| \(entry === "instant" && ticketCantMakeIt\)/);
+    // The next session's cards, which the programme page and Home both draw, decide the buttons.
+    const cards = readSource("src/features/courses/nextSession/NextSessionCards.tsx");
+    assert.match(cards, /const entry = ticketEntryOf\(excused, group\?\.id \?\? null\);/);
+    assert.match(cards, /cantMakeIt=\{entry === "instant" \? ownCantMakeIt : null\}/);
+    assert.match(cards, /ownJoiningOnline \|\| \(entry === "instant" && ownCantMakeIt\)/);
+    // The programme page asks the same rule for the last session's card and its requests.
+    assert.match(readSource("src/features/courses/RunHome.tsx"), /const entry = ticketEntryOf\(excused, group\?\.id \?\? null\);/);
   });
 
   test("the person's own requests list and the last session's card, drawn alone", () => {
@@ -471,8 +474,11 @@ describe("3. the person's programme page: their own card, sent and drawn for the
     assert.match(read_("src/features/courses/excused/ExcuseSheet.tsx"), /certificateNeeds=\{certificateNeeds\}/);
     assert.match(read_("src/features/courses/excused/TicketExcuse.tsx"), /certificateNeeds=\{certificateNeeds\}/);
     assert.match(read_("src/features/courses/excused/LastSessionCard.tsx"), /certificateNeeds=\{certificateNeeds\}/);
-    // Five since a one-week visit's card asks to be excused from the host's session through the same sheet.
-    assert.equal((read_("src/features/courses/RunHome.tsx").match(/certificateNeeds=\{data\.certificateNeeds \?\? null\}/g) ?? []).length, 5);
+    // Five since a one-week visit's card asks to be excused from the host's session through the same sheet:
+    // the next session's cards (their own group's and a visit's) and the rest of the programme page.
+    const handsOn = (path) => (read_(path).match(/certificateNeeds=\{data\.certificateNeeds \?\? null\}/g) ?? []).length;
+    assert.equal(handsOn("src/features/courses/nextSession/NextSessionCards.tsx"), 2);
+    assert.equal(handsOn("src/features/courses/RunHome.tsx") + handsOn("src/features/courses/nextSession/NextSessionCards.tsx"), 5);
   });
 
   test("before asking, the form asks them to confirm, in order: three ticks in a room with online offered, two and a sentence where it isn't", () => {
