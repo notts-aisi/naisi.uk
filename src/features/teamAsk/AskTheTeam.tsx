@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Chip from "@/components/ui/Chip";
 import { Textarea } from "@/components/ui/Input";
 import OptionRow from "@/components/ui/OptionRow";
 import { useHydrated } from "@/hooks/useHydrated";
-import { PAGE_WORDS, TOPIC_WORDS } from "@/lib/courses/teamAsk/words";
+import { ACCESS_WORDS, PAGE_WORDS, TOPIC_WORDS } from "@/lib/courses/teamAsk/words";
 import { TEAM_MESSAGE_LIMITS, TEAM_TOPICS, type TeamTopic } from "@/lib/firestore/courseTeamAsks";
-import { sendTeamMessage } from "./api";
+import { sendAccessNeeds, sendTeamMessage } from "./api";
 import styles from "./AskTheTeam.module.css";
 
 /** A place the member holds this term: the run, and the programme's name. */
@@ -31,14 +31,32 @@ const programmeHref = (runId: string) => `/learn/${encodeURIComponent(runId)}`;
  * itself (the form says when nothing can be asked). "Something’s wrong on
  * the site" and "Something else" are written here.
  *
+ * "ACCESS NEEDS" opens its own short form in place of this one: only admins
+ * read it, and each opening is recorded. It asks what would help, never why,
+ * with a tick the person sets to let their facilitator be told what is
+ * needed (never why); the site passes that to nobody.
+ *
  * It takes only finished words and the runs it links to, never a document.
- * Once sent, the words are gone from the page and the list is read again.
+ * Once sent, the words are gone from the page and the list is read again; an
+ * access ask is listed as "Access needs" alone.
  */
 export default function AskTheTeam({ places, own }: { places: AskPlace[]; /** Null when their messages could not be read: no list is drawn. */ own: AskRow[] | null }) {
   const router = useRouter();
   const hydrated = useHydrated();
-  const [topic, setTopic] = useState<TeamTopic | "visit" | "">("");
+  const [topic, setTopic] = useState<TeamTopic | "visit" | "access" | "">("");
+  // The access form's own box, so a message half written never lands in it.
+  const [accessWords, setAccessWords] = useState("");
+  const [tellFacilitator, setTellFacilitator] = useState(false);
   const [words, setWords] = useState("");
+  // Where focus goes when the access form opens and closes: its heading, then back to its topic.
+  const accessHeading = useRef<HTMLHeadingElement>(null);
+  const accessTopic = useRef<HTMLButtonElement>(null);
+  const focusOnSwap = useRef(false);
+  useEffect(() => {
+    if (!focusOnSwap.current) return;
+    focusOnSwap.current = false;
+    (topic === "access" ? accessHeading.current : accessTopic.current)?.focus();
+  }, [topic]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
@@ -49,16 +67,77 @@ export default function AskTheTeam({ places, own }: { places: AskPlace[]; /** Nu
     setSent(false);
     setError("");
     setSending(true);
-    const answer = await sendTeamMessage(topic, words);
+    const answer = topic === "access" ? await sendAccessNeeds(accessWords, tellFacilitator) : await sendTeamMessage(topic, words);
     setSending(false);
     if (!answer.ok) {
       setError(answer.status === 0 ? PAGE_WORDS.didntSend : (answer.error ?? PAGE_WORDS.didntSend));
       return;
     }
-    setWords("");
+    if (topic === "access") setAccessWords("");
+    else setWords("");
+    setTellFacilitator(false);
     setTopic("");
     setSent(true);
     router.refresh();
+  }
+
+  if (topic === "access") {
+    return (
+      <div className={styles.screen}>
+        <button
+          type="button"
+          className={styles.back}
+          onClick={() => {
+            setTopic("");
+            setError("");
+            focusOnSwap.current = true;
+          }}
+        >
+          {ACCESS_WORDS.back}
+        </button>
+        <header className={styles.head}>
+          <h1 className={styles.title} ref={accessHeading} tabIndex={-1}>
+            {ACCESS_WORDS.heading}
+          </h1>
+          <p className={styles.intro}>{ACCESS_WORDS.onlyAdmins}</p>
+        </header>
+        <form className={styles.form} onSubmit={onSubmit} noValidate>
+          <div className={styles.field}>
+            <label htmlFor="access-words" className={styles.label}>
+              {ACCESS_WORDS.label}
+            </label>
+            <p id="access-words-hint" className={styles.hint}>
+              {ACCESS_WORDS.hint}
+            </p>
+            <Textarea
+              id="access-words"
+              rows={5}
+              maxLength={TEAM_MESSAGE_LIMITS.words}
+              value={accessWords}
+              onChange={(event) => setAccessWords(event.target.value)}
+              aria-describedby="access-words-hint"
+            />
+          </div>
+          <OptionRow
+            type="checkbox"
+            name="access-tell-facilitator"
+            checked={tellFacilitator}
+            onChange={(event) => setTellFacilitator(event.target.checked)}
+            description={ACCESS_WORDS.tickLine}
+          >
+            {ACCESS_WORDS.tick}
+          </OptionRow>
+          {error && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+          <button type="submit" className={styles.send} disabled={!hydrated || sending}>
+            {sending ? PAGE_WORDS.sending : ACCESS_WORDS.send}
+          </button>
+        </form>
+      </div>
+    );
   }
 
   return (
@@ -89,6 +168,21 @@ export default function AskTheTeam({ places, own }: { places: AskPlace[]; /** Nu
               {PAGE_WORDS.visitTopic}
             </OptionRow>
           )}
+          {/* A way to the access form, not one of the radios: arrowing through them never opens it. */}
+          <button
+            type="button"
+            ref={accessTopic}
+            className={styles.flow}
+            onClick={() => {
+              setTopic("access");
+              setSent(false);
+              setError("");
+              focusOnSwap.current = true;
+            }}
+          >
+            <span className={styles.flowTitle}>{ACCESS_WORDS.topic}</span>
+            <span className={styles.flowLine}>{ACCESS_WORDS.topicLine}</span>
+          </button>
           {TEAM_TOPICS.map((each) => (
             <OptionRow key={each} type="radio" name="ask-topic" value={each} checked={topic === each} onChange={() => setTopic(each)}>
               {TOPIC_WORDS[each]}

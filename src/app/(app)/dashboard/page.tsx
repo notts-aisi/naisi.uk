@@ -222,6 +222,7 @@ export default async function DashboardPage() {
           correctionsWaiting={requestsWaiting.corrections}
           movesWaiting={requestsWaiting.moves}
           messagesWaiting={requestsWaiting.messages}
+          accessWaiting={requestsWaiting.access}
         />
       ) : (
         <HomeMember

@@ -3,8 +3,15 @@ import type { Firestore } from "firebase-admin/firestore";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
-import { TEAM_MESSAGE_KIND, normalizeTeamMessage, type TeamMessageDoc } from "@/lib/firestore/courseTeamAsks";
-import { OWN_CHIP, ownRepliedWords, ownSentWords, ownTitleWords } from "./words";
+import {
+  ACCESS_NEEDS_KIND,
+  TEAM_MESSAGE_KIND,
+  normalizeAccessNeeds,
+  normalizeTeamMessage,
+  type AccessNeedsDoc,
+  type TeamMessageDoc,
+} from "@/lib/firestore/courseTeamAsks";
+import { ACCESS_ROW_TITLE, OWN_CHIP, ownRepliedWords, ownSentWords, ownTitleWords } from "./words";
 
 /**
  * "YOUR REQUESTS" ON ASK THE TEAM: the caller's own messages to the team,
@@ -19,6 +26,12 @@ import { OWN_CHIP, ownRepliedWords, ownSentWords, ownTitleWords } from "./words"
  *
  * Kept while the account exists, as the privacy policy says of requests and
  * messages.
+ *
+ * THEIR ACCESS ASKS are listed too, by a second read of the same two
+ * equalities with their own kind, each titled "Access needs" alone: what
+ * they wrote is never repeated back in a list, and this file cannot read it
+ * (`normalizeAccessNeeds` holds no words). There is no page of one ask for
+ * the member, so the site never shows those words back to them at all.
  */
 
 export type OwnMessageRow = { id: string; title: string; line: string; chip: string; replied: boolean };
@@ -33,10 +46,15 @@ const MAX_OWN = 500;
 
 export async function ownTeamMessages(db: Firestore, uid: string): Promise<OwnMessageRow[]> {
   if (!isAddressableId(uid)) return [];
-  const snap = await db.collection(COURSE_REQUESTS_COLLECTION).where("askedByUid", "==", uid).where("kind", "==", TEAM_MESSAGE_KIND).limit(MAX_OWN).get();
-  const messages = snap.docs
-    .map((doc) => normalizeTeamMessage(doc.id, doc.data() ?? {}))
-    .filter((each): each is TeamMessageDoc => each !== null && each.askedByUid === uid)
+  const [snap, accessSnap] = await Promise.all([
+    db.collection(COURSE_REQUESTS_COLLECTION).where("askedByUid", "==", uid).where("kind", "==", TEAM_MESSAGE_KIND).limit(MAX_OWN).get(),
+    db.collection(COURSE_REQUESTS_COLLECTION).where("askedByUid", "==", uid).where("kind", "==", ACCESS_NEEDS_KIND).limit(MAX_OWN).get(),
+  ]);
+  const asks: (TeamMessageDoc | AccessNeedsDoc)[] = [
+    ...snap.docs.map((doc) => normalizeTeamMessage(doc.id, doc.data() ?? {})),
+    ...accessSnap.docs.map((doc) => normalizeAccessNeeds(doc.id, doc.data() ?? {})),
+  ].filter((each): each is TeamMessageDoc | AccessNeedsDoc => each !== null && each.askedByUid === uid);
+  const messages = asks
     .sort((a, b) => (b.askedAt?.getTime() ?? 0) - (a.askedAt?.getTime() ?? 0) || a.id.localeCompare(b.id));
   const repliers = [...new Set(messages.map((each) => each.decidedByUid ?? "").filter(isAddressableId))];
   const snaps = repliers.length ? await db.getAll(...repliers.map((id) => db.collection("users").doc(id))) : [];
@@ -45,7 +63,7 @@ export async function ownTeamMessages(db: Firestore, uid: string): Promise<OwnMe
     const replied = message.status === "replied" && message.reply !== "";
     return {
       id: message.id,
-      title: ownTitleWords(message.topic, message.words),
+      title: message.kind === ACCESS_NEEDS_KIND ? ACCESS_ROW_TITLE : ownTitleWords(message.topic, message.words),
       line: replied ? ownRepliedWords(firstNames.get(message.decidedByUid ?? "") ?? "", message.decidedAt, message.reply) : ownSentWords(message.askedAt),
       chip: replied ? OWN_CHIP.replied : OWN_CHIP.waiting,
       replied,

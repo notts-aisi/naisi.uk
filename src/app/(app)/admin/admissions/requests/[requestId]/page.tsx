@@ -3,9 +3,10 @@ import ExcusedRequestPage from "@/features/courses/requests/ExcusedRequestPage";
 import RequestPage from "@/features/courses/requests/RequestPage";
 import MoveRequestPage from "@/features/courses/requests/MoveRequestPage";
 import TeamMessagePage from "@/features/courses/requests/TeamMessagePage";
+import AccessNeedsPage from "@/features/courses/requests/AccessNeedsPage";
 import VisitRequestPage from "@/features/courses/requests/VisitRequestPage";
 import { loadMoveRequestPage } from "@/lib/courses/moveRequest/page";
-import { loadTeamMessagePage } from "@/lib/courses/teamAsk/page";
+import { loadAccessNeedsPage, loadTeamMessagePage } from "@/lib/courses/teamAsk/page";
 import { loadVisitRequestPage } from "@/lib/courses/visitRequest/page";
 import { loadExcusedRequestPage } from "@/lib/courses/excused/page";
 import { BACK_TO_REQUESTS, REQUEST_NOT_HERE, REQUEST_NOT_HERE_LINE } from "@/lib/courses/registerCorrection/pageWords";
@@ -25,7 +26,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * been excused and its decisions are never drawn for a programme's lead. So
  * is a REQUEST TO GO TO ANOTHER SESSION (`loadVisitRequestPage`), and a
  * REQUEST TO CHANGE GROUP FOR GOOD (`loadMoveRequestPage`), and a
- * MESSAGE TO THE TEAM (`loadTeamMessagePage`). The loaders
+ * MESSAGE TO THE TEAM (`loadTeamMessagePage`), and an ACCESS ASK
+ * (`loadAccessNeedsPage`), whose first render never holds what was written:
+ * the page opens it by a press that records the opening. The loaders
  * are tried in turn, each answering `none` for a kind it does not read.
  *
  * Anybody else, and an id that names nothing, is shown the same calm "not
@@ -49,6 +52,8 @@ export default async function OneRequestPage({ params }: { params: Promise<{ req
     if (move.status === "ok") return <MoveRequestPage view={move.view} />;
     const message = await loadTeamMessagePage(db, user, requestId);
     if (message.status === "ok") return <TeamMessagePage view={message.view} />;
+    const access = await loadAccessNeedsPage(db, user, requestId);
+    if (access.status === "ok") return <AccessNeedsPage view={access.view} />;
   }
   if (!loaded || loaded.status === "none") {
     return (

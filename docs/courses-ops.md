@@ -4203,8 +4203,9 @@ public footer already gives the society's address.
   (`/learn/[runId]/another-session`), shown for a told learner's place on a
   live run, with "Which programme?" first for somebody holding two; it
   decides nothing. "Something’s wrong on the site" and "Something else" are
-  written here. Changing group for good, a week with no session and access
-  needs each add their own topic with their own flow.
+  written here, and "Access needs" opens its own short form (below).
+  Changing group for good and a week with no session each add their own
+  topic with their own flow.
 - **The record** (`src/lib/firestore/courseTeamAsks.ts`): one `courseRequests`
   document of kind `team-message` with `runId: ""`, so it belongs to no
   programme and no reader of a run or of another kind sees it; its own
@@ -4223,6 +4224,82 @@ public footer already gives the society's address.
   equalities, newest first in code): their own messages, "Waiting" or "Replied" with the reply in quotes.
   Requests about sessions and groups stay on the programme page, and the list
   says so.
+
+#### Access needs
+
+"Access needs" on the same form opens a short form of its own: "Only admins
+read this: not your facilitator, not the programme's lead. We record each
+time an admin opens it." It asks what would help and never why ("You don't
+need to tell us why, or anything about your health."), with a tick, "You may
+tell my facilitator what's needed, but not why", off unless ticked.
+
+- **The record** is a `courseRequests` document of kind `access-needs`, shaped
+  like a message (no run, gone only with the account, `waiting` then
+  `replied`), with `change: { words, tellFacilitator, replies }` and an
+  `opened` entry in its history. It goes through the same send route
+  (`{ topic: "access", words, tellFacilitator }`) under the same five a day.
+- **One module reads what was written**:
+  `src/lib/courses/teamAsk/openAccessNeeds.ts`, behind
+  `POST /api/courses/requests/[requestId]/team/open` (admins only, never the
+  sender, view-as refused first), through the one store helper that takes the
+  words and the tick out of the document (`accessNeedsWordsOf`,
+  `src/lib/firestore/courseAccessNeedsWords.ts`, imported by the opening
+  alone). In the transaction that reads them it writes a `courseAudit` row of
+  kind `access-needs-read` (who opened it, whose ask by account id, the ask's
+  id, when; never the words, the tick or the person's name) and the ask's own
+  `opened` history entry. If that commit fails, nothing is returned. Every
+  other reader goes through `normalizeAccessNeeds`, which has no field for
+  either.
+- **The guard** (`tests/ask-access-needs-boundary.test.mjs`) lists every file
+  that reads the requests collection, and in each follows every raw document
+  (`.data()` and every name bound to one) through the syntax tree: it may
+  have a field other than `change` read by name, be tested, or be handed to a
+  listed function (each a normaliser that checks the kind first, or a reader
+  of another collection). A spread, a return, a log, a `JSON.stringify`, a
+  `change` read in any spelling, a computed name or a raw document kept in an
+  object fails. What it cannot see is a listed function changing what it
+  does with a request's document; each is named with why it is safe.
+  `tests/course-ask-access-needs.test.mjs` plants the words as a marker, runs
+  every flow as every kind of caller, and searches the answers, the pages
+  drawn (the request page, Ask the team, the programme page, the register,
+  the roster, the overview), each email rendered as HTML and as plain text,
+  the email log rows a real send writes, every log line and every stored
+  document but the ask itself.
+- **What each reader sees.** The Requests page: an admin's own section,
+  "Access needs" tagged "Admins only", each row who and when, never the
+  words. One request's page, for an admin: the person and their places, and
+  "Open what Elena wrote" in place of the words; once opened, the words and
+  whether the tick is on, held in the page alone and forgotten when the page
+  is left. Under the reply box: "Keep the reply general. It is emailed, and
+  other admins see it without opening what was written.", because a reply is
+  on every admin's first render with no opening recorded. Home counts an access ask as a message to the team.
+  The member's own list: "Access needs", the day and the state, never the
+  words (there is no page of one ask for the member). A programme's lead, a
+  facilitator and any other member: nothing, not even that one exists; the
+  request page is the calm "That request isn't here".
+- **The tick is passed to nobody by the site**: no email, no page of a
+  facilitator's or a lead's. It is shown to the admin who opened the ask.
+- **Take it and the reply** are a message's, through the same routes; the
+  reply email is any message's reply word for word, subject and body, so
+  nothing in it, its preview or its plain text says "access needs". The
+  admins' alert names nobody ("Somebody sent the admins a message about
+  access needs"), because its subject is kept in the email log, which
+  outlives the account.
+- **Deleting the account** deletes the ask with its words
+  (`deleteCourseRequestsOf`). Each `access-needs-read` row stays, as each
+  `access-requirements-read` row does at account deletion: the staff log is
+  kept, holds no words and no name, and its `subjectUid` and `requestId` then
+  lead nowhere.
+- **Kept until the yearly clear-out, by hand.** Unlike an
+  `access-requirements-read` row, which goes when its form is destroyed, an
+  `access-needs-read` row belongs to no form and no run (`runId` "",
+  `roundId` and `groupId` null), so nothing ever deletes one by itself, and
+  nothing is meant to: as with every record about somebody who may have
+  left, an admin clears them out by hand once a year. Each holds who opened
+  an ask (uid and name), whose ask it was by account id, the ask's id and
+  when. Find them with `courseAudit where kind == "access-needs-read"`
+  (one equality); those whose `subjectUid` no longer has an account, or
+  whose `requestId` names no ask, are the ones to weigh first.
 
 ### A group's attendance across every week
 

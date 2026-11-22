@@ -82,6 +82,16 @@ export type CourseAuditKind =
    */
   | "access-requirements-read"
   /**
+   * An admin opened what a member wrote in an access-needs ask to the team
+   * (`src/lib/courses/teamAsk/openAccessNeeds.ts`, the one reader of those
+   * words). Logged for the same reason as the kind above. It belongs to no
+   * run and no form: `runId` "", `roundId` and `groupId` null, the person by
+   * `subjectUid` and the ask by `requestId`. Never the words, never the
+   * person's name. No destroy reaches these rows: they are kept until the
+   * yearly clear-out by hand (docs/courses-ops.md, "Access needs").
+   */
+  | "access-needs-read"
+  /**
    * The six below belong to an APPLICATION FORM (`src/lib/applications/`).
    * They are about a form and the people who applied to it rather than about
    * a run, so a row of one of these kinds stores "" in `runId` and names the
@@ -217,6 +227,7 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "time-answer-changed",
   "run-hand-over",
   "access-requirements-read",
+  "access-needs-read",
   "application-decision",
   "application-decision-revoked",
   "application-pooled-outcome",
@@ -264,6 +275,7 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "time-answer-changed": "Time answer read as most weeks",
   "run-hand-over": "People handed over from the application form",
   "access-requirements-read": "Access requirements read",
+  "access-needs-read": "Access needs read",
   "application-decision": "Application decided",
   "application-decision-revoked": "Acceptance revoked",
   "application-pooled-outcome": "Pooled applicant’s outcome picked",

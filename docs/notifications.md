@@ -337,6 +337,19 @@ whatever their settings, with the reply and never their own message. It is
 not sent through Messages and is not listed in Sent. Taking a message emails
 nobody.
 
+**An access-needs ask, to the admins, goes by the same switch.** When a
+member sends the admins a message about access needs (the access form on Ask
+the team), only an admin who switched on "Email me about messages to the
+team" is emailed, through the same send, under the same cap: "Somebody sent
+the admins a message about access needs", when, that what they wrote is on
+the request's page for admins only, and that opening it is recorded. NOT WHO:
+the subject is kept in the email log, which outlives the account, so neither
+it nor the body names the person. Never what they wrote, and nothing of
+whether they said their facilitator may be told. The reply is a message's
+reply word for word, through the same door, so nothing in it says access
+needs.
+Opening an ask emails nobody.
+
 **Joining online, to a group's facilitators, is transactional.** When
 somebody presses "Joining online" for a session on their programme page
 (`src/lib/courses/joiningOnline/seat.ts`), each of the group's facilitators

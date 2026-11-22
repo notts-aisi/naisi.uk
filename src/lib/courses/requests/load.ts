@@ -25,8 +25,8 @@ import { excusedRequestRows } from "@/lib/courses/excused/page";
 import { normalizeExcusedRequest, type ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
 import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
 import { visitRequestRows } from "@/lib/courses/visitRequest/page";
-import { normalizeTeamMessage, type TeamMessageDoc, type TeamTopic } from "@/lib/firestore/courseTeamAsks";
-import { teamMessageRows } from "@/lib/courses/teamAsk/page";
+import { normalizeAccessNeeds, normalizeTeamMessage, type AccessNeedsDoc, type TeamMessageDoc, type TeamTopic } from "@/lib/firestore/courseTeamAsks";
+import { accessNeedsRows, teamMessageRows } from "@/lib/courses/teamAsk/page";
 import { normalizeMoveRequest, type MoveRequestDoc } from "@/lib/firestore/courseMemberRequests";
 import { moveRequestRows } from "@/lib/courses/moveRequest/page";
 import { sessionKeyParts } from "./decide";
@@ -69,8 +69,10 @@ export type RequestRow = {
    * and brings its own row builder and its own section of the page. A
    * message to the team (`team-message`, `src/lib/courses/teamAsk/page.ts`)
    * is admins' only too, belongs to no run and is `replied` once answered.
+   * So is an access ask (`access-needs`, the same file), whose row never
+   * carries what was written: no `about`, no `topic`.
    */
-  kind: CourseRequestKind | "excused" | "visit" | "move" | "team-message";
+  kind: CourseRequestKind | "excused" | "visit" | "move" | "team-message" | "access-needs";
   status: CourseRequestStatus | "replied";
   state: RequestState;
   askedBy: RequestPerson;
@@ -242,6 +244,7 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
   // Messages to the team: admins' only, from the same two lists, through their own normaliser.
   let messages: TeamMessageDoc[] = [];
   let moves: MoveRequestDoc[] = [];
+  let access: AccessNeedsDoc[] = [];
   const read = (snap: FirebaseFirestore.QuerySnapshot) =>
     snap.docs.map((doc) => normalizeCourseRequest(doc.id, doc.data() ?? {})).filter((each): each is CourseRequestDoc => each !== null);
   const readExcused = (snap: FirebaseFirestore.QuerySnapshot) =>
@@ -277,6 +280,13 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
     const movesById = new Map<string, MoveRequestDoc>();
     for (const each of [...readMoves(waiting), ...readMoves(decided)]) movesById.set(each.id, each);
     moves = [...movesById.values()];
+    // Access asks: admins' only, through their own normaliser, which holds no words.
+    const accessById = new Map<string, AccessNeedsDoc>();
+    for (const doc of [...waiting.docs, ...decided.docs]) {
+      const ask = normalizeAccessNeeds(doc.id, doc.data() ?? {});
+      if (ask) accessById.set(ask.id, ask);
+    }
+    access = [...accessById.values()];
   } else {
     const snaps = await Promise.all(
       led.runIds.map((runId) => db.collection(COURSE_REQUESTS_COLLECTION).where("runId", "==", runId).limit(MAX_REQUESTS).get()),
@@ -290,7 +300,7 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
       ((each.status === "approved" || each.status === "declined") && each.decidedAt !== null && each.decidedAt.getTime() >= weekStartsAt.getTime()),
   );
 
-  const [ctx, excusedRows, visitRows, moveRows, messageRows] = await Promise.all([
+  const [ctx, excusedRows, visitRows, moveRows, messageRows, accessRows] = await Promise.all([
     context(db, requests, actor),
     excusedRequestRows(db, excused, led.naming, actor),
     // Live waiting ones and those decided this week: one closed by itself or gone with the place is on no list.
@@ -299,6 +309,8 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
     moveRequestRows(db, moves, led.naming, actor, weekStartsAt),
     // Waiting ones, and those replied to this week.
     teamMessageRows(db, messages, actor, weekStartsAt),
+    // The same for access asks, each row without what was written.
+    accessNeedsRows(db, access, actor, weekStartsAt),
   ]);
   // Only what the reader can open (`requestShownTo`): one request's page asks
   // the group's own register gate (`gateGroupRegisterForRead`), which answers
@@ -306,7 +318,7 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
   // lead to an archived group. The runs are led already (`ledRuns`); the rest
   // is the group's, read once above. (Requests to be excused are an admin's alone.)
   requests = requests.filter((each) => requestShownTo(actor, ctx.groups.get(each.groupId), each.runId, led.runIds.includes(each.runId)));
-  const rows: RequestRow[] = [...requests.map((each) => rowOf(each, ctx, led.naming, actor)), ...excusedRows, ...visitRows, ...moveRows, ...messageRows]
+  const rows: RequestRow[] = [...requests.map((each) => rowOf(each, ctx, led.naming, actor)), ...excusedRows, ...visitRows, ...moveRows, ...messageRows, ...accessRows]
     .sort(
       (a, b) =>
         ORDER[a.state] - ORDER[b.state] ||

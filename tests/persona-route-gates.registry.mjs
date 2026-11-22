@@ -2385,6 +2385,16 @@ export const ROUTES = {
         "before the reply is checked. Its answer is { ok, status, emailed }.",
     },
   },
+  "/api/courses/requests/[requestId]/team/open": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Opening what a member wrote in an access-needs ask: view-as first, then the session, then anybody but " +
+        "an admin is one 403 before anything is read, and an admin is told a missing ask is missing. An opening " +
+        "writes its record in the transaction that reads the words, so it is a POST. Its answer is " +
+        "{ ok, words, tellFacilitator }.",
+    },
+  },
   "/api/courses/runs/[runId]/requests/visit": {
     POST: {
       expect: signedIn(400),
@@ -5007,7 +5017,8 @@ export const PAGES = {
       "One request's page, under the Requests page in the admissions tree: the tree's gate, then the loader's " +
       "(loadRequestPage, an admin or somebody leading the programme of the request's group, asked through the group's " +
       "register gate; and for a request to be excused loadExcusedRequestPage, a request to go to another session " +
-      "loadVisitRequestPage and a message to the team loadTeamMessagePage, each an admin's alone, so a lead is drawn the " +
+      "loadVisitRequestPage, a message to the team loadTeamMessagePage and an access-needs ask loadAccessNeedsPage, whose " +
+      "first render never holds what was written, each an admin's alone, so a lead is drawn the " +
       "same not-here). The address names no request the world writes, so everybody the tree admits is drawn the same " +
       "calm 'that request isn't here' with a 200, never told whether one exists; everybody else is sent to the dashboard.",
   },

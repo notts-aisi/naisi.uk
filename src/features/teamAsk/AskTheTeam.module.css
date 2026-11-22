@@ -74,11 +74,23 @@
   box-sizing: border-box;
 }
 
+/* The access topic is a button drawn the same way: it opens its own form. */
+button.flow {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .flow:hover {
   border-color: var(--color-accent);
 }
 
 .flow:focus-visible,
+.title:focus-visible,
 .link:focus-visible,
 .send:focus-visible,
 .secondary:focus-visible {
@@ -259,6 +271,33 @@
 
 .link:hover {
   text-decoration: underline;
+}
+
+/* The access form's way back to the main form: a link drawn as a button. */
+.back {
+  appearance: none;
+  -webkit-appearance: none;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-accent-text);
+  cursor: pointer;
+}
+
+.back:hover {
+  text-decoration: underline;
+}
+
+.back:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 @media (max-width: 36rem) { /* --bp-sm */

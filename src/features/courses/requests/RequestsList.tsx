@@ -49,6 +49,11 @@ import styles from "./Requests.module.css";
  * topic, the start of what they wrote, when, who has it or who replied. An
  * admin also has a second switch, "Email me about messages to the team",
  * off unless they switch it on.
+ *
+ * ACCESS NEEDS are an admin's alone, in their own section before messages,
+ * tagged "Admins only": who, "Access needs", when, who has it or who
+ * replied. A row NEVER carries what was written (the loader's row has no
+ * field for it); the ask's own page opens it, and records the opening.
  */
 
 type Tab = "waiting" | "handling" | "done";
@@ -139,6 +144,8 @@ export default function RequestsList({
   const movesShown = rowsOfKind(inTab, REQUEST_KINDS.moves);
   // "Moves and visits" holds both kinds, each row its own kind's.
   const anyVisits = view.viewer === "admin" && (rowsOfKind(view.rows, REQUEST_KINDS.visits).length > 0 || rowsOfKind(view.rows, REQUEST_KINDS.moves).length > 0);
+  const accessShown = rowsOfKind(inTab, REQUEST_KINDS.access);
+  const anyAccess = view.viewer === "admin" && rowsOfKind(view.rows, REQUEST_KINDS.access).length > 0;
   const messagesShown = rowsOfKind(inTab, REQUEST_KINDS.messages);
   const anyMessages = view.viewer === "admin" && rowsOfKind(view.rows, REQUEST_KINDS.messages).length > 0;
   // Over every row of the programme chosen, whatever its kind.
@@ -300,6 +307,23 @@ export default function RequestsList({
         </section>
       )}
 
+      {anyAccess && (
+        <section className={styles.card} aria-labelledby="requests-access">
+          <h2 id="requests-access" className={styles.cardTitle}>
+            {T.ACCESS_SECTION} <Chip tone="neutral">{T.ADMINS_ONLY}</Chip>
+          </h2>
+          {accessShown.length === 0 ? (
+            <p className={styles.line}>{P.NOTHING_IN_THIS_VIEW}</p>
+          ) : (
+            <ul className={styles.rows} role="list">
+              {accessShown.map((row) => (
+                <AccessRowItem key={row.id} row={row} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       {anyMessages && (
         <section className={styles.card} aria-labelledby="requests-messages">
           <h2 id="requests-messages" className={styles.cardTitle}>
@@ -448,6 +472,30 @@ function MoveRowItem({ row }: { row: RequestRow }) {
       <div className={styles.rowEnd}>
         <Chip tone={TONE[row.state]}>{P.stateChip(row.state)}</Chip>
         <Link href={requestPath(row.id)} className={styles.open} aria-label={`${P.OPEN}: ${moveRequestTitleWords(row.subject.name)}`}>
+          {P.OPEN}
+        </Link>
+      </div>
+    </li>
+  );
+}
+
+/** One access ask, as its row: who, "Access needs", when, who has it or who replied. Never what they wrote. */
+function AccessRowItem({ row }: { row: RequestRow }) {
+  return (
+    <li className={styles.row} data-testid="request-row" data-kind="access-needs">
+      <div className={styles.rowBody}>
+        <p className={styles.rowTitle}>
+          <strong>{row.subject.name}</strong> · {T.ACCESS_SECTION}
+        </p>
+        <p className={styles.line}>
+          {[P.dayOf(row.askedAt), row.state === "replied" ? T.repliedRowWords(row.decidedBy?.name ?? "") : P.handlingWords(row.handling, row.mine)]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      </div>
+      <div className={styles.rowEnd}>
+        <Chip tone={TONE[row.state]}>{P.stateChip(row.state)}</Chip>
+        <Link href={requestPath(row.id)} className={styles.open} aria-label={`${P.OPEN}: ${T.accessTitleWords(row.subject.name)}`}>
           {P.OPEN}
         </Link>
       </div>
