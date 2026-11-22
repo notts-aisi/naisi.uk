@@ -868,8 +868,15 @@ describe("10. what a move tells its reader, and the sentences that are true in e
     const swap = model.applyStep(SIX, { kind: "move", index: 2, direction: "down" }).change;
     assert.deepEqual(view.noticesOf(SIX, swap, { decisionDayBegun: true, showcase: false }), []);
     assert.deepEqual(view.noticesOf(SIX, swap, { decisionDayBegun: false, showcase: true }), [words.PUBLIC_PAGES_CHANGE, words.NOBODY_EMAILED]);
-    const breakDown = model.applyStep([...SIX.slice(0, 2), { kind: "break", label: "Reading week" }, ...SIX.slice(2)], { kind: "move", index: 2, direction: "down" }).change;
-    assert.deepEqual(view.noticesOf(SIX, breakDown, { decisionDayBegun: false, showcase: true }), []);
+    const withBreak = [...SIX.slice(0, 2), { kind: "break", label: "Reading week" }, ...SIX.slice(2)];
+    const breakDown = model.applyStep(withBreak, { kind: "move", index: 2, direction: "down" }).change;
+    assert.deepEqual(view.noticesOf(withBreak, breakDown, { decisionDayBegun: true, showcase: true, freedOffered: true }), []);
+    // Once an email offering a freed place has been sent on the form, a move of week 1's dates says it may name the old date.
+    assert.deepEqual(view.noticesOf(BREAK_FIRST, change, { decisionDayBegun: true, showcase: false, freedOffered: true }), [
+      words.FIRST_SESSIONS_MOVE,
+      words.FREED_EMAIL_NAMED,
+      words.NOBODY_EMAILED,
+    ]);
   });
 
   test("on the course's showcase run, a move that renumbers says the public week pages change", async () => {
@@ -911,5 +918,144 @@ describe("10. what a move tells its reader, and the sentences that are true in e
     for (const said of Object.values(words).filter((value) => typeof value === "string")) {
       assert.doesNotMatch(said, /\bdrift|\bnormalis|\bids?\b|\borphan/i, said);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. The guide check, asked by every step that gives a page a new number
+// ---------------------------------------------------------------------------
+
+describe("11. every step that gives a page a new number asks the one guide check, and no other step does", () => {
+  /** The course's guide holding a session plan for every week number from 1 to 8. */
+  const guideAll = () => {
+    for (let n = 1; n <= 8; n += 1) {
+      world.db.seed(`courseFacilitatorGuide/${COURSE.agi}__w0${n}-plan`, { courseId: COURSE.agi, slot: `w0${n}-plan`, title: "Plan", blocks: [] });
+    }
+  };
+  const withBreak = [...SIX.slice(0, 2), { kind: "break", label: "Reading week" }, ...SIX.slice(2)];
+
+  test("each step against a guide that holds every number", async () => {
+    // [the step, the plan it is taken on, whether it gives a page a new number]
+    const STEPS = [
+      ["add a week", SIX, { action: "add-week" }, false],
+      ["add a break", SIX, { action: "add-break", afterWeek: 2, label: "Reading week" }, false],
+      ["move a week past a break", withBreak, { action: "move", index: 1, direction: "down" }, false],
+      ["move a break", withBreak, { action: "move", index: 2, direction: "up" }, false],
+      ["remove a break", withBreak, { action: "remove", index: 2 }, false],
+      ["move a week past a week", SIX, { action: "move", index: 2, direction: "down" }, true],
+      ["remove a week", SIX, { action: "remove", index: 2 }, true],
+      ["match the plan to the pages", [week(1), { kind: "week", weekNumber: 2, weekId: "w03" }], { action: "match-pages" }, false],
+      ["put a page back where it stands", [week(1), week(2), week(3)], { action: "put-back", address: "w04" }, false],
+      ["remove a page after the last week", [week(1), week(2), week(3)], { action: "remove-left", address: "w04" }, false],
+    ];
+    for (const [what, plan_, body, renumbers] of STEPS) {
+      w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: plan_ } }));
+      guideAll();
+      const answer = await step("zach", body);
+      if (renumbers) {
+        assert.equal(answer.status, 409, what);
+        assert.ok([3, 4].map((n) => words.guideHolds(n)).includes(answer.body.error), `${what}: ${answer.body.error}`);
+      }
+      else assert.equal(answer.status, 200, `${what}: ${JSON.stringify(answer.body)}`);
+    }
+  });
+
+  test("putting back a page from further on gives it a new number, and asks the check for both numbers", async () => {
+    for (const held of [3, 5]) {
+      // A two-week plan, w03 empty, w05 left after it: put back, it would become week 3.
+      w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [week(1), week(2)] }, [weekPath("w05")]: { weekNumber: 5, title: "Copied in" } }));
+      await world.db.collection(`${RUN_PATH}/weeks`).doc("w03").delete();
+      await world.db.collection(`${RUN_PATH}/weeks`).doc("w04").delete();
+      world.db.seed(`courseFacilitatorGuide/${COURSE.agi}__w0${held}-plan`, { courseId: COURSE.agi, slot: `w0${held}-plan`, title: "Plan", blocks: [] });
+      const before = everything();
+      const answer = await step("zach", { action: "put-back", address: "w05" });
+      assert.deepEqual([answer.status, answer.body.error], [409, words.guideHolds(held)], `guide holds ${held}`);
+      assert.equal(everything(), before);
+      const page = await draw("zach", TabPage, PARAMS);
+      assert.ok(page.text.includes(words.guideHolds(held)) && !page.text.includes(words.putBackWords(3)), page.text);
+    }
+    // With nothing in the guide for 3 or 5, it moves.
+    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [week(1), week(2)] }, [weekPath("w05")]: { weekNumber: 5, title: "Copied in" } }));
+    await world.db.collection(`${RUN_PATH}/weeks`).doc("w03").delete();
+    await world.db.collection(`${RUN_PATH}/weeks`).doc("w04").delete();
+    const moved = await step("zach", { action: "put-back", address: "w05" });
+    assert.deepEqual(moved.body, { ok: true, message: words.putBackDoneWords(3) });
+  });
+
+  test("one check: the ordinary steps and Put it back ask the same function", () => {
+    const code = readFileSync(join(ROOT, "src", "lib", "courses", "weekPlanEdit", "facts.ts"), "utf8");
+    assert.equal((code.match(/guideHolds\(/g) ?? []).length, 1, "the guide sentence is built in more than one place");
+    assert.equal((code.match(/= guideRefusal\(facts, /g) ?? []).length, 1, "judgeChange no longer asks guideRefusal");
+    assert.equal((code.match(/guideRefusal\(facts, change\) : null/g) ?? []).length, 1, "Put it back no longer asks guideRefusal");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 12. A plan whose week numbers are out of order, and the rest of the smalls
+// ---------------------------------------------------------------------------
+
+describe("12. a plan whose numbers are out of order is never acted on, and the sentences point at what is shown", () => {
+  const SWAPPED = [{ kind: "week", weekNumber: 2, weekId: "w01" }, { kind: "week", weekNumber: 1, weekId: "w02" }, week(3)];
+
+  test("out of order: Match the plan to the pages and every step refuse, the line says why, nothing is written", async () => {
+    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: SWAPPED } }));
+    const before = everything();
+    for (const body of [{ action: "match-pages" }, { action: "add-week" }, { action: "add-break", afterWeek: 1, label: "Reading week" }, { action: "move", index: 2, direction: "up" }, { action: "put-back", address: "w04" }]) {
+      const answer = await step("zach", body);
+      assert.deepEqual([answer.status, answer.body.error], [409, words.NUMBERS_OUT_OF_ORDER], JSON.stringify(body));
+    }
+    assert.equal(everything(), before);
+    const page = await draw("zach", TabPage, PARAMS);
+    assert.ok(page.text.includes(words.NUMBERS_OUT_OF_ORDER), page.text);
+    for (const control of [words.MATCH_PAGES, words.ADD_A_WEEK, words.MOVE_UP, words.REMOVE_ASK]) assert.ok(!page.text.includes(control), control);
+  });
+
+  test("saved versions with no page at the next address: the sentence names Add a week, which the tab shows", async () => {
+    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [week(1), week(2)] } }));
+    await world.db.collection(`${RUN_PATH}/weeks`).doc("w03").delete();
+    world.db.seed(historyPath("w03", "s000001"), { seq: 1, kind: "paste", blocks: [] });
+    const page = await draw("zach", TabPage, PARAMS);
+    assert.ok(page.text.includes(words.pressAddFirst(3)) && page.text.includes(words.ADD_A_WEEK), page.text);
+  });
+
+  test("a page with blocks after the last week, with work kept: the refusal of Remove says what Put it back says", async () => {
+    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [week(1)] }, [`courseProgress/${RUN.agi}__a__i`]: { runId: RUN.agi, completed: true } }));
+    await world.db.collection(`${RUN_PATH}/weeks`).doc("w02").delete();
+    world.db.seed(weekPath("w04"), { weekNumber: 4, title: "Blocks", blocks: syntheticWeekBlocks() });
+    await world.db.collection(`${RUN_PATH}/weeks`).doc("w03").delete();
+    const answer = await step("zach", { action: "remove-left", address: "w04" });
+    assert.deepEqual([answer.status, answer.body.error], [409, `${words.LEFT_HOLDS} ${words.putBackByAdding(4)}`]);
+  });
+
+  test("on the showcase run, a published page after the last week says the public week pages change", async () => {
+    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], status: "applications-open", weekPlan: [week(1), week(2), week(3)] } }));
+    world.db.poke(weekPath("w04"), { published: true });
+    world.db.poke(`courses/${COURSE.agi}`, { showcaseRunId: RUN.agi });
+    const drawn = JSON.stringify((await draw("zach", TabPage, PARAMS)).element);
+    assert.ok(drawn.includes(words.PUBLIC_PAGES_CHANGE));
+  });
+
+  test("an offer of freed places on the form: a move of week 1's dates says the email may have named the old date", async () => {
+    w.reset(
+      quietSeed({
+        [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [{ kind: "break", label: "Induction" }, ...SIX] },
+        [FORM]: { ...quietSeed()[FORM], decisionsSentAt: new Date("2026-11-01T09:00:00Z") },
+        "courseAudit/freed1": { kind: "application-freed-places-offered", runId: "", roundId: ROUND, detail: "Offered 1 freed place" },
+      }),
+    );
+    const drawn = JSON.stringify((await draw("zach", TabPage, PARAMS)).element);
+    assert.ok(drawn.includes(words.FREED_EMAIL_NAMED));
+  });
+
+  test("after decision day the line no longer says week 1 can move", async () => {
+    w.reset(quietSeed({ ...place("amara"), [FORM]: { ...quietSeed()[FORM], decisionsSentAt: new Date("2026-11-01T09:00:00Z") } }));
+    const page = await draw("zach", TabPage, PARAMS);
+    assert.ok(page.text.includes(words.PLAN_CAN_CHANGE_AFTER_WEEK_ONE), page.text);
+  });
+
+  test("the client asks first when a move has something to say, and presses straight through only when it has nothing", () => {
+    const code = readFileSync(join(ROOT, "src", "features", "applications", "weeks", "WeekPlanControls.tsx"), "utf8");
+    assert.match(code, /if \(\(direction === "up" \? upNotices : downNotices\)\.length > 0\) setMoving\(direction\);\s*else void press\(\{ action: "move", index, direction \}\);/);
+    assert.equal((code.match(/onClick=\{\(\) => movePress\("(?:up|down)"\)\}/g) ?? []).length, 2);
   });
 });

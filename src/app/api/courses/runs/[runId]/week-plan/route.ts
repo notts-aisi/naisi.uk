@@ -19,7 +19,13 @@ import { getCurrentUser } from "@/lib/firebase/session";
  *  - `add-break` with `afterWeek` and `label`: a break after that week;
  *  - `move` with `index` and `direction` ("up" or "down"): the entry at that
  *    place in the plan, one place;
- *  - `remove` with `index`: the entry at that place.
+ *  - `remove` with `index`: the entry at that place;
+ *  - `match-pages`: a plan out of step with its pages rewritten to the pages
+ *    people see, nothing moved or deleted;
+ *  - `put-back` with `address`: a page after the plan's last week added as
+ *    the next week;
+ *  - `remove-left` with `address`: such a page removed, when it holds no more
+ *    than its title and settings.
  *
  * `planKey` is the plan as the page drew it (`planKeyOf`): a step worked out
  * on an older drawing is refused, never taken on a plan it was not meant for.

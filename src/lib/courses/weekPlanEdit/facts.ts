@@ -10,9 +10,11 @@ import { WEEK_HISTORY_SUBCOLLECTION, WEEK_LOCK_SUBCOLLECTION } from "@/lib/cours
 import { weekIsReady } from "@/lib/courses/weekReady";
 import { normalizeCourseRun, sanitizeWeekPlan, weekDocId, type CourseRunDoc, type WeekPlanEntry } from "@/lib/firestore/courses";
 import { countSessionMarkers, countWeekKept } from "./kept";
-import { finalSources, planHasDrifted, touchedAddresses, type PlanChange } from "./model";
+import { finalSources, planHasDrifted, putBackChange, touchedAddresses, type PlanChange } from "./model";
 import {
   ALREADY_MATCHES,
+  LEFT_HOLDS,
+  NUMBERS_OUT_OF_ORDER,
   DONE_RECORDS,
   DONE_WEEK_ONE,
   DONE_WORK,
@@ -29,6 +31,7 @@ import {
   doneGroupWords,
   guideHolds,
   leftHoldsSomething,
+  pressAddFirst,
   putBackByAdding,
   putBackEarlierFirst,
   removeHasBlocks,
@@ -137,6 +140,8 @@ export type PlanFacts = {
   standing: PlanStanding;
   /** The plan lists a week under another week's address. */
   drifted: boolean;
+  /** The plan's stored week numbers are not 1, 2, 3 in order. */
+  outOfOrder: boolean;
   /** Anybody has been told on decision day, whether or not the send has finished. */
   decisionDayBegun: boolean;
   /** Why weeks and breaks stay where they are, or null while nothing is kept against the run's weeks. */
@@ -311,11 +316,43 @@ export function lockIsLive(data: Record<string, unknown> | undefined, now: Date)
  * taken. The page asks it of each step it could offer; the route asks it of
  * what its transaction read.
  */
-export function judgeChange(facts: PlanFacts, change: PlanChange): string | null {
+/**
+ * What stops every step of the plan before anything about the step itself: a
+ * run whose plan cannot change, a plan whose stored week numbers are out of
+ * order (which only a write from outside the site's pages makes, and which
+ * no step here can put right without changing what people see), and a plan
+ * out of step with its pages (only Match the plan to the pages is taken).
+ */
+function planRefusal(facts: PlanFacts): string | null {
   const standing = standingRefusal(facts.standing);
   if (standing) return standing;
-
+  if (facts.outOfOrder) return NUMBERS_OUT_OF_ORDER;
   if (facts.drifted) return OUT_OF_STEP;
+  return null;
+}
+
+/**
+ * THE GUIDE CHECK, asked by every step that gives a page a new number or
+ * takes one out: a move between weeks, a removal of a week, and putting back
+ * a page from further on. Refused when the course's guide holds a session
+ * plan or notes for the number a page leaves, the number it takes, or the
+ * number of the week removed. A step that renumbers nothing (a break added,
+ * moved or removed, a week added at the end, a page put back where it
+ * stands, matching the plan to the pages, removing a page after the last
+ * week) gives no page a new number and asks nothing.
+ */
+export function guideRefusal(facts: Pick<PlanFacts, "guideWeeks">, change: Pick<PlanChange, "removed" | "renumbered">): string | null {
+  const numbers = [
+    ...(change.removed ? [change.removed.weekNumber] : []),
+    ...change.renumbered.flatMap(({ from, to }) => [from, to]),
+  ];
+  const guided = numbers.find((n) => facts.guideWeeks.has(n));
+  return guided === undefined ? null : guideHolds(guided);
+}
+
+export function judgeChange(facts: PlanFacts, change: PlanChange): string | null {
+  const closed = planRefusal(facts);
+  if (closed) return closed;
 
   const touched = touchedAddresses(change);
   if ((change.reshapes || touched.length > 0) && facts.done !== null) return facts.done;
@@ -330,12 +367,8 @@ export function judgeChange(facts: PlanFacts, change: PlanChange): string | null
     if (holds.history > 0) return removeHasHistory(n);
   }
 
-  const numbers = [
-    ...(change.removed ? [change.removed.weekNumber] : []),
-    ...change.renumbered.flatMap(({ from, to }) => [from, to]),
-  ];
-  const guided = numbers.find((n) => facts.guideWeeks.has(n));
-  if (guided !== undefined) return guideHolds(guided);
+  const guided = guideRefusal(facts, change);
+  if (guided) return guided;
 
   // The week an address is, as the tab shows it now: "w02" is week 2.
   const numberAt = (address: string) => Number(/^w(\d\d)$/.exec(address)?.[1] ?? 0);
@@ -372,6 +405,9 @@ export function judgeChange(facts: PlanFacts, change: PlanChange): string | null
 export function judgeMatch(facts: PlanFacts): string | null {
   const standing = standingRefusal(facts.standing);
   if (standing) return standing;
+  // Members date and open week N by each entry's own number: rewriting an
+  // out-of-order plan to positions would change what they see.
+  if (facts.outOfOrder) return NUMBERS_OUT_OF_ORDER;
   return facts.drifted ? null : ALREADY_MATCHES;
 }
 
@@ -382,10 +418,9 @@ export function judgeMatch(facts: PlanFacts): string | null {
  * everything under it, only while nothing is kept against the run's weeks;
  * otherwise the sentence says how to reach it with Add a week.
  */
-export function judgePutBack(facts: PlanFacts, plan: readonly WeekPlanEntry[], address: string): string | null {
-  const standing = standingRefusal(facts.standing);
-  if (standing) return standing;
-  if (facts.drifted) return OUT_OF_STEP;
+export function judgePutBack(facts: PlanFacts, plan: readonly WeekPlanEntry[], address: string, made?: PlanChange): string | null {
+  const closed = planRefusal(facts);
+  if (closed) return closed;
   const taught = plan.filter((entry) => entry.kind === "week").length;
   const n = Number(/^w(\d\d)$/.exec(address)?.[1] ?? 0);
   const holds = facts.holds(address);
@@ -393,8 +428,15 @@ export function judgePutBack(facts: PlanFacts, plan: readonly WeekPlanEntry[], a
   if (plan.length >= MAX_PLAN_ENTRIES) return PLAN_FULL;
   if (n === taught + 1) return null;
   const next = facts.holds(weekDocId(taught + 1));
-  if (next.exists || next.history > 0) return putBackEarlierFirst(taught + 1);
+  if (next.exists) return putBackEarlierFirst(taught + 1);
+  if (next.history > 0) return pressAddFirst(taught + 1);
   if (facts.done !== null) return putBackByAdding(n);
+  const change = made ?? (() => {
+    const back = putBackChange(plan, address);
+    return back.ok ? back.change : null;
+  })();
+  const guided = change ? guideRefusal(facts, change) : null;
+  if (guided) return guided;
   if (holds.liveLock) return beingEdited(n);
   const writes = 2 + holds.history * 2 + holds.locks;
   if (writes > MAX_WRITES || holds.bytes > MAX_BYTES) return tooBigWords(writes > MAX_WRITES ? holds.history : null);
@@ -403,14 +445,17 @@ export function judgePutBack(facts: PlanFacts, plan: readonly WeekPlanEntry[], a
 
 /** Removing a page left after the plan's last week: only one that holds no more than its title and settings, while nothing is kept. */
 export function judgeRemoveLeft(facts: PlanFacts, plan: readonly WeekPlanEntry[], address: string): string | null {
-  const standing = standingRefusal(facts.standing);
-  if (standing) return standing;
-  if (facts.drifted) return OUT_OF_STEP;
+  const closed = planRefusal(facts);
+  if (closed) return closed;
   const taught = plan.filter((entry) => entry.kind === "week").length;
   const n = Number(/^w(\d\d)$/.exec(address)?.[1] ?? 0);
   const holds = facts.holds(address);
   if (n <= taught || !holds.exists) return NOT_LEFT_BEHIND;
-  if (holds.blocks || holds.older || holds.history > 0) return leftHoldsSomething(taught + 1);
+  if (holds.blocks || holds.older || holds.history > 0) {
+    // Said with what can be done instead: putting it back, or why not.
+    const back = judgePutBack(facts, plan, address);
+    return back === null ? leftHoldsSomething(taught + 1) : `${LEFT_HOLDS} ${back}`;
+  }
   if (facts.done !== null) return facts.done;
   if (holds.liveLock) return beingEdited(n);
   return null;

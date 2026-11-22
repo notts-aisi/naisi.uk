@@ -679,7 +679,13 @@ programme names keeps that builder as it was.
   while nothing is kept against the run's weeks (else the page says to press
   Add a week until the plan reaches it). "Remove the page" deletes it only
   when it holds no more than its title and settings, has no saved version and
-  nothing is kept. Neither holds up the hand-over.
+  nothing is kept. Neither holds up the hand-over. Putting back a page from
+  further on gives it a new number, so it asks the same guide check as a
+  move.
+- **Week numbers out of order.** A plan whose stored week numbers are not 1,
+  2, 3 in order (only a write from outside the site's pages makes one) is
+  never acted on: every step refuses, Match the plan to the pages included,
+  because members date and open each week by its stored number.
 - **The steps.** Add a week (at the end; a page already kept at its address,
   copied in from the course, becomes its page). Add a break after a week, with
   a label. Move a week or a break up or down by one. Remove a week or a break.
@@ -719,8 +725,8 @@ programme names keeps that builder as it was.
   session and ready-by day, and the days week 1's door and the run's Home
   cards say. A break moved past week 1 moves every group's first session;
   once decision day has begun its question says so and that people holding a
-  place see the new dates (a freed-place email already sent may have quoted
-  the old one). On the course's showcase run, a step that renumbers weeks
+  place see the new dates, and, once the form's log holds an offer of freed
+  places, that such an email may have named the old start date. On the course's showcase run, a step that renumbers weeks
   changes the course's public week pages, and its question says so. Nothing
   is emailed by a step.
 - **The older Normalise week ids** route refuses a run a programme names and

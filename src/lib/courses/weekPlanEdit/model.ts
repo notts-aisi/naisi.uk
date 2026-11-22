@@ -224,3 +224,37 @@ export function matchedPlan(plan: readonly WeekPlanEntry[]): WeekPlanEntry[] {
     return { kind: "week", weekNumber: n, weekId: weekDocId(n) };
   });
 }
+
+/**
+ * Putting back a page left after the plan's last week: Add a week, with that
+ * page as the new week's own. Taken where it stands when it sits at the next
+ * week's address; moved there from further on otherwise, which gives the page
+ * a new number (`renumbered`), so the guide check every renumbering step asks
+ * is asked of it too.
+ */
+export function putBackChange(plan: readonly WeekPlanEntry[], address: string): { ok: true; change: PlanChange } | { ok: false; why: StepProblem } {
+  const added = applyStep(plan, { kind: "add-week" });
+  if (!added.ok) return added;
+  const last = added.change.weeks[added.change.weeks.length - 1];
+  const from = Number(/^w(\d\d)$/.exec(address)?.[1] ?? 0);
+  const moves = address !== last.target;
+  return {
+    ok: true,
+    change: {
+      ...added.change,
+      weeks: [...added.change.weeks.slice(0, -1), { ...last, source: moves ? address : null }],
+      renumbered: moves ? [{ from, to: last.weekNumber }] : [],
+    },
+  };
+}
+
+/** Whether a plan's stored week numbers are not 1, 2, 3 in order: only a write from outside the site's pages makes one. */
+export function numbersOutOfOrder(plan: readonly WeekPlanEntry[]): boolean {
+  let n = 0;
+  for (const entry of plan) {
+    if (entry.kind !== "week") continue;
+    n += 1;
+    if (entry.weekNumber !== n) return true;
+  }
+  return false;
+}

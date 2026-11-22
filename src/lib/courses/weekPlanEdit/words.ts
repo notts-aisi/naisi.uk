@@ -45,6 +45,9 @@ export function breakDaysWords(range: string): string {
   return range ? `${range} · no sessions` : "No sessions";
 }
 
+/** The same, once decision day has begun: week 1 stays as it is. */
+export const PLAN_CAN_CHANGE_AFTER_WEEK_ONE =
+  "Weeks after week 1 and breaks can move or go until anything is done on the run, and a break or a week at the end can be added until groups go out.";
 /** Under the list while nothing is kept against the run's weeks and its groups have not gone out. */
 export const PLAN_CAN_CHANGE =
   "Weeks and breaks can move or go until anything is done on the run, and a break or a week at the end can be added until groups go out.";
@@ -148,7 +151,7 @@ export function doneGroupWords(groupName: string, kept: GroupKept): string {
 
 /** Once decision day has begun: which page is week 1 stays as it is. */
 export const WEEK_ONE_FIXED =
-  "People holding a place open week 1 as soon as it’s ready, so which week is week 1 can’t change now that decisions have gone out. Move or remove a later week instead.";
+  "People holding a place can open week 1 as soon as it’s ready, so which week is week 1 can’t change now that decisions have gone out. Move or remove a later week instead.";
 
 /** The design's refusal of a week with blocks in it, word for word. */
 export function removeHasBlocks(weekNumber: number): string {
@@ -207,9 +210,17 @@ export function putBackByAdding(weekNumber: number): string {
 export function putBackEarlierFirst(weekNumber: number): string {
   return `Put back the page after the plan’s last week first: it becomes week ${weekNumber}.`;
 }
+export const LEFT_HOLDS = "This page holds blocks, readings or saved versions, so it isn’t removed.";
 export function leftHoldsSomething(weekNumber: number): string {
-  return `This page holds blocks or saved versions, so it isn’t removed. Put it back as week ${weekNumber} instead.`;
+  return `${LEFT_HOLDS} Put it back as week ${weekNumber} instead.`;
 }
+/** The next week's address holds saved versions and no page: Add a week takes them. */
+export function pressAddFirst(weekNumber: number): string {
+  return `Press Add a week first: week ${weekNumber} then takes the saved versions kept at its address.`;
+}
+/** A plan whose stored week numbers are out of order, which only a write from outside the site's pages makes. */
+export const NUMBERS_OUT_OF_ORDER =
+  "This plan’s week numbers are out of order, which only a change made outside these pages can do, and no change here can put them right without changing what people see. Ask whoever changed the plan that way to put the numbers back in order.";
 export const NOT_LEFT_BEHIND = "That page isn’t after the plan’s last week any more. Reload the page.";
 export function putBackDoneWords(weekNumber: number): string {
   return `The page is week ${weekNumber} now.`;
@@ -222,6 +233,8 @@ export const LEFT_REMOVED = "The page is removed.";
 
 /** When a change moves week 1's dates once decision day has begun. */
 export const FIRST_SESSIONS_MOVE = "Every group’s first session moves a week, and people holding a place see the new dates on their Home page.";
+/** Beside it, once an email offering a freed place has been sent on the form. */
+export const FREED_EMAIL_NAMED = "An email offering a freed place may already have named the old start date.";
 /** When a change renumbers the weeks of the course's showcase run. */
 export const PUBLIC_PAGES_CHANGE = "The course’s public week pages show the new order.";
 export const NOBODY_EMAILED = "Nobody is emailed.";

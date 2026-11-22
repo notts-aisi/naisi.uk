@@ -10,7 +10,9 @@ import {
   finalSources,
   matchedPlan,
   planHasDrifted,
+  numbersOutOfOrder,
   planKeyOf,
+  putBackChange,
   touchedAddresses,
   type PlanAction,
   type PlanChange,
@@ -144,13 +146,9 @@ export async function changeWeekPlan(
       // stands at the next address, or moved there from further on.
       let change: PlanChange | null = null;
       if (step.kind === "put-back") {
-        const added = applyStep(plan, { kind: "add-week" });
-        if (!added.ok) throw new Refusal(PROBLEM[added.why][1], PROBLEM[added.why][0]);
-        const last = added.change.weeks[added.change.weeks.length - 1];
-        change = {
-          ...added.change,
-          weeks: [...added.change.weeks.slice(0, -1), { ...last, source: step.address === last.target ? null : step.address }],
-        };
+        const back = putBackChange(plan, step.address);
+        if (!back.ok) throw new Refusal(PROBLEM[back.why][1], PROBLEM[back.why][0]);
+        change = back.change;
       } else if (step.kind !== "match-pages" && step.kind !== "remove-left") {
         const applied = applyStep(plan, step);
         if (!applied.ok) {
@@ -198,6 +196,7 @@ export async function changeWeekPlan(
       const facts: PlanFacts = {
         standing: told ? "gone-out" : standing,
         drifted: planHasDrifted(plan),
+        outOfOrder: numbersOutOfOrder(plan),
         decisionDayBegun,
         done,
         anybodyOnRun,
@@ -209,7 +208,7 @@ export async function changeWeekPlan(
         step.kind === "match-pages"
           ? judgeMatch(facts)
           : step.kind === "put-back"
-            ? judgePutBack(facts, plan, step.address)
+            ? judgePutBack(facts, plan, step.address, change as PlanChange)
             : step.kind === "remove-left"
               ? judgeRemoveLeft(facts, plan, step.address)
               : judgeChange(facts, change as PlanChange);

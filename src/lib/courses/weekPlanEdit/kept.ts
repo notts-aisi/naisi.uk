@@ -24,11 +24,12 @@ import { SCHEDULER_MARKERS_COLLECTION } from "@/lib/firestore/schedulerMarkers";
 /**
  * HOW MANY ROWS THE SITE KEEPS AGAINST A RUN'S WEEKS, for the week plan's
  * check that nothing is kept against them before a week or a break moves or
- * goes (`./facts.ts`). COUNTS ONLY: one count query per collection, on the
- * field that names the run, so no row is read, no name and no word of
- * anybody's leaves this file, and nothing is written. `tx` given, every
- * count is the transaction's, so a row that lands before the change commits
- * is counted.
+ * goes (`./facts.ts`). Counts: one count query per collection, on the field
+ * that names the run, so none of those rows is read. The scheduler's markers
+ * carry no run, so those of the run's groups are read for their session key
+ * alone (`countSessionMarkers`). No name and no word of anybody's leaves this
+ * file, and nothing is written. `tx` given, every read is the transaction's,
+ * so a row that lands before the change commits is counted.
  *
  * Every collection whose rows name a week by its number or its address is in
  * one of the two lists, or is written down with why it need not be, in

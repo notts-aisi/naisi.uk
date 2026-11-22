@@ -82,9 +82,14 @@ export async function POST(
   // A run a programme names changes its week plan only on the programme's
   // Weeks tab, whose one route moves a week's page with its saved versions in
   // one transaction; this older route does neither, so it refuses such a run.
-  if (await readNamingProgramme(db, runId).catch(() => null)) {
-    return NextResponse.json({ error: NAMED_RUN_PLAN }, { status: 409 });
+  // Fails closed: when the forms cannot be read, nothing is moved.
+  let named: Awaited<ReturnType<typeof readNamingProgramme>>;
+  try {
+    named = await readNamingProgramme(db, runId);
+  } catch {
+    return NextResponse.json({ error: "Couldn’t check which programme names this run. Try again." }, { status: 500 });
   }
+  if (named) return NextResponse.json({ error: NAMED_RUN_PLAN }, { status: 409 });
 
   // `dryRun` is how the builder previews the moves without asking the admin to
   // trust a client-side reimplementation of this maths. Optional, and a body

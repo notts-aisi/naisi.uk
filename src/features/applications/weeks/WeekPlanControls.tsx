@@ -374,6 +374,7 @@ export function LeftBehind({
   title,
   putBack,
   remove,
+  notices = [],
 }: {
   runId: string;
   planKey: string;
@@ -381,6 +382,8 @@ export function LeftBehind({
   title: string;
   putBack: { weekNumber: number } | { sentence: string };
   remove: boolean;
+  /** What putting it back or removing it changes for people outside the plan. */
+  notices?: string[];
 }) {
   const hydrated = useHydrated();
   const { busy, problem, press } = useStep(runId, planKey);
@@ -391,6 +394,7 @@ export function LeftBehind({
       {"sentence" in putBack ? (
         <p className={styles.muted}>{putBack.sentence}</p>
       ) : null}
+      {notices.length > 0 && <p className={styles.muted}>{notices.join(" ")}</p>}
       <div className={own.buttons}>
         {"weekNumber" in putBack && (
           <button type="button" className={styles.button} onClick={() => void press({ action: "put-back", address })} disabled={!hydrated || busy}>
