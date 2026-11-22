@@ -278,7 +278,7 @@ function BestTimes({ picture, names, acts }: { picture: Picture; names: Map<stri
   );
 }
 
-function YourGroups({ view, picture, acts }: { view: TimesView; picture: Picture; acts: boolean }) {
+function YourGroups({ view, picture, acts, openAdd = false }: { view: TimesView; picture: Picture; acts: boolean; openAdd?: boolean }) {
   if (!view.run) return null;
   const withLength = view.length.source.kind === "mixed";
   const fit = picture.fit;
@@ -360,7 +360,7 @@ function YourGroups({ view, picture, acts }: { view: TimesView; picture: Picture
           )}
         </div>
       )}
-      {acts && <AddGroupButton suggested={free ? { weekday: free.weekday, start: free.start } : null} />}
+      {acts && <AddGroupButton suggested={free ? { weekday: free.weekday, start: free.start } : null} startOpen={openAdd} />}
     </section>
   );
 }
@@ -407,9 +407,12 @@ export default function TimesPicture({
   view,
   views,
   arrange = null,
+  openAdd = false,
 }: {
   view: TimesView;
   views: ReactNode;
+  /** Open on Add a group: All groups' "Add a group" leads here with `?add=1`. */
+  openAdd?: boolean;
   /** The link to Circles, where groups are arranged, which the page draws for an admin once there is a picture, or before decision day. */
   arrange?: ReactNode;
 }) {
@@ -438,7 +441,7 @@ export default function TimesPicture({
           {!drawn && setup && (
             <div className={styles.side}>
               <TimesActionsProvider setup={setup}>
-                <YourGroups view={view} picture={picture} acts />
+                <YourGroups view={view} picture={picture} acts openAdd={openAdd} />
               </TimesActionsProvider>
             </div>
           )}
@@ -451,7 +454,7 @@ export default function TimesPicture({
                 <TimesActionsProvider setup={setup}>
                   <div className={styles.side}>
                     <BestTimes picture={picture} names={names} acts />
-                    <YourGroups view={view} picture={picture} acts />
+                    <YourGroups view={view} picture={picture} acts openAdd={openAdd} />
                   </div>
                 </TimesActionsProvider>
               ) : (

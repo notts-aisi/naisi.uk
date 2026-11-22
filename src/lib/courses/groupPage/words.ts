@@ -547,6 +547,8 @@ export function roomPanelTitle(groupName: string): string {
   return `Change ${groupName}’s room`;
 }
 export const ROOM_PANEL_HINT = "The room the group meets in every week. One week’s room is changed with Change this week.";
+/** Under the campus in the room panel: it saves on its own, apart from the room's button. */
+export const CAMPUS_SAVES_AT_ONCE = "The campus saves as soon as you choose it. Nobody is emailed.";
 
 // ---------------------------------------------------------------------------
 // Archiving the group, and restoring it: src/lib/courses/groupArchive/words.ts

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { changeOnGroupPageWords, groupPagePath } from "@/lib/courses/groupPage/words";
 import { useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useId, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import Select from "@/components/ui/Select";
 import { DialogFrame } from "@/features/applications/editor/controls";
 import { PlusIcon } from "@/features/applications/editor/Icons";
@@ -396,10 +396,7 @@ export function ChangeDialog({ group, close }: { group: TimesActionGroup; close:
       >
         <p className={shared.dialogText}>{toldWords(group.name)}</p>
         <p>
-          <Link
-            href={`/admin/admissions/forms/${encodeURIComponent(setup.roundId)}/programmes/${encodeURIComponent(setup.programmeId)}/groups/sessions`}
-            className={styles.see}
-          >
+          <Link href={groupPagePath(setup.roundId, setup.programmeId, group.id)} className={styles.see}>
             {CHANGE_A_SESSION}
           </Link>
         </p>
@@ -578,10 +575,25 @@ export function UseDialog({ weekday, start, when, close }: { weekday: number; st
 
 /**
  * "Add a group", under the groups. `suggested` is the best time no group
- * meets at yet, if there is one, to start the dialog on.
+ * meets at yet, if there is one, to start the dialog on. `startOpen` opens
+ * it on arrival (All groups' "Add a group" leads here with `?add=1`); the
+ * address then loses the mark, so a reload does not open it again.
  */
-export function AddGroupButton({ suggested }: { suggested: { weekday: number; start: number } | null }) {
-  const [open, setOpen] = useState(false);
+export function AddGroupButton({
+  suggested,
+  startOpen = false,
+}: {
+  suggested: { weekday: number; start: number } | null;
+  startOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(startOpen);
+  useEffect(() => {
+    if (!startOpen) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("add")) return;
+    url.searchParams.delete("add");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [startOpen]);
   return (
     <>
       <button type="button" className={`${shared.btn} ${styles.addGroup}`} onClick={() => setOpen(true)}>

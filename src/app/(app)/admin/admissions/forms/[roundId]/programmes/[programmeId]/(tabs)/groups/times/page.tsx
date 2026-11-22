@@ -23,6 +23,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * group editor offers, or one a group of the run already has. Anything else
  * counts the default, which comes from the run's groups.
  *
+ * `?add=1` opens Add a group on arrival: All groups' "Add a group" leads
+ * here, so the one dialog that adds a group (and checks its name and
+ * length) is Times' own.
+ *
  * For an admin, a short link under the picture (and before decision day
  * under the sentence that stands in for it) leads to Circles, where groups
  * are arranged: the run's groups as rings, and suggestions drawn over them
@@ -33,7 +37,7 @@ export default async function ProgrammeTimesPage({
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
-  searchParams: Promise<{ length?: string | string[] }>;
+  searchParams: Promise<{ length?: string | string[]; add?: string | string[] }>;
 }) {
   const [{ roundId, programmeId }, query, user] = await Promise.all([
     params,
@@ -48,6 +52,7 @@ export default async function ProgrammeTimesPage({
   return (
     <TimesPicture
       view={view}
+      openAdd={(Array.isArray(query.add) ? query.add[0] : query.add) === "1"}
       views={
         <GroupsViews
           roundId={view.roundId}

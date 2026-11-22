@@ -424,8 +424,8 @@ function facilitatorsStep(facts: GetReadyFacts): ReadyStep {
 }
 
 function roomsStep(facts: GetReadyFacts): ReadyStep {
-  // Rooms are set on the Groups tab's Sessions view, each group's card, by
-  // the lead and admins alike.
+  // Rooms are set on each group's page, reached from the Groups tab's All
+  // groups view, by the lead and admins alike.
   const link = (state: StepState) => linkFor("sessions", STEP_LINK.rooms, state);
   if (facts.groups.length === 0) return step("rooms", "todo", NO_GROUPS_YET, link("todo"));
   const { noPlace } = groupGaps(facts);

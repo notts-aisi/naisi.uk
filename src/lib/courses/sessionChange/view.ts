@@ -1,55 +1,38 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { roomOrCampus, type GroupCampus } from "@/lib/courses/campus";
-import { readGroupWeek } from "@/lib/courses/packsAndCases/readers";
-import { pairsAskOf } from "@/lib/courses/pairs/model";
-import { pairsTitleWords } from "@/lib/courses/pairs/words";
+import { roomOrCampus } from "@/lib/courses/campus";
 import { readRunLead, standingUserOf, firstNameOfUser } from "@/lib/courses/programmeLead";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { updateAudienceCounts } from "@/lib/courses/updates/audience";
-import { programmeWeekNow } from "@/lib/courses/programmeAttendance";
-import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
+import { londonDateKey } from "@/lib/courses/weekPlan";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
-import {
-  compareGroupsByMeeting,
-  normalizeCourseGroup,
-  sessionChangeForWeek,
-  sessionModeForWeek,
-  type CourseGroupDoc,
-} from "@/lib/firestore/courseGroups";
+import { sessionChangeForWeek, sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
-import { keepPaceOutcome, pushBackOutcome, pushedBetween, sessionBetween, slotDays } from "./model";
+import { keepPaceOutcome, pushBackOutcome, slotDays } from "./model";
 import {
-  NO_DATES_YET,
-  NO_GROUPS_YET,
-  NO_SESSION_THIS_WEEK,
   SESSION_STARTED,
-  breakHeading,
   cardWeekWords,
   changeSubtitle,
   changeTitle,
   clockWords,
-  dayRangeWords,
   dayWords,
   keepPaceHint,
   namesWords,
   noLinkHint,
   onlineHint,
   pushHint,
-  pushedCardWords,
   restoreHint,
   sessionWhenWords,
   slotLine,
   slotWords,
   tellLine,
-  weekHeading,
   whoCanLine,
 } from "./words";
 
 /**
- * WHAT THE SESSIONS VIEW AND THE FACILITATOR'S PAGE DRAW, and
- * every fact the change dialog needs, worked out on the server from records:
+ * WHAT A GROUP'S OWN SESSIONS PAGE DRAWS (its facilitators' list of
+ * sessions from today, each with "Change a session"), and every fact the change dialog needs, worked out on the server from records:
  * the group's own sessions (`resolveSessions`), its facilitators' names, who
  * leads the programme, who an update to the group reaches (counted by the
  * function the update's own press counts with), and what each kind of cancel
@@ -111,39 +94,11 @@ export type SessionCardView = {
   note: string | null;
   /** The dialog's facts, when the session can be changed. */
   dialog: DialogFacts | null;
-  /**
-   * The way to the session's pairs, on the Groups tab's Sessions view: when
-   * the week the group meets in asks for pairs (its own copy of the week's In
-   * the session block says people are paired, `pairsAskOf`), its pairs page
-   * for that week, named as the page names itself ("Pairs and laptops").
-   * Null on every other card, and on a group's own page, whose facilitators
-   * have the group page's card.
-   */
-  pairs: { href: string; label: string } | null;
-  /**
-   * The group's campus and room and the controls that change them, on the
-   * Groups tab's Sessions view: the group, its campus now (null for none
-   * chosen) and the room it meets in every week ("" for none).
-   * Null on a group's own page: a group's campus is set by the programme's
-   * lead and admins, here, and in the run editor's group card.
-   */
-  campus: { groupId: string; groupName: string; value: GroupCampus | null; room: string } | null;
-};
-
-export type SessionsWeekView = {
-  /** "Week 4 of 6 · Thu 19 to Wed 25 Nov". */
-  heading: string;
-  /** The taught weeks either side, for the two links. */
-  previous: number | null;
-  next: number | null;
-  cards: SessionCardView[];
-  /** Why there is nothing to draw, when there is nothing. */
-  blank: string | null;
 };
 
 /**
- * The account's whole name, then the name they go by: the Sessions view names
- * a group's facilitators in full ("Rahul Mehta and Sofia Rossi"), as the
+ * The account's whole name, then the name they go by: a card names a
+ * group's facilitators in full ("Rahul Mehta and Sofia Rossi"), as the
  * Facilitators view does. Never an address.
  */
 function fullNameOf(data: Record<string, unknown>): string {
@@ -350,125 +305,7 @@ function cardFor(
     state,
     note: started ? SESSION_STARTED : null,
     dialog: started ? null : dialogFor(group, session, context),
-    pairs: null,
-    campus: null,
   };
-}
-
-/**
- * The way to a group's pairs for one session, when the week the group meets
- * in asks for pairs: read from the group's own copy of the week, as its
- * pairs page and its week page read it. Null for a week that asks for none,
- * and for a week written before blocks.
- */
-async function pairsFor(db: Firestore, runId: string, groupId: string, weekNumber: number): Promise<SessionCardView["pairs"]> {
-  const week = await readGroupWeek(db, runId, groupId, weekNumber);
-  const ask = week ? pairsAskOf(week.blocks) : null;
-  if (!ask) return null;
-  return { href: `/learn/pairs/${encodeURIComponent(groupId)}?week=${weekNumber}`, label: pairsTitleWords(ask.laptops) };
-}
-
-/** A group's campus, for the Sessions view's control. */
-function campusControlOf(group: CourseGroupDoc): SessionCardView["campus"] {
-  return { groupId: group.id, groupName: groupNameOf(group), value: group.campus, room: group.session.location.trim() };
-}
-
-/**
- * The live groups of a run, in the order every tab of the programme's page
- * lists them (`compareGroupsByMeeting`: Monday first), as the Sessions view
- * draws its cards.
- */
-export async function loadLiveGroups(db: Firestore, runId: string): Promise<CourseGroupDoc[]> {
-  const snap = await db.collection("courseGroups").where("runId", "==", runId).get();
-  return snap.docs
-    .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
-    .filter((group) => group.runId === runId && !group.archived)
-    .sort(compareGroupsByMeeting);
-}
-
-/**
- * THE SESSIONS VIEW: one week of the run, and each group's session in it,
- * with the way to its pairs when the week it meets in asks for them.
- *
- * The week is the run's own (its calendar, its plan): the one shown is
- * `requestedWeek` when the run teaches it, else the week the run is in now
- * (its first before it starts, its last after it ends). Each group's card is
- * the session that group holds on a day of that week, by the group's own
- * calendar, so a group running behind shows the week it is on.
- */
-export async function loadSessionsWeek(
-  db: Firestore,
-  run: CourseRunDoc,
-  requestedWeek: number | null,
-  now: Date,
-  /** Who is looking: the update a change posts is theirs, and never emailed to its own writer. */
-  viewerUid: string | null,
-): Promise<SessionsWeekView> {
-  const empty = (blank: string): SessionsWeekView => ({ heading: "", previous: null, next: null, cards: [], blank });
-  if (!isValidDateKey(run.startDate) || run.weekPlan.length === 0) return empty(NO_DATES_YET);
-
-  const plan = run.weekPlan;
-  const requestedIndex =
-    requestedWeek === null
-      ? -1
-      : plan.findIndex((entry) => entry.kind === "week" && entry.weekNumber === requestedWeek);
-  // The programme's own week, asked the one way the lead's tabs ask it.
-  const current = programmeWeekNow(run, now);
-  const index =
-    requestedIndex >= 0
-      ? requestedIndex
-      : current?.phase === "running" && current.planIndex !== null
-        ? current.planIndex
-        : current?.phase === "after"
-          ? plan.length - 1
-          : 0;
-  const fromKey = addDaysToKey(run.startDate, index * 7);
-  const toKey = addDaysToKey(fromKey, 6);
-  const range = dayRangeWords(fromKey, toKey);
-  const entry = plan[index];
-  const totalWeeks = plan.filter((each) => each.kind === "week").length;
-  const heading =
-    entry?.kind === "week" ? weekHeading(entry.weekNumber, totalWeeks, range) : breakHeading(entry?.label || "Break", range);
-  const taughtBefore = plan.slice(0, index).filter((each) => each.kind === "week");
-  const taughtAfter = plan.slice(index + 1).filter((each) => each.kind === "week");
-  const previous = taughtBefore.length ? (taughtBefore[taughtBefore.length - 1] as { weekNumber: number }).weekNumber : null;
-  const next = taughtAfter.length ? (taughtAfter[0] as { weekNumber: number }).weekNumber : null;
-
-  const groups = await loadLiveGroups(db, run.id);
-  if (groups.length === 0) return { heading, previous, next, cards: [], blank: NO_GROUPS_YET };
-  const context = await contextFor(db, run, groups, now, viewerUid);
-
-  const cards = await Promise.all(groups.map(async (group): Promise<SessionCardView> => {
-    const sessions = resolveSessions(run, group);
-    const session = sessionBetween(sessions, fromKey, toKey);
-    if (session) {
-      // The lead reaches each group's pairs from here: the session's own week
-      // decides. And sets where the group meets.
-      return {
-        ...cardFor(group, session, context, "group"),
-        pairs: await pairsFor(db, run.id, group.id, session.weekNumber),
-        campus: campusControlOf(group),
-      };
-    }
-    const facilitators = standingFacilitators(group, context);
-    const pushed = pushedBetween(sessions, group, fromKey, toKey);
-    return {
-      key: `${group.id}__none`,
-      heading: groupNameOf(group),
-      sub: slotLine(slotWords(group.session.weekday, group.session.startTimeLocal), roomOrCampus(group.session.location, group.campus)),
-      people: facilitators.map(({ uid, name }) => ({ uid, name })),
-      peopleLine: namesWords(facilitators.map((person) => person.name)),
-      eyebrow: pushed ? cardWeekWords(pushed.weekNumber) : "",
-      when: "",
-      where: "",
-      state: null,
-      note: pushed ? pushedCardWords(pushed.dateKey) : NO_SESSION_THIS_WEEK,
-      dialog: null,
-      pairs: null,
-      campus: campusControlOf(group),
-    };
-  }));
-  return { heading, previous, next, cards, blank: null };
 }
 
 /**

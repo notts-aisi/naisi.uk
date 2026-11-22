@@ -14,7 +14,7 @@ export const PAST_NOTICE_WINDOW_MS = 24 * 3_600_000;
  * THE WEEK AN UPDATE TO ONE GROUP IS ABOUT (`weekNumber`), held to the one
  * use it has: the notice a change to one of the group's sessions posts
  * (`POST /api/courses/groups/[groupId]/session/change` answers it, and the
- * group page's Change panel and the Sessions view's dialog post it), whose
+ * group page's Change panel and a group's own sessions page's dialog post it), whose
  * email reaches the people in the group that week.
  *
  * So the week must be one the change route can have changed, as the change

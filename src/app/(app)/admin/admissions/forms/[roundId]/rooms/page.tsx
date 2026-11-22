@@ -16,8 +16,8 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * calendar week of the term, every programme on it the reader may see, one
  * row per group's session that week with its room set or changed in the row.
  * `?week=` is any day of the week shown (its Monday is drawn), `?programme=`
- * narrows it to one programme, which is how each programme's Sessions view
- * opens it. The term's rooms, every week as a grid, is beside it.
+ * narrows it to one programme, which is how each programme's All groups
+ * view opens it. The term's rooms, every week as a grid, is beside it.
  *
  * FOR AN ADMIN AND A PROGRAMME'S LEAD: the admissions tree's gate, repeated
  * here, then `loadWeekRooms`, which asks of each programme on the form the

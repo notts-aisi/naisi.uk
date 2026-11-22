@@ -311,7 +311,7 @@ export function nextWeekChangeLine(
   return covers.length > 1 ? coversLine(session.dateKey, covers) : "";
 }
 
-/** The session a group holds on a day of a range, the week's first: what the Sessions view draws. */
+/** The session a group holds on a day of a range, the week's first: what All groups' week column says. */
 export function sessionBetween(
   sessions: readonly ResolvedSession[],
   fromKey: string,

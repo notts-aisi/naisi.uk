@@ -100,7 +100,7 @@ export function toldWords(groupName: string): string {
   return `Publish has told people when ${groupName} meets, so its time can’t change here. To move one week’s session, use Change a session.`;
 }
 
-/** The way there: the Sessions view of the Groups tab. */
+/** The way there: the group's own page, where one week's session is changed. */
 export const CHANGE_A_SESSION = "Change a session";
 
 // ---------------------------------------------------------------------------

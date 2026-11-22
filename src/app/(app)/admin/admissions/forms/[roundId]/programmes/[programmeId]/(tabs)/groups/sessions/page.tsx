@@ -1,58 +1,61 @@
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
+import shared from "@/features/applications/editor/editor.module.css";
+import AllGroups from "@/features/applications/groups/AllGroups";
 import GroupsGoOut from "@/features/applications/groups/GroupsGoOut";
-import GroupsViews, { GroupsFrame, groupsViewPath } from "@/features/applications/groups/GroupsViews";
+import GroupsViews, { GroupsFrame, groupsPath, groupsViewPath } from "@/features/applications/groups/GroupsViews";
 import NotYours from "@/features/applications/groups/NotYours";
 import RunBlank from "@/features/applications/groups/RunBlank";
-import SessionsBoard from "@/features/courses/sessionChange/SessionsBoard";
+import { PUBLISH_GROUPS } from "@/features/applications/groups/peopleInGroupsWords";
+import { ADD_A_GROUP } from "@/lib/courses/groupTimes/words";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
-import { loadSessionsWeek } from "@/lib/courses/sessionChange/view";
-import { weekLinkWords } from "@/lib/courses/sessionChange/words";
 import { canRunTerm } from "@/lib/applications/access";
+import { loadAllGroups } from "@/lib/courses/allGroups/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 import Link from "next/link";
-import roomsStyles from "@/features/courses/weekRooms/WeekRooms.module.css";
 import { termRoomsPath, weekRoomsPath } from "@/lib/courses/weekRooms/paths";
 import { TO_TERM_ROOMS, TO_WEEK_ROOMS } from "@/lib/courses/weekRooms/words";
 import { isAddressableId } from "@/lib/addressableId";
 import { archivedSaidWords } from "@/lib/courses/groupArchive/words";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
-import groupStyles from "@/features/courses/groupPage/GroupPage.module.css";
 
 /**
- * One programme's Groups tab, its Sessions view: one week of the
- * course run the programme names, each group's session in it with its slot,
- * room and facilitators, and "Change a session" with the dialog beside the
- * list. `?week=5` shows another taught week of the run; without it, the week
- * the run is in now.
+ * One programme's Groups tab, its All groups view, at `.../groups/sessions`
+ * (the address the view had as Sessions, kept so bookmarks and every link to
+ * it still work): "When groups go out" with its control, then the card of
+ * groups, one row per live group of the run the programme names, each name
+ * opening the group's page, where everything about a group is changed (its
+ * time, its room and campus, one week's session, its link, facilitators,
+ * places, name and pairs). Above the rows: the week's rooms and the term's
+ * rooms, filtered to this programme, and "Add a group", which opens Times' own
+ * Add a group. At the foot, the run's archived groups, closed until opened,
+ * each with "Restore Group F…" (`AllGroups`, from `loadAllGroups`).
+ *
+ * NOTHING ABOUT A GROUP IS CHANGED HERE but restoring an archived one,
+ * through `PATCH /api/courses/groups/[groupId]/archive`, which asks again.
+ * `?week=` (the old view's week) is read no more: an address that carries
+ * it opens the view as it is.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadProgrammeRun`), decided from
  * the form before the run is read, as the tab's other views are. A reviewer is
- * told the tab is the lead's and an admin's. The change route behind the
- * dialog asks again who the caller is on the run (`runStaffingOf`).
- *
- * EACH GROUP'S CAMPUS is set on its card by the same people, through its own
- * route (`.../groups/[groupId]/campus`), which asks the gate again.
- *
- * THE WEEK'S ROOMS AND THE TERM'S ROOMS, every group's room for one week and
- * for the whole term, are linked from here filtered to this programme.
+ * told the tab is the lead's and an admin's.
  *
  * AFTER A GROUP IS ARCHIVED from its page, the page comes here with
  * `?archived=<groupId>`, and "Group E is archived. Nobody was emailed." is
  * said only while that group is one of this run's and is archived, read
- * afresh, so a reload after it was restored says nothing.
+ * afresh; once said, the address loses it, so a reload says nothing.
  *
- * WHEN GROUPS GO OUT is the run's own setting, set here above the sessions
- * by the same people (`GroupsGoOut`, saved through its own route, which asks
- * the gate again).
+ * WHEN GROUPS GO OUT is the run's own setting, set here above the groups by
+ * the same people (`GroupsGoOut`, saved through its own route, which asks the
+ * gate again).
  */
-export default async function ProgrammeSessionsPage({
+export default async function ProgrammeAllGroupsPage({
   params,
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
-  searchParams: Promise<{ week?: string | string[]; archived?: string | string[] }>;
+  searchParams: Promise<{ archived?: string | string[] }>;
 }) {
   const [{ roundId, programmeId }, query, user] = await Promise.all([params, searchParams, requireAdmissionsPage()]);
   const db = getAdminDb();
@@ -78,40 +81,39 @@ export default async function ProgrammeSessionsPage({
     );
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
-  const asked = Array.isArray(query.week) ? query.week[0] : query.week;
-  const week = asked && /^\d{1,2}$/.test(asked) ? Number(asked) : null;
-  const shown = await loadSessionsWeek(db!, run, week, new Date(), user.uid);
-  const here = groupsViewPath(view.roundId, view.programmeId, "sessions");
-  const link = (n: number | null) => (n === null ? null : { href: `${here}?week=${n}`, label: weekLinkWords(n) });
+  const now = new Date();
   // "Group E is archived. Nobody was emailed.", only while it is so.
   const archivedId = Array.isArray(query.archived) ? query.archived[0] : query.archived;
-  const archivedSnap = archivedId && isAddressableId(archivedId) ? await db!.collection("courseGroups").doc(archivedId).get() : null;
+  const [groups, archivedSnap] = await Promise.all([
+    loadAllGroups(db!, { run, viewer: user, now }),
+    archivedId && isAddressableId(archivedId) ? db!.collection("courseGroups").doc(archivedId).get() : Promise.resolve(null),
+  ]);
   const archivedGroup = archivedSnap?.exists ? normalizeCourseGroup(archivedSnap.id, archivedSnap.data() ?? {}) : null;
   const said = archivedGroup && archivedGroup.runId === run.id && archivedGroup.archived ? archivedSaidWords(archivedGroup.name) : null;
+  const base = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
 
   return (
-    <GroupsFrame views={views}>
-      {said && (
-        <p className={groupStyles.said} role="status">
-          {said}
-        </p>
-      )}
-      <div className={roomsStyles.toolbar}>
-        <Link href={weekRoomsPath(view.roundId, { programme: view.programmeId })} className={roomsStyles.textLink}>
-          {TO_WEEK_ROOMS}
+    <GroupsFrame
+      views={views}
+      beside={
+        <Link href={`${groupsPath(view.roundId, view.programmeId)}/publish`} className={shared.btn}>
+          {PUBLISH_GROUPS}
         </Link>
-        <Link href={termRoomsPath(view.roundId, view.programmeId)} className={roomsStyles.textLink}>
-          {TO_TERM_ROOMS}
-        </Link>
-      </div>
+      }
+    >
       <GroupsGoOut roundId={view.roundId} programmeId={view.programmeId} initial={run.groupsGoOutOn} />
-      <SessionsBoard
-        heading={shown.heading}
-        previous={link(shown.previous)}
-        next={link(shown.next)}
-        cards={shown.cards}
-        blank={shown.blank}
-        campusAt={{ roundId: view.roundId, programmeId: view.programmeId }}
+      <AllGroups
+        roundId={view.roundId}
+        programmeId={view.programmeId}
+        view={groups}
+        said={said}
+        links={{
+          weekRooms: { href: weekRoomsPath(view.roundId, { programme: view.programmeId }), label: TO_WEEK_ROOMS },
+          termRooms: { href: termRoomsPath(view.roundId, view.programmeId), label: TO_TERM_ROOMS },
+          addGroup: { href: `${groupsViewPath(view.roundId, view.programmeId, "times")}?add=1`, label: ADD_A_GROUP },
+          people: groupsPath(view.roundId, view.programmeId),
+          person: `${base}/people`,
+        }}
       />
     </GroupsFrame>
   );

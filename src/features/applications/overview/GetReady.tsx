@@ -25,8 +25,9 @@ import styles from "./ProgrammeOverview.module.css";
  * are free, which says how many it emails.
  *
  * Every link is a page of the programme's own tabs, built from the two ids
- * the page was reached by; "Set rooms" is the Groups tab's Sessions view,
- * where each group's room is set, for the lead and admins alike.
+ * the page was reached by; "Set rooms" is the Groups tab's All groups view,
+ * whose names open each group's page, where its room is set, for the lead
+ * and admins alike.
  *
  * Not drawn, because it is not built: "Suggest to another programme’s lead"
  * under somebody who gave their place back (its email is not drawn).

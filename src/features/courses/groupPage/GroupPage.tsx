@@ -69,7 +69,13 @@ import styles from "./GroupPage.module.css";
  *
  * ARCHIVE AND RESTORE are each a question in the page's panel
  * (`ArchivePanel`, `RestorePanel`); once archived the reader goes to the
- * Groups tab's Sessions view, and once restored the page is read again.
+ * Groups tab's All groups view, and once restored the page is read again.
+ *
+ * THE ROOM PANEL holds the group's campus too (`GroupCampusPicker`, which
+ * saves as it is chosen and emails nobody), beside the room, which its own
+ * button saves and which says how many it emails. A week whose session is in
+ * pairs has "Pairs and laptops" on its card, for the week the server read it
+ * for (`links.pairs`).
  *
  * Everything drawn is the server's (`loadGroupPage`); the state here is the
  * tab, the week shown, the history's filter and which panel is open. A
@@ -114,8 +120,12 @@ export type GroupPageLinks = {
   self?: string;
   /** The programme's people, before the person, for a refusal's "Open Agnes’s page". */
   person?: string;
-  /** The Groups tab's Sessions view, where the page goes once the group is archived. */
-  sessions?: string;
+  /** The Groups tab's All groups view, where the page goes once the group is archived. */
+  allGroups?: string;
+  /** The programme whose campus route saves the group's campus, in the Room panel. */
+  campusAt?: { roundId: string; programmeId: string } | null;
+  /** The way to the group's pairs for one week, when that week asks for pairs. */
+  pairs?: { weekNumber: number; href: string; label: string } | null;
 };
 
 /** What an archived group's page says, from the server. */
@@ -320,6 +330,11 @@ export default function GroupPage({
               >
                 {W.PUT_IT_BACK}
               </button>
+            )}
+            {links.pairs && links.pairs.weekNumber === each.weekNumber && (
+              <Link href={links.pairs.href} className={styles.button}>
+                {links.pairs.label}
+              </Link>
             )}
           </div>
           )}
@@ -553,7 +568,7 @@ export default function GroupPage({
           </div>
           <div className={styles.meetsItem}>
             <dt className={styles.meetsLabel}>{W.ROOM}</dt>
-            <dd className={styles.meetsValue}>{view.meets.room ? W.roomLine(view.meets.room, campus) : W.NOT_SET_YET}</dd>
+            <dd className={styles.meetsValue}>{view.meets.room || campus ? W.roomLine(view.meets.room, campus) : W.NOT_SET_YET}</dd>
             {live && (
             <dd className={styles.meetsAction}>
               <button
@@ -992,8 +1007,8 @@ export default function GroupPage({
               links={fixLinks}
               onClose={dismiss}
               onDone={() => {
-                // The Groups tab's Sessions view says it, from the address, while it is so.
-                router.push(`${links.sessions ?? links.groups}?archived=${encodeURIComponent(view.groupId)}`);
+                // The Groups tab's All groups view says it, from the address, once.
+                router.push(`${links.allGroups ?? links.groups}?archived=${encodeURIComponent(view.groupId)}`);
               }}
             />
           ) : panel.kind === "restore" ? (
@@ -1065,6 +1080,8 @@ export default function GroupPage({
               key={opened}
               view={view}
               roomPath={links.roomPath}
+              campusAt={links.campusAt ?? null}
+              onCampusSaved={(words) => setSaid(words || null)}
               onClose={dismiss}
               onDone={(words) => {
                 dismiss();

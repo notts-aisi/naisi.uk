@@ -1,6 +1,6 @@
 /**
- * THE WORDS OF CHANGING A SESSION, in one place: the Sessions view's,
- * the dialog's, the route's refusals, the update it posts and what the
+ * THE WORDS OF CHANGING A SESSION, in one place: a group's own sessions
+ * page's, the dialog's, the route's refusals, the update it posts and what the
  * group's people read. No imports, so the dialog in the browser and the route
  * on the server say the same thing in the same words.
  *
@@ -124,10 +124,8 @@ export function weeksWords(weekNumbers: readonly number[]): string {
 }
 
 // ---------------------------------------------------------------------------
-// The Sessions view
+// The cards
 // ---------------------------------------------------------------------------
-
-export const SESSIONS_VIEW = "Sessions";
 
 /** "Week 4 of 6 · Thu 19 to Wed 25 Nov". */
 export function weekHeading(weekNumber: number, totalWeeks: number, range: string): string {
