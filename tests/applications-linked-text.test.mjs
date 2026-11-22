@@ -874,11 +874,20 @@ const BUILT = new Map([
   [
     "src/features/applications/groups/PeopleInGroups.tsx",
     {
-      built: ["boardHref", "groupPagePath(view.roundId, view.programmeId, group.id)", "publishHref", "publishHref", "publishHref", 'withShow(boardHref, "rings")'],
+      built: ["boardHref", "groupPagePath(view.roundId, view.programmeId, group.id)", "publishHref", "publishHref", "publishHref", 'withShow(boardHref, "rings")', "withShow(`${boardHref}/times`, show)"],
       from:
         "a group's own page under the Groups tab, from the form's, the programme's and the group's ids, encoded (`groupPagePath`); " +
         "the board's own address (`groupsPath`, from the form's and the programme's ids) for Show as Columns, and with `?show=rings` " +
-        "added by `withShow` for Rings; and Publish's page under it, carrying on how the board is shown. Nothing anybody typed",
+        "added by `withShow` for Rings; and Publish's page and the Times view under it, carrying on how the board is shown. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/features/applications/groups/PublishReadiness.tsx",
+    {
+      built: ["withShow(`/admin/admissions/forms/${round}/programmes/${programme}/groups`, show)"],
+      from:
+        "the readiness check's way to People in groups, from the form's and the programme's ids, encoded, with `?show=rings` " +
+        "added by `withShow` only for the one word `boardShowOf` read from Publish's own address. Nothing anybody typed",
     },
   ],
   [
@@ -1323,12 +1332,12 @@ const BUILT = new Map([
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions/page.tsx",
     {
       built: [
-        "`${groupsPath(view.roundId, view.programmeId)}/publish`",
         "`${groupsViewPath(view.roundId, view.programmeId, \"times\")}?add=1`",
         "termRoomsPath(view.roundId, view.programmeId)",
         "weekRoomsPath(view.roundId, { programme: view.programmeId })",
+        "withShow(`${groupsPath(view.roundId, view.programmeId)}/publish`, show)",
       ],
-      from: "All groups' Publish groups… and Times' Add a group (groupsPath and groupsViewPath, from the form's and the programme's ids, with a fixed `?add=1`); and the week's rooms and the term's rooms (src/lib/courses/weekRooms/paths.ts), from the form's and the programme's ids, encoded. Nothing anybody typed",
+      from: "All groups' Publish groups… and Times' Add a group (groupsPath and groupsViewPath, from the form's and the programme's ids, with a fixed `?add=1`, and Publish's carrying `?show=rings` through `withShow` only for the one word `boardShowOf` reads); and the week's rooms and the term's rooms (src/lib/courses/weekRooms/paths.ts), from the form's and the programme's ids, encoded. Nothing anybody typed",
     },
   ],
   [
