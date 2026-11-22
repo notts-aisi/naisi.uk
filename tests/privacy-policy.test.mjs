@@ -11011,6 +11011,10 @@ describe("v15 lets the people running a programme rate written work for each oth
           "src/lib/courses/personPage/load.ts",
           "a person's page for the team: Claude and Pangram inside the application's card, read only once the reader is known to be an admin, and never about the reader themselves",
         ],
+        [
+          "src/lib/applications/handover/boardPanel.ts",
+          "the person's panel on People in groups: Claude and Pangram in its admins-only part, read only once the reader is known to be an admin, and never about the reader themselves",
+        ],
       ]),
       "reading Claude's and Pangram's reads of an application",
       "The policy says what Claude and Pangram return is seen by admins only. A new caller shows it somewhere new: decide it is an admin's alone first.",
@@ -11020,6 +11024,14 @@ describe("v15 lets the people running a programme rate written work for each oth
     assert.match(page, /\.\.\.\(assessment \? \{ claude: claudeLinesOf\(assessment\.get\(uid\) \?\? null\) \} : \{\}\),/);
     assert.match(page, /\.\.\.\(isAdmin \? \{ account: \{ href: `\/admin\/members\/\$\{encodeURIComponent\(uid\)\}`/, "the link to the account is put in the view for somebody who is not an admin");
     // tests/course-person-page.test.mjs draws the page as every reader, and searches the lead's for a marker planted in each.
+    const panel = strip(read("src/lib/applications/handover/boardPanel.ts"));
+    assert.match(
+      panel,
+      /isAdmin \? notesFor\(db, view\.roundId, view\.programmeId, uids\.filter\(\(uid\) => uid !== actor\.uid && applicationOf\.has\(uid\)\)\) : Promise\.resolve\(null\),/,
+      "the board's panel reads Claude's and Pangram's reads for somebody who is not an admin, or about the reader",
+    );
+    assert.match(panel, /if \(notes && uid !== actor\.uid && application\) person\.claude = claudeLinesOf\(notes\.get\(uid\) \?\? null\);/);
+    // tests/course-hub-board-panel.test.mjs asks the panel's read as every reader, and searches the lead's for a marker planted in Claude's read.
   });
 
   test("Kairos receives the ratings at a programme's end, and nothing of these", () => {

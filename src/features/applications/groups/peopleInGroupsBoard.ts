@@ -125,15 +125,20 @@ export function marksOf(
  * ("Group A · 7 of 8"), and last, for a seat still on the run, taking its
  * person off the run. `seatedIn` says how many cards a column holds now.
  * No group is held back for being full: the allocate route decides that.
+ * `inGroupId`, the group the card sits in now, is left out: moving somebody
+ * to where they are does nothing. To place stays, as it is not a group.
  */
 export function menuOptions(
   row: Pick<AllocRow, "enrolmentStatus">,
   groups: readonly Pick<AllocGroup, "id" | "name" | "capacity">[],
   seatedIn: (groupId: string) => number,
+  inGroupId: string | null = null,
 ): DropdownOption[] {
   return [
     { value: POOL, label: words.TO_PLACE },
-    ...groups.map((group) => ({ value: group.id, label: words.moveOptionWords(group.name, seatedIn(group.id), group.capacity) })),
+    ...groups
+      .filter((group) => group.id !== inGroupId)
+      .map((group) => ({ value: group.id, label: words.moveOptionWords(group.name, seatedIn(group.id), group.capacity) })),
     ...(row.enrolmentStatus === "active" ? [{ value: TAKE_OFF, label: words.TAKE_OFF }] : []),
   ];
 }

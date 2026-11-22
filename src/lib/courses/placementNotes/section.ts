@@ -39,8 +39,9 @@ export type { OutsideRow, OutsideSection };
  * application, `canReadApplication`: on the application's review page, and
  * since 22 Nov 2026 on the screens that ask the one gated read,
  * `personWeekFor` in `src/lib/applications/people/week.ts`, the person's
- * page under the programme first among them. Never a facilitator, never in
- * an email, never sent to Claude.)
+ * page under the programme first among them and the person's panel on
+ * People in groups beside it. Never a facilitator, never in an email, never
+ * sent to Claude.)
  *
  * Nothing here writes.
  */

@@ -196,6 +196,7 @@ const DERIVED = {
   freeOnInTheirWeek: "src/lib/applications/freedPlaces/words.ts",
   paintedWeekOf: "src/lib/applications/handover/paintedWeek.ts",
   personWeekFor: "src/lib/applications/people/week.ts",
+  boardWeeksFor: "src/lib/applications/people/week.ts",
   whyOfferedFor: "src/lib/applications/handover/whyOffered.ts",
   maskToColumns: "src/features/admissions/availabilityModel.ts",
 };
@@ -224,7 +225,10 @@ const WEEK_READERS = {
   "src/lib/applications/handover/board.ts": "the allocation board's fit marks, for the rows rowIsServedTo serves (an admin, and the lead whose programme's hand-over wrote them)",
   "src/lib/applications/handover/timesLoad.ts": "the times picture on a programme's Groups tab: counts of who can make each start time, never a person's week",
   "src/lib/applications/people/model.ts": "the People tab's fit marks, for rows of people whose application the reader may read (canReadApplication)",
-  "src/lib/applications/people/week.ts": "the one gated read of a person's week for a staff screen: canReadApplication first, and otherwise nothing derived from the week",
+  "src/lib/applications/people/week.ts":
+    "the one gated read of a person's week for a staff screen (one person, or everybody on a board at once through boardWeeksFor): canReadApplication first, and otherwise nothing derived from the week",
+  "src/lib/applications/handover/boardPanel.ts":
+    "the person's panel on People in groups, for an admin or the programme's lead (loadProgrammeRun): everybody on the board through boardWeeksFor alone, never about the reader",
   "src/lib/courses/personPage/load.ts": "a person's page for the team: When they're free through personWeekFor alone",
   "src/lib/applications/arrange/load.ts": "Circles and an arrangement's preview, which loadCircles and the arrangement route open for an admin alone (canRunTerm)",
   "src/lib/courses/facilitatorAsks/people.ts": "the chart beside an ask to facilitate, which the Facilitators view leaves out for anybody but an admin, and never sends to Claude",
@@ -235,9 +239,11 @@ const WEEK_READERS = {
   "src/lib/applications/freedPlaces/offer.ts": "the freed place offer's email to the person themselves: the part of their own week the session falls in",
 };
 
-/** Who asks the one gated read, and why. */
+/** Who asks the one gated read (for one person, or for everybody on a board at once), and why. */
 const GATED_READ_CALLERS = {
   "src/lib/courses/personPage/load.ts": "a person's page for the team: When they're free, never about the reader themselves",
+  "src/lib/applications/handover/boardPanel.ts":
+    "the person's panel on People in groups, for an admin or the programme's lead: everybody on the board at once, over the applications the board's own read holds, never about the reader themselves",
 };
 
 describe("every file that turns a marked week into something a screen draws", () => {
@@ -294,17 +300,28 @@ describe("every file that turns a marked week into something a screen draws", ()
     assert.ok(body.indexOf('if (person.uid === reader.uid) return { kind: "own" };') < asked);
   });
 
+  test("the board's read of everybody's week asks the one gated read for each person, and reads nothing of a week itself", () => {
+    const code = stripSource(readFileSync(join(REPO_ROOT, "src/lib/applications/people/week.ts"), "utf8"), { keepStrings: true });
+    const from = code.indexOf("export function boardWeeksFor(");
+    assert.ok(from >= 0, "boardWeeksFor is not where it was");
+    const body = code.slice(from);
+    assert.match(body, /out\.set\(uid, personWeekFor\(reader, form, \{ uid, application: byUid\.get\(uid\) \?\? null \}, groups, null\)\);/);
+    for (const read of ["paintedWeekOf(", "markedRanges(", "fromFirstMark(", ".availability", "covers(", "canReadApplication("]) {
+      assert.equal(body.indexOf(read), -1, `boardWeeksFor reads ${read} itself`);
+    }
+  });
+
   test("the gated read is asked only from the pages listed, and the person's page reads no week of its own", () => {
     const callers = [...walkSource(SRC)]
       .map(repoPath)
-      .filter((file) => file !== "src/lib/applications/people/week.ts" && /\bpersonWeekFor\s*\(/.test(codeOf(file)))
+      .filter((file) => file !== "src/lib/applications/people/week.ts" && /\b(?:personWeekFor|boardWeeksFor)\s*\(/.test(codeOf(file)))
       .sort();
     assert.deepEqual(callers, Object.keys(GATED_READ_CALLERS).sort());
     for (const [file, why] of Object.entries(GATED_READ_CALLERS)) {
       assert.ok(why.length > 30, `${file} needs its reason written down`);
       const code = codeOf(file);
       // No reader of a week but the gated one: no decoder, no derived reader, and no mask read off an application.
-      assert.ok(!callsAny(code, names.filter((name) => name !== "personWeekFor")), `${file} reads a week itself`);
+      assert.ok(!callsAny(code, names.filter((name) => name !== "personWeekFor" && name !== "boardWeeksFor")), `${file} reads a week itself`);
       assert.ok(!/\.availability\b/.test(code), `${file} reads a mask off an application`);
     }
   });

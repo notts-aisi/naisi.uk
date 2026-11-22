@@ -2646,7 +2646,8 @@ not read for them, and its key is absent from what the page is handed.
   may not read the application is told "Only admins see when Sofia is free."
   and nothing derived from the week (no stretch, no hours, no fit), and not
   whether or where they applied. Never on the reader's own page, never sent
-  to Claude, never in an email. Under it, their answer about their group's
+  to Claude, never in an email. The same read answers the person's panel on
+  People in groups for everybody on the board at once (`boardWeeksFor`). Under it, their answer about their group's
   time ("Their answer about Group C’s time", the board's marks, Why and Would
   work), for a reader the board reads answers to (`readsTimeAnswers`), and
   "Admins and AGI Strategy’s lead see this. Facilitators never do."
@@ -3189,8 +3190,9 @@ marked little time). In a view-as session it is not read. It changes neither
 the order of the list nor what can be chosen. The staff page for arranging a
 visit has no such line: it lists the sessions on offer, and staff read a
 person's week wherever they may read that person's application (its review
-page, and the screens that ask the one gated read, `personWeekFor`; see "A
-person's page, for the team").
+page, and the screens that ask the one gated read, `personWeekFor`: a
+person's page and the person's panel on People in groups; see "A person's
+page, for the team").
 
 **What the person sees.** On the card (Home and the programme page): "Go to
 another session this week" for the week offered; while it waits, the request
@@ -3290,6 +3292,46 @@ they already open; nothing under `/admin/courses` is needed.
   two routes refuse the lead with the same sentence. The Overview's "Get
   ready for week 1" and the board's lines say an admin publishes, never
   that the lead should.
+- **People in groups, a person's panel**: every name on the board (a card,
+  somebody invited, a facilitator in a column's head, a name in "Gave their
+  place back") opens a panel beside the board, which then scrolls sideways
+  inside itself; on a narrow screen it is a sheet over the page. Its one
+  read is `GET .../programmes/[programmeId]/panel` (`loadBoardPanel` in
+  `src/lib/applications/handover/boardPanel.ts`), made only once a panel is
+  first opened and again when a group or its time changes, behind the Groups
+  tab's own gate (an admin and the programme's lead; a reviewer is told the
+  groups are the lead's). It answers everybody on the board at once: every
+  People row for this reader and everybody who facilitates one of the run's
+  groups. It reads what the board's People read already reads (the form, its
+  sent applications and decisions, the run, its groups and seats), the
+  form's question sets once where the form asks about facilitating, and for
+  an admin alone Claude's and Pangram's stored reads (one `getAll` per
+  hundred people with an application); for a programme of 26 that is the
+  same reads as the People tab plus one question-set read, and for an admin
+  one `getAll` more. When each person is free goes through the one gated
+  read, once per person (`boardWeeksFor` beside `personWeekFor` in
+  `src/lib/applications/people/week.ts`): a person the reader may not read
+  the application of is answered with nothing but that, and the panel says
+  "Only admins see when Sofia is free." and nothing of where or whether they
+  applied; an admin is told nothing about the week of somebody with no
+  application on the form at all. The panel draws the person's page's chart
+  (pressable bars where they can be moved), each group's line ("All 2 hours
+  in their time", "Move here", "Move here (can’t make it)", "In this
+  group"), "Placing" for somebody to place, "Offered to facilitate." or
+  "Didn’t offer to facilitate." where the reader may read the application,
+  and for an admin alone "Claude and Pangram" marked "Only admins see this".
+  A facilitator who holds a place is told why they can't be moved, with
+  "Stop facilitating Group C"; somebody invited, that they can't be placed
+  until they accept; somebody who gave their place back, their reason and
+  their page. Every move is the card's own (the allocate route with every
+  refusal it has, and the mid-term question once the groups have gone out);
+  "Take off the run…" opens the take-off sheet; "Stop facilitating" asks in
+  the browser and is the facilitators route, which emails nobody. The panel
+  sends nothing of its own and stores nothing. With no panel open the board
+  is as it was. A card's menu leaves out the group the card is in, and a
+  failed load says "The groups couldn’t be loaded. Check your connection."
+  (or, for a refusal or a run that is gone, the route's own reason in a
+  sentence), never a raw word.
 - **Groups tab, Times**: the times picture.
 - **Groups tab, Facilitators**: who facilitates each group, the people who
   said on the form they would like to facilitate the programme, and asking

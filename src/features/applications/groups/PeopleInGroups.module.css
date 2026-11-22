@@ -10,6 +10,46 @@
   min-width: 0;
 }
 
+/* The board, and beside it a person's panel when one is open. With none open
+   the wrapper is an ordinary block, so the board is laid out as it always is;
+   with one open the board keeps its own sideways scroll in the narrower column. */
+.split {
+  min-width: 0;
+}
+.split[data-panel="open"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
+  gap: 16px;
+  align-items: start;
+}
+
+/* A name that opens the person's panel: the name as it was, pressable. */
+.nameButton {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.nameButton:hover {
+  text-decoration-color: currentColor;
+}
+.nameButton:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.nameButton[aria-expanded="true"] {
+  text-decoration-color: var(--color-accent-text);
+}
+
 /* Beside the views: "4 still to place" and "Publish groups…". */
 .publish {
   display: flex;
@@ -519,6 +559,13 @@
 
 /* A phone: the groups stack under To place, one above the next, so the page
    never scrolls sideways; the move menu is how a card moves here. */
+/* A narrow screen: the panel is a sheet over the page, so the board keeps its whole width. */
+@media (max-width: 60rem) { /* --bp-lg */
+  .split[data-panel="open"] {
+    display: block;
+  }
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .publish {
     width: 100%;

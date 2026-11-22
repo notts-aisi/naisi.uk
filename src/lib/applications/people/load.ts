@@ -159,6 +159,8 @@ export type ProgrammePeopleRead = {
   applications: ApplicationDoc[];
   /** The run's live groups in the board's order, each with its letter: empty while it names no run. */
   groups: PeopleGroup[];
+  /** Who facilitates one of those groups, by uid, whether or not they hold a place: People in groups' panel opens for each. */
+  facilitatorUids: string[];
   /** The run the programme names, as read for the model, or null while it names none (or one being destroyed). */
   run: { id: string; label: string } | null;
 };
@@ -201,7 +203,7 @@ export async function readProgrammePeople(
   // A run being destroyed is no run to read groups or seats from.
   const runId = read && !read.destroying ? read.run.id : null;
   const groupsRead = runId ? groupsOf(db, runId) : Promise.resolve({ groups: [] as PeopleGroup[], facilitating: new Set<string>() });
-  const [applications, decisions, { groups }, seats] = await Promise.all([
+  const [applications, decisions, { groups, facilitating }, seats] = await Promise.all([
     formRead ? Promise.resolve(formRead.applications) : listSentApplications(db, form),
     formRead ? Promise.resolve(formRead.decisions) : listDecisions(db, form.round.id),
     groupsRead,
@@ -228,7 +230,13 @@ export async function readProgrammePeople(
     movable: runId !== null && read !== null && runMoveRefusal(read.run, read.destroying) === null && groups.length > 1 && programme.kind !== "incubator",
     today: londonDateKey(new Date()),
   });
-  return { model, applications, groups, run: runId && read ? { id: runId, label: read.run.label } : null };
+  return {
+    model,
+    applications,
+    groups,
+    facilitatorUids: [...facilitating].sort(),
+    run: runId && read ? { id: runId, label: read.run.label } : null,
+  };
 }
 
 /**

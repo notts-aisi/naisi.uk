@@ -11,9 +11,9 @@ import { rankedProgrammes } from "../sections";
 /**
  * WHEN SOMEBODY IS FREE, FOR ONE STAFF READER: the one gated read of the week
  * a person marked on their application, for a screen that draws it to the
- * programme's team (a person's page under a programme today; a board of
- * everybody tomorrow, which asks this once per person over the applications
- * it has already read).
+ * programme's team (a person's page under a programme, and the person's
+ * panel on People in groups, which asks for everybody on the board at once
+ * through `boardWeeksFor` over the applications it has already read).
  *
  * THE GATE IS THE APPLICATION'S. The week lives on the application, so it is
  * shown exactly where the review screens would open that application
@@ -131,4 +131,31 @@ export function personWeekFor(
       current: group.id === inGroupId,
     })),
   };
+}
+
+/**
+ * WHEN EVERYBODY ON A BOARD IS FREE, FOR ONE STAFF READER, in one call: the
+ * same gated read as `personWeekFor`, asked once for each person over the
+ * applications the caller has already read (the board's loader reads every
+ * sent application on the form for its own model, so nothing more is read
+ * here). Each person is answered by the application's own gate exactly as a
+ * person's page would answer them: `may-not` and nothing derived from the
+ * week for anybody the reader may not read, `own` for the reader themselves.
+ * The group each person is in is the board's to say, so every group comes
+ * back with `current` false. Pure.
+ */
+export function boardWeeksFor(
+  reader: SessionUser,
+  form: ApplicationForm,
+  uids: readonly string[],
+  applications: readonly ApplicationDoc[],
+  groups: readonly WeekGroup[],
+): Map<string, PersonWeek> {
+  const byUid = new Map(applications.map((application) => [application.uid, application] as const));
+  const out = new Map<string, PersonWeek>();
+  for (const uid of uids) {
+    if (out.has(uid)) continue;
+    out.set(uid, personWeekFor(reader, form, { uid, application: byUid.get(uid) ?? null }, groups, null));
+  }
+  return out;
 }
