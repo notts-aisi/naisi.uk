@@ -1,12 +1,12 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { roleOnProgramme } from "@/lib/applications/access";
+import { roleOnProgramme, type ProgrammeRole } from "@/lib/applications/access";
 import { listForms } from "@/lib/applications/handover/run";
 import { own } from "@/lib/applications/keys";
 import type { ProgrammeSettings } from "@/lib/applications/model";
 import type { ApplicationForm } from "@/lib/applications/normalise";
 import { readProgrammePeople, type FormPeopleRead } from "@/lib/applications/people/load";
-import { programmesOpenedOn, programmeStageWords } from "@/lib/applications/programmes/list";
+import { isTheirs, programmesOpenedOn, programmeStageWords } from "@/lib/applications/programmes/list";
 import { listDecisions, listSentApplications } from "@/lib/applications/staffRepo";
 import { listGroups, readRunRecords, slotLine, weeksOf } from "@/lib/courses/programmeAttendance";
 import { namingProgrammeIn } from "@/lib/courses/programmeLead";
@@ -309,17 +309,17 @@ type ProgrammeBehind = Map<string, { form: ApplicationForm; programme: Programme
  */
 function programmeCandidates(
   viewer: SessionUser,
-  entries: readonly { form: ApplicationForm; programme: ProgrammeSettings }[],
+  entries: readonly { form: ApplicationForm; programme: ProgrammeSettings; role: ProgrammeRole }[],
   leadNameOf: (uid: string) => string,
 ): { candidates: SearchCandidate[]; behind: ProgrammeBehind } {
   const candidates: SearchCandidate[] = [];
   const behind: ProgrammeBehind = new Map();
-  for (const { form, programme } of entries) {
+  for (const { form, programme, role } of entries) {
     const name = programme.shortName.trim() || programme.name.trim();
     if (!name) continue;
-    // "you" for the reader's own, by the lead's own bar (as `isTheirs` asks it), never a bare comparison of ids.
+    // "you" for the reader's own, by the Programmes list's own rule (`isTheirs`: a lead, or an admin who leads it).
     const lead = programme.leadUid
-      ? isNamedWithStanding(viewer, "admissionRounds.leadUid", programme.leadUid)
+      ? isTheirs(viewer, { programme, role })
         ? "Lead: you"
         : `Lead: ${leadNameOf(programme.leadUid)}`
       : "Lead: No lead yet";
@@ -403,7 +403,7 @@ async function adminWorld(db: Firestore, viewer: SessionUser): Promise<AdminWorl
   // Every programme on every form, by the Programmes list's own rule: an admin opens each one's Overview.
   const opened = programmeCandidates(
     viewer,
-    forms.flatMap((form) => programmesOpenedOn(viewer, form).map(({ programme }) => ({ form, programme }))),
+    forms.flatMap((form) => programmesOpenedOn(viewer, form).map(({ programme, role }) => ({ form, programme, role }))),
     (uid) => nameOf.get(uid) ?? "NAISI member",
   );
 
@@ -604,7 +604,7 @@ export async function answerSearch(
     actor,
     searcher.leads.flatMap(({ form, programmeId }) => {
       const programme = own(form.programmes, programmeId);
-      return programme ? [{ form, programme }] : [];
+      return programme ? [{ form, programme, role: "lead" as const }] : [];
     }),
     () => "NAISI member",
   );
