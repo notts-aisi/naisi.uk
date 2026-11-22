@@ -28,9 +28,11 @@ import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
  * (optional)" with the line about medical details, "Send the request" and
  * "One request at a time. ...". When nothing can be asked, the page says so
  * for itself in one sentence, and a request still waiting is shown with its
- * Withdraw. Under it, "Your requests": one list with their requests to be
- * excused. In a view-as session everything is drawn and nothing can be
- * pressed (the routes refuse it too).
+ * Withdraw. Under each session, "Why:" when the times they gave on the
+ * application form say something true. Under it, "Your requests": one list
+ * with their requests to be excused. In a view-as session everything is drawn
+ * but the "Why:" lines, which are not read, and nothing can be pressed (the
+ * routes refuse it too).
  */
 
 export const dynamic = "force-dynamic";
@@ -46,15 +48,16 @@ export default async function AnotherSessionPage({ params }: { params: Promise<{
 
   const now = new Date();
   const asked = { user: access.user, run: access.run, enrolment: access.enrolment, groups: access.groups, now };
-  const [view, answers, programme, marker] = await Promise.all([
+  // Decided before anything is read: in a view-as session the "Why:" lines,
+  // read from the person's own application, are neither read nor drawn.
+  const locked = markerIsLive(await getImpersonator(), access.user.uid);
+  const [view, answers, programme] = await Promise.all([
     // A read that fails is told apart from nothing to ask, and draws neither the form nor that sentence.
-    anotherSessionPageFor(db, asked).catch(() => "failed" as const),
+    anotherSessionPageFor(db, { ...asked, viewingAs: locked }).catch(() => "failed" as const),
     // Their requests to be excused, for the one list under the form: the card's own answers.
     nextSessionAnswersFor(db, { ...asked, takesPart: access.isEnrolled }),
     runProgrammeOf(db, access.run.id).catch(() => null),
-    getImpersonator(),
   ]);
-  const locked = markerIsLive(marker, access.user.uid);
   const name = programme?.shortName || access.run.courseTitle.trim() || "this programme";
   const failed = view === "failed";
   const page = failed ? null : view;

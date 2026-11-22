@@ -474,6 +474,11 @@ const RECIPIENT_SOURCES = new Map([
       // (`visitLimitsIn`), arranging and calling off.
       // Two more: arranging and calling off each hand it to the quiet withdrawal of a
       // request still waiting about the visit's session (`withdrawVisitRequestsIn`).
+      // One more: approving a request ticked "I'd join online" names the person's
+      // own line of the host's register for their word (`joiningOnlineAtHost`),
+      // which emails nobody: the host's facilitators are the visit's own recipients.
+      // One fewer: calling a visit off now asks the one rule that takes the word
+      // away (`onlineWordGone`) once, where it read the uid twice.
       reads: 16,
       origin: "caller",
       filteredBy: "if (!read.ok) throw new Stop(read);",

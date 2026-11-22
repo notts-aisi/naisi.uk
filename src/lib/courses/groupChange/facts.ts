@@ -193,10 +193,18 @@ async function firstNamesOf(db: Firestore, uids: readonly string[]): Promise<Map
 export async function saidFacts(
   db: Firestore,
   register: Readonly<Record<string, unknown>> | undefined,
+  /**
+   * The session's own rows (the register's people that week), when the
+   * caller has them: a word is counted only from somebody due at the
+   * session, so a word left by a visit that ended, or by somebody who left,
+   * is never counted or named. Null counts every word, as before.
+   */
+  rows: ReadonlySet<string> | null = null,
 ): Promise<SaidFacts> {
   const keysOf = (value: unknown) => (value && typeof value === "object" ? Object.keys(value as object) : []);
   const records = (register?.records ?? {}) as Record<string, unknown>;
-  const online = keysOf(register?.[ONLINE_SAID]);
+  // Excused wins: an excused line is nobody's to expect online.
+  const online = keysOf(register?.[ONLINE_SAID]).filter((uid) => rows === null || (rows.has(uid) && records[uid] !== "excused"));
   // A word in advance still stands while the line is still theirs: excused, on their word.
   const cant = keysOf(register?.[EXCUSED_IN_ADVANCE]).filter((uid) => records[uid] === "excused");
   const names = await firstNamesOf(db, [...online, ...cant]);

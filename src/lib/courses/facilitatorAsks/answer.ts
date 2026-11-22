@@ -4,14 +4,7 @@ import { own } from "@/lib/applications/keys";
 import { applicationRef, loadForm } from "@/lib/applications/repo";
 import { normaliseApplication } from "@/lib/applications/normalise";
 import { standingOf } from "@/lib/applications/status/standing";
-import {
-  enrolmentRefsFor,
-  placementsFor,
-  seatFor,
-  writeFacilitatorChange,
-  type AppointmentRecord,
-  type Placing,
-} from "@/lib/courses/groupFacilitators";
+import { type AppointmentRecord, placementsFor, type Placing, enrolmentRefsFor, onlineWordsGoWithPlacingIn, seatFor, writeFacilitatorChange } from "@/lib/courses/groupFacilitators";
 import { joinedWeekFor } from "@/lib/courses/groupResolve";
 import type { SessionUser } from "@/lib/firebase/session";
 import { courseApplicationId, normalizeCourseApplication } from "@/lib/firestore/courseApplications";
@@ -170,6 +163,11 @@ export async function answerAsk(
       placing = places.placing;
     }
 
+    // A placement here ends any visit on the place, and its word that they are joining online goes with it.
+    const wordsGo = already
+      ? () => {}
+      : await onlineWordsGoWithPlacingIn(tx, db, { run: normalizeCourseRun(runSnap.id, runSnap.data() ?? {}), placing, enrolments: new Map([[actor.uid, enrolment]]), now });
+
     tx.update(askRef, { answer: "yes", answeredAt: FieldValue.serverTimestamp() });
     if (already) return { ok: true as const, answer };
     const agreed = new Map<string, AppointmentRecord>([[actor.uid, { byUid: ask.askedByUid, byName }]]);
@@ -184,6 +182,7 @@ export async function answerAsk(
       agreed,
       placing,
     });
+    wordsGo();
     return { ok: true as const, answer };
   });
 }

@@ -87,6 +87,7 @@ export async function askForVisit(db: Firestore, user: SessionUser, runId: strin
         hostGroupId: planned.plan.hostGroupId,
         hostSessionKey: host.sessionKey,
         asked: { dateKey: host.dateKey, startTimeLocal: host.session.startTimeLocal },
+        online: press.online,
         replies: [],
       },
       reason: press.reason,

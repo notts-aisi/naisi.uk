@@ -17,6 +17,7 @@ import { courseTaskId, MIRRORED_TASK_SOURCE } from "@/lib/firestore/courseTasks"
 import { unsubscribe } from "@/lib/firestore/subscriptions";
 import { reachLeaver, type Reached } from "@/lib/surveys/leaving";
 import type { LeavePath } from "./leaving";
+import { onlineWordsGoWithVisitsIn } from "@/lib/courses/joiningOnline/gone";
 
 /**
  * WHAT LEAVING A COURSE RUN WRITES, for both doors.
@@ -169,6 +170,12 @@ export async function leaveRun(
           ? await readPlaceToGiveBack(tx, db, form, user.uid, path.programmeId, now)
           : null;
 
+      // Their word that they are joining online, on the host's register of
+      // each visit still to come: a place left goes to no session
+      // (`onlineWordsGoWithVisitsIn`). The visits stay on the left place, as
+      // its record.
+      const wordsGo = await onlineWordsGoWithVisitsIn(tx, db, { run, uid: user.uid, visits: row.visits ?? [], now });
+
       leftGroupId = row.groupId;
       dropped = true;
 
@@ -187,6 +194,7 @@ export async function leaveRun(
         updatedAt: FieldValue.serverTimestamp(),
       });
       if (place) givePlaceBack(tx, place);
+      wordsGo();
       // `groupId` is KEPT. `memberCount` counts enrolments that are both
       // active AND grouped (the allocate route's definition), so a withdrawn
       // row holds no seat whatever its `groupId` says, and keeping it is what

@@ -10,9 +10,13 @@ import { send, type Answer } from "../excused/api";
 
 export type { Answer };
 
-/** Ask to go to that group's session in the week of their next session, with anything they add. */
-export function askForVisit(runId: string, hostGroupId: string, reason: string): Promise<Answer> {
-  return send(`/api/courses/runs/${encodeURIComponent(runId)}/requests/visit`, reason.trim() ? { hostGroupId, reason: reason.trim() } : { hostGroupId });
+/** Ask to go to that group's session in the week of their next session, with anything they add, and whether they ticked "I’d join online" (sent only when ticked). */
+export function askForVisit(runId: string, hostGroupId: string, reason: string, online = false): Promise<Answer> {
+  return send(`/api/courses/runs/${encodeURIComponent(runId)}/requests/visit`, {
+    hostGroupId,
+    ...(reason.trim() ? { reason: reason.trim() } : {}),
+    ...(online ? { online: true } : {}),
+  });
 }
 
 const path = (requestId: string, action: string) => `/api/courses/requests/${encodeURIComponent(requestId)}/visit/${action}`;

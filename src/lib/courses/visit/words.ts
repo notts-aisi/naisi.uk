@@ -1,4 +1,5 @@
 import { sessionWhenWords } from "../excused/words";
+import { linkToAddWords } from "../joiningOnline/words";
 import { couldBeFollowed } from "../followable";
 import { londonClockLabel, londonDayLabel, sessionWhenLabel } from "../londonLabels";
 import { dayWords } from "../sessionChange/words";
@@ -308,8 +309,10 @@ export function personEmailWords(facts: VisitEmailFacts, approved: { first: stri
 
 /**
  * To each of the host group's facilitators: "Daniel Kim is joining Group I for
- * week 2". `online` is where the lines about joining online go, once a member
- * can ask for a visit and tick that they would join online: none today.
+ * week 2". `online` is where the lines about joining online go: for a visit
+ * that approves the person's own request with "I’d join online" ticked, the
+ * line `joinOnlineLinesWords` says. Empty otherwise, and then the email is as
+ * a staff-arranged visit's.
  */
 export function hostEmailWords(facts: VisitEmailFacts, online: readonly string[] = []): VisitEmailWords {
   const person = line(facts.personName) || "Somebody";
@@ -326,6 +329,19 @@ export function hostEmailWords(facts: VisitEmailFacts, online: readonly string[]
     button: "Open your group",
     footnote: "This is an automated email, sent because a visit to your session was approved.",
   };
+}
+
+/**
+ * The host's facilitators' line when the visitor would join online, in the
+ * approved words: "Daniel will join online." and where the link goes, by
+ * whether the session has one at the approval (`linkToAddWords`, the words of
+ * the email a session's facilitators get when somebody says they are joining
+ * online, which then does not also go). Never the link.
+ */
+export function joinOnlineLinesWords(input: { personName: string; personFirstName: string; weekNumber: number; hasLink: boolean }): string[] {
+  // Named as the rest of the email names them: the first name, else the name they go by, else "Somebody".
+  const first = line(input.personFirstName) || line(input.personName) || "Somebody";
+  return [`${first} will join online. ${linkToAddWords(input.weekNumber, input.hasLink)}`];
 }
 
 /** To each of the home group's facilitators: "Daniel Kim is at Group I for week 2". */

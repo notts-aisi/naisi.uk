@@ -112,6 +112,25 @@
   overflow-wrap: anywhere;
 }
 
+.tick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--text-ui);
+  color: var(--color-text);
+  min-width: 0;
+}
+
+.tick input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--color-accent);
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

@@ -12,11 +12,11 @@ import { COURSE_REQUESTS_COLLECTION, type CourseRequestStatus } from "@/lib/fire
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { approveButtonWords, sessionWhenWords } from "../excused/words";
-import { dbReader, planVisit, previewOf, readVisitFacts, sessionChoices } from "../visit/plan";
+import { dbReader, joiningOnlineAtHost, planVisit, previewOf, readVisitFacts, sessionChoices } from "../visit/plan";
 import { visitLimitRefusal } from "../visit/limits";
 import type { VisitPreviewView } from "../visit/view";
 import { hostRegisterIdOf, notHeldIn, visitRequestStandingOf, type VisitRequestStanding } from "./standing";
-import { closedStaffWords, goneStaffWords, movedSinceWords, rowAboutWords } from "./words";
+import { closedStaffWords, goneStaffWords, movedSinceWords, rowAboutWords, wouldJoinOnlineWords } from "./words";
 
 /**
  * A REQUEST TO GO TO ANOTHER SESSION, AS ADMINS READ IT: its row on the
@@ -200,6 +200,8 @@ export type VisitRequestPageView = {
   asksFor: { words: string; detail: string };
   /** The host's session has moved since they asked; null otherwise. */
   movedSince: string | null;
+  /** They ticked "I’d join online": "Daniel would join online."; null when they did not. */
+  online: string | null;
   /** Why it is closed, for one that closed by itself or went with the place; null otherwise. */
   closed: string | null;
   /** While it waits: what approving does (the staff visit's own preview), or the one sentence why the visit can't be arranged now. */
@@ -265,14 +267,18 @@ export async function loadVisitRequestPage(db: Firestore, actor: SessionUser, re
       const offered = sessionChoices(read.facts, request.change.weekNumber, now).find((choice) => choice.groupId === request.change.hostGroupId);
       if (offered) asksFor = { words: offered.words, detail: offered.detail };
       const planned = planVisit(read.facts, request.change.weekNumber, request.change.hostGroupId, actor.uid, now, request.id, { isAdmin: true });
-      approving = planned.ok
-        ? {
-            ok: true,
-            // The sentence a press now would be refused with by the limit on the visit's emails, said before the press.
-            preview: previewOf(planned.plan, await visitLimitRefusal(db, run.id, request.subjectUid, actor.uid)),
-            button: approveButtonWords(planned.plan.emails, ""),
-          }
-        : { ok: false, error: planned.error };
+      // "I’d join online" ticked: refused here as the press would refuse it, when the host's register can't take the word.
+      const online = planned.ok && request.change.online ? joiningOnlineAtHost(read.facts, planned.plan, request.subjectUid, now) : null;
+      approving = !planned.ok
+        ? { ok: false, error: planned.error }
+        : online && !online.ok
+          ? { ok: false, error: online.error }
+          : {
+              ok: true,
+              // The sentence a press now would be refused with by the limit on the visit's emails, said before the press.
+              preview: previewOf(planned.plan, await visitLimitRefusal(db, run.id, request.subjectUid, actor.uid)),
+              button: approveButtonWords(planned.plan.emails, ""),
+            };
     } else {
       approving = { ok: false, error: read.error };
     }
@@ -301,6 +307,7 @@ export async function loadVisitRequestPage(db: Firestore, actor: SessionUser, re
       reason: request.reason,
       asksFor,
       movedSince: moved && hostNow ? movedSinceWords(host?.name ?? "", { dateKey: hostNow.dateKey, startTimeLocal: hostNow.session.startTimeLocal }, personFirstName) : null,
+      online: request.change.online ? wouldJoinOnlineWords(personFirstName, named(request.subjectUid).name) : null,
       closed: standing.state === "closed" ? closedStaffWords(standing.lapse) : standing.state === "gone" ? goneStaffWords(personFirstName) : null,
       approving,
       replies: request.replies.map((reply) => ({ text: reply.text, by: named(reply.byUid), at: reply.at.toISOString() })),

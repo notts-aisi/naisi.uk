@@ -7,6 +7,7 @@ import { factOf, requestStandingOf, weeksAbout } from "@/lib/courses/excused/mod
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
 import type { DocumentReference, DocumentSnapshot, Firestore, Query, QuerySnapshot, Transaction } from "firebase-admin/firestore";
 import { cardAsksFor } from "@/lib/courses/cantMakeIt/seat";
+import { sayingOnlineOn, type SayingOnline } from "@/lib/courses/joiningOnline/seat";
 import { firstNameOfUser, fullNameOfUser, readNamingProgramme, standingUserOf } from "@/lib/courses/programmeLead";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { campusLabel } from "@/lib/courses/campus";
@@ -41,6 +42,7 @@ import {
   calledOffEmailWords,
   calledOffPersonEmailWords,
   homeEmailWords,
+  joinOnlineLinesWords,
   hostArchivedWords,
   hostCancelledWords,
   hostEmailWords,
@@ -634,6 +636,47 @@ export function arrangedEmailFor(plan: Pick<VisitPlan, "emailFacts">, recipient:
   if (recipient.as === "person") return personEmailWords(plan.emailFacts);
   if (recipient.as === "host") return hostEmailWords(plan.emailFacts);
   return homeEmailWords(plan.emailFacts);
+}
+
+/**
+ * "I’D JOIN ONLINE" ON A REQUEST A VISIT APPROVES: what approving it writes and
+ * says, asked by the request's page before the press and by the save inside
+ * its transaction, from the facts each read (the host's register for that
+ * session among them).
+ *
+ * The person's word goes on the HOST'S register for that week's session, by
+ * the one rule and the one write of it (`sayingOnlineOn`, as their own press
+ * of "I’m joining online" writes it), with the stamp that says its email went,
+ * because the host's facilitators' email about the visit says it instead
+ * (`lines`, the approved words, by whether the session has a meeting link).
+ *
+ *  - A session held online for everybody: nothing to say. Nothing is written
+ *    and the email is as any visit's (`said` null, no lines).
+ *  - Said already: the word is not written again; the email still says it,
+ *    and the stamp is written alone when it was never stamped
+ *    (`stampOnly`), so their own press later sends nothing twice.
+ *  - The register can't take it (finished already, their line already filled
+ *    in, or as full of words as it is of rows): refused, in a sentence the
+ *    visit already says to staff where it has one, so nothing is approved
+ *    that the host's register would not show.
+ */
+export type HostOnline =
+  | { ok: true; lines: string[]; said: Extract<SayingOnline, { ok: true }> | null; registerId: string }
+  | VisitRefusal;
+
+export function joiningOnlineAtHost(facts: Pick<VisitFacts, "run" | "groups" | "registers" | "person">, plan: Pick<VisitPlan, "hostGroupId" | "hostName" | "hostSession" | "weekNumber">, uid: string, now: Date): HostOnline {
+  const host = facts.groups.find((group) => group.id === plan.hostGroupId) ?? null;
+  if (!host) return { ok: false, status: 404, error: VISIT_REFUSAL.noGroup };
+  const session = plan.hostSession;
+  const registerId = attendanceDocId(facts.run.id, host.id, session.weekNumber, session.occurrence);
+  const said = sayingOnlineOn({ group: host, session, data: facts.registers.get(registerId), registerId, uid, now });
+  if (said.ok) return { ok: true, lines: joinOnlineLinesWords({ personName: facts.person.name, personFirstName: facts.person.firstName, weekNumber: plan.weekNumber, hasLink: said.hasLink }), said, registerId };
+  if (said.state.kind === "closed" && said.state.why === "online") return { ok: true, lines: [], said: null, registerId };
+  if (said.state.kind === "marked" || said.state.kind === "told") {
+    return { ok: false, status: 409, error: alreadyMarkedWords(facts.person.firstName, plan.hostName, plan.weekNumber) };
+  }
+  if (said.state.kind === "full") return { ok: false, status: 409, error: registerFullWords(plan.hostName, plan.weekNumber) };
+  return { ok: false, status: 409, error: said.error };
 }
 
 /** The weeks to choose, as the page draws them: each own week still to come, and whether a visit already stands in it. */

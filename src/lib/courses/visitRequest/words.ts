@@ -56,6 +56,23 @@ export function sessionsLegendWords(weekNumber: number): string {
 }
 
 export const ANYTHING_TO_ADD = "Anything to add (optional)";
+
+/**
+ * Under a session the form offers, why it is offered, read from the times the
+ * person gave on the application form (`src/lib/applications/handover/whyOffered.ts`).
+ * `part` is said the way the site says a time somebody gave: "Wednesday
+ * evenings". Where nothing true can be said there is no line at all.
+ */
+export function whyFreeWords(part: string): string {
+  return `Why: you said you’re free ${line(part)}`;
+}
+
+/** Under a session that is not in the times they gave and has a place. */
+export const WHY_ROOM = "Why: not a time you gave, but there’s room";
+
+/** The tick under the sessions: off unless ticked. Approving such a request says so on the host's register and in its facilitators' email. */
+export const WOULD_JOIN_ONLINE = "I’d join online";
+
 export const ONE_AT_A_TIME = "One request at a time. You can withdraw it until it’s decided.";
 
 /** Said once the request is sent. */
@@ -75,6 +92,7 @@ export const ASK_REFUSAL = {
   reasonText: "The reason must be text.",
   reasonLine: "Keep it to one line.",
   reasonLink: "Leave links out.",
+  online: "online must be true or false.",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -210,6 +228,12 @@ export function decidedRowWords(state: "approved" | "declined", byName: string, 
 }
 
 export const ASKS_FOR = "Asks for";
+
+/** Under "Asks for", when they ticked "I’d join online": "Daniel would join online." */
+export function wouldJoinOnlineWords(firstName: string, name: string): string {
+  return `${line(firstName) || line(name) || "Somebody"} would join online.`;
+}
+
 export const HANDLING = "Handling";
 export const DECLINE_AND_SEND_THE_REPLY = "Decline and send the reply";
 

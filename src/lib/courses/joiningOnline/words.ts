@@ -176,6 +176,21 @@ function sessionOfWeekWords(weekNumber: number, occurrence: number): string {
 }
 
 /**
+ * Where the link goes, said to a session's facilitators in an email: with no
+ * link yet, the box at the top of their group page, by its own field and
+ * button (`linkFieldLabel`, `ADD_LINK`), so an email can never name a control
+ * the page does not have; with one, that there is nothing to add. Never the
+ * link. Said by this email and by the email that tells a session's
+ * facilitators a visit to it is approved, when the visitor would join online
+ * (`src/lib/courses/visit/words.ts`).
+ */
+export function linkToAddWords(weekNumber: number, hasLink: boolean): string {
+  return hasLink
+    ? "The session already has a meeting link, so there’s nothing to add."
+    : `The session has no meeting link yet. To add one, open your group page: the box at the top has a field “${linkFieldLabel(weekNumber)}”. Paste the link there and press “${ADD_LINK}”.`;
+}
+
+/**
  * "Daniel Kim is joining week 2 online": to each of the group's facilitators,
  * once per person per session. Says that somebody is joining online, when,
  * and where the link goes: with no link yet, the box at the top of their
@@ -205,9 +220,8 @@ export function joiningOnlineEmailWords(input: {
   const session = input.occurrence > 1 ? `${group}’s ${week}` : `${group}’s ${week} session`;
   const when = input.day ? (input.time ? `, on ${input.day} at ${input.time}` : `, on ${input.day}`) : "";
   const about = input.hasLink
-    ? `The session already has a meeting link, so there’s nothing to add. Everybody in ${group} sees it on their programme page.`
-    : `The session has no meeting link yet. To add one, open your group page: the box at the top has a field “${linkFieldLabel(input.weekNumber)}”. ` +
-      `Paste the link there and press “${ADD_LINK}”. Everybody in ${group} then sees it on their programme page. It is never sent by email.`;
+    ? `${linkToAddWords(input.weekNumber, true)} Everybody in ${group} sees it on their programme page.`
+    : `${linkToAddWords(input.weekNumber, false)} Everybody in ${group} then sees it on their programme page. It is never sent by email.`;
   return {
     subject: `${person} is joining ${week} online`,
     lines: [`${person} will join ${session} online${when}.`, about],

@@ -42,7 +42,7 @@ import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
 import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
 import { loadGroupPage } from "@/lib/courses/groupPage/load";
 import { seesSessionLink } from "@/lib/courses/meetingLink/audience";
-import { joiningOnlineBox } from "@/lib/courses/meetingLink/box";
+import { boxPeopleOf, joiningOnlineBox } from "@/lib/courses/meetingLink/box";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { facilitatorExplainerOn } from "@/lib/courses/explainers/readers";
 import { drawPeople, readDrawWeeks } from "@/lib/courses/packsAndCases/readers";
@@ -439,13 +439,16 @@ export default async function GroupHomePage({
   ]);
   const writtenQueue = queueRead?.rows ?? null;
   // The box under the session: who is joining a session online, named as this
-  // reader is shown the group's people, and where a link is still wanted.
-  // Nothing is offered to press in a view-as session, where nothing is written.
+  // reader is shown the group's people and every visitor from another group,
+  // each visitor under the weeks they visit alone (`boxPeopleOf`: their word
+  // is on this group's register for that week, and the email that tells the
+  // facilitators about it points here), and where a link is still wanted. Nothing is offered to press in a view-as session,
+  // where nothing is written.
   const [joiningOnline, viewAs, meets] = await Promise.all([
     joiningOnlineBox(db, {
       run: access.run,
       group,
-      people: model.people.filter((person) => person.left === null).map((person) => ({ uid: person.uid, name: person.name })),
+      people: boxPeopleOf(model),
       now,
     }).catch(() => []),
     getImpersonator().then((marker) => markerIsLive(marker, access.user.uid)),

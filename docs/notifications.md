@@ -296,7 +296,10 @@ requests to be excused (`src/lib/courses/visitRequest/decide.ts`); approving
 it arranges the visit through the staff visit's own writer, so the person and
 both groups' facilitators are sent exactly the visit's emails
 (`src/lib/courses/visit/save.ts`), the person's with "Your request is
-approved." and the reply. Withdrawing, dismissing a decline and a request
+approved." and the reply. When the person ticked "I'd join online", the
+host's facilitators' email also says so, with where the link goes (never the
+link), and the same transaction stamps their word on the host's register as
+emailed, so the joining-online email below does not also go. Withdrawing, dismissing a decline and a request
 that closes by itself because nobody decided it before the session email
 nobody. The switch's route takes `{ on, which? }`, `which` naming a key of
 `REQUEST_EMAIL_SWITCHES` and the existing one when left out.
