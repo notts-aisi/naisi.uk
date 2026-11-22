@@ -112,7 +112,8 @@ export default async function ReConsentPage() {
             preference kept in the browser): the policy's own first paragraph
             says what it changed. Version 20 adds the AI at Nottingham survey,
             so it adds a line, and version 21 emails everybody a reminder
-            before each of their sessions, so it adds one too.
+            before each of their sessions, so it adds one too, as does
+            version 22, which says who opens a message about access needs.
             Each clause is held to the current policy's own sentence by
             tests/privacy-policy.test.mjs. */}
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
@@ -194,6 +195,16 @@ export default async function ReConsentPage() {
           days. We now say that in a week where facilitators give out pathways
           or cases, a group&apos;s other facilitators can see which ones a
           facilitator who also takes part in the group has.
+        </p>
+        {/* Version 22's line is the policy's own "What's changed in version
+            22", word for word. */}
+        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
+          <strong style={{ color: "var(--color-text)" }}>What changed in version 22.</strong>{" "}
+          We now say that only admins can open a message about the access you
+          need, that we record each time one does, and that we rely on your
+          explicit consent for anything about health or disability in it. We
+          now say that if you go to another group&apos;s session and said
+          you&apos;d join it online, that group&apos;s facilitators are told.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}

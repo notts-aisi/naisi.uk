@@ -214,7 +214,24 @@ export const POLICIES: Record<
     // v17's lines under v21's, each
     // with its date. It changes how information is used, so it is told on
     // Home (`toldOnHome`). Told, not asked: `LAST_PRIVACY_VERSION_ASKED`
-    // stays 15. Its date is the day it reaches the site.
+    // stays 15. Its date is the day it reached the site.
+    //
+    // v22 is telling the admins what access you need, through Ask the team:
+    // only admins can open what was written, one ask at a time, and each
+    // opening is recorded (`src/lib/courses/teamAsk/openAccessNeeds.ts`); the
+    // basis for health or disability in it is explicit consent, given by
+    // sending it, and it can be deleted on request. The explicit-consent
+    // basis and the logs' list of recorded openings name such a message. And
+    // "If you go to another group's session" says that group's facilitators
+    // are told if the person said they'd join it online (the tick on a
+    // request to go to another group's session, said in the visit's email to
+    // them). "What's changed" says both, and keeps v21's, v20's, v19's, v18's
+    // and v17's lines under v22's, each with its date. It changes how
+    // information is used, so it is told on Home (`toldOnHome`). Told, not
+    // asked: `LAST_PRIVACY_VERSION_ASKED` stays 15. Its date is the day it
+    // reaches the site, the same day as v21's: two versions may share a day,
+    // and the newer is the one above it here, so every reader that takes the
+    // first entry (the current version, Home's line) takes v22.
     //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
@@ -222,6 +239,7 @@ export const POLICIES: Record<
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 22, lastUpdated: "22 November 2026", toldOnHome: true },
       { version: 21, lastUpdated: "22 November 2026", toldOnHome: true },
       { version: 20, lastUpdated: "17 November 2026", toldOnHome: true },
       { version: 19, lastUpdated: "13 November 2026" },
