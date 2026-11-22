@@ -150,6 +150,7 @@ export default function RunCareful({
             <div className={styles.rowText}>
               <span className={styles.rowName}>{W.CANCEL_TITLE}</span>
               <span className={styles.small}>{W.CANCEL_HINT}</span>
+              {careful.meeting && <span className={styles.small}>{W.CANCEL_MEETING_WARNING}</span>}
             </div>
             <button
               type="button"

@@ -997,9 +997,9 @@ const BUILT = new Map([
   [
     "src/features/applications/editor/RunHandOver.tsx",
     {
-      // One fewer since November 2026: the run's own applications list is no longer linked, and the people who gave their place back are listed with their own link to their application.
-      built: ["panel.boardPath", "person.applicationPath", "person.applicationPath"],
-      from: "paths the server built for an admin's panel, each from the ids of stored documents and encoded: a course run's allocation board, and one person's application on the review screen, in the lists of names and in the list of people who gave their place back. Nothing anybody typed is in one",
+      // November 2026: the people who gave their place back are listed with their own link to their application, and the run's own applications list is linked only for one of them with no seat.
+      built: ["panel.boardPath", "person.applicationPath", "panel.listPath", "person.applicationPath"],
+      from: "paths the server built for an admin's panel, each from the ids of stored documents and encoded: a course run's allocation board, its own applications list for somebody who gave their place back with no seat, and one person's application on the review screen, in the lists of names and in the list of people who gave their place back. Nothing anybody typed is in one",
     },
   ],
   [

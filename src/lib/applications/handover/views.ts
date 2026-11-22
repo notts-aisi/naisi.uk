@@ -70,16 +70,18 @@ export type RunDetailsView = {
  * and whose seat is still on the run, or who never had one.
  */
 export type GaveBackPersonView = HandOverPersonView & {
-  /** The name they go by, for the button: "Kwesi". */
+  /** The name they go by, for the button: "Rahul". */
   firstName: string;
   /** "Gave their place back on Fri 6 Nov · still in Group B". */
   line: string;
   /**
-   * Course run can take them off: a seat still on the run that the form put
-   * there, given back by them and not put back by staff since. False for
-   * somebody with no seat.
+   * Course run can take them off: a seat still on the run, and they gave
+   * their place back (`gaveBackOnTheRun`, the remove route's own question).
+   * False for somebody with no seat, and for somebody staff put back.
    */
   canTakeOff: boolean;
+  /** They have no seat on the run (handed over, never placed): their row is changed on the run's own applications list. */
+  noSeat: boolean;
 };
 
 /** One person named on one of the older roles of the run. */
@@ -101,6 +103,8 @@ export type RunCarefulView = {
   archive: "offer" | "not-yet" | "archived" | null;
   /** The status table lets this run be cancelled. */
   canCancel: boolean;
+  /** It is running: cancelling it says the older page's warning to tell the cohort. */
+  meeting: boolean;
   /** The run's course, for the dialogs' line under their titles. */
   courseTitle: string;
   /** The run's label exactly as stored: the cancel and destroy dialogs ask for it typed. */
@@ -148,6 +152,8 @@ export type RunPanelView = {
   takenOff: HandOverPersonView[];
   /** Hold a place, and their row on the run says something other than accepted. */
   notAccepted: HandOverPersonView[];
+  /** Hold a place, and their row on the run is withdrawn: no route opens it again. */
+  closedRow: HandOverPersonView[];
   /** Rows on the run that this programme did not put there. */
   otherRows: number;
   /** Where the named run stands, or null with no run named (or the run gone). */

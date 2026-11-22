@@ -5,7 +5,8 @@ import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
 import { loadRunStands } from "@/lib/courses/runStands/load";
 import { takenOffByWords } from "@/lib/courses/takeOff/words";
-import { courseEnrolmentId, enrolmentIsPutBack, normalizeCourseEnrolment, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { courseEnrolmentId, normalizeCourseEnrolment, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { gaveBackOnTheRun } from "@/lib/courses/takeOff/gaveBack";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { COURSE_RUN_STATUS_LABEL } from "@/lib/firestore/courses";
 import { ALLOWED_TRANSITIONS } from "@/lib/courses/runStatus";
@@ -19,6 +20,7 @@ import { gaveBackOn } from "../people/model";
 import { applicantFirstName } from "../review/people";
 import { loadForm } from "../repo";
 import { listDecisions, listSentApplications } from "../staffRepo";
+import { formPlaceFactsFor } from "./board";
 import { handOverBlocker } from "./blocker";
 import { compareWithRun, nameOnRecord, placeHoldersOn, splitBySeat, type PlaceHolder } from "./holders";
 import {
@@ -233,6 +235,7 @@ function carefulOf(read: RunRead): RunCarefulView {
   return {
     archive: destroying ? null : run.archived ? "archived" : over ? "offer" : "not-yet",
     canCancel: !destroying && ALLOWED_TRANSITIONS[run.status].includes("cancelled"),
+    meeting: run.status === "running",
     courseTitle: run.courseTitle,
     label: run.label,
   };
@@ -302,6 +305,7 @@ export async function loadRunPanel(
     left: [],
     takenOff: [],
     notAccepted: [],
+    closedRow: [],
     otherRows: 0,
     stands: standing?.stands ?? null,
     details: standing?.details ?? null,
@@ -343,6 +347,17 @@ export async function loadRunPanel(
     return seat ? [seat] : [];
   });
   const groupNames = await groupNamesOf(db, stillSeats);
+  // Whether each gave their place back, as the remove route asks it: from the
+  // facts the board's cards are drawn from (`formPlaceFactsFor`, an admin's
+  // reading), and whether staff put them back since. Only whether they hold
+  // their place is asked of the facts, so no group is handed in.
+  const stillUids = new Set(bySeat.stillOnTheRun.map((holder) => holder.uid));
+  const placeFacts = await formPlaceFactsFor(
+    db,
+    { isAdmin: true, leadOf: null },
+    rows.filter((row) => stillUids.has(row.uid)),
+    [],
+  );
   panel.gaveBack = bySeat.stillOnTheRun.map((holder): GaveBackPersonView => {
     const application = applicationOf.get(holder.uid);
     const seat = seats.get(holder.uid) ?? null;
@@ -351,8 +366,9 @@ export async function loadRunPanel(
     return {
       ...person(holder),
       firstName: application?.sent ? applicantFirstName(application.sent.aboutYou, application.displayName) : holder.name.split(" ")[0] || holder.name,
-      line: gaveBackLine(on ? londonDayLabel(on) : null, group),
-      canTakeOff: seat !== null && seat.status === "active" && !enrolmentIsPutBack(seat),
+      line: gaveBackLine(on ? londonDayLabel(on) : null, group, seat !== null),
+      canTakeOff: seat !== null && seat.status === "active" && gaveBackOnTheRun(placeFacts.get(holder.uid), seat),
+      noSeat: seat === null,
     };
   });
   panel.left = bySeat.left.map(person);
@@ -361,6 +377,7 @@ export async function loadRunPanel(
     return note ? { ...person(holder), note } : person(holder);
   });
   panel.notAccepted = compared.notAccepted.map(person);
+  panel.closedRow = compared.closed.map(person);
   panel.otherRows = compared.otherRows;
   return { status: "ok", panel };
 }

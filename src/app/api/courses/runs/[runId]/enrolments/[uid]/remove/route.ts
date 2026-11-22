@@ -7,20 +7,19 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { leavePathFor } from "@/lib/courses/leaving";
-import { gaveTheirPlaceBack } from "@/lib/courses/placeGivenBack";
 import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
+import { gaveBackOnTheRun } from "@/lib/courses/takeOff/gaveBack";
 import { takeOffLimitRefusal, takeOffLimitsIn } from "@/lib/courses/takeOff/limits";
 import { planTakeOff, type TakeOffPlan } from "@/lib/courses/takeOff/plan";
 import { sendTakeOffEmails } from "@/lib/courses/takeOff/send";
-import { ALREADY_OFF, FINISHED, changedWords, doneWords, historyWords, parseTakeOffLine, sheetWords } from "@/lib/courses/takeOff/words";
+import { ALREADY_OFF, FINISHED, ROW_CLOSES_TOO, changedWords, doneWords, historyWords, parseTakeOffLine, sheetWords } from "@/lib/courses/takeOff/words";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import {
   GROUPS_BY_WEEK_LIMITS,
   courseEnrolmentId,
-  enrolmentIsPutBack,
   normalizeCourseEnrolment,
   placementIsTold,
   type CourseEnrolmentDoc,
@@ -110,8 +109,12 @@ import { visitLimitRefusal, visitLimitsIn } from "@/lib/courses/visit/limits";
  * `applicationCounts` move from accepted to withdrawn, so nothing is left
  * accepted and counted. Refused (409, nothing written) unless the row is one
  * the form put there and still accepted, and the person gave their place back
- * (`gaveTheirPlaceBack`). The sheet, the emails and everything else are the
- * ordinary take-off's. No route reopens a withdrawn row.
+ * (`gaveBackOnTheRun`, the question Course run's button asks too). The sheet
+ * is the ordinary take-off's with one sentence more (`closesRow`), because NO
+ * ROUTE REOPENS A WITHDRAWN ROW: the allocate route needs an accepted row,
+ * and the run's decide route and its apply route refuse a withdrawn one, so
+ * a person taken off this way cannot be put back on this run. The emails and
+ * everything else are the ordinary take-off's.
  *
  * NOBODY WHO LEFT BY THEMSELVES IS REMOVED. A seat withdrawn by its owner
  * (either door: "Leave the programme" on their programme's page, or "I can’t
@@ -216,6 +219,7 @@ const BODY_FIELDS: readonly string[] = ["preview", "emails", "line", "closeRow"]
 
 /** Course run's take-off closes a row only for somebody who gave their place back. */
 const ROW_NOT_OPEN = "Their row on the run’s list isn’t open, so there’s nothing to close.";
+const ROW_NOT_THE_FORMS = "Their row on the run’s list didn’t come from a programme, so it stays as it is.";
 const STILL_HOLDS_PLACE = "They still hold their place, so their row on the run’s list stays as it is.";
 /** What a closed row on the run's own list says: the application row's status, never a seat's. */
 const ROW_CLOSED: CourseApplicationStatus = "withdrawn";
@@ -314,7 +318,9 @@ export async function POST(req: Request, ctx: Ctx) {
   const placeFacts = row?.fromForm
     ? await formPlaceFactsFor(db, staffing, [row], groupsNow.map((group) => ({ id: group.id, session: group.session })))
     : new Map();
-  const askedOf = (place: CourseEnrolmentDoc) => gaveTheirPlaceBack(placeFacts.get(uid), { putBack: enrolmentIsPutBack(place) });
+  // Read before the transaction, as the ordinary take-off reads it; the
+  // transaction reads the seat and the row again, and asks this of the seat.
+  const askedOf = (place: CourseEnrolmentDoc) => gaveBackOnTheRun(placeFacts.get(uid), place);
 
   if (body.preview) {
     // Everything a press would do, read now: writes nothing.
@@ -332,7 +338,8 @@ export async function POST(req: Request, ctx: Ctx) {
     }
     if (place.status === "removed") return NextResponse.json({ error: ALREADY_OFF }, { status: 409 });
     if (body.closeRow) {
-      if (!row?.fromForm || row.status !== "accepted") return NextResponse.json({ error: ROW_NOT_OPEN }, { status: 409 });
+      if (row && !row.fromForm) return NextResponse.json({ error: ROW_NOT_THE_FORMS }, { status: 409 });
+      if (!row || row.status !== "accepted") return NextResponse.json({ error: ROW_NOT_OPEN }, { status: 409 });
       if (!askedOf(place)) return NextResponse.json({ error: STILL_HOLDS_PLACE }, { status: 409 });
     }
     const givesPlaceBack =
@@ -359,6 +366,8 @@ export async function POST(req: Request, ctx: Ctx) {
         emails: plan.emails,
         visits: plan.visits.ended.map((each) => ({ hostName: each.host.name.trim() || "Untitled group", weekNumber: each.weekNumber })),
         sheet: sheetWords(plan.facts),
+        // From Course run: the one sentence more, that this cannot be undone.
+        ...(body.closeRow ? { closesRow: ROW_CLOSES_TOO } : {}),
         limit,
       },
     });
@@ -399,7 +408,8 @@ export async function POST(req: Request, ctx: Ctx) {
       const closing = body.closeRow
         ? (() => {
             const fresh = rowNow && rowNow.exists ? normalizeCourseApplication(rowNow.id, rowNow.data() ?? {}) : null;
-            if (!fresh?.fromForm || fresh.status !== "accepted") throw new RemoveError(ROW_NOT_OPEN, 409);
+            if (fresh && !fresh.fromForm) throw new RemoveError(ROW_NOT_THE_FORMS, 409);
+            if (!fresh || fresh.status !== "accepted") throw new RemoveError(ROW_NOT_OPEN, 409);
             if (!askedOf(stored)) throw new RemoveError(STILL_HOLDS_PLACE, 409);
             return true;
           })()

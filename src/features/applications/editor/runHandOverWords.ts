@@ -93,7 +93,7 @@ export const TAKEN_OFF_TITLE = "Taken off the programme";
 
 /** What the panel says under them. */
 export const TAKEN_OFF_NOTE =
-  "They were taken off the programme, so their seat is free and their place is given back. There’s nothing to do.";
+  "They were taken off the programme, so their seat is free. There’s nothing to do.";
 
 /** Rows on the run that this programme's hand-over did not write. */
 export function otherRowsLine(count: number): string {

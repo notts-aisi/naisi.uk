@@ -46,18 +46,38 @@ export function madeWords(label: string): string {
 
 export const GAVE_BACK_TITLE = "No longer hold a place";
 
-/** Under the list. The take-off sheet says who is emailed. */
+/** Under the list, when the take-off closes the row (`COURSE_RUN_CLOSES_THE_ROW`). The take-off sheet says who is emailed. */
 export const GAVE_BACK_NOTE =
   "They gave their place back after they were handed over. Take them off the run here: their seat is freed and their row on the run’s list is closed.";
 
-/** "Gave their place back on Fri 6 Nov · still in Group B". */
-export function gaveBackLine(day: string | null, groupName: string | null): string {
-  const head = day ? `Gave their place back on ${day}` : "Gave their place back";
-  const group = (groupName ?? "").trim();
-  return group ? `${head} · still in ${group}` : `${head} · not in a group`;
+/** The same, when the take-off leaves the row open. */
+export const GAVE_BACK_NOTE_ROW_OPEN = "They gave their place back after they were handed over. Take them off the run here: their seat is freed.";
+
+/** The note under the list, as the switch says. */
+export function gaveBackNote(closesRow: boolean): string {
+  return closesRow ? GAVE_BACK_NOTE : GAVE_BACK_NOTE_ROW_OPEN;
 }
 
-/** The button: "Take Kwesi off the run…". */
+/**
+ * "Gave their place back on Fri 6 Nov · still in Group B". With a seat in no
+ * group, "· not in a group"; with no seat at all (handed over, never placed),
+ * "· not in a group, so there’s no seat to free".
+ */
+export function gaveBackLine(day: string | null, groupName: string | null, hasSeat = true): string {
+  const head = day ? `Gave their place back on ${day}` : "Gave their place back";
+  const group = (groupName ?? "").trim();
+  if (group) return `${head} · still in ${group}`;
+  return hasSeat ? `${head} · not in a group` : `${head} · not in a group, so there’s no seat to free`;
+}
+
+/** For somebody with no seat: today's way to their row, on the older run page. */
+export const CHANGE_THEIR_ROW = "Change their row on the run’s own applications list";
+
+/** A holder whose row on the run's list is closed: what is true, and no action that fails. */
+export const CLOSED_ROW_TITLE = "Hold a place, and their row on the run’s list is closed";
+export const CLOSED_ROW_NOTE = "A closed row can’t be opened again, so they can’t be put on this run’s board.";
+
+/** The button: "Take Rahul off the run…". */
 export function takeOffWords(firstName: string): string {
   return `Take ${firstName.trim() || "them"} off the run…`;
 }
@@ -87,7 +107,7 @@ export function removeTitle(name: string, list: RoleList): string {
 /** What the person can no longer do, in one sentence, true whatever else they are. */
 export const ROLE_AFTER: Record<RoleList, string> = {
   trackLeads:
-    "As a track lead they can no longer work on this run’s weeks, applications, groups or registers, or email everybody on it; what they do as its programme’s lead, a facilitator or an admin stays.",
+    "As a track lead they can no longer work on this run’s weeks, applications, groups, registers or coursework, or email everybody on it; what they do as its programme’s lead, a facilitator or an admin stays.",
   runFacilitators:
     "As a run facilitator they can no longer open this run or email everybody on it; what they do as one of its groups’ facilitators, a track lead or an admin stays.",
 };
@@ -133,6 +153,8 @@ export function restoredWords(label: string): string {
 
 export const CANCEL_TITLE = "Cancel this cohort";
 export const CANCEL_HINT = "For a run that won’t go ahead. Nobody is emailed.";
+/** Under it on a running run, the older run page's own warning. */
+export const CANCEL_MEETING_WARNING = "If this cohort has been meeting, tell them yourself before or straight after you cancel.";
 export const CANCEL_BUTTON = "Cancel this cohort…";
 /** What the older page says once a cohort is cancelled. */
 export const CANCELLED = "Cohort cancelled";

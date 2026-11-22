@@ -27,7 +27,8 @@ import styles from "./TakeOffSheet.module.css";
  * their row on the run's own list in the same act.
  */
 
-type Preview = { emails: number; sheet: SheetWords; limit: string | null };
+/** `closesRow`: Course run's one sentence more, only when it closes the row. */
+type Preview = { emails: number; sheet: SheetWords; limit: string | null; closesRow?: string };
 
 /** What a press that did not go through says, when the route said nothing. */
 const UNKNOWN = "That didn’t go through. Reload the page and try again.";
@@ -149,6 +150,7 @@ export default function TakeOffSheet({
           {sheet && (
             <>
               <p className={styles.line}>{sheet.seat}</p>
+              {preview?.closesRow && <p className={styles.line}>{preview.closesRow}</p>}
               <p className={styles.line}>{sheet.emailed}</p>
               {sheet.box && (
                 <Field id={`${boxId}-line`} label={sheet.box.label} hint={sheet.box.hint}>

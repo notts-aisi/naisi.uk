@@ -7,6 +7,7 @@ import kit from "@/features/applications/kit/kit.module.css";
 import TakeOffSheet from "@/features/courses/takeOff/TakeOffSheet";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { HandOverPersonView, RunPanelView } from "@/lib/applications/handover/views";
+import { COURSE_RUN_CLOSES_THE_ROW } from "@/lib/courses/runCareful/options";
 import * as CW from "@/lib/courses/runCareful/words";
 import { fetchRunPanel, postHandOver, putProgrammeRun } from "./editorClient";
 import shared from "./editor.module.css";
@@ -283,7 +284,7 @@ export default function RunHandOver({
                 <p className={styles.groupTitle}>
                   {CW.GAVE_BACK_TITLE} ({panel.gaveBack.length})
                 </p>
-                <p className={styles.small}>{CW.GAVE_BACK_NOTE}</p>
+                <p className={styles.small}>{CW.gaveBackNote(COURSE_RUN_CLOSES_THE_ROW)}</p>
                 <ul className={styles.rows}>
                   {panel.gaveBack.map((person) => (
                     <li key={person.uid} className={styles.row}>
@@ -292,6 +293,11 @@ export default function RunHandOver({
                           {person.name}
                         </Link>
                         <span className={styles.small}>{person.line}</span>
+                        {person.noSeat && panel.listPath && (
+                          <Link href={panel.listPath} className={styles.inText}>
+                            {CW.CHANGE_THEIR_ROW}
+                          </Link>
+                        )}
                       </div>
                       {person.canTakeOff && panel.runId !== null && (
                         <button
@@ -335,6 +341,13 @@ export default function RunHandOver({
               </div>
             )}
 
+            {panel.closedRow.length > 0 && (
+              <div className={styles.group}>
+                <People title={CW.CLOSED_ROW_TITLE} people={panel.closedRow} />
+                <p className={styles.small}>{CW.CLOSED_ROW_NOTE}</p>
+              </div>
+            )}
+
             {panel.otherRows > 0 && <p className={styles.small}>{otherRowsLine(panel.otherRows)}</p>}
           </div>
         )}
@@ -349,7 +362,7 @@ export default function RunHandOver({
 
         {takingOff && runId !== null && (
           <TakeOffSheet runId={runId} uid={takingOff}
-            closeRow
+            closeRow={COURSE_RUN_CLOSES_THE_ROW}
             onClose={() => setTakingOff(null)}
             onDone={(said) => {
               setTakingOff(null);

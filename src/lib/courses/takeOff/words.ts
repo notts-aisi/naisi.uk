@@ -189,6 +189,13 @@ export function sheetWords(facts: TakeOffFacts): TakeOffSheet {
   };
 }
 
+/**
+ * The one sentence more when Course run takes somebody off who gave their
+ * place back (`closeRow`): their row on the run's list closes with the seat,
+ * and no route opens a closed row again.
+ */
+export const ROW_CLOSES_TOO = "Their row on the run’s list is closed too, so they can’t be put back on this run afterwards.";
+
 /** While the press is on its way. */
 export const TAKING_OFF = "Taking them off…";
 /** While the question is being asked of the route. */

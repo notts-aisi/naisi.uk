@@ -32,7 +32,7 @@ import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { session } from "./lib/applicationsSmallTerm.mjs";
-import { AGI, CAST, COURSE, RUN, loadJoin, makeWorld, namedSeed, programmeParams, seedWorld, short } from "./lib/handoverWorld.mjs";
+import { AGI, CAST, COURSE, RUN, TAIS, loadJoin, makeWorld, namedSeed, programmeParams, seedWorld, short } from "./lib/handoverWorld.mjs";
 
 // A course approver: committee, holding approveCourse, named on nothing.
 CAST.ada = {
@@ -243,14 +243,35 @@ describe("2. making a new run of the programme's course", () => {
     assert.equal(everything(), before);
   });
 
-  test("a label another run of the course carries is refused, read as a person reads it, archived and cancelled runs too", async () => {
-    // The course's runs are "Autumn 2026" and "Spring 2027".
+  test("a label another run of the course carries is refused, read as a person reads it, archived and cancelled runs too, in words true of that run", async () => {
+    // The course's runs are "Autumn 2026" and "Spring 2027", both of which this programme could name.
     for (const label of ["Spring 2027", "  spring   2027 ", "AUTUMN 2026"]) {
       const before = everything();
       assert.deepEqual(short(await make("zach", { ...NEW_RUN, label })), [409, R.runLabelTaken(label)], label);
       assert.equal(everything(), before);
     }
     assert.equal(R.runLabelTaken("Spring 2027"), "A run called Spring 2027 already exists. Name that one instead, or give this one another label.");
+    // A run that can't be named here: only the other way out is said.
+    const cannot = "A run called Spring 2027 already exists. Give this one another label.";
+    assert.equal(R.runLabelTaken("Spring 2027", false), cannot);
+    for (const [what, patch] of [
+      ["completed", { status: "completed" }],
+      ["cancelled", { status: "cancelled" }],
+      ["archived", { archived: true }],
+      ["open sign-up", { enrolMode: "open" }],
+    ]) {
+      reset(seedWorld());
+      world.db.poke(`courseRuns/${RUN.agiSpring}`, patch);
+      assert.deepEqual(short(await make("zach", { ...NEW_RUN, label: "Spring 2027" })), [409, cannot], what);
+    }
+    // Named by another programme, or holding applications of its own: the same.
+    reset(seedWorld());
+    world.db.poke(`admissionRounds/${programmeParams(AGI).roundId}`, { [`programmes.${TAIS}.runId`]: RUN.agiSpring });
+    assert.deepEqual(short(await make("zach", { ...NEW_RUN, label: "Spring 2027" })), [409, cannot], "named elsewhere");
+    reset(seedWorld());
+    world.db.seed(`courseApplications/${RUN.agiSpring}__nobody`, { runId: RUN.agiSpring, uid: "nobody", status: "pending" });
+    assert.deepEqual(short(await make("zach", { ...NEW_RUN, label: "Spring 2027" })), [409, cannot], "its own applications");
+    reset(seedWorld());
     world.db.poke(`courseRuns/${RUN.agiSpring}`, { archived: true, status: "cancelled" });
     assert.equal((await make("zach", { ...NEW_RUN, label: "Spring 2027" })).status, 409);
     // Another course's run of the same label is no clash, nor is a near miss.
@@ -284,16 +305,20 @@ describe("3. Careful: archive once the run is over, the way back, cancel while t
     for (const value of ["draft", "applications-open", "applications-closed", "running", "completed", "cancelled"]) {
       status(value);
       const careful = (await panelOf()).careful;
-      offered[value] = [careful.archive, careful.canCancel];
+      offered[value] = [careful.archive, careful.canCancel, careful.meeting];
     }
     assert.deepEqual(offered, {
-      draft: ["not-yet", true],
-      "applications-open": ["not-yet", true],
-      "applications-closed": ["not-yet", true],
-      running: ["not-yet", true],
-      completed: ["offer", false],
-      cancelled: ["offer", false],
+      draft: ["not-yet", true, false],
+      "applications-open": ["not-yet", true, false],
+      "applications-closed": ["not-yet", true, false],
+      running: ["not-yet", true, true],
+      completed: ["offer", false, false],
+      cancelled: ["offer", false, false],
     });
+    // A running run's cancel carries the older page's own warning.
+    assert.equal(W.CANCEL_MEETING_WARNING, "If this cohort has been meeting, tell them yourself before or straight after you cancel.");
+    const older = readFileSync(new URL("../src/features/courses/RunDangerZone.tsx", import.meta.url), "utf8").replace(/\s+/g, " ");
+    assert.ok(older.includes(W.CANCEL_MEETING_WARNING), "the older page's warning is worded otherwise");
   });
 
   test("a running run is not offered archive, and says why", async () => {
@@ -389,6 +414,20 @@ describe("4. the run's track leads and run facilitators, Remove only", () => {
     assert.equal((await removeRole("zach", { list: "trackLeads", uid: "yusuf" })).status, 409);
     reset(seedWorld());
     assert.equal((await removeRole("zach", { list: "trackLeads", uid: "yusuf" })).status, 409);
+  });
+
+  test("what each question says the role allows is read off the role where the site decides it", () => {
+    const code = (path) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
+    // A track lead: a lead's work (weeks, applications, groups, registers), coursework, and the email to everybody.
+    assert.match(code("lib/courses/runStaffing.ts"), /isNamedWithStanding\(actor, "courseRuns\.trackLeadUids"/);
+    assert.match(code("lib/courses/coursework/door.ts"), /\.trackLeadUids/);
+    assert.match(code("lib/email/courseFacilitatorEmails.ts"), /trackLeadUids/);
+    // A run facilitator: opening the run, and the email to everybody.
+    assert.match(code("features/courses/runAccess.ts"), /"courseRuns\.runFacilitatorUids", run\.runFacilitatorUids/);
+    assert.match(code("app/(app)/learn/[runId]/email/page.tsx"), /"courseRuns\.runFacilitatorUids"/);
+    assert.match(code("lib/email/courseFacilitatorEmails.ts"), /"courseRuns\.runFacilitatorUids"/);
+    assert.match(W.ROLE_AFTER.trackLeads, /weeks, applications, groups, registers or coursework, or email everybody on it/);
+    assert.match(W.ROLE_AFTER.runFacilitators, /open this run or email everybody on it/);
   });
 
   test("each question says in one sentence what the person can no longer do", () => {

@@ -112,6 +112,13 @@ export type RunComparison = {
    */
   notAccepted: PlaceHolder[];
   /**
+   * Hold a place, and their row on the run is withdrawn: closed, by Course
+   * run's take-off or by their own withdrawal from the run's own apply page.
+   * No route opens a withdrawn row again, so nothing can put them on the
+   * board, and they are named apart from `notAccepted`.
+   */
+  closed: PlaceHolder[];
+  /**
    * On the run's list, put there from this programme, and no longer holding
    * a place: they gave it back after they were handed over. Their row is
    * accepted, or withdrawn once Course run took them off and closed it.
@@ -135,11 +142,12 @@ export function compareWithRun(input: {
 }): RunComparison {
   const rowByUid = new Map(input.rows.map((row) => [row.uid, row] as const));
   const holding = new Set(input.holders.map((holder) => holder.uid));
-  const out: RunComparison = { toHandOver: [], onTheList: [], notAccepted: [], gaveBack: [], otherRows: 0 };
+  const out: RunComparison = { toHandOver: [], onTheList: [], notAccepted: [], closed: [], gaveBack: [], otherRows: 0 };
   for (const holder of input.holders) {
     const row = rowByUid.get(holder.uid);
     if (!row) out.toHandOver.push(holder);
     else if (row.status === "accepted") out.onTheList.push(holder);
+    else if (row.status === "withdrawn") out.closed.push(holder);
     else out.notAccepted.push(holder);
   }
   for (const row of input.rows) {

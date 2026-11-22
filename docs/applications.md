@@ -1887,16 +1887,26 @@ the tree for a gate that admits a track lead and not the lead.
   .../programmes/[programmeId]/run`) names them under `gaveBack`, each with
   the day they gave it back and the group their seat is still in, and their
   card on the board says "Gave their place back". An admin takes them off
-  from Course run ("Take Kwesi off the run…"): the take-off sheet every
+  from Course run ("Take Rahul off the run…"): the take-off sheet every
   board uses, with `closeRow: true`, which frees the seat, emails whom the
   sheet says, and closes their row on the run's own list (`withdrawn`, with
   the run's counts moved from accepted to withdrawn) in the same
   transaction. A take-off from People in groups leaves the row `accepted`,
   as it always did. Either way they are then listed under "Taken off the
-  programme". No route reopens a withdrawn row: the run's decide route
-  refuses one. Somebody whose seat was never made (handed over, never
-  placed) has nothing to take off, and Course run offers no button for
-  them. Publish never writes to somebody whose card
+  programme". No route reopens a withdrawn row (the allocate route needs an
+  accepted one; the run's decide and apply routes refuse a withdrawn one),
+  so somebody taken off from Course run cannot be put back on this run, and
+  the sheet says so in one sentence more there. Whether Course run closes
+  the row is one switch, `COURSE_RUN_CLOSES_THE_ROW` in
+  `src/lib/courses/runCareful/options.ts`: set to false, Course run's
+  take-off is an ordinary one and the sheet and the list's note lose the
+  row's words. Course run offers the button exactly where the route goes
+  through: both ask `gaveBackOnTheRun` (`src/lib/courses/takeOff/gaveBack.ts`).
+  Somebody whose seat was never made (handed over, never placed) has nothing
+  to take off: their line says so, with a link to the run's own
+  applications list, where their row is changed as before. A holder whose
+  row is withdrawn is listed apart ("Hold a place, and their row on the
+  run’s list is closed"), with no action that the routes would refuse. Publish never writes to somebody whose card
   says it, and never waits for one with no group: the card, the board's
   count of who is still to place and Publish's plan ask the one answer
   (`gaveTheirPlaceBack` in `src/lib/courses/placeGivenBack.ts`) of the same

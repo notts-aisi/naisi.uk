@@ -575,6 +575,11 @@ describe("7. every way of taking somebody off asks in the one sheet", () => {
       assert.doesNotMatch(code, /window\.confirm\([^)]*(?:off this run|off the run|takeOff)/, `${file} still asks in the browser's own confirmation`);
       assert.match(code, /<TakeOffSheet runId=\{runId\} uid=\{\w+\}/, `${file} does not open the sheet`);
     }
+    // Only Course run closes a row, and only through the one switch.
+    for (const [file, code] of files.filter(([file]) => opening.includes(file))) {
+      if (file === "features/applications/editor/RunHandOver.tsx") assert.match(code, /closeRow=\{COURSE_RUN_CLOSES_THE_ROW\}/, file);
+      else assert.doesNotMatch(code, /closeRow/, `${file} closes a row`);
+    }
   });
 });
 
@@ -620,8 +625,13 @@ describe("8. Course run takes off somebody who gave their place back, and closes
     const ordinary = await ask("zach", "amara");
     const shown = await askRow("zach", "amara");
     assert.equal(shown.status, 200, JSON.stringify(shown.body));
-    // The question is the take-off sheet's, word for word.
-    assert.deepEqual(shown.body, ordinary.body);
+    // The question is the take-off sheet's, word for word, with one sentence
+    // more: the row closes too, and nothing opens it again.
+    const { closesRow, ...asked } = shown.body.preview;
+    assert.deepEqual(asked, ordinary.body.preview);
+    assert.equal(closesRow, "Their row on the run’s list is closed too, so they can’t be put back on this run afterwards.");
+    assert.equal(closesRow, words.ROW_CLOSES_TOO);
+    assert.equal("closesRow" in ordinary.body.preview, false);
     assert.equal(shown.body.preview.sheet.emailed, "Amara is emailed to say their place has ended.");
     assert.equal(shown.body.preview.emails, 1);
     const before = counts();
@@ -642,7 +652,7 @@ describe("8. Course run takes off somebody who gave their place back, and closes
     // Off the list of people to act on, and on Taken off the programme with who and when.
     const after = await panel();
     assert.ok(!after.gaveBack.some((person) => person.uid === "amara"));
-    assert.equal(after.takenOff.find((person) => person.uid === "amara")?.note, "Taken off by Zach Levin on Tue 17 Nov");
+    assert.equal(after.takenOff.find((person) => person.uid === "amara")?.note, `Taken off by ${CAST.zach.displayName} on Tue 17 Nov`);
   });
 
   test("told their group: their group's facilitator is emailed too, exactly as the sheet says", async () => {
@@ -718,13 +728,64 @@ describe("8. Course run takes off somebody who gave their place back, and closes
       [409, "They still hold their place, so their row on the run’s list stays as it is."],
     );
     assert.equal((await pressRow("zach", "amara", { emails: 2 })).status, 409);
-    // Chloe applied to the run itself: her row is not the form's.
+    // Chloe applied to the run itself: that row is not the form's.
     assert.deepEqual(
       [(await askRow("zach", "chloe")).status, (await askRow("zach", "chloe")).body.error],
+      [409, "Their row on the run’s list didn’t come from a programme, so it stays as it is."],
+    );
+    // A row of the form's that is not open: nothing to close.
+    world.db.poke(rowPath("amara"), { status: "waitlisted" });
+    assert.deepEqual(
+      [(await askRow("zach", "amara")).status, (await askRow("zach", "amara")).body.error],
       [409, "Their row on the run’s list isn’t open, so there’s nothing to close."],
     );
+    world.db.poke(rowPath("amara"), { status: "accepted" });
     assert.equal(w.everything(), before);
     assert.equal(world.mail.length, 0);
+  });
+
+  test("the button is offered exactly where the route goes through: not for somebody staff put back, nor with no seat", async () => {
+    await giveBack();
+    // Put back on the run by staff since: the board no longer says they gave it back, and nor does Course run.
+    world.db.poke(seatPath("amara"), { putBackAt: NOW });
+    let amara = (await panel()).gaveBack.find((person) => person.uid === "amara");
+    assert.deepEqual([amara?.canTakeOff, amara?.noSeat], [false, false]);
+    assert.equal((await askRow("zach", "amara")).body.error, "They still hold their place, so their row on the run’s list stays as it is.");
+    // No seat at all (handed over, never placed): the line says so, and the way to their row is today's.
+    world.db.poke(seatPath("amara"), { putBackAt: null });
+    await world.db.collection("courseEnrolments").doc(`${RUN.agi}__amara`).delete();
+    const shown = await panel();
+    amara = shown.gaveBack.find((person) => person.uid === "amara");
+    assert.deepEqual(
+      [amara?.canTakeOff, amara?.noSeat, amara?.line],
+      [false, true, "Gave their place back on Tue 17 Nov · not in a group, so there’s no seat to free"],
+    );
+    assert.match(shown.listPath, /^\/admin\/courses\/[^/]+\/runs\/[^/]+\/applications$/);
+    assert.equal(careful.CHANGE_THEIR_ROW, "Change their row on the run’s own applications list");
+  });
+
+  test("a holder whose row is closed is named apart, with what is true and nothing to press", async () => {
+    const holders = await w.loadTs("lib/applications/handover/holders.ts");
+    const compared = holders.compareWithRun({
+      holders: [{ uid: "x", name: "Xan" }, { uid: "y", name: "Yan" }],
+      rows: [
+        { uid: "x", status: "withdrawn", fromForm: { roundId: ROUND, programmeId: AGI }, displayName: "Xan" },
+        { uid: "y", status: "pending", fromForm: { roundId: ROUND, programmeId: AGI }, displayName: "Yan" },
+      ],
+      roundId: ROUND,
+      programmeId: AGI,
+      names: new Map(),
+    });
+    assert.deepEqual([compared.closed.map((p) => p.uid), compared.notAccepted.map((p) => p.uid)], [["x"], ["y"]]);
+    assert.equal(careful.CLOSED_ROW_NOTE, "A closed row can’t be opened again, so they can’t be put on this run’s board.");
+    assert.doesNotMatch(careful.CLOSED_ROW_NOTE, /Accept/);
+  });
+
+  test("the list's note and the sheet follow the one switch", async () => {
+    const options = await w.loadTs("lib/courses/runCareful/options.ts");
+    assert.equal(options.COURSE_RUN_CLOSES_THE_ROW, true);
+    assert.equal(careful.gaveBackNote(true), careful.GAVE_BACK_NOTE);
+    assert.equal(careful.gaveBackNote(false), "They gave their place back after they were handed over. Take them off the run here: their seat is freed.");
   });
 
   test("a second press finds them off and writes and sends nothing more; no route opens the row again", async () => {

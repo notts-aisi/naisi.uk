@@ -2053,25 +2053,31 @@ given. Refused: a programme not tied to a course, one that names a run
 already (with the hand-over's sentence once anybody is handed over), a
 course no longer on the site, and a label another run of the course already
 carries, compared ignoring case and runs of spaces, archived and cancelled
-runs included. Two presses at once make one run. A run made stays a draft
+runs included. The refusal says "Name that one instead" only when that run
+could be named here (the picker's rules); otherwise it says only to give this
+one another label. Two presses at once make one run. A run made stays a draft
 until somebody destroys it. Naming a run already made is unchanged.
 
 **Somebody who gave their place back.** See "A place given back" in
-docs/applications.md: "Take Kwesi off the run…" opens the take-off sheet,
+docs/applications.md: "Take Rahul off the run…" opens the take-off sheet,
 which says who is emailed and counts them on its button, and closes their
-row on the run's list in the same act.
+row on the run's list in the same act. Nothing opens a closed row again, so
+they can't be put back on this run afterwards, and the sheet says so; one
+switch leaves the row open instead.
 
 **The older roles.** When the run names anybody as a track lead
 (`trackLeadUids`) or a run facilitator (`runFacilitatorUids`) on the older
 run page, the section lists them with "Remove…". The question says what
 they can no longer do: as a track lead, work on the run's weeks,
-applications, groups or registers or email everybody on it
-(`doesTrackLeadWork` in `src/lib/courses/runStaffing.ts` and the cohort
-email's gate); as a run facilitator, open the run or email everybody on it
+applications, groups, registers or coursework, or email everybody on it
+(`doesTrackLeadWork` in `src/lib/courses/runStaffing.ts`, the coursework
+door and the cohort email's gate); as a run facilitator, open the run or email everybody on it
 (`/learn/[runId]` and `/learn/[runId]/email`). What they do as the
 programme's lead, a group's facilitator or an admin stays. `POST
 .../run/roles` takes one person off one list and writes what the older
-roles route writes, the list and `updatedAt`. Nobody is added here. The
+roles route writes, the list and `updatedAt`. Nobody is added here. An older run page left open
+from before the removal saves its whole lists, so it can put somebody back:
+read it again before saving there. The
 rules are unchanged: an admin's browser may write every field of a run, as
 before, and nothing on the site writes these two lists from a browser.
 
@@ -2079,6 +2085,7 @@ before, and nothing on the site writes these two lists from a browser.
 never while it runs (archiving a run people are on hides it from them while
 its emails go on), through `PATCH /api/courses/runs/[runId]/archive`; an
 archived run says so and offers "Restore the run…" through the same route.
+On a running run, Cancel carries the older page's warning to tell the cohort.
 "Cancel this cohort…" and "Destroy this run…" are the older run page's
 dialogs, word for word (`CancelCohortDialog` and `DestroyDialog`, shared
 from `src/features/courses/DangerZoneParts.tsx`): the typed label, the live

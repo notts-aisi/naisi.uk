@@ -283,9 +283,15 @@ export function sameRunLabel(a: string, b: string): boolean {
   return key(a) !== "" && key(a) === key(b);
 }
 
-/** A label another run of the course already carries. */
-export function runLabelTaken(label: string): string {
-  return `A run called ${label.trim()} already exists. Name that one instead, or give this one another label.`;
+/**
+ * A label another run of the course already carries. "Name that one instead"
+ * only when that run can be named here (`runStanding`, no application of its
+ * own, no other programme naming it); otherwise only the other way out is said.
+ */
+export function runLabelTaken(label: string, nameable = true): string {
+  return nameable
+    ? `A run called ${label.trim()} already exists. Name that one instead, or give this one another label.`
+    : `A run called ${label.trim()} already exists. Give this one another label.`;
 }
 
 /** The programme names a run already that nobody has been handed over to. */
@@ -353,8 +359,14 @@ export async function makeProgrammeRun(
     if (!courseSnap.exists) return refuse(409, COURSE_GONE);
     // One equality on one field: every run of the course, whatever its state.
     const runs = await tx.get(db.collection(RUNS_COLLECTION).where("courseId", "==", courseId));
-    if (runs.docs.some((doc) => sameRunLabel(typeof doc.data()?.label === "string" ? doc.data().label : "", input.label))) {
-      return refuse(409, runLabelTaken(input.label));
+    const clash = runs.docs.find((doc) => sameRunLabel(typeof doc.data()?.label === "string" ? doc.data().label : "", input.label));
+    if (clash) {
+      // Whether the run with that label is one this programme could name
+      // instead, by the picker's own rules, so the refusal says only what works.
+      const standing = runStanding(readRun(clash.id, clash.data()), courseId);
+      const ownRows = standing.ok ? (await tx.get(rowsQuery(db, clash.id))).docs.length : 0;
+      const named = standing.ok && ownRows === 0 ? programmeNaming(formsOf((await tx.get(formsQuery(db))).docs), clash.id) : null;
+      return refuse(409, runLabelTaken(input.label, standing.ok && ownRows === 0 && named === null));
     }
 
     const rawTitle = (courseSnap.data() ?? {}).title;
