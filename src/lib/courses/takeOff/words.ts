@@ -178,7 +178,11 @@ export function sheetWords(facts: TakeOffFacts): TakeOffSheet {
     seat: seatWords(facts),
     emailed: emailedWords(facts),
     box: facts.personEmailed
-      ? { label: `A line for ${first} (optional)`, hint: `Only ${first} sees this. The facilitators’ email never carries a reason.` }
+      ? {
+          label: `A line for ${first} (optional)`,
+          // The second sentence is about the facilitators' email, so it goes when none is sent.
+          hint: facts.facilitators.length > 0 ? `Only ${first} sees this. The facilitators’ email never carries a reason.` : `Only ${first} sees this.`,
+        }
       : null,
     keep: `Keep ${first}`,
     go: goWords(facts),
@@ -213,6 +217,17 @@ export function changedWords(people: number): string {
   return `Taking them off now emails ${who}, so nothing was changed. Check it, then press again.`;
 }
 
+/**
+ * When a press did not answer and a second look finds the person already off
+ * the run: the removal was written, and the emails after it may not have
+ * gone (the server can stop between the two).
+ */
+export const OFF_BUT_EMAILS_UNSURE =
+  "They’re off the run, but the emails may not have gone. An admin can check Email delivery, and if none went, tell the person yourself.";
+
+/** The refusal for a seat recorded as finished: the programme is over for them. */
+export const FINISHED = "They finished the programme, so they can’t be taken off it.";
+
 /** The question, and a second press, for somebody already off the run. */
 export const ALREADY_OFF = "They’re already off the run.";
 
@@ -234,7 +249,8 @@ export function parseTakeOffLine(raw: unknown): { ok: true; value: string } | { 
   if (typeof raw !== "string") return { ok: false, error: LINE_REFUSAL.text };
   const value = raw.trim();
   if (!value) return { ok: true, value: "" };
-  if (/[\r\n]/.test(value)) return { ok: false, error: LINE_REFUSAL.oneLine };
+  // Every break a mail client or the plain-text part may start a new line at.
+  if (/[\r\n\u2028\u2029\u0085\v\f]/.test(value)) return { ok: false, error: LINE_REFUSAL.oneLine };
   if (value.length > LINE_LIMIT) return { ok: false, error: LINE_REFUSAL.long };
   if (couldBeFollowed(value)) return { ok: false, error: LINE_REFUSAL.link };
   return { ok: true, value };
@@ -254,6 +270,16 @@ export const TAKE_OFF_LIMIT_WORDS = {
 
 /** One email's words: its subject and its paragraphs. */
 export type TakeOffEmailWords = { subject: string; lines: string[] };
+
+/**
+ * WHAT THE PERSON'S EMAIL SAYS OF THEIR WORK, the owner's words, kept while
+ * a question to the owner is open: once somebody is off the run they can
+ * open none of its pages, so their work is kept in our records and is not
+ * on their account to open. The alternative offered is "We keep your work
+ * so far."; if that is chosen it replaces this one string, and nothing else
+ * changes.
+ */
+export const WORK_KEPT = "Your work so far stays on your account.";
 
 /** The reply that reaches a person: every email of this kind closes on it. */
 const REPLY = "reply to this email and it reaches the NAISI team.";
@@ -290,15 +316,16 @@ export function personEmailWords(input: {
     lines: [
       ended,
       ...(typed ? [typed] : []),
-      `Your work so far stays on your account. If you think this is a mistake, or you’d like to talk about it, ${REPLY}`,
+      `${WORK_KEPT} If you think this is a mistake, or you’d like to talk about it, ${REPLY}`,
     ],
   };
 }
 
 /**
  * To each of the group's facilitators: "Rahul has left Group C". "They come
- * off your register from week 3" names the group's next session still to
- * come (`registerWeek`), and goes when the group has no session left.
+ * off your register from week 3" names the group's first session whose
+ * register holds no saved mark for them (`registerWeek`, worked out in
+ * `./plan.ts`), and goes when there is none.
  */
 export function facilitatorEmailWords(input: {
   facilitatorFirstName: string;

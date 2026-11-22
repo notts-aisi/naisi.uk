@@ -28,7 +28,10 @@ import { relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { render } from "@react-email/render";
 import { walkSource } from "./lib/functionScan.mjs";
-import { AGI, B, C, NOW, OPEN_RUN, ROUND, RUN, makeLeavingWorld, textOf } from "./lib/leavingWorld.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
+import { CAST } from "./lib/applicationsSmallTerm.mjs";
+import { register as registerOf } from "./lib/hubAttendanceWorld.mjs";
+import { AGI, B, C, NOW, OPEN_RUN, PEOPLE, ROUND, RUN, makeLeavingWorld, registerPath, textOf } from "./lib/leavingWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -142,7 +145,7 @@ describe("1. Chloe, told Group B, taken off by an admin", () => {
     assert.equal(rows.length, 1);
     assert.deepEqual(
       [rows[0].groupId, rows[0].subjectUid, rows[0].actorUid, rows[0].detail, rows[0].emailed],
-      [B, "chloe", "zach", "Zach Levin took Chloe Nguyen off the run.", 3],
+      [B, "chloe", "zach", `${CAST.zach.displayName} took ${PEOPLE.chloe[0]} off the run.`, 3],
     );
     assert.equal(audit.courseAuditCategory("member-taken-off"), "people");
     assert.equal(audit.courseAuditKindLabel("member-taken-off"), "Taken off the run");
@@ -209,6 +212,8 @@ describe("2. the sentences stay true in every case the route allows", () => {
     assert.equal(shown.body.preview.sheet.seat, "Their seat in Group C is freed. Their registers and work so far are kept.");
     assert.equal(shown.body.preview.sheet.emailed, "Una is emailed to say their place has ended.");
     assert.equal(shown.body.preview.sheet.go, "Take Una off and email Una");
+    // No facilitator is emailed, so the hint says nothing of their email.
+    assert.deepEqual(shown.body.preview.sheet.box, { label: "A line for Una (optional)", hint: "Only Una sees this." });
     assert.equal(shown.body.preview.emails, 1);
     const done = await press("zach", "una", { emails: 1 });
     assert.equal(done.body.said, "Una is off AGI Strategy. Una was emailed.");
@@ -313,23 +318,44 @@ describe("3. which week they come off the register from", () => {
     assert.match(await facilitatorLine(), /from week 3\./);
   });
 
-  test("once tonight's session has started: the next week", async () => {
+  // A person taken off stops being a row of every register at once, so the
+  // week is the first session whose register holds no saved mark for them.
+  test("while tonight's session is under way: this week, whose register no longer lists them", async () => {
     mock.timers.setTime(new Date("2026-11-17T18:30:00Z").getTime());
-    assert.match(await facilitatorLine(), /from week 4\./);
+    assert.match(await facilitatorLine(), /from week 3\./);
   });
 
-  test("between sessions: the next one", async () => {
+  test("the morning after, with last night's register not saved yet: still that week", async () => {
+    mock.timers.setTime(new Date("2026-11-18T09:00:00Z").getTime());
+    assert.match(await facilitatorLine(), /from week 3\./);
+  });
+
+  test("once that register is saved with a mark for them: the next week", async () => {
     mock.timers.setTime(new Date("2026-11-19T09:00:00Z").getTime());
+    world.db.seed(registerPath(B, 3), registerOf(B, 3, { chloe: "present", farah: "present", kofi: "present" }));
     assert.match(await facilitatorLine(), /from week 4\./);
   });
 
-  test("after the group's last session: the register's sentence goes, and no place goes back", async () => {
+  test("a register saved without them, or one that says the session was not held, is passed over as it should be", async () => {
+    mock.timers.setTime(new Date("2026-11-19T09:00:00Z").getTime());
+    world.db.seed(registerPath(B, 3), registerOf(B, 3, { farah: "present" }, { held: false }));
+    assert.match(await facilitatorLine(), /from week 4\./);
+  });
+
+  test("after the group's last session, every register saved with a mark for them: the register's sentence goes, and no place goes back", async () => {
     mock.timers.setTime(new Date("2026-12-20T12:00:00Z").getTime());
+    for (const week of [3, 4, 5, 6]) world.db.seed(registerPath(B, week), registerOf(B, week, { chloe: "present" }));
     const shown = await ask("claudia", "amara");
     assert.equal(shown.body.preview.sheet.seat, "Their seat in Group A is freed. Their registers and work so far are kept.");
     const text = await facilitatorLine();
     assert.ok(!text.includes("register"), text);
     assert.ok(text.includes("Hi Rahul, Chloe is no longer in Group B on AGI Strategy. You don’t need to do anything."), text);
+  });
+
+  test("after the group's last session with a register still not saved: that register's week", async () => {
+    mock.timers.setTime(new Date("2026-12-20T12:00:00Z").getTime());
+    for (const week of [3, 4, 5]) world.db.seed(registerPath(B, week), registerOf(B, week, { chloe: "present" }));
+    assert.match(await facilitatorLine(), /from week 6\./);
   });
 });
 
@@ -393,6 +419,30 @@ describe("4. the press is held to what the question said", () => {
     assert.equal(w.everything(), before);
     assert.equal(world.mail.length, 0);
     assert.deepEqual(words.parseTakeOffLine("  "), { ok: true, value: "" });
+  });
+
+  test("every line break a mail client may break at is refused, and a body with a field the sheet does not send", async () => {
+    const before = w.everything();
+    for (const mark of ["\u2028", "\u2029", "\u0085", "\v", "\f"]) {
+      const refused = await press("zach", "chloe", { emails: 3, line: `First${mark}second` });
+      assert.deepEqual([refused.status, refused.body.error], [400, "The line must be one line."], JSON.stringify(mark));
+    }
+    for (const body of [{ preview: true, to: "someone@example.com" }, { emails: 3, reason: "No show." }]) {
+      const refused = await press("zach", "chloe", body);
+      assert.deepEqual([refused.status, refused.body.error], [400, "Expected no body, or a JSON object."], JSON.stringify(body));
+    }
+    assert.equal(w.everything(), before);
+    assert.equal(world.mail.length, 0);
+  });
+
+  test("a seat recorded as finished is refused, by the question and the press, writing nothing", async () => {
+    world.db.poke(seatPath("chloe"), { status: "completed" });
+    const before = w.everything();
+    const said = "They finished the programme, so they can’t be taken off it.";
+    assert.deepEqual([(await ask("zach", "chloe")).status, (await ask("zach", "chloe")).body.error], [409, said]);
+    assert.deepEqual([(await press("zach", "chloe", { emails: 3 })).status, (await press("zach", "chloe", { emails: 3 })).body.error], [409, said]);
+    assert.equal(w.everything(), before);
+    assert.equal(world.mail.length, 0);
   });
 
   test("a failed send never undoes the removal, and the answer says how many went", async () => {
@@ -501,10 +551,16 @@ describe("7. every way of taking somebody off asks in the one sheet", () => {
   const files = [...walkSource(fileURLToPath(SRC))].map((file) => [relative(fileURLToPath(SRC), file).split(sep).join("/"), readFileSync(file, "utf8")]);
 
   test("the sheet is the only thing in the browser that presses the route, and both boards open it", () => {
+    // Anywhere in src but the route itself: an address built in one template
+    // (`/enrolments/${uid}/remove`), or a file that names both a course run's
+    // address and the `/remove` that ends this one, however it joins them.
     const pressing = files
-      .filter(([file, code]) => !file.startsWith("app/api/") && /\/enrolments\/\$\{[^}]+\}(?:\/remove|`)/.test(code) && /\bremove\b/.test(code))
-      .map(([file]) => file)
-      .filter((file) => !file.startsWith("lib/"));
+      .filter(([file]) => !file.startsWith("app/api/courses/runs/[runId]/enrolments/[uid]/remove/"))
+      .filter(([, source]) => {
+        const code = stripSource(source, { keepStrings: true });
+        return /\/enrolments\/\$\{[^}]+\}(?:\/remove|`)/.test(code) || (/["'`][^"'`]*courses\/runs/.test(code) && /["'`/]\/?remove["'`]|\/remove\b/.test(code));
+      })
+      .map(([file]) => file);
     assert.deepEqual(pressing, ["features/courses/takeOff/TakeOffSheet.tsx"]);
     const opening = files.filter(([, code]) => /from "@\/features\/courses\/takeOff\/TakeOffSheet"/.test(code)).map(([file]) => file).sort();
     assert.deepEqual(opening, ["features/applications/groups/PeopleInGroups.tsx", "features/courses/AllocationBoard.tsx"]);

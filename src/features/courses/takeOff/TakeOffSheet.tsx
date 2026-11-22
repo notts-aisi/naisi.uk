@@ -5,7 +5,7 @@ import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import { useHydrated } from "@/hooks/useHydrated";
-import { ASKING, LINE_LIMIT, TAKING_OFF, type TakeOffSheet as SheetWords } from "@/lib/courses/takeOff/words";
+import { ALREADY_OFF, ASKING, LINE_LIMIT, OFF_BUT_EMAILS_UNSURE, TAKING_OFF, type TakeOffSheet as SheetWords } from "@/lib/courses/takeOff/words";
 import styles from "./TakeOffSheet.module.css";
 
 /**
@@ -93,14 +93,40 @@ export default function TakeOffSheet({
         onDone(body.said ?? "");
         return;
       }
-      setProblem(body?.error ?? UNKNOWN);
-      // The count changed while the sheet was open: ask again before anybody can press.
-      if (response.status === 409) setNonce((n) => n + 1);
+      // A press refused for a reason the route said: say it, and after a 409
+      // (the count changed while the sheet was open) ask again before anybody
+      // can press. A press that did not answer is looked at again.
+      if (response.status < 500 && body?.error) {
+        setProblem(body.error);
+        if (response.status === 409) setNonce((n) => n + 1);
+        return;
+      }
+      await afterNoAnswer();
     } catch {
-      setProblem(UNKNOWN);
+      await afterNoAnswer();
     } finally {
       setPressing(false);
     }
+  }
+
+  /**
+   * A press that did not answer: the removal may have been written and the
+   * server stopped before its emails. Asked again, a person already off the
+   * run is said as such, with the emails unsure; anything else is the
+   * general sentence.
+   */
+  async function afterNoAnswer() {
+    try {
+      const response = await fetch(`${base}/remove`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preview: true }) });
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (response.status === 409 && body?.error === ALREADY_OFF) {
+        onDone(OFF_BUT_EMAILS_UNSURE);
+        return;
+      }
+    } catch {
+      // Nothing more is known: the general sentence below.
+    }
+    setProblem(UNKNOWN);
   }
 
   const sheet = preview?.sheet ?? null;

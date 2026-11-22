@@ -13,7 +13,7 @@ import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { takeOffLimitRefusal, takeOffLimitsIn } from "@/lib/courses/takeOff/limits";
 import { planTakeOff, type TakeOffPlan } from "@/lib/courses/takeOff/plan";
 import { sendTakeOffEmails } from "@/lib/courses/takeOff/send";
-import { ALREADY_OFF, changedWords, doneWords, historyWords, parseTakeOffLine, sheetWords } from "@/lib/courses/takeOff/words";
+import { ALREADY_OFF, FINISHED, changedWords, doneWords, historyWords, parseTakeOffLine, sheetWords } from "@/lib/courses/takeOff/words";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
@@ -105,7 +105,9 @@ import { visitLimitRefusal, visitLimitsIn } from "@/lib/courses/visit/limits";
  * would close the run to them as for somebody staff took off, and take back
  * the page that says they left. So the route refuses it, the preview and the
  * press alike, in a sentence that says they left, and when, and writes
- * nothing. The boards offer no Take off for such a seat either.
+ * nothing. The boards offer no Take off for such a seat either. Nor is a
+ * seat recorded as finished (`completed`) taken off: the programme is over
+ * for them, and its email would say their place has ended.
  *
  * A SOFT removal, deliberately: the enrolment doc survives. The deterministic
  * doc id (`courseEnrolments/{runId}__{uid}`) is the one-enrolment-per-(run,
@@ -174,7 +176,8 @@ class RemoveError extends Error {
 /**
  * What stops a seat being taken off, the preview and the press alike, from
  * the seat and the run's groups as read: a facilitator's row, a facilitator
- * who holds a place, somebody who left by themselves. Throws the refusal;
+ * who holds a place, somebody who left by themselves, somebody recorded as
+ * finished. Throws the refusal;
  * returns when nothing stops it.
  */
 function refuseWhatCannotGo(existing: Record<string, unknown>, place: CourseEnrolmentDoc, groups: readonly CourseGroupDoc[], runId: string, uid: string): void {
@@ -189,7 +192,12 @@ function refuseWhatCannotGo(existing: Record<string, unknown>, place: CourseEnro
   // free, and nothing here is theirs to change. Refused with the day they
   // left, before anything is written (see the note at the top).
   if (existing.status === "withdrawn") throw new RemoveError(leftByThemselvesLine(place.droppedOutAt), 409);
+  // Somebody recorded as finished: the programme is over for them, and an
+  // email saying their place has ended would be untrue. No board offers it.
+  if (existing.status === "completed") throw new RemoveError(FINISHED, 409);
 }
+
+const BODY_FIELDS: readonly string[] = ["preview", "emails", "line"];
 
 /** The body: none, `{ preview: true }`, or the count of emails the sheet showed and the line for the person. Null when it is malformed. */
 async function readBody(req: Request): Promise<{ preview: boolean; emails: number; line: unknown } | null> {
@@ -202,6 +210,8 @@ async function readBody(req: Request): Promise<{ preview: boolean; emails: numbe
     return null;
   }
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  // Only the three fields the sheet sends, as a request's own body is held.
+  if (Object.keys(raw).some((key) => !BODY_FIELDS.includes(key))) return null;
   const { preview, emails, line } = raw as { preview?: unknown; emails?: unknown; line?: unknown };
   if (preview !== undefined && typeof preview !== "boolean") return null;
   if (emails !== undefined && !(typeof emails === "number" && Number.isInteger(emails) && emails >= 0)) return null;

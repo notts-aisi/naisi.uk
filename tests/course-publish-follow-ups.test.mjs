@@ -288,12 +288,21 @@ describe("2. nothing gives back a place the removal did not come from", () => {
     });
   }
 
-  test("only a seat still on the run gives its place back: a seat an older record marks completed is removed with the form untouched", async () => {
+  // Changed on purpose (taking somebody off now emails them that their place
+  // has ended, which would be untrue of somebody who finished): a seat an
+  // older record marks completed is refused, the question and the press
+  // alike, and nothing is written, the form included.
+  test("only a seat still on the run gives its place back: a seat an older record marks completed is refused, with the form untouched", async () => {
     world.db.poke(enrolmentPath("amara"), { status: "completed" });
     const counts = formCounts();
-    assert.equal((await remove("zach", "amara")).status, 200);
+    const before = snapshot();
+    const refused = await remove("zach", "amara");
+    assert.deepEqual([refused.status, refused.body.error], [409, "They finished the programme, so they can’t be taken off it."]);
+    assert.deepEqual([(await call("zach", routes.remove.POST, { runId: RUN.agi, uid: "amara" }, { course: true })).status], [409]);
     await w.settle();
-    assert.equal(seatOf("amara").status, "removed");
+    assert.deepEqual(changedSince(before), []);
+    assert.equal(world.mail.length, 0);
+    assert.equal(seatOf("amara").status, "completed");
     assert.deepEqual(applicationOf("amara"), { status: "accepted", attendance: null, releaseReason: null, withdrawnAt: null });
     assert.deepEqual(formCounts(), counts);
   });

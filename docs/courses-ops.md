@@ -1838,8 +1838,8 @@ Attendance tab, its CSV and the Overview say the same. **Remove** records
 the day too, so both kinds of leaving show it, deletes every one-week visit
 on their place (for each whose session has not started and is happening,
 the host group's facilitators are sent the visit's called-off email, counted
-in the confirmation before the press; see "A one-week visit to another
-group's session"), and it gives a place the
+in the sheet before the press; see "A one-week visit to another group's
+session" and the sheet below), and it gives a place the
 application form gave them back, exactly as leaving does and with no
 reason (nothing goes back after the run's last session). Their application
 page then says "Taken off the programme" and the day, and the form's count
@@ -1849,6 +1849,44 @@ them in a sentence with the day they left ("They left on Tue 17 Nov, so
 their seat is already free and there’s nothing to remove."), writing
 nothing. Somebody removed does not get the page that says they left: the
 run closes to them.
+
+**Taking somebody off asks first, in one sheet.** The card's menu on People
+in groups ("Take off the run…") and Remove on the older allocation board
+open the same sheet, whose every sentence is the route's own preview: what
+happens to the seat and the place, who is emailed and to say what, and a
+button that says how many people it emails. Once the removal is written:
+
+- the person is emailed that their place has ended, whatever their
+  settings (a decision about their own place), at their account's address;
+- each facilitator of their group, with standing and an address, never
+  whoever pressed, is emailed that they have left and from which week they
+  come off the register, only when Publish had told the person their group.
+  The week is the first session of the group whose register holds no saved
+  mark for them, because the register stops listing them as a row the
+  moment they are off; when every session has one, that sentence goes;
+- each visit still to come sends the visit's own called-off email to its
+  host's facilitators, as above. Nobody else is emailed, and no email carries
+  a reason.
+
+The sheet has an optional line for the person: one line, no link, at most
+300 characters. It goes in the person's email and nowhere else: not the
+facilitators' or the visits' emails, not the group's History, not the seat,
+not the email log (which keeps the subject only) and not the server log.
+The press sends back the count of emails the sheet showed, and the
+removal's transaction works it out again and refuses a different one (409,
+with the count as it is now), so the sheet asks again. A press that emails
+is held to four presses about one person on one run and forty by one
+presser in a day, and one that ends a visit to the visits' own limits; at
+either it is refused with nothing written. The group's History gets one line
+under People, "Maya Rao took Rahul Mehta off the run.", and Course run's
+"Taken off the programme" says who took them off and when. Somebody whose
+seat is recorded as finished is refused.
+
+If the server stops after the removal is written and before the emails go,
+the removal stands, a second press says they are already off and emails
+nobody, and the sheet says the emails may not have gone. Look on Email
+delivery for `course-taken-off` rows to that person and their group's
+facilitators, and if none went, tell the person by hand.
 
 To put somebody back, an admin or the programme's lead places them again on
 the board and presses Publish, which emails them: placing them clears the
