@@ -41,10 +41,14 @@ export const COLUMN = {
  * One group's session in the week the column names, as its cell says it:
  * "Met Mon 9 Nov", "Today, 1pm", "Tomorrow, 3pm", "Thu 12 Nov"; any other
  * state as the group page's week pill says it ("Thu 12 Nov · cancelled").
+ * A session that started with no register, for which none is owed (it
+ * passed while the group was archived: `registerOwed`), is "not held", as
+ * the Overview says it, never "no register".
  */
-export function weekCellWords(state: WeekState, dateKey: string, hhmm: string): string {
+export function weekCellWords(state: WeekState, dateKey: string, hhmm: string, owed = true): string {
   const day = dayWords(dateKey);
   const clock = clockWords(hhmm);
+  if (state === "no-register" && !owed) return `${day} · not held`;
   switch (state) {
     case "met":
       return `Met ${day}`;

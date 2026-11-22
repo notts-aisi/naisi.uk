@@ -306,6 +306,13 @@ describe("1. All groups is the lead's and an admin's, and changes nothing", () =
     at("2026-11-19T18:30:00Z");
     assert.equal((await allGroupsFor("claudia")).row("Group A").week, "Thu 19 Nov · no register");
   });
+
+  test("a session that passed while its group was archived owes no register, and the column says it was not held", async () => {
+    at("2026-11-19T18:30:00Z");
+    // Restored after Group A's session that evening started: none is owed (`registerOwed`).
+    world.db.poke(`courseGroups/${A}`, { restoredAt: new Date("2026-11-19T18:20:00Z") });
+    assert.equal((await allGroupsFor("claudia")).row("Group A").week, "Thu 19 Nov · not held");
+  });
 });
 
 describe("1b. the archived groups at the foot of All groups, and the line after archiving", () => {

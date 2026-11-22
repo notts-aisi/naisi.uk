@@ -2,6 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { CAMPUS_LABEL } from "@/lib/courses/campusWords";
 import { placesInGroup } from "@/lib/courses/groupArchive/plan";
+import { registerOwed } from "@/lib/courses/groupArchive/restored";
 import { archivedWhenWords, readRestoreQuestion } from "@/lib/courses/groupArchive/restoreQuestion";
 import { weekStateOf, type WeekChange } from "@/lib/courses/groupPage/model";
 import { dayAndTimeWords, roomLine, weekWords } from "@/lib/courses/groupPage/words";
@@ -185,7 +186,8 @@ export async function loadAllGroups(
       todayKey,
       tomorrowKey,
     });
-    return weekCellWords(state, one.dateKey, one.session.startTimeLocal);
+    // A register is owed only for a session that did not pass while the group was archived.
+    return weekCellWords(state, one.dateKey, one.session.startTimeLocal, registerOwed(group, startsAt));
   };
 
   const rows: AllGroupsRow[] = live.map((group) => {
