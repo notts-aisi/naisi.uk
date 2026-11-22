@@ -73,6 +73,9 @@ const {
   facilitatingPartOf,
   fillAddress,
   menuFor,
+  PROGRAMME_ADDRESSES,
+  programmeEntriesOf,
+  reviewWords,
 } = await loadTs("layout/appNav.ts");
 const { facilitatorGuidePath } = await loadTs("lib/courses/facilitatorGuide/model.ts");
 
@@ -118,6 +121,41 @@ const PARTS = {
   twoCourses: facilitatingPartOf([C_ROW, B_ROW]),
 };
 const FACILITATING_ENTRIES = Object.values(PARTS).flatMap((part) => part.entries);
+
+/**
+ * THE PROGRAMMES UNDER PROGRAMMES, as built for an admin with two terms (one
+ * running, one taking applications, a Review waiting on one programme).
+ * They are made per person from `GET /api/admissions/programmes/menu`'s
+ * answer, so they are held here through their address shapes
+ * (`PROGRAMME_ADDRESSES`).
+ */
+const overviewOf = (roundId, programmeId) => fillAddress(PROGRAMME_ADDRESSES.overview, { roundId, programmeId });
+const TERMS = [
+  {
+    heading: "Autumn 2026",
+    programmes: [
+      { name: "AGI Strategy", href: overviewOf("autumn", "agi"), review: 0 },
+      { name: "Alignment", href: overviewOf("autumn", "align"), review: 0 },
+    ],
+  },
+  {
+    heading: "Spring 2027 · applying",
+    programmes: [
+      { name: "AGI Strategy", href: overviewOf("spring", "agi"), review: 3 },
+      { name: "Technical AI Safety", href: overviewOf("spring", "tais"), review: 0 },
+    ],
+  },
+];
+const PROGRAMME_ENTRIES = programmeEntriesOf(TERMS);
+
+/** The shape of `PROGRAMME_ADDRESSES` an address fills, or null. */
+function programmeShapeOf(href) {
+  for (const shape of Object.values(PROGRAMME_ADDRESSES)) {
+    const pattern = new RegExp(`^${shape.replace(/\[\w+\]/g, "[^/]+")}$`);
+    if (pattern.test(href)) return shape;
+  }
+  return null;
+}
 
 /** The shape of `FACILITATING_ADDRESSES` an address fills, or null. */
 function shapeOf(href) {
@@ -402,6 +440,76 @@ describe("every admin page somebody can open is lit in their own menu", () => {
 // 3b. The Facilitating part
 // ---------------------------------------------------------------------------
 
+describe("the programmes under Programmes", () => {
+  test("nobody with no programme listed, or whose answer has not come, is drawn anything new", () => {
+    assert.deepEqual(programmeEntriesOf([]), []);
+    assert.equal(menuFor([], []), APP_NAV, "the menu with no programmes is not APP_NAV itself");
+    assert.equal(menuFor([]), APP_NAV, "the menu with the answer missing is not APP_NAV itself");
+  });
+
+  test("straight after the Programmes entry: each term's heading on its first programme, each opening the Overview", () => {
+    const menu = menuFor([], TERMS);
+    assert.equal(menu.length, APP_NAV.length);
+    const run = menu[1].entries;
+    const at = run.findIndex((entry) => entry.href === "/admin/admissions/programmes");
+    assert.ok(at >= 0, "the Programmes entry left its group");
+    assert.deepEqual(
+      run.slice(at + 1, at + 5).map((entry) => [entry.label, entry.heading ?? null, entry.review ?? null, entry.nested, entry.rule, entry.section]),
+      [
+        ["AGI Strategy", "Autumn 2026", null, true, "admissions", "programmes"],
+        ["Alignment", null, null, true, "admissions", "programmes"],
+        ["AGI Strategy", "Spring 2027 · applying", 3, true, "admissions", "programmes"],
+        ["Technical AI Safety", null, null, true, "admissions", "programmes"],
+      ],
+    );
+    // Every other entry is where it was.
+    assert.deepEqual(run.filter((entry) => !entry.nested), APP_NAV[1].entries);
+    assert.deepEqual([menu[0], menu[2]], [APP_NAV[0], APP_NAV[2]]);
+    assert.equal(reviewWords(3), "Review 3");
+    // With the Facilitating part too, both are drawn and nothing else moves.
+    const both = menuFor([C_ROW], TERMS);
+    assert.deepEqual([both.length, both[1].label, both[2].entries.length], [APP_NAV.length + 1, FACILITATING_LABEL, APP_NAV[1].entries.length + 4]);
+  });
+
+  test("each address is a page, and each entry is lit anywhere under its programme and nowhere else", () => {
+    for (const [name, shape] of Object.entries(PROGRAMME_ADDRESSES)) {
+      assert.ok(ROUTES.includes(shape), `${name}: no page.tsx under src/app/(app) answers at ${shape}`);
+    }
+    for (const entry of PROGRAMME_ENTRIES) {
+      assert.equal(programmeShapeOf(entry.href), PROGRAMME_ADDRESSES.overview, `${entry.label} leads to ${entry.href}`);
+      for (const also of entry.also ?? []) assert.equal(programmeShapeOf(also), PROGRAMME_ADDRESSES.programme, also);
+    }
+    const programmes = ENTRIES.find((e) => e.href === "/admin/admissions/programmes");
+    const entries = [...ENTRIES.filter((e) => e.rule === "memberAndUp"), programmes, ...PROGRAMME_ENTRIES];
+    const lit = (path) => currentEntry(entries, path);
+    const base = "/admin/admissions/forms/spring/programmes/agi";
+    for (const path of [`${base}/overview`, `${base}/applications`, `${base}/weeks/w02`, base]) {
+      assert.equal(lit(path), PROGRAMME_ENTRIES[2], path);
+    }
+    // Two programmes by one name on two terms are two entries, each lit on its own.
+    assert.equal(lit("/admin/admissions/forms/autumn/programmes/agi/people"), PROGRAMME_ENTRIES[0]);
+    // The Programmes page and a term's page light Programmes itself.
+    assert.equal(lit("/admin/admissions/programmes"), programmes);
+    assert.equal(lit("/admin/admissions/forms/spring"), programmes);
+    assert.equal(lit("/admin/admissions/forms/spring/pool"), programmes);
+    // The phone's top bar names the programme.
+    assert.equal(barTitleFor(lit(`${base}/overview`)), "AGI Strategy");
+    // The bar's own words are unchanged; Menu holds a programme's page.
+    assert.deepEqual(bottomBarFor(entries, null).map((word) => word.label), ["Home", "Programme", "Profile"]);
+  });
+
+  test("the shell draws a term's heading, the nested row and Review, and asks only for somebody Programmes is drawn for", () => {
+    const shell = read("layout", "AppShell.tsx");
+    assert.match(shell, /useProgrammesMenu\(role === "admin" \|\| admissionsReviewer\)/);
+    assert.match(shell, /menuFor\(facilitating, programmeTerms\)/);
+    assert.match(shell, /\{entry\.heading && \(\s*<div className=\{`meta \$\{styles\.navTermLabel\}`\}>\{entry\.heading\}<\/div>/);
+    assert.match(shell, /entry\.nested \? styles\.navNested : ""/);
+    assert.match(shell, /<span className=\{styles\.navReview\}>\{reviewWords\(entry\.review\)\}<\/span>/);
+    const css = read("layout", "AppShell.module.css");
+    assert.match(css, /\.navReview \{[^}]*white-space: nowrap;/);
+  });
+});
+
 describe("the Facilitating part of the menu", () => {
   test("nobody who facilitates nothing is drawn anything new", () => {
     assert.equal(facilitatingPartOf([]), null);
@@ -604,6 +712,11 @@ const ENTRY_RULES = {
     "facilitating",
     "The list of guides is drawn for the same people the part is, and gives anybody else the guide's own sentence.",
   ],
+  // The programmes under Programmes, made per person: held by the shape their entries fill.
+  [PROGRAMME_ADDRESSES.overview]: [
+    "admissions",
+    "The Overview admits an admin and the programme's lead; the entry is drawn only for programmes the server lists for the reader, under the Programmes entry's own rule.",
+  ],
 };
 
 /**
@@ -648,7 +761,11 @@ describe("regrouping the menu did not change who is shown what", () => {
 
   test("every entry is decided by the rule written down for its address", () => {
     assert.deepEqual(
-      Object.fromEntries([...ENTRIES.map((e) => [e.href, e.rule]), ...FACILITATING_ENTRIES.map((e) => [shapeOf(e.href), e.rule])]),
+      Object.fromEntries([
+        ...ENTRIES.map((e) => [e.href, e.rule]),
+        ...FACILITATING_ENTRIES.map((e) => [shapeOf(e.href), e.rule]),
+        ...PROGRAMME_ENTRIES.map((e) => [programmeShapeOf(e.href), e.rule]),
+      ]),
       Object.fromEntries(Object.entries(ENTRY_RULES).map(([href, [rule]]) => [href, rule])),
       "APP_NAV and ENTRY_RULES disagree: a new entry needs its rule and its reason here, and a removed one leaves a stale line",
     );
@@ -658,7 +775,7 @@ describe("regrouping the menu did not change who is shown what", () => {
   });
 
   test("every rule is one constant in AppShell.tsx, and each constant reads as written", () => {
-    const used = new Set([...ENTRIES, ...FACILITATING_ENTRIES].map((e) => e.rule));
+    const used = new Set([...ENTRIES, ...FACILITATING_ENTRIES, ...PROGRAMME_ENTRIES].map((e) => e.rule));
     assert.deepEqual([...used].sort(), Object.keys(RULE_BODIES).sort(), "a rule is used that is not written down here, or the other way round");
     for (const [rule, [constant, body]] of Object.entries(RULE_BODIES)) {
       assert.match(

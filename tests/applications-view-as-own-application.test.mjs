@@ -410,6 +410,7 @@ const STUBS = new Map([
   ["./ComingUp", NOTHING("ComingUp")],
   ["./TermCard", NOTHING("TermCard")],
   ["./home.module.css", STYLES],
+  ["./ProgrammesHome.module.css", STYLES],
   [
     "./homeData",
     "export async function homeEvents() {\n" +

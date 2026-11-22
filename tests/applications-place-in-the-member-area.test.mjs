@@ -199,6 +199,9 @@ const { loadTs } = createLoader({
     ["@/features/courses/RunCard", `export default ({ entry }) => ${h}("div", null, "[run " + entry.runId + "]");`],
     ["@/components/motion/PageEnter", `export default ({ children }) => ${h}("div", null, children);`],
     ["./home.module.css", CLASS_NAMES],
+    // The Programmes card: a mark that says whose Home it is drawn on, so
+    // where it sits is pinned. What it draws is tests/programmes-menu-home.test.mjs's.
+    ["./ProgrammesHome", `export default function ProgrammesHome({ title }) { return ${h}("div", null, "[ProgrammesHome " + title + "]"); }`],
     ["./page.module.css", CLASS_NAMES],
     ["./MyCoursesSummary.module.css", CLASS_NAMES],
     ["./YourApplications.module.css", CLASS_NAMES],
@@ -747,6 +750,28 @@ describe("Home, for a member on a live run", () => {
 const hub = (instead = null) => textOf(renderToStaticMarkup(createElement(LearnHub, { instead })));
 /** What the page hands the hub for everybody but a member known to hold no place. */
 const wayIn = createElement(YourApplications, { rows: null });
+
+describe("a lead's Programmes card, as Home is drawn", () => {
+  test("straight after the line saying the policy changed, before everything else under the greeting", async () => {
+    runsAre([]);
+    term(null);
+    signedIn("claudia");
+    // Appointing a lead sets the flag the admissions tree reads.
+    world.user = { ...CAST.claudia, admissionsReviewer: true };
+    const { homeText } = await drawn();
+    assert.match(homeText, /\[PolicyUpdate\] \[ProgrammesHome Your programmes\] \[install\]/, homeText);
+  });
+
+  test("not drawn for a member named on no form, nor in a view-as session", async () => {
+    runsAre([]);
+    term(null);
+    signedIn("nina");
+    assert.ok(!(await drawn()).homeText.includes("[ProgrammesHome"));
+    viewingAs("claudia");
+    world.user = { ...CAST.claudia, admissionsReviewer: true };
+    assert.ok(!(await drawn()).homeText.includes("[ProgrammesHome"), "drawn in a view-as session");
+  });
+});
 
 describe("the list of programmes", () => {
   test("with no run, handed nothing, it reads as it always has", () => {

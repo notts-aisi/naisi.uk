@@ -428,6 +428,63 @@ form.
 `tests/programmes-page.test.mjs` runs all three pages and the list as every
 kind of reader.
 
+### Each programme in the menu, and the Programmes card on Home
+
+The same list feeds two more places, and neither filters anything in the
+browser.
+
+- **The menu** (the sidebar and the phone's Menu). Under the Programmes
+  entry, for an admin and a lead, the programmes of each term that is not
+  over, under the term's name ("Autumn 2026", "Spring 2027 · applying",
+  "Spring 2027 · deciding": the suffix only while the form takes or decides
+  applications), each by its short name, opening its Overview and lit
+  anywhere under the programme's own address, with "Review 3" where
+  applications wait for this reader's reading as the list counts them. An
+  admin is given every programme, a lead the ones they lead; a reviewer keeps
+  the plain Programmes entry and is given none under it, and a run's track
+  lead and a facilitator nothing new. A term leaves the menu when the list
+  says it is over. The shell asks `GET /api/admissions/programmes/menu` once
+  when it mounts, and only for somebody the Programmes entry is drawn for
+  (`useProgrammesMenu`); the route answers `{ terms: [{ heading, programmes:
+  [{ name, href, review }] }] }` and nothing else, and refuses anybody but an
+  admin or an account named on a form that still stands
+  (`readsProgrammesFor`); every answer, refusals included, carries
+  `Cache-Control: private, no-store`. It is made by `loadProgrammesMenu` in the same
+  module, which decides "over" as the list does and reads none of the cards'
+  figures: the forms (a reviewer who leads nothing is answered there), the
+  runs of the reader's terms past decision day in one `getAll`, each run's
+  groups, and only while a term takes or decides applications and the reader
+  leads one of its programmes, its applications and decisions. Until it
+  answers, if it fails, and if it takes longer than three seconds, the menu
+  is the one it always was: nothing is held open for the entries, and
+  nothing is said. The answer is dropped, and asked again, when the account
+  signed in or its role changes without a reload. A programme whose name is
+  listed under two terms carries its term after its name for a screen
+  reader. Nothing of the answer is kept in the browser.
+- **Home.** A Programmes card first on an admin's Home ("Programmes", first
+  in its column) and a lead's ("Your programmes", straight after the line
+  saying the privacy policy changed, when it shows): a row for each programme whose groups the
+  reader opens, by term ("Autumn 2026 · running"), each with its kind (on a
+  laptop) and where it is ("Week 2 of 6", "3 applications for you to read",
+  "No lead yet"), the card's first needs-you line where there is one, and
+  Open to its Overview; "All programmes" (on a phone "All") opens the
+  Programmes page. Rendered on the server from `loadProgrammesList` with
+  `groupsOnly` (only the programmes whose groups the reader opens, so a
+  reviewer who leads nothing costs the one query of the forms), by
+  `homeProgrammesOf` in `programmes/home.ts`, inside its own Suspense
+  boundary so Home never waits on it, and drawn not at all when the list
+  cannot be read. It is asked for only for an admin or somebody named on a
+  form, and never in a view-as session, as Requests waiting is not. An
+  admin's "Applications to read" takes its figure from the same answer when
+  it comes: how many applications wait for the admin's own reading ("Spring
+  2027: 3 for AGI Strategy."), opening the term's page, where the Review
+  buttons are, or the Programmes page when two terms have applications
+  waiting for the admin. Until then, and without it, the row is the sentence and the
+  list of forms it was.
+
+`tests/programmes-menu-home.test.mjs` runs the route, the menu and Home as
+every kind of reader.
+
 ## A programme and its course page
 
 A programme is for a course, and `programmes.<id>.courseId` says which: the
@@ -2364,8 +2421,10 @@ All in `src/lib/applications/`.
 | `freedPlaces/groups.ts`, `freedPlaces/load.ts`, `freedPlaces/offer.ts` | The run's calendar and groups; the page's read; the one writer of an offer, its emails and its test | server, staff |
 | `nextTerm/rows.ts`, `nextTerm/words.ts` | Next term: who to ask: what counts, the rows and the page's words | anywhere |
 | `nextTerm/load.ts` | Next term's read, for an admin | server, staff |
-| `programmes/list.ts` | The Programmes page's list: the terms that are not over and the programmes on each the reader may open, when a term is over, and Earlier terms | server, staff |
+| `programmes/list.ts` | The Programmes page's list: the terms that are not over and the programmes on each the reader may open, when a term is over, and Earlier terms; and the menu's cut of it (`loadProgrammesMenu`) | server, staff |
 | `programmes/path.ts` | Where the Programmes page is | anywhere |
+| `programmes/menu.ts` | The menu's programmes as they travel from the route to the shell: their shape, a term's heading, and the browser's parse | anywhere |
+| `programmes/home.ts` | Home's share of the list: the Programmes card's rows and what waits for an admin's reading | anywhere |
 
 ## Rules for anything built on this
 

@@ -1,0 +1,76 @@
+/* The Programmes card on Home (ProgrammesHome.tsx). The card itself, its
+   head and its buttons are home.module.css's; this places the terms and the
+   rows inside it. */
+
+.term {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* The type is the global .meta class (mono, capitals, tracked). */
+.heading {
+  margin: 0;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A programme: its words, then Open, with a rule between rows. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+  padding-block: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+.row:first-child {
+  border-top: 0;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-size: var(--text-ui);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* The first thing that needs the reader: the Programmes page's own colour for it. */
+.needsYou {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-warning);
+  text-wrap: pretty;
+}
+
+/* "All programmes" and "Fellowship · Week 2 of 6" on a laptop; "All" and
+   "Week 2 of 6" on a phone. */
+.narrow {
+  display: none;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .wide {
+    display: none;
+  }
+
+  .narrow {
+    display: inline;
+  }
+}

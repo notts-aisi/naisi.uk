@@ -521,6 +521,15 @@ describe("worked out from the date alone, and drawn on Home only", () => {
   test("Home draws it under the greeting on every form, from the page's own clock", () => {
     const page = code("src/app/(app)/dashboard/page.tsx");
     assert.match(page, /const invite = \(\s*<>\s*<PolicyUpdate line=\{policyUpdateLine\(now\)\} \/>/);
+    // A lead's Programmes card comes straight after the line, never above it
+    // (an admin's is drawn in its own column, below the whole of \`invite\`).
+    // tests/applications-place-in-the-member-area.test.mjs holds the same
+    // order on the page as it is drawn.
+    assert.match(page, /<PolicyUpdate line=\{policyUpdateLine\(now\)\} \/>\s*\{user\?\.role !== "admin" && programmesCard\}/);
+    const invite = page.slice(page.indexOf("const invite = ("), page.indexOf(");", page.indexOf("const invite = (")));
+    assert.equal((invite.match(/programmesCard/g) ?? []).length, 1, "the card is drawn twice under the greeting");
+    const memberHome = page.slice(page.indexOf("<HomeMember"), page.indexOf("/>", page.indexOf("finishProfile=", page.indexOf("<HomeMember"))));
+    assert.doesNotMatch(memberHome, /programmes/, "a member's Home is handed the card outside the line's fragment");
     for (const form of ["HomeAdmin", "HomeMember"]) assert.match(page, new RegExp(`<${form}[\\s\\S]*?invite=\\{invite\\}`), `${form} is not handed the line`);
   });
 

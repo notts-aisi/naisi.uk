@@ -566,6 +566,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the first round publishes its decisions, because this is the screen an applicant refreshes.",
   },
+  "/api/admissions/programmes/menu": {
+    reason:
+      "The programmes the menu lists under Programmes: a read the shell asks once, whose failure leaves today's menu; tests/programmes-menu-home.test.mjs runs the route and the loader behind it as every kind of reader, with its reads counted, and the menu with no answer, a failed one and a slow one.",
+    coverWhen:
+      "When a browser spec walks a lead from the menu into their programme, which is the journey these entries start.",
+  },
   "/api/admissions/forms": {
     reason:
       "Application forms: /api/admissions/forms is pressed by an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",
