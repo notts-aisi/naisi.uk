@@ -1122,6 +1122,11 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec seats a facilitator in the group they run, or the route goes once the instant button has settled.",
   },
+  "/api/courses/groups/[groupId]/archive": {
+    reason:
+      "Archiving or restoring a group, from the run editor's switch and the group's page: pressed as every kind of caller and in every state it refuses (people still in it, a move or a visit still to come, an unfinished register, a facilitator sitting elsewhere, a run being destroyed) against the real route by tests/course-group-archive.test.mjs, the page's Archive and Restore by tests/course-group-page.test.mjs, and the field's pin by scripts/rules-tests/tests/course-group-archived.test.mjs. No spec archives a group, and no verified spec reaches the group's page with a group it could empty.",
+    coverWhen: "When a browser spec drives a programme's group page through a term's end with an emptied group, the term the owner first archives groups in.",
+  },
   "/api/courses/groups/[groupId]/rooms-email": {
     reason:
       "Emailing a group its rooms for the rest of term, by hand from the term's rooms: pressed as every caller against the real route, its audience, caps, notice door and templates by tests/course-term-rooms-email.test.mjs, words checked over the rendered email. The term's rooms has no verified browser spec to extend: course-hub-week-rooms has not had its first green run.",

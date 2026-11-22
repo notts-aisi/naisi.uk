@@ -723,6 +723,27 @@ describe("3. the group's page, and the facilitator's cut", () => {
     assert.ok(nonsense.text.includes(words.GROUP_NOT_HERE_TITLE));
   });
 
+  test("how the group meets ends with Archive; an archived group of the run opens on Restore alone", async () => {
+    // Archiving goes through PATCH /api/courses/groups/[groupId]/archive and
+    // its checks (tests/course-group-archive.test.mjs presses it).
+    const live = await groupPage("claudia");
+    for (const said of [words.ARCHIVE, words.ARCHIVE_LINE, "Archive Group B"]) {
+      assert.ok(live.text.includes(said), `missing "${said}"`);
+    }
+    world.db.poke(`courseGroups/${B}`, { archived: true });
+    for (const who of ["zach", "claudia"]) {
+      const archived = await groupPage(who);
+      assert.equal(archived.wrote, false);
+      assert.ok(archived.text.includes(words.ARCHIVED_LINE), archived.text.slice(0, 300));
+      assert.ok(archived.text.includes("Restore Group B"));
+      assert.ok(!archived.text.includes(words.GROUP_NOT_HERE_TITLE));
+      assert.doesNotMatch(archived.text, /How Group B meets|Take the register/, "an archived group's page offers only Restore");
+      assert.ok(archived.html.includes(`href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/groups"`), "the way back to the Groups tab");
+    }
+    const reviewer = await groupPage("lloyd");
+    assert.doesNotMatch(reviewer.text, /Restore Group B/, "a reviewer is not offered Restore");
+  });
+
   test("the facilitator's own group page carries the cut: words, Change one week, Set the link, the weeks, and each week's meeting link inside it", async () => {
     const drawn = await draw(FacilitatorGroupPage, "rahul", { runId: RUN.agi, groupId: B });
     assert.equal(drawn.to, null, drawn.to);

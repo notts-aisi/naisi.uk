@@ -742,7 +742,7 @@ due at the session's end plus the hours, born notified so it emails nobody.
 | Marker | `schedulerMarkers/unmarked__{groupId}__{sessionKey}` |
 | Task id | `tasks/course-register__{runId}__{groupId}__{sessionKey}` |
 | Window | sessions whose END is between the task's hours and those hours plus 24 |
-| Runs scanned | status `applications-open`, `applications-closed` or `running` |
+| Runs scanned | status `applications-open`, `applications-closed` or `running`; archived groups skipped |
 | `maxLateHours` | 72 |
 | Config | `registerTaskHours` (60), `unmarkedScanBudgetMs` (12000), `maxFollowUpTasksPerTick` (25) |
 
@@ -753,6 +753,10 @@ a tick every 15 minutes gives each session about ninety-six chances to be seen,
 which covers a scheduler that has been down for most of a day. The cost: a
 register still unpushed a week later has one card and gets no second one, so
 the board is the only record.
+
+**An archived group raises no card**, as the facilitators' reminder skips it:
+nobody is chased for the register of a group that no longer meets. Its
+finished registers count exactly as before.
 
 **It scans every live status, not `running` alone.** The pre-course holds its
 six sessions while the admission round is still open, so its run sits at
@@ -2248,6 +2252,80 @@ a group is the board's plain move, for every week, as it always was.
 A move before the term (nobody told, or no session of the group started),
 Remove, and somebody changing their own session on an open run, are as
 before.
+
+## Archiving a group
+
+A group is archived from two places, both through
+`PATCH /api/courses/groups/[groupId]/archive`: the Archived switch on its card
+in the run editor, and Archive, the last part of "How Group B meets" on the
+group's own page under its programme's Groups tab. Nothing else changes
+`courseGroups.archived`: `firestore.rules` pins the field against every
+browser write, an admin's included (`groupArchivedUnchanged`), and a group is
+born not archived. The route admits an admin, an `approveCourse` holder (the
+people the run editor's switch serves) and the lead of the programme that
+names the run (`programmeLedBy`), who runs the group from its page. Nobody
+else: a group's own facilitators and a run's track leads are refused. In the
+run editor the switch is disabled for a course drafter who cannot approve,
+with a line saying who archives a group.
+
+An archived group's page opens on "This group is archived." and Restore, and
+nothing else; the Groups tab lists the run's archived groups under its board
+("Archived:"), each to its page, so a group archived by mistake is put back
+from there or from the run editor's switch.
+
+**What archiving keeps.** The group stays on the run for the record, with its
+registers, its history and its places as they are; nothing is moved, counted
+again or sent, and nobody is told. From then on it has no session to come, no
+reminder, no calendar entry, no register its facilitators can take and no
+block of the Attendance tab, and of its registers only the finished ones of a
+session held count, for the people whose record of groups by week names that
+week (`countsFromArchivedGroup`, above).
+
+**When a group may be archived.** Only when that loses nothing. The route
+refuses, in one sentence that names the group and writes nothing (409), while:
+
+- anybody still holds a place in it (a learner who has not left, as the Groups
+  tab counts them): "Group I still has 3 people in it. Move them to another
+  group first, then archive it." Where nobody can be moved (the run is over,
+  by its status or because its last session has ended, or it is cancelled or
+  archived) the sentence says to archive the run instead; where the run has
+  no other group that still meets (an incubator's one group) it says the
+  group stays as it is. Either way its people's attendance and who finished
+  read only a group that still meets;
+- a freed place offered in its name is not answered yet;
+- somebody moved to another group from a week still to come is in it until
+  then (their record of groups by week names it for a session that has not
+  started);
+- a one-week visit to one of its sessions is still to come;
+- a register of a session that has started, in a week somebody's place still
+  names for this group (the week they belonged to it, or a visit to it), is
+  neither finished nor marked as not having happened, a register nobody
+  opened included ("Group I’s register
+  for week 2 isn’t finished. Finish it, or say the session didn’t happen, then
+  archive the group: an unfinished register counts for nothing once a group
+  is archived."). A session called off is not asked about, and nor is a week
+  nobody's place names: once nobody holds a place in it, an archived group's
+  register is read for nobody else, so an emptied or spare group archives
+  without its later sessions being called off.
+
+So closing a term by archiving its groups works for a group nobody is in any
+more; a group whose people are still in it at the end of a term stays as it
+is, and the term is put away by archiving the run. A session still to come given to somebody to cover is no reason to refuse
+once nobody is due at it, and the group's facilitators simply stop seeing a
+group nobody is in.
+
+**Restoring** is refused while one of the group's facilitators holds a place
+in another group of the run, because a facilitator who holds a place sits in
+the group they facilitate and no other: an admin takes them off the group's
+facilitators in the run editor first (the sentence tells anybody else to ask
+an admin). Both directions are refused on a run being destroyed. The
+checks are read once, then read again inside the transaction that writes, so
+a change in between is answered rather than archived over.
+
+`tests/course-group-archive.test.mjs` presses the route as every kind of
+caller and in each of these states, and holds that nothing else in `src` or
+`scripts` writes the field; `scripts/rules-tests/tests/course-group-archived.test.mjs`
+holds the pin.
 
 ## A person's page, for the team, and a facilitator's cut of it
 

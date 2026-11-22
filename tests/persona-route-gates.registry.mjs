@@ -2593,6 +2593,16 @@ export const ROUTES = {
         "ask that is not the caller's own is answered as one that is not there.",
     },
   },
+  "/api/courses/groups/[groupId]/archive": {
+    PATCH: {
+      expect: adminOnly(400, { approveCourse: 400 }),
+      why:
+        "Archiving or restoring a group: view-as is refused first, then the session. An admin and an approveCourse " +
+        "holder are decided on the session and meet the body check; anybody else is asked whether they lead the " +
+        "programme naming the group's run, so an id that addresses nothing is one 403 for them before the body is read. " +
+        "A group's facilitators and a run's track leads are refused like anybody else.",
+    },
+  },
   "/api/courses/groups/[groupId]/facilitators": {
     POST: {
       expect: adminOnly(404),
@@ -7127,6 +7137,21 @@ export const REAL_ROUTES = {
     GET: {
       realDrive: { query: "?week=1", why: "A week is required in the query, which an empty one fails for everybody: week 1 reaches the gate." },
       ...groupStaff("Reading the group's answers to a week's exercises", c(200, "Admitted, and week 1 is asked for: the group's answers, none here.")),
+    },
+  },
+  "/api/courses/groups/[groupId]/archive": {
+    PATCH: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither leads the programme naming the group's run nor approves courses: refused before the body is read."),
+        admin: c(400, "An admin archives any group, so admitted, then the body is checked: an empty one says neither archive nor restore."),
+        approveCourse: c(400, "A course approver archives any group, so admitted, then the body is checked."),
+      },
+      theirs: {
+        lead: c(400, "Leads the programme that names the group's run and runs the group from its page, so admitted, then the body is checked."),
+        facilitator: c(403, "Facilitating the group gives no say in archiving it: refused before the body is read, like anybody else."),
+        participant: c(403, "Holds a place in the run's other group and staffs nothing: refused before the body is read."),
+      },
     },
   },
   "/api/courses/groups/[groupId]/facilitators": {

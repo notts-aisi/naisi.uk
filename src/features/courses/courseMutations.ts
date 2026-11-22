@@ -55,8 +55,9 @@ import {
  *    only PIN those fields on update — a create that seeded them would smuggle
  *    in roles no route ever assigned.
  *  - **Fetch-backed** (the helpers at the bottom) for everything else: role
- *    arrays, group facilitators (which also upsert an enrolment), run status
- *    transitions, and publication. Those are Admin-SDK route handlers because
+ *    arrays, group facilitators (which also upsert an enrolment), archiving
+ *    and restoring a group, run status transitions, and publication. Those
+ *    are Admin-SDK route handlers because
  *    they cross documents or need a transition table rules can't hold.
  *
  * No `undefined` ever reaches Firestore: patches are built key-by-key and
@@ -491,7 +492,6 @@ export type CourseGroupPatch = Partial<{
   sessionOverrides: Record<string, Partial<GroupSession>>;
   /** One of the three campuses, or null for "not chosen yet" (`src/lib/courses/campus.ts`). */
   campus: GroupCampus | null;
-  archived: boolean;
 }>;
 
 /**
@@ -517,7 +517,6 @@ export async function updateGroup(
     assertGroupCapacity(capacity, enrolMode);
     out.capacity = capacity;
   }
-  if (patch.archived !== undefined) out.archived = patch.archived;
   // Exactly one of the three, or a real null: the rules allow this key with
   // these values and no others, so anything else is written as null rather
   // than refused as a permission error nobody can read.
@@ -568,19 +567,29 @@ export async function updateGroup(
 }
 
 /**
- * Archive / unarchive a group. Soft archive is the primary path — deleting a
- * group would have to re-pool its members through the allocation transaction,
- * so client delete is blocked outright in the rules.
+ * Archive or restore a group, through `PATCH /api/courses/groups/[groupId]/archive`.
+ * Soft archive is the primary path: deleting a group would have to re-pool its
+ * members through the allocation transaction, so client delete is blocked
+ * outright in the rules. And `archived` itself is pinned in the rules against
+ * every browser, because archiving is refused while it would lose something
+ * (somebody still in the group, a register of a session that met left
+ * unfinished, a session still to come that somebody is due at), which a rule
+ * cannot count. A refusal throws its one sentence, which the card's toast
+ * shows.
  */
 export async function setGroupArchived(
   groupId: string,
   archived: boolean,
 ): Promise<void> {
-  const db = getClientDb();
-  await updateDoc(doc(db, "courseGroups", groupId), {
-    archived,
-    updatedAt: serverTimestamp(),
+  const res = await fetch(`/api/courses/groups/${encodeURIComponent(groupId)}/archive`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ archived }),
   });
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(parsed.error ?? (archived ? "Couldn't archive this group." : "Couldn't restore this group."));
+  }
 }
 
 // ---- Route-backed helpers ----

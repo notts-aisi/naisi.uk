@@ -849,6 +849,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/groups/ArchivedGroupsLine.tsx",
+    {
+      built: ["groupPagePath(roundId, programmeId, group.id)"],
+      from: "an archived group's own page under the Groups tab, from the form's, the programme's and the group's ids, encoded (`groupPagePath`). Nothing anybody typed",
+    },
+  ],
+  [
     "src/features/applications/groups/PeopleInGroups.tsx",
     {
       built: ["groupPagePath(view.roundId, view.programmeId, group.id)"],

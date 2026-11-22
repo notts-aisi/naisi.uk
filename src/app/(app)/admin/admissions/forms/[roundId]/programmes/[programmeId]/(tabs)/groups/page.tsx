@@ -1,4 +1,5 @@
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
+import ArchivedGroupsLine from "@/features/applications/groups/ArchivedGroupsLine";
 import GroupsViews, { GroupsFrame } from "@/features/applications/groups/GroupsViews";
 import NotYours from "@/features/applications/groups/NotYours";
 import PeopleInGroups from "@/features/applications/groups/PeopleInGroups";
@@ -7,6 +8,7 @@ import { loadPeopleInGroups } from "@/lib/applications/handover/peopleInGroups";
 import { canRunTerm } from "@/lib/applications/access";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
+import { compareGroupsByMeeting, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 
 /**
  * One programme's Groups tab, its first view: People in groups,
@@ -18,6 +20,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * the admin's mount under `/admin/courses`: placing people, moving them and
  * taking them off the run, each decided again by its route, from the run
  * (`runStaffingOf`).
+ *
+ * Under the board, the run's archived groups, each to its page, where it is
+ * restored (`ArchivedGroupsLine`).
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadPeopleInGroups`), decided from
  * the form before the run is read. A reviewer is told the tab is the lead's
@@ -51,5 +56,20 @@ export default async function ProgrammeGroupsPage({
       </GroupsFrame>
     );
   }
-  return <PeopleInGroups view={{ ...view, run: view.run }} views={views} />;
+  // The board draws the groups that still meet; an archived one is reached
+  // from the line under it, to be restored on its page. One equality, no
+  // declared index.
+  const archived = db
+    ? (await db.collection("courseGroups").where("runId", "==", view.run.id).get()).docs
+        .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
+        .filter((group) => group.archived && group.runId === view.run?.id)
+        .sort(compareGroupsByMeeting)
+        .map((group) => ({ id: group.id, name: group.name.trim() || "Untitled group" }))
+    : [];
+  return (
+    <>
+      <PeopleInGroups view={{ ...view, run: view.run }} views={views} />
+      <ArchivedGroupsLine roundId={view.roundId} programmeId={view.programmeId} groups={archived} />
+    </>
+  );
 }

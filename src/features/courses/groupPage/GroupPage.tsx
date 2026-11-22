@@ -21,6 +21,7 @@ import * as C from "@/lib/courses/registerCover/pageWords";
 import { UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
 import { ATTENDANCE_TAB } from "@/lib/courses/registerCorrection/pageWords";
 import type { GroupAttendanceView } from "@/lib/courses/groupAttendance/load";
+import { ArchiveItem } from "./ArchiveGroup";
 import AttendanceTab from "./AttendanceTab";
 import ChangePanel, { type ChangeStart } from "./ChangePanel";
 import GivePanel from "./GivePanel";
@@ -529,6 +530,7 @@ export default function GroupPage({
               </Link>
             </dd>
           </div>
+          <ArchiveItem groupId={view.groupId} groupName={view.groupName} />
         </dl>
       </section>
 
