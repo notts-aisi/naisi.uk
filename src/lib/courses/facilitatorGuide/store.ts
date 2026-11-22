@@ -1,6 +1,6 @@
 import "server-only";
 
-import { FieldValue, type DocumentReference, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type DocumentReference, type Firestore, type Transaction } from "firebase-admin/firestore";
 import {
   COURSE_FACILITATOR_GUIDE_COLLECTION,
   facilitatorGuideDocId,
@@ -156,4 +156,29 @@ export async function countCourseGuide(db: Firestore, courseId: string): Promise
 export async function courseGuideRefs(db: Firestore, courseId: string): Promise<DocumentReference[]> {
   const snap = await guideCollection(db).where("courseId", "==", courseId).select().get();
   return snap.docs.map((doc) => doc.ref);
+}
+
+/**
+ * The week numbers a course's guide has a session plan or notes loaded for,
+ * for the check a run's week plan makes before a week's number changes
+ * (`src/lib/courses/weekPlanEdit/facts.ts`): every run of the course reads a
+ * week's plan and notes by its number, so a week may not move under one.
+ * Reads each row's slot only, nothing a document says. `tx` given, the read
+ * is the transaction's.
+ */
+export async function courseGuideWeekNumbers(
+  db: Firestore,
+  courseId: string,
+  tx?: Transaction,
+): Promise<Set<number>> {
+  const query = guideCollection(db).where("courseId", "==", courseId).select("courseId", "slot");
+  const snap = tx ? await tx.get(query) : await query.get();
+  const weeks = new Set<number>();
+  for (const doc of snap.docs) {
+    const data = doc.data() ?? {};
+    const slot = parseSlotKey(data.slot);
+    if (!slot || slot.kind !== "week" || data.courseId !== courseId || doc.id !== facilitatorGuideDocId(courseId, slot)) continue;
+    weeks.add(slot.weekNumber);
+  }
+  return weeks;
 }

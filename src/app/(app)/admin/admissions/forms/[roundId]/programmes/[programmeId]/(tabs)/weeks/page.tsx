@@ -8,6 +8,7 @@ import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { facilitatorGuideWriter } from "@/lib/courses/facilitatorGuide/access";
 import { readCourseDocumentsLoaded } from "@/lib/courses/facilitatorGuide/store";
 import { loadCourseDocuments } from "@/lib/courses/weeksTab/documents";
+import { loadWeekPlanView } from "@/lib/courses/weekPlanEdit/view";
 import { loadWeeksTab } from "@/lib/courses/weeksTab/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -19,7 +20,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * here, behind `facilitatorGuideWriter`); then when weeks open, "Copy weeks
  * from the course", and every week of the run the programme names, in order,
  * with its state, first session, ready-by day and owner, each a link to the
- * week's own page.
+ * week's own page, and the run's breaks between them; with the plan's
+ * controls, each only where its route would take it now
+ * (`loadWeekPlanView`, the same judgement the route asks).
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadProgrammeRun`), decided from
  * the form before the run is read, as the programme's other run tabs are. A
@@ -45,12 +48,16 @@ export default async function ProgrammeWeeksPage({
   // The course's Handbook and Printables, for an admin alone, read only once
   // the facilitator guide's loader gate has admitted them for this course.
   const writer = user.role === "admin" && tab.courseId ? await facilitatorGuideWriter(db, user, tab.courseId) : null;
-  const course = writer ? await readCourseDocumentsLoaded(db, writer, ["handbook", "printables"]) : null;
+  const now = new Date();
+  const [course, plan] = await Promise.all([
+    writer ? readCourseDocumentsLoaded(db, writer, ["handbook", "printables"]) : Promise.resolve(null),
+    loadWeekPlanView(db, tab.runId, now),
+  ]);
   const documents = await loadCourseDocuments(db, user, { runId: tab.runId }, course);
   return (
     <div className={styles.stack}>
       <CourseDocuments runId={tab.runId} courseId={tab.courseId} documents={documents} />
-      <WeeksList tab={tab} roundId={view.roundId} programmeId={view.programmeId} review={{ viewer: view.viewer, now: new Date() }} />
+      <WeeksList tab={tab} roundId={view.roundId} programmeId={view.programmeId} review={{ viewer: view.viewer, now }} plan={plan} />
     </div>
   );
 }

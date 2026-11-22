@@ -46,11 +46,18 @@ export function draftExitBlocker(
   from: CourseRunStatus,
   to: CourseRunStatus,
   rawPlan: unknown,
+  named = false,
 ): string | null {
   if (from !== "draft" || to === "draft") return null;
   const drifted = weekAddressDriftCount(rawPlan);
   if (drifted === 0) return null;
-  return `${
-    drifted === 1 ? "One week is" : `${drifted} weeks are`
-  } addressed two different ways in this run's week plan, and leaving draft freezes that for good. Open the run's Week plan section and use Normalise week ids first.`;
+  const which = drifted === 1 ? "One week is" : `${drifted} weeks are`;
+  // On a run a programme names the plan is changed only on the programme's
+  // Weeks tab, whose every change puts each week at its own number's address
+  // (`src/lib/courses/weekPlanEdit/`); the older editor's builder is words
+  // pointing there. Anywhere else the builder's Normalise week ids is the press.
+  if (named) {
+    return `${which} stored at another week’s address in this run’s week plan, and leaving draft freezes that for good. Change the plan once on the programme’s Weeks tab first: any change there puts every week at its own number’s address.`;
+  }
+  return `${which} addressed two different ways in this run's week plan, and leaving draft freezes that for good. Open the run's Week plan section and use Normalise week ids first.`;
 }

@@ -1,0 +1,108 @@
+/*
+ * The week plan's controls on a programme's Weeks tab: Move up, Move down and
+ * Remove… beside each week and break, a break's own line, Add a week and Add
+ * a break under the list, and their questions. Every colour, space and radius
+ * reads a token from src/theme/tokens.css.
+ */
+
+.controls {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin-left: auto;
+  padding: 4px 0;
+}
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* A break in the list: a quieter row, its word, its label and its days. */
+.rowBreak {
+  background: var(--color-surface);
+}
+.breakLine {
+  display: inline-flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 4px;
+  font-size: 14px;
+}
+.breakWord {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.breakLabel {
+  color: var(--color-text);
+}
+.breakDays {
+  color: var(--color-text-muted);
+}
+
+.add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+.add .buttons {
+  justify-content: flex-start;
+}
+
+.planLine {
+  margin-top: var(--space-3);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.refusal {
+  max-width: 34rem;
+  padding: 10px 12px;
+  border: 1px solid var(--color-danger-line);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.fieldLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.buttonCareful {
+  border-color: var(--color-danger-line);
+  color: var(--color-danger-text);
+}
+
+@media (max-width: 36rem) {
+  .controls {
+    align-items: stretch;
+    width: 100%;
+    margin-left: 0;
+  }
+  .buttons {
+    justify-content: flex-start;
+  }
+}

@@ -62,7 +62,9 @@ export type HandOverDoor = "press" | "acceptance";
  * run's own members cannot read its document, so it may not stay a draft
  * with people on it. Leaving draft freezes the week plan, so the press meets
  * the check every exit from draft meets (`draftExitBlocker`), and a plan
- * whose week ids have drifted stops it with that check's own sentence. The
+ * whose week ids have drifted stops it with that check's sentence for a run a
+ * programme names, which sends the reader to the programme's Weeks tab: any
+ * change there puts every week at its own number's address. The
  * hand-over after an accepted invitation never starts a run: it leaves a
  * draft run alone, and the panel names the person for the press.
  */
@@ -78,7 +80,7 @@ export function handOverBlocker(
   if (!standing.ok) return RUN_NO_LONGER_STANDS[standing.why];
   if (run?.run.status === "draft") {
     if (door === "acceptance") return RUN_IS_A_DRAFT;
-    return draftExitBlocker("draft", "running", run.run.weekPlan);
+    return draftExitBlocker("draft", "running", run.run.weekPlan, true);
   }
   return null;
 }

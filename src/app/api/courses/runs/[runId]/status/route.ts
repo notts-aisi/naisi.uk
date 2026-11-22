@@ -3,6 +3,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveCourse } from "@/lib/firestore/users";
 import { COURSE_RUN_STATUSES, type CourseRunStatus } from "@/lib/firestore/courses";
+import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { moveRunStatus } from "@/lib/courses/runStatusMove";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 
@@ -22,7 +23,10 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * when its work closes takes too.
  *
  * LEAVING DRAFT IS A ONE-WAY DOOR for the week plan, so the move also owns
- * the last check on it (`draftExitBlocker`, `@/lib/courses/draftExit`).
+ * the last check on it (`draftExitBlocker`, `@/lib/courses/draftExit`). Its
+ * sentence names the press that puts the plan right: on a run a programme
+ * names, a change on the programme's Weeks tab, so the route asks the forms
+ * whether one does.
  *
  * `through: "running"` is the programme's Settings' "Mark it completed now"
  * on a run whose stored status is still Applications open or closed: two
@@ -67,7 +71,8 @@ export async function POST(
   // Read, checked and written in one transaction: see `moveRunStatus` for
   // each check in order (a missing run, a run being destroyed, the status it
   // already has, the table, the week ids on leaving draft).
-  const moved = await moveRunStatus(db, runId, nextStatus, { throughRunning: body.through === "running" });
+  const named = (await readNamingProgramme(db, runId).catch(() => null)) !== null;
+  const moved = await moveRunStatus(db, runId, nextStatus, { throughRunning: body.through === "running", named });
   if (!moved.ok) return NextResponse.json({ error: moved.error }, { status: moved.status });
   return NextResponse.json({ ok: true, status: moved.status });
 }

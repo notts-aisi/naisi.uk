@@ -405,7 +405,9 @@ describe("3. the status route: Draft to Running, the step through Running, no wa
     const before = everything();
     const answer = await move("zach", "running");
     assert.equal(answer.status, 409);
-    assert.match(answer.body.error, /Normalise week ids first\.$/);
+    // CHANGED ON PURPOSE (the week plan on the Weeks tab): the run is named by
+    // a programme, so the sentence sends the reader to its Weeks tab.
+    assert.match(answer.body.error, /Change the plan once on the programme’s Weeks tab first: any change there puts every week at its own number’s address\.$/);
     assert.equal(everything(), before);
   });
 
