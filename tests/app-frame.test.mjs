@@ -216,7 +216,21 @@ describe("every admin page file belongs to exactly one page of one section", () 
     assert.equal(adminPageFor(adminSectionFor("/admin/membership"), "/admin/membership").label, "SU membership");
     assert.equal(adminPageFor(adminSectionFor("/admin/members"), "/admin/members").label, "Accounts");
     assert.equal(adminPageFor(adminSectionFor("/admin/links/page-content"), "/admin/links/page-content").label, "The /links page");
-    assert.equal(adminPageFor(adminSectionFor("/admin/admissions/forms/x/pool"), "/admin/admissions/forms/x/pool").label, "Application forms");
+    // CHANGED ON PURPOSE (November 2026): the Programmes page came first in
+    // the section, and holds a term's page and everything of the term's
+    // beneath it (its programmes, its pooled applicants); Application forms
+    // keeps the list of forms and the form editor.
+    assert.equal(adminPageFor(adminSectionFor("/admin/admissions/forms/x/pool"), "/admin/admissions/forms/x/pool").label, "Programmes");
+    for (const path of ["/admin/admissions/programmes", "/admin/admissions/forms/x", "/admin/admissions/forms/x/programmes/p", "/admin/admissions/forms/x/programmes/p/overview", "/admin/admissions/forms/x/next-term"]) {
+      assert.equal(adminPageFor(adminSectionFor(path), path).label, "Programmes", path);
+    }
+    for (const path of ["/admin/admissions/forms", "/admin/admissions/forms/x/form", "/admin/admissions/forms/x/form/questions"]) {
+      assert.equal(adminPageFor(adminSectionFor(path), path).label, "Application forms", path);
+    }
+    // A term's form named "form" is still the term's page, not the editor.
+    assert.equal(adminPageFor(adminSectionFor("/admin/admissions/forms/form"), "/admin/admissions/forms/form").label, "Programmes");
+    // The course pages are a section of their own.
+    assert.equal(adminSectionFor("/admin/courses/c1/runs/r1").id, "courses");
     assert.equal(adminPageFor(adminSectionFor("/admin/admissions/x/appointments"), "/admin/admissions/x/appointments").label, "Older rounds");
   });
 
@@ -258,7 +272,7 @@ const AUDIENCES = [
   {
     who: "an admin",
     access: { isAdmin: true, canAuthorCourses: true, canAuthorRounds: true, isAdmissionsReviewer: false, canManageMembership: true },
-    rules: ["memberAndUp", "committeeAndUp", "suCommitteeAndUp", "adminOnly", "newsletter", "events", "admissions"],
+    rules: ["memberAndUp", "committeeAndUp", "suCommitteeAndUp", "adminOnly", "newsletter", "events", "admissions", "courseAdmin"],
   },
   {
     who: "a member who drafts courses",
@@ -269,6 +283,20 @@ const AUDIENCES = [
     who: "a member who approves courses, and so authors rounds",
     access: { ...NO_ACCESS, canAuthorCourses: true, canAuthorRounds: true },
     rules: ["memberAndUp", "courseAdmin"],
+    // CHANGED ON PURPOSE (November 2026). The course pages left the
+    // Programmes section, and they light this person's Courses entry. The
+    // admissions pages their approval lets them open lit that entry too while
+    // the course pages shared their section. They are not given a Programmes
+    // entry for them, which for somebody named on no form would open an empty
+    // page; named on a form, the flag gives them the entry, as the next row
+    // shows. So these four are reached by their addresses, and are listed
+    // here exactly.
+    darkOnPurpose: ["/admin/admissions/programmes", "/admin/admissions/forms", "/admin/admissions/requests", "/admin/admissions"],
+  },
+  {
+    who: "a member who approves courses and is named on a form",
+    access: { ...NO_ACCESS, canAuthorCourses: true, canAuthorRounds: true, isAdmissionsReviewer: true },
+    rules: ["memberAndUp", "courseAdmin", "admissions"],
   },
   {
     who: "an SU-recognised committee member named on a form",
@@ -283,15 +311,15 @@ const AUDIENCES = [
 ];
 
 describe("every admin page somebody can open is lit in their own menu", () => {
-  for (const { who, access, rules } of AUDIENCES) {
+  for (const { who, access, rules, darkOnPurpose = [] } of AUDIENCES) {
     test(who, () => {
       const entries = ENTRIES.filter((e) => rules.includes(e.rule));
       const open = ADMIN_PAGES.filter((p) => p.visible(access));
       assert.ok(open.length > 0, `${who} is let into the admin area and offered no page of it`);
       const dark = open.filter((p) => currentEntry(entries, p.href) === null).map((p) => p.href);
-      assert.deepEqual(dark, [], `${who} can open these pages and no entry of their menu is marked on them`);
+      assert.deepEqual(dark, darkOnPurpose, `${who} can open these pages and no entry of their menu is marked on them`);
       // And the entry lit is one that leads into the admin area, not Home.
-      for (const page of open) {
+      for (const page of open.filter((p) => !darkOnPurpose.includes(p.href))) {
         assert.ok(currentEntry(entries, page.href).href.startsWith("/admin"), `${page.href} lights an entry outside the admin area`);
       }
     });
@@ -304,10 +332,15 @@ describe("every admin page somebody can open is lit in their own menu", () => {
     assert.equal(currentEntry(all, "/tasks").label, "My work");
     // Somebody shown both: the course pages belong to Courses, the rounds to Programmes.
     assert.equal(currentEntry(all, "/admin/courses/c1/runs/r1").href, "/admin/courses");
-    assert.equal(currentEntry(all, "/admin/admissions").href, "/admin/admissions/forms");
-    // An admin has no Courses entry: the section's way in is lit instead.
+    assert.equal(currentEntry(all, "/admin/admissions").href, "/admin/admissions/programmes");
+    // CHANGED ON PURPOSE (November 2026): the course pages left the
+    // Programmes strip for a section of their own, and an admin is shown
+    // Courses in the menu, lit on them; Programmes is lit on a term's pages.
     const admin = ENTRIES.filter((e) => AUDIENCES[0].rules.includes(e.rule));
-    assert.equal(currentEntry(admin, "/admin/courses/c1").label, "Programmes");
+    assert.equal(currentEntry(admin, "/admin/courses/c1").label, "Courses");
+    for (const path of ["/admin/admissions/programmes", "/admin/admissions/forms/x", "/admin/admissions/forms/x/programmes/p/overview", "/admin/admissions/forms", "/admin/admissions/forms/x/form"]) {
+      assert.equal(currentEntry(admin, path).label, "Programmes", path);
+    }
     assert.equal(currentEntry(admin, "/admin").label, "People");
     assert.equal(currentEntry(admin, "/admin/membership").href, "/admin/members");
     assert.equal(currentEntry(admin, "/admin/deliverability").label, "Settings");
@@ -542,8 +575,8 @@ const ENTRY_RULES = {
   "/learn": ["memberAndUp", "Every approved account has a course area, empty or not."],
   "/tasks": ["memberAndUp", "My work lists the tasks a person is on; anybody can be on one."],
   "/profile": ["memberAndUp", "Everybody edits their own profile."],
-  "/admin/admissions/forms": ["admissions", "The admissions tree admits admins and whoever is named on a form or a round."],
-  "/admin/courses": ["courseAdmin", "The course tree admits a course grant; an admin reaches it through Programmes."],
+  "/admin/admissions/programmes": ["admissions", "The admissions tree admits admins and whoever is named on a form or a round."],
+  "/admin/courses": ["courseAdmin", "The course tree admits admins and a course grant; the course pages are a section of their own."],
   "/admin/members": ["adminOnly", "The (admin-only) group admits admins."],
   "/admin/membership": ["membershipAdmin", "The membership tree admits the grant; an admin reaches it through People."],
   "/events/manage": ["events", "The events area is open to the committee and to a draft or approve grant."],
@@ -593,10 +626,12 @@ const RULE_BODIES = {
     "EVENTS_ACCESS",
     '(v: Viewer) => v.role === "admin" || v.role === "committee" || Boolean(v.permissions.draftEvent) || Boolean(v.permissions.approveEvent)',
   ],
+  // CHANGED ON PURPOSE (November 2026): the course pages left the
+  // Programmes strip for a section of their own, so an admin is shown Courses.
   admissions: ["ADMISSIONS_ACCESS", '(v: Viewer) => v.role === "admin" || v.admissionsReviewer'],
   courseAdmin: [
     "COURSE_ADMIN_ACCESS",
-    '(v: Viewer) => v.role !== "admin" && (Boolean(v.permissions.draftCourse) || Boolean(v.permissions.approveCourse))',
+    '(v: Viewer) => v.role === "admin" || Boolean(v.permissions.draftCourse) || Boolean(v.permissions.approveCourse)',
   ],
   membershipAdmin: ["MEMBERSHIP_ADMIN_ACCESS", '(v: Viewer) => v.role !== "admin" && Boolean(v.permissions.manageMembership)'],
   // Added with Messages (November 2026): who leads and who facilitates is in
@@ -646,8 +681,9 @@ describe("regrouping the menu did not change who is shown what", () => {
     // CHANGED ON PURPOSE (November 2026): the Requests page sits in the
     // admissions tree, whose gate admits a programme's lead, so everybody
     // that tree admits is offered it.
-    assert.deepEqual(visibleTo({ ...NO_ACCESS, isAdmissionsReviewer: true }), ["/admin/admissions", "/admin/admissions/forms", "/admin/admissions/requests"]);
-    assert.deepEqual(visibleTo({ ...NO_ACCESS, canAuthorRounds: true }), ["/admin/admissions", "/admin/admissions/forms", "/admin/admissions/requests"]);
+    // And the Programmes page beside them (November 2026), behind the same gate.
+    assert.deepEqual(visibleTo({ ...NO_ACCESS, isAdmissionsReviewer: true }), ["/admin/admissions", "/admin/admissions/forms", "/admin/admissions/programmes", "/admin/admissions/requests"]);
+    assert.deepEqual(visibleTo({ ...NO_ACCESS, canAuthorRounds: true }), ["/admin/admissions", "/admin/admissions/forms", "/admin/admissions/programmes", "/admin/admissions/requests"]);
     assert.deepEqual(
       visibleTo({ ...NO_ACCESS, isAdmin: true }),
       ADMIN_PAGES.map((p) => p.href).sort(),

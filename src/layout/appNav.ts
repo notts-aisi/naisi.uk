@@ -24,6 +24,7 @@
  * holds to page files.
  */
 
+import { PROGRAMMES_PATH } from "@/lib/applications/programmes/path";
 import { FACILITATOR_GUIDE } from "@/lib/courses/facilitatorGuide/words";
 import { UNNAMED_GROUP_WORDS, facilitatingCourses, type FacilitatingGroup } from "@/lib/courses/facilitatingMenu";
 
@@ -52,7 +53,7 @@ export type NavRule =
   | "messages"
   | "facilitating";
 
-export type AdminSectionId = "people" | "programmes" | "publicity" | "surveys" | "reports" | "site";
+export type AdminSectionId = "people" | "programmes" | "courses" | "publicity" | "surveys" | "reports" | "site";
 
 export type NavEntry = {
   label: string;
@@ -105,14 +106,13 @@ export const APP_NAV: NavGroup[] = [
   {
     label: "Run NAISI",
     entries: [
-      // Admins, and anybody named on a term's form or an older round.
-      { label: "Programmes", href: "/admin/admissions/forms", rule: "admissions", section: "programmes" },
-      // Somebody who is not an admin and holds a course grant reaches the
-      // course pages and nothing else in the admin area, so they get their own
-      // way in. An admin finds the same pages inside Programmes. It is this
-      // person's way into the section too: a course approver also authors
-      // rounds, and reaches them from the strip on the course pages.
-      { label: "Courses", href: "/admin/courses", rule: "courseAdmin", section: "programmes" },
+      // Admins, and anybody named on a term's form or an older round: the
+      // Programmes page, every programme of a term that is not over that the
+      // person may open.
+      { label: "Programmes", href: PROGRAMMES_PATH, rule: "admissions", section: "programmes" },
+      // The course pages, a section of their own since a course outlives its
+      // terms: for admins, and for somebody who holds a course grant.
+      { label: "Courses", href: "/admin/courses", rule: "courseAdmin", section: "courses" },
       { label: "People", href: "/admin/members", rule: "adminOnly", section: "people", count: "joinRequests" },
       // The same word for somebody who is not an admin and looks after SU
       // membership: the one page of People they can open. Nobody is shown both.
@@ -336,7 +336,7 @@ export type AdminPage = {
   /** Who may open it. Mirrors the page's own gate, never a looser rule. */
   visible: (access: AdminTabAccess) => boolean;
   /** The count drawn beside the label. The strip owns the numbers. */
-  count?: "joinRequests" | "collaborators" | "courseApplications";
+  count?: "joinRequests" | "collaborators";
   /**
    * This page, and every page under its address, draws its own head: its own
    * name as the page's one <h1>, with the section's name as a small crumb
@@ -371,6 +371,14 @@ const underBut =
   (href: string, ...not: string[]) =>
   (p: string) =>
     under(href)(p) && !not.some((each) => under(each)(p));
+
+const FORMS_PATH = "/admin/admissions/forms";
+
+/** The list of application forms, and a form's editor and everything beneath it. */
+const isApplicationFormsPage = (p: string) => p === FORMS_PATH || /^\/admin\/admissions\/forms\/[^/]+\/form(\/|$)/.test(p);
+
+/** The Programmes page, and every other address under a term's form: its page, its programmes and the term's own work. */
+const isProgrammesPage = (p: string) => under(PROGRAMMES_PATH)(p) || (under(FORMS_PATH)(p) && !isApplicationFormsPage(p));
 
 /**
  * The three reports Run NAISI › Reports holds. Each kept the address it had
@@ -418,12 +426,22 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     id: "programmes",
     label: "Programmes",
     pages: [
-      { label: "Application forms", href: "/admin/admissions/forms", match: under("/admin/admissions/forms"), visible: ADMISSIONS, ownHead: true },
+      // Every programme a reader may open, and everything of a term's: its
+      // page, its programmes' pages, and the term's own work beneath it.
+      { label: "Programmes", href: PROGRAMMES_PATH, match: isProgrammesPage, visible: ADMISSIONS, ownHead: true },
+      // The list of forms and the form editor, as they were.
+      { label: "Application forms", href: FORMS_PATH, match: isApplicationFormsPage, visible: ADMISSIONS, ownHead: true },
       // The requests the people running a programme decide: in the admissions
       // tree because its gate admits a programme's lead.
       { label: "Requests", href: "/admin/admissions/requests", match: under("/admin/admissions/requests"), visible: ADMISSIONS, ownHead: true },
-      { label: "Older rounds", href: "/admin/admissions", match: underBut("/admin/admissions", "/admin/admissions/forms", "/admin/admissions/requests"), visible: ADMISSIONS },
-      { label: "Courses", href: "/admin/courses", match: under("/admin/courses"), visible: (a) => a.isAdmin || a.canAuthorCourses, count: "courseApplications" },
+      { label: "Older rounds", href: "/admin/admissions", match: underBut("/admin/admissions", FORMS_PATH, "/admin/admissions/requests", PROGRAMMES_PATH), visible: ADMISSIONS },
+    ],
+  },
+  {
+    id: "courses",
+    label: "Courses",
+    pages: [
+      { label: "Courses", href: "/admin/courses", match: under("/admin/courses"), visible: (a) => a.isAdmin || a.canAuthorCourses },
     ],
   },
   {

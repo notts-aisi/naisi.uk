@@ -311,6 +311,8 @@ export const REDIRECTS = {
   groupQuestion: "/learn/[runId]/group/[groupId]/question",
   /** One question across a group, from the programme's side: where its older reading pages' addresses forward. */
   programmeQuestion: "/admin/admissions/forms/[roundId]/programmes/[programmeId]/question",
+  /** A programme's Overview: where its own address forwards an admin and its lead (second pass). */
+  programmeOverview: "/admin/admissions/forms/[roundId]/programmes/[programmeId]/overview",
 };
 
 /** Anonymous is refused for having no session; everyone signed in gets `rest`. */
@@ -5080,6 +5082,24 @@ export const PAGES = {
       "same not-here). The address names no request the world writes, so everybody the tree admits is drawn the same " +
       "calm 'that request isn't here' with a 200, never told whether one exists; everybody else is sent to the dashboard.",
   },
+  "/(app)/admin/admissions/programmes": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The Programmes page, in the admissions tree: requireAdmissionsPage admits round authors (admin or approveCourse) " +
+      "and named reviewers and leads, and sends everybody else to the dashboard. What it lists is decided on the server " +
+      "(loadProgrammesList): an admin every programme of a term that is not over, a lead the programmes they lead, a " +
+      "reviewer the ones they review, and an approveCourse holder on no form the area's empty state, each with a 200. " +
+      "A draftCourse holder passes the admin front door and is sent on to the dashboard here.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "A programme's own address, with no tab: the admissions tree's gate, then the questions the tabs' head asks " +
+      "(the form for somebody with a role on it, the programme, the caller's role on it). The battery's address names no programme, so everybody the tree admits is drawn the " +
+      "tabs' 'there is no programme here' with a 200, never forwarded and never told whether one exists; everybody " +
+      "else is sent to the dashboard by the tree and by the page's own call to the same gate. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",
+  },
   "/(app)/admin/admissions/forms": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -8607,6 +8627,20 @@ function leadOrAdmin(what, next) {
 
 export const REAL_PAGES = {
   // ---- The programme's tabs and the pages beside them -------------------------
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]": {
+    another: {
+      ...PAGE_BASE,
+      "*": c("dashboard", "Not an admin, an approveCourse holder or anybody appointed on a form: the admissions tree, and the page's own call to its gate, send them to the dashboard."),
+      admin: c("programmeOverview", "An admin, whatever the programme: its own address forwards to its Overview."),
+      approveCourse: c("noProgramme", "Authors application forms, so the admissions tree admits them, but holds no role on this programme: drawn the tabs' 'there is no programme here', never forwarded."),
+      lead: c("noProgramme", "Appointed to lead a programme on another form, so admitted, but holds no role on this one: drawn 'there is no programme here', never forwarded."),
+    },
+    theirs: {
+      lead: c("programmeOverview", "The programme's own lead: its own address forwards to its Overview."),
+      facilitator: c("dashboard", "Facilitating one of the run's groups is not a role on the form: the admissions tree sends a plain member to the dashboard."),
+      participant: c("dashboard", "Holding a place is not a role on the form: the admissions tree sends a plain member to the dashboard."),
+    },
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications": programmePage(
     "the applications that ranked it.",
     ["noProgramme", "notReviewed"],

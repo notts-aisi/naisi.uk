@@ -140,7 +140,12 @@ function sentSoFar(sent: number): string {
   return sent === 1 ? "1 application sent so far." : `${sent} applications sent so far.`;
 }
 
-function lineFor(stage: TermStage, form: ApplicationForm, canRunTerm: boolean, sent: number, now: Date): string {
+/**
+ * Where the form is, in a sentence. With `canRunTerm` false it is the one
+ * anybody on the form can be shown, which the Programmes page says under a
+ * term's name.
+ */
+export function lineFor(stage: TermStage, form: ApplicationForm, canRunTerm: boolean, sent: number, now: Date): string {
   const { opensAt, closesAt } = form.round;
   const closes = closesAt ? formatRoundDeadline(closesAt) : null;
   switch (stage) {

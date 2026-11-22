@@ -1394,24 +1394,6 @@ export const REGISTRY = [
     },
     run: (db) => db.doc(`coursePages/${COURSE_ID}`).get(),
   },
-  {
-    id: "course-application-count",
-    file: "src/features/courses/useCourseApplicationCount.ts",
-    path: "courseApplications",
-    clauses: ["where(status,==)"],
-    reason:
-      "The Courses badge on the admin tab strip: a `getCountFromServer`, proven here with a `get()` of the same shape. `courseApplications` is admin plus own row, and a count filtered on status pins no uid, so only an admin can run it. The hook checks the caller's role before issuing it, which matters because the tab strip renders for course drafters too.",
-    outcomes: {
-      "signed-out": "refused",
-      pending: "refused",
-      member: "refused",
-      committee: "refused",
-      "su-committee": "refused",
-      admin: "allowed",
-      ...COURSE_STAFF_REFUSED,
-    },
-    run: (db) => db.collection("courseApplications").where("status", "==", "pending").get(),
-  },
 
   // =====================================================================
   // Events

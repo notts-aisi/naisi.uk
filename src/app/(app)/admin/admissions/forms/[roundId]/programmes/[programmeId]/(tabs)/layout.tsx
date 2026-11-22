@@ -2,6 +2,7 @@ import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { Chip } from "@/features/applications/editor/controls";
 import ProgrammeTabs from "@/features/applications/editor/ProgrammeTabs";
+import TermCrumb from "@/features/applications/editor/TermCrumb";
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import shared from "@/features/applications/editor/editor.module.css";
 import styles from "@/features/applications/editor/ProgrammeFrame.module.css";
@@ -227,7 +228,7 @@ export default async function ProgrammeLayout({
   return (
     <ApplicationsRoot className={shared.page}>
       <nav className={shared.crumb} aria-label="Breadcrumb">
-        <Link href={home}>Programmes</Link>
+        <TermCrumb roundId={form.round.id} termLabel={form.round.label} />
       </nav>
       <header className={shared.head}>
         <div className={shared.headMain}>

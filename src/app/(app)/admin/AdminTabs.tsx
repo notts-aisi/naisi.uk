@@ -8,7 +8,6 @@ import PageHead from "@/components/ui/PageHead";
 import SectionTabs from "@/components/ui/SectionTabs";
 import { usePendingCount } from "@/features/admin/usePendingCount";
 import { useCollaboratorCount } from "@/features/admin/useCollaboratorCount";
-import { useCourseApplicationCount } from "@/features/courses/useCourseApplicationCount";
 import {
   ADMIN_SECTIONS,
   adminPageFor,
@@ -64,7 +63,6 @@ export default function AdminTabs({
   const pathname = usePathname();
   const pendingCount = usePendingCount();
   const collaboratorCount = useCollaboratorCount();
-  const courseApplicationCount = useCourseApplicationCount();
   const stripRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -85,16 +83,8 @@ export default function AdminTabs({
   );
   const activePage = adminPageFor(section, pathname);
 
-  // `?? 0` for courses: that hook reports an unknown count as null (see its
-  // doc comment), and a count that hasn't been measured renders as no count.
   const countFor = (page: AdminPage): number =>
-    page.count === "joinRequests"
-      ? pendingCount
-      : page.count === "collaborators"
-        ? collaboratorCount
-        : page.count === "courseApplications"
-          ? (courseApplicationCount ?? 0)
-          : 0;
+    page.count === "joinRequests" ? pendingCount : page.count === "collaborators" ? collaboratorCount : 0;
 
   // On the horizontal strip pull the current page into view, so somebody
   // landing on a page late in a long section does not have to scroll the strip

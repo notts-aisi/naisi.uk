@@ -22,7 +22,6 @@ export const WEEK_ROOMS_TITLE = "The week’s rooms";
 export const WEEK_ROOMS_EYEBROW = "One week at a time, every programme";
 export const WEEK_ROOMS_LEDE = "A room changed here is for that week. For every week, change it on the group’s page.";
 export const ALL_PROGRAMMES = "All programmes";
-export const PROGRAMMES_CRUMB = "Programmes";
 
 /** "15 groups", above the table. */
 export function groupsCountWords(n: number): string {

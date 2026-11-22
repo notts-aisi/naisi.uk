@@ -469,6 +469,13 @@ const READERS = {
       "tab's Group column read each person's group as Publish told it, so a seat Publish has not told them about is " +
       "in no group, and no answer is counted under a group its person has not been told",
   },
+  "lib/applications/programmes/list.ts": {
+    kind: "staff",
+    proof: ['if (programme.closed || !decided || !opensProgrammeGroups(role) || !read || read === "gone") continue;'],
+    why:
+      "the Programmes page's 'holding a place', for an admin or the programme's lead alone: two aggregate counts of the " +
+      "run's seats, which name nobody and say nothing of any group, so no placement is shown or sent",
+  },
   "lib/courses/weekRooms/load.ts": {
     kind: "staff",
     proof: ['if (!visible) return { status: "none" };'],

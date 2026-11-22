@@ -478,7 +478,11 @@ export type GroupSessionFacts = {
 };
 
 /** Every week's first session of a group, keyed by week, with the clock's and the register's facts. */
-export function groupSessions(records: RunRecords, group: CourseGroupDoc, now: Date): Map<number, GroupSessionFacts> {
+export function groupSessions(
+  records: Pick<RunRecords, "run" | "registers">,
+  group: CourseGroupDoc,
+  now: Date,
+): Map<number, GroupSessionFacts> {
   const todayKey = londonDateKey(now);
   const tomorrowKey = addDaysToKey(todayKey, 1);
   const out = new Map<number, GroupSessionFacts>();
@@ -937,8 +941,17 @@ export function buildRunAttendance(records: RunRecords, viewer: GridViewer, now:
     weeks: weeks.map((weekNumber) => ({ weekNumber, thisWeek: weekNumber === thisWeek })),
     groups,
     totals,
-    ending: records.switches.scheduled ? "finished" : "pushed",
+    ending: registerEnding(records.switches),
   };
+}
+
+/**
+ * The register's own word for finishing it: "finished" while next week's
+ * email is scheduled from the register, "pushed" otherwise. The grid, the
+ * Overview and the Programmes page's line all say it from here.
+ */
+export function registerEnding(switches: Pick<RegisterSwitches, "scheduled">): "finished" | "pushed" {
+  return switches.scheduled ? "finished" : "pushed";
 }
 
 // ---------------------------------------------------------------------------

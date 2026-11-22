@@ -42,6 +42,7 @@ export default async function IntakePage({ params }: { params: Promise<{ roundId
   return (
     <Page
       roundId={form.round.id}
+      termLabel={form.round.label}
       title="Plan the intake"
       chips={<Pill>Admins only</Pill>}
       lede="Every programme at once: who goes where, who should facilitate, and the decisions that would make it so. Nothing changes until you press Apply, and nobody is emailed."

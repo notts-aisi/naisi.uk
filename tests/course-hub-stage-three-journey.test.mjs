@@ -1610,7 +1610,7 @@ const FOOTER = "Nottingham AI Safety Initiative · University of Nottingham · a
 const short = (response) => [response.status, response.body?.error ?? null];
 const HOME = `/learn/${RUN}`;
 /** The run's head, as the lead's tabs draw it once the last session is over ("stayed to the end", was "took part"). */
-const HEAD_AFTER = (n) => `Programmes AGI Strategy Fellowship Finished · Tue 8 Dec C Lead: Claudia · ${n} stayed to the end Overview`;
+const HEAD_AFTER = (n) => `Programmes · Autumn 2026 AGI Strategy Fellowship Finished · Tue 8 Dec C Lead: Claudia · ${n} stayed to the end Overview`;
 const RULE_SENTENCE = (n) =>
   `We’ve ticked everyone who came to at least ${n} of 6 sessions. Change any you disagree with. Only you and admins see who’s ticked.`;
 const NO_RULE =
@@ -1967,7 +1967,7 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       );
       assert.deepEqual(short(b().switch), [409, "Who finished can be said once the last session is over, on Tue 8 Dec."]);
       assert.deepEqual(b().finishing, []);
-      assert.equal(b().lead.head, "Programmes AGI Strategy Fellowship Running · week 6 of 6 C Lead: Claudia · 7 taking part in 2 groups · Last sessions Tue 8 Dec Overview");
+      assert.equal(b().lead.head, "Programmes · Autumn 2026 AGI Strategy Fellowship Running · week 6 of 6 C Lead: Claudia · 7 taking part in 2 groups · Last sessions Tue 8 Dec Overview");
     });
 
     test("a member's pages are on week 6 and claim nothing", () => {

@@ -1,0 +1,98 @@
+/*
+  The Programmes page: a section a term, each with its programmes as cards,
+  and the earlier terms at the foot. The cards are the term page's own
+  (FormHome.module.css); this sheet lays out what sits round them.
+*/
+
+.term {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+.termHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.termName {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 26px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.termLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-5);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text-body);
+}
+.termLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+.termLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.cardLine {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+.needsYou {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-warning);
+}
+.cardFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.earlier {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.earlierHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.earlierList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-5);
+  list-style: none;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .term {
+    margin-bottom: var(--space-6);
+  }
+  .termName {
+    font-size: 22px;
+  }
+  .cardFoot > * {
+    flex: 1 1 100%;
+  }
+}

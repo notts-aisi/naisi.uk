@@ -19,6 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import Select from "@/components/ui/Select";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
+import TermCrumb from "@/features/applications/editor/TermCrumb";
 import kit from "@/features/applications/kit/kit.module.css";
 import { APPLICATION_LIMITS, type QuestionSetScope } from "@/lib/applications/model";
 import { lockedSentence } from "@/lib/applications/editor/lock";
@@ -287,7 +288,7 @@ export default function FormEditor({
   return (
     <ApplicationsRoot className={shared.page}>
       <nav className={shared.crumb} aria-label="Breadcrumb">
-        <Link href={homeHref}>Programmes</Link>
+        <TermCrumb roundId={form.id} termLabel={form.label} />
       </nav>
 
       <header className={shared.head}>
@@ -473,7 +474,7 @@ export default function FormEditor({
               </p>
               <div className={shared.emptyActions}>
                 <Link href={homeHref} className={shared.btn}>
-                  Go to Programmes
+                  Go to the term’s page
                 </Link>
               </div>
             </section>

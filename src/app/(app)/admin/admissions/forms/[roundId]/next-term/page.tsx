@@ -43,6 +43,7 @@ export default async function NextTermPage({ params }: { params: Promise<{ round
   return (
     <Page
       roundId={form.round.id}
+      termLabel={form.round.label}
       title={NEXT_TERM_WORDS.title}
       chips={<Pill>{NEXT_TERM_WORDS.chip}</Pill>}
       lede={NEXT_TERM_WORDS.lede(loaded.view.term)}
