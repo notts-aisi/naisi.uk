@@ -371,9 +371,9 @@ const ROUND_SURFACES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": {
     kind: "form",
     why:
-      "one programme's Groups tab, its Circles view, an admin's alone. It reaches the round only through " +
-      "loadCircles, which starts from the form's own loader and answers 'none' for a round that is not a form, " +
-      "and the page then says there is no programme here",
+      "Circles' old address, which forwards an admin and the programme's lead to People in groups shown as Rings. " +
+      "It reaches the round only through the form's own loader (loadForm), which answers nothing for a round that " +
+      "is not a form, and the page then says there is no programme here",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
     kind: "form",
@@ -926,7 +926,7 @@ const ROUND_SURFACES = {
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     kind: "form",
     why:
-      "an admin's Circles reads the run's groups as they are again after each change through loadCircles, " +
+      "an admin's Circles arranging, on People in groups shown as Rings, reads the run's groups as they are through loadCircles, " +
       "which starts from the form's own loader and answers 'none' (a 404) for a round that is not a form, " +
       "before anybody's application is read",
   },

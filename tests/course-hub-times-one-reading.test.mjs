@@ -228,9 +228,9 @@ const WEEK_READERS = {
   "src/lib/applications/people/week.ts":
     "the one gated read of a person's week for a staff screen (one person, or everybody on a board at once through boardWeeksFor): canReadApplication first, and otherwise nothing derived from the week",
   "src/lib/applications/handover/boardPanel.ts":
-    "the person's panel on People in groups, for an admin or the programme's lead (loadProgrammeRun): everybody on the board through boardWeeksFor alone, never about the reader",
+    "the person's panel on People in groups, and every mark Rings draws about a person's time (src/features/applications/groups/ringsModel.ts reads its answer and no week), for an admin or the programme's lead (loadProgrammeRun): everybody on the board through boardWeeksFor alone, never about the reader",
   "src/lib/courses/personPage/load.ts": "a person's page for the team: When they're free through personWeekFor alone",
-  "src/lib/applications/arrange/load.ts": "Circles and an arrangement's preview, which loadCircles and the arrangement route open for an admin alone (canRunTerm)",
+  "src/lib/applications/arrange/load.ts": "Circles' arranging (an admin's Suggest groups on People in groups shown as Rings) and an arrangement's preview, which loadCircles and the arrangement route open for an admin alone (canRunTerm)",
   "src/lib/courses/facilitatorAsks/people.ts": "the chart beside an ask to facilitate, which the Facilitators view leaves out for anybody but an admin, and never sends to Claude",
   "src/lib/courses/placementNotes/section.ts": "Outside the times they gave, on Publish's page: the week drawn for an admin alone; a lead is sent no week there",
   "src/lib/applications/freedPlaces/words.ts": "a freed place's words about a person's week (\"Free Wed afternoons\"), for the freed places page and the offer's email",
@@ -243,7 +243,7 @@ const WEEK_READERS = {
 const GATED_READ_CALLERS = {
   "src/lib/courses/personPage/load.ts": "a person's page for the team: When they're free, never about the reader themselves",
   "src/lib/applications/handover/boardPanel.ts":
-    "the person's panel on People in groups, for an admin or the programme's lead: everybody on the board at once, over the applications the board's own read holds, never about the reader themselves",
+    "the person's panel on People in groups, and the marks of People in groups shown as Rings, for an admin or the programme's lead: everybody on the board at once, over the applications the board's own read holds, never about the reader themselves",
 };
 
 describe("every file that turns a marked week into something a screen draws", () => {
