@@ -5824,8 +5824,7 @@ spaces folded) writes nothing and closes the panel with nothing said
   in a group yet. A visit arranged into the group, or a request to move into
   it, holds no seat here: lowering the places to the people in it can leave a
   host week over its number, or a request meeting Full when it is decided.
-  Nothing acts on either by itself; staff see it on the group's week and on
-  Requests. A typo in the Places field is refused in the panel ("Places must be
+  No job acts on either; both follow from a press staff made. A typo in the Places field is refused in the panel ("Places must be
   a whole number, or left empty for no limit."), never saved as no limit. A
   group already below that
   floor reads true on its page ("1 place · 12 in the group") and is refused
