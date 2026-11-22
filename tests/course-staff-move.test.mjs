@@ -50,6 +50,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { A, AGI, B, C, D, NOW, ROUND, RUN, makeLeavingWorld } from "./lib/leavingWorld.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -984,10 +985,20 @@ describe("9. a real Publish after a move, and the person's own page", () => {
     assert.deepEqual([out.body.placed, out.body.rejected.map((each) => each.reason)], [0, ["mid-term-to-pool"]]);
     assert.equal(everything(), before);
     // Remove still takes Freya off the run.
-    const removed = await call("claudia", removeRoute.POST, { runId: RUN.agi, uid: "freya" }, { course: true });
+    const removed = await takeOff(call, "claudia", removeRoute.POST, { runId: RUN.agi, uid: "freya" });
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
     assert.equal(read(seatPath("freya")).status, "removed");
-    assert.deepEqual(sent(), [], "nobody emailed: Freya had no visit ahead");
+    // Changed on purpose (taking somebody off now emails them, and the
+    // facilitators of the group they had been told): Freya and Group D's
+    // facilitator, and nobody about a visit, since Freya had none ahead.
+    assert.deepEqual(
+      sent(),
+      [
+        ["freya@example.com", "Your place on AGI Strategy has ended", "course-taken-off"],
+        ["grace@example.com", "Freya has left Group D", "course-taken-off"],
+      ],
+      "Freya and the group's facilitator emailed, and nobody about a visit",
+    );
   });
 
   test("the person's own page: the next session is the new group's week 4, never its week 3 tonight; each week from the group they were in", async () => {

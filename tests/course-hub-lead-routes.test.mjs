@@ -34,6 +34,7 @@ import assert from "node:assert/strict";
 import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
 import { loadJoin, makeWorld } from "./lib/handoverWorld.mjs";
 import { A, AGI, B, C, PERSONAS, RUN, formPath, leadSeed } from "./lib/leadWorld.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 /**
  * The Admin SDK's sentinels with the two classes the register's push route
@@ -170,7 +171,7 @@ const ROUTES = [
   },
   {
     name: "POST remove somebody from the run",
-    ask: (who, o) => call(who, routes.remove.POST, { runId: RUN.agi, uid: "amara" }, { course: true, ...o }),
+    ask: (who, o) => takeOff(call, who, routes.remove.POST, { runId: RUN.agi, uid: "amara" }, o),
     // Amara's row came from the form, so it is the admin's and the lead's (`rowIsServedTo`): the track lead passes
     // the gate and is answered as for a uid with no place (tests/course-remove-served-rows.test.mjs holds a row
     // the track lead is served).

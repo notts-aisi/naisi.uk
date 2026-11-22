@@ -19,6 +19,7 @@
 import { describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { A, NOW, OPEN_GROUP, OPEN_RUN, ROUND, RUN, leavingSeed, makeLeavingWorld } from "./lib/leavingWorld.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 const made = await makeLeavingWorld("__facilitatorFellowsLeaving");
 const { world, call, everything, routes, pages, reset, leave, draw, ui } = made;
@@ -36,7 +37,7 @@ const SAYS = "You facilitate Group A, so you can’t leave the programme here. A
 const REMOVE_SAYS = "They facilitate Group A. Take them off its facilitators first, on the Facilitators view, then remove them.";
 
 const rowOf = (uid) => world.db.read(`courseEnrolments/${RUN.agi}__${uid}`);
-const remove = (who, uid) => call(who, routes.remove.POST, { runId: RUN.agi, uid }, { course: true });
+const remove = (who, uid) => takeOff(call, who, routes.remove.POST, { runId: RUN.agi, uid });
 
 describe("a facilitator who holds a place leaves once they are taken off the group's facilitators", () => {
   test("Leave the programme: refused in one sentence, and nothing is written", async () => {

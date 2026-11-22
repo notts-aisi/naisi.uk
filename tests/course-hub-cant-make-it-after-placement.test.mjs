@@ -76,6 +76,7 @@ import {
   textOf,
 } from "./lib/leavingWorld.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -525,7 +526,7 @@ describe("4. what the application page says, in each state", () => {
   // kind `place`): this test pinned that, and now pins the new page as
   // strictly, word for word.
   test("somebody staff took off the run reads that they were taken off, not that they left or said they can't make it", async () => {
-    const removed = await call("claudia", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true });
+    const removed = await takeOff(call, "claudia", routes.remove.POST, { runId: RUN.agi, uid: "tariq" });
     assert.equal(removed.status, 200);
     assert.deepEqual(
       [applicationOf("tariq").status, applicationOf("tariq").attendance, applicationOf("tariq").releaseReason],

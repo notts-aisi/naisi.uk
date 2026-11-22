@@ -90,6 +90,7 @@ import { COURSE, loadJoin, makeWorld } from "./lib/handoverWorld.mjs";
 import { A, AGI, B, C, ROUND, RUN } from "./lib/leadWorld.mjs";
 import { termSeed } from "./lib/peopleWorld.mjs";
 import { syntheticGuideMarkdown } from "./lib/weekBlocksFixture.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
@@ -744,7 +745,7 @@ async function tellTheStory() {
   // ---- E. The weeks run; Callum is taken off after Group B's week 2 ------------------
   await upTo("2026-11-11T09:00:00Z");
   seen.overviewBeforeRemove = await overview("claudia");
-  seen.callumRemoved = await call("claudia", R.remove.POST, { runId: RUN.agi, uid: "callum" }, { course: true });
+  seen.callumRemoved = await takeOff(call, "claudia", R.remove.POST, { runId: RUN.agi, uid: "callum" });
   seen.overviewAfterRemove = await overview("claudia");
   seen.peopleMid = await peoplePage("claudia");
   seen.headMid = await head("claudia");

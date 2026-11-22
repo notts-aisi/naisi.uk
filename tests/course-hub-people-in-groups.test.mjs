@@ -43,15 +43,20 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AGI, GROUP, ROUND, RUN, applicationPath, loadJoin, makeWorld, namedSeed } from "./lib/handoverWorld.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
 const HANDLE = 'globalThis["__hubPeopleInGroups"]';
 const SESSION = `export async function getCurrentUser() { return ${HANDLE}.user; }`;
 const STYLESHEETS = [
+  // The question that takes somebody off the run, drawn by both boards.
+  "./Modal.module.css",
+  "./TakeOffSheet.module.css",
   "./PeopleInGroups.module.css",
   "./PublishGroups.module.css",
   // Publish's own page draws its readiness check (Get ready for week 1's) above the buttons.
@@ -370,7 +375,7 @@ describe("2. the view is the People tab's answers, field by field", () => {
   test("somebody taken off the run is listed with the day, in People's words, and their card leaves the board", async () => {
     await termOnTheBoard();
     // The lead takes Dev off the run: Remove gives the place on the form back.
-    const removed = await call("claudia", routes.remove.POST, { runId: RUN.agi, uid: "dev" }, { course: true });
+    const removed = await takeOff(call, "claudia", routes.remove.POST, { runId: RUN.agi, uid: "dev" });
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
     const lead = await viewFor("claudia");
     const dev = lead.gaveBack.find((person) => person.uid === "dev");
@@ -732,7 +737,7 @@ describe("6. each card's marks in every state, and its menu", () => {
     assert.equal(said(card({ ...told, timeAnswer: cant }), COLUMNS[0])[1], false);
   });
 
-  test("the menu: To place, each group with who sits there now, and taking an active seat off the run last", () => {
+  test("the menu: To place, each group with who sits there now, and taking an active seat off the run last", async () => {
     const seated = (id) => ({ ga: 8, gb: 2, gc: 0 })[id];
     const uncapped = [COLUMNS[0], COLUMNS[1], { ...COLUMNS[2], capacity: null }];
     assert.deepEqual(boardParts.menuOptions({ enrolmentStatus: "active" }, uncapped, seated), [
@@ -756,10 +761,36 @@ describe("6. each card's marks in every state, and its menu", () => {
       "Pat Doe wasn’t moved: they facilitate another group, and somebody holding a place sits in the group they facilitate.",
     );
     assert.equal(words.notMovedWords("Pat Doe", "Group A", "anything else"), "Pat Doe wasn’t moved: the move was refused. Try again.");
-    assert.equal(
-      words.takeOffConfirm("Pat Doe", "Group A", "AGI Strategy"),
-      "Take Pat Doe off the run?\n\nTheir seat in Group A is freed and their place on AGI Strategy is given back. Nobody is emailed.",
+    // Taking somebody off asks in the sheet, whose every sentence is the
+    // route's (tests/course-take-off.test.mjs presses it in every case), and
+    // never in the browser's own confirmation.
+    const takeOffWords = await made.lib("courses", "takeOff", "words.ts");
+    assert.deepEqual(
+      takeOffWords.sheetWords({
+        personName: "Pat Doe",
+        firstName: "Pat",
+        programmeName: "AGI Strategy",
+        groupName: "Group A",
+        givesPlaceBack: true,
+        personEmailed: true,
+        facilitators: [],
+        groupFacilitators: 0,
+        visits: [],
+        people: 1,
+      }),
+      {
+        title: "Take Pat Doe off AGI Strategy?",
+        seat: "Their seat in Group A is freed and their place on AGI Strategy is given back. Their registers and work so far are kept.",
+        emailed: "Pat is emailed to say their place has ended.",
+        // No facilitator is emailed, so the hint says nothing of their email.
+        box: { label: "A line for Pat (optional)", hint: "Only Pat sees this." },
+        keep: "Keep Pat",
+        go: "Take Pat off and email Pat",
+      },
     );
+    const board = readFileSync(new URL("../src/features/applications/groups/PeopleInGroups.tsx", import.meta.url), "utf8");
+    assert.doesNotMatch(board, /window\.confirm\(words\.take/);
+    assert.match(board, /<TakeOffSheet runId=\{runId\} uid=\{takingOff\}/);
   });
 
   test("the menu's button is the board's three dots, named for the person, a listbox like #67's", () => {

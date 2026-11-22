@@ -80,6 +80,14 @@ export type EmailSendKind =
   // Daniel is coming to her session" is answerable without reading subject
   // lines. Its `referenceId` is the RUN id. Never the reason for the visit.
   | "course-visit"
+  // Somebody was taken off a run by staff: one email to them ("Your place on
+  // AGI Strategy has ended") and, when Publish had told them their group,
+  // one to each of that group's facilitators ("Rahul has left Group C"),
+  // once the removal is saved. Its own kind so "was Rahul told their place
+  // ended" is answerable without reading subject lines. Its `referenceId` is
+  // the RUN id. Never a reason: the line typed for the person is in their
+  // own email alone.
+  | "course-taken-off"
   // The "you have feedback" email: an admin's batch tells each person that
   // feedback a facilitator, the programme's lead or an admin saved on their
   // week is on the site, one message a person however many pieces it

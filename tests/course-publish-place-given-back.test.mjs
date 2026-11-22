@@ -70,6 +70,7 @@ import {
 } from "./lib/handoverWorld.mjs";
 import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(REPO_ROOT, "src");
@@ -225,7 +226,7 @@ async function leaves(uid) {
 const summary = async (who) => (await board(who)).body.publish;
 const sendTest = (who) => call(who, routes.publishTest.POST, { runId: RUN.agi }, { course: true });
 const pressWith = (who, emails) => call(who, routes.publish.POST, { runId: RUN.agi }, { body: { emails }, course: true });
-const remove = (who, uid) => call(who, routes.remove.POST, { runId: RUN.agi, uid }, { course: true });
+const remove = (who, uid) => takeOff(call, who, routes.remove.POST, { runId: RUN.agi, uid });
 
 const isTest = (mail) => mail.subject.startsWith("[TEST]");
 const isFacilitating = (mail) => mail.subject.replace("[TEST] ", "").startsWith("You’re facilitating");
@@ -399,7 +400,12 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
       assert.equal((await remove(who, "amara")).status, 200);
       assert.equal(read(`courseGroups/${B}`).memberCount, 1);
       assert.equal("gaveBack" in (await summary(who)), false);
-      assert.equal(world.mail.filter((mail) => mail.to === "amara@example.com").length, 0);
+      // Changed on purpose (taking somebody off now emails them): Amara is told
+      // the place has ended, as asked, and nobody else, since Publish never
+      // told Amara a group.
+      const toAmara = world.mail.filter((mail) => mail.kind === "course-taken-off");
+      assert.deepEqual(toAmara.map((mail) => [mail.to, mail.subject]), [["amara@example.com", "Your place on AGI Strategy has ended"]]);
+      assert.match(JSON.stringify(toAmara[0].react.props), /has ended, as you asked\./);
     });
   }
 
@@ -747,8 +753,13 @@ describe("5. Remove refuses somebody who left by themselves, by either door, and
     test(`as ${label}: somebody removed, placed and not told, or told and in their group is removed as before`, async () => {
       await everyKindOfCard("zach");
       // Tariq, removed already: answered as before, and the seat untouched.
+      // The question says Tariq is off already; a press is answered as before.
       const tariq = JSON.stringify(seat("tariq"));
-      assert.equal((await remove(who, "tariq")).status, 200);
+      assert.deepEqual(
+        [(await remove(who, "tariq")).status, (await remove(who, "tariq")).body.error],
+        [409, "They’re already off the run."],
+      );
+      assert.equal((await call(who, routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true })).status, 200);
       assert.equal(JSON.stringify(seat("tariq")), tariq);
       // Una, placed and not told, who gave the place back; and Amara, told.
       const memberCount = read(`courseGroups/${B}`).memberCount;
@@ -847,11 +858,14 @@ const ASKS_THE_ANSWER = {
   "src/lib/courses/allocationPublish.ts": "Publish's plan: whom it leaves out",
   "src/lib/courses/getReady/read.ts":
     "Publish's readiness check: whom it leaves out of who is placed outside the times they gave, as the plan does",
+  "src/app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts":
+    "taking somebody off the run: whether their email says their place has ended as they asked, from the facts the cards are drawn from",
 };
 const ASKS_THE_PUT_BACK = {
   "src/app/api/courses/runs/[runId]/allocation/route.ts": "the board's row, which the card hands to the one answer",
   "src/lib/courses/allocationPublish.ts": "Publish's plan, which hands it to the one answer",
   "src/lib/courses/getReady/read.ts": "Publish's readiness check, which hands it to the one answer, as the plan does",
+  "src/app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": "taking somebody off the run, which hands it to the one answer, as the card does",
 };
 
 /** Every route that reads a plan of Publish. */

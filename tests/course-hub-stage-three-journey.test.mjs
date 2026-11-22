@@ -1573,7 +1573,8 @@ async function tellTheStory() {
     const between = [
       ["removing", async () => {
         at("removing");
-        seen.removed = await courseStep("the lead removes Joel", 200, "claudia", courseRoutes.remove.POST, { runId: RUN, uid: "joel" });
+        const asked = await courseStep("the lead asks what taking Joel off does", 200, "claudia", courseRoutes.remove.POST, { runId: RUN, uid: "joel" }, { body: { preview: true } });
+        seen.removed = await courseStep("the lead removes Joel", 200, "claudia", courseRoutes.remove.POST, { runId: RUN, uid: "joel" }, { body: { emails: asked.body.preview?.emails ?? 0 } });
       }],
       ["leaving", samLeaves],
       ["cancelling", cancelWeekFour],

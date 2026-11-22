@@ -118,6 +118,8 @@ const H = "globalThis.__stageTwo.h";
 /** A stand-in for every stylesheet a drawn page imports. */
 const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
 const STYLESHEETS = [
+  // The question that takes somebody off the run, drawn by both boards.
+  "./TakeOffSheet.module.css",
   "./status.module.css",
   "./editor.module.css",
   "@/features/applications/editor/editor.module.css",
@@ -1546,7 +1548,8 @@ async function weeksOneAndTwo() {
   const l = {};
   seen.leaving = l;
   const beforeTheRemove = world.mail.length;
-  l.removed = await courseStep("the lead removes Kofi", 200, "claudia", courseRoutes.remove.POST, { runId: RUN, uid: "kofi" });
+  l.asked = await courseStep("the lead asks what taking Kofi off does", 200, "claudia", courseRoutes.remove.POST, { runId: RUN, uid: "kofi" }, { body: { preview: true } });
+  l.removed = await courseStep("the lead removes Kofi", 200, "claudia", courseRoutes.remove.POST, { runId: RUN, uid: "kofi" }, { body: { emails: l.asked.body.preview?.emails ?? 0 } });
   l.mailed = world.mail.length - beforeTheRemove;
   l.summary = await publishSummary("claudia", RUN);
   l.board = await boardOf("claudia", RUN);
@@ -2357,8 +2360,11 @@ describe("stage two of the course hub, one term from Publish to the end of week 
   describe("6. somebody leaves, and the lead removes them", () => {
     const l = () => seen.leaving;
 
-    test("the lead's Remove emails nobody, and Kofi reads nothing of the run from then on", () => {
-      assert.deepEqual([l().removed.body, l().mailed], [{ ok: true }, 0]);
+    // Changed on purpose (taking somebody off now asks first, and emails them and the facilitators of the group they
+    // had been told): until then the lead's Remove emailed nobody.
+    test("the lead's Remove asks first, emails Kofi and the facilitators of Kofi's group, and Kofi reads nothing of the run from then on", () => {
+      assert.equal(l().asked.body.preview.emails, 3);
+      assert.deepEqual([l().removed.body, l().mailed], [{ ok: true, emails: { sent: 3, suppressed: 0, failed: 0 }, said: "Kofi is off AGI Strategy. 3 people were emailed." }, 3]);
       for (const label of AFTER_PUBLISH.slice(AFTER_PUBLISH.indexOf("Kofi removed"))) {
         assert.deepEqual(lookAt(label).members.kofi, { programmes: [], updates: { refused: 403 }, marks: { refused: 403 } }, label);
       }

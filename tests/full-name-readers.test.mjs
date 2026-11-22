@@ -173,6 +173,21 @@ const READERS = new Map([
       "the session's own viewer, so the committee and admins are sent the full name and an organiser who is a member the " +
       "name people go by; the name a sign-up kept is sent only to admins and SU-recognised committee",
   }],
+  ["src/lib/courses/takeOff/plan.ts", {
+    who: "rule",
+    proof: ["const personName = account ? nameForViewer(actor, accountNamesOf(account), fallback) : fallback;"],
+    why:
+      "the title of the question that takes somebody off a run names them through `nameForViewer` for the session's own viewer: " +
+      "the committee and admins see the full name, a programme's lead or a track lead who is not on the committee the name " +
+      "people go by; every other sentence, and both emails, use the name they go by",
+  }],
+  ["src/lib/applications/handover/load.ts", {
+    who: "rule",
+    proof: ['if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data()), ""));'],
+    why:
+      "who took somebody off the run, on Course run's \"Taken off the programme\", an admin's panel alone, named through " +
+      "`nameForViewer` with the session's own viewer",
+  }],
   ["src/lib/courses/explainers/readers.ts", {
     who: "rule",
     proof: ['out.set(snap.id, nameForViewer(viewer, names, ""));'],

@@ -1,46 +1,82 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { loadForm } from "@/lib/applications/repo";
-import { givePlaceBack, readPlaceToGiveBack } from "@/lib/applications/status/record";
+import { formPlaceFactsFor } from "@/lib/applications/handover/board";
+import { applicationRef, loadForm } from "@/lib/applications/repo";
+import { givePlaceBack, placeGoingBack, readPlaceToGiveBack } from "@/lib/applications/status/record";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { leavePathFor } from "@/lib/courses/leaving";
+import { gaveTheirPlaceBack } from "@/lib/courses/placeGivenBack";
+import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
+import { takeOffLimitRefusal, takeOffLimitsIn } from "@/lib/courses/takeOff/limits";
+import { planTakeOff, type TakeOffPlan } from "@/lib/courses/takeOff/plan";
+import { sendTakeOffEmails } from "@/lib/courses/takeOff/send";
+import { ALREADY_OFF, FINISHED, changedWords, doneWords, historyWords, parseTakeOffLine, sheetWords } from "@/lib/courses/takeOff/words";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { formatRunStartShort } from "@/lib/courses/window";
+import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import {
   GROUPS_BY_WEEK_LIMITS,
   courseEnrolmentId,
+  enrolmentIsPutBack,
   normalizeCourseEnrolment,
+  placementIsTold,
+  type CourseEnrolmentDoc,
   type CourseEnrolmentStatus,
 } from "@/lib/firestore/courseEnrolments";
 import { courseApplicationId, normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { courseRunChannel, normalizeCourseRun } from "@/lib/firestore/courses";
 import { unsubscribe } from "@/lib/firestore/subscriptions";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { onlineWordsGoWithVisitsIn } from "@/lib/courses/joiningOnline/gone";
-import { visitLimitsIn } from "@/lib/courses/visit/limits";
-import { NO_VISITS_ENDED, sendRemovalVisitEmails, visitsEndedByRemoval, type RemovalVisits } from "@/lib/courses/visit/removed";
-import { removalChangedWords } from "@/lib/courses/visit/words";
+import { visitLimitRefusal, visitLimitsIn } from "@/lib/courses/visit/limits";
 
 /**
- * Remove one learner from a run: their enrolment flips to `status:"removed"`
- * and its `groupId` clears, releasing the seat, in one transaction with the
- * group's `memberCount` decrement.
+ * Take one person off a run: their enrolment flips to `status:"removed"` and
+ * its `groupId` clears, releasing the seat, in one transaction with the
+ * group's `memberCount` decrement. Every caller asks first, in a sheet
+ * (`src/features/courses/takeOff/TakeOffSheet.tsx`, on People in groups and
+ * on the older allocation board): `preview: true` writes nothing and answers
+ * every sentence the sheet prints, and the press sends back the count of
+ * emails the sheet showed.
  *
- * WHO MAY REMOVE: admins ∪ the run's `trackLeadUids` ∪ the lead of the
- * programme that names the run (`runStaffingOf`): the allocation gate. And
- * of the people on the run, only somebody whose row the board serves the
- * caller (`rowIsServedTo`): a row the application form placed is an admin's
- * and the programme lead's, so a run's track lead is answered about such a
- * person as about a uid with no place on the run, before anything about them
- * is read, by the preview and the press alike. Somebody with no row on the
- * run's list (an open run's own sign-up) is anybody's on the gate, as before.
+ * WHO MAY TAKE SOMEBODY OFF: admins ∪ the run's `trackLeadUids` ∪ the lead of
+ * the programme that names the run (`runStaffingOf`): the allocation gate,
+ * asked BEFORE the run is looked for, so somebody with no right is answered
+ * the same 403 whether the run exists or not, and only a caller the gate
+ * admits is told a run is not found. And of the people on the run, only
+ * somebody whose row the board serves the caller (`rowIsServedTo`): a row the
+ * application form placed is an admin's and the programme lead's, so a run's
+ * track lead is answered about such a person as about a uid with no place on
+ * the run, before anything about them is read, by the preview and the press
+ * alike. Somebody with no row on the run's list (an open run's own sign-up)
+ * is anybody's on the gate, as before.
  *
- * It records WHEN (`droppedOutAt`, the field leaving writes), so the
- * programme's Overview, its Attendance tab and the group's register say the
- * day somebody went, whichever way they went.
+ * WHO IS EMAILED, after the commit (`planTakeOff` and `sendTakeOffEmails` in
+ * `src/lib/courses/takeOff/`): the person, always ("Your place on AGI
+ * Strategy has ended"); their group's facilitators, only when Publish had
+ * told them their group ("Rahul has left Group C"); the hosts' facilitators
+ * of each visit still to come, the visit's own called-off email as it always
+ * was. Nobody else, and NO REASON IN ANY EMAIL: the optional `line` staff
+ * type goes in the person's email alone, and is never stored or logged.
+ * The count is the sheet's: the press sends it back (`emails`, none meaning
+ * 0), and the transaction works it out again from what it read and refuses a
+ * different one (409, with the count as it is now), so a caller that does
+ * not send the count it was shown is refused, never emails silently. A press
+ * that emails is held to the take-off limits (`takeOffLimitsIn`), and one
+ * that ends a visit still to come to the visits' own besides, claimed in the
+ * removal's own write: at either it is refused (429) with nothing written.
+ * A failed send never undoes the removal; the answer says how many went.
+ *
+ * It records WHEN (`droppedOutAt`, the field leaving writes) and WHO
+ * (`removedByUid`), so the programme's Overview, its Attendance tab and the
+ * group's register say the day somebody went, whichever way they went, and
+ * Course run's "Taken off the programme" says who took them off and when. And
+ * one line on the group's History, under People: "Maya Rao took Rahul Mehta
+ * off the run." (`member-taken-off`).
  *
  * A SEAT THE APPLICATION FORM PLACED GIVES ITS PLACE ON THE FORM BACK, in the
  * same transaction, exactly as leaving gives it (`readPlaceToGiveBack` and
@@ -55,14 +91,23 @@ import { removalChangedWords } from "@/lib/courses/visit/words";
  * place back. Putting somebody back afterwards gives it to them again on the
  * form (the allocate route), as it does for somebody who left.
  *
+ * SOMEBODY WHO GAVE THEIR PLACE BACK ON THE FORM (before Publish told them
+ * their group, so their seat stayed where it was put: `gaveTheirPlaceBack`,
+ * the board's own answer) is taken off the same way, by the same preview and
+ * press: no place goes back, so the sheet does not say one does, and their
+ * email says their place has ended "as you asked". Their row on the run's
+ * own list is not changed here.
+ *
  * NOBODY WHO LEFT BY THEMSELVES IS REMOVED. A seat withdrawn by its owner
  * (either door: "Leave the programme" on their programme's page, or "I can’t
  * make it" on their application page once Publish has told them their group)
  * has already freed its place in the group, and turning it into a removal
  * would close the run to them as for somebody staff took off, and take back
- * the page that says they left. So the route refuses it in a sentence that
- * says they left, and when, and writes nothing. The board offers no Remove
- * for such a seat either: it offers Remove on an active seat only.
+ * the page that says they left. So the route refuses it, the preview and the
+ * press alike, in a sentence that says they left, and when, and writes
+ * nothing. The boards offer no Take off for such a seat either. Nor is a
+ * seat recorded as finished (`completed`) taken off: the programme is over
+ * for them, and its email would say their place has ended.
  *
  * A SOFT removal, deliberately: the enrolment doc survives. The deterministic
  * doc id (`courseEnrolments/{runId}__{uid}`) is the one-enrolment-per-(run,
@@ -77,14 +122,8 @@ import { removalChangedWords } from "@/lib/courses/visit/words";
  * visit on the place goes with the removal; for each whose session has not
  * started and is happening, the host's facilitators are sent the visit's
  * approved called-off email after the commit (`visitsEndedByRemoval` and
- * `sendRemovalVisitEmails` in `src/lib/courses/visit/removed.ts`). The person
- * removed is sent nothing. `preview: true` writes nothing and answers how
- * many emails a press sends and about which visits, for the board's
- * confirmation; the press sends that count back (`emails`, none meaning 0),
- * and the transaction works it out again and refuses a different one (409,
- * with the count as it is now). A press that emails is held to the limit on a
- * visit called off by hand (`visitLimitsIn`), claimed in the removal's own
- * write: at the limit it is refused (429) with nothing written.
+ * `sendRemovalVisitEmails` in `src/lib/courses/visit/removed.ts`), counted
+ * with the rest.
  *
  * FACILITATOR ROWS ARE OUT OF SCOPE: a `role:"facilitator"` enrolment is
  * managed by the group facilitators route (which retires it when the person
@@ -134,10 +173,36 @@ class RemoveError extends Error {
   }
 }
 
-/** The body: none, `{ preview: true }`, or the count of emails the confirmation showed. Null when it is malformed. */
-async function readBody(req: Request): Promise<{ preview: boolean; emails: number } | null> {
+/**
+ * What stops a seat being taken off, the preview and the press alike, from
+ * the seat and the run's groups as read: a facilitator's row, a facilitator
+ * who holds a place, somebody who left by themselves, somebody recorded as
+ * finished. Throws the refusal;
+ * returns when nothing stops it.
+ */
+function refuseWhatCannotGo(existing: Record<string, unknown>, place: CourseEnrolmentDoc, groups: readonly CourseGroupDoc[], runId: string, uid: string): void {
+  if (existing.role === "facilitator") {
+    throw new RemoveError("That's a facilitator enrolment. Unassign them in the group editor instead.", 409);
+  }
+  const facilitated = groups.find((group) => group.runId === runId && !group.archived && group.facilitatorUids.includes(uid));
+  if (facilitated && existing.status === "active") {
+    throw new RemoveError(facilitatesGroupLine(facilitated.name.trim() || "a group"), 409);
+  }
+  // Somebody who left by themselves, by either door: their seat is already
+  // free, and nothing here is theirs to change. Refused with the day they
+  // left, before anything is written (see the note at the top).
+  if (existing.status === "withdrawn") throw new RemoveError(leftByThemselvesLine(place.droppedOutAt), 409);
+  // Somebody recorded as finished: the programme is over for them, and an
+  // email saying their place has ended would be untrue. No board offers it.
+  if (existing.status === "completed") throw new RemoveError(FINISHED, 409);
+}
+
+const BODY_FIELDS: readonly string[] = ["preview", "emails", "line"];
+
+/** The body: none, `{ preview: true }`, or the count of emails the sheet showed and the line for the person. Null when it is malformed. */
+async function readBody(req: Request): Promise<{ preview: boolean; emails: number; line: unknown } | null> {
   const text = await req.text().catch(() => "");
-  if (!text.trim()) return { preview: false, emails: 0 };
+  if (!text.trim()) return { preview: false, emails: 0, line: undefined };
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -145,10 +210,12 @@ async function readBody(req: Request): Promise<{ preview: boolean; emails: numbe
     return null;
   }
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const { preview, emails } = raw as { preview?: unknown; emails?: unknown };
+  // Only the three fields the sheet sends, as a request's own body is held.
+  if (Object.keys(raw).some((key) => !BODY_FIELDS.includes(key))) return null;
+  const { preview, emails, line } = raw as { preview?: unknown; emails?: unknown; line?: unknown };
   if (preview !== undefined && typeof preview !== "boolean") return null;
   if (emails !== undefined && !(typeof emails === "number" && Number.isInteger(emails) && emails >= 0)) return null;
-  return { preview: preview === true, emails: typeof emails === "number" ? emails : 0 };
+  return { preview: preview === true, emails: typeof emails === "number" ? emails : 0, line };
 }
 
 export async function POST(req: Request, ctx: Ctx) {
@@ -166,24 +233,28 @@ export async function POST(req: Request, ctx: Ctx) {
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  const runSnap = await db.collection("courseRuns").doc(runId).get();
-  if (!runSnap.exists) {
-    return NextResponse.json({ error: "Run not found" }, { status: 404 });
-  }
-  const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
-
-  const staffing = await runStaffingOf(db, actor, run);
+  // The gate before the run: somebody with no right on it is answered the
+  // same whether the run exists or not. A run that is not there has no
+  // track leads, so only an admin or the lead of a programme naming its id
+  // is told it is not found.
+  const runSnap = runId.includes("/") ? null : await db.collection("courseRuns").doc(runId).get();
+  const stored = runSnap && runSnap.exists ? normalizeCourseRun(runSnap.id, runSnap.data() ?? {}) : null;
+  const staffing = await runStaffingOf(db, actor, stored ?? { id: runId, trackLeadUids: [] });
   const isAdmin = staffing.isAdmin;
   if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  if (!stored) return NextResponse.json({ error: "Run not found" }, { status: 404 });
+  const run = stored;
 
   // The body first: a malformed one gets the one answer, whoever the uid is.
   const body = await readBody(req);
   if (!body) return NextResponse.json({ error: "Expected no body, or a JSON object." }, { status: 400 });
+  const typed = parseTakeOffLine(body.line);
+  if (!typed.ok) return NextResponse.json({ error: typed.error }, { status: 400 });
 
   // A person whose row the board does not serve this caller is answered as a uid with no place, before
-  // anything about them is read: the preview's visits and the press's emails alike.
+  // anything about them is read: the preview's sentences and the press's emails alike.
   const rowSnap = await db.collection("courseApplications").doc(courseApplicationId(runId, uid)).get();
   const row = rowSnap.exists ? normalizeCourseApplication(rowSnap.id, rowSnap.data() ?? {}) : null;
   if (row && !rowIsServedTo(row, staffing)) {
@@ -194,28 +265,10 @@ export async function POST(req: Request, ctx: Ctx) {
     .collection("courseEnrolments")
     .doc(courseEnrolmentId(runId, uid));
 
-  if (body.preview) {
-    // What a press would do about their visits, read now: writes nothing.
-    const [snap, runGroups] = await Promise.all([enrolmentRef.get(), db.collection("courseGroups").where("runId", "==", runId).get()]);
-    if (!snap.exists || snap.data()?.uid !== uid || snap.data()?.runId !== runId) {
-      return NextResponse.json({ error: "Enrolment not found" }, { status: 404 });
-    }
-    const place = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
-    const visits =
-      place.status === "active"
-        ? await visitsEndedByRemoval((refs) => db.getAll(...refs), db, {
-            run,
-            place,
-            groups: runGroups.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})),
-            actorUid: actor.uid,
-            now: new Date(),
-          })
-        : NO_VISITS_ENDED;
-    return NextResponse.json({
-      ok: true,
-      preview: { emails: visits.emails, visits: visits.ended.map((each) => ({ hostName: each.host.name.trim() || "Untitled group", weekNumber: each.weekNumber })) },
-    });
-  }
+  // What every sentence calls the run: the programme that names it, or the course.
+  const naming = await readNamingProgramme(db, runId);
+  const programmeName = naming?.shortName || run.courseTitle.trim() || "the run";
+  const fallbackName = row?.displayName ?? "";
 
   // Where the seat's place on the form came from, as leaving reads it, and
   // the form it goes back to, read before the transaction (see the note at
@@ -226,11 +279,64 @@ export async function POST(req: Request, ctx: Ctx) {
   const fromForm = "path" in leaving && leaving.path.kind === "form" ? leaving.path : null;
   const form = fromForm ? await loadForm(db, fromForm.roundId) : null;
 
-  // The visits the removal ends with an email, as the transaction read them: sent after the commit.
-  let visitsOff: RemovalVisits = NO_VISITS_ENDED;
+  // Whether they gave their place back on the form themselves: the board's
+  // own answer, from the facts its cards are drawn from.
+  const groupsNow = (await db.collection("courseGroups").where("runId", "==", runId).get()).docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}));
+  const placeFacts = row?.fromForm
+    ? await formPlaceFactsFor(db, staffing, [row], groupsNow.map((group) => ({ id: group.id, session: group.session })))
+    : new Map();
+  const askedOf = (place: CourseEnrolmentDoc) => gaveTheirPlaceBack(placeFacts.get(uid), { putBack: enrolmentIsPutBack(place) });
+
+  if (body.preview) {
+    // Everything a press would do, read now: writes nothing.
+    const snap = await enrolmentRef.get();
+    if (!snap.exists || snap.data()?.uid !== uid || snap.data()?.runId !== runId) {
+      return NextResponse.json({ error: "Enrolment not found" }, { status: 404 });
+    }
+    const existing = snap.data() ?? {};
+    const place = normalizeCourseEnrolment(snap.id, existing);
+    try {
+      refuseWhatCannotGo(existing, place, groupsNow, runId, uid);
+    } catch (err) {
+      if (err instanceof RemoveError) return NextResponse.json({ error: err.message }, { status: err.status });
+      throw err;
+    }
+    if (place.status === "removed") return NextResponse.json({ error: ALREADY_OFF }, { status: 409 });
+    const givesPlaceBack =
+      form !== null && fromForm !== null && place.status === "active" && placeGoingBack(await applicationRef(db, form.round.id, uid).get(), form, fromForm.programmeId, now) !== null;
+    const plan = await planTakeOff((refs) => db.getAll(...refs), db, {
+      run,
+      place,
+      groups: groupsNow,
+      actor,
+      now,
+      programmeName,
+      givesPlaceBack,
+      fallbackName,
+      told: placementIsTold(place),
+    });
+    const limit =
+      plan.emails > 0
+        ? ((await takeOffLimitRefusal(db, runId, { uid, firstName: plan.facts.firstName }, actor.uid)) ??
+          (plan.visits.emails > 0 ? await visitLimitRefusal(db, runId, uid, actor.uid) : null))
+        : null;
+    return NextResponse.json({
+      ok: true,
+      preview: {
+        emails: plan.emails,
+        visits: plan.visits.ended.map((each) => ({ hostName: each.host.name.trim() || "Untitled group", weekNumber: each.weekNumber })),
+        sheet: sheetWords(plan.facts),
+        limit,
+      },
+    });
+  }
+
+  // What the transaction read and decided, for the emails after the commit.
+  let planned: TakeOffPlan | null = null;
+  let asked = false;
   try {
     await db.runTransaction(async (tx) => {
-      visitsOff = NO_VISITS_ENDED;
+      planned = null;
       const [snap, runGroups] = await Promise.all([
         tx.get(enrolmentRef),
         // One equality on one field: who facilitates the run's groups.
@@ -244,29 +350,13 @@ export async function POST(req: Request, ctx: Ctx) {
       if (existing.uid !== uid || existing.runId !== runId) {
         throw new RemoveError("Enrolment not found", 404);
       }
-
-      if (existing.role === "facilitator") {
-        throw new RemoveError(
-          "That's a facilitator enrolment. Unassign them in the group editor instead.",
-          409,
-        );
-      }
-      const facilitated = runGroups.docs
-        .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
-        .find((group) => group.runId === runId && !group.archived && group.facilitatorUids.includes(uid));
-      if (facilitated && existing.status === "active") {
-        throw new RemoveError(facilitatesGroupLine(facilitated.name.trim() || "a group"), 409);
-      }
+      const stored = normalizeCourseEnrolment(snap.id, existing);
+      const groups = runGroups.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}));
+      refuseWhatCannotGo(existing, stored, groups, runId, uid);
 
       const status = existing.status as CourseEnrolmentStatus;
-      // Somebody who left by themselves, by either door: their seat is
-      // already free, and nothing here is theirs to change. Refused with the
-      // day they left, before anything is written (see the note at the top).
-      if (status === "withdrawn") {
-        throw new RemoveError(leftByThemselvesLine(normalizeCourseEnrolment(snap.id, existing).droppedOutAt), 409);
-      }
-      // Idempotent: a double-clicked Remove shouldn't surface a failure, and
-      // must not decrement the counter twice.
+      // Idempotent: a double-clicked press shouldn't surface a failure, and
+      // must not decrement the counter twice or email anybody again.
       if (status === "removed") return;
 
       // The place on the form, read before anything is written (a
@@ -278,23 +368,32 @@ export async function POST(req: Request, ctx: Ctx) {
           ? await readPlaceToGiveBack(tx, db, form, uid, fromForm.programmeId, now)
           : null;
 
-      // The visits still to come it ends, and the emails to their hosts'
-      // facilitators: the count the confirmation showed, or nothing is written.
-      const visits = await visitsEndedByRemoval((refs) => tx.getAll(...refs), db, {
+      // Who it emails, as this transaction read them: the count the sheet
+      // showed, or nothing is written.
+      const plan = await planTakeOff((refs) => tx.getAll(...refs), db, {
         run,
-        place: normalizeCourseEnrolment(snap.id, existing),
-        groups: runGroups.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})),
-        actorUid: actor.uid,
+        place: stored,
+        groups,
+        actor,
         now,
+        programmeName,
+        givesPlaceBack: place !== null,
+        fallbackName,
+        // Their group's facilitators are emailed only once Publish had told them it.
+        told: placementIsTold(stored),
       });
-      if (visits.emails !== body.emails) throw new RemoveError(removalChangedWords(visits.emails), 409, visits.emails);
+      if (plan.emails !== body.emails) throw new RemoveError(changedWords(plan.facts.people), 409, plan.emails);
       // Their word that they are joining online, on the host's register of
       // each visit still to come, goes with the visit (`onlineWordsGoWithVisitsIn`).
-      const wordsGo = await onlineWordsGoWithVisitsIn(tx, db, { run, uid, visits: normalizeCourseEnrolment(snap.id, existing).visits ?? [], now });
-      // Held to the limit on a visit called off by hand, claimed with the removal's own writes.
-      const limits = visits.emails > 0 ? await visitLimitsIn(tx, db, runId, uid, actor.uid) : null;
+      const wordsGo = await onlineWordsGoWithVisitsIn(tx, db, { run, uid, visits: stored.visits ?? [], now });
+      // Held to the take-off limits, and a visit still to come to the visits'
+      // own, claimed with the removal's own writes.
+      const limits = plan.emails > 0 ? await takeOffLimitsIn(tx, db, runId, { uid, firstName: plan.facts.firstName }, actor.uid) : null;
       if (limits?.refusal) throw new RemoveError(limits.refusal, 429);
+      const visitLimits = plan.visits.emails > 0 ? await visitLimitsIn(tx, db, runId, uid, actor.uid) : null;
+      if (visitLimits?.refusal) throw new RemoveError(visitLimits.refusal, 429);
       limits?.write();
+      visitLimits?.write();
 
       const groupId =
         typeof existing.groupId === "string" && existing.groupId
@@ -316,7 +415,6 @@ export async function POST(req: Request, ctx: Ctx) {
       // The weeks they spent, or were to spend, at another group's session: kept beside the removal, so a
       // host's register is never taken for the register of a group they belonged to (`listGroups`). A place
       // removed before, put back and removed again keeps the weeks its first removal kept too.
-      const stored = normalizeCourseEnrolment(snap.id, existing);
       const visitsWhenRemoved = [
         ...(stored.visitsWhenRemoved ?? []),
         ...(stored.visits ?? []).map((each) => ({ weekNumber: each.weekNumber, groupId: each.groupId })),
@@ -351,6 +449,8 @@ export async function POST(req: Request, ctx: Ctx) {
         // themselves never reaches this write (refused above), so the day
         // they left is never overwritten.
         droppedOutAt: FieldValue.serverTimestamp(),
+        // AND WHO, for Course run's "Taken off the programme".
+        removedByUid: actor.uid,
         updatedAt: FieldValue.serverTimestamp(),
       });
       if (place) givePlaceBack(tx, place);
@@ -367,7 +467,24 @@ export async function POST(req: Request, ctx: Ctx) {
           updatedAt: FieldValue.serverTimestamp(),
         });
       }
-      visitsOff = visits;
+      // One line on the group's History, under People. Never the line typed
+      // for the person.
+      if (plan.group) {
+        tx.create(
+          db.collection(COURSE_AUDIT_COLLECTION).doc(),
+          groupHistoryRow({
+            kind: "member-taken-off",
+            run,
+            group: plan.group,
+            actor: { uid: actor.uid, displayName: actor.displayName ?? "" },
+            detail: historyWords(actor.displayName ?? "", plan.historyName),
+            emailed: plan.emails,
+            subjectUid: uid,
+          }),
+        );
+      }
+      planned = plan;
+      asked = askedOf(stored);
     });
   } catch (err) {
     if (err instanceof RemoveError) {
@@ -377,8 +494,12 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Couldn't remove that enrolment." }, { status: 500 });
   }
 
+  const done = planned as TakeOffPlan | null;
+  // Already off the run: nothing was written, and nobody is emailed again.
+  if (!done) return NextResponse.json({ ok: true, emails: { sent: 0, suppressed: 0, failed: 0 }, said: `${ALREADY_OFF} Nobody was emailed.` });
+
   // Post-commit, best-effort: drop them from the cohort channel so run
-  // announcements stop. Failure is acceptable degradation — the removal
+  // announcements stop. Failure is acceptable degradation: the removal
   // itself has committed, and `unsubscribe()` flips a (email, channel) row
   // that may not even exist yet if allocation was never published.
   try {
@@ -413,9 +534,15 @@ export async function POST(req: Request, ctx: Ctx) {
     console.warn("[courses remove] cohort unsubscribe failed", runId, uid, err);
   }
 
-  // The hosts' facilitators of each visit it ended, told after the commit.
-  const ended: RemovalVisits = visitsOff;
-  const emails = ended.emails > 0 ? await sendRemovalVisitEmails(ended, { actorUid: actor.uid, runId }) : null;
-
-  return NextResponse.json(emails ? { ok: true, emails } : { ok: true });
+  // The person, their group's facilitators and each visit's host's, told after the commit.
+  const emails = await sendTakeOffEmails(done, { actorUid: actor.uid, runId, runLabel: run.label, asked, line: typed.value });
+  const said = doneWords({
+    firstName: done.facts.firstName,
+    programmeName,
+    people: done.facts.people,
+    personOnly: done.recipients.length === 1 && done.recipients[0].as === "person" && done.visits.emails === 0,
+    emails: done.emails,
+    sent: emails.sent,
+  });
+  return NextResponse.json({ ok: true, emails, said });
 }

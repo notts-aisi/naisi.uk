@@ -53,6 +53,7 @@ import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { A, AGI, B, C, NOW, ROUND, RUN, applicationPath, enrolmentPath, formPath, makeLeavingWorld, textOf } from "./lib/leavingWorld.mjs";
+import { takeOff } from "./lib/takeOff.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -99,7 +100,7 @@ function changedSince(before) {
 }
 
 const remove = async (who, uid) => {
-  const answer = await call(who, routes.remove.POST, { runId: RUN.agi, uid }, { course: true });
+  const answer = await takeOff(call, who, routes.remove.POST, { runId: RUN.agi, uid });
   await w.settle();
   return answer;
 };

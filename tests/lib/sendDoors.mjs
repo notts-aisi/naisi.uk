@@ -55,6 +55,7 @@ export const SEND_DOOR_NAMES = [
   "sendJoiningOnlineEmail",
   "sendMoveEmail",
   "sendVisitEmail",
+  "sendTakenOffEmail",
   "sendTeamReplyEmail",
 ];
 

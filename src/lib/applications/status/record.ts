@@ -167,7 +167,23 @@ export async function readPlaceToGiveBack(
   const roundId = form.round.id;
   const appRef = applicationRef(db, roundId, uid);
   const roundRef = formRef(db, roundId);
-  const snap = await tx.get(appRef);
+  const decided = placeGoingBack(await tx.get(appRef), form, programmeId, now);
+  return decided ? { appRef, roundRef, ...decided } : null;
+}
+
+/**
+ * The same decision from an application already read, inside a transaction
+ * or not: what giving the place back would write, or null when there is no
+ * place there to give back. Taking somebody off a run asks it before the
+ * press, for the question's sentence, and `readPlaceToGiveBack` asks it in
+ * the press's transaction, so the two cannot disagree.
+ */
+export function placeGoingBack(
+  snap: { exists: boolean; id: string; data(): unknown },
+  form: ApplicationForm,
+  programmeId: string,
+  now: Date,
+): { from: AdmissionApplicationStatus; decision: ReplyWrite } | null {
   if (!snap.exists) return null;
   const application = normaliseApplication(snap.id, snap.data(), form.round.availabilityGrid);
   if (!application) return null;
@@ -175,7 +191,7 @@ export async function readPlaceToGiveBack(
   if (standing.kind !== "place" || standing.programmeId !== programmeId) return null;
   const decision = decideReply(application, "cant-make-it", londonDateKey(now));
   if (decision.kind !== "write" || !decision.releases) return null;
-  return { appRef, roundRef, from: application.status, decision };
+  return { from: application.status, decision };
 }
 
 /**

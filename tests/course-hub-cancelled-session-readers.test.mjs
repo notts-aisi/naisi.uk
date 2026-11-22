@@ -163,6 +163,14 @@ const READERS = {
       "no visit to call off, so it is passed over before any register is read, and one whose register says it did not " +
       "happen is passed over too, so the host's facilitators are told only of a visit that was still happening",
   },
+  "lib/courses/takeOff/plan.ts": {
+    kind: "asks",
+    proof: [".filter((session) => !session.cancelled)", "if (data?.held === false) continue;"],
+    why:
+      "the week a person taken off comes off their group's register, for the facilitators' email: a session called off " +
+      "through Change a session is no session to be marked on, so it is passed over before any register is read, and " +
+      "one whose register says it did not happen is passed over too",
+  },
   "lib/courses/groupArchive/read.ts": {
     kind: "asks",
     proof: ["startedSessions(run, group, now).filter((session) => !session.cancelled)", "held: register.held"],

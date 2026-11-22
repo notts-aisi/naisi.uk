@@ -53,6 +53,9 @@ globalThis.__leadPagesUi = ui;
 const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
 const SESSION = "export async function getCurrentUser() { return globalThis.__leadPages.user; }";
 const STYLESHEETS = [
+  // The question that takes somebody off the run, drawn by both boards.
+  "./Input.module.css",
+  "./TakeOffSheet.module.css",
   "./GroupsViews.module.css",
   "./GroupFacilitators.module.css",
   "./ProgrammeAttendance.module.css",

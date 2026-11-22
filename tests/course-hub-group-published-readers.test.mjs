@@ -806,10 +806,12 @@ const READERS = {
   },
   "app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": {
     kind: "staff",
+    told: 2,
     proof: ["if (!doesTrackLeadWork(staffing)) {"],
     why:
-      "takes somebody off a run, for an admin, the run's track leads or the lead of the programme that names the run; " +
-      "it answers with counts and names nobody to anybody else",
+      "takes somebody off a run, for an admin, the run's track leads or the lead of the programme that names the run, " +
+      "and answers its question to them alone; it asks whether the seat was told, in the question and in the press, " +
+      "because only then are the facilitators of the person's group emailed and the person's email names the group",
   },
   "lib/applications/arrange/load.ts": {
     kind: "staff",
