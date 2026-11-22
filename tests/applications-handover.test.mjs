@@ -20,8 +20,10 @@
  *
  *  1. WHO MAY PRESS. An admin, and nobody else.
  *  2. WHEN. Only once decisions have been sent, to a run that can take
- *     people and has left draft, and all of it asked again inside the
- *     transaction that writes.
+ *     people, and all of it asked again inside the transaction that writes.
+ *     A draft run is started running by the press that first hands anybody
+ *     over to it, in that press's transaction, once its week ids agree; a
+ *     run out of draft is never moved by a press.
  *  3. WHAT A PRESS WRITES. A row for each person who holds a place, with
  *     these fields and no others; the run's count; one line in the log.
  *     Nothing of anybody's application, no email, no place in a group.
@@ -155,9 +157,57 @@ describe("2. when a hand-over can be pressed", () => {
     await refused(/Say which course run this programme places people on first/);
   });
 
-  test("not while the run is still a draft", async () => {
+  test("a draft run: the first press hands everybody over and starts it running, in one transaction", async () => {
     world.db.poke(`courseRuns/${RUN.agi}`, { status: "draft" });
-    await refused(/still a draft/);
+    // The panel offers the press: a draft no longer stops it.
+    assert.equal((await panel()).blocked, null);
+    const pressed = await press();
+    assert.equal(pressed.status, 200, pressed.body?.error);
+    assert.deepEqual(pressed.body.receipt, { handedOver: AGI_HOLDERS.length, alreadyThere: 0 });
+    assert.deepEqual(rowsOn(), AGI_HOLDERS);
+    assert.equal(run().status, "running", "the first hand-over started the run");
+    assert.equal(run().applicationCounts.accepted, AGI_HOLDERS.length);
+    // Pressed again, it is running already: nothing moves.
+    const again = await press();
+    assert.deepEqual(again.body.receipt, { handedOver: 0, alreadyThere: AGI_HOLDERS.length });
+    assert.equal(run().status, "running");
+  });
+
+  test("a draft run whose week ids disagree is refused in the week id check's words, and nothing is written", async () => {
+    world.db.poke(`courseRuns/${RUN.agi}`, {
+      status: "draft",
+      weekPlan: [
+        { kind: "week", weekNumber: 1, weekId: "w02" },
+        { kind: "week", weekNumber: 2, weekId: "w01" },
+      ],
+    });
+    await refused(/2 weeks are addressed two different ways in this run's week plan, and leaving draft freezes that for good\. Open the run's Week plan section and use Normalise week ids first\./);
+    assert.equal(run().status, "draft");
+  });
+
+  test("a draft run whose week ids drift while the press runs is refused, and stays a draft", async () => {
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "draft" });
+    world.db.beforeCommit = () =>
+      world.db.poke(`courseRuns/${RUN.agi}`, {
+        weekPlan: [
+          { kind: "week", weekNumber: 1, weekId: "w02" },
+          { kind: "week", weekNumber: 2, weekId: "w01" },
+        ],
+      });
+    const response = await press();
+    assert.equal(response.status, 409);
+    assert.match(response.body.error, /Normalise week ids/);
+    assert.deepEqual(rowsOn(), []);
+    assert.equal(run().status, "draft");
+  });
+
+  test("a press on a draft run that hands nobody over leaves it a draft", async () => {
+    assert.equal((await press()).status, 200);
+    // Everybody is on the list; the run is put back to draft by hand.
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "draft" });
+    const again = await press();
+    assert.deepEqual(again.body.receipt, { handedOver: 0, alreadyThere: AGI_HOLDERS.length });
+    assert.equal(run().status, "draft", "nobody was handed over, so nothing started it");
   });
 
   /** What can become of a run after a programme named it. */
@@ -184,11 +234,12 @@ describe("2. when a hand-over can be pressed", () => {
     await refused(/no longer on the site/);
   });
 
-  test("on every status a run can have once it has left draft", async () => {
+  test("on every status a run can have once it has left draft, and its status is never touched", async () => {
     for (const status of ["applications-open", "applications-closed", "running"]) {
       reset(namedSeed());
       world.db.poke(`courseRuns/${RUN.agi}`, { status });
       assert.equal((await press()).status, 200, status);
+      assert.equal(run().status, status, `a press moved a run that was ${status}`);
     }
   });
 
@@ -455,6 +506,8 @@ describe("5. who is handed over is who holds a place, and nobody else", () => {
     assert.equal(accepted.status, 200, accepted.body?.error);
     assert.equal(world.db.read(applicationPath("ines")).status, "accepted");
     assert.deepEqual(rowsOn(), []);
+    // Only an admin's press starts a draft running: an acceptance never does.
+    assert.equal(run().status, "draft");
 
     world.db.poke(`courseRuns/${RUN.agi}`, { status: "applications-open" });
     assert.deepEqual(names((await panel()).toHandOver).includes("Ines Carvalho"), true);

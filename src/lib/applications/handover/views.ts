@@ -29,6 +29,42 @@ export type HandOverPersonView = {
   note?: string;
 };
 
+/**
+ * Where the run stands, worded (`src/lib/courses/runStands/words.ts`): the
+ * stage it shows as, the sentence under the stages, what the stages mean, and
+ * the early move offered. Built only for a run the programme names.
+ */
+export type RunStandsView = {
+  /** "draft" | "running" | "completed" | "cancelled": a live status shows as running. */
+  stage: "draft" | "running" | "completed" | "cancelled";
+  /** The sentence under the stages; empty for a cancelled run. */
+  line: string;
+  /** What Running and Completed mean, shown under a running run; empty otherwise. */
+  meaning: string;
+  /** "start" on a draft; "complete" on a live run, "complete-through" when the route steps through Running. */
+  move: "start" | "complete" | "complete-through" | null;
+  /** The run's label for the questions ("AGI Strategy, Autumn 2026"). */
+  runLabel: string;
+};
+
+/** The run's details as the form shows them, from what is stored. */
+export type RunDetailsView = {
+  label: string;
+  academicYear: string;
+  /** "" when the run has no cohort; else "autumn" | "spring" | "summer". */
+  cohortTerm: string;
+  /** "" with no cohort. */
+  cohortYear: string;
+  /** "" with no cohort. */
+  cohortNumber: string;
+  /** "YYYY-MM-DD", or "" when none is stored. */
+  startDate: string;
+  /** "Mon 2 Nov", for the read-only line once the groups have gone out. */
+  startDateWords: string;
+  /** True once Publish has sent the groups out: the start date can't change. */
+  groupsGoneOut: boolean;
+};
+
 export type RunPanelView = {
   /** What the programme is called in a sentence: "AGI Strategy". */
   programmeName: string;
@@ -68,6 +104,10 @@ export type RunPanelView = {
   notAccepted: HandOverPersonView[];
   /** Rows on the run that this programme did not put there. */
   otherRows: number;
+  /** Where the named run stands, or null with no run named (or the run gone). */
+  stands: RunStandsView | null;
+  /** The named run's details, or null with no run named (or the run gone). */
+  details: RunDetailsView | null;
 };
 
 /** What a press of the hand-over reports. */

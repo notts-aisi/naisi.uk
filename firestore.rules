@@ -2146,7 +2146,7 @@ service cloud.firestore {
       // only a move the table allows.
       //
       // Read as: from this status, these are the reachable ones.
-      //   draft                -> applications-open | cancelled
+      //   draft                -> applications-open | running | cancelled
       //   applications-open    -> applications-closed | running | cancelled
       //   applications-closed  -> running | cancelled
       //   running              -> completed | cancelled
@@ -2155,6 +2155,9 @@ service cloud.firestore {
       // `applications-open -> running` is the open-enrolment entry: a
       // pre-course keeps its sign-ups open into its first teaching weeks and
       // has no review stage to close.
+      // `draft -> running` is the step a run a programme names takes at its
+      // first hand-over, or when an admin starts it early from the
+      // programme's Settings: such a run takes no application of its own.
       //
       // Staying put is always legal: an ordinary content save re-sends the
       // status it already had, and this must not refuse those.
@@ -2169,7 +2172,7 @@ service cloud.firestore {
         return request.resource.data.get('status', 'draft')
             == resource.data.get('status', 'draft')
           || request.resource.data.get('status', 'draft') in {
-              'draft': ['applications-open', 'cancelled'],
+              'draft': ['applications-open', 'running', 'cancelled'],
               'applications-open': ['applications-closed', 'running', 'cancelled'],
               'applications-closed': ['running', 'cancelled'],
               'running': ['completed', 'cancelled'],

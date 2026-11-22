@@ -263,7 +263,13 @@ describe("3. the question before a status move", () => {
       words.statusQuestionBody("applications-open", "running", "admissions", true),
       "The weekly emails and reminders go on, and the run moves up each member’s list of programmes, with any other running ones. It can’t be moved back.",
     );
-    for (const [from, to] of [["draft", "applications-open"], ["applications-open", "applications-closed"], ["applications-open", "running"], ["applications-closed", "running"]]) {
+    // Straight to Running from draft, the step the first hand-over takes too.
+    assert.equal(
+      words.statusQuestionBody("draft", "running", "admissions", true),
+      "Members can see it, its groups join each facilitator’s My programmes, the weekly emails and reminders start, and the run moves up each member’s list of programmes, with any other running ones. It can’t be moved back.",
+    );
+    assert.match(words.statusQuestionBody("draft", "running", "open", false), /reminders start, sign-ups open on the dates set below, and the run moves up/);
+    for (const [from, to] of [["draft", "applications-open"], ["draft", "running"], ["applications-open", "applications-closed"], ["applications-open", "running"], ["applications-closed", "running"]]) {
       assert.doesNotMatch(words.statusQuestionBody(from, to, "admissions", true), /application form|sign-ups/, `${from} to ${to}`);
     }
     // On a run no programme names, its own form is what the move opens and closes.

@@ -646,6 +646,12 @@ const NOT_COVERED = {
     coverWhen:
       "With the assessment route's spec, once the harness can stand in for Anthropic: a course hub world after the hand-over, Suggest, then Apply through the site's own routes.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/details": {
+    reason:
+      "An admin's save of the run's label, year, cohort and start date from a programme's Settings. It emails nobody; who may save, each check in order and the start date held once the groups have gone out are executed by tests/course-run-stands.test.mjs.",
+    coverWhen:
+      "With a course hub spec that opens a programme's Settings as an admin: save a new label, see it in the Course run section after a reload.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     reason:
       "Circles reading the run's groups again after a change. It writes nothing; who may read it, who is on the screen and that a second Apply sends nothing are executed by tests/applications-circles.test.mjs.",

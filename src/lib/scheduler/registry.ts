@@ -47,6 +47,7 @@ import { excusedReasonsOffJob } from "./jobs/excusedReasonsOff";
 import { heartbeatJob } from "./jobs/heartbeat";
 import { nextWeekEmailJob } from "./jobs/nextWeekEmail";
 import { registerRemindersJob } from "./jobs/registerReminders";
+import { runsCompleteJob } from "./jobs/runsComplete";
 import { surveyCheckInRemindersJob } from "./jobs/surveyCheckInReminders";
 import { surveyCheckInWeeksJob } from "./jobs/surveyCheckInWeeks";
 import { surveyNamesOffJob } from "./jobs/surveyNamesOff";
@@ -108,6 +109,13 @@ export const SCHEDULER_JOB_IDS = [
   // with what is left of their week if anything is. It emails people, so it
   // registers with `enabledByDefault: false`.
   "courses-week-reminders",
+  // A live run moved to Completed once its work closes, 14 days after its
+  // last session unless the run says otherwise
+  // (`src/lib/scheduler/jobs/runsComplete.ts`). It emails nobody, but it
+  // stops a run's emails and takes it off people's Home, so it registers
+  // with `enabledByDefault: false`, and a programme's Settings reads its
+  // switch to say whether a run completes by itself.
+  "courses-runs-complete",
   // The queued new-event announcement (docs/notifications.md). Publishing
   // consults THIS switch to decide between sending inline and queueing, so
   // the id is load-bearing in two places rather than one: rename it after it
@@ -297,6 +305,7 @@ export const JOBS: readonly JobRegistration[] = [
   excusedReasonsOffJob,
   nextWeekEmailJob,
   registerRemindersJob,
+  runsCompleteJob,
   unmarkedRegistersJob,
   weekRemindersJob,
   eventAnnouncementsJob,

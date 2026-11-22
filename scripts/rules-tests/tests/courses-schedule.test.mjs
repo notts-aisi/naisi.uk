@@ -381,7 +381,9 @@ describe("courseRuns: the status transition table lives in the rules too", () =>
     // The table, restated so a rules edit that quietly drops an arrow fails
     // here rather than in October.
     const TABLE = {
-      draft: ["applications-open", "cancelled"],
+      // `running` straight from draft: a run a programme names starts
+      // running at its first hand-over, or when an admin starts it early.
+      draft: ["applications-open", "running", "cancelled"],
       // `running` reachable straight from `applications-open` is the OPEN
       // ENROLMENT entry: a pre-course keeps its sign-ups open into its first
       // teaching weeks and has no review stage to close.

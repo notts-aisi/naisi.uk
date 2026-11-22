@@ -8,8 +8,9 @@
  *
  * ## What this guards
  *
- * A course run can only leave draft by way of "applications open", and while
- * it is there the run's own apply page and route take applications whenever
+ * A course run leaves draft by way of "applications open" (or, for a run a
+ * programme names, straight to running at its first hand-over), and while
+ * it is in "applications open" the run's own apply page and route take applications whenever
  * the run's own dates allow, which with no dates set is always. A run that a
  * programme on the term's application form names must not: its people come
  * through that form and an admin's hand-over, and an application made to the

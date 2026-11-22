@@ -75,8 +75,14 @@ export function statusQuestionTitle(name: string, runLabel: string, next: Course
  *    facilitator's My programmes (facilitatingMenu.ts), the weekly jobs scan
  *    Applications open, Applications closed and Running only (nextWeekEmail,
  *    weekReminders, registerReminders, unmarkedRegisters,
- *    surveyCheckInReminders), and the hand-over refuses a draft
- *    (handover/blocker.ts).
+ *    surveyCheckInReminders). An admin's hand-over to a draft starts it
+ *    running (handover/handOver.ts), so on a run a programme names, people
+ *    can be handed over to it from either.
+ *  - Draft to Running: the same as leaving draft for Applications open, and
+ *    the run moves up each member's list (below); a run's own application
+ *    form takes applications only in Applications open, so nothing opens
+ *    for it, while sign-ups to an open-enrolment run go on in all three
+ *    live statuses.
  *  - The run's own application form: a run a programme names takes no
  *    application through it at any status (`apply/route.ts`, before the
  *    window is read), so on such a run no sentence speaks of it. On any
@@ -108,6 +114,10 @@ export function statusQuestionBody(
         ? ", and its own application form opens on the dates set below"
         : ", and people can be handed over to it";
     return `Members can see it, its groups join each facilitator’s My programmes, the weekly emails and reminders start${opens}. ${back}`;
+  }
+  if (from === "draft" && next === "running") {
+    const opens = open ? ", sign-ups open on the dates set below" : "";
+    return `Members can see it, its groups join each facilitator’s My programmes, the weekly emails and reminders start${opens}, and ${movesUp}. ${back}`;
   }
   if (from === "applications-open" && next === "applications-closed") {
     if (open) return `Sign-ups stay open on the dates set below, and the weekly emails and reminders go on. ${back}`;

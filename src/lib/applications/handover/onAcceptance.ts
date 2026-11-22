@@ -33,7 +33,8 @@ import { RUN_APPLICATIONS_COLLECTION, readRun, runRef } from "./run";
  * press's own answer for them.
  *
  * WHAT STOPS IT is what stops the press (`handOverBlocker`): decisions not
- * sent, no run named, a run that no longer stands or is still a draft. Then
+ * sent, no run named, a run that no longer stands, and also a run that is
+ * still a draft, which only an admin's press starts running. Then
  * nothing is written, and the Settings tab's panel names them as it always
  * has, for an admin to hand over once the run is put right.
  *
@@ -87,7 +88,7 @@ export async function handOverAfterAcceptedInvitation(
       const runId = programme.runId;
       const runSnap = runId === null ? null : await tx.get(runRef(db, runId));
       const run = runSnap && runSnap.exists ? readRun(runSnap.id, runSnap.data()) : null;
-      if (runId === null || !run || handOverBlocker(fresh, programme, run) !== null) {
+      if (runId === null || !run || handOverBlocker(fresh, programme, run, "acceptance") !== null) {
         return { did: "left", why: "blocked" } as const;
       }
 
