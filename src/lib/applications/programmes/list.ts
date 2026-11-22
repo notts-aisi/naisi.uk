@@ -377,6 +377,18 @@ async function needsYouOf(
   }
 }
 
+/** How much of the list a caller wants. */
+export type ListOptions = {
+  /**
+   * Only the programmes whose groups the reader opens (an admin every one, a
+   * lead the ones they lead): Home's Programmes card, which has no row for a
+   * programme the reader only reviews. A form holding none of them is left
+   * out before anything past the forms is read, so a reviewer who leads
+   * nothing costs the one query of the forms.
+   */
+  groupsOnly?: boolean;
+};
+
 /**
  * The Programmes page's list for this reader. Each read is in the module's
  * comment; `now` is the instant every "over" and every week is worked out at.
@@ -385,9 +397,13 @@ export async function loadProgrammesList(
   db: Firestore,
   user: SessionUser,
   now: Date = new Date(),
+  options: ListOptions = {},
 ): Promise<ProgrammesList> {
+  const groupsOnly = options.groupsOnly === true;
   const forms = await listVisibleForms(db, user);
-  const staged = forms.map((form) => ({ form, stage: stageSummaryFor(form, now).stage }));
+  const staged = forms
+    .filter((form) => !groupsOnly || visibleOn(user, form).some(({ role }) => opensProgrammeGroups(role)))
+    .map((form) => ({ form, stage: stageSummaryFor(form, now).stage }));
   const { runs, current, over } = await splitByOver(db, staged, now);
   const earlier = over.map(({ form }) => ({ id: form.round.id, label: form.round.label, href: applicationFormPath(form.round.id) }));
 
@@ -397,7 +413,7 @@ export async function loadProgrammesList(
 
   // The term being run first, then the next: the order the forms were made in. Every term at once.
   const terms = await Promise.all(
-    [...current].reverse().map(({ form, stage }) => termEntry(db, user, form, stage, runs, endingWord, now)),
+    [...current].reverse().map(({ form, stage }) => termEntry(db, user, form, stage, runs, endingWord, now, groupsOnly)),
   );
 
   const roles = current.flatMap(({ form }) => visibleOn(user, form).map((each) => each.role));
@@ -426,8 +442,9 @@ async function termEntry(
   runs: ReadonlyMap<string, RunRead>,
   endingWord: () => Promise<"finished" | "pushed">,
   now: Date,
+  groupsOnly: boolean,
 ): Promise<TermEntry> {
-  const visible = visibleOn(user, form);
+  const visible = visibleOn(user, form).filter(({ role }) => !groupsOnly || opensProgrammeGroups(role));
   const decided = form.decisionsSentAt !== null;
   const inSession = stage === "open" || stage === "deciding";
   const home = applicationFormPath(form.round.id);

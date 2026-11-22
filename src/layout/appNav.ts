@@ -95,6 +95,12 @@ export type NavEntry = {
   nested?: boolean;
   /** "Review 3" beside the name: applications waiting for this reader's reading on the programme. */
   review?: number;
+  /**
+   * Said after the name to a screen reader only, as ", Spring 2027 ·
+   * applying": a programme's term, set when a programme of the same name is
+   * listed under another term too, so the two links are told apart.
+   */
+  spoken?: string;
 };
 
 export type NavGroup = {
@@ -274,6 +280,7 @@ export function reviewWords(count: number): string {
  * rule, so nobody the entry is not drawn for is drawn these.
  */
 export function programmeEntriesOf(terms: readonly MenuTerm[]): NavEntry[] {
+  const termsNaming = (name: string) => terms.filter((term) => term.programmes.some((each) => each.name === name)).length;
   return terms.flatMap((term) =>
     term.programmes.map(
       (programme, index): NavEntry => ({
@@ -285,6 +292,7 @@ export function programmeEntriesOf(terms: readonly MenuTerm[]): NavEntry[] {
         also: [programme.href.replace(/\/overview$/, "")],
         ...(index === 0 ? { heading: term.heading } : {}),
         ...(programme.review > 0 ? { review: programme.review } : {}),
+        ...(termsNaming(programme.name) > 1 ? { spoken: term.heading } : {}),
       }),
     ),
   );

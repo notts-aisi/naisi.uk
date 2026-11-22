@@ -412,7 +412,10 @@ export default function AppShell({
                     <span className={styles.navDetail}>{entry.detail}</span>
                   </span>
                 ) : (
-                  <span>{entry.label}</span>
+                  <span>
+                    {entry.label}
+                    {entry.spoken && <span className={styles.srOnly}>, {entry.spoken}</span>}
+                  </span>
                 )}
                 {count > 0 && (
                   <span

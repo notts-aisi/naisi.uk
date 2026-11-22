@@ -199,7 +199,9 @@ const { loadTs } = createLoader({
     ["@/features/courses/RunCard", `export default ({ entry }) => ${h}("div", null, "[run " + entry.runId + "]");`],
     ["@/components/motion/PageEnter", `export default ({ children }) => ${h}("div", null, children);`],
     ["./home.module.css", CLASS_NAMES],
-    ["./ProgrammesHome.module.css", CLASS_NAMES],
+    // The Programmes card: a mark that says whose Home it is drawn on, so
+    // where it sits is pinned. What it draws is tests/programmes-menu-home.test.mjs's.
+    ["./ProgrammesHome", `export default function ProgrammesHome({ title }) { return ${h}("div", null, "[ProgrammesHome " + title + "]"); }`],
     ["./page.module.css", CLASS_NAMES],
     ["./MyCoursesSummary.module.css", CLASS_NAMES],
     ["./YourApplications.module.css", CLASS_NAMES],
@@ -720,12 +722,8 @@ describe("Home, for a member on no run", () => {
     const slots = code.slice(code.indexOf("type Slots = {"), code.indexOf("};", code.indexOf("type Slots = {")));
     assert.deepEqual(
       [...slots.matchAll(/^\s*(\w+)\??:/gm)].map((match) => match[1]),
-      ["given", "invite", "programmes", "termCard", "comingUpRows", "comingUpCards", "applications", "nothingYet", "holdsNoPlace", "beforeGroups", "surveys", "finishProfile"],
+      ["given", "invite", "termCard", "comingUpRows", "comingUpCards", "applications", "nothingYet", "holdsNoPlace", "beforeGroups", "surveys", "finishProfile"],
     );
-    // CHANGED ON PURPOSE (November 2026): "Your programmes", a lead's card,
-    // is a slot rendered on the server from the Programmes list, which says
-    // nothing about the reader's own place.
-    assert.match(slots, /programmes\?: ReactNode;/);
     assert.match(slots, /holdsNoPlace: boolean;/);
     // The cards come worded from the server, by week 1's door: section 7.
     assert.match(slots, /beforeGroups: readonly BeforeGroupsCard\[\];/);
@@ -752,6 +750,28 @@ describe("Home, for a member on a live run", () => {
 const hub = (instead = null) => textOf(renderToStaticMarkup(createElement(LearnHub, { instead })));
 /** What the page hands the hub for everybody but a member known to hold no place. */
 const wayIn = createElement(YourApplications, { rows: null });
+
+describe("a lead's Programmes card, as Home is drawn", () => {
+  test("straight after the line saying the policy changed, before everything else under the greeting", async () => {
+    runsAre([]);
+    term(null);
+    signedIn("claudia");
+    // Appointing a lead sets the flag the admissions tree reads.
+    world.user = { ...CAST.claudia, admissionsReviewer: true };
+    const { homeText } = await drawn();
+    assert.match(homeText, /\[PolicyUpdate\] \[ProgrammesHome Your programmes\] \[install\]/, homeText);
+  });
+
+  test("not drawn for a member named on no form, nor in a view-as session", async () => {
+    runsAre([]);
+    term(null);
+    signedIn("nina");
+    assert.ok(!(await drawn()).homeText.includes("[ProgrammesHome"));
+    viewingAs("claudia");
+    world.user = { ...CAST.claudia, admissionsReviewer: true };
+    assert.ok(!(await drawn()).homeText.includes("[ProgrammesHome"), "drawn in a view-as session");
+  });
+});
 
 describe("the list of programmes", () => {
   test("with no run, handed nothing, it reads as it always has", () => {

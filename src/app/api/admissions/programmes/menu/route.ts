@@ -27,16 +27,26 @@ import { getCurrentUser } from "@/lib/firebase/session";
  */
 export async function GET() {
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!user) return answer({ error: "Not signed in" }, 401);
   if (!readsProgrammesFor(user)) {
-    return NextResponse.json({ error: "Only an admin or somebody named on an application form has programmes in the menu." }, { status: 403 });
+    return answer({ error: "Only an admin or somebody named on an application form has programmes in the menu." }, 403);
   }
   const db = getAdminDb();
-  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+  if (!db) return answer({ error: "Server not configured" }, 500);
   try {
-    return NextResponse.json({ terms: await loadProgrammesMenu(db, user, new Date()) });
+    return answer({ terms: await loadProgrammesMenu(db, user, new Date()) }, 200);
   } catch (err) {
     console.error("[programmes menu] could not read the programmes", user.uid, err);
-    return NextResponse.json({ error: "The programmes could not be read." }, { status: 500 });
+    return answer({ error: "The programmes could not be read." }, 500);
   }
+}
+
+/**
+ * Every answer is one person's, refusals included: no cache, shared or the
+ * browser's, may keep it, as the calendar feed and the printables say.
+ */
+const PERSONAL = { "Cache-Control": "private, no-store" };
+
+function answer(body: object, status: number) {
+  return NextResponse.json(body, { status, headers: PERSONAL });
 }

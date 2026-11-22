@@ -46,7 +46,7 @@ const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(nam
 const made = makeWorld("__programmesMenu", [
   [
     "next/link",
-    "export default ({ href, className, children }) => globalThis.__programmesMenuUi.h('a', { href, className }, children);",
+    "export default ({ href, className, children, ...rest }) => globalThis.__programmesMenuUi.h('a', { href, className, 'aria-label': rest['aria-label'] }, children);",
   ],
   ["./home.module.css", CLASS_NAMES],
   ["./ProgrammesHome.module.css", CLASS_NAMES],
@@ -60,7 +60,8 @@ const { askProgrammesMenu, parseProgrammesMenu, menuHeadingFor } = await loadTs(
 const { homeProgrammesOf } = await loadTs(join("lib", "applications", "programmes", "home.ts"));
 const { GET } = await loadTs(join("app", "api", "admissions", "programmes", "menu", "route.ts"));
 const { default: ProgrammesHome } = await loadTs(join("app", "(app)", "dashboard", "ProgrammesHome.tsx"));
-const { APP_NAV, menuFor } = await loadTs(join("layout", "appNav.ts"));
+const { APP_NAV, menuFor, reviewWords } = await loadTs(join("layout", "appNav.ts"));
+const { PROGRAMMES_PATH } = await loadTs(join("lib", "applications", "programmes", "path.ts"));
 
 const SRC = join(import.meta.dirname, "..", "src");
 const read = (...parts) => readFileSync(join(SRC, ...parts), "utf8");
@@ -176,6 +177,25 @@ async function drawCard(answer, title = "Programmes") {
 const openTheForm = () =>
   world.db.poke(formPath, { status: "open", decisionsSentAt: null, closesAt: new Date("2026-11-30T23:59:00Z") });
 
+/**
+ * Decision day not yet sent, applications closed, and two of AGI Strategy's
+ * applicants (Dev and Bea) still owed a decision by its lead: two
+ * applications waiting for Claudia's reading, and for nobody else's.
+ */
+async function twoWaitForTheLead() {
+  world.db.poke(formPath, { status: "open", decisionsSentAt: null, closesAt: new Date("2026-11-01T23:59:00Z") });
+  for (const uid of ["dev", "bea"]) {
+    await world.db.collection("admissionDecisions").doc(`${ROUND}__${uid}`).delete();
+    world.db.poke(`admissionApplications/${ROUND}__${uid}`, { status: "submitted", result: null });
+  }
+}
+
+/** The card the Programmes list gives `uid` for one programme. */
+async function cardOf(uid, programmeId) {
+  const list = await loadProgrammesList(world.db, sessionFor(uid), WEEK_THREE);
+  return list.terms.flatMap((term) => term.programmes).find((p) => p.id === programmeId) ?? null;
+}
+
 mock.timers.enable({ apis: ["Date"], now: WEEK_THREE });
 
 beforeEach(() => {
@@ -241,6 +261,36 @@ describe("1. the route gives each reader the programmes they open, and refuses e
 
   test("somebody signed out: 401", async () => {
     assert.equal((await ask(null)).status, 401);
+  });
+
+  test("every answer, refusals and failures included, is one person's: private, no-store", async () => {
+    const headersOf = async (session) => {
+      world.user = session;
+      try {
+        return (await GET()).headers;
+      } finally {
+        world.user = null;
+      }
+    };
+    for (const session of [null, sessionFor(READERS.member), sessionFor(READERS.leadOfOne), sessionFor(READERS.admin)]) {
+      assert.equal((await headersOf(session))["Cache-Control"], "private, no-store");
+    }
+    const collection = world.db.collection;
+    world.db.collection = () => {
+      throw new Error("unavailable");
+    };
+    try {
+      assert.equal((await headersOf(sessionFor(READERS.admin)))["Cache-Control"], "private, no-store");
+    } finally {
+      world.db.collection = collection;
+    }
+  });
+
+  test("somebody taken off every form whose flag is still set: answered no terms after one query", async () => {
+    world.db.poke("users/nadia", { admissionsReviewer: true });
+    const { value, reads } = await counted(() => ask(sessionFor("nadia")));
+    assert.deepEqual([value.status, value.body], [200, { terms: [] }]);
+    assert.deepEqual(reads.queries, ["admissionRounds formVersion"]);
   });
 
   test("a flag that outlived its standing is refused: a pending account still carrying it", async () => {
@@ -314,6 +364,51 @@ describe("2. the term's heading and Review", () => {
     world.db.poke(formPath, { status: "open", decisionsSentAt: null, closesAt: new Date("2026-11-01T23:59:00Z") });
     const { value: terms } = await menuOf(sessionFor(READERS.leadOfOne));
     assert.equal(terms[0].heading, "Autumn 2026 · deciding");
+  });
+
+  test("Review N is the lead's own N, in the route's answer and on the menu's entry", async () => {
+    await twoWaitForTheLead();
+    const lead = await ask(sessionFor(READERS.leadOfOne));
+    assert.deepEqual(lead.body.terms, [
+      { heading: "Autumn 2026 · deciding", programmes: [{ name: "AGI Strategy", href: overview(AGI), review: 2 }] },
+    ]);
+    // The same N the Programmes list and the term's page give the lead.
+    assert.equal((await cardOf(READERS.leadOfOne, AGI)).waiting, 2);
+    const entry = menuFor([], lead.body.terms)[1].entries.find((each) => each.href === overview(AGI));
+    assert.deepEqual([entry.review, reviewWords(entry.review)], [2, "Review 2"]);
+  });
+
+  test("an admin who leads nothing gets no Review on the lead's programme, and another lead none either", async () => {
+    await twoWaitForTheLead();
+    const admin = (await ask(sessionFor(READERS.admin))).body.terms[0].programmes;
+    assert.deepEqual(admin.map((p) => [p.href, p.review]), [
+      [overview(TAIS), 0],
+      [overview(AGI), 0],
+      [overview(INCUBATOR), 0],
+    ]);
+    const entries = menuFor([], (await ask(sessionFor(READERS.admin))).body.terms).flatMap((group) => group.entries);
+    assert.ok(entries.every((each) => each.review === undefined), "an admin who leads nothing was drawn a Review");
+    // The lead of the other two: not given AGI Strategy at all, and no Review on theirs.
+    const other = (await ask(sessionFor(READERS.leadOfTwo))).body.terms[0].programmes;
+    assert.deepEqual(other.map((p) => [p.href, p.review]), [
+      [overview(TAIS), 0],
+      [overview(INCUBATOR), 0],
+    ]);
+    // An admin who leads ANOTHER programme on the term, so the term's numbers
+    // are read for them: still no Review on the one they do not lead, in the
+    // menu, on the Programmes list or on Home.
+    world.db.poke(formPath, { [`programmes.${TAIS}.leadUid`]: "zach" });
+    const leadsOther = (await ask(sessionFor(READERS.admin))).body.terms[0].programmes.find((p) => p.href === overview(AGI));
+    assert.equal(leadsOther.review, 0, "an admin was given a Review on a programme somebody else leads");
+    const agiCard = await cardOf(READERS.admin, AGI);
+    assert.deepEqual([agiCard.waiting, agiCard.review], [0, null]);
+    const agiRow = homeProgrammesOf(await loadProgrammesList(world.db, sessionFor(READERS.admin), WEEK_THREE, { groupsOnly: true }))
+      .terms[0].rows.find((row) => row.id === AGI);
+    assert.doesNotMatch(agiRow.detail ?? "", /for you to read/);
+    // Once the admin leads it, the two are theirs.
+    world.db.poke(formPath, { [`programmes.${AGI}.leadUid`]: "zach" });
+    const leading = (await ask(sessionFor(READERS.admin))).body.terms[0].programmes.find((p) => p.href === overview(AGI));
+    assert.equal(leading.review, 2);
   });
 
   test("an admin who leads none of them is offered no Review, and the applications are not read for them", async () => {
@@ -438,6 +533,18 @@ async function askWith(fetcher, waitMs) {
 }
 
 describe("4. until it answers, and if it never does, the menu is today's", () => {
+  test("two programmes of one name under two terms are told apart to a screen reader by their term", () => {
+    const entries = menuFor([], GOOD.terms)[1].entries.filter((each) => each.nested);
+    assert.deepEqual(entries.map((each) => [each.label, each.spoken]), [
+      ["AGI Strategy", "Autumn 2026"],
+      ["AGI Strategy", "Spring 2027 · applying"],
+    ]);
+    const single = menuFor([], [GOOD.terms[0]])[1].entries.filter((each) => each.nested);
+    assert.equal(single[0].spoken, undefined, "a name listed once carries its term too");
+    const shell = read("layout", "AppShell.tsx");
+    assert.match(shell, /\{entry\.spoken && <span className=\{styles\.srOnly\}>, \{entry\.spoken\}<\/span>\}/);
+  });
+
   test("no answer yet, and no programmes: the menu is APP_NAV itself", () => {
     assert.equal(menuFor([], []), APP_NAV);
   });
@@ -470,6 +577,26 @@ describe("4. until it answers, and if it never does, the menu is today's", () =>
     assert.equal(signal.aborted, true);
   });
 
+  test("a request the shell lets go of (the account changed, the shell went) is aborted and answers nothing", async () => {
+    let signal = null;
+    const hanging = (url, init) => {
+      signal = init.signal;
+      return new Promise(() => {});
+    };
+    const real = globalThis.fetch;
+    globalThis.fetch = hanging;
+    try {
+      const shell = new AbortController();
+      const asked = askProgrammesMenu(60_000, shell.signal);
+      shell.abort();
+      assert.equal(signal.aborted, true);
+      // The shell's own flag drops whatever comes back; the wait still ends it.
+      void asked;
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+
   test("an answer is held to what the menu may draw: an Overview's address, a name, a whole Review count", () => {
     const parsed = parseProgrammesMenu({
       terms: [
@@ -495,7 +622,10 @@ describe("4. until it answers, and if it never does, the menu is today's", () =>
     assert.match(shell, /const programmeTerms = useProgrammesMenu\(role === "admin" \|\| admissionsReviewer\);/);
     const hook = read("features", "applications", "programmes", "useProgrammesMenu.ts");
     assert.match(hook, /const asks = uid !== null && couldHave;/);
-    assert.match(hook, /\}, \[asks, uid\]\);/);
+    // Asked again, and the old answer dropped, when the account or its role changes without a reload.
+    assert.match(hook, /\}, \[asks, uid, role\]\);/);
+    assert.match(hook, /return asks && answer\?\.uid === uid && answer\.role === role \? answer\.terms : NO_TERMS;/);
+    assert.match(hook, /cancelled = true;\s+controller\.abort\(\);/);
     assert.doesNotMatch(hook, /localStorage|sessionStorage|indexedDB|document\.cookie/);
     // No spinner, no placeholder: nothing is drawn for the entries until they come.
     assert.doesNotMatch(hook, /loading|Skeleton|spinner/i);
@@ -524,7 +654,7 @@ describe("5. Home's Programmes card and Applications to read", () => {
     assert.match(words, /^Programmes All programmes All Autumn 2026 · running /);
     assert.match(words, /AGI Strategy Fellowship · Week 3 of 6 Week 3 of 6 Week 3 isn’t ready, and /);
     assert.ok(html.includes(`<a href="${overview(AGI)}" class="secondary">Open<span class="srOnly"> AGI Strategy</span></a>`));
-    assert.ok(html.includes(`<a href="/admin/admissions/programmes" class="headLink">`));
+    assert.ok(html.includes(`<a href="/admin/admissions/programmes" class="headLink" aria-label="All programmes">`));
   });
 
   test("a lead: 'Your programmes', and only the ones they lead", async () => {
@@ -542,29 +672,70 @@ describe("5. Home's Programmes card and Applications to read", () => {
     assert.equal(await drawCard(null), "");
   });
 
-  test("while applications are open: the lead's row says how many are theirs to read", async () => {
-    openTheForm();
-    const list = await loadProgrammesList(world.db, sessionFor(READERS.leadOfOne), WEEK_THREE);
-    const waiting = list.terms[0].programmes[0].waiting;
-    const home = homeProgrammesOf(list);
-    assert.equal(home.terms[0].heading, "Autumn 2026 · taking applications");
-    const expected = waiting === 0 ? null : `${waiting} ${waiting === 1 ? "application" : "applications"} for you to read`;
-    assert.equal(home.terms[0].rows[0].detail, expected);
+  const homeOf = async (uid) =>
+    homeProgrammesOf(await loadProgrammesList(world.db, sessionFor(uid), WEEK_THREE, { groupsOnly: true }));
+
+  test("while applications are decided: the lead's row says how many are theirs to read", async () => {
+    await twoWaitForTheLead();
+    const home = await homeOf(READERS.leadOfOne);
+    assert.equal(home.terms[0].heading, "Autumn 2026 · deciding");
+    assert.equal(home.terms[0].rows[0].detail, "2 applications for you to read");
+    // Nothing waits for an admin who leads nothing, so their row says nothing of reading.
+    const asAdmin = await homeOf(READERS.admin);
+    assert.ok(asAdmin.terms[0].rows.every((row) => !/for you to read/.test(row.detail ?? "")), JSON.stringify(asAdmin.terms[0].rows));
   });
 
   test("an admin's Applications to read: their own Review counts, opening the term's page", async () => {
-    openTheForm();
+    await twoWaitForTheLead();
     // An admin who leads nothing: no figure, and the term's page all the same.
-    const asAdmin = homeProgrammesOf(await loadProgrammesList(world.db, sessionFor(READERS.admin), WEEK_THREE));
-    assert.deepEqual(asAdmin.toRead, { count: 0, line: null, href: HOME });
-    // An admin who leads AGI Strategy: the programme's waiting applications are theirs.
+    assert.deepEqual((await homeOf(READERS.admin)).toRead, { count: 0, line: null, href: HOME });
+    // An admin who leads AGI Strategy: its two waiting applications are theirs.
     world.db.poke(formPath, { [`programmes.${AGI}.leadUid`]: "zach" });
-    const list = await loadProgrammesList(world.db, sessionFor(READERS.admin), WEEK_THREE);
-    const waiting = list.terms[0].programmes.find((p) => p.id === AGI).waiting;
-    const toRead = homeProgrammesOf(list).toRead;
-    assert.equal(toRead.count, waiting);
-    assert.equal(toRead.href, HOME);
-    assert.equal(toRead.line, waiting > 0 ? `Autumn 2026: ${waiting} for AGI Strategy.` : null);
+    assert.deepEqual((await homeOf(READERS.admin)).toRead, { count: 2, line: "Autumn 2026: 2 for AGI Strategy.", href: HOME });
+  });
+
+  test("Applications to read opens the Programmes page when two terms have applications for the reader, a term's page when one does", () => {
+    const card = (shortName, waiting) => ({ id: shortName, shortName, kindWord: "Fellowship", opensGroups: true, waiting, week: null, noLead: false, line: null, needsYou: null, open: { label: "", href: "/x" }, review: null });
+    const term = (id, label, stage, programmes) => ({ id, label, stage, line: "", href: `/admin/admissions/forms/${id}`, pageLabel: "", programmes });
+    const list = (terms) => ({ terms, earlier: [], reader: "admin", anyForm: true });
+    const two = homeProgrammesOf(list([
+      term("a", "Autumn 2026", "Deciding", [card("AGI Strategy", 2)]),
+      term("s", "Spring 2027", "Taking applications", [card("AGI Strategy", 3), card("Alignment", 1)]),
+    ])).toRead;
+    assert.deepEqual(two, { count: 6, line: "Autumn 2026: 2 for AGI Strategy. Spring 2027: 3 for AGI Strategy and 1 for Alignment.", href: PROGRAMMES_PATH });
+    const one = homeProgrammesOf(list([
+      term("a", "Autumn 2026", "Deciding", [card("AGI Strategy", 0)]),
+      term("s", "Spring 2027", "Taking applications", [card("AGI Strategy", 3)]),
+    ])).toRead;
+    assert.equal(one.href, "/admin/admissions/forms/s");
+    // None waiting: the one term taking or deciding applications, or the Programmes page for two.
+    assert.equal(homeProgrammesOf(list([term("s", "Spring 2027", "Deciding", [card("A", 0)])])).toRead.href, "/admin/admissions/forms/s");
+    assert.equal(
+      homeProgrammesOf(list([term("a", "Autumn 2026", "Deciding", [card("A", 0)]), term("s", "Spring 2027", "Taking applications", [card("B", 0)])])).toRead.href,
+      PROGRAMMES_PATH,
+    );
+  });
+
+  test("a reviewer's Home reads the forms and stops: nothing past them, even while a term is decided", async () => {
+    await twoWaitForTheLead();
+    for (const uid of [READERS.reviewer, "nadia"]) {
+      if (uid === "nadia") world.db.poke("users/nadia", { admissionsReviewer: true });
+      const { value, reads } = await counted((db) => loadProgrammesList(db, sessionFor(uid), WEEK_THREE, { groupsOnly: true }));
+      assert.deepEqual(homeProgrammesOf(value).terms, [], uid);
+      assert.deepEqual(reads, { queries: ["admissionRounds formVersion"], queryDocs: 1, counts: 0, docs: 0, getAll: 0 }, uid);
+    }
+    // The Programmes page itself still gives the reviewer the card they review.
+    assert.ok(await cardOf(READERS.reviewer, AGI));
+  });
+
+  test("a row with no detail draws its kind on a laptop and no line at all on a phone; All is All programmes to a screen reader", async () => {
+    const html = await drawCard({
+      terms: [{ id: "t", heading: "Autumn 2026 · running", rows: [{ id: "i", name: "Alignment", kind: "Incubator", detail: null, needsYou: null, href: "/o" }] }],
+      toRead: null,
+    });
+    assert.ok(html.includes('<p class="small wide">Incubator</p>'), html);
+    assert.ok(!html.includes("narrow\"></span>") && !/<p class="small"><span class="wide">/.test(html), html);
+    assert.ok(html.includes('class="headLink" aria-label="All programmes"'), html);
   });
 
   test("the page asks only for an admin or somebody named on a form, never in a view-as session, and never waits on it", () => {
@@ -576,10 +747,11 @@ describe("5. Home's Programmes card and Applications to read", () => {
     const loader = page.slice(page.indexOf("async function programmesOf"), page.indexOf("/** \"Morning\""));
     assert.match(loader, /try \{[\s\S]*\} catch \(err\) \{[\s\S]*return null;/);
     assert.match(page, /title=\{user\?\.role === "admin" \? "Programmes" : "Your programmes"\}/);
-    // A lead's Home: the card first, before everything under the greeting, in every form.
-    assert.match(page, /<HomeMember[\s\S]*?programmes=\{programmesCard\}/);
-    const member = read("app", "(app)", "dashboard", "HomeMember.tsx");
-    assert.equal((member.match(/\{programmes\}\s*\{invite\}/g) ?? []).length, 3, "a form of a member's Home draws the card after something");
+    // Home reads only the programmes whose groups the reader opens.
+    assert.match(page, /loadProgrammesList\(db, user, now, \{ groupsOnly: true \}\)/);
+    // A lead's Home: the card straight after the policy line, in the one fragment every form draws under the greeting
+    // (held as drawn by tests/applications-place-in-the-member-area.test.mjs).
+    assert.match(page, /<PolicyUpdate line=\{policyUpdateLine\(now\)\} \/>\s*\{user\?\.role !== "admin" && programmesCard\}/);
   });
 
   test("an admin's Home draws the card first, and Applications to read is today's row until the list answers", () => {

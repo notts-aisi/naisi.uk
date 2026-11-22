@@ -448,30 +448,38 @@ browser.
   (`useProgrammesMenu`); the route answers `{ terms: [{ heading, programmes:
   [{ name, href, review }] }] }` and nothing else, and refuses anybody but an
   admin or an account named on a form that still stands
-  (`readsProgrammesFor`). It is made by `loadProgrammesMenu` in the same
+  (`readsProgrammesFor`); every answer, refusals included, carries
+  `Cache-Control: private, no-store`. It is made by `loadProgrammesMenu` in the same
   module, which decides "over" as the list does and reads none of the cards'
   figures: the forms (a reviewer who leads nothing is answered there), the
   runs of the reader's terms past decision day in one `getAll`, each run's
   groups, and only while a term takes or decides applications and the reader
   leads one of its programmes, its applications and decisions. Until it
-  answers, if it fails, and if it takes longer than eight seconds, the menu
+  answers, if it fails, and if it takes longer than three seconds, the menu
   is the one it always was: nothing is held open for the entries, and
-  nothing is said. Nothing of the answer is kept in the browser.
-- **Home.** A Programmes card first on an admin's Home ("Programmes") and a
-  lead's ("Your programmes"): a row for each programme whose groups the
+  nothing is said. The answer is dropped, and asked again, when the account
+  signed in or its role changes without a reload. A programme whose name is
+  listed under two terms carries its term after its name for a screen
+  reader. Nothing of the answer is kept in the browser.
+- **Home.** A Programmes card first on an admin's Home ("Programmes", first
+  in its column) and a lead's ("Your programmes", straight after the line
+  saying the privacy policy changed, when it shows): a row for each programme whose groups the
   reader opens, by term ("Autumn 2026 · running"), each with its kind (on a
   laptop) and where it is ("Week 2 of 6", "3 applications for you to read",
   "No lead yet"), the card's first needs-you line where there is one, and
   Open to its Overview; "All programmes" (on a phone "All") opens the
-  Programmes page. Rendered on the server from `loadProgrammesList`
-  (`homeProgrammesOf` in `programmes/home.ts`), inside its own Suspense
+  Programmes page. Rendered on the server from `loadProgrammesList` with
+  `groupsOnly` (only the programmes whose groups the reader opens, so a
+  reviewer who leads nothing costs the one query of the forms), by
+  `homeProgrammesOf` in `programmes/home.ts`, inside its own Suspense
   boundary so Home never waits on it, and drawn not at all when the list
   cannot be read. It is asked for only for an admin or somebody named on a
   form, and never in a view-as session, as Requests waiting is not. An
   admin's "Applications to read" takes its figure from the same answer when
   it comes: how many applications wait for the admin's own reading ("Spring
   2027: 3 for AGI Strategy."), opening the term's page, where the Review
-  buttons are. Until then, and without it, the row is the sentence and the
+  buttons are, or the Programmes page when two terms have applications
+  waiting for the admin. Until then, and without it, the row is the sentence and the
   list of forms it was.
 
 `tests/programmes-menu-home.test.mjs` runs the route, the menu and Home as

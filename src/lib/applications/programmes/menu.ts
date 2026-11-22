@@ -57,17 +57,24 @@ export function parseProgrammesMenu(raw: unknown): MenuTerm[] {
 /**
  * How long the shell waits for the answer. Past it the request is let go and
  * the menu stays the one it was drawn with for the rest of this page load,
- * so entries never arrive long after somebody has started using the menu.
+ * so entries do not arrive and push the menu down once somebody may have
+ * started using it.
  */
-export const PROGRAMMES_MENU_WAIT_MS = 8_000;
+export const PROGRAMMES_MENU_WAIT_MS = 3_000;
 
 /**
  * Ask `GET /api/admissions/programmes/menu` once. Never throws: a refusal, a
- * failed request, an answer that is not one and an answer slower than
- * `waitMs` are all no terms.
+ * failed request, an answer that is not one, an answer slower than `waitMs`
+ * and one asked for by a shell that has since let it go (`signal`) are all
+ * no terms.
  */
-export async function askProgrammesMenu(waitMs: number = PROGRAMMES_MENU_WAIT_MS): Promise<MenuTerm[]> {
+export async function askProgrammesMenu(
+  waitMs: number = PROGRAMMES_MENU_WAIT_MS,
+  signal?: AbortSignal,
+): Promise<MenuTerm[]> {
   const controller = new AbortController();
+  const letGo = () => controller.abort();
+  signal?.addEventListener("abort", letGo);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<MenuTerm[]>((resolve) => {
     timer = setTimeout(() => {
@@ -82,5 +89,6 @@ export async function askProgrammesMenu(waitMs: number = PROGRAMMES_MENU_WAIT_MS
     return await Promise.race([asked, late]);
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", letGo);
   }
 }

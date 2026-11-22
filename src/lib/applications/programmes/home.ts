@@ -1,4 +1,5 @@
 import type { ProgrammeCard, ProgrammesList } from "./list";
+import { PROGRAMMES_PATH } from "./path";
 
 /**
  * What Home draws of the Programmes list (`./list.ts`): the Programmes card
@@ -31,7 +32,12 @@ export type ApplicationsToRead = {
   count: number;
   /** "Spring 2027: 3 for AGI Strategy.", or null when none wait for them. */
   line: string | null;
-  /** The term's page, where the Review buttons are. */
+  /**
+   * Where Open goes: the term's page, where the Review buttons are, when one
+   * term has applications waiting for the reader (or none does and one term
+   * takes or decides them); the Programmes page, which lists every term with
+   * its Review buttons, when two or more do.
+   */
   href: string;
 };
 
@@ -81,16 +87,21 @@ export function homeProgrammesOf(list: ProgrammesList): HomeProgrammes {
   let toRead: ApplicationsToRead | null = null;
   if (inSession.length > 0) {
     const sentences: string[] = [];
+    const withWaiting: string[] = [];
     let count = 0;
-    let href: string | null = null;
     for (const term of inSession) {
       const waiting = term.programmes.filter((card) => card.waiting > 0);
       if (waiting.length === 0) continue;
       count += waiting.reduce((sum, card) => sum + card.waiting, 0);
-      href ??= term.href;
+      withWaiting.push(term.href);
       sentences.push(`${term.label}: ${andList(waiting.map((card) => `${card.waiting} for ${card.shortName}`))}.`);
     }
-    toRead = { count, line: sentences.length > 0 ? sentences.join(" ") : null, href: href ?? inSession[0].href };
+    const doors = withWaiting.length > 0 ? withWaiting : inSession.map((term) => term.href);
+    toRead = {
+      count,
+      line: sentences.length > 0 ? sentences.join(" ") : null,
+      href: doors.length === 1 ? doors[0] : PROGRAMMES_PATH,
+    };
   }
   return { terms, toRead };
 }

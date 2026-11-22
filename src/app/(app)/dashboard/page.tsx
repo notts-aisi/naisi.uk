@@ -147,7 +147,7 @@ async function surveyCards(user: SessionUser, now: Date): Promise<SurveyCard[]> 
  */
 async function programmesOf(db: Firestore, user: SessionUser, now: Date): Promise<HomeProgrammes | null> {
   try {
-    return homeProgrammesOf(await loadProgrammesList(db, user, now));
+    return homeProgrammesOf(await loadProgrammesList(db, user, now, { groupsOnly: true }));
   } catch (err) {
     console.warn("[dashboard] could not read the programmes", err);
     return null;
@@ -221,13 +221,16 @@ export default async function DashboardPage() {
   // date of a privacy policy version that changed how information is used,
   // the line saying the policy changed, until its reader dismisses it (which
   // version, from the date, is `policyUpdateLine`'s; the dismissal is
-  // `PolicyUpdate`'s, in the browser); an event for chosen people they were
+  // `PolicyUpdate`'s, in the browser); for a lead, "Your programmes" straight
+  // after it (an admin's Home draws its card first in its own column, below
+  // this); an event for chosen people they were
   // invited to ("For you"), the question about a full name while it is
   // unanswered, then the quiet install invitation (phones only, dismissible
   // once, hidden when already installed; see src/features/pwa/InstallCard.tsx).
   const invite = (
     <>
       <PolicyUpdate line={policyUpdateLine(now)} />
+      {user?.role !== "admin" && programmesCard}
       <ForYou events={forYou} />
       {user && askFullName && <FullNameCard uid={user.uid} suggestion={askFullName.suggestion} />}
       <InstallCard />
@@ -263,7 +266,6 @@ export default async function DashboardPage() {
         <HomeMember
           given={given}
           invite={invite}
-          programmes={programmesCard}
           termCard={<TermCard term={term} />}
           comingUpRows={<ComingUp events={events.upcoming} layout="rows" />}
           comingUpCards={<ComingUp events={events.upcoming} layout="cards" />}

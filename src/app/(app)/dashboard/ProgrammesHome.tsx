@@ -33,7 +33,8 @@ export default async function ProgrammesHome({
         <h2 id="home-programmes" className={styles.cardTitle}>
           {title}
         </h2>
-        <Link href={PROGRAMMES_PATH} className={styles.headLink}>
+        {/* "All" on a phone, but always "All programmes" to a screen reader. */}
+        <Link href={PROGRAMMES_PATH} className={styles.headLink} aria-label="All programmes">
           <span className={own.wide}>All programmes</span>
           <span className={own.narrow}>All</span>
         </Link>
@@ -46,13 +47,14 @@ export default async function ProgrammesHome({
               <li key={row.id} className={own.row}>
                 <div className={own.body}>
                   <p className={own.name}>{row.name}</p>
-                  {(row.detail || row.kind) && (
+                  {row.detail ? (
                     <p className={styles.small}>
-                      <span className={own.wide}>
-                        {row.detail ? `${row.kind} · ${row.detail}` : row.kind}
-                      </span>
-                      {row.detail && <span className={own.narrow}>{row.detail}</span>}
+                      <span className={own.wide}>{`${row.kind} · ${row.detail}`}</span>
+                      <span className={own.narrow}>{row.detail}</span>
                     </p>
+                  ) : (
+                    // The kind alone, which a phone leaves off: no line at all there.
+                    <p className={`${styles.small} ${own.wide}`}>{row.kind}</p>
                   )}
                   {row.needsYou && <p className={own.needsYou}>{row.needsYou}</p>}
                 </div>

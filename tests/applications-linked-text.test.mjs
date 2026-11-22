@@ -1443,8 +1443,8 @@ const BUILT = new Map([
     // addresses the list built, handed on.
     "src/lib/applications/programmes/home.ts",
     {
-      built: ["card.open.href", "href ?? inSession[0].href"],
-      from: "the addresses the Programmes list builds (src/lib/applications/programmes/list.ts): a programme's Overview and a term's page, from ids",
+      built: ["card.open.href", "doors.length === 1 ? doors[0] : PROGRAMMES_PATH"],
+      from: "the addresses the Programmes list builds (src/lib/applications/programmes/list.ts): a programme's Overview and a term's page, from ids; and the Programmes page, a fixed address in the code (`PROGRAMMES_PATH`)",
     },
   ],
 ]);
