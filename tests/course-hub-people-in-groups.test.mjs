@@ -782,7 +782,8 @@ describe("6. each card's marks in every state, and its menu", () => {
         title: "Take Pat Doe off AGI Strategy?",
         seat: "Their seat in Group A is freed and their place on AGI Strategy is given back. Their registers and work so far are kept.",
         emailed: "Pat is emailed to say their place has ended.",
-        box: { label: "A line for Pat (optional)", hint: "Only Pat sees this. The facilitators’ email never carries a reason." },
+        // No facilitator is emailed, so the hint says nothing of their email.
+        box: { label: "A line for Pat (optional)", hint: "Only Pat sees this." },
         keep: "Keep Pat",
         go: "Take Pat off and email Pat",
       },
