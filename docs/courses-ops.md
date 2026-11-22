@@ -742,7 +742,7 @@ due at the session's end plus the hours, born notified so it emails nobody.
 | Marker | `schedulerMarkers/unmarked__{groupId}__{sessionKey}` |
 | Task id | `tasks/course-register__{runId}__{groupId}__{sessionKey}` |
 | Window | sessions whose END is between the task's hours and those hours plus 24 |
-| Runs scanned | status `applications-open`, `applications-closed` or `running` |
+| Runs scanned | status `applications-open`, `applications-closed` or `running`; archived groups skipped |
 | `maxLateHours` | 72 |
 | Config | `registerTaskHours` (60), `unmarkedScanBudgetMs` (12000), `maxFollowUpTasksPerTick` (25) |
 
@@ -753,6 +753,10 @@ a tick every 15 minutes gives each session about ninety-six chances to be seen,
 which covers a scheduler that has been down for most of a day. The cost: a
 register still unpushed a week later has one card and gets no second one, so
 the board is the only record.
+
+**An archived group raises no card**, as the facilitators' reminder skips it:
+nobody is chased for the register of a group that no longer meets. Its
+finished registers count exactly as before.
 
 **It scans every live status, not `running` alone.** The pre-course holds its
 six sessions while the admission round is still open, so its run sits at
@@ -1349,12 +1353,12 @@ who told us, for each session still to come.
 
 ### "Joining online", before a session
 
-Somebody taking part in a group can press **Joining online** on the ticket
-of their group's next session, on their programme page, until the session
+Somebody taking part in a group can press **I'm joining online** on the card
+of their next session, on their programme page and on Home, until the session
 starts (`POST /api/courses/groups/[groupId]/joining-online`,
 `src/lib/courses/joiningOnline/`). It keeps their word on that session's
 register (`onlineSaid.<uid>`, when they said it), never as a mark; **I'll be
-in the room after all** takes it back. The box at the top of the
+in the room instead** takes it back. The box at the top of the
 facilitators' group page and register asks for a meeting link for that week
 while the session has none.
 
@@ -2249,6 +2253,80 @@ A move before the term (nobody told, or no session of the group started),
 Remove, and somebody changing their own session on an open run, are as
 before.
 
+## Archiving a group
+
+A group is archived from two places, both through
+`PATCH /api/courses/groups/[groupId]/archive`: the Archived switch on its card
+in the run editor, and Archive, the last part of "How Group B meets" on the
+group's own page under its programme's Groups tab. Nothing else changes
+`courseGroups.archived`: `firestore.rules` pins the field against every
+browser write, an admin's included (`groupArchivedUnchanged`), and a group is
+born not archived. The route admits an admin, an `approveCourse` holder (the
+people the run editor's switch serves) and the lead of the programme that
+names the run (`programmeLedBy`), who runs the group from its page. Nobody
+else: a group's own facilitators and a run's track leads are refused. In the
+run editor the switch is disabled for a course drafter who cannot approve,
+with a line saying who archives a group.
+
+An archived group's page opens on "This group is archived." and Restore, and
+nothing else; the Groups tab lists the run's archived groups under its board
+("Archived:"), each to its page, so a group archived by mistake is put back
+from there or from the run editor's switch.
+
+**What archiving keeps.** The group stays on the run for the record, with its
+registers, its history and its places as they are; nothing is moved, counted
+again or sent, and nobody is told. From then on it has no session to come, no
+reminder, no calendar entry, no register its facilitators can take and no
+block of the Attendance tab, and of its registers only the finished ones of a
+session held count, for the people whose record of groups by week names that
+week (`countsFromArchivedGroup`, above).
+
+**When a group may be archived.** Only when that loses nothing. The route
+refuses, in one sentence that names the group and writes nothing (409), while:
+
+- anybody still holds a place in it (a learner who has not left, as the Groups
+  tab counts them): "Group I still has 3 people in it. Move them to another
+  group first, then archive it." Where nobody can be moved (the run is over,
+  by its status or because its last session has ended, or it is cancelled or
+  archived) the sentence says to archive the run instead; where the run has
+  no other group that still meets (an incubator's one group) it says the
+  group stays as it is. Either way its people's attendance and who finished
+  read only a group that still meets;
+- a freed place offered in its name is not answered yet;
+- somebody moved to another group from a week still to come is in it until
+  then (their record of groups by week names it for a session that has not
+  started);
+- a one-week visit to one of its sessions is still to come;
+- a register of a session that has started, in a week somebody's place still
+  names for this group (the week they belonged to it, or a visit to it), is
+  neither finished nor marked as not having happened, a register nobody
+  opened included ("Group I’s register
+  for week 2 isn’t finished. Finish it, or say the session didn’t happen, then
+  archive the group: an unfinished register counts for nothing once a group
+  is archived."). A session called off is not asked about, and nor is a week
+  nobody's place names: once nobody holds a place in it, an archived group's
+  register is read for nobody else, so an emptied or spare group archives
+  without its later sessions being called off.
+
+So closing a term by archiving its groups works for a group nobody is in any
+more; a group whose people are still in it at the end of a term stays as it
+is, and the term is put away by archiving the run. A session still to come given to somebody to cover is no reason to refuse
+once nobody is due at it, and the group's facilitators simply stop seeing a
+group nobody is in.
+
+**Restoring** is refused while one of the group's facilitators holds a place
+in another group of the run, because a facilitator who holds a place sits in
+the group they facilitate and no other: an admin takes them off the group's
+facilitators in the run editor first (the sentence tells anybody else to ask
+an admin). Both directions are refused on a run being destroyed. The
+checks are read once, then read again inside the transaction that writes, so
+a change in between is answered rather than archived over.
+
+`tests/course-group-archive.test.mjs` presses the route as every kind of
+caller and in each of these states, and holds that nothing else in `src` or
+`scripts` writes the field; `scripts/rules-tests/tests/course-group-archived.test.mjs`
+holds the pin.
+
 ## A person's page, for the team, and a facilitator's cut of it
 
 One page per person on a programme, at
@@ -2712,6 +2790,204 @@ visit is their next session; a visit further ahead is listed below the ticket.
 of the groups the place belongs to, never a visit's host. The move page's
 "What will happen" names each visit from the move's week on: one to the group
 they move into goes, every other stays.
+
+
+## A member asks to go to another group's session for a week
+
+The person asks; an admin decides. Only admins decide these for now, through
+the gate requests to be excused use, and every sentence the person reads says
+"An admin decides." A programme's lead sees and decides none.
+
+**The record.** One `courseRequests` document of kind `visit`, read only by
+its own normaliser (`normalizeVisitRequest`, `src/lib/firestore/courseMemberRequests.ts`),
+which answers null for every other kind, as the other kinds' answer null for
+it. `groupId` and `sessionKey` are the person's own group's for that week;
+`change` holds the week, the host group, the host's session key and the
+host's session as offered (so the request's page can say it has moved since),
+and the replies sent without deciding. The shared base (who, the run, status,
+Take it, the decision, replies, `dismissedAt`, `adminsToldOn`, history) is
+`MemberRequestBase`, so a later kind adds its own `kind`, its own `change`
+reader and its own normaliser, and changes no stored row of this one.
+
+**What can be asked.** Only the week of the person's next session with their
+own group, still to come, and only somebody the staff visit could arrange a
+visit for (an active learner's told place, a run with more than one live group
+that is not an incubator, nobody who facilitates a live group of it). Nothing
+while a visit stands that week, a request to be excused about that session
+waits, or a request of this kind waits ("One request at a time"). The sessions
+offered and the places left are the staff visit's own (`memberSessionChoices`
+over `hostSessionRefusal` and `placesLeftInWeek`), in the order they start,
+full ones shown and not choosable. The ask route re-reads all of it in its
+transaction, and also asks the staff visit's plan, so a request never asks for
+what its approval would refuse at that moment.
+
+**Where it stands** is worked out at read time, never stored
+(`visitRequestStandingOf`, `src/lib/courses/visitRequest/standing.ts`): a
+stored `waiting` request CLOSES BY ITSELF once the earlier of the two sessions
+that week starts (the visit's own cancel deadline), and is GONE once the person
+no longer holds that place that week (taken off the run, left, or moved for
+good from that week or before). Neither is written, emailed or listed for
+staff; a closed one is a row "Not decided before Tue 17 Nov, 6pm" on the
+person's own list, a gone one is on no list. While the host's session is
+called off or marked as not held, the person's card says it can't go ahead and
+offers Withdraw. Every reader hands the rule the same facts, the host's
+register of that week among them (`hostRegisterIdOf`, `notHeldIn`), so the
+card, the routes and the staff pages always agree.
+
+A request that closes by itself or goes with the place keeps its stored
+`waiting` until the run is destroyed or the account deleted, and the admins'
+Requests page and Home read every stored `waiting` request (500 at most) to
+work out where each stands. They accumulate slowly; a later tidy can mark
+them, should a term ever come near that.
+
+A programme's lead arranging a visit for a week a member's request still
+waits about is told only "Week 2 for Daniel is with the admins at the
+moment. Ask an admin to arrange this visit."; an admin is told to decide the
+request first.
+
+**Approving** calls `arrangeVisit` with the request's decision as a hook in
+the same transaction (`approves`): the request is read again there, and the
+visit and the decision are written together or not at all. The visit written
+is the staff visit's own, with the approver as `arrangedByUid` and no reason in
+the history rows; the count on the button and the over-the-limit warning are
+checked at the press, and staff's email limits apply. Staff arranging a visit
+themselves for a week the person's own request waits about are told to decide
+that request first.
+
+**"I'd join online".** A tick on the form, off unless ticked, stored on the
+request as `change.online` (only a strict `true` is the tick; a request stored
+before it reads as not ticked). The admin deciding it reads "<first name> would join
+online." under "Asks for"; the member is told nothing new. Approving a ticked
+request puts the person's word on the HOST'S register for that week's session
+in the same transaction as the decision and the visit, by the one writer of
+that word (`sayingOnlineOn`, `src/lib/courses/joiningOnline/seat.ts`, which
+the person's own press of "I'm joining online" also uses), with its
+`onlineEmailed` stamp, so the email that press sends the facilitators never
+also goes: the host's facilitators' email about the visit carries the approved
+lines instead ("<first name> will join online." and where the link goes, by whether
+the session has one; never the link). Approving is refused, on the request's
+page and at the press, while the host's register cannot take the word (already
+finished, the person's line already filled in, or full), in a sentence the
+visit already says; a session held online for everybody takes no word and its
+email has no such line. A staff-arranged visit has no tick and is unchanged.
+The host's group page lists every visitor with a visit standing to the group
+in the box at the top, each under the weeks they visit alone (`boxPeopleOf`),
+whatever week the page's next session is, so the field and the button the
+email names are there.
+
+**The word goes with the visit.** Every way a visit ends takes the person's
+word off the host's register for that session while it is not finished, with
+its two stamps (that its email went, and that they set the line), by one rule
+(`onlineWordGone`, `src/lib/courses/joiningOnline/gone.ts`): their own cancel
+and staff's, the host's session called off, being taken off the run, leaving
+it, and a placement made by an appointment (`onlineWordsGoWithVisitsIn`). An
+approved excusal takes it off the session it excuses: excused wins. No single
+place writes every end of a visit (the allocation board taking somebody out of
+their group also drops their visits), so "Change a session" also counts and
+names a word only from the session's own rows, and never beside an excused
+line (`saidFacts` handed the register's rows): a word left behind by any path is
+never counted. So if they
+are due at that session again and say it again, its facilitators are told
+again. That cannot email in a loop: between two such emails an admin or the
+programme's lead has to make them due at the session again, which is itself
+held to the visit's limits and tells the same facilitators; taking the word
+back and saying it again, which the person can do alone, keeps the stamp and
+sends nothing.
+
+**"Why:" under each session offered.** Read from the times the person gave
+on the application form that names the run, back to them alone, by
+`whyOfferedFor` (`src/lib/applications/handover/whyOffered.ts`): their own
+application as they last sent it, through the one reading of a painted week
+(`paintedWeekOf`), with the part of the week said as the freed-place email
+says it (`freeOnInTheirWeek`). It returns finished sentences only, never the
+week. "Why: you said you're free Wednesday evenings" for a session with a
+place in their times; "Why: not a time you gave, but there's room" for one
+with a place outside them; NO LINE with no application on that form (somebody
+who applied to the run itself), nothing painted, a full session, or a session
+in their times whose part of the day their week does not say (somebody who
+marked little time). In a view-as session it is not read. It changes neither
+the order of the list nor what can be chosen. The staff page for arranging a
+visit has no such line: that page also serves the programme's lead, whose
+screens show no painted week.
+
+**What the person sees.** On the card (Home and the programme page): "Go to
+another session this week" for the week offered; while it waits, the request
+first with "Withdraw the request", "Can't make it" and "I'm joining online"
+kept beside it (a member can always say something about their own session;
+asking to be excused from that week is refused with "You already have a
+request waiting. Withdraw it to send another." until it is withdrawn or
+decided); once withdrawn, "You withdrew your request to go to Group I.",
+worked out on the server from the request, until that week's session ends; a decline at the top
+with "Dismiss" until dismissed or that week's session has passed; and, once
+approved, the visiting card with "Approved by Zach, Tue 10 Nov, 1:40pm" and
+the reply. "Your requests" lists these with their requests to be excused, one
+list, newest first. The form is at `/learn/[runId]/another-session` and says
+for itself when nothing can be asked.
+
+## A member asks to change group for good
+
+The person asks from their programme page ("Change group for good", with the
+card's buttons, and a line at the foot of the one-week form); an admin
+decides. Only admins decide, and a programme's lead sees nothing of these: no
+row, no page, no count. Every sentence the person reads says "An admin
+decides." The form is at `/learn/[runId]/change-group`.
+
+**The record.** One `courseRequests` document of kind `move`, read only by its
+own normaliser (`normalizeMoveRequest`, `src/lib/firestore/courseMemberRequests.ts`),
+on the shared base the one-week request uses. `groupId` is the group they are
+in when they ask; `sessionKey` and `weekId` are empty; `change` holds the
+group they ask for, the week the move was made from once approved
+(`fromWeek`), and the place's record of groups by week as it read when they
+asked (`recordAsked`). Their reason ("Why (needed)", one line, no link) is
+kept on the request alone and read only by admins on the request's page:
+never in a row, a count, an email, a group's history or a log line. It goes
+with the account and with the run like every request.
+
+**What can be asked.** Only somebody the staff move could move (an active
+learner's told place in a group that still meets, a run that takes a move
+with more than one live group and no incubator, nobody who facilitates a live
+group of it), with a session of their own still to come to move from, and
+nothing else of theirs waiting: one request at a time across this kind and a
+request to go to another session (`src/lib/courses/requests/oneAtATime.ts`,
+asked by both kinds' asks and both ways in). Requests to be excused keep
+their own rules. "Groups with a place" is the staff move's own count (its
+capacity less its people now), full ones left out, each with the one-week
+form's "Why:" line from the times the person gave (`whyOfferedFor`, by the
+group's usual weekly slot), never read in a view-as session. The week is never asked:
+the staff move's rule decides it at the approval, and the request's page shows
+what it gives now, or its refusal.
+
+**Where it stands** is worked out at read time, never stored
+(`moveRequestStandingOf`, `src/lib/courses/moveRequest/standing.ts`, handed
+the run, its groups and the place by every reader): a stored `waiting`
+request is GONE in every state in which no move could ever approve it: the
+run takes no move; the person no longer holds a place the staff move would
+move (taken off, left, a seat Publish has not told, or they now facilitate a
+group of the run); they have been moved since they asked (a staff move, a
+move on the allocation board, its own approval); or the group they asked
+from or for no longer meets. Nothing is written and nobody is emailed; it is
+on no list and in no count, and its page says why. A staff move of somebody
+whose request waits is therefore never refused: the request goes with the
+move. A request whose person has no session left to move from stays waiting
+(the week rule refuses it at the approval): an admin declines it, and the
+person can withdraw it from their programme page, where it is drawn on its own
+when no session card is left to carry it.
+
+**Approving** calls `saveMove` with the request's decision as a hook in the
+same transaction (`approves`): the request is read again inside the move's
+own transaction after every other check, and the move and the decision (with
+`fromWeek`) are written together or not at all. Everything the staff move
+refuses is refused in its own sentence (a full group, the week rule, the
+limits on a move's emails, a week or a count that changed since the page).
+The rows on both groups' history are the staff move's own with no reason.
+
+**What the person sees** (the programme page only, never Home): while it
+waits, the request on the card with "Withdraw the request"; a decline at the
+top with "Dismiss", until dismissed or a week after the decision (there is no
+session for it to pass); once approved, "You're in Group I from week 3. Your
+work, its feedback and your attendance came with you." with who approved it,
+while they are still in that group, until their first session with it starts
+and never longer than a week. "Your requests" lists these with the other kinds, one list.
 
 ## A programme's lead on the run their programme names
 
@@ -3983,6 +4259,125 @@ who asked, about whom, what, when and who has it. `loadRequestPage`, for the
 people who decide it: the line now and whether it still says what was asked,
 the reason, who finished the register and when, what approving does (the
 line, the figures, nobody emailed), who has it and its history.
+
+Messages to the team are an admin's alone: their own section of the
+Requests page ("Something’s wrong, something else", `teamMessageRows`), their
+own page (`loadTeamMessagePage`, `TeamMessagePage`), their own count in
+Home's line ("Somebody has sent the team a message."), and a reply as their
+`replied` state, counted as done this week. A programme's lead the tree
+admits is sent no row and drawn the calm "That request isn't here" on the
+page. See "Ask the team" below.
+
+### Ask the team
+
+A signed-in member sends the people running NAISI a message from
+`/ask-the-team`, reached from the foot of every signed-in page (before
+Anonymous feedback), from "Need something?" on a learner's programme page and
+from the anonymous form's two pointers. Signed out there is nothing: the
+public footer already gives the society's address.
+
+- **The topics are only those whose flows exist.** "One week at another
+  session" is a link to that programme's own form
+  (`/learn/[runId]/another-session`), shown for a told learner's place on a
+  live run, with "Which programme?" first for somebody holding two; it
+  decides nothing. "Something’s wrong on the site" and "Something else" are
+  written here, and "Access needs" opens its own short form (below).
+  Changing group for good and a week with no session each add their own
+  topic with their own flow.
+- **The record** (`src/lib/firestore/courseTeamAsks.ts`): one `courseRequests`
+  document of kind `team-message` with `runId: ""`, so it belongs to no
+  programme and no reader of a run or of another kind sees it; its own
+  status `replied`; the words up to 2,000 characters, shown as plain text;
+  `replies` a list, though one reply answers a message and closes it today.
+  It goes only with the account (`deleteCourseRequestsOf`).
+- **The send** (`POST /api/courses/requests/ask`, `{ topic, words }`): view-as
+  first, then signed out, then an approved account, then the body, then five a
+  London day counted from the messages themselves in the send's own
+  transaction (`askedByUid`, `askedOn`: two equalities, no declared index).
+- **Staff** (`POST /api/courses/requests/[requestId]/team/take` and
+  `/team/reply`): admins only, never their own message, one 403 for anybody
+  else before anything is read. A reply is one paragraph, no link, up to 600
+  characters, stored on the message and emailed (docs/notifications.md).
+- **The member's list** (`ownTeamMessages`, `askedByUid` and `kind`, two
+  equalities, newest first in code): their own messages, "Waiting" or "Replied" with the reply in quotes.
+  Requests about sessions and groups stay on the programme page, and the list
+  says so.
+
+#### Access needs
+
+"Access needs" on the same form opens a short form of its own: "Only admins
+read this: not your facilitator, not the programme's lead. We record each
+time an admin opens it." It asks what would help and never why ("You don't
+need to tell us why, or anything about your health."), with a tick, "You may
+tell my facilitator what's needed, but not why", off unless ticked.
+
+- **The record** is a `courseRequests` document of kind `access-needs`, shaped
+  like a message (no run, gone only with the account, `waiting` then
+  `replied`), with `change: { words, tellFacilitator, replies }` and an
+  `opened` entry in its history. It goes through the same send route
+  (`{ topic: "access", words, tellFacilitator }`) under the same five a day.
+- **One module reads what was written**:
+  `src/lib/courses/teamAsk/openAccessNeeds.ts`, behind
+  `POST /api/courses/requests/[requestId]/team/open` (admins only, never the
+  sender, view-as refused first), through the one store helper that takes the
+  words and the tick out of the document (`accessNeedsWordsOf`,
+  `src/lib/firestore/courseAccessNeedsWords.ts`, imported by the opening
+  alone). In the transaction that reads them it writes a `courseAudit` row of
+  kind `access-needs-read` (who opened it, whose ask by account id, the ask's
+  id, when; never the words, the tick or the person's name) and the ask's own
+  `opened` history entry. If that commit fails, nothing is returned. Every
+  other reader goes through `normalizeAccessNeeds`, which has no field for
+  either.
+- **The guard** (`tests/ask-access-needs-boundary.test.mjs`) lists every file
+  that reads the requests collection, and in each follows every raw document
+  (`.data()` and every name bound to one) through the syntax tree: it may
+  have a field other than `change` read by name, be tested, or be handed to a
+  listed function (each a normaliser that checks the kind first, or a reader
+  of another collection). A spread, a return, a log, a `JSON.stringify`, a
+  `change` read in any spelling, a computed name or a raw document kept in an
+  object fails. What it cannot see is a listed function changing what it
+  does with a request's document; each is named with why it is safe.
+  `tests/course-ask-access-needs.test.mjs` plants the words as a marker, runs
+  every flow as every kind of caller, and searches the answers, the pages
+  drawn (the request page, Ask the team, the programme page, the register,
+  the roster, the overview), each email rendered as HTML and as plain text,
+  the email log rows a real send writes, every log line and every stored
+  document but the ask itself.
+- **What each reader sees.** The Requests page: an admin's own section,
+  "Access needs" tagged "Admins only", each row who and when, never the
+  words. One request's page, for an admin: the person and their places, and
+  "Open what Elena wrote" in place of the words; once opened, the words and
+  whether the tick is on, held in the page alone and forgotten when the page
+  is left. Under the reply box: "Keep the reply general. It is emailed, and
+  other admins see it without opening what was written.", because a reply is
+  on every admin's first render with no opening recorded. Home counts an access ask as a message to the team.
+  The member's own list: "Access needs", the day and the state, never the
+  words (there is no page of one ask for the member). A programme's lead, a
+  facilitator and any other member: nothing, not even that one exists; the
+  request page is the calm "That request isn't here".
+- **The tick is passed to nobody by the site**: no email, no page of a
+  facilitator's or a lead's. It is shown to the admin who opened the ask.
+- **Take it and the reply** are a message's, through the same routes; the
+  reply email is any message's reply word for word, subject and body, so
+  nothing in it, its preview or its plain text says "access needs". The
+  admins' alert names nobody ("Somebody sent the admins a message about
+  access needs"), because its subject is kept in the email log, which
+  outlives the account.
+- **Deleting the account** deletes the ask with its words
+  (`deleteCourseRequestsOf`). Each `access-needs-read` row stays, as each
+  `access-requirements-read` row does at account deletion: the staff log is
+  kept, holds no words and no name, and its `subjectUid` and `requestId` then
+  lead nowhere.
+- **Kept until the yearly clear-out, by hand.** Unlike an
+  `access-requirements-read` row, which goes when its form is destroyed, an
+  `access-needs-read` row belongs to no form and no run (`runId` "",
+  `roundId` and `groupId` null), so nothing ever deletes one by itself, and
+  nothing is meant to: as with every record about somebody who may have
+  left, an admin clears them out by hand once a year. Each holds who opened
+  an ask (uid and name), whose ask it was by account id, the ask's id and
+  when. Find them with `courseAudit where kind == "access-needs-read"`
+  (one equality); those whose `subjectUid` no longer has an account, or
+  whose `requestId` names no ask, are the ones to weigh first.
 
 ### A group's attendance across every week
 
@@ -6503,7 +6898,7 @@ certificate was sent in error, and tell its owner.
 
 Privacy policy version 13 took back version 12's promise that nothing
 written in a course is used outside its programme, from its own agreement on,
-and the current policy (`src/content/legal/privacy/v21.tsx`) keeps those
+and the current policy (`src/content/legal/privacy/v22.tsx`) keeps those
 words. Three features rest on that, each an admin's press and never
 automatic, all built like the applications' second reader
 (`docs/applications.md`, "Claude and Pangram"): labels to Claude, names put

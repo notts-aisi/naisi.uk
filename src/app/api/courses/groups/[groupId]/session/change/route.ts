@@ -51,6 +51,7 @@ import {
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { endVisitsIn, sendVisitsOff, visitsEndingWith, visitsOffPreview, type EndingVisit } from "@/lib/courses/visit/hostOff";
 import { VISITS_CHANGED_WORDS, visitsOffFailedWords } from "@/lib/courses/visit/words";
+import { loadRegisterMembers } from "@/lib/courses/registerAccess";
 
 /**
  * CHANGE ONE WEEK'S SESSION OF ONE GROUP: hold it online,
@@ -272,6 +273,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     const groupName = found.name.trim() || "Untitled group";
 
     if (press.preview) {
+      // The gate's answer and the session's week, as the register's loader takes them.
+      const gated = { isAdmin };
+      const { weekNumber } = press;
       const before = resolveSessions(run, found);
       const after = resolveSessions(run, first.after);
       // The press would be refused for moving a session that met: so is its preview, in the same words.
@@ -286,7 +290,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       const switches = await readJobSwitches(db);
       const [reminders, said, told, coversEnd] = await Promise.all([
         reminderFacts(db, { run, group: found, before: first.session, after: weekSessionAfter(run, first, press.weekNumber), switches }),
-        saidFacts(db, register),
+        // Counted from the session's own rows alone, as this caller is shown
+        // the register: nobody whose visit ended, or who left, is named.
+        loadRegisterMembers(db, run.id, found.id, { isAdmin: gated.isAdmin, role: actor.role }, weekNumber).then((roster) =>
+          saidFacts(db, register, new Set(roster.members.map((member) => member.uid))),
+        ),
         // A change to one session tells that week's people (`updateEmailAudience`'s week).
         toldFacts(db, run, found, actor.uid, press.weekNumber, except),
         // Whose cover the press would take off, by the press's own rule (`../registerCover/moves`).

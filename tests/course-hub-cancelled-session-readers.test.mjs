@@ -163,6 +163,13 @@ const READERS = {
       "no visit to call off, so it is passed over before any register is read, and one whose register says it did not " +
       "happen is passed over too, so the host's facilitators are told only of a visit that was still happening",
   },
+  "lib/courses/groupArchive/read.ts": {
+    kind: "asks",
+    proof: ["startedSessions(run, group, now).filter((session) => !session.cancelled)", "held: register.held"],
+    why:
+      "what archiving a group reads of its registers: only those of sessions that have started and were not called off, " +
+      "so a session called off is never a register left unfinished, and one said not to have happened counts as done",
+  },
   "lib/courses/staffMove/plan.ts": {
     kind: "asks",
     proof: [
@@ -173,6 +180,18 @@ const READERS = {
       "the week a move made mid-term is from (the move page and the allocation board): only the person's own sessions " +
       "that have started and were not called off through Change a session are read for a register that says it did " +
       "not happen; the week rule reads a called-off session as no meeting by its own flag, and a not-held one the same way",
+  },
+  "lib/courses/visitRequest/standing.ts": {
+    kind: "asks",
+    proof: [
+      "return data ? !normalizeCourseAttendance(id, data).held : false;",
+      "!hostSession.cancelled && input.hostNotHeld !== true",
+    ],
+    why:
+      "where a request to go to another session stands, the one rule every reader asks: a host session called off " +
+      "through Change a session and one whose register says it did not happen are read the same way, as no session " +
+      "to go by, so the request can't go ahead and closes by their own session's start; the register is read by one " +
+      "helper (`hostRegisterIdOf`, `notHeldIn`) for the card, the routes and the staff pages alike",
   },
   "lib/courses/visit/card.ts": {
     kind: "asks",

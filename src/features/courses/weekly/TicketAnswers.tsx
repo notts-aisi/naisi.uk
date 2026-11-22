@@ -27,12 +27,18 @@ export default function TicketAnswers({
   joiningOnline,
   hasLink,
   locked = false,
+  facilitatorFirstNames = [],
+  onSaidChange,
 }: {
   cantMakeIt: CantMakeItView | null;
   joiningOnline: JoiningOnlineView | null;
   /** The ticket carries the session's link already. */
   hasLink: boolean;
   locked?: boolean;
+  /** The session's facilitators by first name, for who can see they are joining online. */
+  facilitatorFirstNames?: readonly string[];
+  /** Hears every "I'm joining online" press that saved, so the card's chip says it. */
+  onSaidChange?: (said: boolean) => void;
 }) {
   const [told, setTold] = useState(cantMakeIt?.told === true || joiningOnline?.told === true);
   const [said, setSaid] = useState(joiningOnline?.said === true);
@@ -48,7 +54,11 @@ export default function TicketAnswers({
           view={{ ...joiningOnline, said }}
           hasLink={hasLink}
           locked={locked}
-          onSaidChange={setSaid}
+          facilitatorFirstNames={facilitatorFirstNames}
+          onSaidChange={(next) => {
+            setSaid(next);
+            onSaidChange?.(next);
+          }}
         />
       )}
     </>

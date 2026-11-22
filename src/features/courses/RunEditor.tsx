@@ -22,7 +22,7 @@ import {
   validateQuestionLimits,
   type FormQuestion,
 } from "@/lib/firestore/events";
-import { ACADEMIC_YEAR_PATTERN, type UserDoc } from "@/lib/firestore/users";
+import { ACADEMIC_YEAR_PATTERN, canApproveCourse, type UserDoc } from "@/lib/firestore/users";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
 import { START_DATE_READ_ONLY, goneOutSinceOpened, groupPagePath } from "@/lib/courses/groupPage/words";
 import {
@@ -244,7 +244,7 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
   // Who is looking. The admissions and allocation ROUTES answer to a narrower
   // set than this page's gate does (see the two links below), so the editor
   // needs the caller's identity to avoid offering a door that answers 403.
-  const { user: authUser, role, suRecognised } = useAuth();
+  const { user: authUser, role, suRecognised, permissions } = useAuth();
   const { run, loading, notFound, error, reload } = useCourseRun(runId);
   const {
     items: groups,
@@ -382,6 +382,10 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
     || (run !== null
       && (onRun(run.admissionsReviewerUids) || onRun(run.trackLeadUids)));
   const canAllocate = isAdmin || (run !== null && onRun(run.trackLeadUids));
+  // Whether this caller may archive or restore a group from its card: the
+  // archive route's bar here, an admin or a course approver on the roster.
+  // This page also opens to a course drafter, whom the route refuses.
+  const canArchiveGroups = role !== null && canApproveCourse({ role, permissions });
 
   if (loading) return <AdminLoadingBar label="Loading run…" />;
 
@@ -448,6 +452,7 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
     setShowArchived,
     creatingGroup,
     setCreatingGroup,
+    canArchiveGroups,
   };
   const counts = run.applicationCounts;
   // Everyone who has actually filled the form in, whatever admissions has
@@ -1565,6 +1570,8 @@ type GroupsAndRolesProps = {
   setShowArchived: (next: boolean) => void;
   creatingGroup: boolean;
   setCreatingGroup: (next: boolean) => void;
+  /** An admin or a course approver: the archive route's bar on this page. */
+  canArchiveGroups: boolean;
 };
 
 /**
@@ -1594,6 +1601,7 @@ function GroupsAndRoles({
   setShowArchived,
   creatingGroup,
   setCreatingGroup,
+  canArchiveGroups,
   members,
   membersLoading,
 }: GroupsAndRolesProps & {
@@ -1669,6 +1677,7 @@ function GroupsAndRoles({
               enrolMode={run.enrolMode}
               runAction={runAction}
               onSaved={reloadGroups}
+              canArchive={canArchiveGroups}
             />
           ))}
         </div>

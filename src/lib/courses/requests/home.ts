@@ -7,6 +7,11 @@ import { COURSE_REQUESTS_COLLECTION, normalizeCourseRequest, type CourseRequestD
 import { canAuthorAdmissionRound } from "@/lib/firestore/users";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
+import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
+import { liveWaitingVisitRequests } from "@/lib/courses/visitRequest/page";
+import { normalizeMoveRequest, type MoveRequestDoc } from "@/lib/firestore/courseMemberRequests";
+import { liveWaitingMoveRequests } from "@/lib/courses/moveRequest/page";
+import { openByKind } from "./kinds";
 import { loadRequestsPage, requestShownTo } from "./load";
 
 /**
@@ -34,18 +39,26 @@ export async function requestsWaitingFor(db: Firestore, user: SessionUser, now: 
     if (loaded.status !== "ok") return NO_REQUESTS_WAITING;
     // Requests to be excused reach an admin's list alone (the loader sends a
     // lead none), so this is 0 for everybody else.
-    const excused = loaded.view.rows.filter((row) => row.kind === "excused" && row.state === "waiting").length;
-    return { count: loaded.view.counts.waiting + loaded.view.counts.handling, excused };
+    // Each kind counted by itself (`openByKind`), never one worked out from the others.
+    return { count: loaded.view.counts.waiting + loaded.view.counts.handling, ...openByKind(loaded.view.rows) };
   } catch (err) {
     console.warn("[dashboard] could not count the requests waiting", err);
     return NO_REQUESTS_WAITING;
   }
 }
 
-/** How many requests wait for somebody, and how many of them are requests to be excused (an admin's alone). */
-export type RequestsWaiting = { count: number; excused: number };
+/**
+ * How many requests wait for somebody, and how many of each kind, each
+ * counted by itself: register corrections, requests to be excused, to go to
+ * another session and to change group, and messages to the team (those four
+ * an admin's alone), and access asks to the team, an admin's alone too, which
+ * Home's line counts as messages to the team, so it never says "access
+ * needs". A kind with no count here is in `count` and in no line of Home's
+ * words until it brings its own.
+ */
+export type RequestsWaiting = { count: number; corrections: number; excused: number; visits: number; moves: number; messages: number; access: number };
 
-export const NO_REQUESTS_WAITING: RequestsWaiting = { count: 0, excused: 0 };
+export const NO_REQUESTS_WAITING: RequestsWaiting = { count: 0, corrections: 0, excused: 0, visits: 0, moves: 0, messages: 0, access: 0 };
 
 /**
  * How many requests about one run wait for somebody to decide them, as the
@@ -80,9 +93,31 @@ export async function requestsWaitingOnRun(
             return data.kind === "excused" && data.status === "waiting" && data.runId === runId;
           }).length
         : 0;
+    // Requests to go to another session, still waiting for a decision, live
+    // (not closed by itself, not gone with the place): counted for an admin alone, as those to be excused are.
+    const visits =
+      opts.excused === true
+        ? (
+            await liveWaitingVisitRequests(
+              db,
+              snap.docs.map((doc) => normalizeVisitRequest(doc.id, doc.data() ?? {})).filter((each): each is VisitRequestDoc => each !== null && each.runId === runId),
+              new Date(),
+            )
+          ).length
+        : 0;
+    // Requests to change group, still waiting, live (not gone by themselves): an admin's alone, likewise.
+    const moves =
+      opts.excused === true
+        ? (
+            await liveWaitingMoveRequests(
+              db,
+              snap.docs.map((doc) => normalizeMoveRequest(doc.id, doc.data() ?? {})).filter((each): each is MoveRequestDoc => each !== null && each.runId === runId),
+            )
+          ).length
+        : 0;
     // The lead of the programme that names the run, with their standing on this request: a track lead decides none.
     const leadsRun = user.role === "admin" || (await programmeLedBy(db, user, runId)) !== null;
-    return waiting.filter((each) => requestShownTo(user, groups.get(each.groupId), runId, leadsRun)).length + excused;
+    return waiting.filter((each) => requestShownTo(user, groups.get(each.groupId), runId, leadsRun)).length + excused + visits + moves;
   } catch (err) {
     console.warn("[programme] could not count the requests waiting", err);
     return 0;

@@ -6,23 +6,40 @@ import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { sendVisitEmail, visitGroupUrl, visitPersonUrl, type VisitEmailOutcome } from "@/lib/email/visitEmail";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
-import { ONLINE_SAID, attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
+import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
+import { onlineWordGone } from "@/lib/courses/joiningOnline/gone";
 import { courseEnrolmentId, groupForWeek, ownGroupForWeek, type CourseEnrolmentDoc, type OneWeekVisit } from "@/lib/firestore/courseEnrolments";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { SessionUser } from "@/lib/firebase/session";
 import { withdrawVisitRequestsIn } from "@/lib/courses/excused/decide";
 import { visitLimitsIn } from "./limits";
-import { MEMBER_NO_VISIT, arrangedEmailFor, dbReader, planCallOff, planVisit, readVisitFacts, txReader, type CallOffPlan, type VisitFacts, type VisitRecipient, type VisitRefusal } from "./plan";
+import {
+  MEMBER_NO_VISIT,
+  arrangedEmailFor,
+  dbReader,
+  joiningOnlineAtHost,
+  planCallOff,
+  planVisit,
+  readVisitFacts,
+  txReader,
+  type CallOffPlan,
+  type HostOnline,
+  type VisitFacts,
+  type VisitRecipient,
+  type VisitRefusal,
+} from "./plan";
 import {
   arrangedWords,
   calledOffDetail,
   calledOffWords,
   changedWords,
+  hostEmailWords,
   nowFullWords,
   tooLateToCancelWords,
   visitingDetail,
   visitsDetail,
+  type VisitEmailFacts,
   type VisitEmailWords,
 } from "./words";
 
@@ -164,19 +181,46 @@ export type ArrangeInput = {
   reason: string;
   actor: SessionUser;
   now: Date;
+  /**
+   * The person's own request this press approves (`../visitRequest/decide.ts`).
+   * Its decision is written by `inTransaction` IN THIS TRANSACTION, after
+   * every other read and with every other write, so a visit is never written
+   * without its decision nor a decision without its visit, and a withdraw or a
+   * second press racing it cannot both land. The request itself is no reason
+   * to refuse (`planVisit`'s `approving`), and the person's email is the
+   * approved one (`personWords`). Absent for a visit staff arrange.
+   *
+   * `online`: they ticked "I’d join online". The same transaction then puts
+   * their word on the host's register for that session, by the one writer of
+   * it, stamped as emailed, and the host's facilitators' email says it
+   * (`joiningOnlineAtHost`): the email their own press would send does not
+   * also go.
+   */
+  approves?: {
+    requestId: string;
+    inTransaction: (tx: Transaction) => Promise<{ ok: true; write: () => void } | VisitRefusal>;
+    personWords: (facts: VisitEmailFacts) => VisitEmailWords;
+    online: boolean;
+  };
 };
 
-/** Whether a press to arrange stands on these facts: the plan, or the press's refusal. Asked before the limit is claimed and again inside the save. */
-function checkArrange(facts: VisitFacts, input: ArrangeInput): { ok: true; plan: Extract<ReturnType<typeof planVisit>, { ok: true }>["plan"] } | VisitRefusal | VisitChanged {
-  const planned = planVisit(facts, input.weekNumber, input.hostGroupId, input.actor.uid, input.now);
+type Checked = { ok: true; plan: Extract<ReturnType<typeof planVisit>, { ok: true }>["plan"]; online: Extract<HostOnline, { ok: true }> | null };
+
+/** Whether a press to arrange stands on these facts: the plan (and, approving a request ticked "I’d join online", what that writes), or the press's refusal. Asked before the limit is claimed and again inside the save. */
+function checkArrange(facts: VisitFacts, input: ArrangeInput): Checked | VisitRefusal | VisitChanged {
+  const planned = planVisit(facts, input.weekNumber, input.hostGroupId, input.actor.uid, input.now, input.approves?.requestId ?? null, {
+    isAdmin: input.actor.role === "admin",
+  });
   if (!planned.ok) return planned;
+  const online = input.approves?.online ? joiningOnlineAtHost(facts, planned.plan, input.uid, input.now) : null;
+  if (online && !online.ok) return online;
   if (planned.plan.emails !== input.emailCount) {
     return { ok: false, status: 409, error: changedWords(planned.plan.emails), emails: planned.plan.emails, overLimit: planned.plan.overLimit !== null };
   }
   if (planned.plan.overLimit !== null && !input.overLimit) {
     return { ok: false, status: 409, error: nowFullWords(planned.plan.hostName), emails: planned.plan.emails, overLimit: true };
   }
-  return planned;
+  return { ok: true, plan: planned.plan, online };
 }
 
 export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<VisitSaveAnswer | VisitRefusal | VisitChanged | VisitLimited> {
@@ -189,8 +233,10 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
   let counted: VisitRecipient[] = [];
   let plan: Extract<ReturnType<typeof planVisit>, { ok: true }>["plan"] | null = null;
   let firstName = "";
+  let onlineLines: string[] = [];
   try {
     await db.runTransaction(async (tx) => {
+      onlineLines = [];
       const read = await readVisitFacts(txReader(tx), db, input.runId, input.uid, [input.weekNumber], input.now);
       if (!read.ok) throw new Stop(read);
       const { facts } = read;
@@ -204,6 +250,9 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
       const withdrawRequests = replaced
         ? await withdrawVisitRequestsIn(tx, db, { runId: input.runId, uid: input.uid, hostGroupId: replaced.hostGroupId, weekNumber: input.weekNumber, byUid: input.actor.uid, now: input.now })
         : () => {};
+      // The request this press approves: read again and its decision made ready, after every other read.
+      const decision = input.approves ? await input.approves.inTransaction(tx) : null;
+      if (decision && !decision.ok) throw new Stop(decision);
       const visit: OneWeekVisit = { weekNumber: input.weekNumber, groupId: planned.plan.hostGroupId, arrangedByUid: input.actor.uid, arrangedAt: input.now };
       // A visit to a session not happening that this one replaces goes in the same write.
       const visits = [...(facts.place.visits ?? []).filter((each) => !(planned.plan.replaces && each.weekNumber === input.weekNumber)), visit];
@@ -217,6 +266,12 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
       // Writes, after every read.
       limits.write();
       withdrawRequests();
+      if (decision?.ok) decision.write();
+      // "I’d join online": their word on the host's register for the session, by its one writer, stamped as emailed.
+      const online = planned.online;
+      if (online?.said?.write) online.said.write(tx, db.collection("courseAttendance").doc(online.registerId), input.runId);
+      // Said already and never stamped: the stamp alone, as this visit's email says it.
+      else if (online?.said?.stampOnly) online.said.stampOnly(tx, db.collection("courseAttendance").doc(online.registerId));
       tx.update(db.collection("courseEnrolments").doc(courseEnrolmentId(input.runId, input.uid)), {
         visits: storedVisits(visits),
         updatedAt: FieldValue.serverTimestamp(),
@@ -244,18 +299,25 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
       counted = planned.plan.recipients;
       plan = planned.plan;
       firstName = facts.person.firstName;
+      onlineLines = online?.lines ?? [];
     });
   } catch (err) {
     if (err instanceof Stop) return err.answer;
     throw err;
   }
   const done = plan as unknown as Extract<ReturnType<typeof planVisit>, { ok: true }>["plan"];
+  const lines = onlineLines;
   const emails = await sendAll(counted, {
     actorUid: input.actor.uid,
     runId: input.runId,
     hostGroupId: done.hostGroupId,
     homeGroupId: done.homeGroupId,
-    wordsFor: (recipient) => arrangedEmailFor(done, recipient),
+    wordsFor: (recipient) =>
+      recipient.as === "person" && input.approves
+        ? input.approves.personWords(done.emailFacts)
+        : recipient.as === "host" && lines.length > 0
+          ? hostEmailWords(done.emailFacts, lines)
+          : arrangedEmailFor(done, recipient),
     greet: () => true,
   });
   return {
@@ -349,9 +411,9 @@ export async function callOffVisit(db: Firestore, input: CallOffInput): Promise<
           const register = normalizeCourseAttendance(id, data);
           const ref = db.collection("courseAttendance").doc(id);
           if (register.pushedAt === null) {
-            if (Object.hasOwn(register.onlineSaid, input.uid)) {
-              tx.set(ref, { [ONLINE_SAID]: { [input.uid]: FieldValue.delete() } }, { merge: true });
-            }
+            // Their word that they are joining online, and its stamps, by the one rule (`onlineWordGone`).
+            const gone = onlineWordGone(data, input.uid);
+            if (gone) tx.set(ref, gone, { merge: true });
             if (Object.hasOwn(register.excusedInAdvance, input.uid)) {
               writeTakenBack(tx, { session: plan.hostSession, ref, data, state: { kind: "told" } } as unknown as SessionLine, input.uid);
             }

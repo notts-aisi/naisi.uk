@@ -170,6 +170,13 @@ export type FacilitatorGroupModel = {
   expectedIn: Record<number, number>;
   /** Visitors from other groups at the group's next session, name-sorted; empty with none. */
   visitors: GroupVisitorRow[];
+  /**
+   * Every visitor from another group with a visit standing to this group, and
+   * the weeks of it, whatever week the next session is: for the box at the
+   * top of the group page (`boxPeopleOf`), which names each only in a week
+   * they visit. Empty with none.
+   */
+  visitorsAhead: { uid: string; name: string; weeks: number[] }[];
   /** True while next week's email is on its schedule: "Finished", not "Pushed". */
   scheduled: boolean;
   toReview: GroupReviewRow[];
@@ -309,6 +316,7 @@ const EMPTY: FacilitatorGroupModel = {
   expected: 0,
   expectedIn: {},
   visitors: [],
+  visitorsAhead: [],
   scheduled: false,
   toReview: [],
   weeksBehind: null,
@@ -401,6 +409,21 @@ export async function loadFacilitatorGroup(
       (reviewer !== null && readsFacilitatorsOwnWork(viewer.actor, reviewer, person.uid)),
   );
 
+  // Every visit standing to this group, from the same rows as `visitorsIn`:
+  // a place still taking part, the weeks whose session is this group's for them.
+  const visitorsAhead = allListed
+    .filter((entry) => entry.group.id !== group.id)
+    .flatMap((entry) => entry.people)
+    .filter(({ row, enrolment }) => row.left === null && enrolment.status === "active")
+    .flatMap(({ row, enrolment }) => {
+      const weeks = (enrolment.visits ?? [])
+        .map((visit) => visit.weekNumber)
+        .filter((weekNumber) => visitInWeek(enrolment, weekNumber)?.groupId === group.id)
+        .sort((a, b) => a - b);
+      return weeks.length > 0 ? [{ uid: row.uid, name: row.name, weeks }] : [];
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid));
+
   return {
     facilitators: listed.facilitators,
     people,
@@ -419,6 +442,7 @@ export async function loadFacilitatorGroup(
       ]),
     ),
     visitors,
+    visitorsAhead,
     scheduled: records.switches.scheduled,
     // A facilitator who holds a place is one of the group's people, and their
     // own answers wait for the programme's lead and admins, never for their

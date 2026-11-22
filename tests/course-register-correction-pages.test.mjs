@@ -356,7 +356,11 @@ describe("2. the pages, drawn", () => {
     assert.ok(drawn.html.includes('href="/admin/admissions/requests/req1"'), "a row does not open its request");
     // Being handled is its own view: not drawn in Waiting.
     assert.ok(!drawn.text.includes("Sam has it"), "a request being handled is listed under Waiting");
-    assert.doesNotMatch(drawn.text, /email me|access needs/i, "the page offers something that is not built");
+    assert.doesNotMatch(drawn.text, /email me/i, "the page offers something that is not built");
+    // Access needs are built now (tests/course-ask-access-needs.test.mjs): with no access ask among the
+    // rows there is no section for them, and the only words about them are the admins' line under Who sees what.
+    assert.ok(!drawn.html.includes('id="requests-access"'), "an access section is drawn with no access ask");
+    assert.doesNotMatch(drawn.text.replace("Messages to the team, access needs among them, are for admins only", ""), /access needs/i);
 
     // A lead: their own programme's, no filter by programme.
     const lead = draw(RequestsList, { view: { ...view, viewer: "lead", rows: [ROW], counts: { waiting: 1, handling: 0, doneThisWeek: 0 } } });
@@ -544,7 +548,7 @@ describe("3. the wiring", () => {
     const gate = read("src/lib/firebase/pageGates.ts");
     assert.match(gate, /canAuthorAdmissionRound\(user\) \|\| namedReviewer/, "the tree's gate changed: Home's predicate must follow it");
     assert.match(read("src/app/(app)/dashboard/page.tsx"), /user && db && !viewingAs \? requestsWaitingFor\(db, user, now\) : NO_REQUESTS_WAITING,/);
-    assert.match(read("src/lib/courses/requests/home.ts"), /export const NO_REQUESTS_WAITING: RequestsWaiting = \{ count: 0, excused: 0 \};/);
+    assert.match(read("src/lib/courses/requests/home.ts"), /export const NO_REQUESTS_WAITING: RequestsWaiting = \{ count: 0, corrections: 0, excused: 0, visits: 0, moves: 0, messages: 0, access: 0 \};/);
     const nav = read("src/layout/appNav.ts");
     assert.match(nav, /\{ label: "Requests", href: "\/admin\/admissions\/requests", match: under\("\/admin\/admissions\/requests"\), visible: ADMISSIONS, ownHead: true \}/);
   });

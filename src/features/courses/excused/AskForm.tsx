@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useCardRefresh } from "../nextSession/refresh";
 import { useId, useState, type ReactNode } from "react";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { AskConfirmed } from "@/lib/courses/excused/model";
@@ -75,6 +76,7 @@ export default function AskForm({
   certificateNeeds?: string | null;
 }) {
   const router = useRouter();
+  const refreshCard = useCardRefresh();
   const hydrated = useHydrated();
   const id = useId();
   const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set(weeks.slice(0, 1).map((week) => week.sessionKey)));
@@ -137,6 +139,7 @@ export default function AskForm({
     setReason("");
     onSent?.();
     router.refresh();
+    refreshCard();
   }
 
   const rows = O.happenRows({ weekNumbers: chosen.map((week) => week.weekNumber), facilitatorFirstNames });

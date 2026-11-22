@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { homeEvents } from "@/app/(app)/dashboard/homeData";
-import { cantMakeItFor } from "@/lib/courses/cantMakeIt/seat";
-import { excusedFor } from "@/lib/courses/excused/own";
-import { joiningOnlineFor } from "@/lib/courses/joiningOnline/seat";
+import { changeGroupFor } from "@/lib/courses/moveRequest/own";
+import { nextSessionAnswersFor } from "@/lib/courses/nextSession/answers";
 import { readOwnCertificates } from "@/lib/courses/certificates/own";
 import { liveGroupsOf, runEndOf } from "@/lib/courses/finishing/runEnd";
 import { endSurveyFor } from "@/lib/surveys/waiting";
@@ -154,35 +153,31 @@ export default async function RunHomePage({
         }).catch(() => null)
       : null;
 
-  // "Can't make it" on the next session's ticket, for somebody taking part in
-  // the group, until the session starts: one read, of that session's
-  // register. A read that fails draws nothing.
-  const cantMakeIt =
-    access.isEnrolled && db
-      ? await cantMakeItFor(db, { user: access.user, run: access.run, enrolment: access.enrolment, groups: access.groups, now: new Date() }).catch(
-          () => null,
-        )
-      : null;
-  // "Joining online" beside it, for a session held in a room, until the
-  // session starts: one read, of the same register. A read that fails draws
-  // nothing.
-  const joiningOnline =
-    access.isEnrolled && db
-      ? await joiningOnlineFor(db, { user: access.user, run: access.run, enrolment: access.enrolment, groups: access.groups, now: new Date() }).catch(
-          () => null,
-        )
-      : null;
-  // Being excused, for somebody taking part in the group: each of their
-  // sessions as their card needs it, and their own requests, read by their
-  // own uid (`excusedFor`). It decides the ticket's way in: a request an
-  // admin decides, or, for somebody who facilitates the group they hold a
-  // place in, today's instant "Can't make it". Never a count. A read that
-  // fails offers neither.
-  const excused =
-    access.isEnrolled && db
-      ? await excusedFor(db, { user: access.user, run: access.run, enrolment: access.enrolment, groups: access.groups, now: new Date() }).catch(
-          () => null,
-        )
+  // What the card for their next session can be told, for somebody taking
+  // part (`nextSessionAnswersFor`, which Home asks through its own route, so
+  // the two places say one thing): "Can't make it" on the next session's
+  // card until it starts (one read, of that session's register), "I'm
+  // joining online" beside it for a session held in a room (one read, of the
+  // same register), and being excused, each of their sessions as their card
+  // needs it and their own requests, read by their own uid, which decides the
+  // way in: a request an admin decides, or, for somebody who facilitates the
+  // group they hold a place in, today's instant "Can't make it". Never a
+  // count. A read that fails draws nothing.
+  const { cantMakeIt, joiningOnline, excused, anotherSession } = await nextSessionAnswersFor(db, {
+    user: access.user,
+    run: access.run,
+    enrolment: access.enrolment,
+    groups: access.groups,
+    takesPart: access.isEnrolled,
+    now: new Date(),
+  });
+  // Changing group for good, on this page alone (never Home): its button, a
+  // request waiting, its decision's message and their own such requests, for
+  // somebody taking part (`changeGroupFor`, their own records by their own
+  // uid). A read that fails draws nothing.
+  const changeGroup =
+    db && access.isEnrolled
+      ? await changeGroupFor(db, { user: access.user, run: access.run, enrolment: access.enrolment, now: new Date() }).catch(() => null)
       : null;
   // Where "Email the group" and "Email the whole cohort" open Messages, set
   // to that audience (`messagesEntriesFor`), for somebody who staffs the run
@@ -264,6 +259,8 @@ export default async function RunHomePage({
       cantMakeIt={cantMakeIt}
       joiningOnline={joiningOnline}
       excused={excused}
+      anotherSession={anotherSession}
+      changeGroup={changeGroup}
       viewAs={viewAs}
       uid={access.user.uid}
       {...(guide ? { guide } : {})}

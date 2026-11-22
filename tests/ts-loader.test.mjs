@@ -1441,7 +1441,7 @@ const USERS = new Map([
     "it executes `needsPolicyAcceptance` (src/lib/legal/acceptance.ts) on a table of stored agreements, because " +
       "who the member area and a collaborator's space send to accept the policies is decided by comparing a stored " +
       "string with the versions the site serves, and only running it shows the answer; it runs again with " +
-      "`./policies` stubbed to a list where privacy has moved on to 22 and the terms to 2, so the promise that a " +
+      "`./policies` stubbed to a list where privacy has moved on to 23 and the terms to 2, so the promise that a " +
       "later privacy version is told rather than asked is held before a later version exists",
   ],
   [
@@ -1473,6 +1473,14 @@ const USERS = new Map([
       "their reason, and which stay as they were, is decided by the cascade's step and the move's own sentences together. " +
       "`firebase-admin/firestore` is stubbed with the cascade store's sentinels, and `server-only`, `next/server` and the " +
       "Firebase handles the cascade's graph imports are stubbed so that nothing reaches a project",
+  ],
+  [
+    "course-ask-access-needs.test.mjs",
+    "it runs the account deletion cascade over an access-needs ask and the records of its openings, beside the " +
+      "leaving world's routes, because which documents go with the account and which records of an opening stay is " +
+      "decided by the cascade's steps over both collections together. `firebase-admin/firestore` is stubbed with the " +
+      "cascade store's sentinels, and `server-only`, `next/server` and the Firebase handles the cascade's graph " +
+      "imports are stubbed so that nothing reaches a project",
   ],
   [
     "course-explainers.test.mjs",

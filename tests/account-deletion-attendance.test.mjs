@@ -560,6 +560,78 @@ test("a request to be excused goes with the account of the person who asked; one
   assert.deepEqual([...db.docs.keys()], ["decidedByThem"]);
 });
 
+test("a request to go to another session goes with the account of the person who asked; one an admin decided, replied to or took stays", async () => {
+  // Asked by and about the same person; who decided, replied or took it is
+  // named in fields the sweep never reads.
+  const db = makeRequestsDb({
+    theirs: { kind: "visit", askedByUid: "gone", subjectUid: "gone", decidedByUid: "admin", handlingUid: "admin", change: { weekNumber: 2, hostGroupId: "grpI", replies: [{ text: "Any news?", byUid: "admin" }] } },
+    actedOnByThem: { kind: "visit", askedByUid: "someone", subjectUid: "someone", decidedByUid: "gone", handlingUid: "gone", change: { weekNumber: 2, hostGroupId: "grpI", replies: [{ text: "Yes.", byUid: "gone" }] } },
+  });
+  assert.equal(await deleteCourseRequestsOf(db, "gone"), 1, "the request is counted once");
+  assert.deepEqual([...db.docs.keys()], ["actedOnByThem"]);
+});
+
+test("a message to the team goes with the account of the person who sent it; one they replied to or took stays", async () => {
+  // Sent by and about the same person, with no run; who took or replied to
+  // it is named in fields the sweep never reads.
+  const db = makeRequestsDb({
+    theirs: {
+      kind: "team-message",
+      runId: "",
+      askedByUid: "gone",
+      subjectUid: "gone",
+      handlingUid: "admin",
+      decidedByUid: "admin",
+      change: { topic: "site", words: "Week 2's second reading link goes nowhere.", replies: [{ text: "Fixed now.", byUid: "admin" }] },
+    },
+    repliedByThem: {
+      kind: "team-message",
+      runId: "",
+      askedByUid: "someone",
+      subjectUid: "someone",
+      handlingUid: "gone",
+      decidedByUid: "gone",
+      change: { topic: "else", words: "Can I bring a friend to a social?", replies: [{ text: "Yes.", byUid: "gone" }] },
+    },
+  });
+  assert.equal(await deleteCourseRequestsOf(db, "gone"), 1, "the message is counted once");
+  assert.deepEqual([...db.docs.keys()], ["repliedByThem"]);
+});
+
+test("a request to change group goes with the account of the person who asked, reason and all; one an admin decided, replied to or took stays", async () => {
+  // Asked by and about the same person, with their own words; who decided,
+  // replied or took it is named in fields the sweep never reads.
+  const db = makeRequestsDb({
+    theirs: { kind: "move", askedByUid: "gone", subjectUid: "gone", reason: "My lab runs all term.", decidedByUid: "admin", handlingUid: "admin", change: { toGroupId: "grpF", replies: [{ text: "Any news?", byUid: "admin" }] } },
+    actedOnByThem: { kind: "move", askedByUid: "someone", subjectUid: "someone", decidedByUid: "gone", handlingUid: "gone", change: { toGroupId: "grpF", replies: [{ text: "Yes.", byUid: "gone" }] } },
+  });
+  assert.equal(await deleteCourseRequestsOf(db, "gone"), 1, "the request is counted once");
+  assert.deepEqual([...db.docs.keys()], ["actedOnByThem"]);
+});
+
+test("an access-needs ask goes with the account of the person who sent it, words and all; one they replied to stays", async () => {
+  const db = makeRequestsDb({
+    theirs: {
+      kind: "access-needs",
+      runId: "",
+      askedByUid: "gone",
+      subjectUid: "gone",
+      decidedByUid: "admin",
+      change: { words: "A step-free room, please.", tellFacilitator: true, replies: [{ text: "Booked.", byUid: "admin" }] },
+    },
+    repliedByThem: {
+      kind: "access-needs",
+      runId: "",
+      askedByUid: "someone",
+      subjectUid: "someone",
+      decidedByUid: "gone",
+      change: { words: "A seat near the door.", tellFacilitator: false, replies: [{ text: "Done.", byUid: "gone" }] },
+    },
+  });
+  assert.equal(await deleteCourseRequestsOf(db, "gone"), 1, "the ask is counted once");
+  assert.deepEqual([...db.docs.keys()], ["repliedByThem"]);
+});
+
 test("the cascade calls the requests sweep, and its summary counts it", () => {
   const cascade = readFileSync(join(SRC, "lib", "firestore", "accountDeletion.ts"), "utf8");
   assert.match(cascade, /summary\.courseRequestsDeleted = await deleteCourseRequestsOf\(db, uid\);/);

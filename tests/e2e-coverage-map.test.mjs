@@ -774,6 +774,118 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in as a programme's lead and adds a group from the Times view.",
   },
+  "/api/courses/runs/[runId]/next-session": {
+    reason:
+      "Course hub: what Home's card for a member's next session can be told, the programme page's own server answers. tests/course-next-session-card.test.mjs executes it as the person, another member, a facilitator with no place, an admin and signed out, and draws Home's card and the programme page's from the same world and compares them. The browser specs that open Home as a member were changed with it and have not been run since.",
+    coverWhen: "When a browser spec that signs in as a member and opens Home passes with this route answering its card.",
+  },
+  "/api/courses/requests/ask": {
+    reason:
+      "Ask the team: a member sending the people running NAISI a message. tests/course-ask-the-team.test.mjs executes it as a member, an admin, signed out and waiting, with the daily limit of five, the topics offered, the 2,000 characters, a message that belongs to no programme and the admins' email only for an admin who switched it on, under its cap; tests/course-ask-access-needs.test.mjs executes the access form's ask through it, with its refusals, the tick, the shared daily limit and an answer that never carries the words. No browser spec signs in as a member and sends one.",
+    coverWhen:
+      "When a browser spec signs in as a member, opens Ask the team from the foot of a page, sends a message and reads it under Your requests. A message belongs to no run, so that spec's teardown has to delete it by askedByUid: a world's teardown deletes courseRequests by runId.",
+  },
+  "/api/courses/requests/[requestId]/team/take": {
+    reason:
+      "Ask the team: an admin saying they are dealing with a message. tests/course-ask-the-team.test.mjs executes it as an admin, the sender, a lead and signed out. No browser spec takes one.",
+    coverWhen: "When a browser spec signs in as an admin and presses Take it on a message to the team.",
+  },
+  "/api/courses/requests/[requestId]/team/reply": {
+    reason:
+      "Ask the team: an admin replying to a message, which closes it and emails the person. tests/course-ask-the-team.test.mjs executes it as an admin, the sender, a lead and signed out, with the reply's rules, a second reply refused, the email's words and the reply then shown on the member's page. No browser spec replies to one.",
+    coverWhen: "When a browser spec signs in as an admin, replies to a message a member sent, and the member reads the reply on Ask the team.",
+  },
+  "/api/courses/requests/[requestId]/team/open": {
+    reason:
+      "Ask the team, access needs: an admin opening what a member wrote, which records the opening in the same transaction. tests/course-ask-access-needs.test.mjs executes it as signed out, the sender, another member, the group's facilitator, the programme's lead, a view-as session, an admin who sent the ask and another admin, with a record that cannot be written (no words returned), and searches for the words in every answer, the pages it draws (the request page, Ask the team, the programme page, My programmes) and the register, roster and overview it reads for each caller, every email rendered as HTML and plain text, the email log rows a real send writes, every log line and every stored document but the ask. No browser spec opens one.",
+    coverWhen:
+      "When a browser spec signs in as a member, sends an access-needs ask from Ask the team, and an admin then opens it on its request's page and reads the words. The ask belongs to no run, so that spec's teardown has to delete it, and its record of the opening, by uid.",
+  },
+  "/(app)/ask-the-team": {
+    reason:
+      "Ask the team, the member's page: tests/course-ask-the-team.test.mjs draws it as a member with no place, a member with a told place (the way to another session and to the programme page) and with their own messages waiting and replied; tests/course-ask-access-needs.test.mjs draws it with an access-needs ask waiting and replied, listed as Access needs alone, never its words. No browser spec opens it.",
+    coverWhen: "When a browser spec signs in as a member, opens Ask the team from the foot of a page, sends a message and reads it under Your requests.",
+  },
+  "/api/courses/runs/[runId]/requests/visit": {
+    reason:
+      "Course hub: a member asking to go to another group's session in the week of their next session, from their own form. tests/course-visit-request.test.mjs executes it as the person, somebody with no place, a facilitator and signed out, with one request at a time, a full session, nothing to ask and the admins' email under its cap. No browser spec signs in as a member and asks.",
+    coverWhen: "When a browser spec signs in as a member, opens Go to another session this week from the card and sends the request.",
+  },
+  "/api/courses/requests/[requestId]/visit/approve": {
+    reason:
+      "Course hub: an admin approving a member's request to go to another session, which arranges the visit through the staff visit's own writer in the same transaction. tests/course-visit-request.test.mjs executes it as an admin, the asker, a lead and signed out, with the count on the button and the over-the-limit warning checked at the press, and proves the visit written is the staff visit's own. No browser spec decides one.",
+    coverWhen: "When a browser spec signs in as an admin and approves a member's request from its page on the Requests page.",
+  },
+  "/api/courses/requests/[requestId]/visit/decline": {
+    reason:
+      "Course hub: an admin declining a member's request to go to another session, with the reply. tests/course-visit-request.test.mjs executes it as an admin and as everybody it refuses, with the person's email. No browser spec decides one.",
+    coverWhen: "When a browser spec signs in as an admin and declines a member's request from its page.",
+  },
+  "/api/courses/requests/[requestId]/visit/reply": {
+    reason:
+      "Course hub: an admin replying to a member's request to go to another session without deciding it. tests/course-visit-request.test.mjs executes it as an admin and as everybody it refuses, with the person's email and what the card then says. No browser spec replies to one.",
+    coverWhen: "When a browser spec signs in as an admin and replies to a member's request without deciding it.",
+  },
+  "/api/courses/requests/[requestId]/visit/take": {
+    reason:
+      "Course hub: an admin saying they are dealing with a member's request to go to another session. tests/course-visit-request.test.mjs executes it as an admin and as everybody it refuses. No browser spec takes one.",
+    coverWhen: "When a browser spec signs in as an admin and presses Take it on a member's request.",
+  },
+  "/api/courses/requests/[requestId]/visit/withdraw": {
+    reason:
+      "Course hub: a member withdrawing their own request to go to another session. tests/course-visit-request.test.mjs executes it as the asker, an admin and somebody else, while it waits, once decided and once it closed by itself. No browser spec signs in as a member and withdraws.",
+    coverWhen: "When a browser spec signs in as a member with a request waiting and presses Withdraw the request on the card.",
+  },
+  "/api/courses/requests/[requestId]/visit/dismiss": {
+    reason:
+      "Course hub: a member dismissing the message that their request to go to another session was declined. tests/course-visit-request.test.mjs executes it as the asker and as everybody it refuses. No browser spec signs in as a member with a declined request.",
+    coverWhen: "When a browser spec signs in as a member whose request was declined and presses Dismiss.",
+  },
+  "/(app)/learn/[runId]/another-session": {
+    reason:
+      "Course hub: a member's form for asking to go to another session this week, and the sentence it says when nothing can be asked. tests/course-visit-request.test.mjs draws it as the person, with the week's sessions, the places left and a full one, and as somebody it sends back to the programme page. No browser spec opens it.",
+    coverWhen: "When a browser spec signs in as a member and opens the form from the card on Home or the programme page.",
+  },
+  "/api/courses/runs/[runId]/requests/move": {
+    reason:
+      "Course hub: a member asking to change group for good, from their own form. tests/course-move-request.test.mjs executes it as the person, a facilitator, an admin with no place, a seat Publish has not told and signed out, with one request at a time across kinds, a full group, every group full, the reason needed, the admins' email, its switch and its daily cap. No browser spec signs in as a member and asks.",
+    coverWhen: "When a browser spec signs in as a member, opens Change group for good from the programme page and sends the request.",
+  },
+  "/api/courses/requests/[requestId]/move/approve": {
+    reason:
+      "Course hub: an admin approving a member's request to change group, which makes the move through the staff move's own writer in the same transaction. tests/course-move-request.test.mjs executes it as an admin, the asker, a programme's lead, another member and signed out, with the week and the count on the button checked at the press, a group that filled since, a week the rule refuses, a withdraw that landed first, a withdraw or another admin's decision that lands inside the move's own transaction, a second approval, and every state in which the request went by itself, and proves the move written is the staff move's own. No browser spec decides one.",
+    coverWhen: "When a browser spec signs in as an admin and approves a member's request to change group from its page.",
+  },
+  "/api/courses/requests/[requestId]/move/decline": {
+    reason:
+      "Course hub: an admin declining a member's request to change group, with the reply. tests/course-move-request.test.mjs executes it as an admin (with and without a reply), the asker, a programme's lead, another member and signed out, with the person's email, and once the request went by itself in each way it can. No browser spec decides one.",
+    coverWhen: "When a browser spec signs in as an admin and declines a member's request to change group from its page.",
+  },
+  "/api/courses/requests/[requestId]/move/reply": {
+    reason:
+      "Course hub: an admin replying to a member's request to change group without deciding it. tests/course-move-request.test.mjs executes it as an admin, twice, the asker, a programme's lead, another member and signed out, with the person's email and what the card then says. No browser spec replies to one.",
+    coverWhen: "When a browser spec signs in as an admin and replies to a member's request to change group without deciding it.",
+  },
+  "/api/courses/requests/[requestId]/move/take": {
+    reason:
+      "Course hub: an admin saying they are dealing with a member's request to change group. tests/course-move-request.test.mjs executes it as an admin, the asker, a programme's lead, another member and signed out. No browser spec takes one.",
+    coverWhen: "When a browser spec signs in as an admin and presses Take it on a member's request to change group.",
+  },
+  "/api/courses/requests/[requestId]/move/withdraw": {
+    reason:
+      "Course hub: a member withdrawing their own request to change group. tests/course-move-request.test.mjs executes it as the asker, an admin, another member and signed out, while it waits, once withdrawn, once an admin declined it, and once a staff move or any other state made it moot. No browser spec signs in as a member and withdraws.",
+    coverWhen: "When a browser spec signs in as a member with a request to change group waiting and presses Withdraw the request on the programme page.",
+  },
+  "/api/courses/requests/[requestId]/move/dismiss": {
+    reason:
+      "Course hub: a member dismissing the message that their request to change group was declined. tests/course-move-request.test.mjs executes it as the asker, twice, an admin and another member. No browser spec signs in as a member with a declined request.",
+    coverWhen: "When a browser spec signs in as a member whose request to change group was declined and presses Dismiss.",
+  },
+  "/(app)/learn/[runId]/change-group": {
+    reason:
+      "Course hub: a member's form for asking to change group for good, and what it says when nothing can be asked. tests/course-move-request.test.mjs draws it as the person, with the groups with a place, a full group left out, every group full and a request of the other kind waiting, and as an admin it sends back to the programme page. No browser spec opens it.",
+    coverWhen: "When a browser spec signs in as a member and opens the form from the programme page.",
+  },
   "/api/courses/runs/[runId]/visit/cancel": {
     reason:
       "Course hub: the person cancelling a visit staff arranged for them, from their programme page. tests/course-visit.test.mjs executes it as the person, somebody else and signed out, before and after the earlier of the two sessions starts, with what it takes off the host's register and who it emails. No member signs in on the verified browser spec scripts/e2e-fixtures/course-hub-visit.mjs, which arranges and calls off a visit as staff.",
@@ -1009,6 +1121,11 @@ const NOT_COVERED = {
       "Course hub: the instant Can't make it, which records somebody as excused on the spot. Somebody taking part now asks an admin instead (the excused weeks spec drives that), so only a facilitator who holds a place in the group they run says it; anybody else taking part is refused in one sentence, and may still take back a line they wrote before. tests/course-session-cant-make-it.test.mjs executes it as every kind of caller, with the refusal, the line it writes, its take-back and the line an approval wrote that it leaves alone.",
     coverWhen:
       "When a browser spec seats a facilitator in the group they run, or the route goes once the instant button has settled.",
+  },
+  "/api/courses/groups/[groupId]/archive": {
+    reason:
+      "Archiving or restoring a group, from the run editor's switch and the group's page: pressed as every kind of caller and in every state it refuses (people still in it, a move or a visit still to come, an unfinished register, a facilitator sitting elsewhere, a run being destroyed) against the real route by tests/course-group-archive.test.mjs, the page's Archive and Restore by tests/course-group-page.test.mjs, and the field's pin by scripts/rules-tests/tests/course-group-archived.test.mjs. No spec archives a group, and no verified spec reaches the group's page with a group it could empty.",
+    coverWhen: "When a browser spec drives a programme's group page through a term's end with an emptied group, the term the owner first archives groups in.",
   },
   "/api/courses/groups/[groupId]/rooms-email": {
     reason:
@@ -2283,7 +2400,7 @@ const NOT_COVERED = {
   },
   "/(app)/anonymous-feedback": {
     reason:
-      "The members' form; tests/society-feedback.test.mjs renders it with this term's programmes, the roles and its words, without asking who is reading, and without the pointer to Ask the team.",
+      "The members' form; tests/society-feedback.test.mjs renders it with this term's programmes, the roles and its words and the pointer to Ask the team, without asking who is reading.",
     coverWhen:
       "When a fixture can find the entry its member sent without anything naming the sender (a marker in the words, deleted by teardown from the waiting place), so a spec can sign a member in, open the form from the foot of Home, send it and read the thanks.",
   },

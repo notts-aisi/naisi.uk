@@ -53,6 +53,15 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  * the groups are handed on to, which must ask the comparator.
  */
 const READS_WITHOUT_A_LIST = new Map([
+  // Archiving or restoring a group, from the run editor and the group's page.
+  [
+    "src/lib/courses/groupArchive/read.ts",
+    {
+      why:
+        "Archiving or restoring a group reads the run's groups to ask whether another still meets and to name the group " +
+        "a facilitator sits in: never a list of groups on a page.",
+    },
+  ],
   // A move made mid-term on the board, reached from the allocate route.
   [
     "src/lib/courses/moveFromWeek.ts",
@@ -68,6 +77,24 @@ const READS_WITHOUT_A_LIST = new Map([
       why:
         "A move made mid-term on the board reads the run's groups to work out the move's week from the sessions of the " +
         "groups the place belongs to: never a list of groups on a page.",
+    },
+  ],
+  // A request to change group for good: its two groups, by name.
+  [
+    "src/lib/courses/moveRequest/page.ts",
+    {
+      why:
+        "The admins' rows and page of requests to change group read each run's groups to name the group asked from and " +
+        "the group asked for, and the one asked for's places: never a list of groups on a page.",
+    },
+  ],
+  // A request to go to another session: whether it still waits.
+  [
+    "src/lib/courses/visitRequest/page.ts",
+    {
+      why:
+        "The admins' rows and page of requests to go to another session read each run's groups to say whether a request " +
+        "still waits and to name its two groups: never a list of groups on a page.",
     },
   ],
   // A session called off: the visits to it that end with it.

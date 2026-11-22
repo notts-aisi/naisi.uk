@@ -13,7 +13,7 @@
  *  1. BEN opens his next session's card: no instant button. Can't make it
  *     opens the request, which first asks him to confirm, in order, that he
  *     can't go to another group's session in person, can't join his own
- *     group's session online (today's "Joining online" beside it: Group A is
+ *     group's session online (today's "I’m joining online" beside it: Group A is
  *     a room with a link) and can't join another group's session online;
  *     Send stays off until all three are ticked, and ticking a second week
  *     clears them, to be confirmed again. He asks to be excused from
@@ -112,7 +112,7 @@ const WORDS = {
   contactAddress: "ai-safety@uonsu.com",
   emailMe: "Email me about new requests",
   newRequest: (first, week) => new RegExp(`^${first}\\b.* asked to be excused from week ${week}(, for (today|tomorrow))?$`),
-  joiningOnline: (day) => `Joining online on ${day}`,
+  joiningOnline: (day) => `I’m joining online on ${day}`,
   canMakeItAfterAll: "I can make it after all",
   medical: "Please don’t include medical details or anything about your health. A few words are enough.",
   why: "Why (a line is enough)",
@@ -407,7 +407,7 @@ test(
       const sheet = pg.getByTestId("excuse-sheet");
       await sheet.getByRole("heading", { name: WORDS.cantMakeDay(nextDay), exact: true }).waitFor({ timeout: WAIT_MS });
       // The request, which first asks what else they could do: a room with a
-      // link, so today's Joining online sits beside the line about it. The
+      // link, so today's I’m joining online sits beside the line about it. The
       // seam for another group's session that week stays empty: the form
       // gives the team's address instead.
       const form = sheet.getByTestId("excuse-ask-form");

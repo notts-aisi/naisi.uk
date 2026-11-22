@@ -1621,6 +1621,12 @@ admins' page, reached from a button on the head of Surveys) and
 the download). It shares the night's move job with the form above, and the
 term's choice (`chooseTerm`), and nothing else.
 
+Nobody can reply to an entry, so the form's intro and its thanks both point to
+Ask the team (`/ask-the-team`, docs/courses-ops.md, "Ask the team") for
+somebody who would like an answer: a plain link, which shares nothing with
+the form. The two links sit side by side at the foot of every signed-in page,
+Ask the team first.
+
 | Collection | One per | Holds |
 | --- | --- | --- |
 | `societyFeedbackWaiting/{autoId}` | entry, until the night's move | `ENTRY_FIELDS`: `words`, `day`, `roundId`, `programmeId`, `programmeName`, `week`, `about` |

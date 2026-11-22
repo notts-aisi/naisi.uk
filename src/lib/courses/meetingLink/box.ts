@@ -45,8 +45,28 @@ export type JoiningOnlineBoxSession = {
   hasLink: boolean;
 };
 
-/** A row of the group, as the page that calls this names it for its reader. */
-export type BoxPerson = { uid: string; name: string };
+/**
+ * A row of the group, as the page that calls this names it for its reader.
+ * `weeks`, for a visitor from another group: the weeks they visit, the only
+ * sessions they are named under. Absent for the group's own people.
+ */
+export type BoxPerson = { uid: string; name: string; weeks?: readonly number[] };
+
+/**
+ * THE PEOPLE THE GROUP PAGE'S BOX NAMES: the group's own people still taking
+ * part, as before, and every visitor with a visit standing to the group,
+ * each named only under a session of a week they visit. A visit called off
+ * is gone from the place, so its visitor is named nowhere.
+ */
+export function boxPeopleOf(model: {
+  people: readonly { uid: string; name: string; left: unknown }[];
+  visitorsAhead: readonly { uid: string; name: string; weeks: readonly number[] }[];
+}): BoxPerson[] {
+  return [
+    ...model.people.filter((person) => person.left === null).map((person) => ({ uid: person.uid, name: person.name })),
+    ...model.visitorsAhead.map((visitor) => ({ uid: visitor.uid, name: visitor.name, weeks: [...visitor.weeks] })),
+  ];
+}
 
 export async function joiningOnlineBox(
   db: Firestore,
@@ -77,6 +97,7 @@ export async function joiningOnlineBox(
     const register = normalizeCourseAttendance(id, data);
     const names = people
       .filter((person) => {
+        if (person.weeks && !person.weeks.includes(session.weekNumber)) return false;
         if (!register.onlineSaid[person.uid]) return false;
         const mark = register.records[person.uid];
         return mark !== "absent" && mark !== "excused";

@@ -209,7 +209,9 @@ const ui = createLoader({
 });
 const AttendanceGrid = (await ui.loadTs(join("features", "courses", "AttendanceGrid.tsx"))).default;
 const TicketAnswers = (await ui.loadTs(join("features", "courses", "weekly", "TicketAnswers.tsx"))).default;
-const SessionTicket = (await ui.loadTs(join("features", "courses", "weekly", "SessionTicket.tsx"))).default;
+// The card for a member's next session, on Home and the programme page.
+const NextSessionCard = (await ui.loadTs(join("features", "courses", "nextSession", "NextSessionCard.tsx"))).default;
+const cardProps = { roomChanged: false, facilitators: [], groupLine: "Group B", onlineLine: "Online, with Group B", why: "", saidOnline: false, calendar: true };
 const JoiningOnlineBox = (await ui.loadTs(join("features", "courses", "facilitator", "JoiningOnlineBox.tsx"))).default;
 const ProgrammeAttendance = (await ui.loadTs(join("features", "applications", "groups", "ProgrammeAttendance.tsx"))).default;
 
@@ -546,7 +548,7 @@ describe("4. the link reaches everybody in the group, worded for whoever joins o
     const facts = cardFacts.ticketFacts(card);
     assert.equal(facts.joinUrl, LINK);
     assert.equal(facts.joinFor, "joining-online");
-    const inRoom = draw(SessionTicket, { facts, eyebrow: "Tonight · week 3", heading: "Tue 17 Nov, 6pm to 8pm", roomChanged: false, facilitators: [], calendar: true });
+    const inRoom = draw(NextSessionCard, { ...cardProps, facts, eyebrow: "Tonight · week 3", heading: "Tue 17 Nov, 6pm to 8pm" });
     assert.ok(inRoom.text.includes("Hallward B12"), inRoom.text);
     assert.ok(inRoom.text.includes("Add to calendar"), inRoom.text);
     assert.ok(inRoom.text.includes(`${linkWords.JOIN_ONLINE} ${words.FOR_JOINING_ONLINE} ${linkWords.LINK_IS_HERE}`), inRoom.text);
@@ -557,7 +559,7 @@ describe("4. the link reaches everybody in the group, worded for whoever joins o
     const onlineCard = (await w.overview("chloe")).body.groups.find((group) => group.id === B);
     const onlineFacts = cardFacts.ticketFacts(onlineCard);
     assert.equal(onlineFacts.joinFor, "everybody");
-    const online = draw(SessionTicket, { facts: onlineFacts, eyebrow: "Tonight · week 3 · online", heading: "6pm to 8pm", roomChanged: false, facilitators: [], calendar: true });
+    const online = draw(NextSessionCard, { ...cardProps, facts: onlineFacts, eyebrow: "Tonight · week 3 · online", heading: "6pm to 8pm" });
     assert.ok(!online.text.includes("Add to calendar"), online.text);
     assert.ok(online.text.includes(`${linkWords.JOIN_ONLINE} ${linkWords.LINK_IS_HERE}`), online.text);
     assert.ok(!online.text.includes(words.FOR_JOINING_ONLINE), online.text);
@@ -614,7 +616,7 @@ describe("5. the programme page offers Joining online beside Can't make it, one 
     const cant = { groupId: B, sessionKey: "w03", day: "Tue 17 Nov", told: false };
     const open = draw(TicketAnswers, { cantMakeIt: cant, joiningOnline: await ticketFor("chloe"), hasLink: false });
     assert.equal(open.text, `${cantWords.CANT_MAKE_IT} ${words.JOINING_ONLINE}`);
-    assert.match(open.html, /aria-label="Joining online on Tue 17 Nov"/);
+    assert.ok(open.html.includes(`aria-label="${words.JOINING_ONLINE} on Tue 17 Nov"`), open.html);
 
     assert.equal((await online("chloe", "w03")).status, 200);
     const said = draw(TicketAnswers, { cantMakeIt: cant, joiningOnline: await ticketFor("chloe"), hasLink: false });
@@ -629,16 +631,19 @@ describe("5. the programme page offers Joining online beside Can't make it, one 
     assert.equal(told.text, `${cantWords.TOLD_US} ${cantWords.CAN_MAKE_IT_AFTER_ALL}`);
     // A view-as session draws the answers and presses nothing.
     const locked = draw(TicketAnswers, { cantMakeIt: cant, joiningOnline: { ...(await ticketFor("chloe")), told: false }, hasLink: false, locked: true });
-    assert.match(locked.html, /aria-label="Joining online on Tue 17 Nov" disabled=""/);
+    assert.ok(locked.html.includes(`aria-label="${words.JOINING_ONLINE} on Tue 17 Nov" disabled=""`), locked.html);
   });
 
   test("on the programme page's ticket, beside Add to calendar, only about the session the ticket shows", async () => {
     await w.asBrowser("chloe");
     const view = await ticketFor("chloe");
     const page = w.programmeHome("chloe", { joiningOnline: view });
-    assert.ok(page.text.includes("Hallward B12 R S with Rahul and Sofia Add to calendar Joining online"), page.text);
+    // The card's room line, then its group line, then Add to calendar and the button beside it.
+    assert.ok(page.text.includes(`Hallward B12 R S Group B with Rahul and Sofia Add to calendar ${words.JOINING_ONLINE}`), page.text);
     for (const other of [{ ...view, sessionKey: "w04" }, { ...view, groupId: A }]) {
-      assert.doesNotMatch(w.programmeHome("chloe", { joiningOnline: other }).text, /Joining online/, JSON.stringify(other));
+      const text = w.programmeHome("chloe", { joiningOnline: other }).text;
+      assert.ok(!text.includes(words.JOINING_ONLINE), JSON.stringify(other));
+      assert.doesNotMatch(text, /Joining online/, JSON.stringify(other));
     }
   });
 });
@@ -1118,12 +1123,17 @@ describe("8. the group's facilitators are emailed, once per person per session, 
     assert.ok(!JSON.stringify(await ticketFor("chloe")).includes("onlineEmailed"), "the ticket carries the record");
     assert.ok(!JSON.stringify(await boxOfB()).includes("onlineEmailed"), "the box carries the record");
 
-    // The tree: the field is named by its record, the one write and account deletion, and no browser module.
+    // The tree: the field is named by its record, the one write, the one rule
+    // that takes it away with the person's place at the session (CHANGED ON
+    // PURPOSE, November 2026: a visit that ends takes it, so a word said
+    // again once they are due again is told), account deletion, and no browser module.
     const naming = [...walkSource(SRC)]
       .filter((file) => /\bonlineEmailed\b|\bONLINE_EMAILED\b/.test(stripSource(readFileSync(file, "utf8"), { keepStrings: true })))
       .map((file) => file.slice(SRC.length + 1).split("\\").join("/"))
       .sort();
-    assert.deepEqual(naming, ["lib/courses/joiningOnline/seat.ts", "lib/firestore/accountDeletion.ts", "lib/firestore/courseAttendance.ts"]);
+    assert.deepEqual(naming, ["lib/courses/joiningOnline/gone.ts", "lib/courses/joiningOnline/seat.ts", "lib/firestore/accountDeletion.ts", "lib/firestore/courseAttendance.ts"]);
+    // The rule only ever deletes the stamp.
+    assert.doesNotMatch(stripSource(readFileSync(join(SRC, "lib", "courses", "joiningOnline", "gone.ts"), "utf8")), /serverTimestamp/);
     for (const file of naming) assert.doesNotMatch(readFileSync(join(SRC, file), "utf8"), /^["']use client["']/m, file);
   });
 });

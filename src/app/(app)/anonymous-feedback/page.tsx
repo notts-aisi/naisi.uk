@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import SocietyFeedbackForm from "@/features/societyFeedback/SocietyFeedbackForm";
 import styles from "@/features/societyFeedback/societyFeedback.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -29,7 +30,13 @@ export default async function AnonymousFeedbackPage() {
     <div className={styles.screen}>
       <header className={styles.head}>
         <h1 className={styles.title}>{FORM_WORDS.title}</h1>
-        <p className={styles.intro}>{FORM_WORDS.intro}</p>
+        <p className={styles.intro}>
+          {FORM_WORDS.intro} {FORM_WORDS.answerBefore}{" "}
+          <Link href="/ask-the-team" className={styles.inlineLink}>
+            {FORM_WORDS.askTheTeam}
+          </Link>{" "}
+          {FORM_WORDS.answerAfter}
+        </p>
       </header>
       <SocietyFeedbackForm
         programmes={programmes.map((programme) => ({

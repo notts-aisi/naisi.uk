@@ -12,6 +12,8 @@ import { campusForWeek, sessionForWeek, type CourseGroupDoc } from "@/lib/firest
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { sessionsWithGroup } from "../groupsByWeek";
 import { ownRequestsIn } from "../excused/ask";
+import { ownVisitRequestsIn } from "../visitRequest/standing";
+import { approvedByWords as requestApprovedByWords } from "../visitRequest/words";
 import { excusalStandsFor } from "../excused/marking";
 import { factOf, weeksAbout } from "../excused/model";
 import { cancelDeadline, ownSessionThatWeek, visitRecipients } from "./plan";
@@ -37,7 +39,9 @@ export type { OverviewVisit };
  *
  *   chip "Visiting Group I"; "Wed 11 Nov, 6pm to 8pm"; "Monica Partridge C12,
  *   University Park"; "Group I with Lucy, this week only"; "You’re still in
- *   Group C: back on Wed 18 Nov."; who arranged it; and, until the earlier of
+ *   Group C: back on Wed 18 Nov."; who arranged it, or, for a visit that
+ *   approved their own request, "Approved by Zach, Tue 10 Nov, 1:40pm" with
+ *   the reply; and, until the earlier of
  *   the two sessions starts, "Cancel this visit" with "You can cancel until
  *   Wed 11 Nov, 6pm. Rahul and Lucy are told.", the question asked once
  *   before it cancels and the line after.
@@ -89,7 +93,23 @@ export async function ownVisitsOf(
   const shown = ahead.filter((each) => !notHeld.has(each.weekNumber));
   if (shown.length === 0) return [];
 
-  const wanted = [...new Set(shown.flatMap((each) => [...each.host.facilitatorUids, ...each.home.facilitatorUids, each.arrangedByUid ?? ""]))].filter(
+  // A visit that approved the person's own request says so, with the reply,
+  // in place of who arranged it: the request approved for that week and host
+  // at the moment this visit was arranged (the approval writes both with one
+  // clock), so a visit staff arrange later to the same host is never said to
+  // be the request's.
+  const visitRequests = await ownVisitRequestsIn(null, db, place.uid, run.id);
+  const approvedFor = (weekNumber: number, hostId: string, arrangedAt: Date | null) =>
+    visitRequests.find(
+      (request) =>
+        request.status === "approved" &&
+        request.change.weekNumber === weekNumber &&
+        request.change.hostGroupId === hostId &&
+        request.decidedAt !== null &&
+        arrangedAt !== null &&
+        request.decidedAt.getTime() === arrangedAt.getTime(),
+    ) ?? null;
+  const wanted = [...new Set(shown.flatMap((each) => [...each.host.facilitatorUids, ...each.home.facilitatorUids, each.arrangedByUid ?? "", approvedFor(each.weekNumber, each.host.id, each.arrangedAt)?.decidedByUid ?? ""]))].filter(
     (uid) => uid && !uid.includes("/"),
   );
   const firstNames = new Map<string, string>();
@@ -139,6 +159,7 @@ export async function ownVisitsOf(
     const told = toldOf(host, home);
     const ownWhen = own ? { dateKey: own.dateKey, startTimeLocal: own.session.startTimeLocal } : null;
     const arranger = arrangedByUid ? (firstNames.get(arrangedByUid) ?? "") : "";
+    const approved = approvedFor(weekNumber, host.id, arrangedAt);
     const link = sessionForWeek(host, session.weekId).meetingUrl;
     return {
       weekNumber,
@@ -154,7 +175,12 @@ export async function ownVisitsOf(
       place: placeWords(session.session.location ?? "", campusLabel(campusForWeek(host, session.weekId))),
       withLine: hostWithWords(host.name, firstOf(host.facilitatorUids)),
       stillIn: stillInWords(home.name, back ? back.session.dateKey : null),
-      arrangedBy: arranger && arrangedAt ? arrangedByWords(arranger, arrangedAt) : null,
+      arrangedBy:
+        approved?.decidedAt
+          ? requestApprovedByWords(firstNames.get(approved.decidedByUid ?? "") ?? "", approved.decidedAt, approved.reply)
+          : arranger && arrangedAt
+            ? arrangedByWords(arranger, arrangedAt)
+            : null,
       cancel:
         until && (!earlierStart || now.getTime() < earlierStart.getTime())
           ? {

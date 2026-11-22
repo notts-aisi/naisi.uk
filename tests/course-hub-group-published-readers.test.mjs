@@ -492,6 +492,50 @@ const READERS = {
       "to check they still hold an active learner's place in the request's group before a line is written; it shows " +
       "no member a placement and names nobody to a facilitator",
   },
+  "lib/courses/visitRequest/page.ts": {
+    kind: "staff",
+    proof: ['if (actor.role !== "admin") return { status: "none" };', 'if (viewer.role !== "admin" || requests.length === 0) return [];'],
+    why:
+      "A request to go to another session, for admins alone (its page, its row, and the counts Home and a programme's " +
+      "head ask only for an admin): the person's seat is read by its address only to say whether the request still " +
+      "waits (an active learner's place in the group they asked from that week); it shows no member a placement and " +
+      "names nobody to a facilitator",
+  },
+  "lib/courses/moveRequest/facts.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "Asking to change group for good: the caller's own seat only, read by their uid and shown to nobody else; a seat " +
+      "Publish has not told them about takes no part, so the card offers no button, the form nothing, and the ask is " +
+      "refused as nothing to ask (the staff move's own placeTakesMove asks the same again)",
+  },
+  "lib/courses/moveRequest/page.ts": {
+    kind: "staff",
+    proof: ['if (actor.role !== "admin") return { status: "none" };', 'if (viewer.role !== "admin" || requests.length === 0) return [];'],
+    why:
+      "A request to change group for good, for admins alone (its page, its row, and the counts Home and a programme's " +
+      "head ask only for an admin): the person's seat is read by its address only to say whether the request still " +
+      "waits (an active learner's place in the group they asked from, unmoved since); it shows no member a placement " +
+      "and names nobody to a facilitator",
+  },
+  "lib/courses/moveRequest/decide.ts": {
+    kind: "staff",
+    proof: ["const found = await forAdmin(db, actor, requestId, normalizeMoveRequest);"],
+    why:
+      "Deciding, replying to or taking a request to change group for good, for admins alone (forAdmin refuses anybody " +
+      "else first), and its asker withdrawing it: the person's seat is read by its address only to say whether the " +
+      "request still waits; approving moves them through the staff move's own writer, behind its own refusals (a seat " +
+      "Publish has not told never reaches a write); it shows no member a placement and names nobody to a facilitator",
+  },
+  "lib/courses/visitRequest/decide.ts": {
+    kind: "staff",
+    proof: ['if (actor.role !== "admin") return fail(403, "Forbidden");'],
+    why:
+      "Deciding, replying to or taking a request to go to another session, for admins alone, and its asker withdrawing " +
+      "it: the person's seat is read by its address only to say whether the request still waits; approving arranges " +
+      "the visit through the staff visit's own writer, behind its own refusals (a seat Publish has not told never " +
+      "reaches a write); it shows no member a placement and names nobody to a facilitator",
+  },
   "lib/applications/people/load.ts": {
     kind: "staff",
     proof: ['if (!opensProgrammeGroups(role)) return { status: "not-yours" };'],
@@ -624,6 +668,14 @@ const READERS = {
       "told places are read only to count whose reminders before a session have gone, and the preview answers with " +
       "counts. A placement nobody has told is no reminder and is not counted; nobody's group is shown",
   },
+  "lib/courses/groupArchive/read.ts": {
+    kind: "writer",
+    proof: ['list(db.collection("courseEnrolments").where("runId", "==", runId))'],
+    why:
+      "what archiving or restoring a group reads: every place on the run, told or not, because an untold seat still " +
+      "holds a place in the group (the Groups tab counts it too). It answers a count and group names to whoever may " +
+      "archive the group, and shows nobody a placement",
+  },
   "lib/courses/moveFromWeek.ts": {
     kind: "writer",
     proof: ["if (!placementIsTold(place)) return { ok: false, refusal: \"not-told\" };", "patch.toldGroupId = fromGroupId;"],
@@ -694,6 +746,14 @@ const READERS = {
       "arranging or calling off a one-week visit, behind the plan's refusals (a seat Publish has not told never reaches " +
       "it): it writes the visit on the place, rebuilds the person's own figures and writes history rows, and changes " +
       "nobody's group; the emails go to the people the plan counted. It shows nobody anything",
+  },
+  "lib/courses/teamAsk/places.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "one person's places this term for Ask the team: for the person themselves only a place Publish has told them " +
+      "(the way to another session and to their programme page), and for an admin every place, on a message's page, " +
+      "as the allocation board shows them",
   },
   "lib/courses/staffMove/plan.ts": {
     kind: "told",

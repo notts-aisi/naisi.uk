@@ -17,6 +17,7 @@ import { excusedGroupUrl, excusedPersonUrl, sendExcusedEmail, type ExcusedEmailO
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { ATTENDANCE_LIMITS, SET_BY, attendanceDocId } from "@/lib/firestore/courseAttendance";
+import { onlineWordGone } from "@/lib/courses/joiningOnline/gone";
 import {
   EXCUSED_LIMITS,
   excusedStatusOf,
@@ -393,6 +394,11 @@ export async function approveExcusedWeek(
         ...(plan.tellsFacilitators ? facilitators.map((each) => each.firstName) : []),
       ];
       let logged = 0;
+      // Excused wins: a word that they are joining the session online, and
+      // its stamp, go from a register still being taken
+      // (`onlineWordGone`); the line's own stamp is the approval's.
+      const onlineGone = plan.write === "in-advance" || plan.write === "draft" ? onlineWordGone(data, fresh.subjectUid, { keepSetBy: true }) : null;
+      if (onlineGone) tx.set(registerRef, onlineGone, { merge: true });
       if (plan.write === "in-advance" && session) {
         const sessionLine: SessionLine = { session, ref: registerRef, data, state: { kind: "open" } };
         writeExcusedInAdvance(tx, sessionLine, {

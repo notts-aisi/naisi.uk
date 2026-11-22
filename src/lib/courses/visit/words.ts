@@ -1,4 +1,5 @@
 import { sessionWhenWords } from "../excused/words";
+import { linkToAddWords } from "../joiningOnline/words";
 import { couldBeFollowed } from "../followable";
 import { londonClockLabel, londonDayLabel, sessionWhenLabel } from "../londonLabels";
 import { dayWords } from "../sessionChange/words";
@@ -276,11 +277,14 @@ export type VisitEmailFacts = {
 };
 
 /**
- * To the person: "You’re going to Group I’s session on Wed 11 Nov". Staff
- * arranged it, so the approved first sentence ("Your request is approved.")
- * and the quoted reply are not said: nobody asked, and nobody replied.
+ * To the person: "You’re going to Group I’s session on Wed 11 Nov". When staff
+ * arranged it, the approved first sentence ("Your request is approved.") and
+ * the quoted reply are not said: nobody asked, and nobody replied. When it
+ * approves the person's own request (`approved`), both are: the first
+ * sentence opens the email, and the reply, when there is one, follows the
+ * line about their own group.
  */
-export function personEmailWords(facts: VisitEmailFacts): VisitEmailWords {
+export function personEmailWords(facts: VisitEmailFacts, approved: { first: string; quote: string | null } | null = null): VisitEmailWords {
   const host = groupName(facts.hostName);
   const day = dayWords(facts.host.dateKey);
   const when = spanWords(facts.host.dateKey, facts.host.startTimeLocal, facts.host.durationMinutes);
@@ -292,10 +296,11 @@ export function personEmailWords(facts: VisitEmailFacts): VisitEmailWords {
   return {
     subject: `You’re going to ${possessive(host)} session${day ? ` on ${day}` : ""}`,
     lines: [
-      `For week ${facts.weekNumber} you’re with ${host}:`,
+      `${approved ? `${approved.first} ` : ""}For week ${facts.weekNumber} you’re with ${host}:`,
       ...(when ? [when] : []),
       ...(where ? [where] : []),
       `${back ? `You’re still in ${groupName(facts.homeName)}, and back with them on ${back}.` : `You’re still in ${groupName(facts.homeName)}.`} Week ${facts.weekNumber}’s work is due by ${possessive(host)} session.`,
+      ...(approved?.quote ? [approved.quote] : []),
     ],
     button: "Open your programme page",
     footnote: until ? `Changed your mind? You can cancel the visit on your programme page until ${until}.` : "",
@@ -304,8 +309,10 @@ export function personEmailWords(facts: VisitEmailFacts): VisitEmailWords {
 
 /**
  * To each of the host group's facilitators: "Daniel Kim is joining Group I for
- * week 2". `online` is where the lines about joining online go, once a member
- * can ask for a visit and tick that they would join online: none today.
+ * week 2". `online` is where the lines about joining online go: for a visit
+ * that approves the person's own request with "I’d join online" ticked, the
+ * line `joinOnlineLinesWords` says. Empty otherwise, and then the email is as
+ * a staff-arranged visit's.
  */
 export function hostEmailWords(facts: VisitEmailFacts, online: readonly string[] = []): VisitEmailWords {
   const person = line(facts.personName) || "Somebody";
@@ -322,6 +329,19 @@ export function hostEmailWords(facts: VisitEmailFacts, online: readonly string[]
     button: "Open your group",
     footnote: "This is an automated email, sent because a visit to your session was approved.",
   };
+}
+
+/**
+ * The host's facilitators' line when the visitor would join online, in the
+ * approved words: "Daniel will join online." and where the link goes, by
+ * whether the session has one at the approval (`linkToAddWords`, the words of
+ * the email a session's facilitators get when somebody says they are joining
+ * online, which then does not also go). Never the link.
+ */
+export function joinOnlineLinesWords(input: { personName: string; personFirstName: string; weekNumber: number; hasLink: boolean }): string[] {
+  // Named as the rest of the email names them: the first name, else the name they go by, else "Somebody".
+  const first = line(input.personFirstName) || line(input.personName) || "Somebody";
+  return [`${first} will join online. ${linkToAddWords(input.weekNumber, input.hasLink)}`];
 }
 
 /** To each of the home group's facilitators: "Daniel Kim is at Group I for week 2". */
@@ -678,6 +698,20 @@ export function tooLateToCancelWords(hostName: string): string {
 /** Refused: a request to be excused from that week is waiting. "Aisha is waiting to hear about being excused from week 2. Decide that request first." */
 export function excusedWaitingWords(firstName: string, weekNumber: number): string {
   return `${firstName || "They"} ${firstName ? "is" : "are"} waiting to hear about being excused from week ${weekNumber}. Decide that request first, on the Requests page.`;
+}
+
+/** Refused: the person's own request to go to another session that week is waiting. "Daniel asked to go to another group’s session in week 2. Decide that request first, on the Requests page." */
+export function visitRequestWaitingWords(firstName: string, weekNumber: number): string {
+  return `${line(firstName) || "They"} asked to go to another group’s session in week ${weekNumber}. Decide that request first, on the Requests page.`;
+}
+
+/**
+ * The same, to anybody who is not an admin (a programme's lead), who sees
+ * nothing of these requests: "Week 2 for Daniel is with the admins at the
+ * moment. Ask an admin to arrange this visit."
+ */
+export function withTheAdminsWords(firstName: string, weekNumber: number): string {
+  return `Week ${weekNumber} for ${line(firstName) || "them"} is with the admins at the moment. Ask an admin to arrange this visit.`;
 }
 
 /**

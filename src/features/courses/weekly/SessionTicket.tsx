@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { tilePartsOfDay } from "@/app/(app)/dashboard/homeWords";
 import type { TicketFacts } from "../sessionChange/cardFacts";
@@ -8,32 +7,21 @@ import { ROOM_CHANGED, withWords } from "@/lib/courses/memberPageWords";
 import { JOIN_ONLINE, LINK_IS_HERE } from "@/lib/courses/sessionChange/words";
 import { FOR_JOINING_ONLINE } from "@/lib/courses/joiningOnline/words";
 import { memberLineWords } from "@/lib/courses/explainers/words";
-import AddToCalendar from "./AddToCalendar";
 import styles from "./weekly.module.css";
 
 /**
- * THE NEXT SESSION, AS A TICKET: its date on the stub, what it is over the heading, and
- * where and with whom under it.
+ * A SESSION, AS A TICKET: its date on the stub, what it is over the heading,
+ * and where and with whom under it. The team's page draws its team's next
+ * session with it. A member's next session on Home and on the programme page
+ * is `NextSessionCard` (`../nextSession/`).
  *
  * Everything it shows is the session's own, resolved for its own week
- * (`ticketFacts`): a session moved for one week shows its new day, time and
- * room, an online week says so in its eyebrow ("Tonight · week 6 · online",
- * which the caller words) and offers the link to join, and a room that is
- * not the group's usual one says so beside it.
- *
- * "Add to calendar" (`calendar`) is the person's own calendar link:
- * under the room on the programme page, and in a row of
- * its own under the card on Home. An online week's ticket carries Join online
- * in its place, in the row under the card with the line that the link is
- * only here. A session held in a room with a link keeps Add to calendar, and
- * carries the link in the same row, said to be for anybody joining online
- * (`facts.joinFor`). "Can’t make it" and "Joining online" (`cantMakeIt`) sit
- * beside Add to calendar on the programme page's ticket, for somebody taking
- * part in the group, until the session starts; Home's ticket has neither.
- *
- * A session an admin scheduled an explainer for says so under the room
- * ("Your session starts with a 10-minute explainer on ..."), from the
- * session's own facts: how long and what about, never who scheduled it.
+ * (`TicketFacts`): a session moved for one week shows its new day, time and
+ * room, an online week says so in its eyebrow (which the caller words) and
+ * offers the link to join, and a room that is not the group's usual one says
+ * so beside it. A session an admin scheduled an explainer for says so under
+ * the room, from the session's own facts: how long and what about, never who
+ * scheduled it.
  */
 
 export type TicketPerson = { uid: string; name: string; firstName: string };
@@ -42,35 +30,17 @@ type Props = {
   facts: TicketFacts;
   /** "Tonight · week 3", "Your first session · week 1". */
   eyebrow: string;
-  /** "Tue 17 Nov, 6pm to 8pm", or on Home "Group B, 6pm to 8pm". */
+  /** "Tue 17 Nov, 6pm". */
   heading: string;
   /** The week's room is not the group's usual one. */
   roomChanged: boolean;
-  /** The group's facilitators, for "with Rahul and Sofia". Empty draws nothing. */
+  /** The facilitators, for "with Rahul and Sofia". Empty draws nothing. */
   facilitators: TicketPerson[];
-  /** Home's narrower ticket, with the room and the people each on a line of their own. */
-  home?: boolean;
-  /** Offer "Add to calendar": the reader's ticket is a group Publish has told them about, or one they facilitate. */
-  calendar?: boolean;
-  /** "Can’t make it" and "Joining online", drawn beside Add to calendar (`TicketAnswers`), or nothing. */
-  cantMakeIt?: ReactNode;
 };
 
-export default function SessionTicket({
-  facts,
-  eyebrow,
-  heading,
-  roomChanged,
-  facilitators,
-  home = false,
-  calendar = false,
-  cantMakeIt = null,
-}: Props) {
+export default function SessionTicket({ facts, eyebrow, heading, roomChanged, facilitators }: Props) {
   const tile = tilePartsOfDay(facts.dateKey);
   const withLine = withWords(facilitators.map((person) => person.firstName));
-  // An online session's ticket carries Join online in Add to calendar's
-  // place; a session in a room keeps it, whatever link it has.
-  const offerCalendar = calendar && facts.joinFor !== "everybody";
   const faces = (
     <span className={styles.faces} aria-hidden="true">
       {facilitators.map((person) => (
@@ -83,7 +53,7 @@ export default function SessionTicket({
   const modeChip = facts.mode === "in-person" ? <span className={styles.plainChip}>In person this week</span> : null;
 
   return (
-    <section className={home ? `${styles.ticket} ${styles.ticketHome}` : styles.ticket} aria-label="Your next session">
+    <section className={styles.ticket} aria-label="Your next session">
       <div className={styles.ticketRow}>
         {tile && (
           <time className={styles.stub} dateTime={facts.dateKey}>
@@ -96,49 +66,25 @@ export default function SessionTicket({
           <div className={styles.ticketBody}>
             <p className={styles.ticketEyebrow}>{eyebrow}</p>
             <h2 className={styles.ticketWhen}>{heading}</h2>
-            {home ? (
-              <>
-                {(facts.room || modeChip) && (
-                  <div className={styles.ticketFacts}>
-                    {facts.room && <span className={styles.ticketRoom}>{facts.room}</span>}
-                    {roomChanged && facts.room && <span className={styles.warnChip}>{ROOM_CHANGED}</span>}
-                    {modeChip}
-                  </div>
+            {(facts.room || modeChip || withLine) && (
+              <div className={styles.ticketFacts}>
+                {facts.room && <span className={styles.ticketRoom}>{facts.room}</span>}
+                {modeChip}
+                {roomChanged && facts.room ? (
+                  <span className={styles.warnChip}>{ROOM_CHANGED}</span>
+                ) : (
+                  withLine && (
+                    <span className={styles.ticketWith}>
+                      {faces}
+                      <span>{withLine}</span>
+                    </span>
+                  )
                 )}
-                {withLine && (
-                  <div className={styles.ticketWith}>
-                    {faces}
-                    <span>{withLine}</span>
-                  </div>
-                )}
-              </>
-            ) : (
-              (facts.room || modeChip || withLine) && (
-                <div className={styles.ticketFacts}>
-                  {facts.room && <span className={styles.ticketRoom}>{facts.room}</span>}
-                  {modeChip}
-                  {roomChanged && facts.room ? (
-                    <span className={styles.warnChip}>{ROOM_CHANGED}</span>
-                  ) : (
-                    withLine && (
-                      <span className={styles.ticketWith}>
-                        {faces}
-                        <span>{withLine}</span>
-                      </span>
-                    )
-                  )}
-                </div>
-              )
+              </div>
             )}
             {facts.missing && <p className={styles.ticketNote}>{facts.missing}</p>}
             {facts.explainer && (
               <p className={styles.ticketExplainer}>{memberLineWords(facts.explainer.minutes, facts.explainer.topic)}</p>
-            )}
-            {((offerCalendar && !home) || cantMakeIt) && (
-              <div className={styles.ticketActions}>
-                {offerCalendar && !home && <AddToCalendar />}
-                {cantMakeIt}
-              </div>
             )}
           </div>
         </div>
@@ -154,11 +100,6 @@ export default function SessionTicket({
             {facts.joinFor === "joining-online" ? `${FOR_JOINING_ONLINE} ` : ""}
             {LINK_IS_HERE}
           </p>
-        </div>
-      )}
-      {offerCalendar && home && (
-        <div className={styles.ticketFoot}>
-          <AddToCalendar home />
         </div>
       )}
     </section>

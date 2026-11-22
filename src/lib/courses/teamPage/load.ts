@@ -211,6 +211,9 @@ function ticketOf(run: CourseRunDoc, group: CourseGroupDoc, now: Date): TeamTick
     startTimeLocal: next.session.startTimeLocal,
     durationMinutes: next.session.durationMinutes,
     room,
+    // The team's page draws its own ticket, the room alone, as it always has.
+    place: room ?? "",
+    moved: null,
     mode,
     joinUrl: null,
     joinFor: null,

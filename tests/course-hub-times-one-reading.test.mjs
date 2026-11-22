@@ -124,3 +124,37 @@ describe("one reading of a painted week", () => {
     }
   });
 });
+
+/**
+ * Readers that say a person's own times back to them in words: each asks the
+ * one reading, hands back sentences and never the week, and is called only
+ * from the places listed, which serve the person their own page.
+ */
+const WORDS_READERS = {
+  "src/lib/applications/handover/whyOffered.ts": {
+    why: "the \"Why:\" line under each session a person is offered on their own form for another session this week, and under each group on their own form to change group for good",
+    callers: ["src/lib/courses/moveRequest/own.ts", "src/lib/courses/visitRequest/own.ts"],
+  },
+};
+
+describe("readers that say a person's own times back to them", () => {
+  for (const [file, { why, callers }] of Object.entries(WORDS_READERS)) {
+    test(`${file}: through the one reading, words out, from its own callers alone`, () => {
+      assert.ok(why.length > 40, `${file} needs its reason written down`);
+      const code = codeOf(file);
+      assert.match(code, /import \{ paintedWeekOf \} from "";/, "it does not import the one reading");
+      assert.match(code, /\bpaintedWeekOf\(form\.round\.availabilityGrid, application\)/, "it does not ask it");
+      assert.ok(!ASKS.test(code), "it asks a painted week a question of its own");
+      // What comes back is the map of sentences, and nothing of the week.
+      const kept = stripSource(readFileSync(join(REPO_ROOT, file), "utf8"), { keepStrings: true });
+      const returned = [...kept.matchAll(/\breturn\s+([^;]+);/g)].map((match) => match[1].trim());
+      assert.ok(returned.length > 0 && returned.every((each) => each === "out"), `it returns ${returned.join(", ")}`);
+      assert.match(kept, /Promise<Map<string, string>>/);
+      const importers = [...walkSource(SRC)]
+        .map(repoPath)
+        .filter((each) => each !== file && /\bwhyOfferedFor\b/.test(codeOf(each)))
+        .sort();
+      assert.deepEqual(importers, [...callers].sort());
+    });
+  }
+});

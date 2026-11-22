@@ -350,7 +350,7 @@ describe("5. Add to calendar on the session ticket", () => {
     const { html, text } = w.programmeHome("chloe");
     assert.equal((html.match(BUTTON) ?? []).length, 1);
     assert.match(html, /<button type="button" class="calendarButton" disabled="" aria-haspopup="dialog"><svg/);
-    assert.match(text, /Tue 17 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar This week/);
+    assert.match(text, /Tue 17 Nov, 6pm to 8pm Hallward B12 R S Group B with Rahul and Sofia Add to calendar This week/);
   });
 
   test("in the row under Home's card, with no icon", async () => {

@@ -32,16 +32,23 @@ import { ATTENDANCE_STATUSES } from "./courseAttendance";
  * `subjectUid`), as the privacy policy keeps requests "while your account
  * exists". The correction a request led to stays in the group's history, as
  * every `courseAudit` row does, with a `requestId` that then names nothing.
+ *
+ * A MESSAGE TO THE TEAM HAS NO RUN (`kind: "team-message"`,
+ * `./courseTeamAsks.ts`): its `runId` is `""`, so no run's cascade or
+ * per-run reader ever finds it, and it goes only with the account, by the
+ * same two equalities. It has a status of its own, `replied`, which only its
+ * own normaliser reads.
  */
 
 export const COURSE_REQUESTS_COLLECTION = "courseRequests";
 
 /**
  * What a request asks for, as this normaliser reads it. Being excused from a
- * week (`excused`) is stored in this collection with this shape, but read
- * only by its own normaliser (`./courseExcusedRequests.ts`), so every reader
- * built on this one skips it: a correction reader never approves one, and
- * never hands its reason to somebody who reads a correction's.
+ * week (`excused`) and going to another group's session for a week (`visit`)
+ * are stored in this collection with this shape, but read only by their own
+ * normalisers (`./courseExcusedRequests.ts`, `./courseMemberRequests.ts`), so
+ * every reader built on this one skips them: a correction reader never
+ * approves one, and never hands its reason to somebody who reads a correction's.
  */
 export type CourseRequestKind = "register-correction";
 

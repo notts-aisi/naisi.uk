@@ -4,6 +4,7 @@ import { groupsPath, groupsViewPath } from "@/features/applications/groups/Group
 import NotYours from "@/features/applications/groups/NotYours";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
+import { ArchivedGroup } from "@/features/courses/groupPage/ArchiveGroup";
 import GroupPage from "@/features/courses/groupPage/GroupPage";
 import { isAddressableId } from "@/lib/addressableId";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
@@ -33,9 +34,11 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * Groups view uses), decided from the form before the run is read: a
  * reviewer is told the tab is the lead's and an admin's, and anybody with no
  * role on the programme that there is no programme here. The group must be
- * a live group of the run the programme names, or the page says, calmly,
- * that it is not here. The routes behind every button ask again who the
- * caller is.
+ * a group of the run the programme names, or the page says, calmly, that it
+ * is not here. An archived one opens on Restore and nothing else
+ * (`ArchivedGroup`); "How Group B meets" ends with Archive. Both go through
+ * `PATCH /api/courses/groups/[groupId]/archive` and its checks. The routes
+ * behind every button ask again who the caller is.
  *
  * THIS PAGE STANDS ALONE, as one person's coursework does: it is outside the
  * `(tabs)` route group beside it, so it is drawn with no programme head and
@@ -96,7 +99,16 @@ export default async function ProgrammeGroupPage({
   if (!runSnap.exists || !groupSnap.exists) return notHere;
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
-  if (group.runId !== run.id || group.archived) return notHere;
+  if (group.runId !== run.id) return notHere;
+  // An archived group of this run opens on the one thing left to do with it:
+  // put it back, through the same route and checks as archiving.
+  if (group.archived) {
+    return (
+      <ApplicationsRoot className={shared.page}>
+        <ArchivedGroup groupId={group.id} groupName={group.name.trim() || "Untitled group"} groupsHref={tabPath} />
+      </ApplicationsRoot>
+    );
+  }
 
   const now = new Date();
   const [page, messages, attendance, runGroups] = await Promise.all([

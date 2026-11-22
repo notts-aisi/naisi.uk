@@ -300,6 +300,26 @@ describe("5. called off after the fact", () => {
     assert.equal(read(`tasks/${registerFollowUpTaskId(RUN, GROUP.b, "w01")}`), undefined);
   });
 
+  test("an archived group is chased by neither job: no reminder, no card, and its register as it was", async () => {
+    // The group's register for week 1 is a draft nobody finished; then the
+    // group is archived. Its facilitators are not reminded (the reminder job
+    // skips an archived group) and no "register not taken" card is raised
+    // (the card job skips it the same way). The register itself is untouched.
+    await aDraft();
+    world.db.poke(`courseGroups/${GROUP.b}`, { archived: true });
+    const draft = JSON.stringify(read(W1));
+    world.mail.length = 0;
+    const remindAt = new Date(ENDS.getTime() + 37 * HOUR);
+    at(remindAt);
+    await registerRemindersJob.handler(jobContext(registerRemindersJob, remindAt).ctx);
+    assert.deepEqual(world.mail.filter((mail) => /Group B/.test(mail.subject)), []);
+    const cardAt = new Date(ENDS.getTime() + 61 * HOUR);
+    at(cardAt);
+    await unmarkedRegistersJob.handler(jobContext(unmarkedRegistersJob, cardAt).ctx);
+    assert.equal(read(`tasks/${registerFollowUpTaskId(RUN, GROUP.b, "w01")}`), undefined, "a card was raised for an archived group");
+    assert.equal(JSON.stringify(read(W1)), draft, "the archived group's register changed");
+  });
+
   test("a card already made is archived when the session is called off", async () => {
     await aDraft();
     const cardAt = new Date(ENDS.getTime() + 61 * HOUR);

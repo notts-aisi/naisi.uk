@@ -673,6 +673,18 @@ describe("the settings page shows the subject that is sent, and empty means stan
      * still fails, and so does an entry whose sentence has moved or gone.
      */
     const NOT_A_SUBJECT = new Map([
+      // The line on a member's programme page once their own request to change
+      // group is approved: it names the group they are in, never a programme.
+      [
+        "lib/courses/moveRequest/words.ts",
+        {
+          text: "`You’re in ${groupName(toName)} from week ${weekNumber}. Your work, its feedback and your attendance came with you.`",
+          times: 1,
+          why:
+            "the line at the top of a member's programme page once an admin approved their request to change group: it " +
+            "names the group they are in from which week, never a programme, and is no email's subject",
+        },
+      ],
       // The heading of the applicant's own page once they have a place takes
       // its words from `standardSubject`, so the page holds no copy of a
       // subject to set aside.

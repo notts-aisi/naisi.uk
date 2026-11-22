@@ -279,6 +279,7 @@ const COURSE_CTA = src("features", "courses", "CourseCTA.tsx");
 const APPLY_FORM = src("features", "courses", "ApplyForm.tsx");
 const FETCH_COURSES = src("features", "courses", "fetchCourses.ts");
 const COURSE_MUTATIONS = src("features", "courses", "courseMutations.ts");
+const ARCHIVE_ROUTE = api("groups", "[groupId]", "archive", "route.ts");
 const NORMALISE_WEEKS = api("runs", "[runId]", "normalise-weeks", "route.ts");
 const RULES = readFileSync(join(REPO_ROOT, "firestore.rules"), "utf8");
 
@@ -1357,17 +1358,23 @@ test("GUARD — archiving a group withdraws it from every live surface at once",
 });
 
 test("archiving a group leaves the enrolments, the count and the publish gate as they were", () => {
-  // `setGroupArchived` writes two fields. It does not unplace anyone, does not
-  // zero `memberCount`, and nothing warns that the group still holds members.
+  // The card's `setGroupArchived` sends one field to the archive route, and
+  // the route writes two: `archived` and `updatedAt`, in its one transaction.
+  // It does not unplace anyone and does not zero `memberCount`; it refuses
+  // instead while anybody still holds a place in the group
+  // (tests/course-group-archive.test.mjs presses it).
   assert.match(
     COURSE_MUTATIONS,
-    /export async function setGroupArchived\([\s\S]*?await updateDoc\(doc\(db, "courseGroups", groupId\), \{\s*archived,\s*updatedAt: serverTimestamp\(\),\s*\}\);/,
+    /export async function setGroupArchived\([\s\S]*?fetch\(`\/api\/courses\/groups\/\$\{encodeURIComponent\(groupId\)\}\/archive`, \{\s*method: "PATCH",[\s\S]*?body: JSON\.stringify\(\{ archived \}\),/,
   );
   assert.doesNotMatch(
     COURSE_MUTATIONS,
-    /setGroupArchived[\s\S]{0,400}memberCount/,
-    "setGroupArchived now touches memberCount — update this test",
+    /setGroupArchived[\s\S]{0,400}(memberCount|updateDoc)/,
+    "setGroupArchived writes the group again from the browser: update this test",
   );
+  assert.match(ARCHIVE_ROUTE, /tx\.update\(groupRef, \{ archived, updatedAt: FieldValue\.serverTimestamp\(\) \}\);/);
+  assert.equal(ARCHIVE_ROUTE.match(/\.(update|set|create|delete)\(/g)?.length, 1, "the archive route makes one write");
+  assert.doesNotMatch(ARCHIVE_ROUTE, /memberCount/, "the archive route now touches memberCount: update this test");
 
   // And publish deliberately does NOT filter archived, so those members count
   // as placed and the allocation publishes with nobody told. That divergence is

@@ -4,7 +4,21 @@
  *
  * Run with `npm test`.
  *
- * The current version is v21: v20 with the paragraph "Reminders." in "Your
+ * The current version is v22: v21 with one sentence after "apart from
+ * anything about access needs, which only admins read." saying only admins
+ * can open what somebody tells us about the access they need, one message at
+ * a time, that each opening is recorded, that explicit consent is the basis
+ * for health or disability in it and that it can be deleted on request; "a
+ * message to the team about access needs" in the explicit-consent basis and
+ * "a message about access needs" in the openings the logs record; "If you go
+ * to another group's session" ending with "and are told if you said you'd
+ * join it online"; and "What's changed in version 22" at the top with
+ * version 21's, 20's, 19's, 18's and 17's lines kept under it, dated. Told on
+ * Home, not asked. Every other word is v21's, so the sections below that name
+ * v15 to v21 hold v22's text, and the describe for version 22 holds its
+ * changes to the code.
+ *
+ * v21 is v20 with the paragraph "Reminders." in "Your
  * work, progress and reminders" saying that three days and one day before
  * each of somebody's sessions we email them its day, time and place, how to
  * tell us they can't make it, and what is left of that week's work if
@@ -13,7 +27,7 @@
  * pathways or cases are given out, and
  * "What's changed in version 21" at the top with version 20's, 19's, 18's
  * and 17's lines kept under it, dated. Told on Home, not asked. Every other
- * word is v20's, so the sections below that name v15 to v20 hold v21's text,
+ * word is v20's, so the sections below that name v15 to v20 held v21's text,
  * and the describe for version 21 holds its change to the code.
  *
  * v20 is v19 with the AI at Nottingham survey named in
@@ -211,15 +225,20 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v21.tsx");
+const CURRENT = read("src/content/legal/privacy/v22.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v21 is the text the site
+ * content check below runs against this, because v22 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v21, frozen: read by the version 21 describe, which proves v21 is v20 with its changes, and by the version 22 describe, which proves v22 is v21 with its. */
+const V21_FLAT = read("src/content/legal/privacy/v21.tsx").replace(/\s+/g, " ");
+/** "What's changed in version 22", as the page carries it (an apostrophe is `&apos;` in the source). */
+const CHANGED_22 =
+  "We now say that only admins can open a message about the access you need, that we record each time one does, and that we rely on your explicit consent for anything about health or disability in it. We now say that if you go to another group&apos;s session and said you&apos;d join it online, that group&apos;s facilitators are told.";
 /** v20, frozen: read by the version 20 describe, which proves v20 is v19 with its changes, and by the version 21 describe, which proves v21 is v20 with its one. */
 const V20_FLAT = read("src/content/legal/privacy/v20.tsx").replace(/\s+/g, " ");
 /** "What's changed in version 21", as the page carries it (an apostrophe is `&apos;` in the source). */
@@ -282,13 +301,16 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v21 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 21);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.21");
+  test("privacy v22 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 22);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.22");
   });
 
-  test("privacy v21 is dated the day its words last changed", () => {
-    // The day v21 reaches the site, as v20's, v19's, v18's, v17's, v16's and v15's were dated.
+  test("privacy v22 is dated the day its words last changed", () => {
+    // The day v22 reaches the site, as v21's, v20's, v19's, v18's, v17's, v16's and v15's were dated: the same day as v21's.
+    const twentyTwo = POLICIES.privacy.versions.find((v) => v.version === 22);
+    assert.equal(twentyTwo?.lastUpdated, "22 November 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 22).length, 1);
     const twentyOne = POLICIES.privacy.versions.find((v) => v.version === 21);
     assert.equal(twentyOne?.lastUpdated, "22 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 21).length, 1);
@@ -453,6 +475,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v21",
+    {
+      sha256: "2522d22548b10ddabbb1cad74146506926441678107b494ae68008792ca18562",
+      why: "the reminders before a session for everybody due at it, the second form's feedback kept up to two years, the recovery copies and a facilitator's pathways in their own group, current from 22 November 2026 until v22 replaced it; told on Home, not asked, and the wording that did not say who opens a message about access needs or that a host group's facilitators are told a visitor will join online, frozen when v22 said both rather than editing it in place",
+    },
+  ],
   [
     "privacy/v20",
     {
@@ -1116,7 +1145,7 @@ const MUST_NAME = [
   ["a quoted comment after a deletion", /a comment of yours quoted without your name \(email us and we will take it down\);/],
   ["a pitch with a partner and a team's page, after a deletion", /a pitch you sent with a partner, and what you wrote on your team&apos;s page, without your name;/],
   ["a certificate whose link is on, after a deletion", /and a certificate whose link is on, because it exists for the people you gave the link to \(email us and we will withdraw it\)\./],
-  ["the staff records a deletion leaves, the openings of sealed predictions and survey answers among them", /We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers, and keep a log of decisions on applications\. These record what staff did, not what you wrote, and are kept as long as we need them to look into problems and show we acted properly\.[\s\S]*the email log and suppression list; staff logs;/],
+  ["the staff records a deletion leaves, the openings of sealed predictions and survey answers among them", /We also record each time an admin opened an access-requirements answer, a message about access needs, sealed predictions or survey answers, and keep a log of decisions on applications\. These record what staff did, not what you wrote, and are kept as long as we need them to look into problems and show we acted properly\.[\s\S]*the email log and suppression list; staff logs;/],
   ["saying no to Kairos on the profile, among the rights you serve yourself", /Most of this you can do yourself: edit your profile and notification choices, and say no to sharing with Kairos, on\{" "\} <a href="\/profile">your profile page<\/a>, and unsubscribe from optional email through the link in it\./],
   ["a copy of your data covers what others wrote about you, notes and ratings among it", /A copy of your data covers what other people wrote about you as well as what you wrote: reviewers&apos; scores and comments, each programme&apos;s decision and any reason noted, notes facilitators and admins wrote, session reports, ratings, and your conduct record\. Where a record also names somebody else, we may need to leave their part out\./],
 ];
@@ -2179,7 +2208,7 @@ describe("the application form passage", () => {
     // opened").
     assert.match(
       PAGE_FLAT,
-      /We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers, and keep a log of decisions on applications\. These record what staff did, not what you wrote,/,
+      /We also record each time an admin opened an access-requirements answer, a message about access needs, sealed predictions or survey answers, and keep a log of decisions on applications\. These record what staff did, not what you wrote,/,
     );
 
     // A draft's answer is nobody's to open: until an application is sent,
@@ -5798,7 +5827,7 @@ describe("the course hub passage", () => {
     );
     const logs = hubPassageOf("<strong>Logs:</strong>");
     assert.ok(
-      logs.includes(" We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers,") &&
+      logs.includes(" We also record each time an admin opened an access-requirements answer, a message about access needs, sealed predictions or survey answers,") &&
         logs.includes(" These record what staff did, not what you wrote,"),
       "the policy no longer says the record of an admin opening sealed predictions is a staff log of what staff did",
     );
@@ -8987,7 +9016,7 @@ describe("one person's answers, opened by an admin", () => {
   /** v15's words for who sees one person's answers, the record of each opening, and how long it is kept. */
   const BULLET = [
     "Only NAISI&apos;s admins can see who said what, and we record each time one of them does.",
-    "We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers,",
+    "We also record each time an admin opened an access-requirements answer, a message about access needs, sealed predictions or survey answers,",
     "These record what staff did, not what you wrote, and are kept as long as we need them to look into problems and show we acted properly.",
     "the email log and suppression list; staff logs;",
   ];
@@ -9108,7 +9137,7 @@ describe("the last pass before version 7 goes live, held to v15", () => {
   const AS_TYPED = "<strong>Changing your work.</strong> Your reflections and the boxes you fill in save as you type, and the people who read your work can read them as you write.";
   const PAIRS = "When a session is in pairs, your partner sees your first name and whether you are bringing a laptop.";
   const OPENINGS = [
-    "We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers, and keep a log of decisions on applications.",
+    "We also record each time an admin opened an access-requirements answer, a message about access needs, sealed predictions or survey answers, and keep a log of decisions on applications.",
     "These record what staff did, not what you wrote, and are kept as long as we need them to look into problems and show we acted properly.",
     "the email log and suppression list; staff logs;",
   ];
@@ -9659,10 +9688,10 @@ describe("the re-consent gate", () => {
     // A line on the accept page is for a version that changed how
     // information is used: 15 to 18, 20 and 21, oldest first. Version 19
     // names one more small preference kept in the browser, and its own first
-    // paragraph on the policy said so; versions 20 and 21 keep that line, dated.
+    // paragraph on the policy said so; versions 20, 21 and 22 keep that line, dated.
     const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
     const lines = [...accept.matchAll(/What changed in version (\d+)\.<\/strong>/g)].map((match) => Number(match[1]));
-    assert.deepEqual(lines, [15, 16, 17, 18, 20, 21]);
+    assert.deepEqual(lines, [15, 16, 17, 18, 20, 21, 22]);
     const NINETEEN = "the site keeps one more small preference in your browser: that you dismissed the line saying this policy changed. Nothing about how we use your information has changed.";
     assert.ok(V19_FLAT.includes(`<strong>What&apos;s changed in version 19:</strong> ${NINETEEN}`));
     assert.ok(PAGE_FLAT.includes(`<strong>What changed in version 19, on 13 November 2026:</strong> ${NINETEEN}`));
@@ -9686,18 +9715,37 @@ describe("the re-consent gate", () => {
     assert.ok(!V19_FLAT.includes("What&apos;s changed in version 20"));
   });
 
-  test("the accept page says what version 21 changes, last, after version 20's line, in version 21's own words", () => {
+  test("the accept page says what version 21 changes, after version 20's line, in version 21's own words", () => {
     // Version 21 emails everybody due at a session a reminder of it, a change
-    // to how information is used, so the accept page says it last, before
-    // the links. Its line is version 21's own "What's changed in version 21".
+    // to how information is used, so the accept page says it after version
+    // 20's line. Its line is version 21's own "What's changed in version 21".
     const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
     const twenty = accept.indexOf("What changed in version 20.</strong>");
     const twentyOne = accept.indexOf("What changed in version 21.</strong>");
-    assert.ok(twenty !== -1 && twentyOne > twenty && accept.indexOf("Read the full", twentyOne) > twentyOne, "the accept page no longer says what version 21 changed, after version 20");
-    const said = accept.slice(twentyOne, accept.indexOf("Read the full", twentyOne));
+    const twentyTwo = accept.indexOf("What changed in version 22.</strong>");
+    assert.ok(twenty !== -1 && twentyOne > twenty && twentyTwo > twentyOne, "the accept page no longer says what version 21 changed, after version 20 and before version 22");
+    const said = accept.slice(twentyOne, twentyTwo);
     assert.ok(said.includes(CHANGED_21), "the accept page's line for version 21 is no longer the policy's own words");
-    assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 21:</strong> ${CHANGED_21} </p>`), "the policy no longer says what changed in version 21, in those words");
+    // Version 21's own "What's changed", and version 22 keeping it under its own, dated.
+    assert.ok(V21_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 21:</strong> ${CHANGED_21} </p>`), "v21 no longer says what changed in version 21, in those words");
+    assert.ok(PAGE_FLAT.includes(`<strong>What changed in version 21, on 22 November 2026:</strong> ${CHANGED_21}`), "the policy no longer keeps what changed in version 21, with its date, in those words");
     assert.ok(!V20_FLAT.includes("What&apos;s changed in version 21"));
+  });
+
+  test("the accept page says what version 22 changes, last, after version 21's line, in version 22's own words", () => {
+    // Version 22 names explicit consent for a message about access needs and
+    // tells a host group's facilitators that a visitor will join online,
+    // changes to how information is used, so the accept page says it last,
+    // before the links. Its line is version 22's own "What's changed in
+    // version 22".
+    const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
+    const twentyOne = accept.indexOf("What changed in version 21.</strong>");
+    const twentyTwo = accept.indexOf("What changed in version 22.</strong>");
+    assert.ok(twentyOne !== -1 && twentyTwo > twentyOne && accept.indexOf("Read the full", twentyTwo) > twentyTwo, "the accept page no longer says what version 22 changed, after version 21");
+    const said = accept.slice(twentyTwo, accept.indexOf("Read the full", twentyTwo));
+    assert.ok(said.includes(CHANGED_22), "the accept page's line for version 22 is no longer the policy's own words");
+    assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 22:</strong> ${CHANGED_22} </p>`), "the policy no longer says what changed in version 22, in those words");
+    assert.ok(!V21_FLAT.includes("What&apos;s changed in version 22"));
   });
 
   test("is not left behind on the dashboard layout alone", () => {
@@ -9902,7 +9950,7 @@ describe("the access-requirements read log", () => {
       PAGE_FLAT.includes("It is stored apart from your application, it is never scored, and it is never shown to reviewers or to a programme&apos;s lead. Only admins can open it, one application at a time, and we record each time one does."),
       "the policy no longer says only admins open an access-requirements answer and each opening is recorded",
     );
-    assert.ok(PAGE_FLAT.includes("We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers,"));
+    assert.ok(PAGE_FLAT.includes("We also record each time an admin opened an access-requirements answer, a message about access needs, sealed predictions or survey answers,"));
     const notice = read("src/features/admissions/ApplicationPrivacyNotice.tsx");
     assert.match(notice.replace(/\s+/g, " "), /We record each time one of them/i);
   });
@@ -11684,21 +11732,102 @@ describe("v16 says a register records the room or online, and you may tell us in
     assertExactlyTheseFiles(
       sourceFilesNaming(/\[ONLINE_SAID\]:|FieldPath\(ONLINE_SAID,/),
       new Map([
-        ["src/lib/courses/joiningOnline/seat.ts", "Joining online: the caller's own word on their own line of the session's register, and taking it back"],
+        [
+          "src/lib/courses/joiningOnline/seat.ts",
+          "Joining online: the person's own word on their own line of the session's register, written for the uid it is handed (the caller's on their press, the asker's on an approval of the request they ticked), and taking it back",
+        ],
         ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own word, key by key, and nobody else's"],
-        ["src/lib/courses/visit/save.ts", "a one-week visit called off takes the person's own word off the session they no longer go to, and writes none"],
-        ["src/lib/courses/visit/hostOff.ts", "a one-week visit that ends with its session called off takes the person's own word off that session, and writes none"],
+        ["src/lib/courses/joiningOnline/gone.ts", "the person's own word taken away, and only deleted, with their place at the session (`onlineWordGone`), for the uid it is handed"],
       ]),
       "writing that somebody is joining a session online",
       "The policy says you tell us in advance. Nobody may say it for anybody else.",
     );
-    assert.match(withoutComments(read("src/lib/courses/visit/save.ts")), /tx\.set\(ref, \{ \[ONLINE_SAID\]: \{ \[input\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\);/);
-    assert.doesNotMatch(withoutComments(read("src/lib/courses/visit/save.ts")), /\[ONLINE_SAID\]: \{ \[[^\]]+\]: FieldValue\.serverTimestamp/, "a visit writes somebody's word");
-    assert.match(withoutComments(read("src/lib/courses/visit/hostOff.ts")), /tx\.set\(registerRef, \{ \[ONLINE_SAID\]: \{ \[visit\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\)/);
-    assert.doesNotMatch(withoutComments(read("src/lib/courses/visit/hostOff.ts")), /\[ONLINE_SAID\]: \{ \[[^\]]+\]: FieldValue\.serverTimestamp/, "a visit ending writes somebody's word");
+    // CHANGED ON PURPOSE (November 2026): a visit that ends takes the
+    // person's word, and its two stamps, away through one rule in the
+    // joining-online module (`onlineWordGone`), which only ever deletes and
+    // only the uid it is handed: the visit's own person. Every way a visit
+    // ends asks it, and an approved excusal asks it of the session it
+    // excuses.
+    const gone = withoutComments(read("src/lib/courses/joiningOnline/gone.ts"));
+    assert.match(gone, /export function onlineWordGone\(data: Record<string, unknown> \| undefined, uid: string, options: \{ keepSetBy\?: boolean \} = \{\}\)/);
+    assert.match(gone, /\.\.\.\(said \? \{ \[ONLINE_SAID\]: \{ \[uid\]: FieldValue\.delete\(\) \} \} : \{\}\),/);
+    assert.match(gone, /\.\.\.\(emailed \? \{ \[ONLINE_EMAILED\]: \{ \[uid\]: FieldValue\.delete\(\) \} \} : \{\}\),/);
+    assert.doesNotMatch(gone, /FieldValue\.serverTimestamp/, "the rule that takes a word away writes one");
+    const visitSaveText = withoutComments(read("src/lib/courses/visit/save.ts"));
+    assert.match(visitSaveText, /const gone = onlineWordGone\(data, input\.uid\);\s+if \(gone\) tx\.set\(ref, gone, \{ merge: true \}\);/);
+    assert.doesNotMatch(visitSaveText, /\[ONLINE_SAID\]: \{ \[[^\]]+\]: FieldValue\.serverTimestamp/, "a visit writes somebody's word");
+    const hostOffText = withoutComments(read("src/lib/courses/visit/hostOff.ts"));
+    assert.match(hostOffText, /const gone = onlineWordGone\(registerSnap\.data\(\) \?\? \{\}, visit\.uid\);/);
+    assert.doesNotMatch(hostOffText, /\[ONLINE_SAID\]|ONLINE_SAID/, "a visit ending writes somebody's word");
+    assert.deepEqual(
+      sourceFilesNaming(/\bonlineWordGone\(/).sort(),
+      ["src/lib/courses/excused/decide.ts", "src/lib/courses/joiningOnline/gone.ts", "src/lib/courses/visit/hostOff.ts", "src/lib/courses/visit/save.ts"],
+      "a new caller of the rule that takes somebody's word away",
+    );
+    assert.match(withoutComments(read("src/lib/courses/excused/decide.ts")), /onlineWordGone\(data, fresh\.subjectUid, \{ keepSetBy: true \}\)/);
+    assert.deepEqual(
+      sourceFilesNaming(/\bonlineWordsGoWithVisitsIn\(/).sort(),
+      [
+        "src/app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts",
+        "src/lib/courses/groupFacilitators.ts",
+        "src/lib/courses/joiningOnline/gone.ts",
+        "src/lib/courses/leaveRun.ts",
+      ],
+      "a new caller of the words that go with a place's visits",
+    );
     assert.match(seat, /if \(seat\.uid !== user\.uid \|\| seat\.runId !== runId\) return false;/);
     assert.match(seat, /tx\.get\(db\.collection\("courseEnrolments"\)\.doc\(courseEnrolmentId\(group\.runId, user\.uid\)\)\)/);
-    assert.match(seat, /\[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.serverTimestamp\(\) \},/);
+    // CHANGED ON PURPOSE (November 2026): the one write of the word moved
+    // into `sayingOnlineOn`, which writes it for the `uid` it is handed and
+    // nobody else. It is handed the caller's own uid by their own press, and
+    // the uid of the person who asked by an admin's approval of their own
+    // request to go to another group's session when THEY ticked "I'd join
+    // online": they told us in advance, on the request, and the host's
+    // facilitators see it and are asked for a link in the visit's email.
+    // Nothing else reaches it, so nobody says it for anybody else.
+    assert.match(seat, /\[ONLINE_SAID\]: \{ \[uid\]: FieldValue\.serverTimestamp\(\) \},/);
+    assert.match(seat, /\[SET_BY\]: \{ \[uid\]: \{ byUid: uid, at: FieldValue\.serverTimestamp\(\), how: "self" \} \},/);
+    assert.match(seat, /const \{ group, session, data, uid \} = input;/);
+    assert.match(seat, /const said = sayingOnlineOn\(\{ group, session, data, registerId: ref\.id, uid: user\.uid, now \}\);/);
+    assert.equal((seat.match(/\bsayingOnlineOn\(/g) ?? []).length, 2, "the definition and the press's own call");
+    assert.deepEqual(
+      sourceFilesNaming(/\bsayingOnlineOn\(/).sort(),
+      ["src/lib/courses/joiningOnline/seat.ts", "src/lib/courses/visit/plan.ts"],
+      "a new caller of the one write of somebody's word",
+    );
+    const visitPlan = withoutComments(read("src/lib/courses/visit/plan.ts"));
+    assert.equal((visitPlan.match(/\bsayingOnlineOn\(/g) ?? []).length, 1);
+    assert.match(visitPlan, /export function joiningOnlineAtHost\([^)]*uid: string, now: Date\): HostOnline \{/);
+    assert.match(visitPlan, /sayingOnlineOn\(\{ group: host, session, data: facts\.registers\.get\(registerId\), registerId, uid, now \}\)/);
+    assert.deepEqual(
+      sourceFilesNaming(/\bjoiningOnlineAtHost\(/).sort(),
+      ["src/lib/courses/visit/plan.ts", "src/lib/courses/visit/save.ts", "src/lib/courses/visitRequest/page.ts"],
+      "a new caller of the word an approved visit writes",
+    );
+    const visitSave = withoutComments(read("src/lib/courses/visit/save.ts"));
+    assert.match(visitSave, /const online = input\.approves\?\.online \? joiningOnlineAtHost\(facts, planned\.plan, input\.uid, input\.now\) : null;/);
+    assert.match(visitSave, /if \(online\?\.said\?\.write\) online\.said\.write\(tx, db\.collection\("courseAttendance"\)\.doc\(online\.registerId\), input\.runId\);/);
+    // The request page only reads, for its preview.
+    assert.doesNotMatch(withoutComments(read("src/lib/courses/visitRequest/page.ts")), /\.write\(/);
+    // Approving passes the person's own tick, on the request they asked themselves.
+    const decide = withoutComments(read("src/lib/courses/visitRequest/decide.ts"));
+    assert.match(decide, /online: request\.change\.online,/);
+    // Only the request's decision passes an approval to the visit's writer,
+    // and with the request's own subject: the staff visit route can never
+    // write a word for somebody who did not say it.
+    // A request to change group passes its own approval to the MOVE's writer, which writes no
+    // register word: only a file that calls the visit's writer counts here.
+    assert.deepEqual(
+      sourceFilesNaming(/\bapproves:\s*\{/).filter((file) => /\barrangeVisit\(/.test(withoutComments(read(file)))),
+      ["src/lib/courses/visitRequest/decide.ts"],
+      "an approval passed to the visit's writer from anywhere but the request's decision",
+    );
+    assert.equal((decide.match(/\bapproves:\s*\{/g) ?? []).length, 1);
+    assert.match(decide, /const saved = await arrangeVisit\(db, \{\s+runId: request\.runId,\s+uid: request\.subjectUid,/);
+    assert.equal((decide.match(/\bonline:/g) ?? []).length, 1, "the tick passed from anywhere but the request");
+    const ask = withoutComments(read("src/lib/courses/visitRequest/ask.ts"));
+    assert.match(ask, /subjectUid: user\.uid,\s+askedByUid: user\.uid,/);
+    assert.match(ask, /online: press\.online,/);
     assert.match(seat, /tx\.set\(ref, \{ \[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\);/);
     assert.match(route, /const outcome = await recordJoiningOnline\(db, user, groupId, parsed\.value, new Date\(\)\);/);
     assert.doesNotMatch(seat + route, /sendEmail|sendNotice|dispatchSends|mirrorCourse/, "saying you are joining online emails or notifies somebody outside the facilitators' email");
@@ -11715,8 +11844,12 @@ describe("v16 says a register records the room or online, and you may tell us in
     assertExactlyTheseFiles(
       sourceFilesNaming(/\[ONLINE_EMAILED\]:|FieldPath\(ONLINE_EMAILED,/),
       new Map([
-        ["src/lib/courses/joiningOnline/seat.ts", "Joining online: when the group's facilitators were emailed about the caller's own word, stamped once and never taken away"],
+        [
+          "src/lib/courses/joiningOnline/seat.ts",
+          "Joining online: when the group's facilitators were told of the person's own word, by the joining-online email after their press or by the visit's email on an approval of the request they ticked, stamped once and taken away only with their place at the session",
+        ],
         ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own stamp, key by key, and nobody else's"],
+        ["src/lib/courses/joiningOnline/gone.ts", "the person's own stamp taken away, and only deleted, with their place at the session, so a word said again after they are due again is told"],
       ]),
       "writing that a group's facilitators were emailed about somebody joining online",
       "The stamp is about the person's own word. Nobody may write it for anybody else.",
@@ -12380,13 +12513,15 @@ describe("v21 says the reminders before a session go to everybody due at it, and
   ];
 
   test("v21 is v20 with these changes and no others", () => {
+    // Read from frozen v21 since v22 replaced it; v22 is v21 with its own
+    // changes, held by the version 22 describe.
     let text = bodyOf(V20_FLAT);
     for (const [what, before, after] of V21_CHANGES) {
       assert.equal(text.split(before).length, 2, `v20 does not say, exactly once, what v21 changes (${what}): ${before}`);
-      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v21 still says what it was meant to replace (${what})`);
+      assert.ok(!bodyOf(V21_FLAT).includes(before) || after.includes(before), `v21 still says what it was meant to replace (${what})`);
       text = text.replace(before, after);
     }
-    assert.equal(text, bodyOf(CURRENT_FLAT), "v21 differs from v20 somewhere outside the changes listed here");
+    assert.equal(text, bodyOf(V21_FLAT), "v21 differs from v20 somewhere outside the changes listed here");
   });
 
   test("the new paragraph, word for word, under Your work, progress and reminders, and not in v20", () => {
@@ -12431,12 +12566,12 @@ describe("v21 says the reminders before a session go to everybody due at it, and
   });
 
   test("what changed is at the top, newest first, each earlier version's line under it with its date", () => {
-    const twentyOne = PAGE_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 21:</strong> ${CHANGED_21} </p>`);
-    const twenty = PAGE_FLAT.indexOf(`<strong>What changed in version 20, on 17 November 2026:</strong> ${CHANGED_20}`);
-    const nineteen = PAGE_FLAT.indexOf("<strong>What changed in version 19, on 13 November 2026:</strong>");
-    const eighteen = PAGE_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
-    const seventeen = PAGE_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
-    assert.ok(twentyOne !== -1 && twentyOne < twenty && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < PAGE_FLAT.indexOf('<h2 id="in-short">'));
+    const twentyOne = V21_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 21:</strong> ${CHANGED_21} </p>`);
+    const twenty = V21_FLAT.indexOf(`<strong>What changed in version 20, on 17 November 2026:</strong> ${CHANGED_20}`);
+    const nineteen = V21_FLAT.indexOf("<strong>What changed in version 19, on 13 November 2026:</strong>");
+    const eighteen = V21_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
+    const seventeen = V21_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
+    assert.ok(twentyOne !== -1 && twentyOne < twenty && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < V21_FLAT.indexOf('<h2 id="in-short">'));
     // Each date is the day that version went live, as the policy list has it.
     assert.equal(POLICIES.privacy.versions.find((v) => v.version === 20)?.lastUpdated, "17 November 2026");
     assert.ok(!V20_FLAT.includes("What&apos;s changed in version 21"));
@@ -12450,6 +12585,167 @@ describe("v21 says the reminders before a session go to everybody due at it, and
     }
     // It changes how information is used, so Home's one short line says the policy changed, for a week from its date.
     assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 21), { version: 21, lastUpdated: "22 November 2026", toldOnHome: true });
+    // The week, the words and the dismissal are run in tests/policy-update-line.test.mjs.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
+  });
+});
+
+describe("v22 says who opens a message about access needs and that a host group's facilitators are told a visitor will join online, and keeps v21's, v20's, v19's, v18's and v17's What's changed under its own; every other word is v21's", () => {
+  /**
+   * A version's file from the end of its notes on: its imports, its contents
+   * list, the address of the services page and its words as served. The
+   * header comment is notes, not policy.
+   */
+  const FIRST_IMPORT = 'import type { ReactNode } from "react";';
+  const bodyOf = (flat) => {
+    assert.equal(flat.split(FIRST_IMPORT).length, 2, "a version file does not open, after its notes, with the import this check starts from");
+    return flat.slice(flat.indexOf(FIRST_IMPORT));
+  };
+  /** The sentence about access needs, after "which only admins read.", word for word as the owner approved it. */
+  const ACCESS_22 =
+    "If you tell us what access you need, only admins can open it, one message at a time, and we record each time one does; for anything about health or disability in it we rely on your explicit consent, given by choosing to send it, and you can ask us to delete it at any time.";
+  /** The explicit-consent basis: v21's, and v22's with a message to the team about access needs, as the owner approved it. */
+  const CONSENT_21 =
+    "<strong>Explicit consent</strong> for health or disability information you choose to give in an access-requirements answer or an event&apos;s dietary or accessibility questions.";
+  const CONSENT_22 =
+    "<strong>Explicit consent</strong> for health or disability information you choose to give in an access-requirements answer, a message to the team about access needs, or an event&apos;s dietary or accessibility questions.";
+  /** The openings the logs record: v21's, and v22's with a message about access needs, as the owner approved it. */
+  const LOGS_21 =
+    "We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers, and keep a log of decisions on applications.";
+  const LOGS_22 =
+    "We also record each time an admin opened an access-requirements answer, a message about access needs, sealed predictions or survey answers, and keep a log of decisions on applications.";
+  /** Going to another group's session: v21's, and v22's with the host's facilitators told of joining online. */
+  const VISIT_21 =
+    "If you go to another group&apos;s session, that group&apos;s facilitators see your name, your work for that week and that session&apos;s register. </p>";
+  const VISIT_22 =
+    "If you go to another group&apos;s session, that group&apos;s facilitators see your name, your work for that week and that session&apos;s register, and are told if you said you&apos;d join it online. </p>";
+  const REQUESTS_LEAD = "apart from anything about access needs, which only admins read.";
+  /**
+   * EVERY CHANGE v22 MAKES TO v21, as [what, v21's words, v22's words], each
+   * a run of the flattened text. Applied to frozen v21 in turn, each found
+   * exactly once, they give v22 exactly: so nothing else in v21 changed.
+   */
+  const V22_CHANGES = [
+    ["the component's name", "export default function PrivacyContentV21(", "export default function PrivacyContentV22("],
+    [
+      "what changed, at the top, with version 21's line kept under it and dated",
+      `<p id="whats-changed"> <strong>What&apos;s changed in version 21:</strong> ${CHANGED_21} </p>`,
+      `<p id="whats-changed"> <strong>What&apos;s changed in version 22:</strong> ${CHANGED_22} </p> <p> <strong>What changed in version 21, on 22 November 2026:</strong> ${CHANGED_21} </p>`,
+    ],
+    ["who opens a message about access needs, on what basis, and that it can be deleted", `${REQUESTS_LEAD} If you ask to be excused,`, `${REQUESTS_LEAD} ${ACCESS_22} If you ask to be excused,`],
+    ["a host group's facilitators are told if a visitor said they'd join online", VISIT_21, VISIT_22],
+    ["the explicit-consent basis names a message to the team about access needs", CONSENT_21, CONSENT_22],
+    ["the logs name each opening of a message about access needs", LOGS_21, LOGS_22],
+  ];
+
+  test("v22 is v21 with these changes and no others", () => {
+    let text = bodyOf(V21_FLAT);
+    for (const [what, before, after] of V22_CHANGES) {
+      assert.equal(text.split(before).length, 2, `v21 does not say, exactly once, what v22 changes (${what}): ${before}`);
+      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v22 still says what it was meant to replace (${what})`);
+      text = text.replace(before, after);
+    }
+    assert.equal(text, bodyOf(CURRENT_FLAT), "v22 differs from v21 somewhere outside the changes listed here");
+  });
+
+  test("the new words, each in its place, word for word, and none in v21", () => {
+    const taking = PAGE_FLAT.slice(PAGE_FLAT.indexOf("<h2>Taking part in a programme</h2>"), PAGE_FLAT.indexOf('<section id="your-work"'));
+    assert.ok(taking.includes(`${REQUESTS_LEAD} ${ACCESS_22}`), "the sentence about access needs is not in Taking part in a programme, after which only admins read, in those words");
+    assert.ok(taking.includes(VISIT_22), "going to another group's session no longer says its facilitators are told of joining online, in those words");
+    assert.equal(hubPassageOf("<strong>Explicit consent</strong>").trim(), CONSENT_22, "the explicit-consent basis is not v22's, in those words");
+    assert.ok(hubPassageOf("<strong>Logs:</strong>").includes(` ${LOGS_22} `), "the logs no longer name each opening of a message about access needs, in those words");
+    for (const words of [ACCESS_22, CONSENT_22, LOGS_22, VISIT_22]) assert.ok(!V21_FLAT.includes(words), `v21 already says: ${words}`);
+    assert.ok(V21_FLAT.includes(CONSENT_21) && V21_FLAT.includes(LOGS_21) && V21_FLAT.includes(VISIT_21));
+  });
+
+  test("only admins can open it, one message at a time: the one reader of the words is an admin's press on one ask, never the sender's", () => {
+    const open = withoutComments(read("src/lib/courses/teamAsk/openAccessNeeds.ts"));
+    assert.match(open, /if \(actor\.role !== "admin"\) return \{ ok: false, status: 403, error: "Forbidden" \};/);
+    assert.match(open, /const ref = db\.collection\(COURSE_REQUESTS_COLLECTION\)\.doc\(requestId\);/, "an opening reads more than the one ask it names");
+    assert.match(open, /if \(ask\.askedByUid === actor\.uid\) return \{ ok: false, status: 403, error: ACCESS_OWN \};/);
+    // The words leave the store through one helper, which the opening alone imports.
+    assert.deepEqual(sourceFilesNaming(/\baccessNeedsWordsOf\b/), ["src/lib/courses/teamAsk/openAccessNeeds.ts", "src/lib/firestore/courseAccessNeedsWords.ts"], "a second reader of what somebody wrote about access needs");
+    // The opening is reached from the one route, admins only, view-as refused first.
+    assert.deepEqual(sourceFilesNaming(/from "@\/lib\/courses\/teamAsk\/openAccessNeeds"|from "\.\/openAccessNeeds"/), ["src/app/api/courses/requests/[requestId]/team/open/route.ts"], "a second importer of the opening");
+    const route = withoutComments(read("src/app/api/courses/requests/[requestId]/team/open/route.ts"));
+    const blocked = route.indexOf("const blocked = await assertNotImpersonating();");
+    const admin = route.indexOf('if (actor.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });');
+    const db = route.indexOf("getAdminDb()");
+    assert.ok(blocked > -1 && admin > blocked && db > admin, "the opening route reaches the database before it refuses everybody but an admin");
+    // Run end to end, with every kind of caller, in tests/course-ask-access-needs.test.mjs and guarded in tests/ask-access-needs-boundary.test.mjs.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-ask-access-needs.test.mjs")));
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "ask-access-needs-boundary.test.mjs")));
+  });
+
+  test("and we record each time one does: the record and the reading are one transaction, and the record holds no words", () => {
+    const open = withoutComments(read("src/lib/courses/teamAsk/openAccessNeeds.ts"));
+    const tx = open.indexOf("return db.runTransaction(async (tx): Promise<OpenedAccessNeeds> => {");
+    const words = open.indexOf("const opened = data ? accessNeedsWordsOf(data) : null;");
+    const record = open.indexOf("tx.create(db.collection(COURSE_AUDIT_COLLECTION).doc(), {");
+    const history = open.indexOf('history: withAccessEvent(ask.history, "opened", actor.uid, now),');
+    const back = open.indexOf("return { ok: true, value: opened };");
+    assert.ok(tx > -1 && words > tx && record > words && history > record && back > history, "the words leave the opening outside the transaction that records it");
+    assert.match(open, /export const ACCESS_NEEDS_READ_KIND = "access-needs-read" satisfies CourseAuditKind;/);
+    const row = open.slice(record, open.indexOf("});", record));
+    assert.match(row, /kind: recordAs,/);
+    assert.doesNotMatch(row, /words|tellFacilitator|subjectName|displayName/, "the record of an opening holds what was written or whose name it was");
+    // The route names the record it makes in its own source.
+    assert.match(withoutComments(read("src/app/api/courses/requests/[requestId]/team/open/route.ts")), /openAccessNeeds\(db, actor, requestId, "access-needs-read", new Date\(\)\)/);
+  });
+
+  test("you can ask us to delete it: it is stored as a request of yours, and deleting your account deletes it with its words", () => {
+    const ask = withoutComments(read("src/lib/courses/teamAsk/ask.ts"));
+    assert.match(ask, /kind: access \? ACCESS_NEEDS_KIND : TEAM_MESSAGE_KIND,/);
+    assert.match(ask, /subjectUid: user\.uid,\s+askedByUid: user\.uid,/);
+    assert.match(ask, /\? \{ words: press\.words, tellFacilitator: press\.tellFacilitator, replies: \[\] \}/);
+    const deletion = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
+    assert.match(deletion, /const asked = await deleteOwnedCourseRows\(db, COURSE_REQUESTS_COLLECTION, uid, "askedByUid"\);/);
+    assert.match(deletion, /summary\.courseRequestsDeleted = await deleteCourseRequestsOf\(db, uid\);/);
+    // The record of each opening is a staff log, which a deletion leaves, as the policy says.
+    assert.doesNotMatch(deletion, /access-needs-read|ACCESS_NEEDS_READ_KIND/, "account deletion reaches the record of openings");
+    assert.ok(PAGE_FLAT.includes("the email log and suppression list; staff logs;"));
+  });
+
+  test("a host group's facilitators are told if a visitor said they'd join online: the visit's email to them says so, and nothing else tells them", () => {
+    // The word is written only by an approval of the person's own request with the tick, through the one writer.
+    const save = withoutComments(read("src/lib/courses/visit/save.ts"));
+    assert.match(save, /const online = input\.approves\?\.online \? joiningOnlineAtHost\(facts, planned\.plan, input\.uid, input\.now\) : null;/);
+    assert.match(save, /onlineLines = online\?\.lines \?\? \[\];/);
+    // The host's facilitators' email carries the line.
+    assert.match(save, /: recipient\.as === "host" && lines\.length > 0\s+\? hostEmailWords\(done\.emailFacts, lines\)/);
+    const plan = withoutComments(read("src/lib/courses/visit/plan.ts"));
+    assert.match(plan, /if \(said\.ok\) return \{ ok: true, lines: joinOnlineLinesWords\(\{ personName: facts\.person\.name, personFirstName: facts\.person\.firstName, weekNumber: plan\.weekNumber, hasLink: said\.hasLink \}\), said, registerId \};/);
+    const visitWords = withoutComments(read("src/lib/courses/visit/words.ts"));
+    assert.match(visitWords, /return \[`\$\{first\} will join online\. \$\{linkToAddWords\(input\.weekNumber, input\.hasLink\)\}`\];/);
+    assert.match(visitWords, /\.\.\.online,\s+\],\s+button: "Open your group",/);
+    // Never the meeting link: the line says whether there is one, never which.
+    assert.doesNotMatch(visitWords.slice(visitWords.indexOf("export function joinOnlineLinesWords"), visitWords.indexOf("export function homeEmailWords")), /meetingUrl|https?:/);
+    // Run end to end in tests/course-visit-request-online.test.mjs.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-visit-request-online.test.mjs")));
+  });
+
+  test("what changed is at the top, newest first, each earlier version's line under it with its date", () => {
+    const twentyTwo = PAGE_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 22:</strong> ${CHANGED_22} </p>`);
+    const twentyOne = PAGE_FLAT.indexOf(`<strong>What changed in version 21, on 22 November 2026:</strong> ${CHANGED_21}`);
+    const twenty = PAGE_FLAT.indexOf("<strong>What changed in version 20, on 17 November 2026:</strong>");
+    const nineteen = PAGE_FLAT.indexOf("<strong>What changed in version 19, on 13 November 2026:</strong>");
+    const eighteen = PAGE_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
+    const seventeen = PAGE_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
+    assert.ok(twentyTwo !== -1 && twentyTwo < twentyOne && twentyOne < twenty && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < PAGE_FLAT.indexOf('<h2 id="in-short">'));
+    // Each date is the day that version went live, as the policy list has it.
+    assert.equal(POLICIES.privacy.versions.find((v) => v.version === 21)?.lastUpdated, "22 November 2026");
+    assert.ok(!V21_FLAT.includes("What&apos;s changed in version 22"));
+  });
+
+  test("told on Home, not asked: nobody is asked to accept it", async () => {
+    const acceptance = await loadTs("lib/legal/acceptance.ts");
+    assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
+    for (const stored of ["terms.1+privacy.15", "terms.1+privacy.16", "terms.1+privacy.17", "terms.1+privacy.18", "terms.1+privacy.19", "terms.1+privacy.20", "terms.1+privacy.21", "terms.1+privacy.22"]) {
+      assert.equal(acceptance.needsPolicyAcceptance(stored), false, stored);
+    }
+    // It changes how information is used, so Home's one short line says the policy changed, for a week from its date.
+    // Dated the day it reaches the site, which is version 21's day too.
+    assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 22), { version: 22, lastUpdated: "22 November 2026", toldOnHome: true });
     // The week, the words and the dismissal are run in tests/policy-update-line.test.mjs.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
   });

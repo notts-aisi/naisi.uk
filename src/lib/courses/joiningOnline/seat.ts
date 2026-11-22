@@ -1,5 +1,5 @@
 import "server-only";
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type DocumentReference, type Firestore, type Transaction } from "firebase-admin/firestore";
 import { nextSessionByWeek } from "@/lib/courses/cantMakeIt/seat";
 import { everInGroup, inGroupForWeek } from "@/lib/courses/groupsByWeek";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
@@ -183,6 +183,112 @@ const CLOSED: Record<Extract<JoiningOnlineState, { kind: "closed" }>["why"], str
   online: JOINING_ONLINE_REFUSAL.online,
 };
 
+/** Whether a session has a meeting link the ticket would draw: asked, with the check the ticket makes before it draws one, and never handed back. */
+function sessionHasLink(session: ResolvedSession): boolean {
+  const link = session.session.meetingUrl;
+  return Boolean(link) && validateSubmissionUrl(link ?? "", GROUP_FIELD_LIMITS.meetingUrl) === null;
+}
+
+/**
+ * SAYING "JOINING ONLINE" ON ONE REGISTER, decided: the one rule and the one
+ * write of a person's word, asked by their own press (below) and by an
+ * admin's approval of their request to go to another group's session with
+ * "I’d join online" ticked (`src/lib/courses/visitRequest/decide.ts`, inside
+ * the visit's own transaction), so the word is written one way whoever's
+ * press it rides on.
+ *
+ * Decided from the register as read in the caller's transaction (`data`,
+ * undefined for none yet): refused while `joiningOnlineState` says it cannot
+ * be said (`state` says why, `error` in the person's own words), and when the
+ * register already holds as many words as it holds rows; nothing to write
+ * when it is said already (`write` null); otherwise `write`, to call with the
+ * transaction's other writes, after every read. `tells` is whether this is
+ * the first time the person says it for the session, which the write stamps
+ * (`onlineEmailed`): the press then emails the group's facilitators, and an
+ * approval says it in the email the visit sends them instead, so the press's
+ * email never also goes. `hasLink` is whether the session has a meeting link;
+ * never the link.
+ */
+export type SayingOnline =
+  | {
+      ok: true;
+      hasLink: boolean;
+      tells: boolean;
+      write: ((tx: Transaction, ref: DocumentReference, runId: string) => void) | null;
+      /**
+       * Said already, and never stamped as emailed: the stamp alone, for a
+       * caller whose own email says it (an approval). The press never writes
+       * it: it sends nothing for a word said already.
+       */
+      stampOnly: ((tx: Transaction, ref: DocumentReference) => void) | null;
+    }
+  | { ok: false; error: string; state: JoiningOnlineState | { kind: "full" } };
+
+export function sayingOnlineOn(input: {
+  group: CourseGroupDoc;
+  session: ResolvedSession;
+  data: Record<string, unknown> | undefined;
+  registerId: string;
+  uid: string;
+  now: Date;
+}): SayingOnline {
+  const { group, session, data, uid } = input;
+  const state = stateOn(group, session, lineOf(data, input.registerId, uid), input.now);
+  if (state.kind === "closed") return { ok: false, error: CLOSED[state.why], state };
+  if (state.kind === "told") return { ok: false, error: JOINING_ONLINE_REFUSAL.told, state };
+  if (state.kind === "marked") return { ok: false, error: JOINING_ONLINE_REFUSAL.marked, state };
+  const hasLink = sessionHasLink(session);
+  // The group's facilitators are emailed the first time this person says
+  // it for this session, and not again while they are due at it: a stamp
+  // taking the word back keeps, so taking it back and saying it again tells
+  // nobody twice. It goes only with the person's place at the session (a
+  // visit that ends, `onlineWordGone` in `./gone.ts`). Capped as the word is, so a register
+  // can never be made to hold more stamps than rows.
+  const emailed = (data?.[ONLINE_EMAILED] ?? {}) as Record<string, unknown>;
+  const tells = !Object.hasOwn(emailed, uid) && Object.keys(emailed).length < ATTENDANCE_LIMITS.maxRecords;
+  if (state.kind === "said") {
+    return {
+      ok: true,
+      hasLink,
+      tells: false,
+      write: null,
+      stampOnly: tells ? (tx, ref) => tx.set(ref, { [ONLINE_EMAILED]: { [uid]: FieldValue.serverTimestamp() } }, { merge: true }) : null,
+    };
+  }
+  // Capped as the register's marks are: a map of every row's word.
+  const said = (data?.[ONLINE_SAID] ?? {}) as Record<string, unknown>;
+  if (Object.keys(said).length + 1 > ATTENDANCE_LIMITS.maxRecords) return { ok: false, error: JOINING_ONLINE_REFUSAL.full, state: { kind: "full" } };
+  const { startsAt } = sessionInstants(session);
+  return {
+    ok: true,
+    hasLink,
+    tells,
+    stampOnly: null,
+    write: (tx, ref, runId) => {
+      // `set` with `merge`: it makes the register when this is the session's
+      // first line, and otherwise merges this one key into the map, so
+      // nobody else's word is ever written. The parts of the id live as
+      // fields, as the marking route writes them.
+      tx.set(
+        ref,
+        {
+          runId,
+          groupId: group.id,
+          weekNumber: session.weekNumber,
+          occurrence: session.occurrence,
+          [ONLINE_SAID]: { [uid]: FieldValue.serverTimestamp() },
+          // Their line says who set it: their own word, before the session,
+          // whoever's press it rode on.
+          [SET_BY]: { [uid]: { byUid: uid, at: FieldValue.serverTimestamp(), how: "self" } },
+          ...(tells ? { [ONLINE_EMAILED]: { [uid]: FieldValue.serverTimestamp() } } : {}),
+          ...(startsAt ? { sessionAt: startsAt } : {}),
+        },
+        { merge: true },
+      );
+    },
+  };
+}
+
 /**
  * The one write. Everything it decides on is read again inside the
  * transaction that writes: the group, the run, the caller's own seat and the
@@ -250,48 +356,13 @@ async function writeJoiningOnline(
     const ref = db.collection("courseAttendance").doc(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence));
     const registerSnap = await tx.get(ref);
     const data = registerSnap.exists ? (registerSnap.data() ?? {}) : undefined;
-    const state = stateOn(group, session, lineOf(data, ref.id, user.uid), now);
-    if (state.kind === "closed") return only(refuse(409, CLOSED[state.why]));
-    if (state.kind === "told") return only(refuse(409, JOINING_ONLINE_REFUSAL.told));
-    if (state.kind === "marked") return only(refuse(409, JOINING_ONLINE_REFUSAL.marked));
-    // Whether the ticket can say the link is on it: asked, with the check
-    // the ticket makes before it draws one, and never handed back.
-    const link = session.session.meetingUrl;
-    const hasLink = Boolean(link) && validateSubmissionUrl(link ?? "", GROUP_FIELD_LIMITS.meetingUrl) === null;
-
     if (request.online) {
-      if (state.kind === "said") return only({ ok: true, online: true, hasLink });
-      // Capped as the register's marks are: a map of every row's word.
-      const said = (data?.[ONLINE_SAID] ?? {}) as Record<string, unknown>;
-      if (Object.keys(said).length + 1 > ATTENDANCE_LIMITS.maxRecords) return only(refuse(409, JOINING_ONLINE_REFUSAL.full));
-      const { startsAt } = sessionInstants(session);
-      // The group's facilitators are emailed the first time this person says
-      // it for this session, and never again: a stamp nobody takes away, so
-      // taking the word back and saying it again tells nobody twice. Capped
-      // as the word is, so a register can never be made to hold more stamps
-      // than rows.
-      const emailed = (data?.[ONLINE_EMAILED] ?? {}) as Record<string, unknown>;
-      const tells = !Object.hasOwn(emailed, user.uid) && Object.keys(emailed).length < ATTENDANCE_LIMITS.maxRecords;
-      // `set` with `merge`: it makes the register when this is the session's
-      // first line, and otherwise merges this one key into the map, so
-      // nobody else's word is ever written. The parts of the id live as
-      // fields, as the marking route writes them.
-      tx.set(
-        ref,
-        {
-          runId: run.id,
-          groupId: group.id,
-          weekNumber: session.weekNumber,
-          occurrence: session.occurrence,
-          [ONLINE_SAID]: { [user.uid]: FieldValue.serverTimestamp() },
-          // Their line says who set it: their own word, before the session.
-          [SET_BY]: { [user.uid]: { byUid: user.uid, at: FieldValue.serverTimestamp(), how: "self" } },
-          ...(tells ? { [ONLINE_EMAILED]: { [user.uid]: FieldValue.serverTimestamp() } } : {}),
-          ...(startsAt ? { sessionAt: startsAt } : {}),
-        },
-        { merge: true },
-      );
-      const tell: JoiningOnlineTell | null = tells
+      const said = sayingOnlineOn({ group, session, data, registerId: ref.id, uid: user.uid, now });
+      if (!said.ok) return only(refuse(409, said.error));
+      // Already said: nothing written, nobody told again.
+      if (!said.write) return only({ ok: true, online: true, hasLink: said.hasLink });
+      said.write(tx, ref, run.id);
+      const tell: JoiningOnlineTell | null = said.tells
         ? {
             runId: run.id,
             group: { id: group.id, name: group.name, facilitatorUids: group.facilitatorUids },
@@ -300,11 +371,17 @@ async function writeJoiningOnline(
             occurrence: session.occurrence,
             dateKey: session.dateKey,
             startTimeLocal: session.session.startTimeLocal,
-            hasLink,
+            hasLink: said.hasLink,
           }
         : null;
-      return { outcome: { ok: true, online: true, hasLink }, tell };
+      return { outcome: { ok: true, online: true, hasLink: said.hasLink }, tell };
     }
+
+    const state = stateOn(group, session, lineOf(data, ref.id, user.uid), now);
+    if (state.kind === "closed") return only(refuse(409, CLOSED[state.why]));
+    if (state.kind === "told") return only(refuse(409, JOINING_ONLINE_REFUSAL.told));
+    if (state.kind === "marked") return only(refuse(409, JOINING_ONLINE_REFUSAL.marked));
+    const hasLink = sessionHasLink(session);
 
     // Taking it back: only their own word.
     if (state.kind === "open") return only({ ok: true, online: false, hasLink });

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { Textarea } from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
@@ -85,6 +86,10 @@ export default function SocietyFeedbackForm({ programmes }: { programmes: FormPr
       <div className={styles.sent} role="status">
         <h2 className={styles.sentTitle}>{SENT_WORDS.title}</h2>
         <p className={styles.sentBody}>{SENT_WORDS.body}</p>
+        <p className={styles.sentBody}>{SENT_WORDS.answer}</p>
+        <Link href="/ask-the-team" className={styles.askLink}>
+          {SENT_WORDS.askTheTeam}
+        </Link>
         <button type="button" className={styles.secondary} onClick={reset}>
           {SENT_WORDS.more}
         </button>

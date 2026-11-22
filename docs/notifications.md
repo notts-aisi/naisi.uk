@@ -284,6 +284,72 @@ requests that already carry `adminsToldOn` for that day, and marks its own,
 so asking and withdrawing in a loop cannot spend the site's sending
 allowance.
 
+**A new request to go to another group's session for a week goes the same
+way.** When somebody asks from their own form
+(`src/lib/courses/visitRequest/ask.ts`), the admins are sent one email through
+the same door and the same send (`emailAdminsWords`), under the same switch
+(`requestEmails.excused`) and the same daily cap (`adminsToldOn` counts every
+kind of theirs on the run): who asked, the host's session and the group they
+stay in, and the way to the request's page. Never their own words. Declining
+it and a reply without deciding email the person through the door of
+requests to be excused (`src/lib/courses/visitRequest/decide.ts`); approving
+it arranges the visit through the staff visit's own writer, so the person and
+both groups' facilitators are sent exactly the visit's emails
+(`src/lib/courses/visit/save.ts`), the person's with "Your request is
+approved." and the reply. When the person ticked "I'd join online", the
+host's facilitators' email also says so, with where the link goes (never the
+link), and the same transaction stamps their word on the host's register as
+emailed, so the joining-online email below does not also go. Withdrawing, dismissing a decline and a request
+that closes by itself because nobody decided it before the session email
+nobody. The switch's route takes `{ on, which? }`, `which` naming a key of
+`REQUEST_EMAIL_SWITCHES` and the existing one when left out.
+
+**A new request to change group for good goes the same way.** When
+somebody asks from their own form (`src/lib/courses/moveRequest/ask.ts`), the
+admins are sent one email through the same send (`emailAdminsWords`), under
+the same switch and the same daily cap: who asked, the group they are in and
+the group they asked for, and the way to the request's page. Never their own
+words. Declining it and a reply without deciding email the person through the
+door of requests to be excused (`src/lib/courses/moveRequest/decide.ts`);
+approving it makes the move through the staff move's own writer, so the
+person and both groups' facilitators are sent exactly the move's emails
+(`src/lib/courses/staffMove/save.ts`), the person's with "Your request is
+approved." first and the reply last. Withdrawing, dismissing a decline and a
+request a staff move made moot email nobody.
+
+**A message to the team, to the admins, has a second switch, off unless
+switched on.** When a member sends the team a message from Ask the team
+(`src/lib/courses/teamAsk/ask.ts`), only an admin who switched on "Email me
+about messages to the team" on the Requests page is emailed
+(`users/{uid}.requestEmails.team`, OFF unless a stored `true`; the switch
+above and its default are unchanged), through the same send
+(`emailAdminsWords`, `which: "team"`), never the sender: who, what it is about
+and when, and the way to its page. NEVER what they wrote. Its rows carry
+`kind: "course-request"` with an empty `referenceId`, because a message
+belongs to no run. The same cap holds: the first three messages by one
+person in one London day email the admins (`adminsToldTodayIn` with no run,
+which only these messages have); the rest wait on the Requests page. A
+member may send five a London day, counted in the send's own transaction
+from the messages themselves. **The reply is transactional**: an admin's
+reply is stored on the message, closes it, and is emailed to the person
+through its own door (`src/lib/email/teamAskEmail.ts`, `kind: "team-reply"`),
+whatever their settings, with the reply and never their own message. It is
+not sent through Messages and is not listed in Sent. Taking a message emails
+nobody.
+
+**An access-needs ask, to the admins, goes by the same switch.** When a
+member sends the admins a message about access needs (the access form on Ask
+the team), only an admin who switched on "Email me about messages to the
+team" is emailed, through the same send, under the same cap: "Somebody sent
+the admins a message about access needs", when, that what they wrote is on
+the request's page for admins only, and that opening it is recorded. NOT WHO:
+the subject is kept in the email log, which outlives the account, so neither
+it nor the body names the person. Never what they wrote, and nothing of
+whether they said their facilitator may be told. The reply is a message's
+reply word for word, through the same door, so nothing in it says access
+needs.
+Opening an ask emails nobody.
+
 **Joining online, to a group's facilitators, is transactional.** When
 somebody presses "Joining online" for a session on their programme page
 (`src/lib/courses/joiningOnline/seat.ts`), each of the group's facilitators

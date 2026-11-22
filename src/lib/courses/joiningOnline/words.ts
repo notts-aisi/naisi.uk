@@ -21,30 +21,37 @@
 // The ticket, for somebody taking part
 // ---------------------------------------------------------------------------
 
-/** The button on the ticket. */
-export const JOINING_ONLINE = "Joining online";
+/** The button on the card. */
+export const JOINING_ONLINE = "I’m joining online";
 
-/** Its name for a screen reader: "Joining online on Tue 17 Nov". */
+/** Its name for a screen reader: "I’m joining online on Tue 17 Nov". */
 export function joiningOnlineLabel(day: string): string {
   return day ? `${JOINING_ONLINE} on ${day}` : JOINING_ONLINE;
 }
 
 /** Taking it back, while the session has not started. */
-export const IN_THE_ROOM_AFTER_ALL = "I’ll be in the room after all";
+export const IN_THE_ROOM_AFTER_ALL = "I’ll be in the room instead";
 
 /**
  * Once they have said it: who sees it, and where the link will be. With a
  * link already on the ticket, it says the link is there.
  */
-export function saidOnlineWords(hasLink: boolean): string {
+export function saidOnlineWords(hasLink: boolean, facilitatorFirstNames: readonly string[] = []): string {
+  // The card's own words, before the link is added, for a session with one
+  // facilitator to name: "Rahul can see you’re joining online. The link to
+  // join shows here once Rahul adds it: not yet."
+  if (!hasLink && facilitatorFirstNames.length === 1 && facilitatorFirstNames[0].trim()) {
+    const name = facilitatorFirstNames[0].trim();
+    return `${name} can see you’re joining online. The link to join shows here once ${name} adds it: not yet.`;
+  }
   return hasLink
     ? "You’ve said you’re joining online, and your facilitators can see that. The link to join is on this ticket."
     : "You’ve said you’re joining online, and your facilitators can see that. The link to join will be on this ticket, not in your emails.";
 }
 
 /** What the route answers once it has saved, either way. */
-export function onlineSavedWords(online: boolean, hasLink: boolean): string {
-  return online ? saidOnlineWords(hasLink) : "You’ve told us you’ll be in the room after all.";
+export function onlineSavedWords(online: boolean, hasLink: boolean, facilitatorFirstNames: readonly string[] = []): string {
+  return online ? saidOnlineWords(hasLink, facilitatorFirstNames) : "You’ve told us you’ll be in the room after all.";
 }
 
 /** What the press says while it is on its way. */
@@ -169,6 +176,21 @@ function sessionOfWeekWords(weekNumber: number, occurrence: number): string {
 }
 
 /**
+ * Where the link goes, said to a session's facilitators in an email: with no
+ * link yet, the box at the top of their group page, by its own field and
+ * button (`linkFieldLabel`, `ADD_LINK`), so an email can never name a control
+ * the page does not have; with one, that there is nothing to add. Never the
+ * link. Said by this email and by the email that tells a session's
+ * facilitators a visit to it is approved, when the visitor would join online
+ * (`src/lib/courses/visit/words.ts`).
+ */
+export function linkToAddWords(weekNumber: number, hasLink: boolean): string {
+  return hasLink
+    ? "The session already has a meeting link, so there’s nothing to add."
+    : `The session has no meeting link yet. To add one, open your group page: the box at the top has a field “${linkFieldLabel(weekNumber)}”. Paste the link there and press “${ADD_LINK}”.`;
+}
+
+/**
  * "Daniel Kim is joining week 2 online": to each of the group's facilitators,
  * once per person per session. Says that somebody is joining online, when,
  * and where the link goes: with no link yet, the box at the top of their
@@ -198,9 +220,8 @@ export function joiningOnlineEmailWords(input: {
   const session = input.occurrence > 1 ? `${group}’s ${week}` : `${group}’s ${week} session`;
   const when = input.day ? (input.time ? `, on ${input.day} at ${input.time}` : `, on ${input.day}`) : "";
   const about = input.hasLink
-    ? `The session already has a meeting link, so there’s nothing to add. Everybody in ${group} sees it on their programme page.`
-    : `The session has no meeting link yet. To add one, open your group page: the box at the top has a field “${linkFieldLabel(input.weekNumber)}”. ` +
-      `Paste the link there and press “${ADD_LINK}”. Everybody in ${group} then sees it on their programme page. It is never sent by email.`;
+    ? `${linkToAddWords(input.weekNumber, true)} Everybody in ${group} sees it on their programme page.`
+    : `${linkToAddWords(input.weekNumber, false)} Everybody in ${group} then sees it on their programme page. It is never sent by email.`;
   return {
     subject: `${person} is joining ${week} online`,
     lines: [`${person} will join ${session} online${when}.`, about],

@@ -8,14 +8,7 @@ import { courseApplicationId, normalizeCourseApplication, rowIsServedTo } from "
 import { GROUP_FIELD_LIMITS, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
-import {
-  enrolmentRefsFor,
-  facilitatorChange,
-  placementsFor,
-  writeFacilitatorChange,
-  type SeatFacts,
-  type SeatProblem,
-} from "@/lib/courses/groupFacilitators";
+import { enrolmentRefsFor, facilitatorChange, onlineWordsGoWithPlacingIn, placementsFor, type SeatFacts, type SeatProblem, writeFacilitatorChange } from "@/lib/courses/groupFacilitators";
 import { byHandElsewhereWords, byHandFullWords, byHandNotYoursWords } from "@/lib/courses/facilitatorAsks/words";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { facilitatorAddedHeadline, facilitatorRemovedHeadline, historyDetail } from "@/lib/courses/groupChange/words";
@@ -197,6 +190,9 @@ export async function POST(
       accounts.map((account) => [account.id, account.exists ? nameForViewer(null, accountNamesOf(account.data() ?? {}), "That person") : "That person"] as const),
     );
 
+    // A placement here ends any visit on the place, and its word that they are joining online goes with it.
+    const wordsGo = await onlineWordsGoWithPlacingIn(tx, db, { run: normalizeCourseRun(runSnap.id, run), placing: places.placing, enrolments: enrolmentByUid, now: new Date() });
+
     writeFacilitatorChange(tx, db, {
       groupRef,
       runId,
@@ -207,6 +203,7 @@ export async function POST(
       recorded: new Set(Object.keys(stored.facilitatorAppointments)),
       placing: places.placing,
     });
+    wordsGo();
     for (const [uid, kind] of [
       ...added.map((each) => [each, "facilitator-appointed"] as const),
       ...removed.map((each) => [each, "facilitator-removed"] as const),

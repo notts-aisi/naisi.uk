@@ -52,17 +52,21 @@ export const SENT_KINDS: Record<EmailSendKind, SentEntry> = {
   "course-nudge": { listed: { label: "Weekly course email", byPerson: false } },
   "course-notice": { listed: { label: "Room notice", byPerson: true } },
   "course-enrolment": { notListed: "Somebody joining or leaving a run: their own confirmation." },
-  "course-request": { notListed: "One email to each admin who decides them, saying a request to be excused has arrived. Never the reason." },
+  "course-request": {
+    notListed:
+      "One email to each admin who decides them, saying a request to be excused, to go to another group’s session for a week, or to change group for good, has arrived, or a message to the team for an admin who switched that on. Never the reason, never what they wrote.",
+  },
+  "team-reply": { notListed: "A reply to one person’s own message to the team." },
   "course-joining-online": {
     notListed: "One email to each of a group’s facilitators, saying somebody in the group is joining a session online. Never the meeting link.",
   },
   "course-move": {
     notListed:
-      "A move to another group for good, made mid-term: one email to the person moved and one to each facilitator of the two groups. Never the reason.",
+      "A move to another group for good, made mid-term by staff or approved at the person’s own request: one email to the person moved and one to each facilitator of the two groups. Never the reason.",
   },
   "course-visit": {
     notListed:
-      "A one-week visit to another group’s session, arranged or called off: one email to the person when staff pressed, and one to each facilitator of the two groups. Never the reason.",
+      "A one-week visit to another group’s session, arranged, approved at the person’s own request, or called off: one email to the person when staff pressed, and one to each facilitator of the two groups. Never the reason.",
   },
   "course-feedback": { notListed: "One email to each person saying feedback on their own week is waiting." },
   "course-certificate": { notListed: "One email to each person with their own certificates." },
