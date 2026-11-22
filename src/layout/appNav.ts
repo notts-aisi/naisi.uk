@@ -431,7 +431,24 @@ export type AdminPage = {
    * would have two.
    */
   ownHead?: boolean;
+  /**
+   * The same statement for SOME of the pages under the address: true for an
+   * address whose page draws its own head, so the shared head draws none
+   * there and draws its own everywhere else. For an entry whose newer pages
+   * draw a head while older pages under the same address do not (the
+   * Courses list and a course's page, above the older run pages).
+   * `tests/app-frame.test.mjs` walks it both ways too.
+   */
+  ownHeadAt?: (pathname: string) => boolean;
 };
+
+/** Whether the page at this address draws its own head: the entry's mark, for every page or for this one. */
+export function drawsOwnHead(page: AdminPage | null, pathname: string): boolean {
+  return page?.ownHead === true || page?.ownHeadAt?.(pathname) === true;
+}
+
+/** The Courses list and a course's own page, which draw their heads; not the older pages beneath a course. */
+const isCourseListOrPage = (p: string) => /^\/admin\/courses(?:\/[^/]+)?$/.test(p);
 
 export type AdminSection = {
   id: AdminSectionId;
@@ -519,7 +536,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     id: "courses",
     label: "Courses",
     pages: [
-      { label: "Courses", href: "/admin/courses", match: under("/admin/courses"), visible: (a) => a.isAdmin || a.canAuthorCourses },
+      { label: "Courses", href: "/admin/courses", match: under("/admin/courses"), visible: (a) => a.isAdmin || a.canAuthorCourses, ownHeadAt: isCourseListOrPage },
     ],
   },
   {

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import ProgrammeMark from "@/components/ProgrammeMark";
 import { CREST_KEYS, crestName, type CrestKey } from "@/components/ProgrammeCrest";
@@ -12,6 +11,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import CountedTextarea from "@/components/ui/CountedTextarea";
 import { Field, Input } from "@/components/ui/Input";
+import PageHead from "@/components/ui/PageHead";
 import TimeField from "@/components/ui/TimeField";
 import Modal from "@/components/ui/Modal";
 import ResponsiveSelect, {
@@ -20,8 +20,24 @@ import ResponsiveSelect, {
 import { AdminLoadingBar, AdminPage } from "@/features/admin/adminList";
 import BlockEditor from "@/components/blocks/BlockEditor";
 import { crestForCourse } from "@/lib/crests/resolve";
+import {
+  COURSE_SECTIONS,
+  EDIT_PUBLIC_PAGE,
+  OPEN_THE_PROGRAMME,
+  OPEN_THE_RUN,
+  PUBLIC_PAGE_NOTE,
+  PUBLIC_PAGE_TITLE,
+  RUNS_TITLE,
+  WHERE_A_RUN_IS_MADE,
+  archivedRunsWords,
+  hoursAWeekWords,
+  namedByNoneWords,
+  namedOnWords,
+  runNameWords,
+  runStageLabel,
+  type RunProgrammes,
+} from "@/lib/courses/coursePage/words";
 import { facilitatorGuideAdminPath } from "@/lib/courses/facilitatorGuide/model";
-import { isValidDateKey } from "@/lib/courses/weekPlan";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import {
   COURSE_FIELD_LIMITS,
@@ -32,27 +48,44 @@ import {
   type CourseRunDoc,
   type CourseTrack,
 } from "@/lib/firestore/courses";
-import { ACADEMIC_YEAR_PATTERN, currentAcademicYear } from "@/lib/firestore/users";
 import {
   TRACK_OPTIONS,
   courseStatusTone,
-  formatCivilDate,
   levelOptions,
-  runStatusTone,
-  taughtWeekCount,
 } from "./AdminCourseList";
-import { createRun, publishCourse, saveCourseCrest, updateCourse } from "./courseMutations";
+import { publishCourse, saveCourseCrest, updateCourse } from "./courseMutations";
 import CourseDangerZone from "./CourseDangerZone";
 import CourseRubricCard from "./CourseRubricCard";
+import CourseSectionStrip from "./CourseSectionStrip";
 import { useCourseRuns, useCourses } from "./useAdminCourses";
 import CourseRoutesCard from "./CourseRoutesCard";
 import CoursePredictionsCard from "./CoursePredictionsCard";
 import styles from "./adminCourses.module.css";
+import page from "./coursePages.module.css";
 
 /**
- * The editable half of a course doc. `weeklyHours` stays a string because it is
- * bound to a number input — the parse (and its error) belongs at save time, not
- * on every keystroke.
+ * A COURSE'S OWN PAGE (`/admin/courses/[courseId]`), in the newer pages: the
+ * head, a strip of the page's sections down the side, then Course details,
+ * Public page, Runs, and the course's other cards (Crest, Rubric, Routes and
+ * deadlines, Sealed predictions, Facilitator guide, Publishing, Archive and
+ * the danger zone).
+ *
+ * EVERY CARD READS AND WRITES AS IT DID on the older course page. The course
+ * and its runs are read client-direct (`useCourses`, `useCourseRuns`); the
+ * details, the credit, the introduction and Archive are written client-direct
+ * (`updateCourse`), under `firestore.rules`; the crest, the rubric, the
+ * routes, the predictions card, the publish and the destroy go through their
+ * own routes, which ask who may. Only where each card sits and how it looks
+ * changed.
+ *
+ * RUNS are not made or opened for editing here: a run is made, changed and
+ * closed on its programme's Settings, under Course run. Each run says its
+ * stage and the programme that names it (`programmes`, read by the page on
+ * the server), with "Open the programme" to that programme's Overview for a
+ * reader it opens for, and as a line of words for anybody else. A run no
+ * programme names (a run people join without applying is one) keeps the
+ * older run page, and its line links there. Archived runs fold under the
+ * live ones, so an archived run can still be reached and brought back.
  */
 type MetaDraft = {
   title: string;
@@ -100,8 +133,14 @@ const DAY_BEFORE_OPTIONS: ResponsiveSelectOption<"end" | "time">[] = [
   { value: "time", label: "By a time on the day before" },
 ];
 
-export default function CourseEditor({ courseId }: { courseId: string }) {
-  const router = useRouter();
+export default function CourseEditor({
+  courseId,
+  programmes,
+}: {
+  courseId: string;
+  /** The programme naming each run, read on the server; null when that read failed. */
+  programmes: RunProgrammes | null;
+}) {
   const { toast, run: runAction, dismiss } = useActionToast();
   const saving = toast?.phase === "saving";
 
@@ -184,32 +223,27 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
     return opts;
   }, [runs.items, showcase]);
 
-  // --- New run form ---
-  const [addingRun, setAddingRun] = useState(false);
-  const [runLabel, setRunLabel] = useState("");
-  const [runYear, setRunYear] = useState(() => currentAcademicYear());
-  const [runStart, setRunStart] = useState("");
-  const [runError, setRunError] = useState<string | null>(null);
-
   /**
-   * Archived runs are HIDDEN by default and shown on request — the second
-   * half of what the run's Danger zone promises when it says archiving takes
-   * a run "out of the admin list's default view". They are never dropped from
-   * the read (a soft-archived thing has to be reachable or it can never be
-   * un-archived), so this is a view toggle over the list `useCourseRuns`
-   * already returns with the archived rows sorted to the end.
+   * Archived runs are FOLDED under the live ones, never dropped: the second
+   * half of what a run's archive promises when it says archiving takes a run
+   * "out of the admin list's default view". A soft-archived thing has to be
+   * reachable or it can never be brought back, so the fold lists every one
+   * `useCourseRuns` returns, with the archived rows sorted to the end.
    */
-  const [showArchivedRuns, setShowArchivedRuns] = useState(false);
-  const archivedRunCount = useMemo(
-    () => runs.items.filter((r: CourseRunDoc) => r.archived).length,
+  const liveRuns = useMemo(
+    () => runs.items.filter((r: CourseRunDoc) => !r.archived),
     [runs.items],
   );
-  const visibleRuns = useMemo(
-    () =>
-      showArchivedRuns
-        ? runs.items
-        : runs.items.filter((r: CourseRunDoc) => !r.archived),
-    [runs.items, showArchivedRuns],
+  const archivedRuns = useMemo(
+    () => runs.items.filter((r: CourseRunDoc) => r.archived),
+    [runs.items],
+  );
+
+  // Loading the facilitator guide is an admin's job for now; its page and
+  // route refuse everyone else, so nobody else is offered its section.
+  const sections = useMemo(
+    () => COURSE_SECTIONS.filter((section) => section.id !== "guide" || isAdmin),
+    [isAdmin],
   );
 
   async function handleSave() {
@@ -288,45 +322,17 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
     );
   }
 
-  async function handleCreateRun(e: React.FormEvent) {
-    e.preventDefault();
-    if (!course) return;
-    const label = runLabel.trim();
-    if (!label) {
-      setRunError("Give the run a label, e.g. “Autumn 2026”.");
-      return;
-    }
-    if (!ACADEMIC_YEAR_PATTERN.test(runYear)) {
-      setRunError("Academic year must look like 2026/27.");
-      return;
-    }
-    if (!isValidDateKey(runStart)) {
-      setRunError("Pick the date week 1 starts.");
-      return;
-    }
-    setRunError(null);
-    let newRunId = "";
-    await runAction(
-      async () => {
-        // courseTitle is denormalised onto the run, so it takes the SAVED
-        // title — an unsaved rename in the form above must not leak into it.
-        newRunId = await createRun(
-          { id: course.id, title: course.title },
-          { label, academicYear: runYear, startDate: runStart },
-        );
-      },
-      { savingMessage: "Creating run…", successMessage: "Run created" },
-    );
-    if (newRunId) {
-      router.push(
-        `/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(newRunId)}`,
-      );
-    }
-  }
+  // The way back to the list, as the head's crumb.
+  const crumb = (
+    <Link href="/admin/courses" className={page.crumb}>
+      Courses
+    </Link>
+  );
 
   if (loading) {
     return (
       <AdminPage>
+        <PageHead title="Courses" />
         <Card padding="md">
           <AdminLoadingBar label="Loading course…" />
         </Card>
@@ -337,9 +343,7 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
   if (error) {
     return (
       <AdminPage>
-        <Link href="/admin/courses" className={styles.backLink}>
-          ← All courses
-        </Link>
+        <PageHead title="Courses" />
         <Card padding="md">
           <p className={styles.error}>Couldn&apos;t load this course: {error.message}</p>
         </Card>
@@ -350,11 +354,8 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
   if (!course) {
     return (
       <AdminPage>
-        <Link href="/admin/courses" className={styles.backLink}>
-          ← All courses
-        </Link>
+        <PageHead crumb={crumb} title="Course not found" />
         <Card padding="lg">
-          <h2 className={styles.emptyTitle}>Course not found</h2>
           <p className={styles.emptyBody}>
             No course with the id <code>{courseId}</code>. It may have been deleted, or
             the link may be stale.
@@ -375,489 +376,417 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
     ? `Update the public curriculum preview for “${course.title}”?`
     : `Publish “${course.title}” to the public catalogue? The course page becomes visible to everyone, signed in or not.`;
 
-  return (
-    <AdminPage>
-      <div className={styles.wrap}>
-        <Link href="/admin/courses" className={styles.backLink}>
-          ← All courses
-        </Link>
+  const headLine = [
+    COURSE_TRACK_LABELS[course.track],
+    course.level || "no level set",
+    ...(course.estimatedWeeklyHours != null ? [hoursAWeekWords(course.estimatedWeeklyHours)] : []),
+  ].join(" · ");
 
-        <header className={styles.header}>
-          <div className={styles.headerText}>
-            <h1 className={styles.title}>{course.title || "(untitled course)"}</h1>
-            <p className={styles.subtitle}>
-              {COURSE_TRACK_LABELS[course.track]} · {course.level || "no level set"} ·{" "}
-              {runs.loading
-                ? "loading runs…"
-                : `${runs.items.length} run${runs.items.length === 1 ? "" : "s"}`}
-            </p>
-          </div>
-          <div className={styles.formActions}>
-            {dirty && <Badge tone="warning">Unsaved changes</Badge>}
+  /** One run's row: its name, its stage and programme, and the way on where there is one. */
+  const runRow = (run: CourseRunDoc) => {
+    const programme = programmes ? (programmes[run.id] ?? null) : null;
+    const line =
+      programmes === null
+        ? runStageLabel(run.status)
+        : programme
+          ? namedOnWords(run.status, programme.name)
+          : namedByNoneWords(run.status);
+    return (
+      <li key={run.id} className={page.runRow}>
+        <div className={page.runText}>
+          <p className={page.runName}>{runNameWords(run)}</p>
+          <p className={page.runLine}>{line}</p>
+        </div>
+        {programme?.href ? (
+          <Link href={programme.href} className={page.action}>
+            {OPEN_THE_PROGRAMME}
+          </Link>
+        ) : programmes !== null && !programme ? (
+          <Link
+            href={`/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(run.id)}`}
+            className={page.action}
+          >
+            {OPEN_THE_RUN}
+          </Link>
+        ) : null}
+      </li>
+    );
+  };
+
+  return (
+    <AdminPage wide>
+      <PageHead
+        crumb={crumb}
+        title={course.title || "(untitled course)"}
+        badges={
+          <>
             <Badge tone={courseStatusTone(course.status)}>
               {COURSE_STATUS_LABEL[course.status]}
             </Badge>
-          </div>
-        </header>
+            {dirty && <Badge tone="warning">Unsaved changes</Badge>}
+          </>
+        }
+        description={headLine}
+      />
 
-        {/* === Meta === */}
-        <Card padding="lg">
-          <section className={styles.section}>
-            <div className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle}>Course details</h2>
-              <p className={styles.sectionHint}>Shown on the public catalogue card.</p>
-            </div>
+      <div className={page.columns}>
+        <CourseSectionStrip sections={sections} />
 
-            <div className={styles.form}>
-              <div className={styles.formGrid}>
-                <div className={styles.formSpan}>
-                  <Field id="course-title" label="Title">
-                    <Input
-                      id="course-title"
-                      value={meta.title}
-                      onChange={(e) => patch({ title: e.target.value })}
-                      maxLength={COURSE_FIELD_LIMITS.title}
-                      disabled={saving}
-                    />
-                  </Field>
+        <div className={page.cards}>
+          {/* === Course details === */}
+          <section id="details" className={page.anchor} aria-labelledby="course-details-title">
+            <Card padding="lg">
+              <div className={styles.section}>
+                <div className={styles.sectionHead}>
+                  <h2 id="course-details-title" className={styles.sectionTitle}>
+                    Course details
+                  </h2>
+                  <p className={styles.sectionHint}>Shown on the public catalogue card.</p>
                 </div>
 
-                <div className={styles.formSpan}>
-                  <Field
-                    id="course-tagline"
-                    label="Tagline"
-                    hint="One line, shown under the title on the catalogue card."
-                  >
-                    <CountedTextarea
+                <div className={styles.form}>
+                  <div className={styles.formGrid}>
+                    <Field id="course-title" label="Title">
+                      <Input
+                        id="course-title"
+                        value={meta.title}
+                        onChange={(e) => patch({ title: e.target.value })}
+                        maxLength={COURSE_FIELD_LIMITS.title}
+                        disabled={saving}
+                      />
+                    </Field>
+
+                    <Field
                       id="course-tagline"
-                      value={meta.tagline}
-                      onChange={(e) => patch({ tagline: e.target.value })}
-                      max={COURSE_FIELD_LIMITS.tagline}
-                      rows={2}
+                      label="Tagline"
+                      hint="One line, shown under the title on the catalogue card."
+                    >
+                      <CountedTextarea
+                        id="course-tagline"
+                        value={meta.tagline}
+                        onChange={(e) => patch({ tagline: e.target.value })}
+                        max={COURSE_FIELD_LIMITS.tagline}
+                        rows={2}
+                        disabled={saving}
+                      />
+                    </Field>
+
+                    <Field id="course-track" label="Track">
+                      <ResponsiveSelect<CourseTrack>
+                        value={meta.track}
+                        onChange={(track) => patch({ track })}
+                        options={TRACK_OPTIONS}
+                        ariaLabel="Track"
+                        disabled={saving}
+                      />
+                    </Field>
+
+                    <Field id="course-level" label="Level">
+                      <ResponsiveSelect
+                        value={meta.level}
+                        onChange={(level) => patch({ level })}
+                        options={levelOptions(meta.level)}
+                        ariaLabel="Level"
+                        disabled={saving}
+                      />
+                    </Field>
+
+                    <div className={page.hours}>
+                      <Field
+                        id="course-hours"
+                        label="Weekly hours"
+                        hint="Rough commitment. Leave blank if it varies."
+                      >
+                        <Input
+                          id="course-hours"
+                          type="number"
+                          min={1}
+                          max={40}
+                          step={1}
+                          value={meta.weeklyHours}
+                          onChange={(e) => patch({ weeklyHours: e.target.value })}
+                          disabled={saving}
+                        />
+                      </Field>
+                    </div>
+
+                    <div className={styles.formSpan}>
+                      <div className={styles.formGrid}>
+                        <Field
+                          id="course-day-before"
+                          label="Written work due the day before a session"
+                          hint="For a week whose written work is due the day before its session. Each group’s own dates come from its calendar."
+                        >
+                          <ResponsiveSelect<"end" | "time">
+                            value={meta.dayBeforeDueTime === "" ? "end" : "time"}
+                            onChange={(choice) =>
+                              patch({ dayBeforeDueTime: choice === "end" ? "" : meta.dayBeforeDueTime || "12:00" })
+                            }
+                            options={DAY_BEFORE_OPTIONS}
+                            ariaLabel="Written work due the day before a session"
+                            disabled={saving}
+                          />
+                        </Field>
+                        {meta.dayBeforeDueTime !== "" && (
+                          <Field id="course-day-before-time" label="Due by, on the day before">
+                            <TimeField
+                              value={meta.dayBeforeDueTime}
+                              onChange={(dayBeforeDueTime) => patch({ dayBeforeDueTime })}
+                              disabled={saving}
+                            />
+                          </Field>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className={styles.formSpan}>
+                      <Field
+                        id="course-credit"
+                        label="Credit on certificates"
+                        hint="Follows the weeks on each certificate of this course, after a dot, as in “6 weeks · based on the BlueDot Impact curriculum”, so start it as it reads there. Leave it empty for none. A change reaches certificates sent after it."
+                      >
+                        <Input
+                          id="course-credit"
+                          value={meta.credit}
+                          onChange={(e) => patch({ credit: e.target.value })}
+                          maxLength={COURSE_FIELD_LIMITS.credit}
+                          disabled={saving}
+                        />
+                      </Field>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className={styles.subheading}>Introduction</h3>
+                    <p className={styles.subheadingHint}>
+                      A short intro, used on the public page when its own pitch has
+                      not been written yet.
+                    </p>
+                    {/*
+                      Same wiring as the email-designs editor: BlockEditor owns a
+                      Block[] field and hands the whole array back on change.
+                      `storagePrefix` needs a matching storage.rules block for
+                      `course-images/{courseId}/**` — image uploads fail closed
+                      without one (see the application-emails comment in
+                      storage.rules for the last time that bit).
+                    */}
+                    <BlockEditor
+                      draftId={courseId}
+                      storagePrefix="course-images"
+                      blocks={meta.summaryBlocks}
+                      onChange={(summaryBlocks) => patch({ summaryBlocks })}
                       disabled={saving}
                     />
-                  </Field>
+                  </div>
+
+                  {metaError && <p className={styles.error}>{metaError}</p>}
+
+                  <div className={styles.formActions}>
+                    <Button onClick={handleSave} disabled={saving || !dirty}>
+                      {saving ? "Saving…" : "Save changes"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setDraft({});
+                        setMetaError(null);
+                      }}
+                      disabled={saving || !dirty}
+                    >
+                      Revert
+                    </Button>
+                    {!dirty && <span className={styles.status}>No unsaved changes.</span>}
+                  </div>
                 </div>
-
-                <Field id="course-track" label="Track">
-                  <ResponsiveSelect<CourseTrack>
-                    value={meta.track}
-                    onChange={(track) => patch({ track })}
-                    options={TRACK_OPTIONS}
-                    ariaLabel="Track"
-                    disabled={saving}
-                  />
-                </Field>
-
-                <Field id="course-level" label="Level">
-                  <ResponsiveSelect
-                    value={meta.level}
-                    onChange={(level) => patch({ level })}
-                    options={levelOptions(meta.level)}
-                    ariaLabel="Level"
-                    disabled={saving}
-                  />
-                </Field>
-
-                <Field
-                  id="course-hours"
-                  label="Weekly hours"
-                  hint="Rough commitment. Leave blank if it varies."
-                >
-                  <Input
-                    id="course-hours"
-                    type="number"
-                    min={1}
-                    max={40}
-                    step={1}
-                    value={meta.weeklyHours}
-                    onChange={(e) => patch({ weeklyHours: e.target.value })}
-                    disabled={saving}
-                  />
-                </Field>
-
-                <Field
-                  id="course-day-before"
-                  label="Written work due the day before a session"
-                  hint="For a week whose written work is due the day before its session. Each group’s own dates come from its calendar."
-                >
-                  <ResponsiveSelect<"end" | "time">
-                    value={meta.dayBeforeDueTime === "" ? "end" : "time"}
-                    onChange={(choice) =>
-                      patch({ dayBeforeDueTime: choice === "end" ? "" : meta.dayBeforeDueTime || "12:00" })
-                    }
-                    options={DAY_BEFORE_OPTIONS}
-                    ariaLabel="Written work due the day before a session"
-                    disabled={saving}
-                  />
-                </Field>
-                {meta.dayBeforeDueTime !== "" && (
-                  <Field id="course-day-before-time" label="Due by, on the day before">
-                    <TimeField
-                      value={meta.dayBeforeDueTime}
-                      onChange={(dayBeforeDueTime) => patch({ dayBeforeDueTime })}
-                      disabled={saving}
-                    />
-                  </Field>
-                )}
-
-                <div className={styles.formSpan}>
-                  <Field
-                    id="course-credit"
-                    label="Credit on certificates"
-                    hint="Follows the weeks on each certificate of this course, after a dot, as in “6 weeks · based on the BlueDot Impact curriculum”, so start it as it reads there. Leave it empty for none. A change reaches certificates sent after it."
-                  >
-                    <Input
-                      id="course-credit"
-                      value={meta.credit}
-                      onChange={(e) => patch({ credit: e.target.value })}
-                      maxLength={COURSE_FIELD_LIMITS.credit}
-                      disabled={saving}
-                    />
-                  </Field>
-                </div>
               </div>
-
-              <div>
-                <h3 className={styles.subheading}>Introduction</h3>
-                <p className={styles.subheadingHint}>
-                  A short intro, used on the public page when its own pitch has
-                  not been written yet.{" "}
-                  <Link href={`/admin/courses/${courseId}/page`}>
-                    Edit the public page
-                  </Link>{" "}
-                  for the full programme pitch: the headline, the essentials,
-                  the weekly themes, the journey and the FAQ.
-                </p>
-                {/*
-                  Same wiring as the email-designs editor: BlockEditor owns a
-                  Block[] field and hands the whole array back on change.
-                  `storagePrefix` needs a matching storage.rules block for
-                  `course-images/{courseId}/**` — image uploads fail closed
-                  without one (see the application-emails comment in
-                  storage.rules for the last time that bit).
-                */}
-                <BlockEditor
-                  draftId={courseId}
-                  storagePrefix="course-images"
-                  blocks={meta.summaryBlocks}
-                  onChange={(summaryBlocks) => patch({ summaryBlocks })}
-                  disabled={saving}
-                />
-              </div>
-
-              {metaError && <p className={styles.error}>{metaError}</p>}
-
-              <div className={styles.formActions}>
-                <Button onClick={handleSave} disabled={saving || !dirty}>
-                  {saving ? "Saving…" : "Save changes"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setDraft({});
-                    setMetaError(null);
-                  }}
-                  disabled={saving || !dirty}
-                >
-                  Revert
-                </Button>
-                {!dirty && <span className={styles.status}>No unsaved changes.</span>}
-              </div>
-            </div>
+            </Card>
           </section>
-        </Card>
 
-        {/* === Crest === */}
-        <Card padding="lg">
-          <section className={styles.section} aria-labelledby="course-crest-title">
-            <div className={styles.sectionHead}>
-              <h2 id="course-crest-title" className={styles.sectionTitle}>
-                Crest
+          {/* === Public page: today's editor, at its own address === */}
+          <section id="public-page" className={page.anchor} aria-labelledby="course-public-title">
+            <Card padding="lg">
+              <div className={page.cardHead}>
+                <h2 id="course-public-title" className={styles.sectionTitle}>
+                  {PUBLIC_PAGE_TITLE}
+                </h2>
+                <Link href={`/admin/courses/${encodeURIComponent(courseId)}/page`} className={page.action}>
+                  {EDIT_PUBLIC_PAGE}
+                </Link>
+              </div>
+              <p className={page.note}>{PUBLIC_PAGE_NOTE}</p>
+            </Card>
+          </section>
+
+          {/* === Runs: each with its stage and the programme that names it === */}
+          <section id="runs" className={page.anchor} aria-labelledby="course-runs-title">
+            <Card padding="lg">
+              <h2 id="course-runs-title" className={styles.sectionTitle}>
+                {RUNS_TITLE}
               </h2>
-              <p className={styles.sectionHint}>
-                Beside the course’s name on /courses and at the top of its page.
-              </p>
-            </div>
-            <div className={styles.crestRow}>
-              <ProgrammeMark shown={crestForCourse({ crest: crestChoice })} size={64} />
-              <div className={styles.crestField}>
-                <Field
-                  id="course-crest"
-                  label="Crest"
-                  hint={
-                    isAdmin
-                      ? "A programme on the application form can carry its own, which shows in its place. With neither, the NAISI emblem shows."
-                      : "Only an admin can change the crest."
-                  }
-                >
-                  <ResponsiveSelect
-                    id="course-crest"
-                    value={crestChoice ?? ""}
-                    onChange={(value) => void handleCrest(CREST_KEYS.find((key) => key === value) ?? null)}
-                    options={crestOptions}
-                    ariaLabel="Crest"
-                    disabled={saving || !isAdmin}
-                  />
-                </Field>
-              </div>
-            </div>
-          </section>
-        </Card>
 
-        {/* === The rubric for written answers === */}
-        <CourseRubricCard key={`rubric-${course.id}`} courseId={course.id} stored={course.rubric} isAdmin={isAdmin} />
+              {runs.loading && <AdminLoadingBar label="Loading runs…" />}
 
-        {/* === Publish === */}
-        <Card padding="lg">
-          <section className={styles.section}>
-            <div className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle}>Publishing</h2>
-              <p className={styles.sectionHint}>
-                {course.status === "published"
-                  ? "Live on the public catalogue."
-                  : "Not visible to the public yet."}
-              </p>
-            </div>
-
-            <div className={styles.form}>
-              <div className={styles.formGrid}>
-                <Field
-                  id="course-showcase"
-                  label="Showcase run"
-                  hint="Whose curriculum the public course page displays."
-                >
-                  <ResponsiveSelect
-                    value={showcase}
-                    onChange={setShowcaseChoice}
-                    options={showcaseOptions}
-                    ariaLabel="Showcase run"
-                    disabled={saving}
-                  />
-                </Field>
-              </div>
-
-              {showcaseOptions.length === 1 && (
-                <p className={styles.status}>
-                  No run is out of draft yet, so there is nothing to preview publicly.
-                  Move a run to applications-open (or later) from its own page first.
+              {runs.error && (
+                <p className={styles.error}>
+                  Couldn&apos;t load runs: {runs.error.message}
                 </p>
               )}
 
-              <div className={styles.formActions}>
-                <Button onClick={() => setConfirmingPublish(true)} disabled={saving}>
-                  {published ? "Update showcase run" : "Publish course"}
-                </Button>
-                {dirty && (
-                  <span className={styles.status}>
-                    Save your edits first — publishing doesn&apos;t include them.
-                  </span>
-                )}
-              </div>
-            </div>
-          </section>
-        </Card>
-
-        {/* === Facilitator guide === */}
-        {/* Loading the facilitator guide is an admin's job for now; its page
-            and route refuse everyone else. */}
-        {isAdmin && (
-          <Card padding="lg">
-            <section className={styles.section}>
-              <div className={styles.sectionHead}>
-                <h2 className={styles.sectionTitle}>Facilitator guide</h2>
-                <p className={styles.sectionHint}>
-                  Each week’s session plan and notes, and the course’s own documents, for its facilitators, its
-                  programme’s lead and admins only.{" "}
-                  <Link href={facilitatorGuideAdminPath(courseId)}>Load the facilitator guide</Link>
+              {!runs.loading && !runs.error && runs.items.length === 0 && (
+                <p className={styles.emptyBody}>
+                  No runs yet. A course needs at least one before anyone can apply.
                 </p>
-              </div>
-            </section>
-          </Card>
-        )}
+              )}
 
-        {/* === Runs === */}
-        <Card padding="lg">
-          <section className={styles.section}>
-            <div className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle}>Runs</h2>
-              <Button
-                variant={addingRun ? "ghost" : "secondary"}
-                size="sm"
-                onClick={() => {
-                  setRunError(null);
-                  setAddingRun((a) => !a);
-                }}
-              >
-                {addingRun ? "Cancel" : "New run"}
-              </Button>
-            </div>
-            <p className={styles.sectionHint}>
-              One delivery of this course — its dates, applications, weeks and groups.
-            </p>
+              {liveRuns.length > 0 && <ul className={page.runs}>{liveRuns.map(runRow)}</ul>}
 
-            {addingRun && (
-              <form onSubmit={handleCreateRun} className={styles.form}>
-                <div className={styles.formGrid}>
-                  <Field id="run-label" label="Label">
-                    <Input
-                      id="run-label"
-                      value={runLabel}
-                      onChange={(e) => setRunLabel(e.target.value)}
-                      maxLength={COURSE_FIELD_LIMITS.runLabel}
-                      placeholder="Autumn 2026"
-                      required
-                    />
-                  </Field>
+              {archivedRuns.length > 0 && (
+                <details className={page.fold}>
+                  <summary className={page.foldSummary}>{archivedRunsWords(archivedRuns.length)}</summary>
+                  <ul className={page.runs}>{archivedRuns.map(runRow)}</ul>
+                </details>
+              )}
 
-                  <Field
-                    id="run-year"
-                    label="Academic year"
-                    hint="Format 2026/27. Matches the paid-membership tag."
-                  >
-                    <Input
-                      id="run-year"
-                      value={runYear}
-                      onChange={(e) => setRunYear(e.target.value)}
-                      maxLength={COURSE_FIELD_LIMITS.academicYear}
-                      placeholder={currentAcademicYear()}
-                      required
-                    />
-                  </Field>
-
-                  <Field
-                    id="run-start"
-                    label="Week 1 starts"
-                    hint="A civil date — every week rolls on this weekday."
-                  >
-                    <Input
-                      id="run-start"
-                      type="date"
-                      value={runStart}
-                      onChange={(e) => setRunStart(e.target.value)}
-                      required
-                    />
-                  </Field>
-                </div>
-
-                {runError && <p className={styles.error}>{runError}</p>}
-
-                <div className={styles.formActions}>
-                  <Button type="submit" disabled={saving}>
-                    {saving ? "Creating…" : "Create run"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setAddingRun(false)}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            )}
-
-            {runs.loading && <AdminLoadingBar label="Loading runs…" />}
-
-            {runs.error && (
-              <p className={styles.error}>
-                Couldn&apos;t load runs: {runs.error.message}
-              </p>
-            )}
-
-            {!runs.loading && !runs.error && runs.items.length === 0 && (
-              <p className={styles.emptyBody}>
-                No runs yet. A course needs at least one before anyone can apply.
-              </p>
-            )}
-
-            {/* Every run is archived, and none is shown: say so, rather than
-                leaving the section looking like the "no runs yet" case. */}
-            {!runs.loading && !runs.error && visibleRuns.length === 0 && archivedRunCount > 0 && (
-              <p className={styles.emptyBody}>
-                Every run of this course is archived.
-              </p>
-            )}
-
-            {visibleRuns.length > 0 && (
-              <ul className={styles.list}>
-                {visibleRuns.map((run: CourseRunDoc) => (
-                  <li key={run.id}>
-                    <Link
-                      href={`/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(run.id)}`}
-                      className={styles.row}
-                    >
-                      <div className={styles.rowHead}>
-                        <h3 className={styles.rowTitle}>{run.label || run.id}</h3>
-                        <Badge tone={runStatusTone(run.status)}>
-                          {COURSE_RUN_STATUS_LABEL[run.status]}
-                        </Badge>
-                        {/* `archived` is orthogonal to `status`, so it gets its
-                            own badge rather than replacing the status one. */}
-                        {run.archived && <Badge tone="neutral">Archived</Badge>}
-                        {course.showcaseRunId === run.id && (
-                          <Badge tone="accent">Showcased</Badge>
-                        )}
-                      </div>
-                      <div className={styles.rowMeta}>
-                        <span>{run.academicYear || "no year set"}</span>
-                        <span>Starts {formatCivilDate(run.startDate)}</span>
-                        <span>{taughtWeekCount(run)} weeks</span>
-                        <span>
-                          {run.groupCount} group{run.groupCount === 1 ? "" : "s"}
-                        </span>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {!runs.loading && runs.items.length > 0 && (
-              <div className={styles.formActions}>
-                <span className={styles.status}>
-                  {runs.refreshing
-                    ? "Refreshing…"
-                    : `${visibleRuns.length} run${visibleRuns.length === 1 ? "" : "s"}`}
-                </span>
-                {archivedRunCount > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowArchivedRuns((s) => !s)}
-                  >
-                    {showArchivedRuns
-                      ? "Hide archived"
-                      : `Show archived (${archivedRunCount})`}
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => runs.reload()}
-                  disabled={runs.refreshing}
-                >
-                  Refresh
-                </Button>
-              </div>
-            )}
+              <p className={page.note}>{WHERE_A_RUN_IS_MADE}</p>
+            </Card>
           </section>
-        </Card>
 
-        {/* === Routes and deadlines (the routes a week that lists them shows) === */}
-        <CourseRoutesCard key={`routes-${course.id}`} courseId={course.id} stored={course.routes} />
+          {/* === Crest === */}
+          <section id="crest" className={page.anchor} aria-labelledby="course-crest-title">
+            <Card padding="lg">
+              <div className={styles.section}>
+                <div className={styles.sectionHead}>
+                  <h2 id="course-crest-title" className={styles.sectionTitle}>
+                    Crest
+                  </h2>
+                  <p className={styles.sectionHint}>
+                    Beside the course’s name on /courses and at the top of its page.
+                  </p>
+                </div>
+                <div className={styles.crestRow}>
+                  <ProgrammeMark shown={crestForCourse({ crest: crestChoice })} size={64} />
+                  <div className={styles.crestField}>
+                    <Field
+                      id="course-crest"
+                      label="Crest"
+                      hint={
+                        isAdmin
+                          ? "A programme on the application form can carry its own, which shows in its place. With neither, the NAISI emblem shows."
+                          : "Only an admin can change the crest."
+                      }
+                    >
+                      <ResponsiveSelect
+                        id="course-crest"
+                        value={crestChoice ?? ""}
+                        onChange={(value) => void handleCrest(CREST_KEYS.find((key) => key === value) ?? null)}
+                        options={crestOptions}
+                        ariaLabel="Crest"
+                        disabled={saving || !isAdmin}
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </section>
 
-        {/* === Sealed predictions (the card a week asks, sealed and opened later) === */}
-        <CoursePredictionsCard key={`predictions-${course.id}`} courseId={course.id} stored={course.predictionCard} />
+          {/* === The rubric for written answers === */}
+          <section id="rubric" className={page.anchor}>
+            <CourseRubricCard key={`rubric-${course.id}`} courseId={course.id} stored={course.rubric} isAdmin={isAdmin} />
+          </section>
 
-        {/* === Archive + destroy ===
-            Last on the page by design: end-of-life controls sit after
-            everything you might edit instead, and the destroy half is behind
-            its own disclosure inside. `onArchived` re-reads the course; a
-            DESTROY is deliberately not wired to `reload` — the course is gone,
-            and refetching would replace the receipt with "Course not found". */}
-        <CourseDangerZone course={course} runAction={runAction} onArchived={reload} />
+          {/* === Routes and deadlines (the routes a week that lists them shows) === */}
+          <section id="routes" className={page.anchor}>
+            <CourseRoutesCard key={`routes-${course.id}`} courseId={course.id} stored={course.routes} />
+          </section>
+
+          {/* === Sealed predictions (the card a week asks, sealed and opened later) === */}
+          <section id="predictions" className={page.anchor}>
+            <CoursePredictionsCard key={`predictions-${course.id}`} courseId={course.id} stored={course.predictionCard} />
+          </section>
+
+          {/* === Facilitator guide === */}
+          {isAdmin && (
+            <section id="guide" className={page.anchor} aria-labelledby="course-guide-title">
+              <Card padding="lg">
+                <div className={styles.section}>
+                  <div className={styles.sectionHead}>
+                    <h2 id="course-guide-title" className={styles.sectionTitle}>Facilitator guide</h2>
+                    <p className={styles.sectionHint}>
+                      Each week’s session plan and notes, and the course’s own documents, for its facilitators, its
+                      programme’s lead and admins only.{" "}
+                      <Link href={facilitatorGuideAdminPath(courseId)}>Load the facilitator guide</Link>
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </section>
+          )}
+
+          {/* === Publish === */}
+          <section id="publishing" className={page.anchor} aria-labelledby="course-publishing-title">
+            <Card padding="lg">
+              <div className={styles.section}>
+                <div className={styles.sectionHead}>
+                  <h2 id="course-publishing-title" className={styles.sectionTitle}>Publishing</h2>
+                  <p className={styles.sectionHint}>
+                    {course.status === "published"
+                      ? "Live on the public catalogue."
+                      : "Not visible to the public yet."}
+                  </p>
+                </div>
+
+                <div className={styles.form}>
+                  <div className={styles.formGrid}>
+                    <Field
+                      id="course-showcase"
+                      label="Showcase run"
+                      hint="Whose curriculum the public course page displays."
+                    >
+                      <ResponsiveSelect
+                        value={showcase}
+                        onChange={setShowcaseChoice}
+                        options={showcaseOptions}
+                        ariaLabel="Showcase run"
+                        disabled={saving}
+                      />
+                    </Field>
+                  </div>
+
+                  {showcaseOptions.length === 1 && (
+                    <p className={styles.status}>
+                      No run is out of draft yet, so there is nothing to preview publicly.
+                      Move a run to applications-open (or later) from its own page first.
+                    </p>
+                  )}
+
+                  <div className={styles.formActions}>
+                    <Button onClick={() => setConfirmingPublish(true)} disabled={saving}>
+                      {published ? "Update showcase run" : "Publish course"}
+                    </Button>
+                    {dirty && (
+                      <span className={styles.status}>
+                        Save your edits first — publishing doesn&apos;t include them.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </section>
+
+          {/* === Archive + destroy ===
+              Last on the page by design: end-of-life controls sit after
+              everything you might edit instead, and the destroy half is behind
+              its own disclosure inside. `onArchived` re-reads the course; a
+              DESTROY is deliberately not wired to `reload` — the course is gone,
+              and refetching would replace the receipt with "Course not found". */}
+          <section id="careful" className={page.anchor}>
+            <div className={page.stack}>
+              <CourseDangerZone course={course} runAction={runAction} onArchived={reload} />
+            </div>
+          </section>
+        </div>
       </div>
 
       <Modal

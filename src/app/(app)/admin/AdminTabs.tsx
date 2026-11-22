@@ -12,6 +12,7 @@ import {
   ADMIN_SECTIONS,
   adminPageFor,
   adminSectionFor,
+  drawsOwnHead,
   type AdminPage,
   type AdminTabAccess,
 } from "@/layout/appNav";
@@ -110,7 +111,7 @@ export default function AdminTabs({
   const showStrip = !single && pages.length > 0;
   // The page draws its own head, so none is drawn here. Not when the page is
   // not being drawn: then this is the only head there is.
-  const pageDrawsHead = !closed && activePage?.ownHead === true;
+  const pageDrawsHead = !closed && drawsOwnHead(activePage, pathname);
 
   // Nothing to draw: the page has its own head and there is no strip to offer.
   if (pageDrawsHead && !showStrip) return null;
