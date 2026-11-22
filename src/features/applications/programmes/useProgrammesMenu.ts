@@ -29,7 +29,7 @@ export function useProgrammesMenu(couldHave: boolean): MenuTerm[] {
   useEffect(() => {
     if (!asks || uid === null) return;
     let cancelled = false;
-    void askProgrammesMenu(fetch).then((terms) => {
+    void askProgrammesMenu().then((terms) => {
       if (!cancelled) setAnswer({ uid, terms });
     });
     return () => {

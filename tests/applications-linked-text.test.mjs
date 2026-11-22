@@ -1418,8 +1418,8 @@ const BUILT = new Map([
     // programme's ids.
     "src/lib/applications/programmes/list.ts",
     {
-      built: ["`${base}/overview`", "applicationFormPath(form.round.id)", "applications", "applications", "home"],
-      from: "pages of a term: the term's own path from the form's id, and a programme's Overview and applications from its id",
+      built: ["`${base}/overview`", "`${home}/programmes/${each.programme.id}/overview`", "applicationFormPath(form.round.id)", "applications", "applications", "home"],
+      from: "pages of a term: the term's own path from the form's id, and a programme's Overview and applications from its id (the Overview twice: for the Programmes page's card and for the menu's entry)",
     },
   ],
   [
@@ -1427,6 +1427,24 @@ const BUILT = new Map([
     {
       built: ["programme.open.href", "programme.review.href", "term.href", "term.href"],
       from: "the addresses the Programmes list builds (src/lib/applications/programmes/list.ts): a term's page and a programme's pages, from ids",
+    },
+  ],
+  [
+    // The menu's programmes as the shell reads them from the route: only an
+    // address that is a programme's Overview on this site is kept.
+    "src/lib/applications/programmes/menu.ts",
+    {
+      built: ["href"],
+      from: "the route's answer, made by loadProgrammesMenu from a form's and a programme's ids, and kept only when it is a programme's Overview on this site (parseProgrammesMenu)",
+    },
+  ],
+  [
+    // Home's Programmes card and an admin's Applications to read: the
+    // addresses the list built, handed on.
+    "src/lib/applications/programmes/home.ts",
+    {
+      built: ["card.open.href", "href ?? inSession[0].href"],
+      from: "the addresses the Programmes list builds (src/lib/applications/programmes/list.ts): a programme's Overview and a term's page, from ids",
     },
   ],
 ]);

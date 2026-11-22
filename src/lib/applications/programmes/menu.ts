@@ -66,10 +66,7 @@ export const PROGRAMMES_MENU_WAIT_MS = 8_000;
  * failed request, an answer that is not one and an answer slower than
  * `waitMs` are all no terms.
  */
-export async function askProgrammesMenu(
-  fetcher: typeof fetch,
-  waitMs: number = PROGRAMMES_MENU_WAIT_MS,
-): Promise<MenuTerm[]> {
+export async function askProgrammesMenu(waitMs: number = PROGRAMMES_MENU_WAIT_MS): Promise<MenuTerm[]> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<MenuTerm[]>((resolve) => {
@@ -78,7 +75,7 @@ export async function askProgrammesMenu(
       resolve(NO_TERMS);
     }, waitMs);
   });
-  const asked = fetcher("/api/admissions/programmes/menu", { cache: "no-store", signal: controller.signal })
+  const asked = fetch("/api/admissions/programmes/menu", { cache: "no-store", signal: controller.signal })
     .then(async (res) => (res.ok ? parseProgrammesMenu(await res.json().catch(() => null)) : NO_TERMS))
     .catch(() => NO_TERMS);
   try {

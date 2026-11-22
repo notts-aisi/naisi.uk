@@ -426,25 +426,36 @@ const GOOD = {
 };
 const answering = (status, body) => async () => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 
+/** `askProgrammesMenu` with the browser's fetch stood in for by `fetcher`. */
+async function askWith(fetcher, waitMs) {
+  const real = globalThis.fetch;
+  globalThis.fetch = fetcher;
+  try {
+    return await askProgrammesMenu(waitMs);
+  } finally {
+    globalThis.fetch = real;
+  }
+}
+
 describe("4. until it answers, and if it never does, the menu is today's", () => {
   test("no answer yet, and no programmes: the menu is APP_NAV itself", () => {
     assert.equal(menuFor([], []), APP_NAV);
   });
 
   test("a good answer is drawn as given", async () => {
-    assert.deepEqual(await askProgrammesMenu(answering(200, GOOD)), GOOD.terms);
+    assert.deepEqual(await askWith(answering(200, GOOD)), GOOD.terms);
   });
 
   test("a failed request, a refusal, a server error and an answer that is not one are all no programmes", async () => {
     const failing = async () => {
       throw new Error("offline");
     };
-    assert.deepEqual(await askProgrammesMenu(failing), []);
-    assert.deepEqual(await askProgrammesMenu(answering(403, { error: "no" })), []);
-    assert.deepEqual(await askProgrammesMenu(answering(500, GOOD)), [], "an error status was drawn from");
-    assert.deepEqual(await askProgrammesMenu(answering(200, "<html>")), []);
+    assert.deepEqual(await askWith(failing), []);
+    assert.deepEqual(await askWith(answering(403, { error: "no" })), []);
+    assert.deepEqual(await askWith(answering(500, GOOD)), [], "an error status was drawn from");
+    assert.deepEqual(await askWith(answering(200, "<html>")), []);
     assert.deepEqual(
-      await askProgrammesMenu(async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError("bad"); } })),
+      await askWith(async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError("bad"); } })),
       [],
     );
   });
@@ -455,7 +466,7 @@ describe("4. until it answers, and if it never does, the menu is today's", () =>
       signal = init.signal;
       return new Promise(() => {});
     };
-    assert.deepEqual(await askProgrammesMenu(hanging, 20), []);
+    assert.deepEqual(await askWith(hanging, 20), []);
     assert.equal(signal.aborted, true);
   });
 

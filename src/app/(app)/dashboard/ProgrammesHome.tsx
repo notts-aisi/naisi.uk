@@ -28,7 +28,7 @@ export default async function ProgrammesHome({
   const answer = await programmes;
   if (!answer || answer.terms.length === 0) return null;
   return (
-    <section className={styles.card} aria-labelledby="home-programmes" data-testid="home-programmes">
+    <section className={styles.card} aria-labelledby="home-programmes">
       <div className={styles.cardHead}>
         <h2 id="home-programmes" className={styles.cardTitle}>
           {title}
