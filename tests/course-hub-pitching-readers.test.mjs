@@ -93,6 +93,10 @@ const READERS = {
     proof: ["FieldValue.arrayRemove(uid)"],
     why: "account deletion takes the person off every pitch and every list of who would join one",
   },
+  "lib/courses/weekPlanEdit/kept.ts": {
+    proof: ['[PITCHES_COLLECTION, "runId"]'],
+    why: "the week plan's check counts a run's pitches by one equality on the run, before a week moves, and reads none of them",
+  },
   "lib/firestore/courseDeletion.ts": {
     proof: ["drainQuery(db, PITCHES_COLLECTION, byRunId(PITCHES_COLLECTION), budget)"],
     why: "a run's destroy counts its pitches and deletes them whole",

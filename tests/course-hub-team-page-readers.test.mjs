@@ -75,6 +75,10 @@ const TOUCHES = {
     does: "takes a deleted account's uid off what it saved last",
     proof: ['const snap = await db.collection(TEAM_ENTRIES_COLLECTION).where("byUid", "==", uid).get();'],
   },
+  "lib/courses/weekPlanEdit/kept.ts": {
+    does: "counts a run's rows for the week plan's check, by one equality on the run, and reads none of them",
+    proof: ["[TEAM_ENTRIES_COLLECTION, \"runId\"]"],
+  },
   "lib/firestore/courseDeletion.ts": {
     does: "counts it in a run's destroy and drains it",
     proof: ["drainQuery(db, TEAM_ENTRIES_COLLECTION, byRunId(TEAM_ENTRIES_COLLECTION), budget)"],

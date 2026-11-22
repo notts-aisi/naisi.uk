@@ -2035,7 +2035,8 @@ test("GUARD — a run mid-DESTROY fails closed on the learning space and on its 
   );
   // The route moves a status through that path and nothing else: it writes
   // no document of its own, so nothing on its path can skip the refusal.
-  assert.match(RUN_STATUS, /await moveRunStatus\(db, runId, nextStatus, \{ throughRunning: body\.through === "running" \}\);/);
+  // `named` only chooses the words of the week id check for a run a programme names.
+  assert.match(RUN_STATUS, /await moveRunStatus\(db, runId, nextStatus, \{ throughRunning: body\.through === "running", named \}\);/);
   assert.match(RUN_STATUS, /if \(!moved\.ok\) return NextResponse\.json\(\{ error: moved\.error \}, \{ status: moved\.status \}\);/);
   assert.doesNotMatch(RUN_STATUS, /\.(update|set|create)\(/, "the status route writes a run without the checked move");
   // The job that completes a run skips one being destroyed before it reads its
