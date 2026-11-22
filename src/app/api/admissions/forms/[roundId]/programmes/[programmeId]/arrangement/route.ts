@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { isAddressableId } from "@/lib/addressableId";
 import { canRunTerm } from "@/lib/applications/access";
-import { arrangeOptions, askAboutArrangement } from "@/lib/applications/arrange/advise";
+import { arrangeOptions, askAboutArrangement, CLAUDE_ADMINS_ONLY } from "@/lib/applications/arrange/advise";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * Up to five arrangements of a programme's people into groups, for an admin:
- * `{ askClaude, minutes?, size?, startAgain? }`.
+ * Up to five arrangements of a programme's people into groups, for an admin
+ * or the programme's lead: `{ askClaude, minutes?, size?, startAgain? }`.
  *
  * The site works out several over the run's groups as they are, from when
  * each person said they are free (`src/lib/applications/arrange/options.ts`):
@@ -32,10 +32,20 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * they fit. The screen keeps the conversation and sends the last few turns
  * back each time; nothing is stored here either.
  *
+ * FOR AN ADMIN, AND FOR THE PROGRAMME'S LEAD WITHOUT CLAUDE. Asking Claude
+ * (`askClaude: true`, or a question with `ask`) is an admin's alone, refused
+ * for anybody else before anything is read, whatever else the request says.
+ * The lead's `askClaude: false` is worked out only from the people and
+ * weeks the lead may have (`loadArranging`: the run's rows the board serves
+ * them, and each person's week only where they may read the application),
+ * reads no Claude or Pangram read, asks Claude nothing and writes nothing;
+ * the preview before decision day stays an admin's. Anybody else with a role
+ * on the programme is refused in a sentence, and anybody with none is
+ * answered as for a programme that is not there.
+ *
  * A POST, because asking Claude sends the people's numbered reads to
- * Anthropic. Only an admin, refused before the body is read; a view-as
- * session is refused first. It may take most of the backend's 300-second
- * request limit.
+ * Anthropic. A view-as session is refused first. It may take most of the
+ * backend's 300-second request limit.
  */
 export const maxDuration = 290;
 
@@ -47,9 +57,6 @@ export async function POST(
   if (blocked) return blocked;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  if (!canRunTerm(user)) {
-    return NextResponse.json({ error: "Only an admin can ask for an arrangement." }, { status: 403 });
-  }
 
   const { roundId, programmeId } = await ctx.params;
   if (!isAddressableId(roundId) || !isAddressableId(programmeId)) {
@@ -61,18 +68,23 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  if (body && typeof body === "object" && body.ask !== undefined) return answer(body.ask, body.minutes, user, roundId, programmeId);
-  if (typeof body?.askClaude !== "boolean") {
+  const asked: typeof body = body && typeof body === "object" ? body : {};
+  // Anything that asks Claude is an admin's alone: refused before anything is read.
+  if ((asked.ask !== undefined || asked.askClaude === true) && !canRunTerm(user)) {
+    return NextResponse.json({ error: CLAUDE_ADMINS_ONLY }, { status: 403 });
+  }
+  if (asked.ask !== undefined) return answer(asked.ask, asked.minutes, user, roundId, programmeId);
+  if (typeof asked.askClaude !== "boolean") {
     return NextResponse.json({ error: "Say whether to ask Claude: askClaude true or false." }, { status: 400 });
   }
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
   const result = await arrangeOptions(db, user, roundId, programmeId, {
-    askClaude: body.askClaude,
-    minutes: body.minutes,
-    size: body.size,
-    startAgain: body.startAgain === true,
+    askClaude: asked.askClaude,
+    minutes: asked.minutes,
+    size: asked.size,
+    startAgain: asked.startAgain === true,
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ arrangement: result.arrangement }, { headers: { "Cache-Control": "no-store" } });
