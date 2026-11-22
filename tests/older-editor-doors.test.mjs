@@ -76,8 +76,8 @@ const DOORS = [
   {
     file: "src/lib/applications/handover/load.ts",
     line: "/applications`;",
-    why: "Course run's link to the run's own applications list, for somebody who gave their place back",
-    step: "step 6, when the gave-back row moves to Settings",
+    why: "Course run's link to the run's own applications list, for somebody who gave their place back and has no seat on the run (handed over, never placed): Course run's take-off needs a seat, so their row is changed there, as before",
+    step: "step 8, when the older tree goes",
   },
   {
     file: "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup/page.tsx",

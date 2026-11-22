@@ -874,14 +874,14 @@ const ASKS_THE_ANSWER = {
   "src/lib/courses/allocationPublish.ts": "Publish's plan: whom it leaves out",
   "src/lib/courses/getReady/read.ts":
     "Publish's readiness check: whom it leaves out of who is placed outside the times they gave, as the plan does",
-  "src/app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts":
-    "taking somebody off the run: whether their email says their place has ended as they asked, from the facts the cards are drawn from",
+  "src/lib/courses/takeOff/gaveBack.ts":
+    "taking somebody off the run: the one question the remove route (whether their email says their place has ended as they asked, and whether Course run may close their row) and Course run's button both ask, from the facts the cards are drawn from",
 };
 const ASKS_THE_PUT_BACK = {
   "src/app/api/courses/runs/[runId]/allocation/route.ts": "the board's row, which the card hands to the one answer",
   "src/lib/courses/allocationPublish.ts": "Publish's plan, which hands it to the one answer",
   "src/lib/courses/getReady/read.ts": "Publish's readiness check, which hands it to the one answer, as the plan does",
-  "src/app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": "taking somebody off the run, which hands it to the one answer, as the card does",
+  "src/lib/courses/takeOff/gaveBack.ts": "taking somebody off the run, which hands it to the one answer, as the card does, for the remove route and Course run's button alike",
 };
 
 /** Every route that reads a plan of Publish. */

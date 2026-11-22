@@ -475,6 +475,11 @@ describe("8. a place given back", () => {
         uid: "tariq",
         name: "Tariq Mensah",
         applicationPath: `/admin/admissions/forms/${ROUND}/programmes/${AGI}/applications/tariq`,
+        // Course run's line for them, and its take-off: the form put the seat there, and nobody put them back.
+        firstName: "Tariq",
+        line: "Gave their place back on Sat 24 Oct · still in Monday evening",
+        canTakeOff: true,
+        noSeat: false,
       },
     ]);
     assert.deepEqual(shown.toHandOver, []);

@@ -197,7 +197,11 @@ const COURSE_EDITOR = src("features", "courses", "CourseEditor.tsx");
 const DASHBOARD_SUMMARY = src("features", "courses", "MyCoursesSummary.tsx");
 // The hub's list is drawn by the client component its page renders.
 const LEARN_HUB = src("app", "(app)", "learn", "LearnHub.tsx");
-const RUN_ZONE = src("features", "courses", "RunDangerZone.tsx");
+// The older run page's danger zone, and the pieces it shares with the course
+// page's and with Course run (`DangerZoneParts.tsx`), read as one.
+const RUN_ZONE = src("features", "courses", "RunDangerZone.tsx") + "\n" + src("features", "courses", "DangerZoneParts.tsx");
+// Course run's Careful, on a programme's Settings: the same dialogs.
+const COURSE_RUN_CAREFUL = src("features", "applications", "editor", "RunCareful.tsx");
 const COURSE_ZONE = src("features", "courses", "CourseDangerZone.tsx");
 
 const ROUTES = [
@@ -2080,6 +2084,11 @@ test("GUARD — the ten-query manifest waits for the disclosure; only the cheap 
       `${name} does not load the manifest when the disclosure opens`,
     );
   }
+  // Course run's Careful pays the same probe on mount, and reads the manifest
+  // only when its destroy dialog opens.
+  assert.match(COURSE_RUN_CAREFUL, /void loadInterrupted\(\);/);
+  assert.doesNotMatch(COURSE_RUN_CAREFUL, /useEffect\(\(\) => \{\s*\n\s*void loadManifest\(\);/);
+  assert.match(COURSE_RUN_CAREFUL, /function openDestroy\(\) \{[^}]*void loadManifest\(\);/);
   // Once, not on every toggle.
   assert.match(RUN_ZONE, /if \(!opened\.current\) \{/);
   assert.match(HOOK, /probe=interrupted/);

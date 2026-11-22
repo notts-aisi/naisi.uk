@@ -329,6 +329,14 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/run/details/route.ts",
     "renames the course run a programme names, and changes its year, cohort and start date",
   ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/run/new/route.ts",
+    "makes a new course run and names it on the programme, as its author",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/run/roles/route.ts",
+    "takes somebody off a course run's track leads or run facilitators, which takes away what the role allowed",
+  ],
   // Offering a place given back after decision day changes what a person
   // was told and emails them, in the caller's name; its test writes a record
   // on the form and emails the address on the session.

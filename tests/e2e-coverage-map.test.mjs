@@ -652,6 +652,18 @@ const NOT_COVERED = {
     coverWhen:
       "With a course hub spec that opens a programme's Settings as an admin: save a new label, see it in the Course run section after a reload.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/new": {
+    reason:
+      "An admin's new run of the programme's course, named on the programme in the same transaction. It emails nobody; who may make one, each refusal in order, two presses at once and the fields against the older New run's are executed by tests/course-run-careful.test.mjs.",
+    coverWhen:
+      "With a course hub spec that opens, as an admin, the Settings of a programme that names no run: make a run, see it named after a reload.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/roles": {
+    reason:
+      "An admin taking one person off a run's track leads or run facilitators. It emails nobody; who may, one person on both lists, the last person and somebody not on the list are executed by tests/course-run-careful.test.mjs.",
+    coverWhen:
+      "With a course hub spec whose run names a track lead: remove them from the Course run section, see the list empty after a reload.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     reason:
       "Circles' arranging reading the run's groups, which an admin opens with Suggest groups on People in groups shown as Rings, and again after a change. It writes nothing; who may read it, who is on the screen and that a second Apply sends nothing are executed by tests/applications-circles.test.mjs, and that the lead is never offered it by tests/course-hub-board-rings.test.mjs.",

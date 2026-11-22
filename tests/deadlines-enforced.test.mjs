@@ -399,6 +399,7 @@ const DEADLINE_NAMES = new Map([
     "applicationsCloseAt",
     {
       files: [
+        "src/lib/applications/handover/run.ts",
         "src/lib/courses/enrolWindow.ts",
         "src/lib/courses/window.ts",
         "src/lib/firestore/courses.ts",

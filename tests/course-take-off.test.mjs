@@ -42,6 +42,8 @@ const visitRoute = await w.formRoute("programmes", "[programmeId]", "people", "[
 const words = await w.loadTs("lib/courses/takeOff/words.ts");
 const audit = await w.loadTs("lib/firestore/courseAudit.ts");
 const handoverLoad = await w.loadTs("lib/applications/handover/load.ts");
+const decideRoute = await w.courseRoute("runs", "[runId]", "applications", "[uid]", "decide");
+const careful = await w.loadTs("lib/courses/runCareful/words.ts");
 
 const read = (path) => world.db.read(path);
 /** The foot every email of the site carries. */
@@ -563,10 +565,242 @@ describe("7. every way of taking somebody off asks in the one sheet", () => {
       .map(([file]) => file);
     assert.deepEqual(pressing, ["features/courses/takeOff/TakeOffSheet.tsx"]);
     const opening = files.filter(([, code]) => /from "@\/features\/courses\/takeOff\/TakeOffSheet"/.test(code)).map(([file]) => file).sort();
-    assert.deepEqual(opening, ["features/applications/groups/PeopleInGroups.tsx", "features/courses/AllocationBoard.tsx"]);
+    // Course run on a programme's Settings opens it too, for somebody who gave their place back.
+    assert.deepEqual(opening, [
+      "features/applications/editor/RunHandOver.tsx",
+      "features/applications/groups/PeopleInGroups.tsx",
+      "features/courses/AllocationBoard.tsx",
+    ]);
     for (const [file, code] of files.filter(([file]) => opening.includes(file))) {
       assert.doesNotMatch(code, /window\.confirm\([^)]*(?:off this run|off the run|takeOff)/, `${file} still asks in the browser's own confirmation`);
       assert.match(code, /<TakeOffSheet runId=\{runId\} uid=\{\w+\}/, `${file} does not open the sheet`);
     }
+    // Only Course run closes a row, and only through the one switch.
+    for (const [file, code] of files.filter(([file]) => opening.includes(file))) {
+      if (file === "features/applications/editor/RunHandOver.tsx") assert.match(code, /closeRow=\{COURSE_RUN_CLOSES_THE_ROW\}/, file);
+      else assert.doesNotMatch(code, /closeRow/, `${file} closes a row`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. From Course run: somebody who gave their place back, their row closed
+// ---------------------------------------------------------------------------
+
+describe("8. Course run takes off somebody who gave their place back, and closes their row on the run's list in the same act", () => {
+  const rowPath = (uid) => `courseApplications/${RUN.agi}__${uid}`;
+  const counts = () => read(`courseRuns/${RUN.agi}`).applicationCounts ?? {};
+  const askRow = (who, uid, options = {}) =>
+    call(who, removeRoute.POST, { runId: RUN.agi, uid }, { body: { preview: true, closeRow: true }, course: true, viewAs: options.viewAs ?? false });
+  const pressRow = (who, uid, body, options = {}) =>
+    call(who, removeRoute.POST, { runId: RUN.agi, uid }, { body: { ...body, closeRow: true }, course: true, viewAs: options.viewAs ?? false });
+  const panel = async () => {
+    const outcome = await handoverLoad.loadRunPanel(world.db, w.sessionOf("zach"), ROUND, AGI);
+    assert.equal(outcome.status, "ok");
+    return outcome.panel;
+  };
+  /** Amara says "I can't make it" before Publish told Amara a group: the place goes back on the form, the seat stays. */
+  const giveBack = async (uid = "amara") => {
+    world.db.poke(seatPath(uid), { allocatedEmailAt: null });
+    const replied = await w.join.reply(uid, { reply: "cant-make-it", reason: { kind: "times", other: "" } });
+    assert.equal(replied.status, 200, JSON.stringify(replied.body));
+    assert.equal(read(seatPath(uid)).status, "active");
+    world.mail.length = 0;
+  };
+
+  test("the list names them with the day and the group they are still in, and offers the take-off", async () => {
+    await giveBack();
+    const amara = (await panel()).gaveBack.find((person) => person.uid === "amara");
+    assert.ok(amara);
+    assert.deepEqual([amara.line, amara.firstName, amara.canTakeOff], ["Gave their place back on Tue 17 Nov · still in Group A", "Amara", true]);
+    assert.equal(careful.takeOffWords(amara.firstName), "Take Amara off the run…");
+    assert.equal(
+      careful.GAVE_BACK_NOTE,
+      "They gave their place back after they were handed over. Take them off the run here: their seat is freed and their row on the run’s list is closed.",
+    );
+  });
+
+  test("not told their group: the sheet as built, Amara alone emailed, the seat freed and the row closed and counted, together", async () => {
+    await giveBack();
+    const ordinary = await ask("zach", "amara");
+    const shown = await askRow("zach", "amara");
+    assert.equal(shown.status, 200, JSON.stringify(shown.body));
+    // The question is the take-off sheet's, word for word, with one sentence
+    // more: the row closes too, and nothing opens it again.
+    const { closesRow, ...asked } = shown.body.preview;
+    assert.deepEqual(asked, ordinary.body.preview);
+    assert.equal(closesRow, "Their row on the run’s list is closed too, so they can’t be put back on this run afterwards.");
+    assert.equal(closesRow, words.ROW_CLOSES_TOO);
+    assert.equal("closesRow" in ordinary.body.preview, false);
+    assert.equal(shown.body.preview.sheet.emailed, "Amara is emailed to say their place has ended.");
+    assert.equal(shown.body.preview.emails, 1);
+    const before = counts();
+    assert.equal(read(rowPath("amara")).status, "accepted");
+
+    const done = await pressRow("zach", "amara", { emails: 1 });
+    assert.equal(done.status, 200, JSON.stringify(done.body));
+    assert.equal(done.body.said, "Amara is off AGI Strategy. Amara was emailed.");
+    assert.equal(read(seatPath("amara")).status, "removed");
+    assert.equal(read(rowPath("amara")).status, "withdrawn");
+    assert.deepEqual(
+      [counts().accepted, counts().withdrawn],
+      [(before.accepted ?? 0) - 1, (before.withdrawn ?? 0) + 1],
+    );
+    assert.deepEqual(world.mail.map((sent) => [sent.to, sent.subject]), [["amara@example.com", "Your place on AGI Strategy has ended"]]);
+    assert.ok((await emailText(world.mail[0])).includes("Hi Amara, your place on AGI Strategy (Autumn 2026) has ended, as you asked. "));
+
+    // Off the list of people to act on, and on Taken off the programme with who and when.
+    const after = await panel();
+    assert.ok(!after.gaveBack.some((person) => person.uid === "amara"));
+    assert.equal(after.takenOff.find((person) => person.uid === "amara")?.note, `Taken off by ${CAST.zach.displayName} on Tue 17 Nov`);
+  });
+
+  test("told their group: their group's facilitator is emailed too, exactly as the sheet says", async () => {
+    await giveBack();
+    world.db.poke(seatPath("amara"), { allocatedEmailAt: NOW });
+    const shown = await askRow("zach", "amara");
+    assert.equal(shown.status, 200, JSON.stringify(shown.body));
+    assert.equal(shown.body.preview.sheet.emailed, "Amara is emailed to say their place has ended. Sofia, Group A’s facilitator, is emailed to say Amara has left the group.");
+    const done = await pressRow("zach", "amara", { emails: 2 });
+    assert.equal(done.status, 200, JSON.stringify(done.body));
+    assert.deepEqual(world.mail.map((sent) => [sent.to, sent.subject]), [
+      ["amara@example.com", "Your place on AGI Strategy has ended"],
+      ["sofia@example.com", "Amara has left Group A"],
+    ]);
+    assert.equal(read(rowPath("amara")).status, "withdrawn");
+  });
+
+  test("a visit to come: its host's facilitators are counted and emailed, and the row closes", async () => {
+    await arrange("amara", 4, C);
+    await giveBack();
+    const shown = await askRow("zach", "amara");
+    assert.equal(shown.status, 200, JSON.stringify(shown.body));
+    assert.deepEqual(shown.body.preview.visits, [{ hostName: "Group C", weekNumber: 4 }]);
+    const done = await pressRow("zach", "amara", { emails: shown.body.preview.emails });
+    assert.equal(done.status, 200, JSON.stringify(done.body));
+    assert.equal(world.mail.length, shown.body.preview.emails);
+    assert.ok(world.mail.some((sent) => sent.to === "tom@example.com"));
+    assert.equal(read(rowPath("amara")).status, "withdrawn");
+  });
+
+  test("an ordinary take-off of the same person is unchanged: the row stays accepted and counted", async () => {
+    await giveBack();
+    const before = counts();
+    const shown = await ask("zach", "amara");
+    assert.equal((await press("zach", "amara", { emails: shown.body.preview.emails })).status, 200);
+    assert.equal(read(seatPath("amara")).status, "removed");
+    assert.equal(read(rowPath("amara")).status, "accepted");
+    assert.deepEqual(counts(), before);
+    assert.ok((await panel()).takenOff.some((person) => person.uid === "amara"));
+  });
+
+  test("a count that changed is refused with nothing written, the row included", async () => {
+    await giveBack();
+    const before = w.everything();
+    const done = await pressRow("zach", "amara", { emails: 3 });
+    assert.equal(done.status, 409);
+    assert.equal(done.body.emails, 1);
+    assert.equal(w.everything(), before);
+    assert.equal(world.mail.length, 0);
+  });
+
+  test("nobody but an admin closes a row: the lead, the track lead, a member and a view-as session are refused, signed out told to sign in", async () => {
+    await giveBack();
+    const before = w.everything();
+    for (const who of ["claudia", "yusuf"]) {
+      assert.deepEqual([(await askRow(who, "amara")).status, (await askRow(who, "amara")).body], [403, { error: "Forbidden" }], who);
+      assert.equal((await pressRow(who, "amara", { emails: 1 })).status, 403, who);
+    }
+    for (const who of ["nobody", "amara", "sofia"]) {
+      assert.equal((await askRow(who, "amara")).status, 403, who);
+      assert.equal((await pressRow(who, "amara", { emails: 1 })).status, 403, who);
+    }
+    assert.equal((await askRow(null, "amara")).status, 401);
+    assert.equal((await pressRow("zach", "amara", { emails: 1 }, { viewAs: true })).status, 403);
+    assert.equal(w.everything(), before);
+    assert.equal(world.mail.length, 0);
+  });
+
+  test("nobody who still holds their place, and no row the form did not write, is closed", async () => {
+    const before = w.everything();
+    assert.deepEqual(
+      [(await askRow("zach", "amara")).status, (await askRow("zach", "amara")).body.error],
+      [409, "They still hold their place, so their row on the run’s list stays as it is."],
+    );
+    assert.equal((await pressRow("zach", "amara", { emails: 2 })).status, 409);
+    // Chloe applied to the run itself: that row is not the form's.
+    assert.deepEqual(
+      [(await askRow("zach", "chloe")).status, (await askRow("zach", "chloe")).body.error],
+      [409, "Their row on the run’s list didn’t come from a programme, so it stays as it is."],
+    );
+    // A row of the form's that is not open: nothing to close.
+    world.db.poke(rowPath("amara"), { status: "waitlisted" });
+    assert.deepEqual(
+      [(await askRow("zach", "amara")).status, (await askRow("zach", "amara")).body.error],
+      [409, "Their row on the run’s list isn’t open, so there’s nothing to close."],
+    );
+    world.db.poke(rowPath("amara"), { status: "accepted" });
+    assert.equal(w.everything(), before);
+    assert.equal(world.mail.length, 0);
+  });
+
+  test("the button is offered exactly where the route goes through: not for somebody staff put back, nor with no seat", async () => {
+    await giveBack();
+    // Put back on the run by staff since: the board no longer says they gave it back, and nor does Course run.
+    world.db.poke(seatPath("amara"), { putBackAt: NOW });
+    let amara = (await panel()).gaveBack.find((person) => person.uid === "amara");
+    assert.deepEqual([amara?.canTakeOff, amara?.noSeat], [false, false]);
+    assert.equal((await askRow("zach", "amara")).body.error, "They still hold their place, so their row on the run’s list stays as it is.");
+    // No seat at all (handed over, never placed): the line says so, and the way to their row is today's.
+    world.db.poke(seatPath("amara"), { putBackAt: null });
+    await world.db.collection("courseEnrolments").doc(`${RUN.agi}__amara`).delete();
+    const shown = await panel();
+    amara = shown.gaveBack.find((person) => person.uid === "amara");
+    assert.deepEqual(
+      [amara?.canTakeOff, amara?.noSeat, amara?.line],
+      [false, true, "Gave their place back on Tue 17 Nov · not in a group, so there’s no seat to free"],
+    );
+    assert.match(shown.listPath, /^\/admin\/courses\/[^/]+\/runs\/[^/]+\/applications$/);
+    assert.equal(careful.CHANGE_THEIR_ROW, "Change their row on the run’s own applications list");
+  });
+
+  test("a holder whose row is closed is named apart, with what is true and nothing to press", async () => {
+    const holders = await w.loadTs("lib/applications/handover/holders.ts");
+    const compared = holders.compareWithRun({
+      holders: [{ uid: "x", name: "Xan" }, { uid: "y", name: "Yan" }],
+      rows: [
+        { uid: "x", status: "withdrawn", fromForm: { roundId: ROUND, programmeId: AGI }, displayName: "Xan" },
+        { uid: "y", status: "pending", fromForm: { roundId: ROUND, programmeId: AGI }, displayName: "Yan" },
+      ],
+      roundId: ROUND,
+      programmeId: AGI,
+      names: new Map(),
+    });
+    assert.deepEqual([compared.closed.map((p) => p.uid), compared.notAccepted.map((p) => p.uid)], [["x"], ["y"]]);
+    assert.equal(careful.CLOSED_ROW_NOTE, "A closed row can’t be opened again, so they can’t be put on this run’s board.");
+    assert.doesNotMatch(careful.CLOSED_ROW_NOTE, /Accept/);
+  });
+
+  test("the list's note and the sheet follow the one switch", async () => {
+    const options = await w.loadTs("lib/courses/runCareful/options.ts");
+    assert.equal(options.COURSE_RUN_CLOSES_THE_ROW, true);
+    assert.equal(careful.gaveBackNote(true), careful.GAVE_BACK_NOTE);
+    assert.equal(careful.gaveBackNote(false), "They gave their place back after they were handed over. Take them off the run here: their seat is freed.");
+  });
+
+  test("a second press finds them off and writes and sends nothing more; no route opens the row again", async () => {
+    await giveBack();
+    assert.equal((await pressRow("zach", "amara", { emails: 1 })).status, 200);
+    const after = w.everything();
+    world.mail.length = 0;
+    const again = await pressRow("zach", "amara", { emails: 1 });
+    assert.equal(again.status, 200);
+    assert.equal(again.body.said, "They’re already off the run. Nobody was emailed.");
+    assert.equal(w.everything(), after);
+    assert.equal(world.mail.length, 0);
+    // The run's own list refuses to decide a withdrawn row.
+    const decided = await call("zach", decideRoute.POST, { runId: RUN.agi, uid: "amara" }, { body: { action: "accept" }, course: true });
+    assert.equal(decided.status, 409);
+    assert.equal(read(rowPath("amara")).status, "withdrawn");
   });
 });

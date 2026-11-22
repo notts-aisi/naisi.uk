@@ -7,26 +7,30 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { leavePathFor } from "@/lib/courses/leaving";
-import { gaveTheirPlaceBack } from "@/lib/courses/placeGivenBack";
 import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
+import { gaveBackOnTheRun } from "@/lib/courses/takeOff/gaveBack";
 import { takeOffLimitRefusal, takeOffLimitsIn } from "@/lib/courses/takeOff/limits";
 import { planTakeOff, type TakeOffPlan } from "@/lib/courses/takeOff/plan";
 import { sendTakeOffEmails } from "@/lib/courses/takeOff/send";
-import { ALREADY_OFF, FINISHED, changedWords, doneWords, historyWords, parseTakeOffLine, sheetWords } from "@/lib/courses/takeOff/words";
+import { ALREADY_OFF, FINISHED, ROW_CLOSES_TOO, changedWords, doneWords, historyWords, parseTakeOffLine, sheetWords } from "@/lib/courses/takeOff/words";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import {
   GROUPS_BY_WEEK_LIMITS,
   courseEnrolmentId,
-  enrolmentIsPutBack,
   normalizeCourseEnrolment,
   placementIsTold,
   type CourseEnrolmentDoc,
   type CourseEnrolmentStatus,
 } from "@/lib/firestore/courseEnrolments";
-import { courseApplicationId, normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
+import {
+  courseApplicationId,
+  normalizeCourseApplication,
+  rowIsServedTo,
+  type CourseApplicationStatus,
+} from "@/lib/firestore/courseApplications";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { courseRunChannel, normalizeCourseRun } from "@/lib/firestore/courses";
 import { unsubscribe } from "@/lib/firestore/subscriptions";
@@ -96,7 +100,21 @@ import { visitLimitRefusal, visitLimitsIn } from "@/lib/courses/visit/limits";
  * the board's own answer) is taken off the same way, by the same preview and
  * press: no place goes back, so the sheet does not say one does, and their
  * email says their place has ended "as you asked". Their row on the run's
- * own list is not changed here.
+ * own list is not changed by an ordinary take-off: it stays `accepted`, and
+ * Course run lists them under "Taken off the programme".
+ *
+ * FROM COURSE RUN (`closeRow: true`, an admin's alone), the same take-off of
+ * somebody who gave their place back also CLOSES THEIR ROW on the run's own
+ * list, in the same transaction: the row goes to `withdrawn` and the run's
+ * `applicationCounts` move from accepted to withdrawn, so nothing is left
+ * accepted and counted. Refused (409, nothing written) unless the row is one
+ * the form put there and still accepted, and the person gave their place back
+ * (`gaveBackOnTheRun`, the question Course run's button asks too). The sheet
+ * is the ordinary take-off's with one sentence more (`closesRow`), because NO
+ * ROUTE REOPENS A WITHDRAWN ROW: the allocate route needs an accepted row,
+ * and the run's decide route and its apply route refuse a withdrawn one, so
+ * a person taken off this way cannot be put back on this run. The emails and
+ * everything else are the ordinary take-off's.
  *
  * NOBODY WHO LEFT BY THEMSELVES IS REMOVED. A seat withdrawn by its owner
  * (either door: "Leave the programme" on their programme's page, or "I can’t
@@ -197,12 +215,23 @@ function refuseWhatCannotGo(existing: Record<string, unknown>, place: CourseEnro
   if (existing.status === "completed") throw new RemoveError(FINISHED, 409);
 }
 
-const BODY_FIELDS: readonly string[] = ["preview", "emails", "line"];
+const BODY_FIELDS: readonly string[] = ["preview", "emails", "line", "closeRow"];
 
-/** The body: none, `{ preview: true }`, or the count of emails the sheet showed and the line for the person. Null when it is malformed. */
-async function readBody(req: Request): Promise<{ preview: boolean; emails: number; line: unknown } | null> {
+/** Course run's take-off closes a row only for somebody who gave their place back. */
+const ROW_NOT_OPEN = "Their row on the run’s list isn’t open, so there’s nothing to close.";
+const ROW_NOT_THE_FORMS = "Their row on the run’s list didn’t come from a programme, so it stays as it is.";
+const STILL_HOLDS_PLACE = "They still hold their place, so their row on the run’s list stays as it is.";
+/** What a closed row on the run's own list says: the application row's status, never a seat's. */
+const ROW_CLOSED: CourseApplicationStatus = "withdrawn";
+
+/**
+ * The body: none, `{ preview: true }`, or the count of emails the sheet
+ * showed and the line for the person; `closeRow: true` from Course run on
+ * either. Null when it is malformed.
+ */
+async function readBody(req: Request): Promise<{ preview: boolean; emails: number; line: unknown; closeRow: boolean } | null> {
   const text = await req.text().catch(() => "");
-  if (!text.trim()) return { preview: false, emails: 0, line: undefined };
+  if (!text.trim()) return { preview: false, emails: 0, line: undefined, closeRow: false };
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -212,10 +241,11 @@ async function readBody(req: Request): Promise<{ preview: boolean; emails: numbe
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   // Only the three fields the sheet sends, as a request's own body is held.
   if (Object.keys(raw).some((key) => !BODY_FIELDS.includes(key))) return null;
-  const { preview, emails, line } = raw as { preview?: unknown; emails?: unknown; line?: unknown };
+  const { preview, emails, line, closeRow } = raw as { preview?: unknown; emails?: unknown; line?: unknown; closeRow?: unknown };
   if (preview !== undefined && typeof preview !== "boolean") return null;
   if (emails !== undefined && !(typeof emails === "number" && Number.isInteger(emails) && emails >= 0)) return null;
-  return { preview: preview === true, emails: typeof emails === "number" ? emails : 0, line };
+  if (closeRow !== undefined && typeof closeRow !== "boolean") return null;
+  return { preview: preview === true, emails: typeof emails === "number" ? emails : 0, line, closeRow: closeRow === true };
 }
 
 export async function POST(req: Request, ctx: Ctx) {
@@ -252,10 +282,13 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!body) return NextResponse.json({ error: "Expected no body, or a JSON object." }, { status: 400 });
   const typed = parseTakeOffLine(body.line);
   if (!typed.ok) return NextResponse.json({ error: typed.error }, { status: 400 });
+  // Closing a row on the run's own list is Course run's, an admin's section.
+  if (body.closeRow && !isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   // A person whose row the board does not serve this caller is answered as a uid with no place, before
   // anything about them is read: the preview's sentences and the press's emails alike.
-  const rowSnap = await db.collection("courseApplications").doc(courseApplicationId(runId, uid)).get();
+  const rowRef = db.collection("courseApplications").doc(courseApplicationId(runId, uid));
+  const rowSnap = await rowRef.get();
   const row = rowSnap.exists ? normalizeCourseApplication(rowSnap.id, rowSnap.data() ?? {}) : null;
   if (row && !rowIsServedTo(row, staffing)) {
     return NextResponse.json({ error: "Enrolment not found" }, { status: 404 });
@@ -285,7 +318,9 @@ export async function POST(req: Request, ctx: Ctx) {
   const placeFacts = row?.fromForm
     ? await formPlaceFactsFor(db, staffing, [row], groupsNow.map((group) => ({ id: group.id, session: group.session })))
     : new Map();
-  const askedOf = (place: CourseEnrolmentDoc) => gaveTheirPlaceBack(placeFacts.get(uid), { putBack: enrolmentIsPutBack(place) });
+  // Read before the transaction, as the ordinary take-off reads it; the
+  // transaction reads the seat and the row again, and asks this of the seat.
+  const askedOf = (place: CourseEnrolmentDoc) => gaveBackOnTheRun(placeFacts.get(uid), place);
 
   if (body.preview) {
     // Everything a press would do, read now: writes nothing.
@@ -302,6 +337,11 @@ export async function POST(req: Request, ctx: Ctx) {
       throw err;
     }
     if (place.status === "removed") return NextResponse.json({ error: ALREADY_OFF }, { status: 409 });
+    if (body.closeRow) {
+      if (row && !row.fromForm) return NextResponse.json({ error: ROW_NOT_THE_FORMS }, { status: 409 });
+      if (!row || row.status !== "accepted") return NextResponse.json({ error: ROW_NOT_OPEN }, { status: 409 });
+      if (!askedOf(place)) return NextResponse.json({ error: STILL_HOLDS_PLACE }, { status: 409 });
+    }
     const givesPlaceBack =
       form !== null && fromForm !== null && place.status === "active" && placeGoingBack(await applicationRef(db, form.round.id, uid).get(), form, fromForm.programmeId, now) !== null;
     const plan = await planTakeOff((refs) => db.getAll(...refs), db, {
@@ -326,6 +366,8 @@ export async function POST(req: Request, ctx: Ctx) {
         emails: plan.emails,
         visits: plan.visits.ended.map((each) => ({ hostName: each.host.name.trim() || "Untitled group", weekNumber: each.weekNumber })),
         sheet: sheetWords(plan.facts),
+        // From Course run: the one sentence more, that this cannot be undone.
+        ...(body.closeRow ? { closesRow: ROW_CLOSES_TOO } : {}),
         limit,
       },
     });
@@ -337,10 +379,12 @@ export async function POST(req: Request, ctx: Ctx) {
   try {
     await db.runTransaction(async (tx) => {
       planned = null;
-      const [snap, runGroups] = await Promise.all([
+      const [snap, runGroups, rowNow] = await Promise.all([
         tx.get(enrolmentRef),
         // One equality on one field: who facilitates the run's groups.
         tx.get(db.collection("courseGroups").where("runId", "==", runId)),
+        // Their row on the run's own list, when Course run closes it.
+        body.closeRow ? tx.get(rowRef) : Promise.resolve(null),
       ]);
       if (!snap.exists) throw new RemoveError("Enrolment not found", 404);
       const existing = snap.data() ?? {};
@@ -358,6 +402,18 @@ export async function POST(req: Request, ctx: Ctx) {
       // Idempotent: a double-clicked press shouldn't surface a failure, and
       // must not decrement the counter twice or email anybody again.
       if (status === "removed") return;
+
+      // From Course run: their row is closed in this same act, so it has to
+      // be open, the form's, and theirs to close.
+      const closing = body.closeRow
+        ? (() => {
+            const fresh = rowNow && rowNow.exists ? normalizeCourseApplication(rowNow.id, rowNow.data() ?? {}) : null;
+            if (fresh && !fresh.fromForm) throw new RemoveError(ROW_NOT_THE_FORMS, 409);
+            if (!fresh || fresh.status !== "accepted") throw new RemoveError(ROW_NOT_OPEN, 409);
+            if (!askedOf(stored)) throw new RemoveError(STILL_HOLDS_PLACE, 409);
+            return true;
+          })()
+        : false;
 
       // The place on the form, read before anything is written (a
       // transaction takes every read first). Only a seat still on the run
@@ -454,6 +510,17 @@ export async function POST(req: Request, ctx: Ctx) {
         updatedAt: FieldValue.serverTimestamp(),
       });
       if (place) givePlaceBack(tx, place);
+      if (closing) {
+        tx.update(rowRef, {
+          status: ROW_CLOSED,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        tx.update(db.collection("courseRuns").doc(runId), {
+          "applicationCounts.accepted": FieldValue.increment(-1),
+          "applicationCounts.withdrawn": FieldValue.increment(1),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
       wordsGo();
       if (heldSeat && groupId) {
         tx.update(db.collection("courseGroups").doc(groupId), {

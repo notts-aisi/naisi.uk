@@ -194,7 +194,8 @@ export async function loadArranging(
   const holding = new Set(holders.map((holder) => holder.uid));
   const names = new Map(holders.map((holder) => [holder.uid, holder.name] as const));
   const compared = compareWithRun({ holders, rows, roundId: form.round.id, programmeId: programme.id, names });
-  const notOnList = [...compared.toHandOver, ...compared.notAccepted];
+  // A closed row is not on the list either, as before it was named apart.
+  const notOnList = [...compared.toHandOver, ...compared.notAccepted, ...compared.closed];
 
   const people = new Map<string, ArrangePerson>();
   for (const row of rows) {

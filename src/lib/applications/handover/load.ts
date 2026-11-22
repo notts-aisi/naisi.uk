@@ -6,15 +6,21 @@ import { londonDayLabel } from "@/lib/courses/londonLabels";
 import { loadRunStands } from "@/lib/courses/runStands/load";
 import { takenOffByWords } from "@/lib/courses/takeOff/words";
 import { courseEnrolmentId, normalizeCourseEnrolment, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { gaveBackOnTheRun } from "@/lib/courses/takeOff/gaveBack";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { COURSE_RUN_STATUS_LABEL } from "@/lib/firestore/courses";
+import { ALLOWED_TRANSITIONS } from "@/lib/courses/runStatus";
+import { gaveBackLine } from "@/lib/courses/runCareful/words";
 import { canRunTerm } from "../access";
 import { applicationFormPath } from "../editor/olderRounds";
 import { own } from "../keys";
 import type { ProgrammeSettings } from "../model";
 import { isId, type ApplicationForm } from "../normalise";
+import { gaveBackOn } from "../people/model";
+import { applicantFirstName } from "../review/people";
 import { loadForm } from "../repo";
 import { listDecisions, listSentApplications } from "../staffRepo";
+import { formPlaceFactsFor } from "./board";
 import { handOverBlocker } from "./blocker";
 import { compareWithRun, nameOnRecord, placeHoldersOn, splitBySeat, type PlaceHolder } from "./holders";
 import {
@@ -32,7 +38,15 @@ import {
   standingSentence,
   type RunRead,
 } from "./run";
-import type { HandOverPersonView, RunChoiceView, RunPanelView } from "./views";
+import type {
+  GaveBackPersonView,
+  HandOverPersonView,
+  RunCarefulView,
+  RunChoiceView,
+  RunPanelView,
+  RunRolePersonView,
+  RunRolesView,
+} from "./views";
 
 /**
  * THE "COURSE RUN" PANEL'S ONE READ.
@@ -185,6 +199,59 @@ async function takenOffNotes(db: Firestore, viewer: SessionUser, seats: readonly
   return notes;
 }
 
+/**
+ * The run's older roles, each person by the name the viewer sees: one read
+ * of the accounts. Somebody whose account has gone is still listed, so they
+ * can be taken off.
+ */
+async function rolesOf(db: Firestore, viewer: SessionUser, read: RunRead): Promise<RunRolesView> {
+  const uids = [...new Set([...read.run.trackLeadUids, ...read.run.runFacilitatorUids])].filter((uid) => isId(uid));
+  const names = new Map<string, string>();
+  if (uids.length > 0) {
+    for (const snap of await db.getAll(...uids.map((uid) => db.collection("users").doc(uid)))) {
+      if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data()), ""));
+    }
+  }
+  const person = (uid: string): RunRolePersonView => ({ uid, name: names.get(uid) || GONE_ACCOUNT });
+  const byName = (a: RunRolePersonView, b: RunRolePersonView) => a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid);
+  return {
+    trackLeads: read.run.trackLeadUids.filter((uid) => isId(uid)).map(person).sort(byName),
+    runFacilitators: read.run.runFacilitatorUids.filter((uid) => isId(uid)).map(person).sort(byName),
+  };
+}
+
+/** A role holder whose account is no longer on the site. */
+const GONE_ACCOUNT = "Somebody whose account has gone";
+
+/**
+ * What Careful offers: Archive once the run is completed or cancelled, never
+ * while it runs; the way back once it is archived; Cancel while the status
+ * table allows it. Nothing while the run is being destroyed but Destroy,
+ * which resumes.
+ */
+function carefulOf(read: RunRead): RunCarefulView {
+  const { run, destroying } = read;
+  const over = run.status === "completed" || run.status === "cancelled";
+  return {
+    archive: destroying ? null : run.archived ? "archived" : over ? "offer" : "not-yet",
+    canCancel: !destroying && ALLOWED_TRANSITIONS[run.status].includes("cancelled"),
+    meeting: run.status === "running",
+    courseTitle: run.courseTitle,
+    label: run.label,
+  };
+}
+
+/** The names of the groups these seats are in, by id: one read. */
+async function groupNamesOf(db: Firestore, seats: readonly CourseEnrolmentDoc[]): Promise<Map<string, string>> {
+  const ids = [...new Set(seats.map((seat) => seat.groupId).filter((id): id is string => typeof id === "string" && isId(id)))];
+  const names = new Map<string, string>();
+  if (ids.length === 0) return names;
+  for (const snap of await db.getAll(...ids.map((id) => db.collection("courseGroups").doc(id)))) {
+    if (snap.exists) names.set(snap.id, String((snap.data() ?? {}).name ?? "").trim() || "Untitled group");
+  }
+  return names;
+}
+
 /** The panel, for an admin. See the note at the top. */
 export async function loadRunPanel(
   db: Firestore,
@@ -222,6 +289,8 @@ export async function loadRunPanel(
 
   const panel: RunPanelView = {
     programmeName: programme.shortName,
+    termName: form.round.label.trim(),
+    canMakeRun: programme.courseId !== null && programme.runId === null,
     courseTied: programme.courseId !== null,
     runId: programme.runId,
     choices,
@@ -236,9 +305,12 @@ export async function loadRunPanel(
     left: [],
     takenOff: [],
     notAccepted: [],
+    closedRow: [],
     otherRows: 0,
     stands: standing?.stands ?? null,
     details: standing?.details ?? null,
+    roles: run ? await rolesOf(db, actor, run) : null,
+    careful: run ? carefulOf(run) : null,
   };
   // Nobody is named, or counted, until everybody has been told.
   if (form.decisionsSentAt === null) return { status: "ok", panel };
@@ -266,13 +338,46 @@ export async function loadRunPanel(
   panel.holders = holders.length;
   panel.onTheList = compared.onTheList.length;
   panel.toHandOver = compared.toHandOver.map(person);
-  panel.gaveBack = bySeat.stillOnTheRun.map(person);
+  // Each one's line: the day they gave the place back and the group their
+  // seat is still in. Course run takes them off when the form put the seat
+  // there and staff have not put them back on the run since.
+  const applicationOf = new Map(applications.map((application) => [application.uid, application] as const));
+  const stillSeats = bySeat.stillOnTheRun.flatMap((holder) => {
+    const seat = seats.get(holder.uid);
+    return seat ? [seat] : [];
+  });
+  const groupNames = await groupNamesOf(db, stillSeats);
+  // Whether each gave their place back, as the remove route asks it: from the
+  // facts the board's cards are drawn from (`formPlaceFactsFor`, an admin's
+  // reading), and whether staff put them back since. Only whether they hold
+  // their place is asked of the facts, so no group is handed in.
+  const stillUids = new Set(bySeat.stillOnTheRun.map((holder) => holder.uid));
+  const placeFacts = await formPlaceFactsFor(
+    db,
+    { isAdmin: true, leadOf: null },
+    rows.filter((row) => stillUids.has(row.uid)),
+    [],
+  );
+  panel.gaveBack = bySeat.stillOnTheRun.map((holder): GaveBackPersonView => {
+    const application = applicationOf.get(holder.uid);
+    const seat = seats.get(holder.uid) ?? null;
+    const on = application ? gaveBackOn(application) : null;
+    const group = seat?.groupId ? (groupNames.get(seat.groupId) ?? null) : null;
+    return {
+      ...person(holder),
+      firstName: application?.sent ? applicantFirstName(application.sent.aboutYou, application.displayName) : holder.name.split(" ")[0] || holder.name,
+      line: gaveBackLine(on ? londonDayLabel(on) : null, group, seat !== null),
+      canTakeOff: seat !== null && seat.status === "active" && gaveBackOnTheRun(placeFacts.get(holder.uid), seat),
+      noSeat: seat === null,
+    };
+  });
   panel.left = bySeat.left.map(person);
   panel.takenOff = bySeat.takenOff.map((holder) => {
     const note = notes.get(holder.uid);
     return note ? { ...person(holder), note } : person(holder);
   });
   panel.notAccepted = compared.notAccepted.map(person);
+  panel.closedRow = compared.closed.map(person);
   panel.otherRows = compared.otherRows;
   return { status: "ok", panel };
 }

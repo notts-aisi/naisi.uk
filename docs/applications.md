@@ -1882,13 +1882,31 @@ the tree for a gate that admits a track lead and not the lead.
 - **Before the hand-over**: they hold no place, so they are not handed
   over, and no list names them.
 - **Afterwards, before Publish has told them a group**: nothing removes
-  them. Their row stays on the run, and so does their group if they are in
-  one. The programme's own read (`GET .../programmes/[programmeId]/run`)
-  names them under `gaveBack`, and their card on the board says "Gave their
-  place back", so that an admin can act: take them out of their group on
-  the board, then take their row off the run's own list (its applications
-  page). A row from the form carries no address, so the run's own decide
-  route emails nobody about it. Publish never writes to somebody whose card
+  them by itself. Their row stays on the run, and so does their group if
+  they are in one. The programme's own read (`GET
+  .../programmes/[programmeId]/run`) names them under `gaveBack`, each with
+  the day they gave it back and the group their seat is still in, and their
+  card on the board says "Gave their place back". An admin takes them off
+  from Course run ("Take Rahul off the run…"): the take-off sheet every
+  board uses, with `closeRow: true`, which frees the seat, emails whom the
+  sheet says, and closes their row on the run's own list (`withdrawn`, with
+  the run's counts moved from accepted to withdrawn) in the same
+  transaction. A take-off from People in groups leaves the row `accepted`,
+  as it always did. Either way they are then listed under "Taken off the
+  programme". No route reopens a withdrawn row (the allocate route needs an
+  accepted one; the run's decide and apply routes refuse a withdrawn one),
+  so somebody taken off from Course run cannot be put back on this run, and
+  the sheet says so in one sentence more there. Whether Course run closes
+  the row is one switch, `COURSE_RUN_CLOSES_THE_ROW` in
+  `src/lib/courses/runCareful/options.ts`: set to false, Course run's
+  take-off is an ordinary one and the sheet and the list's note lose the
+  row's words. Course run offers the button exactly where the route goes
+  through: both ask `gaveBackOnTheRun` (`src/lib/courses/takeOff/gaveBack.ts`).
+  Somebody whose seat was never made (handed over, never placed) has nothing
+  to take off: their line says so, with a link to the run's own
+  applications list, where their row is changed as before. A holder whose
+  row is withdrawn is listed apart ("Hold a place, and their row on the
+  run’s list is closed"), with no action that the routes would refuse. Publish never writes to somebody whose card
   says it, and never waits for one with no group: the card, the board's
   count of who is still to place and Publish's plan ask the one answer
   (`gaveTheirPlaceBack` in `src/lib/courses/placeGivenBack.ts`) of the same
@@ -1907,9 +1925,10 @@ the tree for a gate that admits a track lead and not the lead.
   leaving the programme, the person's own act (next section): their reply
   takes them out of their group. Their row on the run's own list stays.
 
-The hand-over and the panel never take anybody off a run. A person's own
-act does, from either of the two doors to the one leave, and so does staff's
-Remove on the board (next section).
+The hand-over never takes anybody off a run. A person's own act does, from
+either of the two doors to the one leave, and so does staff's Remove on the
+board (next section), or Course run's take-off of somebody who gave their
+place back, after its question.
 
 ### Leaving the programme gives the place back
 
