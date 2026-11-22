@@ -665,9 +665,21 @@ programme names keeps that builder as it was.
   register or a group opens that address. After every step each week's page
   sits there, moved in the step's own transaction with everything stored in
   it and under it (every field of the page, its saved versions in `history`;
-  an edit lock is let go). A plan the older editor left with a week stored at
-  another week's address is put right by the next step, as Normalise week
-  ids did.
+  an edit lock is let go).
+- **A plan out of step with its pages.** The older run editor's builder kept
+  each week's stored address when it moved or removed a week, so a plan it
+  left can list a week under another week's address, and leave a page behind
+  after the plan's last week. On such a plan the tab offers no step but
+  "Match the plan to the pages", which rewrites the plan's addresses to the
+  pages people see (`weekDocId(N)`), moving and deleting nothing, so it is
+  safe whatever is kept against the weeks. After it the ordinary steps apply.
+- **A page after the plan's last week** is listed under the plan. "Put it
+  back as week N" adds it as the next week: taken where it is when it sits at
+  that week's address, otherwise moved there with everything under it, only
+  while nothing is kept against the run's weeks (else the page says to press
+  Add a week until the plan reaches it). "Remove the page" deletes it only
+  when it holds no more than its title and settings, has no saved version and
+  nothing is kept. Neither holds up the hand-over.
 - **The steps.** Add a week (at the end; a page already kept at its address,
   copied in from the course, becomes its page). Add a break after a week, with
   a label. Move a week or a break up or down by one. Remove a week or a break.
@@ -677,7 +689,10 @@ programme names keeps that builder as it was.
   or My Work row, no place with a one-week visit, a move from a week or an
   answer about the time, no group with its own copy of a week, a change to
   one week, a week's mode or its own calendar, and week 1 not open to
-  everybody holding a place (decisions sent and week 1 ready). A break
+  everybody holding a place (decision day begun, by the form's counts or its
+  sent stamp, and week 1 ready). Once decision day has begun, a step that
+  would change which page is week 1 is refused, since people holding a place
+  open week 1 as soon as it is ready. A break
   anywhere, or a week at the end, can be added until the groups go out
   (Publish has stamped the run, or told anybody their group). From then the
   plan is read only, in the run editor's sentence. A completed, cancelled or
@@ -696,17 +711,26 @@ programme names keeps that builder as it was.
   facilitator of this run never reads one week's plan against another week,
   and a facilitator of another run of the course reads what they read before.
 - **Refused too:** a week being edited right now, a step that would move more
-  than 450 writes or about 8 MB in one transaction, a page at an address no
-  week of the plan uses that a step would write over, and a step made on a
+  than 450 writes or about 8 MB in one transaction, and a step made on a
   drawing of the plan older than the one stored (two changes at once: the
   second is refused, and reloading shows the first).
 - **Dates.** A break, or a moved week or break, moves the dates of every
   later week by seven days: each group's sessions, the Weeks tab's first
   session and ready-by day, and the days week 1's door and the run's Home
-  cards say. Nothing is emailed by a step.
+  cards say. A break moved past week 1 moves every group's first session;
+  once decision day has begun its question says so and that people holding a
+  place see the new dates (a freed-place email already sent may have quoted
+  the old one). On the course's showcase run, a step that renumbers weeks
+  changes the course's public week pages, and its question says so. Nothing
+  is emailed by a step.
+- **The older Normalise week ids** route refuses a run a programme names and
+  points to the Weeks tab.
+- **The printables** offer as many session PDFs as the longest plan of the
+  course's runs, so adding or removing the last week of the longest run
+  changes that count for every run of the course.
 - **Leaving draft** still meets the week id check (`src/lib/courses/draftExit.ts`).
-  On a run a programme names its sentence sends the reader to the Weeks tab,
-  where any step puts every week at its own number's address.
+  On a run a programme names its sentence sends the reader to the Weeks tab's
+  "Match the plan to the pages".
 
 ### Not built, on purpose
 

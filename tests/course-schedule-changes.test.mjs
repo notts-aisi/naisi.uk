@@ -873,12 +873,12 @@ test("GUARD: a run cannot leave draft while its two week spellings disagree", ()
   // And it names the ONE affordance that can still fix it, which exists: on a
   // run no programme names, the older builder's Normalise week ids; on a run
   // a programme names (the hand-over's, and the status route's when the forms
-  // say so), a change on the programme's Weeks tab, every one of which puts
-  // each week at its own number's address (tests/course-week-plan.test.mjs
-  // drives that on a drifted plan). The older builder is words on such a run.
+  // say so), Match the plan to the pages on the programme's Weeks tab, which
+  // rewrites the plan to the pages people see and moves nothing
+  // (tests/course-week-plan.test.mjs drives that on a drifted plan). The older builder is words on such a run.
   assert.match(DRAFT_EXIT, /Normalise week ids/);
   assert.match(WEEK_PLAN_BUILDER, /Normalise week ids/);
-  assert.match(DRAFT_EXIT, /Change the plan once on the programme’s Weeks tab first: any change there puts every week at its own number’s address\./);
+  assert.match(DRAFT_EXIT, /Press Match the plan to the pages on the programme’s Weeks tab first: it moves no page and deletes nothing\./);
   assert.match(STATUS_ROUTE, /const named = \(await readNamingProgramme\(db, runId\)\.catch\(\(\) => null\)\) !== null;/);
   assert.match(STATUS_ROUTE, /await moveRunStatus\(db, runId, nextStatus, \{ throughRunning: body\.through === "running", named \}\);/);
 });

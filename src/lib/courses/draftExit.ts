@@ -53,11 +53,13 @@ export function draftExitBlocker(
   if (drifted === 0) return null;
   const which = drifted === 1 ? "One week is" : `${drifted} weeks are`;
   // On a run a programme names the plan is changed only on the programme's
-  // Weeks tab, whose every change puts each week at its own number's address
-  // (`src/lib/courses/weekPlanEdit/`); the older editor's builder is words
-  // pointing there. Anywhere else the builder's Normalise week ids is the press.
+  // Weeks tab (`src/lib/courses/weekPlanEdit/`), where a plan out of step with
+  // its pages offers Match the plan to the pages, which rewrites the plan to
+  // the pages people see, moves no page and deletes nothing; the older
+  // editor's builder is words pointing there. Anywhere else the builder's
+  // Normalise week ids is the press.
   if (named) {
-    return `${which} stored at another week’s address in this run’s week plan, and leaving draft freezes that for good. Change the plan once on the programme’s Weeks tab first: any change there puts every week at its own number’s address.`;
+    return `${which} listed under another week’s page in this run’s week plan, and leaving draft would keep it that way for good. Press Match the plan to the pages on the programme’s Weeks tab first: it moves no page and deletes nothing.`;
   }
   return `${which} addressed two different ways in this run's week plan, and leaving draft freezes that for good. Open the run's Week plan section and use Normalise week ids first.`;
 }

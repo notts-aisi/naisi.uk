@@ -182,10 +182,11 @@ describe("2. when a hand-over can be pressed", () => {
       ],
     });
     // CHANGED ON PURPOSE (the week plan on the Weeks tab): a run a programme
-    // names changes its plan only on the programme's Weeks tab, whose every
-    // change puts each week at its own number's address, so the sentence
-    // names that press and no longer the older editor's Normalise week ids.
-    await refused(/2 weeks are stored at another week’s address in this run’s week plan, and leaving draft freezes that for good\. Change the plan once on the programme’s Weeks tab first: any change there puts every week at its own number’s address\./);
+    // names changes its plan only on the programme's Weeks tab, which offers
+    // Match the plan to the pages on such a plan (moving no page), so the
+    // sentence names that press and no longer the older editor's Normalise
+    // week ids.
+    await refused(/2 weeks are listed under another week’s page in this run’s week plan, and leaving draft would keep it that way for good\. Press Match the plan to the pages on the programme’s Weeks tab first: it moves no page and deletes nothing\./);
     assert.equal(run().status, "draft");
   });
 
@@ -200,7 +201,7 @@ describe("2. when a hand-over can be pressed", () => {
       });
     const response = await press();
     assert.equal(response.status, 409);
-    assert.match(response.body.error, /Change the plan once on the programme’s Weeks tab first/);
+    assert.match(response.body.error, /Press Match the plan to the pages on the programme’s Weeks tab first/);
     assert.deepEqual(rowsOn(), []);
     assert.equal(run().status, "draft");
   });

@@ -3,8 +3,8 @@
  * its controls and questions, and the route that changes the plan. No server
  * import, so the page and the route say the same thing.
  *
- * The drawn words are copied exactly, with their apostrophes. The site
- * records nobody opening a page, so where the drawing said nobody had opened
+ * The design's words are copied exactly, with their apostrophes. The site
+ * records nobody opening a page, so where the design said nobody had opened
  * a week these say what is true instead. The sentence under the list says
  * the owner's rule as it stands for the run: weeks and breaks move or go
  * only while nothing is kept against the run's weeks; a break, or a week at
@@ -91,7 +91,7 @@ export function removeWeekBody(weekNumber: number, title: string, hasPage: boole
       : `Week ${weekNumber} goes with its settings.`;
   return laterWeeks ? `${goes} Later weeks move up by one.` : goes;
 }
-/** The line under it: what is true of the run, in place of the drawing's "Nobody has opened it". */
+/** The line under it: what is true of the run, in place of the design's "Nobody has opened it". */
 export function removeWhoWords(anybodyOnRun: boolean): string {
   return anybodyOnRun ? "Nobody on the run has done anything yet." : "Nobody is on the run yet.";
 }
@@ -129,14 +129,28 @@ export const CANNOT_MOVE = "That week or break can’t move that way.";
 
 /** What stops weeks and breaks moving, said under the list and as the refusal. */
 const STAY = "so weeks and breaks stay where they are. A break, or a week at the end, can still be added until groups go out.";
-export const DONE_WORK = `People have already ticked, written or picked something on this run, kept against each week’s number, ${STAY}`;
-export const DONE_RECORDS = `Records are already kept against this run’s weeks (a register, a review, notes or a request), ${STAY}`;
+export const DONE_WORK = `Somebody has already ticked, written or picked something on this run, ${STAY}`;
+export const DONE_RECORDS = `Records are already kept against this run’s weeks, such as a register, a review, a note, a request, a reminder or the showcase week, ${STAY}`;
 export const DONE_WEEK_ONE = `Week 1 is open to everybody holding a place, ${STAY}`;
-export function doneGroupWords(groupName: string): string {
-  return `${groupName} has its own copy of a week, a change to one of its weeks or its own calendar, ${STAY}`;
+/** Which of a group's own records about its weeks stops them. */
+export type GroupKept = "copy" | "change" | "mode" | "calendar";
+export function doneGroupWords(groupName: string, kept: GroupKept): string {
+  const what =
+    kept === "copy"
+      ? "has its own copy of a week"
+      : kept === "change"
+        ? "has a change to one of its weeks"
+        : kept === "mode"
+          ? "has a week set to meet online or in person on its own"
+          : "keeps its own calendar";
+  return `${groupName} ${what}, ${STAY}`;
 }
 
-/** The drawing's refusal of a week with blocks in it, word for word. */
+/** Once decision day has begun: which page is week 1 stays as it is. */
+export const WEEK_ONE_FIXED =
+  "People holding a place open week 1 as soon as it’s ready, so which week is week 1 can’t change now that decisions have gone out. Move or remove a later week instead.";
+
+/** The design's refusal of a week with blocks in it, word for word. */
 export function removeHasBlocks(weekNumber: number): string {
   return `Week ${weekNumber} has blocks in it. Copy what you need, then remove it, or leave it and add a week.`;
 }
@@ -147,19 +161,81 @@ export function removeHasHistory(weekNumber: number): string {
   return `Week ${weekNumber} keeps earlier versions in its history, so it can’t be removed. Leave it, or add a week.`;
 }
 export function guideHolds(weekNumber: number): string {
-  return `The course’s facilitator guide has a session plan or notes for week ${weekNumber}, which every run of the course reads by week number, so this would show them against another week. Add a break instead, or leave the weeks where they are.`;
+  return `The course’s facilitator guide has a session plan or notes for week ${weekNumber}, which every run of the course reads by week number, so this change isn’t made here. Leave the weeks where they are, or add a break instead.`;
 }
 export function beingEdited(weekNumber: number): string {
   return `Week ${weekNumber} is being edited right now, so it can’t move or go. Try again once its editor has finished.`;
 }
-export function tooBigWords(records: number): string {
-  return `That would move ${records.toLocaleString("en-GB")} saved records at once, more than one change can carry. Leave the weeks where they are, or add a break instead.`;
+const COUNT = new Intl.NumberFormat("en-GB");
+/** Too much to move in one change: by the number of saved versions when that is the cause, else by size. */
+export function tooBigWords(records: number | null): string {
+  const what = records === null ? "That would move too much at once for one change." : `That would move ${COUNT.format(records)} saved versions at once, more than one change can carry.`;
+  return `${what} Leave the weeks where they are, or add a break instead.`;
 }
 export function addressTakenWords(weekNumber: number): string {
-  return `Week ${weekNumber}’s address holds a page no week of the plan uses, and this would write over it, so nothing changed.`;
+  return `Week ${weekNumber}’s address holds a page no week of the plan uses, so nothing changed. Reload the page and try again.`;
 }
-export const DRIFTED_AND_DONE =
-  "Some weeks of this plan are stored at another week’s address, and something is already kept against the run’s weeks, so the plan can’t change here.";
+
+// ---------------------------------------------------------------------------
+// A plan out of step with its pages, and pages after its last week
+// ---------------------------------------------------------------------------
+
+/** In place of the list's controls, and the line under it, while the plan is out of step. */
+export const OUT_OF_STEP_LINE =
+  "The plan’s weeks don’t match the week pages people see, so the plan can’t change until they do. Matching them moves no page and deletes nothing.";
+export const MATCH_PAGES = "Match the plan to the pages";
+/** The route's refusal of any other change while the plan is out of step. */
+export const OUT_OF_STEP =
+  "The plan’s weeks don’t match the week pages people see. Press Match the plan to the pages on the Weeks tab first: it moves no page and deletes nothing.";
+export const ALREADY_MATCHES = "The plan already matches the week pages.";
+export const MATCHED = "The plan now matches the week pages.";
+
+/** A page after the plan's last week, by its title. */
+export function leftBehindWords(title: string): string {
+  return title ? `A week page sits after the plan’s last week: ${title}.` : "A week page sits after the plan’s last week.";
+}
+export function putBackWords(weekNumber: number): string {
+  return `Put it back as week ${weekNumber}`;
+}
+export const REMOVE_LEFT = "Remove the page";
+export const REMOVE_LEFT_TITLE = "Remove this page?";
+export const REMOVE_LEFT_BODY = "It holds only its title and settings, and nothing is kept against the run’s weeks. Nothing else is deleted.";
+export const KEEP_LEFT = "Keep the page";
+export function putBackByAdding(weekNumber: number): string {
+  return `Something is already kept against this run’s weeks, so this page stays where it is. Press Add a week until the plan reaches week ${weekNumber}: week ${weekNumber} is then this page.`;
+}
+export function putBackEarlierFirst(weekNumber: number): string {
+  return `Put back the page after the plan’s last week first: it becomes week ${weekNumber}.`;
+}
+export function leftHoldsSomething(weekNumber: number): string {
+  return `This page holds blocks or saved versions, so it isn’t removed. Put it back as week ${weekNumber} instead.`;
+}
+export const NOT_LEFT_BEHIND = "That page isn’t after the plan’s last week any more. Reload the page.";
+export function putBackDoneWords(weekNumber: number): string {
+  return `The page is week ${weekNumber} now.`;
+}
+export const LEFT_REMOVED = "The page is removed.";
+
+// ---------------------------------------------------------------------------
+// A move or a removal people holding a place, or the public, will notice
+// ---------------------------------------------------------------------------
+
+/** When a change moves week 1's dates once decision day has begun. */
+export const FIRST_SESSIONS_MOVE = "Every group’s first session moves a week, and people holding a place see the new dates on their Home page.";
+/** When a change renumbers the weeks of the course's showcase run. */
+export const PUBLIC_PAGES_CHANGE = "The course’s public week pages show the new order.";
+export const NOBODY_EMAILED = "Nobody is emailed.";
+export function moveTitle(what: string, direction: "up" | "down"): string {
+  return `Move ${what} ${direction}?`;
+}
+export const MOVE_IT = "Move it";
+export const KEEP_IT = "Keep it where it is";
+
+/** The older Normalise week ids route, on a run a programme names. */
+export const NAMED_RUN_PLAN = "A programme names this run, so its week plan changes on the programme’s Weeks tab.";
+
+/** Under the list when nothing can move or go but a break or a week at the end can still be added. */
+export const ADD_ONLY_LINE = "A break, or a week at the end, can be added until groups go out.";
 
 // ---------------------------------------------------------------------------
 // What a change did

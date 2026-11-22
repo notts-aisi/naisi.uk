@@ -57,6 +57,20 @@
   justify-content: flex-start;
 }
 
+/* A page after the plan's last week, under the list. */
+.left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .planLine {
   margin-top: var(--space-3);
   font-size: 14px;

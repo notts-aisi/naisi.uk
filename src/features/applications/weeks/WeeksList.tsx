@@ -19,7 +19,7 @@ import {
   readyByWords,
   weekWords,
 } from "@/lib/courses/weeksTab/words";
-import { PlanAdd, PlanRowControls } from "./WeekPlanControls";
+import { LeftBehind, MatchPages, PlanAdd, PlanRowControls } from "./WeekPlanControls";
 import styles from "./weeks.module.css";
 import own from "./weekPlan.module.css";
 
@@ -153,6 +153,9 @@ export default function WeeksList({
                           remove={entry.remove}
                           laterWeeks={entry.laterWeeks}
                           anybodyOnRun={plan.anybodyOnRun}
+                          upNotices={entry.upNotices}
+                          downNotices={entry.downNotices}
+                          removeNotices={entry.removeNotices}
                         />
                       </li>
                     );
@@ -171,6 +174,9 @@ export default function WeeksList({
                       remove={entry.remove}
                       laterWeeks={entry.laterWeeks}
                       anybodyOnRun={plan.anybodyOnRun}
+                      upNotices={entry.upNotices}
+                      downNotices={entry.downNotices}
+                      removeNotices={entry.removeNotices}
                     />,
                   );
                 })
@@ -179,6 +185,10 @@ export default function WeeksList({
         )}
         {plan && (
           <>
+            {plan.leftBehind.map((page) => (
+              <LeftBehind key={page.address} runId={plan.runId} planKey={plan.planKey} {...page} />
+            ))}
+            {plan.matchPages && <MatchPages runId={plan.runId} planKey={plan.planKey} />}
             <PlanAdd runId={plan.runId} planKey={plan.planKey} addWeek={plan.addWeek} addBreak={plan.addBreak} />
             <p className={own.planLine}>{plan.line}</p>
           </>

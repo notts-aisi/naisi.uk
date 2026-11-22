@@ -3,11 +3,26 @@ import { FieldValue, type DocumentReference, type Firestore } from "firebase-adm
 import type { NamingProgramme } from "@/lib/courses/programmeLead";
 import type { GuideWeeksReader } from "./guide";
 import { WEEK_HISTORY_SUBCOLLECTION, WEEK_LOCK_SUBCOLLECTION } from "@/lib/courses/weekEdit/paths";
-import { applyStep, breakLabelOf, finalSources, planKeyOf, touchedAddresses, type PlanStep, type StepProblem } from "./model";
+import { weekDocId } from "@/lib/firestore/courses";
+import {
+  applyStep,
+  breakLabelOf,
+  finalSources,
+  matchedPlan,
+  planHasDrifted,
+  planKeyOf,
+  touchedAddresses,
+  type PlanAction,
+  type PlanChange,
+  type StepProblem,
+} from "./model";
 import {
   EMPTY_ADDRESS,
   docHolds,
   judgeChange,
+  judgeMatch,
+  judgePutBack,
+  judgeRemoveLeft,
   lockIsLive,
   readDone,
   runOf,
@@ -16,10 +31,13 @@ import {
   stillNames,
   storedPlan,
   type AddressHolds,
+  type PlanFacts,
 } from "./facts";
 import {
   BREAK_LABEL_PROBLEM,
   CANNOT_MOVE,
+  LEFT_REMOVED,
+  MATCHED,
   MOVED,
   NOT_NAMED,
   NO_SUCH_ENTRY,
@@ -28,6 +46,7 @@ import {
   RUN_GONE,
   breakAddedWords,
   breakRemovedWords,
+  putBackDoneWords,
   weekAddedWords,
   weekRemovedWords,
 } from "./words";
@@ -55,6 +74,11 @@ import {
  *  - a week left where it was whose stored number is not its number is given
  *    its number;
  *  - the run's plan, each week's `weekId` its own number's address.
+ *
+ * Matching a plan to its pages writes the plan alone. Removing a page left
+ * after the plan's last week deletes that page and its lock, and nothing
+ * else. Putting one back adds a week at the end, its page moved there with
+ * everything under it when it sat further on.
  *
  * Nothing else is written, the facilitators' guide never, and nobody is
  * emailed.
@@ -93,7 +117,7 @@ export async function changeWeekPlan(
   db: Firestore,
   runId: string,
   naming: NamingProgramme,
-  step: PlanStep,
+  step: PlanAction,
   planKey: string,
   guideWeeksOf: GuideWeeksReader,
   now: Date = new Date(),
@@ -113,19 +137,36 @@ export async function changeWeekPlan(
 
       const plan = storedPlan(raw);
       if (planKeyOf(plan) !== planKey) throw new Refusal(PLAN_STALE, 409);
-      const applied = applyStep(plan, step);
-      if (!applied.ok) {
-        const [status, error] = PROBLEM[applied.why];
-        throw new Refusal(error, status);
+      const taught = plan.filter((entry) => entry.kind === "week").length;
+
+      // The change, worked out before anything else is read. A page put back
+      // is Add a week with that page as the new week's own: taken as it
+      // stands at the next address, or moved there from further on.
+      let change: PlanChange | null = null;
+      if (step.kind === "put-back") {
+        const added = applyStep(plan, { kind: "add-week" });
+        if (!added.ok) throw new Refusal(PROBLEM[added.why][1], PROBLEM[added.why][0]);
+        const last = added.change.weeks[added.change.weeks.length - 1];
+        change = {
+          ...added.change,
+          weeks: [...added.change.weeks.slice(0, -1), { ...last, source: step.address === last.target ? null : step.address }],
+        };
+      } else if (step.kind !== "match-pages" && step.kind !== "remove-left") {
+        const applied = applyStep(plan, step);
+        if (!applied.ok) {
+          const [status, error] = PROBLEM[applied.why];
+          throw new Refusal(error, status);
+        }
+        change = applied.change;
       }
-      const change = applied.change;
-      const touched = touchedAddresses(change);
+      const touched =
+        step.kind === "remove-left" ? [step.address] : step.kind === "put-back" ? [step.address, weekDocId(taught + 1)] : change ? touchedAddresses(change) : [];
 
       const weekSnap = await tx.get(weeks);
       const docs = new Map(weekSnap.docs.map((doc) => [doc.id, (doc.data() ?? {}) as Record<string, unknown>] as const));
       const stored = new Map<string, Stored>();
       await Promise.all(
-        touched.map(async (address) => {
+        [...new Set(touched)].map(async (address) => {
           const [history, locks] = await Promise.all([
             tx.get(weeks.doc(address).collection(WEEK_HISTORY_SUBCOLLECTION)),
             tx.get(weeks.doc(address).collection(WEEK_LOCK_SUBCOLLECTION)),
@@ -150,16 +191,45 @@ export async function changeWeekPlan(
         };
       };
 
-      const [{ done, anybodyOnRun, ownCalendars, told }, guideWeeks] = await Promise.all([
+      const [{ done, anybodyOnRun, ownCalendars, told, decisionDayBegun }, guideWeeks] = await Promise.all([
         readDone(db, run, naming, tx),
         guideWeeksOf(run.courseId, tx),
       ]);
-      const refusal = judgeChange({ standing: told ? "gone-out" : standing, done, anybodyOnRun, guideWeeks, ownCalendars, holds }, change);
+      const facts: PlanFacts = {
+        standing: told ? "gone-out" : standing,
+        drifted: planHasDrifted(plan),
+        decisionDayBegun,
+        done,
+        anybodyOnRun,
+        guideWeeks,
+        ownCalendars,
+        holds,
+      };
+      const refusal =
+        step.kind === "match-pages"
+          ? judgeMatch(facts)
+          : step.kind === "put-back"
+            ? judgePutBack(facts, plan, step.address)
+            : step.kind === "remove-left"
+              ? judgeRemoveLeft(facts, plan, step.address)
+              : judgeChange(facts, change as PlanChange);
       if (refusal) throw new Refusal(refusal, 409);
 
       // ---- The writes ----
       const ref = (address: string): DocumentReference => weeks.doc(address);
-      for (const [address, final] of finalSources(change)) {
+      if (step.kind === "match-pages") {
+        // The plan's addresses rewritten to the pages people see: no page moves, nothing is deleted.
+        tx.update(runRef, { weekPlan: matchedPlan(plan), updatedAt: FieldValue.serverTimestamp() });
+        return { ok: true, message: MATCHED };
+      }
+      if (step.kind === "remove-left") {
+        // Only a page with no more than its title and settings and no saved version (`judgeRemoveLeft`).
+        tx.delete(ref(step.address));
+        for (const id of stored.get(step.address)?.locks.keys() ?? []) tx.delete(ref(step.address).collection(WEEK_LOCK_SUBCOLLECTION).doc(id));
+        return { ok: true, message: LEFT_REMOVED };
+      }
+      const made = change as PlanChange;
+      for (const [address, final] of finalSources(made)) {
         const here = stored.get(address);
         const from = final.from ? stored.get(final.from) : undefined;
         const doc = from?.doc;
@@ -173,21 +243,22 @@ export async function changeWeekPlan(
         for (const id of here?.locks.keys() ?? []) tx.delete(ref(address).collection(WEEK_LOCK_SUBCOLLECTION).doc(id));
       }
       // A week left where it was carries its own number.
-      const moved = new Set(touched);
-      for (const week of change.weeks) {
+      const moved = new Set(touchedAddresses(made));
+      for (const week of made.weeks) {
         if (moved.has(week.target)) continue;
         const doc = docs.get(week.target);
         if (doc && doc.weekNumber !== week.weekNumber) tx.update(ref(week.target), { weekNumber: week.weekNumber });
       }
-      tx.update(runRef, { weekPlan: change.plan, updatedAt: FieldValue.serverTimestamp() });
+      tx.update(runRef, { weekPlan: made.plan, updatedAt: FieldValue.serverTimestamp() });
 
+      if (step.kind === "put-back") return { ok: true, message: putBackDoneWords(taught + 1) };
       if (step.kind === "add-week") {
-        const added = change.weeks[change.weeks.length - 1];
+        const added = made.weeks[made.weeks.length - 1];
         return { ok: true, message: weekAddedWords(added.weekNumber, docs.has(added.target) && !moved.has(added.target)) };
       }
       if (step.kind === "add-break") return { ok: true, message: breakAddedWords(breakLabelOf(step.label), step.afterWeek) };
       if (step.kind === "move") return { ok: true, message: MOVED };
-      if (change.removed) return { ok: true, message: weekRemovedWords(change.removed.weekNumber) };
+      if (made.removed) return { ok: true, message: weekRemovedWords(made.removed.weekNumber) };
       const gone = plan[step.index];
       return { ok: true, message: breakRemovedWords(gone && gone.kind === "break" ? gone.label : "The break") };
     });

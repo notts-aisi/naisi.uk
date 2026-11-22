@@ -15,14 +15,24 @@ import {
   BREAK_LABEL,
   BREAK_LABEL_EXAMPLE,
   CANCEL,
+  KEEP_IT,
+  KEEP_LEFT,
   KEEP_THE_BREAK,
+  MATCH_PAGES,
   MOVE_DOWN,
+  MOVE_IT,
   MOVE_UP,
   REMOVE_ASK,
+  REMOVE_LEFT,
+  REMOVE_LEFT_BODY,
+  REMOVE_LEFT_TITLE,
   REMOVE_THE_BREAK,
   afterWeekWords,
   controlName,
   keepWeekWords,
+  leftBehindWords,
+  moveTitle,
+  putBackWords,
   removeBreakBody,
   removeBreakTitle,
   removeWeekBody,
@@ -49,7 +59,10 @@ type Step =
   | { action: "add-week" }
   | { action: "add-break"; afterWeek: number; label: string }
   | { action: "move"; index: number; direction: "up" | "down" }
-  | { action: "remove"; index: number };
+  | { action: "remove"; index: number }
+  | { action: "match-pages" }
+  | { action: "put-back"; address: string }
+  | { action: "remove-left"; address: string };
 
 async function sendStep(runId: string, planKey: string, step: Step): Promise<string> {
   const res = await fetch(`/api/courses/runs/${encodeURIComponent(runId)}/week-plan`, {
@@ -101,6 +114,9 @@ export function PlanRowControls({
   remove,
   laterWeeks,
   anybodyOnRun,
+  upNotices = [],
+  downNotices = [],
+  removeNotices = [],
 }: {
   runId: string;
   planKey: string;
@@ -111,10 +127,19 @@ export function PlanRowControls({
   remove: { ask: true } | { refusal: string } | null;
   laterWeeks: boolean;
   anybodyOnRun: boolean;
+  /** What a move or the removal changes for people outside the plan, said in its question; a move with none asks nothing. */
+  upNotices?: string[];
+  downNotices?: string[];
+  removeNotices?: string[];
 }) {
   const hydrated = useHydrated();
   const { busy, problem, press, setProblem } = useStep(runId, planKey);
   const [asking, setAsking] = useState(false);
+  const [moving, setMoving] = useState<"up" | "down" | null>(null);
+  const movePress = (direction: "up" | "down") => {
+    if ((direction === "up" ? upNotices : downNotices).length > 0) setMoving(direction);
+    else void press({ action: "move", index, direction });
+  };
   const what = entry.kind === "week" ? `week ${entry.weekNumber}` : entry.label;
   if (!up && !down && !remove) return null;
 
@@ -128,12 +153,12 @@ export function PlanRowControls({
     <div className={own.controls}>
       <div className={own.buttons}>
         {up && (
-          <button type="button" className={styles.button} aria-label={controlName(what, "up")} onClick={() => void press({ action: "move", index, direction: "up" })} disabled={!hydrated || busy}>
+          <button type="button" className={styles.button} aria-label={controlName(what, "up")} onClick={() => movePress("up")} disabled={!hydrated || busy}>
             {MOVE_UP}
           </button>
         )}
         {down && (
-          <button type="button" className={styles.button} aria-label={controlName(what, "down")} onClick={() => void press({ action: "move", index, direction: "down" })} disabled={!hydrated || busy}>
+          <button type="button" className={styles.button} aria-label={controlName(what, "down")} onClick={() => movePress("down")} disabled={!hydrated || busy}>
             {MOVE_DOWN}
           </button>
         )}
@@ -168,6 +193,7 @@ export function PlanRowControls({
             ) : (
               <p>{removeBreakBody(laterWeeks)}</p>
             )}
+            {removeNotices.length > 0 && <p>{removeNotices.join(" ")}</p>}
             <div className={styles.actions}>
               <button type="button" className={styles.button} onClick={dismiss} disabled={busy}>
                 {entry.kind === "week" ? keepWeekWords(entry.weekNumber) : KEEP_THE_BREAK}
@@ -179,6 +205,33 @@ export function PlanRowControls({
                 disabled={busy}
               >
                 {entry.kind === "week" ? removeWeekWords(entry.weekNumber) : REMOVE_THE_BREAK}
+              </button>
+            </div>
+          </section>
+        )}
+      </Modal>
+
+      <Modal open={moving !== null} onClose={() => setMoving(null)} ariaLabel={moveTitle(what, moving ?? "up")} width="sm">
+        {(dismiss) => (
+          <section className={own.dialog} aria-labelledby={`plan-move-${index}`}>
+            <h2 id={`plan-move-${index}`} className={styles.subheading}>
+              {moveTitle(what, moving ?? "up")}
+            </h2>
+            <p>{(moving === "down" ? downNotices : upNotices).join(" ")}</p>
+            <div className={styles.actions}>
+              <button type="button" className={styles.button} onClick={dismiss} disabled={busy}>
+                {KEEP_IT}
+              </button>
+              <button
+                type="button"
+                className={`${styles.button} ${styles.buttonPrimary}`}
+                onClick={() => {
+                  const direction = moving ?? "up";
+                  void press({ action: "move", index, direction }).then(() => setMoving(null));
+                }}
+                disabled={busy}
+              >
+                {MOVE_IT}
               </button>
             </div>
           </section>
@@ -284,6 +337,101 @@ export function PlanAdd({
           )}
         </Modal>
       )}
+    </div>
+  );
+}
+
+/** While the plan is out of step with its pages: the one control, which moves no page and deletes nothing. */
+export function MatchPages({ runId, planKey }: { runId: string; planKey: string }) {
+  const hydrated = useHydrated();
+  const { busy, problem, said, press } = useStep(runId, planKey);
+  return (
+    <div className={own.add}>
+      <div className={own.buttons}>
+        <button type="button" className={`${styles.button} ${styles.buttonPrimary}`} onClick={() => void press({ action: "match-pages" })} disabled={!hydrated || busy}>
+          {MATCH_PAGES}
+        </button>
+      </div>
+      {said && !problem && (
+        <p className={styles.done} role="status">
+          {said}
+        </p>
+      )}
+      {problem && (
+        <p className={own.refusal} role="alert">
+          {problem}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** A page after the plan's last week: put it back as the next week, remove it, or the sentence that says how. */
+export function LeftBehind({
+  runId,
+  planKey,
+  address,
+  title,
+  putBack,
+  remove,
+}: {
+  runId: string;
+  planKey: string;
+  address: string;
+  title: string;
+  putBack: { weekNumber: number } | { sentence: string };
+  remove: boolean;
+}) {
+  const hydrated = useHydrated();
+  const { busy, problem, press } = useStep(runId, planKey);
+  const [asking, setAsking] = useState(false);
+  return (
+    <div className={own.left}>
+      <p>{leftBehindWords(title)}</p>
+      {"sentence" in putBack ? (
+        <p className={styles.muted}>{putBack.sentence}</p>
+      ) : null}
+      <div className={own.buttons}>
+        {"weekNumber" in putBack && (
+          <button type="button" className={styles.button} onClick={() => void press({ action: "put-back", address })} disabled={!hydrated || busy}>
+            {putBackWords(putBack.weekNumber)}
+          </button>
+        )}
+        {remove && (
+          <button type="button" className={styles.button} onClick={() => setAsking(true)} disabled={!hydrated || busy}>
+            {REMOVE_LEFT}
+          </button>
+        )}
+      </div>
+      {problem && (
+        <p className={own.refusal} role="alert">
+          {problem}
+        </p>
+      )}
+      <Modal open={asking} onClose={() => setAsking(false)} ariaLabel={REMOVE_LEFT_TITLE} width="sm">
+        {(dismiss) => (
+          <section className={own.dialog} aria-labelledby={`plan-left-${address}`}>
+            <h2 id={`plan-left-${address}`} className={styles.subheading}>
+              {REMOVE_LEFT_TITLE}
+            </h2>
+            <p>{leftBehindWords(title)}</p>
+            <p>{REMOVE_LEFT_BODY}</p>
+            <div className={styles.actions}>
+              <button type="button" className={styles.button} onClick={dismiss} disabled={busy}>
+                {KEEP_LEFT}
+              </button>
+              <button
+                type="button"
+                className={`${styles.button} ${own.buttonCareful}`}
+                onClick={() => void press({ action: "remove-left", address }).then(() => setAsking(false))}
+                disabled={busy}
+              >
+                {REMOVE_LEFT}
+              </button>
+            </div>
+          </section>
+        )}
+      </Modal>
     </div>
   );
 }

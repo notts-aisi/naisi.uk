@@ -1,6 +1,8 @@
 import "server-only";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
+import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
+import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
 import { CHECK_IN_WEEKS_COLLECTION } from "@/lib/firestore/checkInWeeks";
 import { COURSE_EXPLAINERS_COLLECTION } from "@/lib/firestore/courseExplainers";
 import { COURSE_FEEDBACK_COLLECTION } from "@/lib/firestore/courseFeedback";
@@ -17,6 +19,7 @@ import { COURSE_WEEK_REVIEWS_COLLECTION } from "@/lib/firestore/courseWeekReview
 import { COURSE_WEEK_WORK_COLLECTION } from "@/lib/firestore/courseWeekWork";
 import { COURSE_WORK_LOG_COLLECTION } from "@/lib/firestore/courseWorkLog";
 import { COURSE_WORK_RATINGS_COLLECTION } from "@/lib/firestore/courseWorkRatings";
+import { SCHEDULER_MARKERS_COLLECTION } from "@/lib/firestore/schedulerMarkers";
 
 /**
  * HOW MANY ROWS THE SITE KEEPS AGAINST A RUN'S WEEKS, for the week plan's
@@ -48,6 +51,8 @@ export const WORK_COLLECTIONS: readonly WeekKeyed[] = [
   [BEST_ANSWERS_COLLECTION, "runId"],
   [PANGRAM_CHECKS_COLLECTION, "runId"],
   [COURSE_PREDICTIONS_COLLECTION, "runId"],
+  [PITCHES_COLLECTION, "runId"],
+  [TEAM_ENTRIES_COLLECTION, "runId"],
 ];
 
 /** The run's records about its weeks: registers, reviews, notes, requests, check-ins, reminders, My Work's rows. */
@@ -83,4 +88,22 @@ export async function countWeekKept(
     count(["courseApplications", "runId"]),
   ]);
   return { work: sum(work), records: sum(records), applications };
+}
+
+/** The most values one `in` filter takes. */
+const IN_LIMIT = 30;
+
+/**
+ * How many of the scheduler's markers for the run's groups are about a
+ * session (a reminder before it, after it or about its register): each
+ * carries the session's key, "w03". Read by group, for the key alone.
+ */
+export async function countSessionMarkers(db: Firestore, groupIds: readonly string[], tx?: Transaction): Promise<number> {
+  let found = 0;
+  for (let i = 0; i < groupIds.length; i += IN_LIMIT) {
+    const query = db.collection(SCHEDULER_MARKERS_COLLECTION).where("groupId", "in", groupIds.slice(i, i + IN_LIMIT)).select("sessionKey");
+    const snap = tx ? await tx.get(query) : await query.get();
+    found += snap.docs.filter((doc) => typeof doc.get("sessionKey") === "string").length;
+  }
+  return found;
 }

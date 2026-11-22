@@ -1695,8 +1695,8 @@ transaction as the rows, after the week id check every exit from draft
 meets (`draftExitBlocker` in `src/lib/courses/draftExit.ts`, which refuses
 while the week plan's ids disagree with its week numbers, and nothing is
 written; its sentence for a run a programme names sends the reader to the
-programme's Weeks tab, where any change to the plan puts every week at its
-own number's address, docs/course-weeks.md, "The week plan"). A press that hands nobody over leaves a
+programme's Weeks tab, whose "Match the plan to the pages" moves no page and
+deletes nothing, docs/course-weeks.md, "The week plan"). A press that hands nobody over leaves a
 draft as it is, and a run out of draft is never moved by a press.
 `handOverBlocker` is the one answer, for the panel that draws the button
 and for the writer, which asks it again inside each transaction of what

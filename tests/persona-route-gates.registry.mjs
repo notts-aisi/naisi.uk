@@ -8060,7 +8060,7 @@ export const REAL_ROUTES = {
     },
   },
   "/api/courses/runs/[runId]/normalise-weeks": {
-    POST: courseApprovers("Normalising a run's week ids", c(409, "An approver is told week ids move only while a run is a draft, and this one is running: nothing is written.")),
+    POST: courseApprovers("Normalising a run's week ids", c(409, "An approver is told a programme names the run, so its week plan changes on the programme's Weeks tab: nothing is written.")),
   },
   "/api/courses/runs/[runId]/overview": {
     GET: {

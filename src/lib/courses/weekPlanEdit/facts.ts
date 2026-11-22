@@ -1,5 +1,6 @@
 import "server-only";
 import type { Firestore, Query, Transaction } from "firebase-admin/firestore";
+import { decisionDayHasBegun } from "@/lib/applications/decisions";
 import { formRef } from "@/lib/applications/repo";
 import { own } from "@/lib/applications/keys";
 import { isApplicationForm, normaliseForm } from "@/lib/applications/normalise";
@@ -7,27 +8,36 @@ import { readNamingProgramme, type NamingProgramme } from "@/lib/courses/program
 import { holdIsLive, readHold } from "@/lib/courses/weekEdit/lock";
 import { WEEK_HISTORY_SUBCOLLECTION, WEEK_LOCK_SUBCOLLECTION } from "@/lib/courses/weekEdit/paths";
 import { weekIsReady } from "@/lib/courses/weekReady";
-import { normalizeCourseRun, sanitizeWeekPlan, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
-import { countWeekKept } from "./kept";
-import { finalSources, touchedAddresses, type PlanChange } from "./model";
+import { normalizeCourseRun, sanitizeWeekPlan, weekDocId, type CourseRunDoc, type WeekPlanEntry } from "@/lib/firestore/courses";
+import { countSessionMarkers, countWeekKept } from "./kept";
+import { finalSources, planHasDrifted, touchedAddresses, type PlanChange } from "./model";
 import {
+  ALREADY_MATCHES,
   DONE_RECORDS,
   DONE_WEEK_ONE,
   DONE_WORK,
-  DRIFTED_AND_DONE,
+  NOT_LEFT_BEHIND,
+  OUT_OF_STEP,
+  PLAN_FULL,
   RUN_ARCHIVED,
   RUN_CANCELLED,
   RUN_FINISHED,
+  WEEK_ONE_FIXED,
   WEEK_PLAN_READ_ONLY,
   addressTakenWords,
   beingEdited,
   doneGroupWords,
   guideHolds,
+  leftHoldsSomething,
+  putBackByAdding,
+  putBackEarlierFirst,
   removeHasBlocks,
   removeHasHistory,
   removeHasOlderMaterial,
   tooBigWords,
+  type GroupKept,
 } from "./words";
+import { MAX_PLAN_ENTRIES } from "./model";
 
 /**
  * WHAT DECIDES WHETHER A RUN'S WEEK PLAN MAY CHANGE, read for the Weeks tab
@@ -47,8 +57,29 @@ import {
  * holds its lists against every collection that stores a week), of the run's places (a one-week visit, a
  * move from a week, an answer about the time naming sessions), of the run's
  * groups (their own copy of a week, a change to one week, how a week meets,
- * their own calendar), and of week 1's door: once decisions are sent and
- * week 1 is ready, everybody holding a place may open it.
+ * their own calendar, a session's reminder), of the run's own week fields
+ * (the week a submission is set in, the showcase week), and of week 1's door:
+ * once decision day has begun (`decisionDayHasBegun`, anybody told, whether
+ * or not the send has finished) and week 1 is ready, everybody told they hold
+ * a place may open it.
+ *
+ * Once decision day has begun, a change that would alter which page is week
+ * 1 is refused too: people holding a place open week 1 the moment it is
+ * ready.
+ *
+ * ## A plan out of step with its pages
+ *
+ * The older run editor's builder kept each week's stored address when it
+ * moved or removed a week, so a plan it left can list a week under another
+ * week's address, and leave a page behind after the plan's last week.
+ * Members, registers, groups and this tab all read week N at `weekDocId(N)`,
+ * so on such a plan no ordinary step is taken (it would move pages people
+ * see); the one step offered is to match the plan to the pages, rewriting
+ * the plan's addresses to `weekDocId(N)` and moving and deleting nothing
+ * (`judgeMatch`). A page left after the plan's last week is put back as a
+ * week at the end (`judgePutBack`), or, when it holds no more than its title
+ * and settings and nothing is kept against the run's weeks, removed
+ * (`judgeRemoveLeft`).
  *
  * The groups have gone out once Publish has stamped the run
  * (`allocationPublishedAt`) or told anybody their group (a place's
@@ -104,6 +135,10 @@ export const EMPTY_ADDRESS: AddressHolds = { exists: false, title: "", blocks: f
 
 export type PlanFacts = {
   standing: PlanStanding;
+  /** The plan lists a week under another week's address. */
+  drifted: boolean;
+  /** Anybody has been told on decision day, whether or not the send has finished. */
+  decisionDayBegun: boolean;
   /** Why weeks and breaks stay where they are, or null while nothing is kept against the run's weeks. */
   done: string | null;
   /** Anybody holds a place on the run or is on its list, for the removal question's second line. */
@@ -162,7 +197,7 @@ export async function readDone(
   run: CourseRunDoc,
   naming: NamingProgramme,
   tx?: Transaction,
-): Promise<{ done: string | null; anybodyOnRun: boolean; ownCalendars: string[]; told: boolean }> {
+): Promise<{ done: string | null; anybodyOnRun: boolean; ownCalendars: string[]; told: boolean; decisionDayBegun: boolean }> {
   const get = (query: Query) => (tx ? tx.get(query) : query.get());
   const weekOneRef = db.collection("courseRuns").doc(run.id).collection("weeks").doc(weekDocId(1));
   const [kept, places, groups, formSnap, weekOne] = await Promise.all([
@@ -175,24 +210,31 @@ export async function readDone(
 
   const formData = formSnap.exists ? formSnap.data() : undefined;
   const form = formData && isApplicationForm(formData) ? normaliseForm(formSnap.id, formData) : null;
-  const decisionsSent = form?.decisionsSentAt != null;
+  // Anybody told, by a send that finished or one still under way.
+  const decisionsSent = form !== null && decisionDayHasBegun(form);
 
   const groupDocs = groups.docs.map((doc) => ({ ref: doc.ref, data: (doc.data() ?? {}) as Record<string, unknown> }));
-  const copies = await Promise.all(groupDocs.map((group) => get(group.ref.collection("weeks").limit(1))));
+  const [copies, markers] = await Promise.all([
+    Promise.all(groupDocs.map((group) => get(group.ref.collection("weeks").limit(1)))),
+    countSessionMarkers(db, groupDocs.map((group) => group.ref.id), tx),
+  ]);
   const ownCalendars: string[] = [];
-  let changedGroup: string | null = null;
-  groupDocs.forEach((group, i) => {
+  let changedGroup: { name: string; kept: GroupKept } | null = null;
+  for (const [i, group] of groupDocs.entries()) {
     const name = typeof group.data.name === "string" && group.data.name.trim() ? group.data.name.trim() : "A group";
     const ownCalendar = nonEmptyList(group.data.paceWeekPlan) || (typeof group.data.paceStartDate === "string" && group.data.paceStartDate !== "");
     if (ownCalendar && group.data.archived !== true) ownCalendars.push(name);
-    const changed =
-      ownCalendar ||
-      !copies[i].empty ||
-      nonEmptyMap(group.data.sessionOverrides) ||
-      nonEmptyMap(group.data.sessionModes) ||
-      nonEmptyMap(group.data.sessionChanges);
-    if (changed && changedGroup === null) changedGroup = name;
-  });
+    const kept: GroupKept | null = !copies[i].empty
+      ? "copy"
+      : nonEmptyMap(group.data.sessionOverrides) || nonEmptyMap(group.data.sessionChanges)
+        ? "change"
+        : nonEmptyMap(group.data.sessionModes)
+          ? "mode"
+          : ownCalendar
+            ? "calendar"
+            : null;
+    if (kept && changedGroup === null) changedGroup = { name, kept };
+  }
 
   // Publish has told somebody their group: the groups have gone out, whether
   // or not the run's own stamp says so.
@@ -207,11 +249,31 @@ export async function readDone(
   let done: string | null = null;
   if (kept.work > 0) done = DONE_WORK;
   else if (weekOneOpen) done = DONE_WEEK_ONE;
-  else if (changedGroup !== null) done = doneGroupWords(changedGroup);
-  else if (kept.records > 0 || placeRecords) done = DONE_RECORDS;
+  else if (changedGroup !== null) done = doneGroupWords(changedGroup.name, changedGroup.kept);
+  else if (kept.records > 0 || placeRecords || markers > 0 || runWeekFields(run)) done = DONE_RECORDS;
 
   const anybodyOnRun = decisionsSent || places.docs.length > 0 || kept.applications > 0;
-  return { done, anybodyOnRun, ownCalendars: ownCalendars.sort((a, b) => a.localeCompare(b, "en-GB")), told };
+  return { done, anybodyOnRun, ownCalendars: ownCalendars.sort((a, b) => a.localeCompare(b, "en-GB")), told, decisionDayBegun: decisionsSent };
+}
+
+/** The run's own fields that name a week: the week a submission is set in, and an incubator's showcase week. */
+export function runWeekFields(run: CourseRunDoc): boolean {
+  return Boolean(run.submissionExerciseRef?.weekId) || run.teamHandIn.showcaseWeek !== null;
+}
+
+/**
+ * The addresses after the plan's last week that hold a page: what the older
+ * builder's Remove left behind, or a week copied in from the course past the
+ * plan's end. In address order.
+ */
+export function leftBehindOf(plan: readonly WeekPlanEntry[], pages: Iterable<string>): string[] {
+  const taught = plan.filter((entry) => entry.kind === "week").length;
+  const out: string[] = [];
+  for (const address of pages) {
+    const n = Number(/^w(\d\d)$/.exec(address)?.[1] ?? 0);
+    if (n > taught && n <= MAX_PLAN_ENTRIES) out.push(address);
+  }
+  return out.sort();
 }
 
 /** The programme that names the run, and that it still does on its own form. */
@@ -253,10 +315,12 @@ export function judgeChange(facts: PlanFacts, change: PlanChange): string | null
   const standing = standingRefusal(facts.standing);
   if (standing) return standing;
 
+  if (facts.drifted) return OUT_OF_STEP;
+
   const touched = touchedAddresses(change);
-  if ((change.reshapes || touched.length > 0) && facts.done !== null) {
-    return change.reshapes ? facts.done : DRIFTED_AND_DONE;
-  }
+  if ((change.reshapes || touched.length > 0) && facts.done !== null) return facts.done;
+  // Which page is week 1, once anybody has been told they hold a place.
+  if (facts.decisionDayBegun && touched.includes(weekDocId(1))) return WEEK_ONE_FIXED;
 
   if (change.removed) {
     const n = change.removed.weekNumber;
@@ -300,6 +364,59 @@ export function judgeChange(facts: PlanFacts, change: PlanChange): string | null
     records += holds.history;
     bytes += holds.bytes;
   }
-  if (writes > MAX_WRITES || bytes > MAX_BYTES) return tooBigWords(records);
+  if (writes > MAX_WRITES || bytes > MAX_BYTES) return tooBigWords(writes > MAX_WRITES ? records : null);
   return null;
+}
+
+/** Matching the plan to its pages: taken whenever the plan can change at all and is out of step. */
+export function judgeMatch(facts: PlanFacts): string | null {
+  const standing = standingRefusal(facts.standing);
+  if (standing) return standing;
+  return facts.drifted ? null : ALREADY_MATCHES;
+}
+
+/**
+ * Putting back a page left after the plan's last week, as a week at the end.
+ * The next address after the plan's last week is taken as it stands, the way
+ * Add a week takes it. A page further on is moved to that address, with
+ * everything under it, only while nothing is kept against the run's weeks;
+ * otherwise the sentence says how to reach it with Add a week.
+ */
+export function judgePutBack(facts: PlanFacts, plan: readonly WeekPlanEntry[], address: string): string | null {
+  const standing = standingRefusal(facts.standing);
+  if (standing) return standing;
+  if (facts.drifted) return OUT_OF_STEP;
+  const taught = plan.filter((entry) => entry.kind === "week").length;
+  const n = Number(/^w(\d\d)$/.exec(address)?.[1] ?? 0);
+  const holds = facts.holds(address);
+  if (n <= taught || !(holds.exists || holds.history > 0)) return NOT_LEFT_BEHIND;
+  if (plan.length >= MAX_PLAN_ENTRIES) return PLAN_FULL;
+  if (n === taught + 1) return null;
+  const next = facts.holds(weekDocId(taught + 1));
+  if (next.exists || next.history > 0) return putBackEarlierFirst(taught + 1);
+  if (facts.done !== null) return putBackByAdding(n);
+  if (holds.liveLock) return beingEdited(n);
+  const writes = 2 + holds.history * 2 + holds.locks;
+  if (writes > MAX_WRITES || holds.bytes > MAX_BYTES) return tooBigWords(writes > MAX_WRITES ? holds.history : null);
+  return null;
+}
+
+/** Removing a page left after the plan's last week: only one that holds no more than its title and settings, while nothing is kept. */
+export function judgeRemoveLeft(facts: PlanFacts, plan: readonly WeekPlanEntry[], address: string): string | null {
+  const standing = standingRefusal(facts.standing);
+  if (standing) return standing;
+  if (facts.drifted) return OUT_OF_STEP;
+  const taught = plan.filter((entry) => entry.kind === "week").length;
+  const n = Number(/^w(\d\d)$/.exec(address)?.[1] ?? 0);
+  const holds = facts.holds(address);
+  if (n <= taught || !holds.exists) return NOT_LEFT_BEHIND;
+  if (holds.blocks || holds.older || holds.history > 0) return leftHoldsSomething(taught + 1);
+  if (facts.done !== null) return facts.done;
+  if (holds.liveLock) return beingEdited(n);
+  return null;
+}
+
+/** Whether a plan lists a week under another week's address, for the facts. */
+export function driftedPlan(plan: readonly WeekPlanEntry[]): boolean {
+  return planHasDrifted(plan);
 }

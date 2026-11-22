@@ -19,12 +19,13 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
 import { CAST } from "./lib/handoverWorld.mjs";
 import { AGI, COURSE, NOW, PERSONAS, ROUND, RUN, makeWeeksTabWorld, weeksTabSeed } from "./lib/weeksTabWorld.mjs";
+import { walkSource } from "./lib/functionScan.mjs";
 import { syntheticWeekBlocks } from "./lib/weekBlocksFixture.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
@@ -41,6 +42,8 @@ const words = await loadTs(join("lib", "courses", "weekPlanEdit", "words.ts"));
 const model = await loadTs(join("lib", "courses", "weekPlanEdit", "model.ts"));
 const facts = await loadTs(join("lib", "courses", "weekPlanEdit", "facts.ts"));
 const kept = await loadTs(join("lib", "courses", "weekPlanEdit", "kept.ts"));
+const view = await loadTs(join("lib", "courses", "weekPlanEdit", "view.ts"));
+const draftExit = await loadTs(join("lib", "courses", "draftExit.ts"));
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FORM = `admissionRounds/${ROUND}`;
@@ -320,10 +323,30 @@ describe("3. weeks and breaks move or go only while nothing is kept against the 
     }
   }
 
-  test("people handed over and nothing done: weeks still move", async () => {
+  test("people handed over and nothing done: weeks still move, all but week 1", async () => {
     w.reset(quietSeed({ ...place("amara"), ...place("bea"), [FORM]: { ...quietSeed()[FORM], decisionsSentAt: new Date("2026-11-01T09:00:00Z") } }));
-    const answer = await step("claudia", { action: "move", index: 0, direction: "down" });
+    const answer = await step("claudia", { action: "move", index: 2, direction: "down" });
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    // Once decisions have gone out, which page is week 1 stays as it is.
+    for (const body of [{ action: "move", index: 0, direction: "down" }, { action: "move", index: 1, direction: "up" }, { action: "remove", index: 0 }]) {
+      const held = await step("claudia", body);
+      assert.deepEqual([held.status, held.body.error], [409, words.WEEK_ONE_FIXED], JSON.stringify(body));
+    }
+  });
+
+  test("a ready week 2 moved up would open week 1 at once: refused once decision day has begun, even part sent", async () => {
+    // Decision day under way: one person told, the form not yet stamped as sent.
+    const form = quietSeed()[FORM];
+    w.reset(
+      quietSeed({
+        [FORM]: { ...form, decisionsSentAt: null, applicationCounts: { ...(form.applicationCounts ?? {}), accepted: 1 } },
+        [weekPath("w02")]: { ...quietSeed()[weekPath("w02")], published: true, ready: true },
+      }),
+    );
+    const before = everything();
+    const answer = await step("claudia", { action: "move", index: 1, direction: "up" });
+    assert.deepEqual([answer.status, answer.body.error], [409, words.WEEK_ONE_FIXED]);
+    assert.equal(everything(), before);
   });
 
   test("one tick, one answer, one pick: weeks stay, a break or a week at the end can still be added", async () => {
@@ -362,14 +385,21 @@ describe("3. weeks and breaks move or go only while nothing is kept against the 
     const group = { runId: RUN.agi, courseId: COURSE.agi, name: "Group A", archived: false, facilitatorUids: [], session: { weekday: 3, startTimeLocal: "18:00", durationMinutes: 90 } };
     for (const [label, over] of [
       ["copy", { [`courseGroups/ga/weeks/w02`]: { weekNumber: 2, title: "Group A's own" } }],
-      ["override", { "courseGroups/ga": { ...group, sessionOverrides: { w02: { location: "Room 2" } } } }],
+      ["change", { "courseGroups/ga": { ...group, sessionOverrides: { w02: { location: "Room 2" } } } }],
       ["mode", { "courseGroups/ga": { ...group, sessionModes: { w03: "virtual" } } }],
       ["change", { "courseGroups/ga": { ...group, sessionChanges: { w03: { kind: "cancelled" } } } }],
-      ["pace", { "courseGroups/ga": { ...group, paceWeekPlan: SIX } }],
+      ["calendar", { "courseGroups/ga": { ...group, paceWeekPlan: SIX } }],
     ]) {
       w.reset(quietSeed({ "courseGroups/ga": group, ...over }));
-      await heldWith(words.doneGroupWords("Group A"));
-      assert.ok(label);
+      await heldWith(words.doneGroupWords("Group A", label));
+    }
+    // A reminder before one of its sessions, kept by the scheduler for the group.
+    w.reset(quietSeed({ "courseGroups/ga": group, "schedulerMarkers/weekremind__ga__w01__amara__3": { groupId: "ga", sessionKey: "w01", uid: "amara", daysBefore: "3" } }));
+    await heldWith(words.DONE_RECORDS);
+    // The run's own fields that name a week.
+    for (const over of [{ teamHandIn: { dueOn: null, showcaseWeek: 4 } }, { submissionExerciseRef: { weekId: "w02", exerciseId: "x" } }]) {
+      w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], ...over } }));
+      await heldWith(words.DONE_RECORDS);
     }
   });
 
@@ -381,7 +411,16 @@ describe("3. weeks and breaks move or go only while nothing is kept against the 
       }),
     );
     await heldWith(words.DONE_WEEK_ONE);
-    // Ready but decisions not sent: nobody holds a place yet, so weeks move.
+    // A decision day that stopped part way: somebody told, the form not stamped. Week 1 is open to them.
+    const form = quietSeed()[FORM];
+    w.reset(
+      quietSeed({
+        [FORM]: { ...form, decisionsSentAt: null, applicationCounts: { ...(form.applicationCounts ?? {}), accepted: 1 } },
+        [weekPath("w01")]: { weekNumber: 1, title: "What’s at stake", published: true, ready: true },
+      }),
+    );
+    await heldWith(words.DONE_WEEK_ONE);
+    // Ready, and nobody told anything yet: nobody holds a place, so weeks move.
     w.reset(quietSeed({ [weekPath("w01")]: { weekNumber: 1, title: "What’s at stake", published: true, ready: true } }));
     assert.equal((await step("claudia", RESHAPES[0])).status, 200);
   });
@@ -489,44 +528,134 @@ describe("5. two changes at once", () => {
 // 6. A plan the older editor left with a week at another's address
 // ---------------------------------------------------------------------------
 
-describe("6. a drifted plan is put right by any change, and only while nothing is kept against it", () => {
-  const DRIFTED = [
-    { kind: "week", weekNumber: 1, weekId: "w02" },
-    { kind: "week", weekNumber: 2, weekId: "w01" },
-    week(3),
-  ];
+describe("6. a plan out of step with its pages, and pages after its last week: never a dead end before groups go out", () => {
+  // The older builder's Remove of week 2 from [w01, w02, w03, w04]: the plan
+  // lists [w01, w03, w04] and leaves w02 where it was.
+  const REMOVED = [week(1), { kind: "week", weekNumber: 2, weekId: "w03" }, { kind: "week", weekNumber: 3, weekId: "w04" }];
+  /** What the first hand-over asks of a draft run's plan, as it stands now. */
+  const handOver = () => draftExit.draftExitBlocker("draft", "running", plan(), true);
+  const outOfStep = (over = {}) => quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: REMOVED }, ...over });
 
-  test("adding a break moves each week to its own number's address, as the older editor's plan arranged it", async () => {
-    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: DRIFTED } }));
-    const answer = await step("zach", { action: "add-break", afterWeek: 3, label: "Reading week" });
-    assert.equal(answer.status, 200, JSON.stringify(answer.body));
-    assert.deepEqual(plan(), [week(1), week(2), week(3), { kind: "break", label: "Reading week" }]);
-    assert.equal(titleAt("w01"), "How fast");
-    assert.equal(titleAt("w02"), "What’s at stake");
-    assert.equal(historyAt("w01").length, 2);
-  });
-
-  test("with something kept against the weeks, the plan cannot change here", async () => {
-    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: DRIFTED }, [`courseProgress/${RUN.agi}__a__i`]: { runId: RUN.agi, completed: true } }));
-    const before = everything();
-    const answer = await step("zach", { action: "add-week" });
-    assert.deepEqual([answer.status, answer.body.error], [409, words.DRIFTED_AND_DONE]);
-    assert.equal(everything(), before);
+  test("out of step: no step but Match the plan to the pages, a true line, and the hand-over names that press", async () => {
+    w.reset(outOfStep());
     const page = await draw("zach", TabPage, PARAMS);
-    assert.ok(page.text.includes(words.DRIFTED_AND_DONE), page.text);
+    assert.ok(page.text.includes(words.MATCH_PAGES), page.text);
+    assert.ok(page.text.includes(words.OUT_OF_STEP_LINE), page.text);
+    for (const control of [words.MOVE_UP, words.MOVE_DOWN, words.REMOVE_ASK, words.ADD_A_WEEK, words.ADD_A_BREAK]) {
+      assert.ok(!page.text.includes(control), `${control} is offered on a plan out of step`);
+    }
+    for (const body of [{ action: "add-week" }, { action: "add-break", afterWeek: 1, label: "Reading week" }, { action: "move", index: 0, direction: "down" }, { action: "remove", index: 1 }]) {
+      const answer = await step("zach", body);
+      assert.deepEqual([answer.status, answer.body.error], [409, words.OUT_OF_STEP], JSON.stringify(body));
+    }
+    assert.match(handOver(), /Press Match the plan to the pages on the programme’s Weeks tab first: it moves no page and deletes nothing\.$/);
   });
 
-  test("a page at an address no week of the plan uses is never written over", async () => {
-    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [{ kind: "week", weekNumber: 1, weekId: "w05" }, week(2)] }, [weekPath("w05")]: { weekNumber: 1, title: "Five" } }));
+  test("matching moves no page and deletes nothing, and then the hand-over goes ahead", async () => {
+    w.reset(outOfStep());
+    const pages = () => world.db.paths().filter((path) => path.includes("/weeks/")).sort().map((path) => [path, world.db.read(path)]);
+    const before = pages();
+    const answer = await step("lloyd", { action: "match-pages" });
+    assert.equal(answer.status, 403);
+    const matched = await step("claudia", { action: "match-pages" });
+    assert.deepEqual(matched.body, { ok: true, message: words.MATCHED });
+    assert.deepEqual(plan(), [week(1), week(2), week(3)]);
+    assert.deepEqual(pages(), before, "matching moved or deleted a page");
+    assert.equal(handOver(), null);
+    const again = await step("claudia", { action: "match-pages" });
+    assert.deepEqual([again.status, again.body.error], [409, words.ALREADY_MATCHES]);
+  });
+
+  test("matching is safe with work kept against the weeks, which no other step is", async () => {
+    w.reset(outOfStep({ [`courseProgress/${RUN.agi}__a__i`]: { runId: RUN.agi, completed: true }, "courseGroups/ga/weeks/w02": { weekNumber: 2 } }));
+    assert.equal((await step("zach", { action: "match-pages" })).status, 200);
+    assert.equal(handOver(), null);
+  });
+
+  test("a page left after the last week: put it back, and the hand-over is never held by it", async () => {
+    w.reset(outOfStep());
+    await step("zach", { action: "match-pages" });
+    // w04 now sits after week 3, holding its title only.
+    let page = await draw("zach", TabPage, PARAMS);
+    assert.ok(page.text.includes(words.leftBehindWords("Where it could go wrong")), page.text);
+    assert.ok(page.text.includes(words.putBackWords(4)) && page.text.includes(words.REMOVE_LEFT), page.text);
+    assert.ok(page.text.includes(words.PLAN_CAN_CHANGE), page.text);
+    assert.equal(handOver(), null);
+    const back = await step("zach", { action: "put-back", address: "w04" });
+    assert.deepEqual(back.body, { ok: true, message: words.putBackDoneWords(4) });
+    assert.deepEqual(plan(), [week(1), week(2), week(3), week(4)]);
+    assert.equal(titleAt("w04"), "Where it could go wrong");
+    page = await draw("zach", TabPage, PARAMS);
+    assert.ok(!page.text.includes(words.leftBehindWords("Where it could go wrong")), page.text);
+  });
+
+  test("a left page holding only its title, with nothing kept: removed, and nothing else", async () => {
+    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [week(1), week(2), week(3)] } }));
     const before = everything();
-    const answer = await step("zach", { action: "add-week" });
-    assert.deepEqual([answer.status, answer.body.error], [409, words.addressTakenWords(1)]);
-    assert.equal(everything(), before);
+    const answer = await step("claudia", { action: "remove-left", address: "w04" });
+    assert.deepEqual(answer.body, { ok: true, message: words.LEFT_REMOVED });
+    assert.equal(world.db.read(weekPath("w04")), undefined);
+    assert.equal(JSON.parse(everything()).length, JSON.parse(before).length - 1);
   });
 
-  test("the hand-over's sentence for a drifted plan names that press", () => {
-    const draftExit = readFileSync(join(ROOT, "src", "lib", "courses", "draftExit.ts"), "utf8");
-    assert.match(draftExit, /Change the plan once on the programme’s Weeks tab first: any change there puts every week at its own number’s address\./);
+  test("a left page with blocks is put back, never removed; further on, it moves to the next week's address", async () => {
+    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [week(1)] } }));
+    // After week 1: w02 (blocks, saved versions), w03 and w04 (titles).
+    const page = await draw("zach", TabPage, PARAMS);
+    assert.ok(page.text.includes(words.leftBehindWords("How fast")), page.text);
+    const refused = await step("zach", { action: "remove-left", address: "w02" });
+    assert.deepEqual([refused.status, refused.body.error], [409, words.leftHoldsSomething(2)]);
+    const later = await step("zach", { action: "put-back", address: "w04" });
+    assert.deepEqual([later.status, later.body.error], [409, words.putBackEarlierFirst(2)]);
+    assert.equal((await step("zach", { action: "put-back", address: "w02" })).status, 200);
+    assert.equal(historyAt("w02").length, 2);
+    // w03 next, then w04: each the next week's own address.
+    assert.equal((await step("zach", { action: "remove-left", address: "w03" })).status, 200);
+    const saves = historyAt("w02").length;
+    const moved = await step("zach", { action: "put-back", address: "w04" });
+    assert.deepEqual(moved.body, { ok: true, message: words.putBackDoneWords(3) });
+    assert.equal(titleAt("w03"), "Where it could go wrong");
+    assert.equal(world.db.read(weekPath("w04")), undefined);
+    assert.equal(historyAt("w02").length, saves);
+  });
+
+  test("with work kept: a left page further on is reached with Add a week, in words that say so", async () => {
+    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [week(1), week(2)] }, [`courseProgress/${RUN.agi}__a__i`]: { runId: RUN.agi, completed: true } }));
+    await world.db.collection(`${RUN_PATH}/weeks`).doc("w03").delete();
+    const page = await draw("zach", TabPage, PARAMS);
+    assert.ok(page.text.includes(words.putBackByAdding(4)), page.text);
+    assert.ok(!page.text.includes(words.REMOVE_LEFT), page.text);
+    const refused = await step("zach", { action: "put-back", address: "w04" });
+    assert.deepEqual([refused.status, refused.body.error], [409, words.putBackByAdding(4)]);
+    // The words are true: Add a week twice, and week 4 is the page.
+    assert.equal((await step("zach", { action: "add-week" })).status, 200);
+    const added = await step("zach", { action: "add-week" });
+    assert.deepEqual(added.body, { ok: true, message: words.weekAddedWords(4, true) });
+    assert.equal(titleAt("w04"), "Where it could go wrong");
+  });
+
+  test("with a group's copy, or a guide plan loaded for its number: put back as the next week, the guide untouched", async () => {
+    for (const over of [
+      { "courseGroups/ga": { runId: RUN.agi, name: "Group A", archived: false }, "courseGroups/ga/weeks/w04": { weekNumber: 4 } },
+      { [`courseFacilitatorGuide/${COURSE.agi}__w04-plan`]: { courseId: COURSE.agi, slot: "w04-plan", title: "Plan", blocks: [] } },
+    ]) {
+      w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [week(1), week(2), week(3)] }, ...over }));
+      const before = JSON.stringify(Object.keys(over).map((path) => world.db.read(path)));
+      const answer = await step("zach", { action: "put-back", address: "w04" });
+      assert.equal(answer.status, 200, JSON.stringify(answer.body));
+      assert.equal(JSON.stringify(Object.keys(over).map((path) => world.db.read(path))), before);
+    }
+  });
+
+  test("after the groups have gone out: read only, nothing offered, nothing taken", async () => {
+    w.reset(outOfStep({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: REMOVED, allocationPublishedAt: NOW } }));
+    const page = await draw("zach", TabPage, PARAMS);
+    assert.ok(page.text.includes(words.WEEK_PLAN_READ_ONLY), page.text);
+    assert.ok(!page.text.includes(words.MATCH_PAGES), page.text);
+    for (const body of [{ action: "match-pages" }, { action: "put-back", address: "w05" }]) {
+      const answer = await step("zach", body);
+      assert.deepEqual([answer.status, answer.body.error], [409, words.WEEK_PLAN_READ_ONLY]);
+    }
   });
 });
 
@@ -614,7 +743,12 @@ describe("7. the list offers each control only where the route would take it", (
 describe("8. the older builder on a run a programme names is words pointing to the Weeks tab", () => {
   test("the run editor draws the builder only for a run no programme names", () => {
     const editor = readFileSync(join(ROOT, "src", "features", "courses", "RunEditor.tsx"), "utf8");
-    assert.match(editor, /\{groupPagesAt \? \(\s*<p className=\{styles\.hint\}>\s*\{WEEK_PLAN_ON_WEEKS\}\{" "\}\s*<Link href=\{`\$\{programmePath\(groupPagesAt\.roundId, groupPagesAt\.programmeId\)\}\/weeks`\}>\{OPEN_WEEKS\}<\/Link>\s*<\/p>\s*\) : \(\s*<WeekPlanBuilder/);
+    // The builder sits in the run-no-programme-names branch, after the words and their link.
+    const branch = editor.indexOf("{groupPagesAt ? (");
+    const words_ = editor.indexOf("{WEEK_PLAN_ON_WEEKS}", branch);
+    const link = editor.indexOf("/weeks`}>{OPEN_WEEKS}</Link>", branch);
+    const builder = editor.indexOf("<WeekPlanBuilder", branch);
+    assert.ok(branch > 0 && branch < words_ && words_ < link && link < builder, "the run editor draws the builder for a run a programme names");
     assert.equal((editor.match(/<WeekPlanBuilder/g) ?? []).length, 1, "the builder is drawn somewhere else too");
   });
 });
@@ -624,15 +758,13 @@ describe("8. the older builder on a run a programme names is words pointing to t
 // ---------------------------------------------------------------------------
 
 /**
- * The collections whose rows name a week (by its number or its address) that
- * the owner's rule does not count, and why each need not be. A collection
- * named by a file in src/lib/firestore that stores a week must be counted by
- * the rule (`WORK_COLLECTIONS`, `RECORD_COLLECTIONS`) or be here.
+ * The collections whose rows name a week (by its number, its address or a
+ * session's key) that the owner's rule does not count, and why each need not
+ * be. Every collection declared anywhere under src/lib, by a file that names
+ * a week, is counted by the rule (`WORK_COLLECTIONS`, `RECORD_COLLECTIONS`,
+ * the session markers) or is here.
  */
 const NOT_COUNTED = {
-  courseRuns: "the run and its weeks themselves: the route reads and moves them",
-  courseGroups: "read whole by the rule: a group's own copy of a week, a change to one week, how a week meets and its own calendar each hold the weeks",
-  courseEnrolments: "read whole by the rule: a one-week visit, a move from a week and an answer about the time each hold the weeks",
   courseAudit: "the course log: a dated line of what was done, naming a week as it was then, never read to find a week",
   courseFeedbackSends: "who pressed Send on a run's feedback and when; the feedback itself is counted (courseFeedback)",
   courseTemplates: "a course's saved templates, kept on the course and copied into a run, never read by a run's week",
@@ -642,34 +774,65 @@ const NOT_COUNTED = {
   surveys: "a survey names a week only in a check-in's audience, which opens once a session has met; each such week is counted by checkInWeeks",
   surveyPeople: "who a survey is for, by survey, never by week",
   surveyAnswers: "answers to a survey, by survey, never by week",
+  courseTeams: "a team names the pitching week only through the pitches it is made from, which are counted (coursePitches)",
+  memberNotes:
+    "a note names a week only when it is kept from that week's end-of-week notes, which are drafted once every group has met that week, after the groups have gone out, when the plan is read only",
+};
+
+/** Rows that name a week with no collection constant of their own, by the literal their readers use, and how the rule reads them. */
+const LITERALS = {
+  courseProgress: "counted",
+  courseExerciseResponses: "counted",
+  courseAttendance: "counted",
+  tasks: "counted",
+  courseEnrolments: "read whole by the rule: a one-week visit, a move from a week and an answer about the time each hold the weeks",
+  courseGroups: "read whole by the rule: a group's own copy of a week, a change to one week, how a week meets and its own calendar each hold the weeks",
+  courseRuns: "the run and its weeks themselves, which the route reads and moves, and the run's own week fields (runWeekFields)",
 };
 
 describe("9. every collection that stores a week is counted, or says why it need not be", () => {
-  test("in both directions", () => {
-    const dir = join(ROOT, "src", "lib", "firestore");
+  test("in both directions, across src/lib", () => {
     const named = new Set();
-    for (const file of readdirSync(dir).filter((name) => name.endsWith(".ts"))) {
-      const code = readFileSync(join(dir, file), "utf8");
-      // A week's address, its number, or a week named by number ("opensInWeek").
-      if (!/\bweekId\b|\bweekNumber\b|\bweekDocId\b|InWeek\b/.test(code)) continue;
+    for (const file of walkSource(join(ROOT, "src", "lib"))) {
+      if (!/\.tsx?$/.test(file)) continue;
+      const code = readFileSync(file, "utf8");
+      // A week's address, its number, a week named by number ("opensInWeek") or a session's key ("w03").
+      if (!/\bweekId\b|\bweekNumber\b|\bweekDocId\b|InWeek\b|\bsessionKey\b/.test(code)) continue;
       for (const [, name] of code.matchAll(/export const [A-Z_]+_COLLECTION = "([A-Za-z]+)"/g)) named.add(name);
     }
-    // Rows that name a week with no constant of their own, by the literal the readers use.
-    for (const name of ["courseProgress", "courseExerciseResponses", "courseAttendance", "courseEnrolments", "courseGroups", "courseRuns", "tasks"]) named.add(name);
+    for (const name of Object.keys(LITERALS)) named.add(name);
     const counted = new Set([...kept.WORK_COLLECTIONS, ...kept.RECORD_COLLECTIONS].map(([collection]) => collection));
-    const missing = [...named].filter((name) => !counted.has(name) && !Object.hasOwn(NOT_COUNTED, name)).sort();
+    // The scheduler's markers carry no run: those of the run's groups that name a session are counted.
+    counted.add("schedulerMarkers");
+    const accounted = (name) => counted.has(name) || Object.hasOwn(NOT_COUNTED, name) || (Object.hasOwn(LITERALS, name) && LITERALS[name] !== "counted");
+    const missing = [...named].filter((name) => !accounted(name)).sort();
     assert.deepEqual(missing, [], "a collection that stores a week is neither counted by the week plan's rule nor written down here with why");
-    for (const [name, why] of Object.entries(NOT_COUNTED)) {
+    for (const [name, why] of Object.entries({ ...NOT_COUNTED, ...LITERALS })) {
+      if (why === "counted") {
+        assert.ok(counted.has(name), `${name} is said to be counted and is not`);
+        continue;
+      }
       assert.ok(why.length > 30, `${name} needs its reason`);
       assert.ok(!counted.has(name), `${name} is counted and also written down as not counted`);
     }
-    // Counted collections kept outside src/lib/firestore, each by the file that says it stores a week.
-    const elsewhere = {
-      courseBestAnswers: join(ROOT, "src", "lib", "courses", "coursework", "bestAnswers.ts"),
-      coursePangramChecks: join(ROOT, "src", "lib", "courses", "coursework", "pangram.ts"),
-    };
-    for (const file of Object.values(elsewhere)) assert.match(readFileSync(file, "utf8"), /\bweekId\b/, `${file} no longer stores a week`);
-    for (const name of counted) assert.ok(named.has(name) || Object.hasOwn(elsewhere, name), `${name} is counted but no file says it stores a week`);
+    for (const name of counted) assert.ok(named.has(name), `${name} is counted but no file says it stores a week`);
+    const factsCode = readFileSync(join(ROOT, "src", "lib", "courses", "weekPlanEdit", "facts.ts"), "utf8");
+    assert.match(factsCode, /countSessionMarkers\(db, groupDocs\.map\(\(group\) => group\.ref\.id\), tx\)/);
+  });
+
+  test("the run's own fields that name a week are each read by the rule", () => {
+    const fields = /export function runWeekFields\(run: CourseRunDoc\): boolean \{\s*return (.*);\s*\}/.exec(readFileSync(join(ROOT, "src", "lib", "courses", "weekPlanEdit", "facts.ts"), "utf8"));
+    assert.ok(fields, "runWeekFields is not one line the guard can read");
+    for (const field of ["submissionExerciseRef?.weekId", "teamHandIn.showcaseWeek"]) assert.ok(fields[1].includes(field), field);
+  });
+
+  test("the older Normalise week ids refuses a run a programme names, and points to the Weeks tab", async () => {
+    const normalise = await courseRoute("runs", "[runId]", "normalise-weeks");
+    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: [week(2), week(1)] } }));
+    const before = everything();
+    const answer = await call("zach", normalise.POST, { runId: RUN.agi }, { body: {}, course: true });
+    assert.deepEqual([answer.status, answer.body.error], [409, words.NAMED_RUN_PLAN]);
+    assert.equal(everything(), before);
   });
 
   test("a week's address holds the two subcollections the destroy cascade knows, and no other", () => {
@@ -677,5 +840,76 @@ describe("9. every collection that stores a week is counted, or says why it need
     const deletion = readFileSync(join(ROOT, "src", "lib", "firestore", "courseDeletion.ts"), "utf8");
     assert.match(deletion, /countAgg\(weeks\.doc\(id\)\.collection\(WEEK_HISTORY_SUBCOLLECTION\)\)/);
     assert.match(deletion, /countAgg\(weeks\.doc\(id\)\.collection\(WEEK_LOCK_SUBCOLLECTION\)\)/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. What a change says to people outside the plan, and the words' limits
+// ---------------------------------------------------------------------------
+
+describe("10. what a move tells its reader, and the sentences that are true in each state", () => {
+  const BREAK_FIRST = [{ kind: "break", label: "Induction" }, ...SIX];
+
+  test("a break moved past week 1 once decision day has begun: its question says first sessions move and people see the new dates", async () => {
+    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], weekPlan: BREAK_FIRST }, [FORM]: { ...quietSeed()[FORM], decisionsSentAt: new Date("2026-11-01T09:00:00Z") } }));
+    const drawn = (await draw("zach", TabPage, PARAMS)).element;
+    const plan_ = JSON.stringify(drawn);
+    assert.ok(plan_.includes(words.FIRST_SESSIONS_MOVE), "the break's move does not say first sessions move");
+    assert.ok(plan_.includes(words.NOBODY_EMAILED));
+    // The route takes it, as the start date itself may still change until groups go out.
+    assert.equal((await step("zach", { action: "move", index: 0, direction: "down" })).status, 200);
+  });
+
+  test("the words are said only in those states", () => {
+    const change = model.applyStep(BREAK_FIRST, { kind: "move", index: 0, direction: "down" }).change;
+    assert.deepEqual(view.noticesOf(BREAK_FIRST, change, { decisionDayBegun: false, showcase: false }), []);
+    assert.deepEqual(view.noticesOf(BREAK_FIRST, change, { decisionDayBegun: true, showcase: false }), [words.FIRST_SESSIONS_MOVE, words.NOBODY_EMAILED]);
+    // A break below week 1 moves no first session; on the showcase run a renumbering changes the public pages.
+    const swap = model.applyStep(SIX, { kind: "move", index: 2, direction: "down" }).change;
+    assert.deepEqual(view.noticesOf(SIX, swap, { decisionDayBegun: true, showcase: false }), []);
+    assert.deepEqual(view.noticesOf(SIX, swap, { decisionDayBegun: false, showcase: true }), [words.PUBLIC_PAGES_CHANGE, words.NOBODY_EMAILED]);
+    const breakDown = model.applyStep([...SIX.slice(0, 2), { kind: "break", label: "Reading week" }, ...SIX.slice(2)], { kind: "move", index: 2, direction: "down" }).change;
+    assert.deepEqual(view.noticesOf(SIX, breakDown, { decisionDayBegun: false, showcase: true }), []);
+  });
+
+  test("on the course's showcase run, a move that renumbers says the public week pages change", async () => {
+    w.reset(quietSeed({ [RUN_PATH]: { ...quietSeed()[RUN_PATH], status: "applications-open" } }));
+    world.db.poke(`courses/${COURSE.agi}`, { showcaseRunId: RUN.agi });
+    const drawn = JSON.stringify((await draw("zach", TabPage, PARAMS)).element);
+    assert.ok(drawn.includes(words.PUBLIC_PAGES_CHANGE));
+  });
+
+  test("the line under the list: weeks can move only where a move or a removal is offered", async () => {
+    // Every week held by the guide: nothing moves or goes, a break or a week at the end can be added.
+    for (let n = 1; n <= 6; n += 1) world.db.seed(`courseFacilitatorGuide/${COURSE.agi}__w0${n}-plan`, { courseId: COURSE.agi, slot: `w0${n}-plan`, title: "Plan", blocks: [] });
+    const page = await draw("zach", TabPage, PARAMS);
+    assert.ok(page.text.includes(words.ADD_ONLY_LINE), page.text);
+    assert.ok(!page.text.includes(words.PLAN_CAN_CHANGE), page.text);
+  });
+
+  test("too much to move by size is said by size, never as a count of none", async () => {
+    world.db.seed(historyPath("w02", "s000003"), { seq: 3, kind: "edit", blocks: [], body: "x".repeat(8_100_000) });
+    const answer = await step("zach", { action: "move", index: 0, direction: "down" });
+    assert.deepEqual([answer.status, answer.body.error], [409, words.tooBigWords(null)]);
+    assert.doesNotMatch(answer.body.error, /\d/);
+    assert.equal(words.tooBigWords(1234), "That would move 1,234 saved versions at once, more than one change can carry. Leave the weeks where they are, or add a break instead.");
+  });
+
+  test("every refusal names something the reader can do", () => {
+    const refusals = [
+      words.guideHolds(3),
+      words.tooBigWords(null),
+      words.OUT_OF_STEP,
+      words.putBackByAdding(5),
+      words.leftHoldsSomething(4),
+      words.WEEK_ONE_FIXED,
+      words.DONE_WORK,
+      words.DONE_RECORDS,
+      words.doneGroupWords("Group A", "mode"),
+    ];
+    for (const said of refusals) assert.match(said, /Leave|Press|Put it back|Move or remove|can still be added/, said);
+    for (const said of Object.values(words).filter((value) => typeof value === "string")) {
+      assert.doesNotMatch(said, /\bdrift|\bnormalis|\bids?\b|\borphan/i, said);
+    }
   });
 });

@@ -407,7 +407,7 @@ describe("3. the status route: Draft to Running, the step through Running, no wa
     assert.equal(answer.status, 409);
     // CHANGED ON PURPOSE (the week plan on the Weeks tab): the run is named by
     // a programme, so the sentence sends the reader to its Weeks tab.
-    assert.match(answer.body.error, /Change the plan once on the programme’s Weeks tab first: any change there puts every week at its own number’s address\.$/);
+    assert.match(answer.body.error, /Press Match the plan to the pages on the programme’s Weeks tab first: it moves no page and deletes nothing\.$/);
     assert.equal(everything(), before);
   });
 

@@ -35,6 +35,19 @@ export type PlanStep =
 /** One week of the plan after a step: its number, the address that number says, and where its document is stored now. */
 export type PlannedWeek = { weekNumber: number; target: string; source: string | null };
 
+/**
+ * Everything the route takes: a step of the plan, or one of the three that
+ * put a plan the older builder left back in step with its pages: match the
+ * plan to the pages (its addresses rewritten, nothing moved or deleted), put
+ * a page left after the last week back as a week at the end, and remove such
+ * a page when it holds no more than its title and settings.
+ */
+export type PlanAction =
+  | PlanStep
+  | { kind: "match-pages" }
+  | { kind: "put-back"; address: string }
+  | { kind: "remove-left"; address: string };
+
 /** What a step makes of a plan. */
 export type PlanChange = {
   /** The new plan, every week's `weekId` its own number's address. */
@@ -65,7 +78,7 @@ export function planKeyOf(plan: readonly WeekPlanEntry[]): string {
 }
 
 /** A request's body as a step and the drawing it was made on, or what is wrong with it. */
-export function planStepOf(raw: unknown): { ok: true; step: PlanStep; planKey: string } | { ok: false } {
+export function planStepOf(raw: unknown): { ok: true; step: PlanAction; planKey: string } | { ok: false } {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false };
   const body = raw as Record<string, unknown>;
   const planKey = typeof body.planKey === "string" && body.planKey.length <= 10_000 ? body.planKey : null;
@@ -85,6 +98,12 @@ export function planStepOf(raw: unknown): { ok: true; step: PlanStep; planKey: s
     case "remove":
       if (index === null) return { ok: false };
       return { ok: true, step: { kind: "remove", index }, planKey };
+    case "match-pages":
+      return { ok: true, step: { kind: "match-pages" }, planKey };
+    case "put-back":
+    case "remove-left":
+      if (typeof body.address !== "string" || !/^w\d\d$/.test(body.address)) return { ok: false };
+      return { ok: true, step: { kind: body.action, address: body.address }, planKey };
     default:
       return { ok: false };
   }
@@ -194,4 +213,14 @@ export function planHasDrifted(plan: readonly WeekPlanEntry[]): boolean {
     if (entry.weekId !== weekDocId(n)) return true;
   }
   return false;
+}
+
+/** The plan with every week at its own number's address, in the same order, with the same breaks: nothing else changes. */
+export function matchedPlan(plan: readonly WeekPlanEntry[]): WeekPlanEntry[] {
+  let n = 0;
+  return plan.map((entry) => {
+    if (entry.kind !== "week") return entry;
+    n += 1;
+    return { kind: "week", weekNumber: n, weekId: weekDocId(n) };
+  });
 }
