@@ -3295,7 +3295,9 @@ they already open; nothing under `/admin/courses` is needed.
 - **People in groups, a person's panel**: every name on the board (a card,
   somebody invited, a facilitator in a column's head, a name in "Gave their
   place back") opens a panel beside the board, which then scrolls sideways
-  inside itself; on a narrow screen it is a sheet over the page. Its one
+  inside itself; on a narrow screen it is a sheet over the page, which is
+  dimmed behind it. Closing it gives the focus back to the name that opened
+  it, or to the person's name where it is now, or to the board. Its one
   read is `GET .../programmes/[programmeId]/panel` (`loadBoardPanel` in
   `src/lib/applications/handover/boardPanel.ts`), made only once a panel is
   first opened and again when a group or its time changes, behind the Groups
@@ -3320,13 +3322,19 @@ they already open; nothing under `/admin/courses` is needed.
   group"), "Placing" for somebody to place, "Offered to facilitate." or
   "Didn’t offer to facilitate." where the reader may read the application,
   and for an admin alone "Claude and Pangram" marked "Only admins see this".
+  Under the week, "Admins and AGI Strategy’s lead see this. Facilitators
+  never do."; an admin looking at somebody whose application the programme's
+  lead may not read (the person neither ranked the programme nor accepted
+  its invitation, `programmeLeadReadsWeek`) is told "Only admins see this."
+  instead, and the lead is never sent which.
   A facilitator who holds a place is told why they can't be moved, with
   "Stop facilitating Group C"; somebody invited, that they can't be placed
   until they accept; somebody who gave their place back, their reason and
   their page. Every move is the card's own (the allocate route with every
   refusal it has, and the mid-term question once the groups have gone out);
-  "Take off the run…" opens the take-off sheet; "Stop facilitating" asks in
-  the browser and is the facilitators route, which emails nobody. The panel
+  "Take off the run…" opens the take-off sheet; "Stop facilitating" reads
+  the group's facilitators as they are now, asks in the browser, and sends
+  that list without them to the facilitators route, which emails nobody. The panel
   sends nothing of its own and stores nothing. With no panel open the board
   is as it was. A card's menu leaves out the group the card is in, and a
   failed load says "The groups couldn’t be loaded. Check your connection."

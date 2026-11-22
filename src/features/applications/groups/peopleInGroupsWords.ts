@@ -303,5 +303,20 @@ export function theirReasonWords(reason: string): string {
 export const CLOSE_PANEL = "Close";
 /** While the panel's read of when people are free is on its way. */
 export const PANEL_LOADING = "Loading when they’re free…";
-/** The panel's read of when people are free did not come back. */
+/** The panel's read of when people are free did not come back: no connection, or the server failed. */
 export const PANEL_FAILED = "When they’re free couldn’t be loaded. Check your connection.";
+
+/**
+ * Why the panel's read did not come back, from its status, as the board says
+ * it: signed out, or no longer this programme's lead (the read answers a role
+ * that has gone as a 403, or as a 404 like a programme that is not there);
+ * anything else, `PANEL_FAILED`.
+ */
+export function panelFailedWords(status: number | undefined): string {
+  if (status === 401) return loadFailedWords(401);
+  if (status === 403 || status === 404) return loadFailedWords(403);
+  return PANEL_FAILED;
+}
+
+/** Under a week only admins may see: the programme's lead may not read this person's application. */
+export const ADMINS_ONLY_FOOT = "Only admins see this.";

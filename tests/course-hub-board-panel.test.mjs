@@ -58,7 +58,9 @@ mock.timers.enable({ apis: ["Date"], now: new Date("2026-11-17T12:00:00Z") });
 
 const w = await makePeopleWorld("__boardPanelSuite");
 const route = await w.formRoute("programmes", "[programmeId]", "panel");
-const BoardPersonPanel = (await w.loadTs(join("features", "applications", "groups", "BoardPersonPanel.tsx"))).default;
+const panelModule = await w.loadTs(join("features", "applications", "groups", "BoardPersonPanel.tsx"));
+const BoardPersonPanel = panelModule.default;
+const { focusAfterPanel } = await w.loadTs(join("features", "applications", "groups", "panelFocus.ts"));
 const words = await w.loadTs(join("features", "applications", "groups", "peopleInGroupsWords.ts"));
 const boardParts = await w.loadTs(join("features", "applications", "groups", "peopleInGroupsBoard.ts"));
 const PROGRAMME = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]");
@@ -70,7 +72,7 @@ const ADMINS_ONLY = {
   claudeStrength: "Asks sharp questions about the harbour.",
   claudeConcern: "Little said about the keepers' pay.",
 };
-/** Saturday mornings: Sofia's week, on her application to Technical AI Safety alone. Nobody else marked a weekend. */
+/** Saturday mornings: Sofia's week, on an application to Technical AI Safety alone. Nobody else marked a weekend. */
 const SOFIA_WEEK = week({ 6: [["10:00", "11:30"]] });
 /** Sunday afternoons: Ines's week. */
 const INES_WEEK = week({ 0: [["15:00", "16:30"]] });
@@ -214,6 +216,34 @@ describe("2. what the lead is never sent", () => {
     }
   });
 
+  test("somebody who never applied on the form: the lead's answer is the one for a week they may not read, and an admin's says nothing of a week", async () => {
+    await world();
+    const lead = (await ask("claudia")).body.panel;
+    // Rahul and Tom facilitate with no application on the form; Sofia applied to another programme alone.
+    assert.deepEqual(lead.people.sofia, { week: { kind: "may-not" } });
+    for (const uid of ["rahul", "tom"]) {
+      assert.deepEqual(lead.people[uid], lead.people.sofia, `the lead can tell ${uid} never applied from Sofia, who applied elsewhere`);
+      assert.equal(JSON.stringify(lead.people[uid]), JSON.stringify(lead.people.sofia));
+    }
+    const admin = (await ask("zach")).body.panel;
+    for (const uid of ["rahul", "tom"]) {
+      assert.deepEqual(admin.people[uid], {}, `an admin is told something about ${uid}'s week`);
+      const drawn = draw({ subject: { kind: "facilitator", uid, facilitates: [] }, name: "Rahul Mehta", read: readOf(admin) });
+      assert.ok(!drawn.text.includes("When they’re free"), `an admin is drawn a week section for ${uid}`);
+    }
+  });
+
+  test("an admin is told whether the programme's lead sees each week; the lead is never sent it", async () => {
+    await world();
+    const admin = (await ask("zach")).body.panel;
+    // Amara ranked AGI Strategy, so its lead reads Amara's week; Sofia applied to Technical AI Safety alone.
+    assert.equal(admin.people.amara.leadSees, true);
+    assert.equal(admin.people.sofia.leadSees, false);
+    assert.ok(!("leadSees" in admin.people.zach), "an admin is told about their own week");
+    const lead = (await ask("claudia")).body.panel;
+    for (const [uid, person] of Object.entries(lead.people)) assert.ok(!("leadSees" in person), `the lead is sent leadSees for ${uid}`);
+  });
+
   test("the lead's page carries none of it either", async () => {
     await world();
     const drawn = await w.draw(PeoplePage, "claudia", { roundId: ROUND, programmeId: AGI });
@@ -295,6 +325,10 @@ describe("3. the panel in every state", () => {
     const bea = draw({ subject: rowSubject(board, "bea", A), name: "Bea Lindqvist", read: readOf(panel) });
     assert.ok(bea.text.includes("They haven’t said when they’re free, so nothing is shaded."));
     assert.doesNotMatch(bea.html, /class="free"/);
+    // Somebody to place with nothing marked is not told to pick a group on a chart they cannot press.
+    const unplaced = draw({ subject: rowSubject(board, "bea", boardParts.POOL), name: "Bea Lindqvist", read: readOf(panel) });
+    assert.ok(!unplaced.text.includes("Pick a group on the chart"), unplaced.text);
+    assert.doesNotMatch(unplaced.html, /<button[^>]*class="bar/, "a chart with nothing marked is pressable");
   });
 
   test("no longer on file: a row from the form whose application is gone", async () => {
@@ -330,6 +364,9 @@ describe("3. the panel in every state", () => {
     const asAdmin = draw({ subject, name: "Sofia Rossi", read: readOf((await ask("zach")).body.panel) });
     assert.match(asAdmin.html, /class="free"/);
     assert.ok(!asAdmin.text.includes("Only admins see when"));
+    // The programme's lead may not read Sofia's week, so the admin is not told it does.
+    assert.ok(asAdmin.text.includes("Only admins see this."), asAdmin.text);
+    assert.ok(!asAdmin.text.includes("AGI Strategy’s lead see this"), "an admin is told the lead sees a week the lead may not read");
     // Somebody who never applied on the form: an admin is drawn nothing about their week.
     const rahul = draw({ subject: { kind: "facilitator", uid: "rahul", facilitates }, name: "Rahul Mehta", read: readOf((await ask("zach")).body.panel) });
     assert.ok(!rahul.text.includes("When they’re free"), "an admin is told about the week of somebody who never applied");
@@ -356,6 +393,8 @@ describe("3. the panel in every state", () => {
     const drawn = draw({ subject: rowSubject(board, "amara", B), name: "Amara Okafor", read: readOf(panel) });
     assert.match(drawn.text, /Claude and Pangram Only admins see this/);
     for (const marker of Object.values(ADMINS_ONLY)) assert.ok(drawn.text.includes(marker), marker);
+    // Amara ranked AGI Strategy: its lead does see Amara's week, and the admin is told so.
+    assert.ok(drawn.text.includes("Admins and AGI Strategy’s lead see this. Facilitators never do."));
     assert.match(drawn.text, /Pangram: 1 answer worth a look/);
     assert.doesNotMatch(drawn.text, /As a facilitator/, "a rating Claude made for an arrangement is drawn on the board");
   });
@@ -366,6 +405,14 @@ describe("3. the panel in every state", () => {
     assert.ok(loading.text.includes(words.PANEL_LOADING));
     const failed = draw({ subject: { kind: "row", row, columnId: boardParts.POOL, facilitates: [] }, name: "Pat Doe", read: { panel: null, loading: false, failed: true, retry() {} } });
     assert.ok(failed.text.includes("When they’re free couldn’t be loaded. Check your connection. Try again"));
+    assert.ok(!failed.text.includes("Pick a group on the chart"));
+    // A refusal is the board's own sentence for it, never "check your connection".
+    const refused = draw({ subject: { kind: "row", row, columnId: boardParts.POOL, facilitates: [] }, name: "Pat Doe", read: { panel: null, loading: false, failed: true, failedStatus: 403, retry() {} } });
+    assert.ok(refused.text.includes("Only this programme’s lead or an admin can see its groups. Try again"), refused.text);
+    assert.equal(words.panelFailedWords(404), "Only this programme’s lead or an admin can see its groups.");
+    assert.equal(words.panelFailedWords(401), "You’re signed out. Sign in again to see the groups.");
+    assert.equal(words.panelFailedWords(500), words.PANEL_FAILED);
+    assert.equal(words.panelFailedWords(undefined), words.PANEL_FAILED);
   });
 });
 
@@ -373,7 +420,35 @@ describe("3. the panel in every state", () => {
 // 4. Every move is the board's own
 // ---------------------------------------------------------------------------
 
-describe("4. the panel's moves", () => {
+describe("4. the panel's moves, its keys and where the focus goes", () => {
+  test("Escape closes the panel, unless the Move to… menu inside took it first", () => {
+    assert.equal(panelModule.escapeClosesPanel({ key: "Escape", defaultPrevented: false }), true);
+    assert.equal(panelModule.escapeClosesPanel({ key: "Escape", defaultPrevented: true }), false, "Escape in the menu closes the whole panel");
+    assert.equal(panelModule.escapeClosesPanel({ key: "Enter", defaultPrevented: false }), false);
+    // The menu marks the key handled when it closes itself on Escape.
+    assert.match(readFileSync(join(SRC, "components/ui/Dropdown.tsx"), "utf8"), /if \(e\.key === "Escape"\) \{\s*e\.preventDefault\(\);/);
+    assert.match(codeOf("features/applications/groups/BoardPersonPanel.tsx"), /if \(escapeClosesPanel\(event\)\) onClose\(\);/);
+  });
+
+  test("closing the panel gives the focus back to the name that opened it, or the name where it is now, or the board", () => {
+    const target = (connected) => ({ isConnected: connected, focus() {} });
+    const opener = target(true);
+    const moved = target(true);
+    const board = target(true);
+    assert.equal(focusAfterPanel(opener, () => moved, board), opener);
+    // Moved to another column: the card is drawn again, so the name that opened the panel is gone.
+    assert.equal(focusAfterPanel(target(false), () => moved, board), moved);
+    // Taken off the run: their name is on the board no more.
+    assert.equal(focusAfterPanel(target(false), () => null, board), board);
+    assert.equal(focusAfterPanel(null, () => null, target(false)), null);
+    const code = codeOf("features/applications/groups/PeopleInGroups.tsx");
+    assert.match(code, /onClose=\{closePanel\}/);
+    assert.match(code, /querySelector<HTMLElement>\(`\[data-panel-name="\$\{CSS\.escape\(uid\)\}"\]`\)/);
+    // Every name that opens a panel can be found again by it.
+    assert.equal((code.match(/data-panel-name=\{/g) ?? []).length, 4);
+    assert.equal((code.match(/onClick=\{\(event\) => (?:onOpen|openPanel)\(/g) ?? []).length, 4);
+  });
+
   test("every control goes through the board's own move, the take-off sheet and the facilitators route; the panel fetches nothing", () => {
     const panel = codeOf("features/applications/groups/BoardPersonPanel.tsx");
     assert.doesNotMatch(panel, /\bfetch\(/, "the panel sends something of its own");
@@ -382,6 +457,11 @@ describe("4. the panel's moves", () => {
     assert.match(board, /if \(subject\.kind === "row"\) setTakingOff\(subject\.row\.uid\);/);
     assert.match(board, /fetch\(`\/api\/courses\/groups\/\$\{encodeURIComponent\(group\.id\)\}\/facilitators`/);
     assert.match(board, /if \(!window\.confirm\(STOP_CONFIRM\(nameOf\(uid\), group\.name\)\)\) return;/);
+    // The group's facilitators are read as they are now, before the question, and the list sent is that one without them.
+    const stop = board.slice(board.indexOf("const stopFacilitating"));
+    assert.ok(stop.indexOf("/allocation`") > 0 && stop.indexOf("/allocation`") < stop.indexOf("window.confirm(STOP_CONFIRM"), "the list is not read before the question");
+    assert.match(stop, /const next = current\.filter\(\(each\) => each !== uid\);/);
+    assert.match(stop, /body: JSON\.stringify\(\{ uids: next \}\)/);
     // The one way a card moves anybody: the mid-term question first, then the allocate route.
     assert.equal((board.match(/await place\(\[placement\]\)/g) ?? []).length, 1);
   });

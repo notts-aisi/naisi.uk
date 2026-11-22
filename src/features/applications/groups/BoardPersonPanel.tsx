@@ -8,7 +8,7 @@ import { DIDNT_OFFER, FACILITATING, OFFERED, STOP_FACILITATING, facilitatesLine 
 import chartStyles from "@/features/applications/times/WeekChart.module.css";
 import { facilitatesWords } from "@/features/courses/allocationFit";
 import type { AllocGroup, AllocRow } from "@/features/courses/useAllocation";
-import type { PanelPerson } from "@/lib/applications/handover/boardPanelView";
+import type { PanelPerson, PanelWeek } from "@/lib/applications/handover/boardPanelView";
 import { own } from "@/lib/applications/keys";
 import type { FreeGroupLine, WeekChartView } from "@/lib/courses/personPage/model";
 import {
@@ -79,6 +79,18 @@ type Props = {
 };
 
 const pct = (value: number) => `${value}%`;
+
+/**
+ * Whether a key pressed inside the panel closes it: Escape, unless something
+ * inside has already taken it (the "Move to…" menu closes itself on Escape and
+ * marks the key handled, and the panel stays open).
+ */
+export function escapeClosesPanel(event: { key: string; defaultPrevented: boolean }): boolean {
+  return event.key === "Escape" && !event.defaultPrevented;
+}
+
+/** What the panel draws of when somebody is free: the server's answer, or the card's own "no longer on file". */
+type DrawnWeek = PanelWeek | { kind: "not-on-file" };
 
 /** The chart the server worked out, with each bar a move where somebody can be moved. */
 function Chart({ chart, current, name, onPick, disabled }: { chart: WeekChartView; current: string | null; name: string; onPick: ((key: string) => void) | null; disabled: boolean }) {
@@ -190,6 +202,12 @@ export default function BoardPersonPanel({
   const movable = row !== null && !pinned;
   const current = subject.kind === "row" && subject.columnId !== POOL ? subject.columnId : null;
   const pick = movable ? (key: string) => onMove(key) : null;
+  // From the application form, and its application gone: the card says so too.
+  const goneFromForm = row?.fromForm?.availability === "not-on-file";
+  const week: DrawnWeek | null =
+    read.panel && person && person.week !== undefined ? person.week : read.panel && goneFromForm ? { kind: "not-on-file" } : null;
+  // Who sees the week, truly: an admin is told when the programme's lead may not read this person's.
+  const foot = person?.leadSees === false ? words.ADMINS_ONLY_FOOT : (read.panel?.foot ?? "");
 
   const chips: { words: string; tone: "plain" | "warn" | "ok" | "group" }[] = [];
   if (subject.kind === "row") {
@@ -220,7 +238,7 @@ export default function BoardPersonPanel({
       return (
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>{WHEN_FREE}</h3>
-          <p className={styles.text}>{words.PANEL_FAILED}</p>
+          <p className={styles.text}>{words.panelFailedWords(read.failedStatus)}</p>
           <button type="button" className={styles.button} onClick={read.retry}>
             {words.RETRY}
           </button>
@@ -235,9 +253,6 @@ export default function BoardPersonPanel({
         </section>
       );
     }
-    // From the application form, and its application gone: the card says so too.
-    const goneFromForm = row?.fromForm != null;
-    const week = person ? person.week : goneFromForm && row?.fromForm?.availability === "not-on-file" ? ({ kind: "not-on-file" } as const) : null;
     if (!week) return null;
     if (week.kind === "may-not") {
       return (
@@ -248,8 +263,6 @@ export default function BoardPersonPanel({
       );
     }
     if (week.kind === "not-on-file") {
-      // Somebody who never applied on this form (a facilitator with no place): nothing about their week.
-      if (!goneFromForm) return null;
       return (
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>{WHEN_FREE}</h3>
@@ -272,7 +285,7 @@ export default function BoardPersonPanel({
         <Chart chart={week.chart} current={current} name={name} onPick={pick} disabled={busy} />
         {week.littleMarked ? <p className={styles.warn}>{LITTLE_MARKED}</p> : movable ? <p className={styles.muted}>{words.CHART_KEY}</p> : null}
         <GroupLines lines={week.groups} current={current} onPick={pick} disabled={busy} />
-        {read.panel.foot ? <p className={styles.muted}>{read.panel.foot}</p> : null}
+        {foot ? <p className={styles.muted}>{foot}</p> : null}
       </section>
     );
   };
@@ -282,7 +295,7 @@ export default function BoardPersonPanel({
       className={styles.panel}
       aria-labelledby={`panel-${uid}`}
       onKeyDown={(event) => {
-        if (event.key === "Escape") onClose();
+        if (escapeClosesPanel(event)) onClose();
       }}
     >
       <div className={styles.head}>
@@ -343,7 +356,8 @@ export default function BoardPersonPanel({
 
         {(movable || subject.kind === "facilitator") && whenFree()}
 
-        {movable && subject.kind === "row" && subject.columnId === POOL ? (
+        {/* Only under a chart they can be moved from: nothing marked, a week this reader may not see, or none read yet, has no group to pick on it. */}
+        {movable && subject.kind === "row" && subject.columnId === POOL && week?.kind === "given" ? (
           <section className={styles.section}>
             <h3 className={styles.sectionTitle}>{words.PLACING}</h3>
             <p className={styles.text}>{words.NOT_IN_A_GROUP_PICK}</p>

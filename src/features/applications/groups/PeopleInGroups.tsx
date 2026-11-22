@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { groupPagePath } from "@/lib/courses/groupPage/words";
-import { useCallback, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -38,6 +38,7 @@ import { movedSentence } from "@/lib/courses/moveWords";
 import { STOP_CONFIRM, facilitatorSavedWords } from "@/features/applications/circles/circlesWords";
 import BoardPersonPanel, { type PanelSubject } from "./BoardPersonPanel";
 import { GroupsFrame } from "./GroupsViews";
+import { focusAfterPanel } from "./panelFocus";
 import styles from "./PeopleInGroups.module.css";
 import { POOL, TAKE_OFF, marksOf, menuOptions, notToldYet, type Mark } from "./peopleInGroupsBoard";
 import SomeWeeks from "@/features/courses/timeAnswer/SomeWeeks";
@@ -166,7 +167,7 @@ type CardProps = {
   /** "They meant some weeks" saved: the board is read again. */
   onAnswerChanged: (message: string) => void;
   /** The name opens their panel. */
-  onOpen: (uid: string) => void;
+  onOpen: (uid: string, from: HTMLElement) => void;
   /** Their panel is the one open. */
   open: boolean;
 };
@@ -207,7 +208,13 @@ function PersonCard({
         <span className={styles.avatar}>
           <InitialsChip name={name} uid={row.uid} size="md" />
         </span>
-        <button type="button" className={`${styles.name} ${styles.nameButton}`} aria-expanded={open} onClick={() => onOpen(row.uid)}>
+        <button
+          type="button"
+          className={`${styles.name} ${styles.nameButton}`}
+          aria-expanded={open}
+          data-panel-name={row.uid}
+          onClick={(event) => onOpen(row.uid, event.currentTarget)}
+        >
           {name}
         </button>
         <span className={styles.menu}>
@@ -257,14 +264,32 @@ function PersonCard({
 }
 
 /** Somebody invited and not answered yet: a card that holds nothing and moves nowhere. */
-function InvitedCard({ uid, name, line, onOpen, open }: { uid: string; name: string; line: string; onOpen: (uid: string) => void; open: boolean }) {
+function InvitedCard({
+  uid,
+  name,
+  line,
+  onOpen,
+  open,
+}: {
+  uid: string;
+  name: string;
+  line: string;
+  onOpen: (uid: string, from: HTMLElement) => void;
+  open: boolean;
+}) {
   return (
     <div className={styles.invited}>
       <span className={styles.invitedAvatar}>
         <InitialsChip name={name} uid={uid} size="md" />
       </span>
       <span className={styles.invitedText}>
-        <button type="button" className={`${styles.invitedName} ${styles.nameButton}`} aria-expanded={open} onClick={() => onOpen(uid)}>
+        <button
+          type="button"
+          className={`${styles.invitedName} ${styles.nameButton}`}
+          aria-expanded={open}
+          data-panel-name={uid}
+          onClick={(event) => onOpen(uid, event.currentTarget)}
+        >
           {name}
         </button>
         <span className={styles.invitedLine}>{line}</span>
@@ -331,6 +356,27 @@ export default function PeopleInGroups({ view, views }: Props) {
   const [takingOff, setTakingOff] = useState<string | null>(null);
   // The person whose panel is open, or null.
   const [openUid, setOpenUid] = useState<string | null>(null);
+  // The name that opened the panel, and the board, for where the focus goes back to when it closes.
+  const opener = useRef<HTMLElement | null>(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const openPanel = useCallback((uid: string, from: HTMLElement) => {
+    opener.current = from;
+    setOpenUid(uid);
+  }, []);
+  const closePanel = useCallback(() => {
+    const uid = openUid;
+    setOpenUid(null);
+    // After the panel has gone: the name that opened it, or the person's name where it is now, or the board.
+    requestAnimationFrame(() => {
+      const target = focusAfterPanel(
+        opener.current,
+        () => (uid ? (boardRef.current?.ownerDocument.querySelector<HTMLElement>(`[data-panel-name="${CSS.escape(uid)}"]`) ?? null) : null),
+        boardRef.current,
+      );
+      target?.focus();
+      opener.current = null;
+    });
+  }, [openUid]);
   // A change to who facilitates a group, sent from the panel and not answered yet.
   const [staffing, setStaffing] = useState(false);
   // The cards wait while the question is open.
@@ -539,8 +585,31 @@ export default function PeopleInGroups({ view, views }: Props) {
   // facilitators route with the group's list without them. They stay in the
   // group as one of its people, and nobody is emailed.
   const stopFacilitating = useCallback(
-    (uid: string, group: AllocGroup) => {
+    async (uid: string, group: AllocGroup) => {
+      // The group's facilitators as they are now, read before the question, so
+      // nobody added since the board was read is taken off with them.
+      setStaffing(true);
+      let current: string[] | null = null;
+      try {
+        const res = await fetch(`/api/courses/runs/${encodeURIComponent(runId)}/allocation`, { cache: "no-store" });
+        const body = (await res.json().catch(() => null)) as { groups?: AllocGroup[] } | null;
+        current = res.ok ? (body?.groups?.find((each) => each.id === group.id)?.facilitatorUids ?? null) : null;
+      } catch {
+        current = null;
+      }
+      setStaffing(false);
+      if (current === null) {
+        await raise(words.LOAD_FAILED);
+        return;
+      }
+      if (!current.includes(uid)) {
+        // Somebody changed the group's facilitators since: the board is read again, and says so.
+        reload();
+        await raise(facilitatorSavedWords(nameOf(uid), group.name, false));
+        return;
+      }
       if (!window.confirm(STOP_CONFIRM(nameOf(uid), group.name))) return;
+      const next = current.filter((each) => each !== uid);
       setStaffing(true);
       void runAction(
         async () => {
@@ -548,7 +617,7 @@ export default function PeopleInGroups({ view, views }: Props) {
             const res = await fetch(`/api/courses/groups/${encodeURIComponent(group.id)}/facilitators`, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ uids: group.facilitatorUids.filter((each) => each !== uid) }),
+              body: JSON.stringify({ uids: next }),
             });
             const body = (await res.json().catch(() => null)) as { error?: string } | null;
             if (!res.ok) throw new Error(body?.error || `That change didn’t go through (${res.status}).`);
@@ -560,7 +629,7 @@ export default function PeopleInGroups({ view, views }: Props) {
         { successMessage: facilitatorSavedWords(nameOf(uid), group.name, false) },
       );
     },
-    [nameOf, runAction, reload],
+    [nameOf, runAction, reload, raise, runId],
   );
 
   // -------------------------------------------------------------------------
@@ -677,7 +746,7 @@ export default function PeopleInGroups({ view, views }: Props) {
         reducedMotion={reducedMotion}
         runId={runId}
         onAnswerChanged={onAnswerChanged}
-        onOpen={setOpenUid}
+        onOpen={openPanel}
         open={openUid === row.uid}
       />
     );
@@ -695,7 +764,7 @@ export default function PeopleInGroups({ view, views }: Props) {
           uid={person.uid}
           name={person.name}
           line={words.invitedWords(person.on, person.fits)}
-          onOpen={setOpenUid}
+          onOpen={openPanel}
           open={openUid === person.uid}
         />
       ));
@@ -742,9 +811,9 @@ export default function PeopleInGroups({ view, views }: Props) {
         if (subject.kind === "row") setTakingOff(subject.row.uid);
       }}
       onStopFacilitating={(group) => {
-        if (subject.kind === "row") stopFacilitating(subject.row.uid, group);
+        if (subject.kind === "row") void stopFacilitating(subject.row.uid, group);
       }}
-      onClose={() => setOpenUid(null)}
+      onClose={closePanel}
     />
   ) : null;
 
@@ -794,7 +863,7 @@ export default function PeopleInGroups({ view, views }: Props) {
             onDragEnd={onDragEnd}
             onDragCancel={onDragCancel}
           >
-            <div className={styles.board} role="region" aria-label="Groups board" tabIndex={0}>
+            <div ref={boardRef} className={styles.board} role="region" aria-label="Groups board" tabIndex={0}>
               <div className={styles.boardInner}>
                 <Column
                   columnId={POOL}
@@ -901,7 +970,8 @@ export default function PeopleInGroups({ view, views }: Props) {
                                           type="button"
                                           className={styles.nameButton}
                                           aria-expanded={openUid === uid}
-                                          onClick={() => setOpenUid(uid)}
+                                          data-panel-name={uid}
+                                          onClick={(event) => openPanel(uid, event.currentTarget)}
                                         >
                                           {group.facilitatorFirstNames[at] || "NAISI member"}
                                         </button>
@@ -979,7 +1049,8 @@ export default function PeopleInGroups({ view, views }: Props) {
                         type="button"
                         className={`${styles.gaveBackName} ${styles.nameButton}`}
                         aria-expanded={openUid === person.uid}
-                        onClick={() => setOpenUid(person.uid)}
+                        data-panel-name={person.uid}
+                        onClick={(event) => openPanel(person.uid, event.currentTarget)}
                       >
                         {person.name}
                       </button>
@@ -1008,6 +1079,8 @@ export default function PeopleInGroups({ view, views }: Props) {
         </div>
         {panel}
       </div>
+      {/* On a narrow screen the panel is a sheet over the page: the page behind is dimmed, and a press on it closes the panel. */}
+      {panel ? <div className={styles.panelScrim} aria-hidden="true" onClick={closePanel} /> : null}
 
       {takingOff && <TakeOffSheet runId={runId} uid={takingOff} onClose={() => setTakingOff(null)} onDone={takenOff} />}
       <ActionToast toast={toast} onDismiss={dismiss} />

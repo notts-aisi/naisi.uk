@@ -20,6 +20,8 @@ export type BoardPanelRead = {
   panel: BoardPanelView | null;
   loading: boolean;
   failed: boolean;
+  /** The read's own status when it failed, or undefined when no answer came (no connection). */
+  failedStatus?: number;
   retry: () => void;
 };
 
@@ -27,6 +29,7 @@ export function useBoardPanel(roundId: string, programmeId: string, wanted: bool
   const [panel, setPanel] = useState<BoardPanelView | null>(null);
   const [readFor, setReadFor] = useState<string | null>(null);
   const [failedFor, setFailedFor] = useState<string | null>(null);
+  const [failedStatus, setFailedStatus] = useState<number | undefined>(undefined);
   const [nonce, setNonce] = useState(0);
   const key = `${groupsKey}#${nonce}`;
 
@@ -38,7 +41,7 @@ export function useBoardPanel(roundId: string, programmeId: string, wanted: bool
     })
       .then(async (res) => {
         const body = (await res.json().catch(() => null)) as { panel?: BoardPanelView } | null;
-        if (!res.ok || !body?.panel) throw new Error(String(res.status));
+        if (!res.ok || !body?.panel) throw Object.assign(new Error(String(res.status)), { status: res.status });
         return body.panel;
       })
       .then((read) => {
@@ -47,8 +50,10 @@ export function useBoardPanel(roundId: string, programmeId: string, wanted: bool
         setFailedFor(null);
         setReadFor(key);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (cancelled) return;
+        const status = (err as { status?: unknown } | null)?.status;
+        setFailedStatus(typeof status === "number" ? status : undefined);
         setFailedFor(key);
         setReadFor(key);
       });
@@ -59,5 +64,6 @@ export function useBoardPanel(roundId: string, programmeId: string, wanted: bool
 
   const retry = useCallback(() => setNonce((n) => n + 1), []);
   const loading = wanted && readFor !== key;
-  return { panel, loading, failed: !loading && failedFor === key, retry };
+  const failed = !loading && failedFor === key;
+  return { panel, loading, failed, ...(failed ? { failedStatus } : {}), retry };
 }

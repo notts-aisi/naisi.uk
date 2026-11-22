@@ -21,8 +21,6 @@ import type { ClaudeReadLines, FreeGroupLine, WeekChartView } from "@/lib/course
 export type PanelWeek =
   /** The reader may not read the application: nothing about the week, or whether there is one. */
   | { kind: "may-not" }
-  /** There is no sent application to read the week from. */
-  | { kind: "not-on-file" }
   /** They sent the form with nothing marked: the empty chart with the groups on it. */
   | { kind: "none-given"; chart: WeekChartView }
   | {
@@ -36,8 +34,18 @@ export type PanelWeek =
 
 /** One person on the board, as the panel shows them to this reader. */
 export type PanelPerson = {
-  /** When they're free; null for the reader themselves, whom nobody is shown here. */
-  week: PanelWeek | null;
+  /**
+   * When they're free; null for the reader themselves, whom nobody is shown
+   * here. Absent where there is nothing to say: a reader who may read the
+   * application and there is none on the form (somebody who never applied).
+   */
+  week?: PanelWeek | null;
+  /**
+   * For an ADMIN alone, beside a week drawn for them: whether the programme's
+   * lead may read it too (`programmeLeadReadsWeek`), so the line under the
+   * week says who sees it truly. Never sent to the lead.
+   */
+  leadSees?: boolean;
   /** The name a sentence calls them by: "Only admins see when Sofia is free." Absent for somebody who is not a People row. */
   firstName?: string;
   /** Their page on the programme, where it would open for this reader (a People row). */

@@ -159,3 +159,18 @@ export function boardWeeksFor(
   }
   return out;
 }
+
+/**
+ * WHETHER THE PROGRAMME'S LEAD MAY READ THIS PERSON'S WEEK, for the line that
+ * tells an ADMIN who else sees it ("Admins and AGI Strategy’s lead see
+ * this."). The application's own rule (`canReadApplication`) as it answers a
+ * role on this programme: the person ranked it in what they sent, or accepted
+ * its invitation (`joinedByInvitation`). Nothing of the week is read. Never a
+ * way to show the lead anything: the lead is answered by `personWeekFor`
+ * itself. Pure.
+ */
+export function programmeLeadReadsWeek(form: ApplicationForm, programmeId: string, application: ApplicationDoc | null): boolean {
+  if (!application?.sent) return false;
+  const ranked = rankedProgrammes(form, application.sent).map((programme) => programme.id);
+  return ranked.includes(programmeId) || joinedByInvitation(application) === programmeId;
+}

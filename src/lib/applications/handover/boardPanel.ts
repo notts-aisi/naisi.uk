@@ -8,7 +8,7 @@ import { notesFor } from "../arrange/notes";
 import { own } from "../keys";
 import type { QuestionSetDoc } from "../model";
 import { readProgrammePeople } from "../people/load";
-import { boardWeeksFor, type PersonWeek, type WeekGroup } from "../people/week";
+import { boardWeeksFor, programmeLeadReadsWeek, type PersonWeek, type WeekGroup } from "../people/week";
 import { statusWords } from "../people/words";
 import { loadQuestionSets } from "../repo";
 import type { BoardPanelView, PanelPerson, PanelWeek } from "./boardPanelView";
@@ -36,7 +36,12 @@ import { loadProgrammeRun } from "./programmeRun";
  * over the applications the board's read already holds, so nothing more is
  * read for it. A person the reader may not read is answered `may-not` and
  * nothing else that comes from the application: no chart, no fit, no
- * offer to facilitate. Nobody is answered about their own week here.
+ * offer to facilitate. Somebody with no application on the form at all is
+ * answered the same `may-not` for a reader who may not read applications
+ * they did not rank, so a lead cannot tell who applied; an admin is told
+ * nothing about their week (the field is left out). An admin is told, beside
+ * each week drawn for them, whether the programme's lead may read it too
+ * (`programmeLeadReadsWeek`). Nobody is answered about their own week here.
  *
  * WHAT IS READ: what `readProgrammePeople` reads (the form, every sent
  * application on it and every decision, the run, its groups and its seats);
@@ -53,19 +58,24 @@ export type BoardPanelOutcome =
   /** A role on the programme that is neither an admin's nor its lead's. Only the form was read. */
   | { status: "not-yours" };
 
-/** The week the one gated read answered, as the panel draws it: a `may-not` answer carries nothing. */
+/**
+ * The week the one gated read answered, as the panel draws it: a `may-not`
+ * answer carries nothing; `undefined` (the field left out) where a reader who
+ * may read the application finds none on the form, so nothing is said about
+ * a week at all.
+ */
 function panelWeekOf(
   week: PersonWeek,
   groups: readonly WeekGroup[],
   grid: { startMinute: number; endMinute: number },
-): PanelWeek | null {
+): PanelWeek | null | undefined {
   switch (week.kind) {
     case "own":
       return null;
     case "may-not":
       return { kind: "may-not" };
     case "not-on-file":
-      return { kind: "not-on-file" };
+      return undefined;
     case "none-given":
       return {
         kind: "none-given",
@@ -120,7 +130,10 @@ export async function loadBoardPanel(
     const application = applicationOf.get(uid) ?? null;
     // The application's own gate, as the one read answered it: the reader may read it, and it is not their own.
     const mayRead = week.kind !== "may-not" && week.kind !== "own";
-    const person: PanelPerson = { week: panelWeekOf(week, timed, grid) };
+    const drawn = panelWeekOf(week, timed, grid);
+    const person: PanelPerson = drawn === undefined ? {} : { week: drawn };
+    // For an admin, under a week drawn for them: whether the programme's lead sees it too, by the application's rule.
+    if (isAdmin && drawn && drawn.kind !== "may-not") person.leadSees = programmeLeadReadsWeek(form, programme.id, application);
     if (row) {
       person.firstName = row.firstName;
       person.personHref = row.personHref;
