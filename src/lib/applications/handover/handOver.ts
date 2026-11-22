@@ -42,6 +42,12 @@ import {
  *  - It moves the run's own count of accepted applications by the number of
  *    rows it made, in the same transaction, like every other writer of a row.
  *  - It appends one line to the course log saying how many, and who pressed.
+ *  - ON A DRAFT RUN, when it hands anybody over, it moves the run to Running
+ *    in the same transaction: the first hand-over starts the run. Only after
+ *    the week id check every exit from draft meets (`draftExitBlocker`, asked
+ *    through `handOverBlocker`), so a drifted plan stops the press with that
+ *    check's sentence and nothing is written. A press that hands nobody over
+ *    leaves a draft as it is; a run already out of draft is never touched.
  *
  * It never changes a row that is already there, whatever that row says. It
  * removes nobody. It puts nobody in a group: the board's first placement
@@ -58,9 +64,10 @@ import {
  *
  * ## What is asked again inside the transaction
  *
- * That decisions have been sent, which run the programme names, and that the
- * run can still take people. All three are read through the transaction, so
- * a run changed or archived while a press runs makes it run again and meet
+ * That decisions have been sent, which run the programme names, that the
+ * run can still take people, and its status with its week plan. All are read
+ * through the transaction, so a run changed or archived while a press runs
+ * makes it run again and meet
  * the refusal. Who holds a place is read just before, outside it: a reply
  * that lands during a press can leave somebody handed over who has just given
  * their place back, and the panel then names them, as it does for anybody who
@@ -214,9 +221,12 @@ async function writeChunk(
   });
 
   if (handedOver > 0) {
-    // The count moves with the rows, in the transaction that makes them.
+    // The count moves with the rows, in the transaction that makes them. The
+    // first hand-over to a draft run starts it running, here: the week id
+    // check has been asked of this transaction's read (`handOverBlocker`).
     tx.update(ref, {
       "applicationCounts.accepted": FieldValue.increment(handedOver),
+      ...(run.run.status === "draft" ? { status: "running" } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.create(db.collection(COURSE_AUDIT_COLLECTION).doc(), {
@@ -236,6 +246,9 @@ async function writeChunk(
         programmeName: programme.shortName,
         count: handedOver,
       }),
+      // The press that started a draft says so, in the log's own change
+      // fields: Course run's "Running since" reads it (`runStands/load.ts`).
+      ...(run.run.status === "draft" ? { before: { status: "draft" }, after: { status: "running" } } : {}),
       at: FieldValue.serverTimestamp(),
     });
   }

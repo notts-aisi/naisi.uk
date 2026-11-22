@@ -8,6 +8,7 @@ import type {
   QuestionSetView,
 } from "@/lib/applications/editor/views";
 import type { HandOverReceiptView, RunPanelView } from "@/lib/applications/handover/views";
+import type { RunDetailsInput } from "@/lib/courses/runStands/details";
 
 /**
  * The editor's one door to its routes.
@@ -195,6 +196,24 @@ export function putProgrammeRun(
   runId: string | null,
 ): Promise<{ panel: RunPanelView; changed: boolean }> {
   return call(runUrl(roundId, programmeId), "PUT", { runId });
+}
+
+/**
+ * Move the named run's status through the one status route, the route the
+ * older editor uses too. `through` steps a run whose stored status is an
+ * application stage through Running to Completed.
+ */
+export function postRunStatus(runId: string, status: "running" | "completed", through: boolean): Promise<{ ok: true; status: string }> {
+  return call(`/api/courses/runs/${encodeURIComponent(runId)}/status`, "POST", through ? { status, through: "running" } : { status });
+}
+
+/** Save the named run's details: label, academic year, cohort and, before the groups go out, the start date. */
+export function putRunDetails(
+  roundId: string,
+  programmeId: string,
+  details: RunDetailsInput,
+): Promise<{ ok: true; panel: RunPanelView }> {
+  return call(`${runUrl(roundId, programmeId)}/details`, "PUT", details);
 }
 
 /** Hand over everybody who holds a place and is not on the run's list yet. */

@@ -688,8 +688,9 @@ test(
         await panel.waitFor({ timeout: WAIT_MS });
         const runBox = panel.getByLabel("Run", { exact: true });
         await runBox.waitFor({ timeout: WAIT_MS });
-        // The run is a draft, and a draft can be named: the hand-over is what
-        // waits for it to move on.
+        // The run is a draft, and a draft can be named. The section says
+        // where it stands, and a hand-over to a draft would start it running;
+        // this journey moves it on in the run editor first instead.
         const [response] = await Promise.all([
           responseTo(adminPage, `/programmes/${state.programmeId}/run`, "PUT"),
           runBox.selectOption({ label: `${state.runLabel} · Draft` }),
@@ -707,14 +708,11 @@ test(
             { exact: true },
           )
           .waitFor({ timeout: WAIT_MS });
-        await panel
-          .getByText("That run is still a draft. Move it on from draft first: its members cannot open a draft run.", {
-            exact: true,
-          })
-          .waitFor({ timeout: WAIT_MS });
+        await panel.getByText("Draft: people holding a place see week 1, from decision day once it is ready. It starts running by itself the first time people are handed over.", { exact: true }).waitFor({ timeout: WAIT_MS });
+        await panel.getByRole("button", { name: "Start it running now…", exact: true }).waitFor({ timeout: WAIT_MS });
         const press = panel.getByRole("button", { name: `Hand over ${state.people.length} people` });
         await press.waitFor({ timeout: WAIT_MS });
-        assert.equal(await press.isDisabled(), true, "Hand over can be pressed while the run is a draft");
+        assert.equal(await press.isDisabled(), false, "Hand over cannot be pressed while the run is a draft");
 
         const form = (await fixtureDoc("admissionRounds", state.formId).get()).data();
         assert.equal(form?.programmes?.[state.programmeId]?.runId, state.runId, "the form does not name the run");

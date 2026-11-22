@@ -325,6 +325,10 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over/route.ts",
     "puts everybody who holds a place on a programme onto its course run's allocation list, and logs who pressed it",
   ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/run/details/route.ts",
+    "renames the course run a programme names, and changes its year, cohort and start date",
+  ],
   // Offering a place given back after decision day changes what a person
   // was told and emails them, in the caller's name; its test writes a record
   // on the form and emails the address on the session.

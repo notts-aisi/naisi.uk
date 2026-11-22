@@ -958,7 +958,10 @@ async function theRunIsNamed() {
     leadNames: await call("claudia", routes.run.PUT, of("agi"), { body: { runId: RUN } }),
     named: await step("an admin names the run while it is a draft", 200, "zach", routes.run.PUT, of("agi"), { body: { runId: RUN } }),
   };
-  seen.naming.handOverWhileDraft = await call("zach", routes.handOver.POST, of("agi"));
+  // A press now would hand everybody over and start the draft running
+  // (tests/applications-handover.test.mjs); this journey reads the section
+  // while it is a draft, and moves it on in the older editor first instead.
+  seen.naming.panelWhileDraft = (await call("zach", routes.run.GET, of("agi"))).body?.panel ?? null;
   seen.naming.movedOn = await courseStep("an admin moves the run on from draft", 200, "zach", courseRoutes.runStatus.POST, { runId: RUN }, { body: { status: "applications-open" } });
   seen.naming.status = world.db.read(`courseRuns/${RUN}`).status;
   seen.naming.panel = (await call("zach", routes.run.GET, of("agi"))).body?.panel ?? null;
@@ -1446,11 +1449,14 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.deepEqual(seen.naming.named.body.panel.choices, [{ id: RUN, label: "Autumn 2026 · Draft", selectable: true, note: "" }]);
     });
 
-    test("nobody can be handed over while it is a draft; moved on, the panel offers the six who hold a place", () => {
-      assert.deepEqual(short(seen.naming.handOverWhileDraft), [
-        409,
-        "That run is still a draft. Move it on from draft first: its members cannot open a draft run.",
-      ]);
+    test("while it is a draft the section says so and the press would start it; moved on, the panel offers the six who hold a place", () => {
+      const draft = seen.naming.panelWhileDraft;
+      assert.equal(draft.blocked, null, "a draft stops the press");
+      assert.deepEqual([draft.stands.stage, draft.stands.move], ["draft", "start"]);
+      assert.equal(
+        draft.stands.line,
+        "Draft: people holding a place see week 1, from decision day once it is ready. It starts running by itself the first time people are handed over.",
+      );
       assert.deepEqual(seen.naming.movedOn.body, { ok: true, status: "applications-open" });
       assert.equal(seen.naming.status, "applications-open");
       const panel = seen.naming.panel;

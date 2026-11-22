@@ -972,6 +972,13 @@ const ROUND_SURFACES = {
       "anybody's application, and every transaction that writes a row reads the round again " +
       "and stops unless it is a form",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/details": {
+    kind: "form",
+    why:
+      "saves the details of the course run a programme names, through saveRunDetails. It loads " +
+      "the round with the form's own loader, which reads only a form, before it reads the run, " +
+      "and answers with the panel, which starts from the same loader",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places": {
     kind: "form",
     why:

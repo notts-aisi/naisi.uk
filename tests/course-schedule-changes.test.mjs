@@ -231,6 +231,12 @@ const PUBLISH_PLAN = src("lib", "courses", "allocationPublish.ts");
 const DECIDE = api("runs", "[runId]", "applications", "[uid]", "decide", "route.ts");
 const APPLY_ROUTE = api("runs", "[runId]", "apply", "route.ts");
 const STATUS_ROUTE = api("runs", "[runId]", "status", "route.ts");
+/** The one checked path a status moves by: the route's, and the job's that completes a run. */
+const STATUS_MOVE = src("lib", "courses", "runStatusMove.ts");
+/** The week id check every exit from draft meets: the status move's and the first hand-over's. */
+const DRAFT_EXIT = src("lib", "courses", "draftExit.ts");
+const HAND_OVER = src("lib", "applications", "handover", "handOver.ts");
+const HAND_OVER_BLOCKER = src("lib", "applications", "handover", "blocker.ts");
 const REMOVE_ROUTE = api("runs", "[runId]", "enrolments", "[uid]", "remove", "route.ts");
 const ENROL_ROUTE = api("runs", "[runId]", "enrol", "route.ts");
 const FACILITATORS = api("groups", "[groupId]", "facilitators", "route.ts");
@@ -807,10 +813,10 @@ test("GUARD: once a run's groups have gone out, its dates and a group's time are
 });
 
 /**
- * `status/route.ts`'s `draftExitBlocker`, reproduced. The route counts drift
- * itself rather than importing `weekAddressDrift` (a "use client" module), so
- * the source assertions below are what keep the two spellings of the same
- * count in step.
+ * `draftExit.ts`'s `draftExitBlocker`, reproduced. It counts drift itself
+ * rather than importing `weekAddressDrift` (a "use client" module), so the
+ * source assertions below are what keep the two spellings of the same count
+ * in step.
  */
 function refusesDraftExit(from, to, plan) {
   if (from !== "draft" || to === "draft") return false;
@@ -819,18 +825,22 @@ function refusesDraftExit(from, to, plan) {
 
 test("GUARD: a run cannot leave draft while its two week spellings disagree", () => {
   // The bound on the drift has three legs: it is REPORTED, it is RECONCILABLE
-  // only in draft, and it is UNREACHABLE afterwards. The door is the status
-  // route: a drifted plan must not walk out of draft, because the moment it
-  // does, the normalise route refuses it and the rules pin it, so the mismatch
-  // is frozen for the whole of the cohort's life.
+  // only in draft, and it is UNREACHABLE afterwards. The doors are the status
+  // move and the first hand-over, which starts a draft running: a drifted
+  // plan must not walk out of draft by either, because the moment it does,
+  // the normalise route refuses it and the rules pin it, so the mismatch is
+  // frozen for the whole of the cohort's life.
   const added = renumber([...plainPlan(4), { kind: "week", weekNumber: 0, weekId: "w05" }]);
   const moved = renumber([added[0], added[4], added[1], added[2], added[3]]);
   const clean = renumber(plainPlan(8));
 
   assert.equal(refusesDraftExit("draft", "applications-open", moved), true);
+  // Straight to Running, as the first hand-over and "Start it running now" go.
+  assert.equal(refusesDraftExit("draft", "running", moved), true);
   // A plan that was only ever grown at the end is untouched, which is the
   // common case and must not be made to press a button.
   assert.equal(refusesDraftExit("draft", "applications-open", clean), false);
+  assert.equal(refusesDraftExit("draft", "running", clean), false);
   // The door is behind a run that has already left. Refusing later moves would
   // strand a cohort whose plan is frozen either way.
   assert.equal(refusesDraftExit("applications-closed", "running", moved), false);
@@ -839,20 +849,28 @@ test("GUARD: a run cannot leave draft while its two week spellings disagree", ()
   // exits freeze a plan and which do not is a second doctrine to keep in step.
   assert.equal(refusesDraftExit("draft", "cancelled", moved), true);
 
-  // Pinned to the route. It counts the same thing the builder's panel reports,
-  // it only fires on a move OUT of draft, and it fires BEFORE the write.
-  assert.match(STATUS_ROUTE, /if \(entry\.weekId !== weekDocId\(taught\)\) drifted \+= 1;/);
-  assert.match(STATUS_ROUTE, /if \(from !== "draft" \|\| to === "draft"\) return null;/);
-  assert.match(
-    STATUS_ROUTE,
-    /const blocker = draftExitBlocker\(currentStatus, nextStatus, data\.weekPlan\);/,
-  );
-  const blockerAt = STATUS_ROUTE.indexOf("const blocker = draftExitBlocker(");
-  const writeAt = STATUS_ROUTE.indexOf("await ref.update(");
+  // Pinned to the check. It counts the same thing the builder's panel
+  // reports and it only fires on a move OUT of draft.
+  assert.match(DRAFT_EXIT, /if \(entry\.weekId !== weekDocId\(taught\)\) drifted \+= 1;/);
+  assert.match(DRAFT_EXIT, /if \(from !== "draft" \|\| to === "draft"\) return null;/);
+  // The status move asks it BEFORE the write, of what its transaction read,
+  // and the route moves a status through nothing else.
+  assert.match(STATUS_MOVE, /const blocker = draftExitBlocker\(current, next, data\.weekPlan\);/);
+  const blockerAt = STATUS_MOVE.indexOf("const blocker = draftExitBlocker(");
+  const writeAt = STATUS_MOVE.indexOf("tx.update(ref,");
   assert.ok(blockerAt > 0 && writeAt > 0 && blockerAt < writeAt);
+  assert.match(STATUS_ROUTE, /await moveRunStatus\(db, runId, nextStatus,/);
+  assert.doesNotMatch(STATUS_ROUTE, /\.update\(/, "the route writes the status only through the move");
+  // The first hand-over asks it of a draft run, through the one blocker the
+  // panel and the writer share, and writes Running only in the transaction
+  // that asked it, after it said nothing stops the press.
+  assert.match(HAND_OVER_BLOCKER, /return draftExitBlocker\("draft", "running", run\.run\.weekPlan\);/);
+  const askedAt = HAND_OVER.indexOf("const blocked = handOverBlocker(form, programme, run);");
+  const startsAt = HAND_OVER.indexOf('...(run.run.status === "draft" ? { status: "running" } : {}),');
+  assert.ok(askedAt > 0 && startsAt > askedAt, "the hand-over starts a draft only after the check");
 
   // And it names the ONE affordance that can still fix it, which exists.
-  assert.match(STATUS_ROUTE, /Normalise week ids/);
+  assert.match(DRAFT_EXIT, /Normalise week ids/);
   assert.match(WEEK_PLAN_BUILDER, /Normalise week ids/);
 });
 
@@ -1541,7 +1559,9 @@ test("un-publishing a week takes a member's completed work off their total", () 
 
 /** The shared lifecycle table, reproduced. Pinned below. */
 const ALLOWED_TRANSITIONS = {
-  draft: ["applications-open", "cancelled"],
+  // `running` straight from draft since a run a programme names starts
+  // running at its first hand-over (or when an admin starts it early).
+  draft: ["applications-open", "running", "cancelled"],
   // `running` is reachable straight from here since V3 open enrolment: a
   // pre-course keeps its sign-ups open into its first teaching weeks and has
   // no review stage to close. Still forward-only, which the loop below pins.
@@ -1563,9 +1583,14 @@ test("GUARD: the transition table is forward-only, terminal-safe, and the only o
   // ONE table, two consumers. The route enforces it and the run editor builds
   // its dropdown from it, so the admin is never offered a move the server
   // refuses (which is exactly what a second, drifted client copy did).
-  assert.match(STATUS_ROUTE, /from "@\/lib\/courses\/runStatus"/);
-  assert.match(STATUS_ROUTE, /canTransition\(currentStatus, nextStatus\)/);
+  // The route moves a status through the one checked path, which reads the
+  // table and holds no copy of it; the job that completes a run takes it too.
+  assert.match(STATUS_ROUTE, /from "@\/lib\/courses\/runStatusMove"/);
+  assert.match(STATUS_MOVE, /from "\.\/runStatus"/);
+  assert.match(STATUS_MOVE, /canTransition\(current, next\)/);
   assert.doesNotMatch(STATUS_ROUTE, /"applications-open": \[/);
+  assert.doesNotMatch(STATUS_MOVE, /"applications-open": \[/);
+  assert.match(src("lib", "scheduler", "jobs", "runsComplete.ts"), /await moveRunStatus\(db, live\.id, "completed",/);
   assert.match(RUN_EDITOR, /ALLOWED_TRANSITIONS\[currentStatus\]/);
   assert.doesNotMatch(RUN_EDITOR, /RUN_STATUS_TRANSITIONS/);
   // Cancelling left the dropdown for the danger zone's typed confirmation.
@@ -1637,10 +1662,11 @@ test("a member can still write progress on a completed run, because no route com
   assert.match(GROUP_FACILITATORS, /status: "active"/);
   assert.match(GROUP_FACILITATORS, /status: "removed"/);
   // Nothing writes the other two onto an enrolment.
-  for (const source of [ALLOCATE, REMOVE_ROUTE, FACILITATORS, GROUP_FACILITATORS, STATUS_ROUTE]) {
+  for (const source of [ALLOCATE, REMOVE_ROUTE, FACILITATORS, GROUP_FACILITATORS, STATUS_ROUTE, STATUS_MOVE]) {
     assert.doesNotMatch(source, /status:\s*"withdrawn"/);
   }
   assert.doesNotMatch(STATUS_ROUTE, /courseEnrolments/);
+  assert.doesNotMatch(STATUS_MOVE, /courseEnrolments/);
 });
 
 // ===========================================================================
@@ -1898,6 +1924,7 @@ test("an accepted applicant's only record is an email whose {startDate} is froze
   assert.match(PUBLISH_PLAN, /firstSessionWhen\(run, group\)/);
   // …and nothing re-mails the acceptance.
   assert.doesNotMatch(STATUS_ROUTE, /sendCourseApplication/);
+  assert.doesNotMatch(STATUS_MOVE, /sendCourseApplication/);
 });
 
 // ===========================================================================
@@ -3453,7 +3480,7 @@ test("applicationCounts can drift from the rows it summarises, and nothing recou
   // run editor render the counters as headline numbers directly above the rows
   // they summarise, so the two can disagree on one screen.
   assert.match(DECIDE, /the fix is a recount pass/);
-  const anyRecount = [APPLY_ROUTE, DECIDE, STATUS_ROUTE, ALLOCATION_PUBLISH].some((s) =>
+  const anyRecount = [APPLY_ROUTE, DECIDE, STATUS_ROUTE, STATUS_MOVE, ALLOCATION_PUBLISH].some((s) =>
     /function recount|recountApplications/.test(s),
   );
   assert.equal(anyRecount, false, "a recount pass exists now, so update this test");

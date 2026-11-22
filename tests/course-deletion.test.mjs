@@ -174,6 +174,14 @@ const RUN_MANIFEST = api("runs", "[runId]", "destroy-manifest", "route.ts");
 const RUN_DESTROY = api("runs", "[runId]", "destroy", "route.ts");
 const RUN_ARCHIVE = api("runs", "[runId]", "archive", "route.ts");
 const RUN_STATUS = api("runs", "[runId]", "status", "route.ts");
+/** The one checked path a status moves by: the status route's, and the job's that completes a run. */
+const STATUS_MOVE = src("lib", "courses", "runStatusMove.ts");
+/** The job that completes a run when its work closes. */
+const RUNS_COMPLETE_JOB = src("lib", "scheduler", "jobs", "runsComplete.ts");
+/** What a run must be to take people, asked by both hand-over doors. */
+const HANDOVER_RUN = src("lib", "applications", "handover", "run.ts");
+const HANDOVER_BLOCKER = src("lib", "applications", "handover", "blocker.ts");
+const HANDOVER_PRESS = src("lib", "applications", "handover", "handOver.ts");
 const RUN_APPLY = api("runs", "[runId]", "apply", "route.ts");
 const ME_ROUTE = api("me", "route.ts");
 const COURSE_MANIFEST = api("[courseId]", "destroy-manifest", "route.ts");
@@ -2000,17 +2008,53 @@ test("GUARD — a run mid-DESTROY fails closed on the learning space and on its 
   // paths, and the promise archive makes to members.
   assert.doesNotMatch(RUN_ACCESS, /run\.archived.*return null/);
 
-  // And the status route refuses to move a destroying run, the same 409 the
-  // archive route gives.
-  assert.match(RUN_STATUS, /data\.destroying === true/);
-  assert.match(RUN_STATUS, /status: 409/);
-  // The transition table itself now lives in `@/lib/courses/runStatus` and both
-  // the route and the run editor's dropdown read it, so what is checked here is
+  // And no status of a destroying run moves, by any path, the same 409 the
+  // archive route gives. Every move goes through ONE checked path,
+  // `moveRunStatus`: the status route (a pick in the older editor, "Start it
+  // running now" and "Mark it completed now" stepping through Running) and
+  // the job that completes a run. The refusal is there, inside its
+  // transaction, before the transition table is asked, so it holds for a
+  // step through Running as for one move.
+  assert.match(STATUS_MOVE, /if \(data\.destroying === true\) return \{ ok: false, status: 409, error: RUN_BEING_DESTROYED \} as const;/);
+  assert.match(STATUS_MOVE, /export const RUN_BEING_DESTROYED = "This run is being destroyed and its status can't be changed\.";/);
+  // The transition table itself lives in `@/lib/courses/runStatus` and both
+  // the move and the run editor's dropdown read it, so what is checked here is
   // the CALL rather than the literal.
   assert.ok(
-    RUN_STATUS.indexOf("data.destroying === true") <
-      RUN_STATUS.indexOf("canTransition(currentStatus, nextStatus)"),
+    STATUS_MOVE.indexOf("data.destroying === true") > 0 &&
+      STATUS_MOVE.indexOf("data.destroying === true") < STATUS_MOVE.indexOf("canTransition(current, next)"),
     "the destroying check runs after the transition table",
+  );
+  assert.ok(
+    STATUS_MOVE.indexOf("data.destroying === true") < STATUS_MOVE.indexOf("tx.update(ref,"),
+    "the move writes before it asks whether the run is being destroyed",
+  );
+  // The route moves a status through that path and nothing else: it writes
+  // no document of its own, so nothing on its path can skip the refusal.
+  assert.match(RUN_STATUS, /await moveRunStatus\(db, runId, nextStatus, \{ throughRunning: body\.through === "running" \}\);/);
+  assert.match(RUN_STATUS, /if \(!moved\.ok\) return NextResponse\.json\(\{ error: moved\.error \}, \{ status: moved\.status \}\);/);
+  assert.doesNotMatch(RUN_STATUS, /\.(update|set|create)\(/, "the status route writes a run without the checked move");
+  // The job that completes a run skips one being destroyed before it reads its
+  // groups, and moves the rest through the same checked path.
+  assert.match(RUNS_COMPLETE_JOB, /\.filter\(\(doc\) => doc\.data\(\)\?\.destroying !== true\)/);
+  assert.match(RUNS_COMPLETE_JOB, /await moveRunStatus\(db, live\.id, "completed",/);
+  assert.doesNotMatch(RUNS_COMPLETE_JOB, /\.(update|set|create)\(/, "the job writes a run without the checked move");
+  // The hand-over, which starts a draft running, refuses a run being
+  // destroyed as it always has: `runStanding` reads it as archived, and the
+  // blocker asks that before it looks at whether the run is a draft. The
+  // press writes the status only after the blocker said nothing stops it.
+  assert.match(HANDOVER_RUN, /if \(destroying \|\| run\.archived\) return \{ ok: false, why: "archived" \};/);
+  assert.ok(
+    HANDOVER_BLOCKER.indexOf("const standing = runStanding(run, programme.courseId);") > 0 &&
+      HANDOVER_BLOCKER.indexOf("const standing = runStanding(run, programme.courseId);") <
+        HANDOVER_BLOCKER.indexOf('if (run?.run.status === "draft") {'),
+    "the hand-over looks at a draft before it asks whether the run stands",
+  );
+  assert.ok(
+    HANDOVER_PRESS.indexOf("const blocked = handOverBlocker(form, programme, run);") > 0 &&
+      HANDOVER_PRESS.indexOf("const blocked = handOverBlocker(form, programme, run);") <
+        HANDOVER_PRESS.indexOf('...(run.run.status === "draft" ? { status: "running" } : {}),'),
+    "the hand-over starts a run before it asks whether the run stands",
   );
 });
 

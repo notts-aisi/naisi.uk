@@ -1637,9 +1637,11 @@ other runs could not be picked: nothing can be picked any more.
 
 A course run has an apply page and route of its own
 (`/courses/[courseId]/apply`, `/api/courses/runs/[runId]/apply`), from before
-application forms. A run can only leave draft by way of "applications
-open", and while it is there that page takes applications whenever the
-run's own dates allow, which with no dates set is always.
+application forms. A run leaves draft by way of "applications open" or,
+since a run a programme names starts running at its first hand-over,
+straight to running, and while it is in "applications open" that page
+takes applications whenever the run's own dates allow, which with no dates
+set is always.
 
 A run that a programme names must not. Its people come through the form and
 an admin's hand-over, and an application made to the run itself would be
@@ -1686,19 +1688,25 @@ hand-over cannot disagree with any other screen about a place:
 only for somebody decision day has reached (`hasBeenTold`). A row is its
 owner's to read under the collection's own rule, and being put in a group
 shows them the run, so neither may come before they have been told.
-The run has to pass `runStanding` still, and has to have left draft: a
-draft run's own members cannot open it, so nobody could be shown their
-group on one. `handOverBlocker` is the one answer, for the panel that
-draws the button and for the writer, which asks it again inside each
-transaction of what that transaction read.
+The run has to pass `runStanding` still. A draft run's own members cannot
+open it, so it may not stay a draft with people on it: the first press that
+hands anybody over to a draft run moves it to Running, in the same
+transaction as the rows, after the week id check every exit from draft
+meets (`draftExitBlocker` in `src/lib/courses/draftExit.ts`, which refuses
+while the week plan's ids disagree with its week numbers, in its own
+sentence, and nothing is written). A press that hands nobody over leaves a
+draft as it is, and a run out of draft is never moved by a press.
+`handOverBlocker` is the one answer, for the panel that draws the button
+and for the writer, which asks it again inside each transaction of what
+that transaction read.
 
 **What a press writes, and all it writes.**
 
 | Document | What |
 | --- | --- |
 | `courseApplications/{runId}__{uid}`, for each holder with no row | `runId`, `courseId`, `uid`, `displayName`, `status: "accepted"`, `fromForm: { roundId, programmeId }` and two timestamps (`buildFormPlaceRow`) |
-| `courseRuns/{runId}` | `applicationCounts.accepted` moves by the number of rows made, in the same transaction |
-| `courseAudit/{auto}` | one line of kind `run-hand-over`: who pressed, the programme, how many. It is keyed to the run and names nobody |
+| `courseRuns/{runId}` | `applicationCounts.accepted` moves by the number of rows made, in the same transaction; on a draft run, `status: "running"` too |
+| `courseAudit/{auto}` | one line of kind `run-hand-over`: who pressed, the programme, how many. It is keyed to the run and names nobody. The press that starts a draft adds `before: { status: "draft" }` and `after: { status: "running" }` |
 
 It puts nobody in a group: the board's first placement goes on making the
 place on the run. It emails nobody. It writes no subscription.
@@ -1715,8 +1723,9 @@ reply route serves an applicant and may not reach the decisions
 place taken by accepting is read from their own document and nothing else,
 so `holdsPlaceOn` with no decision gives the press's answer. Whatever stops
 the press (`handOverBlocker`, which lives in `handover/blocker.ts` for that
-reason) stops it too, and the panel then names them for the press as
-before. It places nobody in a group, a freed place included, and emails
+reason) stops it too, and so does a run that is still a draft: only an
+admin's press starts a run running. The panel then names them for the press
+as before. It places nobody in a group, a freed place included, and emails
 nobody. `tests/applications-handover.test.mjs` walks every caller of the
 reply writer and fails one that takes a place without handing it over.
 

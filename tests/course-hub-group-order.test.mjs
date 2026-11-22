@@ -71,6 +71,15 @@ const READS_WITHOUT_A_LIST = new Map([
         "reading sits: a yes or no and a week number, never a list of groups on a page.",
     },
   ],
+  // Where a run stands, on a programme's Settings, reached from the run route.
+  [
+    "src/lib/courses/runStands/load.ts",
+    {
+      why:
+        "Where a run stands reads the run's groups for their sessions, to say the day of the last session and the day " +
+        "work closes: one day each, never a list of groups on a page.",
+    },
+  ],
   // Whether a week is in use, for the older week editor's unpublish refusal.
   [
     "src/lib/courses/olderEditor/weekInUse.ts",

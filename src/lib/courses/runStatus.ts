@@ -5,6 +5,11 @@ import type { CourseRunStatus } from "@/lib/firestore/courses";
  *
  *   draft -> applications-open -> applications-closed -> running -> completed
  *
+ * plus `draft -> running`, the step a run a programme names takes the first
+ * time people are handed over to it (or when an admin starts it early from
+ * the programme's Settings): such a run takes no application of its own, so
+ * the two application stages have nothing to say about it.
+ *
  * plus `cancelled`, reachable from any state that has not finished. Nothing
  * leaves `completed` or `cancelled`: both are terminal, because a run that
  * has ended (or been called off) has already had its emails sent and its
@@ -31,7 +36,11 @@ import type { CourseRunStatus } from "@/lib/firestore/courses";
  * rules half is the one that decides.
  */
 export const ALLOWED_TRANSITIONS: Record<CourseRunStatus, CourseRunStatus[]> = {
-  draft: ["applications-open", "cancelled"],
+  // `running` straight from draft is the step a run a programme names takes
+  // at its first hand-over, or when an admin starts it early from the
+  // programme's Settings. It still passes the week id check every exit from
+  // draft passes (`draftExit.ts`).
+  draft: ["applications-open", "running", "cancelled"],
   // OPEN ENROLMENT is why `running` is reachable directly from here. An
   // open-mode run (the pre-course) has no review stage to close: sign-ups
   // stay open into the first weeks of teaching, so the cohort starts while
@@ -53,4 +62,21 @@ export const ALLOWED_TRANSITIONS: Record<CourseRunStatus, CourseRunStatus[]> = {
 export function canTransition(from: CourseRunStatus, to: CourseRunStatus): boolean {
   if (from === to) return true;
   return ALLOWED_TRANSITIONS[from].includes(to);
+}
+
+/**
+ * THE ONE STEP THROUGH. "Mark it completed now" on a run a programme names
+ * whose stored status is still Applications open or Applications closed: the
+ * programme's Settings shows all three live statuses as Running, so the move
+ * it offers is to Completed, and the status route takes it as two moves of
+ * the table, to Running and then to Completed, both checked. Nothing else
+ * steps through: every other move is one entry of the table or refused.
+ *
+ * The moves in order, or null when `to` cannot be reached from `from` this way.
+ */
+export function stepsThroughRunning(from: CourseRunStatus, to: CourseRunStatus): CourseRunStatus[] | null {
+  // A draft is never completed: it has had nobody on it.
+  if (to !== "completed" || (from !== "applications-open" && from !== "applications-closed")) return null;
+  if (!canTransition(from, "running") || !canTransition("running", "completed")) return null;
+  return ["running", "completed"];
 }

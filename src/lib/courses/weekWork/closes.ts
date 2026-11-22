@@ -29,6 +29,18 @@ export function workClosesAfter(lastDateKey: string | null, days: number | null)
   return londonWallClockToInstant(addDaysToKey(lastDateKey, after + 1), "00:00");
 }
 
+/**
+ * The London day work closes at the end of ("2026-12-23"), from the same
+ * reading `workClosesAt` makes, or null with no session to date. For saying
+ * the day: the moment is the midnight after it.
+ */
+export function workClosesOnDayKey(run: CourseRunDoc, groups: readonly CourseGroupDoc[]): string | null {
+  const last = runEndOf(run, groups, new Date(0)).lastDateKey;
+  if (!last || !isValidDateKey(last)) return null;
+  const days = run.workClosesAfterDays;
+  return addDaysToKey(last, days !== null && Number.isInteger(days) && days >= 0 ? days : WORK_CLOSES_AFTER_DAYS);
+}
+
 /** When `run` closes for work, from its live groups' calendars; null when it has no session to date. */
 export function workClosesAt(run: CourseRunDoc, groups: readonly CourseGroupDoc[]): Date | null {
   return workClosesAfter(runEndOf(run, groups, new Date(0)).lastDateKey, run.workClosesAfterDays);

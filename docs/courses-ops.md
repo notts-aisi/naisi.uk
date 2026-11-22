@@ -728,6 +728,41 @@ A skipped facilitator is stamped on their marker with the reason (`opted-out`,
 `no-standing`, `no-address`, `suppressed`), so "why did Sofia not get it" is a
 marker to read rather than a log to search.
 
+#### `courses-runs-complete`
+
+Moves each live course run to Completed once its work has closed: the end of
+the London day 14 days after its last session unless the run says otherwise
+(`workClosesAt` in `src/lib/courses/weekWork/closes.ts`, the moment every week
+of it shuts). Never at the end of the last session: until work closes the last
+week's register reminder, the unmarked-register card, the check-in reminder,
+each facilitator's My programmes and people's Home still need the run to be
+live, and a completed run drops out of all of them.
+
+| | |
+| --- | --- |
+| Handler | [`src/lib/scheduler/jobs/runsComplete.ts`](../src/lib/scheduler/jobs/runsComplete.ts), the move in `src/lib/courses/runStatusMove.ts` |
+| Reads | `courseRuns` where `status` is one of Applications open, Applications closed, Running (one `in`), then each one's groups (one equality) |
+| Writes | the run's `status` and `updatedAt`, through the status route's own checked move, stepping through Running from an application stage |
+| Marker | none: a completed run no longer matches the read, and the move is a transaction that writes nothing when the status is already there |
+| Stale after | never: a run whose work closed is completed whenever the tick next reaches it |
+
+**Ships switched OFF.** It emails nobody, but completing a run stops its
+emails and reminders and takes it off people's Home, so an admin arms it from
+the scheduler panel. While it is off the tick never calls it, so it reads
+nothing, and a running run stays live until an admin presses "Mark it
+completed now…" on the programme's Settings. Skipped: an archived run, a run
+being destroyed, a draft, and a run whose groups date no session. Its record
+is the tick's receipt (how many, in the note) and one log line per run, by id.
+The programme's Settings reads the same switch (`RUNS_COMPLETE_JOB` in
+`src/lib/scheduler/registerJobs.ts`, held to the registration by
+`tests/course-register-jobs.test.mjs`), with the scheduler's own switch, to
+say whether a run completes by itself. When an admin first switches it on,
+every live run in the project whose work has already closed is completed on
+its first tick: older runs nobody marked completed, a pre-course still in
+Applications open, runs no programme names. Each leaves the catalogue,
+people's Home and the facilitators' menu at once. Before switching it on,
+look at which live runs those are.
+
 #### `courses-unmarked-registers`
 
 Raises a task for every group whose register is still not finished
@@ -1505,9 +1540,12 @@ names" below). Step 6, Publish, is an admin's alone.
    programme, Settings, "Course run". From this moment the run's own apply
    page (`/courses/<course>/apply`) refuses for everybody, whatever the
    run's status and dates say.
-3. **Move the run on from draft.** A run can only leave draft by way of
-   "applications open". Because step 2 came first, nothing can be applied
-   for while it is there. Step 4 refuses a run that is still a draft.
+3. **Leave the run a draft, or start it early.** Step 4 starts a draft
+   run running by itself, the first time it hands anybody over (after the
+   week id check every exit from draft meets). An admin can start it
+   sooner from the same Settings section, "Start it running now…", which
+   asks first. Because step 2 came first, nothing can be applied for
+   whatever its status.
 4. **After decisions have been sent, press "Hand over".** On the same panel.
    Everybody who holds a place on the programme gets a row on the run's own
    list. Nobody is emailed and nobody is put in a group.
@@ -1926,6 +1964,72 @@ Each press that puts anybody on a run appends one line to the course log
 (`courseAudit`, kind `run-hand-over`), keyed to the run: who pressed, which
 programme, and how many people. It names none of them. Destroying the run
 clears it with the run's other lines.
+
+## Where a run stands, on a programme's Settings
+
+The Course run section of a programme's Settings (admins only, as the rest of
+the section) says where the run the programme names stands, and holds the
+run's details. The words are in `src/lib/courses/runStands/words.ts` and
+`details.ts`; the read is `src/lib/courses/runStands/load.ts`, inside the
+section's one read (`loadRunPanel`).
+
+**Three stages for six stored values.** Draft, Running, Completed. A run a
+programme names takes no application of its own, and every course job treats
+Applications open, Applications closed and Running alike, so all three show as
+Running. Cancelled shows as itself and offers nothing.
+
+**It follows the term by itself.**
+
+- It starts running the first time an admin's Hand people over puts anybody
+  on it (see "Placing a term's accepted people on a course run", step 3). The
+  hand-over after an accepted invitation never starts a run.
+- It completes when its work closes, only while `courses-runs-complete` is
+  switched on. The line under the stages says which: "It completes by itself
+  on Wed 23 Dec, when work closes." with the job on, and "Work closes on Wed 23
+  Dec. An admin marks it completed after that." with it off (the scheduler's
+  own switch counts too). A run with no session dated says neither.
+- "Running since Thu 29 Oct, when people were first handed over." is said
+  only for a run the hand-over started: the press that starts a draft writes
+  `before: { status: "draft" }, after: { status: "running" }` on its
+  `run-hand-over` line of the course log, and the earliest such line gives
+  the day. A run started any other way (the early move, the older editor, or
+  out of draft before this was built) says "It is running." With the job on,
+  an archived run or one being destroyed says an admin marks it completed,
+  because the job skips them. A completed run names its last session only
+  once that session has happened.
+
+**Two early moves, each asking first.** "Start it running now…" on a draft and
+"Mark it completed now…" on a live run, through `POST
+/api/courses/runs/[runId]/status`, the route the older editor uses. From
+Applications open or closed, Completed is two moves of the table, to Running
+and then to Completed, asked for with `through: "running"`. There is no way
+back, and nobody is emailed. Every move, by the route or by the job, goes
+through `moveRunStatus` (`src/lib/courses/runStatusMove.ts`): one transaction
+that refuses a run being destroyed, treats the status it already has as no
+change, holds the table and asks the week id check on leaving draft.
+
+**The run's details.** Run label, academic year, cohort term, cohort year and
+number, and the day week 1 starts, saved through `PUT
+/api/admissions/forms/[roundId]/programmes/[programmeId]/run/details` (admins
+only) with the older run editor's checks in its order: a label, an academic
+year like 2026/27, a real start date, the cohort all three or none within its
+bounds. Once Publish has sent the groups out (`allocationPublishedAt`), the
+route itself refuses a new start date (the Admin SDK skips the rules that pin
+it for a browser), and the form shows the date as words with "The groups have
+gone out, so the start date can’t change here: a new one would move every
+group’s weeks, the ones that met included." While a Publish holds its press lock
+(`courseNudges/publishing__<runId>`, `src/lib/courses/publishLock.ts`) the
+route refuses a new start date too, with "Groups are being published. Try
+again in a minute.", read in the same transaction; and Publish works out
+every email from the run as it reads it once its lock is held. So no email
+Publish sends can carry a start date that changed under it.
+
+A new label is read from then on wherever the run's label is read: the admin
+lists and pages, search, the run's eyebrow on staff pages, a member's run
+list, the public apply and week pages' badges, and the emails sent after it.
+Emails already sent keep the label they were sent with, and so do the rows
+that copied it (a destroy's or a drop-out's course log line, a saved
+template's summary). Cancel and destroy ask for the label as it is now.
 
 ## Which group somebody was in, week by week
 
@@ -2517,7 +2621,9 @@ and the run's track leads through the link's route.
 select opens a question saying what the move changes, that it can't be moved
 back and that nobody is emailed, with "Keep it Running" and "Move it to
 Completed" (the statuses named). Only "Move it to …" calls the status route,
-which is unchanged. The words are in `src/lib/courses/olderEditor/words.ts`,
+the one a programme's Settings uses too (see "Where a run stands, on a
+programme's Settings" below). A draft can now move to Running as well as to
+Applications open. The words are in `src/lib/courses/olderEditor/words.ts`,
 each with the readers that make it true.
 
 **A week stays published once it is in use.** A week stays published once

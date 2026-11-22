@@ -49,3 +49,15 @@ export const WEEK_REMINDERS_JOB = {
   id: "courses-week-reminders",
   enabledByDefault: false,
 } as const;
+
+/**
+ * `courses-runs-complete`: a run moved to Completed once its work closes. Not
+ * a register's job, but restated here for the same reason: a programme's
+ * Settings says whether the run completes by itself, and a page that says so
+ * must not import the job. Off until an admin turns it on: completing a run
+ * stops its emails and takes it off people's Home.
+ */
+export const RUNS_COMPLETE_JOB = {
+  id: "courses-runs-complete",
+  enabledByDefault: false,
+} as const;

@@ -3,6 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
+import { loadRunStands } from "@/lib/courses/runStands/load";
 import { takenOffByWords } from "@/lib/courses/takeOff/words";
 import { courseEnrolmentId, normalizeCourseEnrolment, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
@@ -48,6 +49,10 @@ import type { HandOverPersonView, RunChoiceView, RunPanelView } from "./views";
  * NOBODY IS NAMED UNTIL DECISIONS HAVE BEEN SENT. Who holds a place is only a
  * person's to be told on decision day, and a hand-over cannot run before it,
  * so before then the panel says what is in the way and lists nobody.
+ *
+ * WHERE THE RUN STANDS AND ITS DETAILS come with it, once a run is named and
+ * on the site (`loadRunStands`): its stage, the sentence under it, the early
+ * move offered, and the run's label, year, cohort and start date for the form.
  *
  * AN ADMIN WHO APPLIED IS LISTED LIKE ANYBODY ELSE. Every other committee
  * screen leaves the viewer's own application out, because what is decided
@@ -186,6 +191,7 @@ export async function loadRunPanel(
   actor: SessionUser,
   roundId: string,
   programmeId: string,
+  now: Date = new Date(),
 ): Promise<RunPanelOutcome> {
   if (!canRunTerm(actor)) return { status: "not-admin" };
   if (!isId(roundId) || !isId(programmeId)) return { status: "none" };
@@ -198,9 +204,10 @@ export async function loadRunPanel(
     programme.runId === null ? null : await db.collection(RUNS_COLLECTION).doc(programme.runId).get();
   const run = runSnap && runSnap.exists ? readRun(runSnap.id, runSnap.data()) : null;
 
-  const [forms, rows] = await Promise.all([
+  const [forms, rows, standing] = await Promise.all([
     listForms(db),
     programme.runId === null ? ([] as CourseApplicationDoc[]) : listRunRows(db, programme.runId),
+    run && runSnap ? loadRunStands(db, run.run, runSnap.data() ?? {}, now) : Promise.resolve(null),
   ]);
   const choices = await listRunChoices(db, forms, roundId, programme, run);
   const handedOver = rows.some((row) => isRowFrom(row, roundId, programmeId));
@@ -230,6 +237,8 @@ export async function loadRunPanel(
     takenOff: [],
     notAccepted: [],
     otherRows: 0,
+    stands: standing?.stands ?? null,
+    details: standing?.details ?? null,
   };
   // Nobody is named, or counted, until everybody has been told.
   if (form.decisionsSentAt === null) return { status: "ok", panel };

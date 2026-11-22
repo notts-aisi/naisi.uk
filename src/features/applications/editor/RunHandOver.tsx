@@ -8,6 +8,8 @@ import { useHydrated } from "@/hooks/useHydrated";
 import type { HandOverPersonView, RunPanelView } from "@/lib/applications/handover/views";
 import { fetchRunPanel, postHandOver, putProgrammeRun } from "./editorClient";
 import shared from "./editor.module.css";
+import RunDetails from "./RunDetails";
+import RunStands from "./RunStands";
 import styles from "./RunHandOver.module.css";
 import {
   LEFT_NOTE,
@@ -26,6 +28,11 @@ import {
  * The "Course run" panel on a programme's Settings tab. For admins: the page
  * draws it for nobody else, and both routes behind it refuse anybody else
  * before anything is read.
+ *
+ * WHERE THE RUN STANDS AND ITS DETAILS sit between the two, once a run is
+ * named (`RunStands`, `RunDetails`): its stage with the two early moves,
+ * each asking first, and the form for its label, year, cohort and start
+ * date. Neither emails anybody.
  *
  * TWO THINGS HAPPEN HERE, and neither tells an applicant anything.
  *
@@ -66,6 +73,8 @@ export default function RunHandOver({
   const [busy, setBusy] = useState<"run" | "press" | "check" | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<string | null>(null);
+  // What an early move of the run's status did, once the section is read again.
+  const [moved, setMoved] = useState<string | null>(null);
   // One request at a time: an answer always describes what the last press did.
   const sending = useRef(false);
 
@@ -78,6 +87,7 @@ export default function RunHandOver({
     setBusy(kind);
     setProblem(null);
     setReceipt(null);
+    setMoved(null);
     try {
       const answer = await request();
       setPanel(answer.panel);
@@ -96,6 +106,11 @@ export default function RunHandOver({
   async function press() {
     const answer = await send("press", () => postHandOver(roundId, programmeId));
     if (answer) setReceipt(handOverReceipt(answer.receipt));
+  }
+  // After an early move: the section read again, and what the move did said.
+  async function afterMove(said: string) {
+    const answer = await send("check", () => fetchRunPanel(roundId, programmeId));
+    if (answer) setMoved(said);
   }
 
   const idle = live && busy === null;
@@ -148,6 +163,37 @@ export default function RunHandOver({
           <p className={`${shared.notice} ${shared.noticeProblem}`} role="alert">
             {problem}
           </p>
+        )}
+
+        {panel.runId !== null && panel.stands && (
+          <>
+            <RunStands
+              runId={panel.runId}
+              stands={panel.stands}
+              live={idle}
+              onMoved={(said) => afterMove(said)}
+            />
+            {moved && (
+              <p className={styles.receipt} role="status">
+                {moved}
+              </p>
+            )}
+          </>
+        )}
+
+        {panel.runId !== null && panel.details && (
+          <RunDetails
+            key={panel.runId}
+            roundId={roundId}
+            programmeId={programmeId}
+            details={panel.details}
+            live={idle}
+            onSaved={(next) => {
+              setMoved(null);
+              setPanel(next);
+            }}
+            onRefused={() => void check()}
+          />
         )}
 
         {panel.runId !== null && (
