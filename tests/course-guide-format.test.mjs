@@ -403,6 +403,11 @@ describe("6. the one copy, and every curriculum copy carrying it", () => {
       ["app/api/courses/groups/[groupId]/weeks/[weekId]/fork/route.ts", "copies one week into a group's own copy: the guide is the run's, not a group's"],
       ["app/api/courses/groups/[groupId]/weeks/[weekId]/blocks/route.ts", "makes a group's own copy of one week from a paste, through the one copy function: the guide is the run's, not a group's"],
       ["lib/firestore/courseTemplates.ts", "the shape a template week is copied through; the routes that use it carry the guide"],
+      // ADDED with saved templates on the Weeks tab: the one copy that leaves the guide behind on purpose.
+      [
+        "lib/courses/weeksTab/fill.ts",
+        "copies a saved template's weeks into a run's empty weeks only, and never its Start here or Glossary: those have no publish step, so the people holding a place would read them at once, and an admin loads them from Course documents",
+      ],
     ]);
     const copies = [];
     const missing = [];
