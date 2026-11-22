@@ -36,9 +36,10 @@ export default async function ProgrammesPage() {
   const db = getAdminDb();
   const list: ProgrammesList = db
     ? await loadProgrammesList(db, user)
-    : { terms: [], earlier: [], reader: user.role === "admin" ? "admin" : "none" };
+    : { terms: [], earlier: [], reader: "none", anyForm: false };
   const admin = canRunTerm(user);
-  const nothing = list.terms.length === 0 && list.earlier.length === 0;
+  // The area's empty state is for somebody who may see no form at all.
+  const nothing = !list.anyForm;
 
   return (
     <ApplicationsRoot className={shared.page}>
@@ -47,7 +48,7 @@ export default async function ProgrammesPage() {
           <div className={shared.titleRow}>
             <h1 className={shared.title}>Programmes</h1>
           </div>
-          {!nothing && <p className={shared.lede}>{LEDE[list.reader]}</p>}
+          {list.reader !== "none" && <p className={shared.lede}>{LEDE[list.reader]}</p>}
         </div>
       </header>
 
@@ -115,9 +116,9 @@ function TermSection({ term }: { term: TermEntry }) {
 
 function Card({ programme }: { programme: ProgrammeCard }) {
   return (
-    <section className={home.programme} aria-label={programme.name}>
+    <section className={home.programme} aria-label={programme.shortName}>
       <div className={kit.mono}>{programme.kindWord}</div>
-      <h3 className={home.programmeName}>{programme.name}</h3>
+      <h3 className={home.programmeName}>{programme.shortName}</h3>
       <p className={home.programmeNote}>{programme.lead}</p>
       {programme.line && <p className={styles.cardLine}>{programme.line}</p>}
       {programme.needsYou && <p className={styles.needsYou}>{programme.needsYou}</p>}
@@ -143,8 +144,7 @@ function EarlierTerms({ terms }: { terms: ProgrammesList["earlier"] }) {
         {terms.length === 0 && <Chip>None yet</Chip>}
       </div>
       <p className={shared.cardNote}>
-        A term moves here once its last session is over. Its programmes leave the menu then, and everything in them
-        stays.
+        A term moves here once its last session is over. Everything in it stays.
       </p>
       {terms.length > 0 && (
         <ul className={styles.earlierList}>

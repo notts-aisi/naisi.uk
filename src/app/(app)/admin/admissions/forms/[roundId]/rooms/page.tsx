@@ -1,10 +1,10 @@
 import Link from "next/link";
+import TermCrumb from "@/features/applications/editor/TermCrumb";
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import shared from "@/features/applications/editor/editor.module.css";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import WeekRoomsBoard from "@/features/courses/weekRooms/WeekRoomsBoard";
 import styles from "@/features/courses/weekRooms/WeekRooms.module.css";
-import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
 import { loadWeekRooms } from "@/lib/courses/weekRooms/load";
 import { termRoomsPath, weekRoomsPath } from "@/lib/courses/weekRooms/paths";
 import * as W from "@/lib/courses/weekRooms/words";
@@ -49,9 +49,7 @@ export default async function WeekRoomsPage({
   return (
     <ApplicationsRoot className={shared.page}>
       <nav className={shared.crumb} aria-label="Breadcrumb">
-        <Link href={applicationFormPath(reader.roundId)}>{W.PROGRAMMES_CRUMB}</Link>
-        <span aria-hidden="true">/</span>
-        <Link href={applicationFormPath(reader.roundId)}>{reader.termLabel}</Link>
+        <TermCrumb roundId={reader.roundId} termLabel={reader.termLabel} />
       </nav>
       <header className={shared.head}>
         <div className={shared.headMain}>

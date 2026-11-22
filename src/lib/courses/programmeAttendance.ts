@@ -941,8 +941,17 @@ export function buildRunAttendance(records: RunRecords, viewer: GridViewer, now:
     weeks: weeks.map((weekNumber) => ({ weekNumber, thisWeek: weekNumber === thisWeek })),
     groups,
     totals,
-    ending: records.switches.scheduled ? "finished" : "pushed",
+    ending: registerEnding(records.switches),
   };
+}
+
+/**
+ * The register's own word for finishing it: "finished" while next week's
+ * email is scheduled from the register, "pushed" otherwise. The grid, the
+ * Overview and the Programmes page's line all say it from here.
+ */
+export function registerEnding(switches: Pick<RegisterSwitches, "scheduled">): "finished" | "pushed" {
+  return switches.scheduled ? "finished" : "pushed";
 }
 
 // ---------------------------------------------------------------------------

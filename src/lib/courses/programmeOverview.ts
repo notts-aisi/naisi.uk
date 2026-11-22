@@ -4,7 +4,7 @@ import { freedPlaceWindow, lastDayLabel } from "@/lib/applications/freedPlaces/r
 import { slipsWaitingLink, slipsWaitingWords } from "@/lib/courses/drawCard/overviewLine";
 import { readSlipsWaiting } from "@/lib/courses/drawCard/overviewReads";
 import { namesInWords } from "@/lib/courses/facilitatingEmail";
-import { resolveWeekDoc } from "@/lib/courses/groupResolve";
+import { resolveWeekDoc, resolveWeekDocsAt } from "@/lib/courses/groupResolve";
 import { londonClockLabel, londonDayAndClock, londonDayLabel } from "@/lib/courses/londonLabels";
 import {
   buildRunAttendance,
@@ -447,16 +447,17 @@ type ReachedWeek = { names: string[]; lastKey: string; nextKey: string };
 /**
  * The weeks a group has reached that are not published, lowest first: the
  * group's previous session is over and its next is still to come, and the
- * week that next session teaches is not published for the group. Reads that
- * week, for each such group alone (`resolveWeekDoc`, the group's copy beside
- * the run's).
+ * week that next session teaches is not published for the group. Asks only
+ * the clock of each group's sessions, never a register. Reads those weeks,
+ * for such groups alone, in one batch (`resolveWeekDocsAt`: the group's copy,
+ * else the run's), then takes the groups in the order they were handed.
  */
 async function reachedWeeksOf(
   db: Firestore,
   runId: string,
   entries: readonly { group: { id: string; name: string }; sessions: Map<number, GroupSessionFacts> }[],
 ): Promise<[number, ReachedWeek][]> {
-  const reached = new Map<number, ReachedWeek>();
+  const candidates: { name: string; groupId: string; previous: GroupSessionFacts; next: GroupSessionFacts }[] = [];
   for (const entry of entries) {
     const ordered = [...entry.sessions.values()]
       .filter((facts) => facts.startsAt !== null)
@@ -466,14 +467,22 @@ async function reachedWeeksOf(
     const previous = ordered[nextAt - 1];
     const next = ordered[nextAt];
     if (!previous.ended) continue;
-    const resolved = await resolveWeekDoc(db, runId, entry.group.id, next.session.weekId);
-    if (resolved.week?.published) continue;
+    candidates.push({ name: entry.group.name, groupId: entry.group.id, previous, next });
+  }
+  const weeks = await resolveWeekDocsAt(
+    db,
+    runId,
+    candidates.map((each) => ({ groupId: each.groupId, weekId: each.next.session.weekId })),
+  );
+  const reached = new Map<number, ReachedWeek>();
+  candidates.forEach(({ name, previous, next }, at) => {
+    if (weeks[at].week?.published) return;
     const found = reached.get(next.session.weekNumber) ?? { names: [], lastKey: "", nextKey: "" };
-    found.names.push(entry.group.name);
+    found.names.push(name);
     if (!found.lastKey || previous.session.dateKey < found.lastKey) found.lastKey = previous.session.dateKey;
     if (!found.nextKey || next.session.dateKey < found.nextKey) found.nextKey = next.session.dateKey;
     reached.set(next.session.weekNumber, found);
-  }
+  });
   return [...reached].sort((a, b) => a[0] - b[0]);
 }
 
@@ -488,37 +497,42 @@ async function reachedWeeksOf(
  * Overview, so the card's line is not always the Overview's first.
  *
  * `groups` are the run's live groups in the order every tab lists them
- * (`readRunEnd`'s). Reads the run's registers once a group has met (one
- * equality on one field, so no declared index), and the reached weeks'
- * documents; nothing before any group has met.
+ * (`readRunEnd`'s). Reads nothing before any group has met. Then the weeks
+ * groups have reached, in one batch, which asks only the clock; and only
+ * when no such week is found, the run's registers (one equality on one
+ * field, so no declared index) and, through `ending`, the register's own
+ * word for finishing.
  */
 export async function firstNeedsYou(
   db: Firestore,
   run: CourseRunDoc,
   groups: readonly CourseGroupDoc[],
-  ending: "finished" | "pushed",
+  ending: () => Promise<"finished" | "pushed">,
   now: Date,
 ): Promise<string | null> {
   const named = groups.map((group) => ({ ...group, name: group.name.trim() || "Untitled group" }));
   const clockOnly = { run, registers: new Map<string, CourseAttendanceDoc>() };
-  const anyMet = named.some((group) => [...groupSessions(clockOnly, group, now).values()].some((facts) => facts.started));
-  if (!anyMet) return null;
+  const byClock = named.map((group) => ({ group, sessions: groupSessions(clockOnly, group, now) }));
+  if (!byClock.some(({ sessions }) => [...sessions.values()].some((facts) => facts.started))) return null;
 
-  const snap = await db.collection("courseAttendance").where("runId", "==", run.id).get();
+  const [first] = await reachedWeeksOf(db, run.id, byClock);
+  if (first) return weekReachedTitle(first[0], first[1].names);
+
+  const [snap, word] = await Promise.all([
+    db.collection("courseAttendance").where("runId", "==", run.id).get(),
+    ending(),
+  ]);
   const registers = new Map<string, CourseAttendanceDoc>();
   for (const doc of snap.docs) {
     const register = normalizeCourseAttendance(doc.id, doc.data() ?? {});
     if (register.runId === run.id) registers.set(doc.id, register);
   }
   const entries = named.map((group) => ({ group, sessions: groupSessions({ run, registers }, group, now) }));
-
-  const [first] = await reachedWeeksOf(db, run.id, entries);
-  if (first) return weekReachedTitle(first[0], first[1].names);
   for (const { group, sessions } of entries) {
     const unfinished = [...sessions.values()]
       .filter((facts) => facts.tag === "not-finished")
       .sort((a, b) => a.session.weekNumber - b.session.weekNumber)[0];
-    if (unfinished) return registerNotDoneTitle(group.name, unfinished.session.dateKey, ending);
+    if (unfinished) return registerNotDoneTitle(group.name, unfinished.session.dateKey, word);
   }
   return null;
 }

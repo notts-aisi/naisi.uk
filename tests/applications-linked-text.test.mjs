@@ -949,7 +949,8 @@ const BUILT = new Map([
   ],
   [
     "src/features/applications/decisionDay/parts.tsx",
-    { built: ["termPath(roundId)", "termPath(roundId)"], from: "the term's own page, from the form's id" },
+    // One fewer since November 2026: the crumb is `TermCrumb`'s.
+    { built: ["termPath(roundId)"], from: "the term's own page, from the form's id" },
   ],
   [
     "src/features/applications/editor/CertificateCredit.tsx",
@@ -967,7 +968,16 @@ const BUILT = new Map([
   ],
   [
     "src/features/applications/editor/FormEditor.tsx",
-    { built: ["homeHref", "homeHref"], from: "the term's own page, handed in by the page that draws the editor" },
+    // One fewer since November 2026: the crumb is `TermCrumb`'s.
+    { built: ["homeHref"], from: "the term's own page, handed in by the page that draws the editor" },
+  ],
+  [
+    // ADDED (November 2026): "Programmes · Autumn 2026" over a term's pages.
+    "src/features/applications/editor/TermCrumb.tsx",
+    {
+      built: ["PROGRAMMES_PATH", "applicationFormPath(roundId)"],
+      from: "the Programmes page, a fixed address in the code (`PROGRAMMES_PATH`), and the term's own page, from the form's id",
+    },
   ],
   [
     "src/features/applications/editor/ProgrammeSetup.tsx",
@@ -1280,9 +1290,8 @@ const BUILT = new Map([
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/rooms/page.tsx",
     {
+      // The crumb is `TermCrumb`'s since November 2026.
       built: [
-        "applicationFormPath(reader.roundId)",
-        "applicationFormPath(reader.roundId)",
         "here(view.elsewhere.monday)",
         "here(view.monday, null)",
         "here(view.monday, programme.programmeId)",
@@ -1291,20 +1300,19 @@ const BUILT = new Map([
         "here(week.monday)",
         "termRoomsPath(reader.roundId, only)",
       ],
-      from: "the week's rooms and the term's rooms (src/lib/courses/weekRooms/paths.ts) and the form's own page, from the form's id, a programme's id on the form and a Monday the page worked out from the runs' dates, each encoded. Nothing anybody typed",
+      from: "the week's rooms and the term's rooms (src/lib/courses/weekRooms/paths.ts), from the form's id, a programme's id on the form and a Monday the page worked out from the runs' dates, each encoded. Nothing anybody typed",
     },
   ],
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/rooms/term/page.tsx",
     {
+      // The crumb is `TermCrumb`'s since November 2026.
       built: [
-        "applicationFormPath(reader.roundId)",
-        "applicationFormPath(reader.roundId)",
         "termRoomsPath(reader.roundId)",
         "termRoomsPath(reader.roundId, programme.programmeId)",
         "weekRoomsPath(reader.roundId, { programme: only })",
       ],
-      from: "the term's rooms and the week's rooms (src/lib/courses/weekRooms/paths.ts) and the form's own page, from the form's id and a programme's id on the form, encoded. Nothing anybody typed",
+      from: "the term's rooms and the week's rooms (src/lib/courses/weekRooms/paths.ts), from the form's id and a programme's id on the form, encoded. Nothing anybody typed",
     },
   ],
   [
@@ -1390,7 +1398,8 @@ const BUILT = new Map([
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx",
     // ADDED (November 2026), with correcting a register: the way to the
     // Requests page while something waits, a fixed address.
-    { built: ["REQUESTS_PATH", "home"], from: "the term's own page, from the form's id; and the Requests page, a fixed address in the code (`REQUESTS_PATH`)" },
+    // CHANGED (November 2026): the crumb is `TermCrumb`'s, so the term's own page is no longer built here.
+    { built: ["REQUESTS_PATH"], from: "the Requests page, a fixed address in the code (`REQUESTS_PATH`)" },
   ],
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages/page.tsx",
@@ -1409,7 +1418,7 @@ const BUILT = new Map([
     // programme's ids.
     "src/lib/applications/programmes/list.ts",
     {
-      built: ["`${base}/applications`", "`${base}/overview`", "applicationFormPath(entry.form.round.id)", "applications.href", "applications.href", "home"],
+      built: ["`${base}/overview`", "applicationFormPath(form.round.id)", "applications", "applications", "home"],
       from: "pages of a term: the term's own path from the form's id, and a programme's Overview and applications from its id",
     },
   ],

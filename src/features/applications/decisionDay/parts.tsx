@@ -1,4 +1,5 @@
 import Link from "next/link";
+import TermCrumb from "@/features/applications/editor/TermCrumb";
 import type { ReactNode } from "react";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import styles from "./decisionDay.module.css";
@@ -51,6 +52,7 @@ function termPath(roundId: string): string {
  */
 export function Page({
   roundId,
+  termLabel,
   title,
   chips,
   lede,
@@ -58,6 +60,8 @@ export function Page({
   children,
 }: {
   roundId: string;
+  /** The term's name, for the crumb: "Programmes · Autumn 2026". */
+  termLabel: string;
   title: string;
   chips: ReactNode;
   lede: string;
@@ -67,9 +71,7 @@ export function Page({
   return (
     <ApplicationsRoot className={styles.page}>
       <nav className={styles.crumbs} aria-label="Where you are">
-        <Link className={styles.crumb} href={termPath(roundId)}>
-          Programmes
-        </Link>
+        <TermCrumb roundId={roundId} termLabel={termLabel} className={styles.crumb} />
       </nav>
       <header className={styles.head}>
         <div className={styles.titleRow}>

@@ -496,7 +496,7 @@ const ROUND_SURFACES = {
     kind: "form",
     why:
       "a programme's own address with no tab, which forwards to its Overview or its applications. It reaches the " +
-      "round only through loadProgrammeForStaff, the form's own loader, which answers null for a round that is not " +
+      "round only through loadFormForStaff, the form's own loader, which answers null for a round that is not " +
       "a form, and the page then says there is no programme here",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview": {

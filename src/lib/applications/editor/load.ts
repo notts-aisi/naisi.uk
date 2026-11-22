@@ -76,8 +76,19 @@ export async function listFormsForStaff(
   user: SessionUser,
   now: Date = new Date(),
 ): Promise<LoadedForm[]> {
+  const forms = await listVisibleForms(db, user);
+  return Promise.all(forms.map((form) => withNames(db, user, form, now)));
+}
+
+/**
+ * Every form this caller has a role on, newest first, without the names on
+ * them: for a reader that needs the names of only some (the Programmes page,
+ * which reads them for the terms that are not over). One equality on one
+ * field.
+ */
+export async function listVisibleForms(db: Firestore, user: SessionUser): Promise<ApplicationForm[]> {
   const snap = await db.collection(ROUNDS_COLLECTION).where("formVersion", "==", FORM_VERSION).get();
-  const out: LoadedForm[] = [];
+  const out: ApplicationForm[] = [];
   for (const doc of snap.docs) {
     // The query asks the database for forms. Each stored document is asked the
     // contract's own question as well, so this list is held to the rule every
@@ -86,13 +97,23 @@ export async function listFormsForStaff(
     if (!isApplicationForm(doc.data())) continue;
     const form = normaliseForm(doc.id, doc.data());
     if (!canSeeForm(user, form)) continue;
-    out.push({ form, context: contextFor(user, form, await namesOnForm(db, form), now) });
+    out.push(form);
   }
   return out.sort(
     (a, b) =>
-      (b.form.round.createdAt?.getTime() ?? 0) - (a.form.round.createdAt?.getTime() ?? 0) ||
-      a.form.round.label.localeCompare(b.form.round.label),
+      (b.round.createdAt?.getTime() ?? 0) - (a.round.createdAt?.getTime() ?? 0) ||
+      a.round.label.localeCompare(b.round.label),
   );
+}
+
+/** A form this caller may see, with the names on it read: what a staff screen is drawn from. */
+export async function withNames(
+  db: Firestore,
+  user: SessionUser,
+  form: ApplicationForm,
+  now: Date = new Date(),
+): Promise<LoadedForm> {
+  return { form, context: contextFor(user, form, await namesOnForm(db, form), now) };
 }
 
 export type LoadedEditor = LoadedForm & { sets: QuestionSetDoc[] };

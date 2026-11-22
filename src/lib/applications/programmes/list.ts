@@ -2,15 +2,16 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { formatRoundDate } from "@/lib/admissions/window";
 import { readRunEnd, type RunEnd } from "@/lib/courses/finishing/record";
-import { programmeWeekNow } from "@/lib/courses/programmeAttendance";
+import { programmeWeekNow, registerEnding } from "@/lib/courses/programmeAttendance";
 import { firstNeedsYou } from "@/lib/courses/programmeOverview";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { registerSwitchesIn } from "@/lib/scheduler/registerSwitches";
 import { opensProgrammeGroups, roleOnProgramme, type ProgrammeRole } from "../access";
-import { listFormsForStaff, type LoadedForm } from "../editor/load";
+import { listVisibleForms, withNames } from "../editor/load";
 import { applicationFormPath } from "../editor/olderRounds";
 import { projectFormForStaff } from "../editor/views";
 import { RUNS_COLLECTION } from "../handover/run";
@@ -20,11 +21,11 @@ import type { TermStage } from "../lifecycle/status";
 import { lineFor, stageSummaryFor } from "../lifecycle/view";
 import type { ProgrammeKind, ProgrammeSettings } from "../model";
 import type { ApplicationForm } from "../normalise";
-import { countPlaceHoldersOnEach } from "../people/load";
 
 /**
  * THE PROGRAMMES A READER MAY OPEN, term by term: what the Programmes page
- * draws, and what the menu, Home and search will be handed.
+ * draws, made once on the server so that anything else that lists
+ * programmes asks the same question.
  *
  * ## Who is given what
  *
@@ -32,52 +33,60 @@ import { countPlaceHoldersOnEach } from "../people/load";
  * only the programmes the reader has a role on (`roleOnProgramme`): an admin
  * every programme, a lead the ones they lead, a reviewer the ones they
  * review, and nobody else any. A form the reader has no role on is not read
- * past its listing (`listFormsForStaff` leaves it out). Nothing about an
+ * past its listing (`listVisibleForms` leaves it out). Nothing about an
  * applicant leaves this module but counts, and a card's counts are the ones
  * the screen behind it would show the same reader.
  *
  *  - The run's line ("Week 2 of 6 · 4 groups · 26 holding a place") and the
  *    first thing that needs somebody are for an admin and the programme's
- *    lead alone, the two who open its groups (`opensProgrammeGroups`); a
- *    reviewer is shown the applications line instead.
- *  - "N for you to read" and "Review N" count only on a programme the reader
+ *    lead alone, the two who open its groups (`opensProgrammeGroups`).
+ *  - "N for you to read" and "Review N" are worked out only while a term
+ *    takes or decides applications, and count only on a programme the reader
  *    leads or reviews, as the term's page counts them (`buildTermHome`'s
  *    `isTheirs`): an admin who leads nothing reads "none for you to read" on
  *    somebody else's programme, and is offered no Review there.
+ *  - "Holding a place" is the run's own count of the people on it: its
+ *    learners' seats that are active or completed, by an aggregate count.
+ *    The hand-over writes one seat for each person who holds a place on the
+ *    programme, and giving the place back takes the seat off in the same
+ *    transaction, so once the people are handed over this is the term page's
+ *    "places accepted". Before the hand-over there are no seats, and the
+ *    card says nothing about places.
  *
  * ## When a term is over
  *
  * A term is over when its form is cancelled or archived, or when decision
  * day has gone out and every programme on it is over. A programme is over
- * when it is closed (it holds nothing open), when the run it names is gone
- * or being destroyed, when that run is marked completed or cancelled, or
- * once the run's last session has ended (`runEndOf`: the latest end of a
- * session any live group holds, a cancelled session and an archived group
- * left out). A programme that names no run, and one whose run has no group
- * with a dated session, is never over, so it keeps its term in the list until
- * an admin marks the run completed or cancelled, or closes the programme.
- * A term that is over is listed under Earlier terms, linking to its page.
+ * when it is closed (it holds nothing open), when the run it names is gone,
+ * being destroyed or archived, when that run is marked completed or
+ * cancelled, or once the run's last session has ended (`runEndOf`: the
+ * latest end of a session any live group holds, a cancelled session and an
+ * archived group left out). A programme that names no run, and one whose run
+ * has no group with a dated session, is never over, so it keeps its term in
+ * the list until an admin marks the run completed or cancelled, or closes
+ * the programme. A term that is over is listed under Earlier terms, by name.
  *
- * ## What it reads
+ * ## What it reads, and in what order
  *
- *  - every form, one equality on one field, and the names on each form the
- *    reader may see (`listFormsForStaff`);
- *  - for a term past decision day and not cancelled or archived: every run
- *    its programmes name, in one `getAll`, and the groups of each run not
- *    marked completed or cancelled (one equality each);
- *  - for a term taking or deciding applications, or one with a programme
- *    the reader reviews: its sent applications and decisions, and for a
- *    reviewer its question sets and reviews (`loadTermNumbers`, the term
- *    page's own numbers, the reader's own application left out);
- *  - for a term past decision day with a programme whose groups the reader
- *    opens: its sent applications and decisions, once, for how many hold a
- *    place on each (`countPlaceHoldersOnEach`);
- *  - for a programme whose groups the reader opens, once one of its groups
- *    has met: the run's registers and the reached weeks' documents
- *    (`firstNeedsYou`), and the scheduler's settings once for the page.
+ *  1. Every form, one equality on one field (`listVisibleForms`).
+ *  2. For every term past decision day and not cancelled or archived, every
+ *     run its programmes name, in one `getAll`.
+ *  3. In parallel, the groups of each run that is not marked completed or
+ *     cancelled, not archived and not being destroyed (one equality each). A
+ *     past term whose runs are marked over costs step 2 and nothing more.
+ *  4. For each term that is not over, all at once: the names on its form;
+ *     while it takes or decides applications and the reader leads or reviews
+ *     a programme on it, its sent applications and decisions (and for a
+ *     reviewer its question sets and reviews: `loadTermNumbers`, the term
+ *     page's own numbers, the reader's own application left out); and for
+ *     each programme whose groups the reader opens, past decision day, two
+ *     aggregate counts of the run's seats and its first needs-you line
+ *     (`firstNeedsYou`: the weeks groups have reached in one batch, and only
+ *     when none is unready, the run's registers and the scheduler's
+ *     settings, once for the page).
  *
- * Every query is one equality on one field, so none needs a declared index.
- * Nothing is written.
+ * Every query is one equality on one field, or equalities only, so none
+ * needs a declared index. Nothing is written.
  */
 
 /** Where a term is, in the Programmes page's words. */
@@ -89,7 +98,7 @@ export type ProgrammeCard = {
   kind: ProgrammeKind;
   /** "Fellowship" or "Incubator". */
   kindWord: string;
-  name: string;
+  /** What the card and its button call it: the programme's short name ("AGI Strategy"), its kind on a line of its own. */
   shortName: string;
   /** "Lead: Maya Rao", "Lead: you", "Lead: No lead yet". */
   lead: string;
@@ -123,23 +132,38 @@ export type EarlierTerm = { id: string; label: string; href: string };
 export type ProgrammesList = {
   terms: TermEntry[];
   earlier: EarlierTerm[];
-  /** What the reader leads or reviews, for the page's lede: an admin is told about every programme. */
+  /**
+   * What the reader leads or reviews on the terms that are not over, for the
+   * page's lede: an admin is told about every programme, and a reader with no
+   * term that is not over is given none.
+   */
   reader: "admin" | "lead" | "reviewer" | "both" | "none";
+  /** Whether the reader may see any form at all, over or not: the area's empty state is for none. */
+  anyForm: boolean;
 };
 
 // ---------------------------------------------------------------------------
 // The rules, pure
 // ---------------------------------------------------------------------------
 
-/** A named run as read: its document, its live groups and its end, or gone (not there, or being destroyed). */
+/**
+ * A named run as read: its document, its live groups and its end (null for a
+ * run marked over, whose groups are not read), or gone (not there, or being
+ * destroyed).
+ */
 export type RunRead = { run: CourseRunDoc; groups: CourseGroupDoc[]; end: RunEnd | null } | "gone";
+
+/** A run whose own record says it is over: marked completed or cancelled, or archived. Its groups are not read. */
+function markedOver(run: Pick<CourseRunDoc, "status" | "archived">): boolean {
+  return run.status === "completed" || run.status === "cancelled" || run.archived;
+}
 
 /** Is this programme over? See the module's comment. `run` is undefined for a programme that names none. */
 export function programmeIsOver(programme: Pick<ProgrammeSettings, "closed" | "runId">, run: RunRead | undefined): boolean {
   if (programme.closed) return true;
   if (!programme.runId || run === undefined) return false;
   if (run === "gone") return true;
-  if (run.run.status === "completed" || run.run.status === "cancelled") return true;
+  if (markedOver(run.run)) return true;
   return run.end?.over === true;
 }
 
@@ -189,9 +213,15 @@ export function applicationsLine(all: number, forYou: number): string {
   return `${plural(all, "application", "applications")} · ${forYou === 0 ? "none" : forYou} for you to read`;
 }
 
-/** Where the run is: "Week 2 of 6", a break's own name, "Finished · Wed 9 Dec", or null before it begins. */
+/**
+ * Where the run is: "Week 2 of 6", a break's own name, "Finished · Wed 9
+ * Dec", "Finished" for a run marked completed, or null before it begins and
+ * for a run cancelled or archived.
+ */
 export function runWeekWords(read: RunRead | undefined, now: Date): string | null {
   if (!read || read === "gone") return null;
+  if (read.run.status === "completed") return "Finished";
+  if (markedOver(read.run)) return null;
   if (read.end?.over && read.end.lastDay) return `Finished · ${read.end.lastDay}`;
   const total = read.run.weekPlan.filter((entry) => entry.kind === "week").length;
   const current = total > 0 ? programmeWeekNow(read.run, now) : null;
@@ -243,8 +273,8 @@ async function readRuns(db: Firestore, runIds: readonly string[], now: Date): Pr
         return;
       }
       const run = normalizeCourseRun(snap.id, snap.data() ?? {});
-      // A run marked over by hand is over whatever its groups say: they are not read.
-      if (run.status === "completed" || run.status === "cancelled") {
+      // A run its own record says is over is over whatever its groups say: they are not read.
+      if (markedOver(run)) {
         out.set(snap.id, { run, groups: [], end: null });
         return;
       }
@@ -270,15 +300,45 @@ function visibleOn(user: SessionUser, form: ApplicationForm): Visible[] {
 
 /**
  * A programme the reader leads or reviews, as against one an admin merely
- * oversees: `buildTermHome`'s rule, read from the same projection the term's
- * page draws its "(you)" from.
+ * oversees: `buildTermHome`'s rule. An admin who is also the programme's lead
+ * is asked as a lead is, through the live bar (`isNamedWithStanding`).
  */
-function isTheirs(role: ProgrammeRole, leadIsYou: boolean): boolean {
-  return role === "lead" || role === "reviewer" || leadIsYou;
+function isTheirs(user: SessionUser, { programme, role }: Visible): boolean {
+  return (
+    role === "lead" ||
+    role === "reviewer" ||
+    isNamedWithStanding(user, "admissionRounds.leadUid", programme.leadUid)
+  );
 }
 
-function hasBegun(stage: TermStage): boolean {
-  return stage === "open" || stage === "deciding" || stage === "decided" || stage === "settled";
+/**
+ * How many people the run holds: its seats that are a learner's and active
+ * or completed, as two aggregate counts (every such seat, less a
+ * facilitator's), each one equality and one `in`. A seat stored before roles
+ * were written reads as a learner's, which the subtraction keeps.
+ */
+async function countHolding(db: Firestore, runId: string): Promise<number> {
+  const seats = db.collection("courseEnrolments").where("runId", "==", runId).where("status", "in", ["active", "completed"]);
+  const [all, facilitators] = await Promise.all([
+    seats.count().get(),
+    seats.where("role", "==", "facilitator").count().get(),
+  ]);
+  return Math.max(0, all.data().count - facilitators.data().count);
+}
+
+/** One programme's first needs-you line, or none when it cannot be read: one card never takes the page down. */
+async function needsYouOf(
+  db: Firestore,
+  run: CourseRunDoc,
+  groups: readonly CourseGroupDoc[],
+  ending: () => Promise<"finished" | "pushed">,
+  now: Date,
+): Promise<string | null> {
+  try {
+    return await firstNeedsYou(db, run, groups, ending, now);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -290,122 +350,136 @@ export async function loadProgrammesList(
   user: SessionUser,
   now: Date = new Date(),
 ): Promise<ProgrammesList> {
-  const forms = await listFormsForStaff(db, user, now);
-  const staged = forms.map((entry) => ({ entry, stage: stageSummaryFor(entry.form, now).stage }));
+  const forms = await listVisibleForms(db, user);
+  const staged = forms.map((form) => ({ form, stage: stageSummaryFor(form, now).stage }));
 
   // The runs of every term that could be over or running: past decision day, and not cancelled or archived.
   const runIds = staged
-    .filter(({ entry, stage }) => entry.form.decisionsSentAt !== null && stage !== "cancelled" && stage !== "archived")
-    .flatMap(({ entry }) =>
-      entry.form.programmeIds.map((id) => own(entry.form.programmes, id)?.runId ?? null).filter((id): id is string => !!id),
+    .filter(({ form, stage }) => form.decisionsSentAt !== null && stage !== "cancelled" && stage !== "archived")
+    .flatMap(({ form }) =>
+      form.programmeIds.map((id) => own(form.programmes, id)?.runId ?? null).filter((id): id is string => !!id),
     );
   const runs = await readRuns(db, runIds, now);
 
-  const current = staged.filter(({ entry, stage }) => !termIsOver(entry.form, stage, runs));
+  const current = staged.filter(({ form, stage }) => !termIsOver(form, stage, runs));
   const earlier = staged
-    .filter(({ entry, stage }) => termIsOver(entry.form, stage, runs))
-    .map(({ entry }) => ({ id: entry.form.round.id, label: entry.form.round.label, href: applicationFormPath(entry.form.round.id) }));
+    .filter(({ form, stage }) => termIsOver(form, stage, runs))
+    .map(({ form }) => ({ id: form.round.id, label: form.round.label, href: applicationFormPath(form.round.id) }));
 
-  // The register's own word for finishing it, read once, and only for a page that will need it.
-  let ending: "finished" | "pushed" | null = null;
-  const endingWord = async () => {
-    if (ending === null) ending = registerSwitchesIn(await readSchedulerConfig(db)).scheduled ? "finished" : "pushed";
-    return ending;
-  };
+  // The register's own word for finishing it, read once, and only if a card needs it.
+  let ending: Promise<"finished" | "pushed"> | null = null;
+  const endingWord = () => (ending ??= readSchedulerConfig(db).then((config) => registerEnding(registerSwitchesIn(config))));
 
-  const terms: TermEntry[] = [];
-  // The term being run first, then the next: the order the forms were made in.
-  for (const { entry, stage } of [...current].reverse()) {
-    terms.push(await termEntry(db, user, entry, stage, runs, endingWord, now));
-  }
+  // The term being run first, then the next: the order the forms were made in. Every term at once.
+  const terms = await Promise.all(
+    [...current].reverse().map(({ form, stage }) => termEntry(db, user, form, stage, runs, endingWord, now)),
+  );
 
-  const roles = staged.flatMap(({ entry }) => visibleOn(user, entry.form).map((each) => each.role));
+  const roles = current.flatMap(({ form }) => visibleOn(user, form).map((each) => each.role));
   const leads = roles.includes("lead");
   const reviews = roles.includes("reviewer");
   const reader =
-    user.role === "admin" ? "admin" : leads && reviews ? "both" : leads ? "lead" : reviews ? "reviewer" : "none";
-  return { terms: terms.filter((term) => term.programmes.length > 0), earlier, reader };
+    current.length === 0
+      ? "none"
+      : user.role === "admin"
+        ? "admin"
+        : leads && reviews
+          ? "both"
+          : leads
+            ? "lead"
+            : reviews
+              ? "reviewer"
+              : "none";
+  return { terms: terms.filter((term) => term.programmes.length > 0), earlier, reader, anyForm: forms.length > 0 };
 }
 
 async function termEntry(
   db: Firestore,
   user: SessionUser,
-  { form, context }: LoadedForm,
+  form: ApplicationForm,
   stage: TermStage,
   runs: ReadonlyMap<string, RunRead>,
   endingWord: () => Promise<"finished" | "pushed">,
   now: Date,
 ): Promise<TermEntry> {
   const visible = visibleOn(user, form);
-  const view = projectFormForStaff(form, context);
   const decided = form.decisionsSentAt !== null;
   const inSession = stage === "open" || stage === "deciding";
+  const home = applicationFormPath(form.round.id);
 
   // The applications' numbers, as the term's page counts them for this reader
-  // (its own application left out): while the term takes or decides them, and
-  // for a reviewer, whose button is worded from them. Places, once decision
-  // day has gone out, for the programmes whose groups the reader opens.
-  const wantsNumbers = hasBegun(stage) && (inSession ? visible.length > 0 : visible.some((each) => each.role === "reviewer"));
-  const groupsOf = decided ? visible.filter((each) => opensProgrammeGroups(each.role)).map((each) => each.programme.id) : [];
-  const [numbers, holders]: [TermNumbers | null, Map<string, number> | null] = await Promise.all([
-    wantsNumbers ? loadTermNumbers(db, user, form) : null,
-    groupsOf.length > 0 ? countPlaceHoldersOnEach(db, form, groupsOf) : null,
-  ]);
+  // (their own application left out), only while the term takes or decides
+  // them, and only for a reader who leads or reviews a programme on it.
+  const wantsNumbers = inSession && visible.some((each) => isTheirs(user, each));
 
-  const home = applicationFormPath(form.round.id);
+  // Each card whose run the reader opens, past decision day: its seats and its first needs-you line.
+  const runCards = new Map<string, Promise<{ holding: number | null; needsYou: string | null }>>();
+  for (const { programme, role } of visible) {
+    const read = programme.runId ? runs.get(programme.runId) : undefined;
+    if (programme.closed || !decided || !opensProgrammeGroups(role) || !read || read === "gone") continue;
+    const live = read.end !== null && !programmeIsOver(programme, read);
+    runCards.set(
+      programme.id,
+      Promise.all([
+        countHolding(db, read.run.id).catch(() => null),
+        live ? needsYouOf(db, read.run, read.groups, endingWord, now) : null,
+      ]).then(([holding, needsYou]) => ({ holding, needsYou })),
+    );
+  }
+
+  const [context, numbers, cards] = await Promise.all([
+    withNames(db, user, form, now).then((loaded) => loaded.context),
+    wantsNumbers ? loadTermNumbers(db, user, form) : Promise.resolve<TermNumbers | null>(null),
+    Promise.all([...runCards].map(async ([id, card]) => [id, await card] as const)).then((pairs) => new Map(pairs)),
+  ]);
+  const view = projectFormForStaff(form, context);
+
   const anyRunBegun = form.programmeIds.some((id) => {
     const programme = own(form.programmes, id);
     return !!programme?.runId && !programme.closed && runHasBegun(runs.get(programme.runId), now);
   });
   const words = stageWordsFor(stage, anyRunBegun);
 
-  const programmes: ProgrammeCard[] = [];
-  for (const each of visible) {
-    const { programme, role } = each;
+  const programmes = visible.map(({ programme, role }): ProgrammeCard => {
     const base = `${home}/programmes/${programme.id}`;
-    const applications = { href: `${base}/applications` };
+    const applications = `${base}/applications`;
     const work = numbers ? own(numbers.work, programme.id) : undefined;
     const projected = view.programmes.find((entry) => entry.id === programme.id);
-    const waiting = work && isTheirs(role, projected?.lead?.you === true) ? work.waiting : 0;
+    const waiting = work && isTheirs(user, { programme, role }) ? work.waiting : 0;
     const lead = projected?.lead ? (projected.lead.you ? "Lead: you" : `Lead: ${projected.lead.name}`) : "Lead: No lead yet";
-    const runRead = programme.runId ? runs.get(programme.runId) : undefined;
+    const read = programme.runId ? runs.get(programme.runId) : undefined;
     const groupsOpen = opensProgrammeGroups(role);
+    const card = cards.get(programme.id);
 
     let line: string | null = null;
-    let needsYou: string | null = null;
     if (programme.closed) {
       line = "Closed";
-    } else if (groupsOpen && decided) {
-      const parts: string[] = [];
-      const week = runWeekWords(runRead, now);
-      if (week) parts.push(week);
-      if (runRead && runRead !== "gone" && runRead.end) parts.push(plural(runRead.groups.length, "group", "groups"));
-      const holding = holders?.get(programme.id);
-      if (holding !== undefined) parts.push(`${holding} holding a place`);
-      line = parts.length > 0 ? parts.join(" · ") : null;
-      if (runRead && runRead !== "gone" && runRead.end && !programmeIsOver(programme, runRead)) {
-        needsYou = await firstNeedsYou(db, runRead.run, runRead.groups, await endingWord(), now);
-      }
     } else if (work) {
       line = applicationsLine(work.counts.all, waiting);
+    } else if (groupsOpen && decided) {
+      const parts: string[] = [];
+      const week = runWeekWords(read, now);
+      if (week) parts.push(week);
+      if (read && read !== "gone" && read.end) parts.push(plural(read.groups.length, "group", "groups"));
+      if (card?.holding) parts.push(`${card.holding} holding a place`);
+      line = parts.length > 0 ? parts.join(" · ") : null;
     }
 
     const shortName = programme.shortName.trim() || programme.name;
-    programmes.push({
+    return {
       id: programme.id,
       kind: programme.kind,
       kindWord: programme.kind === "incubator" ? "Incubator" : "Fellowship",
-      name: programme.name,
       shortName,
       lead,
       line,
-      needsYou,
+      needsYou: card?.needsYou ?? null,
       open: groupsOpen
         ? { label: `Open ${shortName}`, href: `${base}/overview` }
-        : { label: waiting > 0 ? `Review ${waiting}` : "See applications", href: applications.href },
-      review: groupsOpen && waiting > 0 ? { label: `Review ${waiting}`, href: applications.href } : null,
-    });
-  }
+        : { label: waiting > 0 ? `Review ${waiting}` : "See applications", href: applications },
+      review: groupsOpen && waiting > 0 ? { label: `Review ${waiting}`, href: applications } : null,
+    };
+  });
 
   const seesEvery = visible.length === form.programmeIds.length;
   const sentence =

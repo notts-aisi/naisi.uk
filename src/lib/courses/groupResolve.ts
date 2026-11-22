@@ -507,6 +507,33 @@ export async function resolveWeekDoc(
 }
 
 /**
+ * SEVERAL GROUPS' WEEKS AT ONCE, each as `resolveWeekDoc` answers it (the
+ * group's own copy when it has one, else the run's), in the order asked: one
+ * `getAll` holding every group's copy and each week's run copy once, however
+ * many groups ask for the same week.
+ */
+export async function resolveWeekDocsAt(
+  db: Firestore,
+  runId: string,
+  wanted: readonly { groupId: string; weekId: string }[],
+): Promise<ResolvedWeek[]> {
+  if (wanted.length === 0) return [];
+  const weekIds = [...new Set(wanted.map((each) => each.weekId))];
+  const snaps = await db.getAll(
+    ...wanted.map((each) => groupWeekRef(db, each.groupId, each.weekId)),
+    ...weekIds.map((weekId) => runWeekRef(db, runId, weekId)),
+  );
+  const canonical = new Map(weekIds.map((weekId, at) => [weekId, snaps[wanted.length + at]]));
+  return wanted.map((each, at): ResolvedWeek => {
+    const fork = snaps[at];
+    if (fork.exists) return { source: "group", week: normalizeGroupWeek(fork.id, fork.data() ?? {}) };
+    const run = canonical.get(each.weekId);
+    if (!run?.exists) return { source: "run", week: null };
+    return { source: "run", week: normalizeCourseWeek(run.id, run.data() ?? {}) };
+  });
+}
+
+/**
  * EVERY week as this member sees it: the run's canonical list with the
  * group's forks overlaid by doc id, sorted by id (the "w01".."w60" zero-
  * padding makes that week order).

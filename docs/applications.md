@@ -369,18 +369,24 @@ filtered in the browser.
   lead, a reviewer the ones they review (`roleOnProgramme`), and nobody else
   any. A form the reader has no role on is not read past its listing.
   Nothing about an applicant leaves the module but counts.
-- **What a card says.** For an admin and the lead, the two who open a
-  programme's groups (`opensProgrammeGroups`): where the run is ("Week 2 of
-  6"), its live groups and how many hold a place, and at most one line of
-  what needs them, the Overview's own sentence for a week a group has
-  reached that is not ready or for a register not finished
-  (`firstNeedsYou` in `src/lib/courses/programmeOverview.ts`; the Overview's
-  other lines are too costly to work out for every programme). While a term
-  takes or decides applications, and always for a reviewer, it says how many
-  applications there are and how many are the reader's to read. "Review N"
-  counts only on a programme the reader leads or reviews, as the term's page
-  counts it: an admin who leads nothing is offered no Review on somebody
-  else's programme.
+- **What a card says.** Its kind, then the programme's short name. For an
+  admin and the lead, the two who open a programme's groups
+  (`opensProgrammeGroups`): where the run is ("Week 2 of 6"), its live
+  groups and how many hold a place, and at most one line of what needs them,
+  the Overview's own sentence for a week a group has reached that is not
+  ready or for a register not finished (`firstNeedsYou` in
+  `src/lib/courses/programmeOverview.ts`; the Overview's other lines are too
+  costly to work out for every programme). "Holding a place" is the run's
+  learners' seats that are active or completed, by an aggregate count: the
+  hand-over writes one for each person holding a place and giving the place
+  back takes it off, so once people are handed over it is the term page's
+  "places accepted", and before then the card says nothing of places. While
+  a term takes or decides applications, a card the reader leads or reviews
+  says how many applications there are and how many are the reader's to
+  read, and that is the only time applications are read. "Review N" counts
+  only on a programme the reader leads or reviews, as the term's page counts
+  it: an admin who leads nothing is offered no Review on somebody else's
+  programme.
 - **The first button** is "Open AGI Strategy", to the Overview, for an admin
   and the lead, with "Review 3" beside it where it applies; for a reviewer it
   is the term's page's own button to the applications ("See applications" or
@@ -392,9 +398,10 @@ filtered in the browser.
   unchanged.
 - **When a term is over.** When its form is cancelled or archived, or when
   decision day has gone out and every programme on it is over. A programme
-  is over when it is closed, when the run it names is gone or being
-  destroyed, when that run is marked completed or cancelled, or once the
-  run's last session has ended (`runEndOf`, an archived group and a
+  is over when it is closed, when the run it names is gone, being destroyed
+  or archived, when that run is marked completed or cancelled (none of these
+  has its groups read, so a past term whose runs say so costs one read of
+  its runs), or once the run's last session has ended (`runEndOf`, an archived group and a
   cancelled session left out). A programme that names no run, or whose run
   has no group with a dated session, is never over, and keeps its term in
   the list until an admin marks the run completed or cancelled or closes the
@@ -403,7 +410,10 @@ filtered in the browser.
 
 The term's page (`/admin/admissions/forms/[roundId]`) is titled by the term's
 one name, the form's label, under a crumb back to Programmes, and each card's
-first button opens the programme for an admin and its lead. A programme's
+first button opens the programme for an admin and its lead. Every page under
+a term (a programme's tabs, the pooled applicants, the intake, the send, next
+term, the form editor and the rooms) has "Programmes · Autumn 2026" as its
+crumb, each part a link to its own page (`TermCrumb`). A programme's
 own address with no tab (`.../programmes/[programmeId]`) forwards an admin
 and the lead to the Overview and a reviewer to the applications, and draws
 anybody else the tabs' "there is no programme here", as a programme that
@@ -412,7 +422,9 @@ does not exist does.
 In the area's strip Programmes comes first and is lit on the term's page and
 everything beneath it; Application forms keeps the list of forms and the form
 editor. The course pages are a section of their own, with their own menu
-entry for admins and course authors, since a course outlives its terms.
+entry for admins and course authors, since a course outlives its terms. The
+Programmes entry is shown, as before, to admins and to anybody named on a
+form.
 `tests/programmes-page.test.mjs` runs all three pages and the list as every
 kind of reader.
 

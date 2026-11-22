@@ -5094,8 +5094,8 @@ export const PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
-      "A programme's own address, with no tab: the admissions tree's gate, then the question the tabs' head asks " +
-      "(loadProgrammeForStaff). The battery's address names no programme, so everybody the tree admits is drawn the " +
+      "A programme's own address, with no tab: the admissions tree's gate, then the questions the tabs' head asks " +
+      "(the form for somebody with a role on it, the programme, the caller's role on it). The battery's address names no programme, so everybody the tree admits is drawn the " +
       "tabs' 'there is no programme here' with a 200, never forwarded and never told whether one exists; everybody " +
       "else is sent to the dashboard by the tree and by the page's own call to the same gate. " +
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",

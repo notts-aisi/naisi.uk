@@ -113,20 +113,37 @@ const READERS = {
   member: "nobody",
 };
 
-/** What the list holds for `uid`, with every read it made counted, at `now`. */
+/**
+ * What the list holds for `uid`, with every read it made counted, at `now`:
+ * each query by its collection and first field, the documents every query
+ * answered, the aggregate counts, the documents read one at a time, and the
+ * documents read in a batch (each is billed as a read).
+ */
 async function listFor(uid, now = WEEK_THREE) {
-  const reads = { queries: [], docs: 0, getAll: 0 };
+  const reads = { queries: [], queryDocs: 0, counts: 0, docs: 0, getAll: 0 };
   const db = world.db;
   const collection = db.collection;
   const getAll = db.getAll;
+  const watchQuery = (query, name) =>
+    Object.assign(Object.create(query), {
+      where: (...args) => watchQuery(query.where(...args), name),
+      get: async () => {
+        const snap = await query.get();
+        reads.queryDocs += snap.docs.length;
+        return snap;
+      },
+      count: () => {
+        const aggregate = query.count();
+        return { get: async () => ((reads.counts += 1), aggregate.get()) };
+      },
+    });
   db.collection = (path) => {
     const ref = collection(path);
-    const where = ref.where.bind(ref);
     const doc = ref.doc.bind(ref);
     return Object.assign(Object.create(ref), {
       where: (...args) => {
         reads.queries.push(`${path} ${args[0]}`);
-        return where(...args);
+        return watchQuery(ref.where(...args), path);
       },
       doc: (id) => {
         const handle = doc(id);
@@ -152,6 +169,28 @@ async function listFor(uid, now = WEEK_THREE) {
     db.collection = collection;
     db.getAll = getAll;
   }
+}
+
+/**
+ * The hand-over, as it leaves a run: a learner's seat for each of AGI
+ * Strategy's four who hold a place, beside a facilitator's seat and one given
+ * back, neither of which holds a place.
+ */
+async function handOver() {
+  const seat = (uid, over = {}) =>
+    world.db.collection("courseEnrolments").doc(`${RUN.agi}__${uid}`).set({
+      runId: RUN.agi,
+      courseId: COURSE.agi,
+      uid,
+      groupId: B,
+      status: "active",
+      role: "learner",
+      selfEnrolled: false,
+      ...over,
+    });
+  for (const uid of ["amara", "bea", "dev", "tariq"]) await seat(uid);
+  await seat("rahul", { role: "facilitator" });
+  await seat("ines", { status: "withdrawn" });
 }
 
 const ids = (list) => list.terms.map((term) => [term.label, term.programmes.map((p) => p.id)]);
@@ -183,12 +222,13 @@ async function draw(Page, who, params = {}) {
 
 mock.timers.enable({ apis: ["Date"], now: WEEK_THREE });
 
-beforeEach(() => {
+beforeEach(async () => {
   reset(leadSeed());
   globalThis.__programmesPage.db = world.db;
   // Appointing a lead or a reviewer sets the flag the admissions tree reads.
   for (const uid of ["claudia", "lloyd", "tess"]) world.db.poke(`users/${uid}`, { admissionsReviewer: true });
   mock.timers.setTime(WEEK_THREE.getTime());
+  await handOver();
 });
 
 // ---------------------------------------------------------------------------
@@ -222,9 +262,9 @@ describe("1. the list holds the programmes each reader may open, and nobody else
   for (const who of ["trackLead", "facilitator", "member"]) {
     test(`a ${who}: nothing, and no form read past its listing`, async () => {
       const { list, reads } = await listFor(READERS[who]);
-      assert.deepEqual(list, { terms: [], earlier: [], reader: "none" });
+      assert.deepEqual(list, { terms: [], earlier: [], reader: "none", anyForm: false });
       assert.deepEqual(reads.queries, ["admissionRounds formVersion"]);
-      assert.equal(reads.getAll, 0);
+      assert.deepEqual([reads.getAll, reads.docs, reads.counts], [0, 0, 0]);
     });
   }
 
@@ -259,9 +299,10 @@ describe("2. each card says what the reader may know of it", () => {
   test("the lead's card: where the run is, its groups, who holds a place, and the Overview's first line", async () => {
     const { list } = await listFor(READERS.leadOfOne);
     const agi = card(list, AGI);
+    // The short name, with its kind on a line of its own; the seats the hand-over wrote, never a facilitator's or one given back.
     assert.deepEqual(
-      [agi.kindWord, agi.name, agi.lead, agi.line],
-      ["Fellowship", "AGI Strategy Fellowship", "Lead: you", "Week 3 of 6 · 3 groups · 4 holding a place"],
+      [agi.kindWord, agi.shortName, agi.lead, agi.line],
+      ["Fellowship", "AGI Strategy", "Lead: you", "Week 3 of 6 · 3 groups · 4 holding a place"],
     );
     assert.deepEqual(agi.open, { label: "Open AGI Strategy", href: at(AGI, "overview") });
     assert.equal(agi.review, null);
@@ -302,19 +343,26 @@ describe("2. each card says what the reader may know of it", () => {
     // The lead by the name the term's page prints beside "lead" (`namesOnForm`).
     assert.equal(card(list, AGI).lead, "Lead: Claudia");
     assert.equal(card(list, TAIS).lead, "Lead: Tess");
-    // TAIS names a run with no groups yet; the incubator names none.
-    assert.equal(card(list, TAIS).line, "Week 3 of 6 · 0 groups · 1 holding a place");
-    assert.equal(card(list, INCUBATOR).line, "0 holding a place");
+    // TAIS names a run with no groups and nobody handed over yet, so it says nothing of places; the incubator names no run.
+    assert.equal(card(list, TAIS).line, "Week 3 of 6 · 0 groups");
+    assert.equal(card(list, INCUBATOR).line, null);
     for (const programme of list.terms[0].programmes) assert.equal(programme.review, null);
   });
 
-  test("a reviewer: the applications line and today's button to them, never the run's line", async () => {
-    const { list } = await listFor(READERS.reviewer);
+  test("a reviewer after decision day: today's button to the applications, and nothing of the run", async () => {
+    const { list, reads } = await listFor(READERS.reviewer);
     const agi = card(list, AGI);
-    assert.match(agi.line, /^\d+ applications? · (none|\d+) for you to read$/);
-    assert.equal(agi.needsYou, null);
-    assert.equal(agi.open.href, at(AGI, "applications"));
-    assert.ok(["See applications"].includes(agi.open.label) || /^Review \d+$/.test(agi.open.label));
+    assert.deepEqual([agi.line, agi.needsYou, agi.review], [null, null, null]);
+    assert.deepEqual(agi.open, { label: "See applications", href: at(AGI, "applications") });
+    // Applications and decisions are read only while a term takes or decides them.
+    assert.ok(!reads.queries.some((q) => q.startsWith("admissionApplications") || q.startsWith("admissionDecisions")));
+  });
+
+  test("a reviewer while applications are decided: the applications line and Review N where some wait for them", async () => {
+    world.db.poke(formPath, { decisionsSentAt: null });
+    const agi = card((await listFor(READERS.reviewer)).list, AGI);
+    const [, , mine] = /^(\d+) applications? · (none|\d+) for you to read$/.exec(agi.line);
+    assert.deepEqual(agi.open, { label: mine === "none" ? "See applications" : `Review ${mine}`, href: at(AGI, "applications") });
     assert.equal(agi.review, null);
   });
 
@@ -330,12 +378,12 @@ describe("2. each card says what the reader may know of it", () => {
     else assert.deepEqual(agi.review, { label: `Review ${mine}`, href: at(AGI, "applications") });
     assert.equal(agi.open.label, "Open AGI Strategy");
 
-    // An admin who leads none of them: no Review anywhere, and none for them to read.
-    const asAdmin = (await listFor(READERS.admin)).list;
+    // An admin who leads none of them: no Review anywhere, and the applications are not read for them.
+    const { list: asAdmin, reads } = await listFor(READERS.admin);
     for (const programme of asAdmin.terms[0].programmes) {
-      assert.equal(programme.review, null, programme.id);
-      assert.match(programme.line, /· none for you to read$/, programme.id);
+      assert.deepEqual([programme.review, programme.line], [null, null], programme.id);
     }
+    assert.ok(!reads.queries.some((q) => q.startsWith("admissionApplications") || q.startsWith("admissionDecisions")));
   });
 
   test("the stage words, from the form until decision day and from the runs after", () => {
@@ -416,6 +464,17 @@ describe("3. a term stays until every programme on it is over", () => {
     world.db.poke(formPath, { archived: true });
     const { list } = await listFor(READERS.leadOfOne);
     assert.deepEqual([list.terms, list.earlier.map((term) => term.label)], [[], ["Autumn 2026"]]);
+    // With no term that is not over, the page gives them no lede, and Earlier terms carries what its row shows.
+    assert.equal(list.reader, "none");
+    assert.deepEqual(Object.keys(list.earlier[0]).sort(), ["href", "id", "label"]);
+  });
+
+  test("a run marked cancelled says nothing of weeks or groups on its card", async () => {
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "cancelled" });
+    const { list } = await listFor(READERS.leadOfOne);
+    assert.deepEqual([card(list, AGI).line, card(list, AGI).needsYou], ["4 holding a place", null]);
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "completed" });
+    assert.equal(card((await listFor(READERS.leadOfOne)).list, AGI).line, "Finished · 4 holding a place");
   });
 });
 
@@ -424,29 +483,74 @@ describe("3. a term stays until every programme on it is over", () => {
 // ---------------------------------------------------------------------------
 
 describe("4. what the list reads", () => {
-  test("an admin, a lead and a reviewer, in week 3", async () => {
+  // The world: one form, three programmes, two of them naming runs (AGI Strategy with three groups, all past
+  // week 2 and none with week 3 published; Technical AI Safety with none), three people named on the form.
+  test("past decision day, in week 3: forms, runs, groups, seats and the reached week, and no application", async () => {
     const admin = (await listFor(READERS.admin)).reads;
+    assert.deepEqual(admin, {
+      // The forms; each run's groups; for each run the reader opens, two counts of its seats.
+      queries: ["admissionRounds formVersion", "courseGroups runId", "courseGroups runId", "courseEnrolments runId", "courseEnrolments runId"],
+      // One form and AGI Strategy's three groups.
+      queryDocs: 4,
+      counts: 4,
+      docs: 0,
+      // The two runs; the three names; week 3, each group's copy and the run's once.
+      getAll: 9,
+    });
     const lead = (await listFor(READERS.leadOfOne)).reads;
+    // Every run is read, because the term's end asks them all; seats and weeks only for the lead's own.
+    assert.deepEqual([lead.queryDocs, lead.counts, lead.docs, lead.getAll], [4, 2, 0, 9]);
     const reviewer = (await listFor(READERS.reviewer)).reads;
-    // Forms, then the runs the term names in one getAll and the groups of each, then the term's applications and
-    // decisions once, and for whoever opens AGI Strategy's groups its registers and the reached week's documents.
-    for (const [who, reads] of [["admin", admin], ["lead", lead]]) {
-      assert.deepEqual(
-        reads.queries.filter((q) => !q.startsWith("courseGroups/") && !q.includes("/weeks")).sort(),
-        [
-          "admissionApplications roundId",
-          "admissionDecisions roundId",
-          "admissionRounds formVersion",
-          "courseAttendance runId",
-          "courseGroups runId",
-          "courseGroups runId",
-        ],
-        who,
-      );
+    // No seat, no week, no register and no application: the reviewer is given no run's line.
+    assert.deepEqual(reviewer, {
+      queries: ["admissionRounds formVersion", "courseGroups runId", "courseGroups runId"],
+      queryDocs: 4,
+      counts: 0,
+      docs: 0,
+      getAll: 5,
+    });
+  });
+
+  test("while applications are open: the term's applications and decisions, and only for a reader who leads or reviews", async () => {
+    world.db.poke(formPath, { status: "open", decisionsSentAt: null, closesAt: new Date("2026-11-30T23:59:00Z") });
+    const admin = (await listFor(READERS.admin)).reads;
+    assert.deepEqual(admin, { queries: ["admissionRounds formVersion"], queryDocs: 1, counts: 0, docs: 0, getAll: 3 });
+    const lead = (await listFor(READERS.leadOfOne)).reads;
+    assert.deepEqual(lead.queries, ["admissionRounds formVersion", "admissionApplications roundId", "admissionDecisions roundId"]);
+  });
+
+  test("a term whose runs are marked over costs one read of its runs and nothing more", async () => {
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "completed" });
+    world.db.poke(`courseRuns/${RUN.tais}`, { archived: true });
+    world.db.poke(formPath, { [`programmes.${INCUBATOR}.closed`]: true });
+    const { list, reads } = await listFor(READERS.admin);
+    assert.deepEqual(list.earlier, [{ id: ROUND, label: "Autumn 2026", href: HOME }]);
+    assert.deepEqual(reads, { queries: ["admissionRounds formVersion"], queryDocs: 1, counts: 0, docs: 0, getAll: 2 });
+  });
+
+  test("a register read is made only when no week a group has reached is unready", async () => {
+    const first = (await listFor(READERS.leadOfOne)).reads;
+    assert.ok(!first.queries.includes("courseAttendance runId"));
+    await world.db.collection(`courseRuns/${RUN.agi}/weeks`).doc("w03").set({ weekNumber: 3, title: "Week three", published: true });
+    const then = (await listFor(READERS.leadOfOne)).reads;
+    assert.ok(then.queries.includes("courseAttendance runId"));
+    // And the scheduler's settings, for the register's own word, once.
+    assert.equal(then.docs, 1);
+  });
+
+  test("one card's failed read leaves its line off and the page up", async () => {
+    const getAll = world.db.getAll;
+    world.db.getAll = async (...refs) => {
+      if (refs.some((ref) => String(ref.path).includes("/weeks/"))) throw new Error("unavailable");
+      return getAll(...refs);
+    };
+    try {
+      const { list } = await listFor(READERS.leadOfOne);
+      assert.equal(card(list, AGI).needsYou, null);
+      assert.equal(card(list, AGI).line, "Week 3 of 6 · 3 groups · 4 holding a place");
+    } finally {
+      world.db.getAll = getAll;
     }
-    // A reviewer is given no run's line, so reads no register; the applications' numbers read their sets and reviews.
-    assert.ok(!reviewer.queries.includes("courseAttendance runId"));
-    assert.ok(reviewer.queries.includes("admissionApplications roundId"));
   });
 });
 
@@ -461,13 +565,13 @@ describe("5. the pages", () => {
     assert.match(drawn.text, /^Programmes Every programme of a term that isn’t over\. Open one to run it: its groups, weeks, people and settings are all inside\./);
     assert.match(drawn.text, /Autumn 2026 Running Every decision went out on Fri 23 Oct\. Autumn 2026’s term page/);
     assert.match(drawn.html, new RegExp(`<a href="${at(AGI, "overview")}" class="primary">Open AGI Strategy</a>`));
-    assert.match(drawn.text, /Earlier terms None yet A term moves here once its last session is over\./);
+    assert.match(drawn.text, /Earlier terms None yet A term moves here once its last session is over\. Everything in it stays\./);
   });
 
   test("the Programmes page, as a lead: their programme, and no Earlier terms while there are none", async () => {
     const drawn = await draw(ProgrammesPage, "claudia");
     assert.match(drawn.text, /^Programmes The programmes you lead\. Open one to run it\./);
-    assert.ok(drawn.text.includes("AGI Strategy Fellowship"));
+    assert.match(drawn.text, /Fellowship AGI Strategy Lead: you /);
     assert.ok(!drawn.text.includes("Technical AI Safety"), "a lead was shown somebody else's programme");
     assert.ok(!drawn.text.includes("Earlier terms"));
   });
@@ -477,6 +581,14 @@ describe("5. the pages", () => {
     assert.match(drawn.text, /^Programmes The programmes you review\. Open one to read its applications\./);
     assert.ok(drawn.html.includes(`href="${at(AGI, "applications")}"`));
     assert.ok(!drawn.html.includes("/overview"), "a reviewer was offered the Overview");
+  });
+
+  test("an admin whose only form has no programmes yet is not told there are no forms", async () => {
+    // A fresh setup: a draft form with nothing on it yet.
+    world.db.poke(formPath, { programmeIds: [], programmes: {}, status: "draft", decisionsSentAt: null });
+    const drawn = await draw(ProgrammesPage, "zach");
+    assert.ok(!drawn.text.includes("No application forms yet"));
+    assert.match(drawn.text, /Earlier terms None yet A term moves here once its last session is over\. Everything in it stays\./);
   });
 
   test("somebody admitted who is on no form: the area's own empty state, not an error", async () => {
@@ -527,13 +639,29 @@ describe("5. the pages", () => {
 
   test("a view-as session: the whole admin tree, these pages with it, is closed while the marker is live", () => {
     const layout = readFileSync(join(import.meta.dirname, "..", "src", "app", "(app)", "admin", "layout.tsx"), "utf8");
+    // The layout every page here sits under returns its notice, never its children, while the marker is live.
     assert.match(layout, /const viewingAs = markerIsLive\(marker, user\.uid\);\s+if \(viewingAs\) \{\s+return \(/);
-    for (const page of [
-      ["admissions", "programmes", "page.tsx"],
-      ["admissions", "forms", "[roundId]", "programmes", "[programmeId]", "page.tsx"],
-    ]) {
-      assert.ok(readFileSync(join(import.meta.dirname, "..", "src", "app", "(app)", "admin", ...page), "utf8").length > 0);
+    const closed = layout.slice(layout.indexOf("if (viewingAs) {"), layout.indexOf("return (", layout.indexOf("if (viewingAs) {") + 30));
+    assert.ok(!closed.includes("{children}"), "the closed admin area draws its children");
+  });
+
+  test("every crumb under a term that says Programmes leads to the Programmes page, with the term's own name beside it", () => {
+    const SRC = join(import.meta.dirname, "..", "src");
+    const files = [
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx",
+      "features/applications/decisionDay/parts.tsx",
+      "features/applications/editor/FormEditor.tsx",
+      "app/(app)/admin/admissions/forms/[roundId]/rooms/page.tsx",
+      "app/(app)/admin/admissions/forms/[roundId]/rooms/term/page.tsx",
+    ];
+    for (const file of files) {
+      const code = readFileSync(join(SRC, file), "utf8");
+      assert.match(code, /<TermCrumb\b/, file);
+      assert.doesNotMatch(code, />\s*Programmes\s*<\/Link>/, `${file} still draws a Programmes link of its own`);
     }
+    const crumb = readFileSync(join(SRC, "features", "applications", "editor", "TermCrumb.tsx"), "utf8");
+    assert.match(crumb, /<Link href=\{PROGRAMMES_PATH\}[^>]*>\s*Programmes\s*<\/Link>/);
+    assert.match(crumb, /<Link href=\{applicationFormPath\(roundId\)\}[^>]*>\s*\{termLabel\}\s*<\/Link>/);
   });
 });
 
