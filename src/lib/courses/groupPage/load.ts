@@ -10,6 +10,7 @@ import { updateEmailAudience } from "@/lib/courses/updates/audience";
 import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { loadGroupHistory } from "@/lib/courses/groupHistory/load";
 import { placesInGroup } from "@/lib/courses/groupArchive/plan";
+import { registerOwed } from "@/lib/courses/groupArchive/restored";
 import { readHeldSeats } from "@/lib/courses/placesAndName/held";
 import { excuseFactsForGroup, type ExcuseFacts } from "@/lib/courses/excused/facts";
 import { groupWeekWorkView, readGroupWeekWork } from "@/lib/courses/groupWeekWork/load";
@@ -406,6 +407,8 @@ export async function loadGroupPage(
     return {
       weekNumber: session.weekNumber,
       weekId: session.weekId,
+      // Nobody is asked to take a register that is not owed (`registerOwed`).
+      owed: registerOwed(group, startsAt),
       sessionKey: session.sessionKey,
       title,
       dateKey: session.dateKey,

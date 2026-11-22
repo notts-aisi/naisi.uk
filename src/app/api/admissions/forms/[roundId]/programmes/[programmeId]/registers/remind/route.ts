@@ -6,6 +6,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { readCoursesConfig } from "@/lib/firestore/config";
+import { notOwedWords } from "@/lib/courses/groupArchive/words";
 
 /**
  * "Remind Grace" on a programme's Overview: the register
@@ -22,7 +23,8 @@ import { readCoursesConfig } from "@/lib/firestore/config";
  *     programme or a role that is not there is answered as nothing being
  *     there.
  *  4. The group must be one of the run's groups that still meet, the session
- *     one of its own, over, held, and its register not finished.
+ *     one of its own, over, held, owed (`registerOwed`: not one that passed
+ *     while the group was archived) and its register not finished.
  *  5. Who it emails is worked out the way the reminder's job works it out
  *     (`readReminderState`), never the person pressing, and must be the
  *     number the button showed; a
@@ -130,6 +132,10 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   if (facts.finished) {
     return NextResponse.json({ error: `${group.name}’s register for ${day} is already ${ending}.` }, { status: 409 });
+  }
+  // A session that passed while the group was archived owes no register (`registerOwed`).
+  if (!facts.owed) {
+    return NextResponse.json({ error: notOwedWords(group.name, day) }, { status: 409 });
   }
   if (!facts.ended || !facts.startsAt) {
     return NextResponse.json(

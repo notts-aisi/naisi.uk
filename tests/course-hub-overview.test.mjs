@@ -520,6 +520,34 @@ describe("3. needs attention", () => {
     assert.ok(!rows.includes("una") && !rows.includes("zoe"), "a leaver no register marked is no row of the grid");
   });
 
+  test("after a restore, a session that passed while the group was archived asks for nothing: no attention row, no promise, no Remind", async () => {
+    // Group D was archived over its week 3 session (Mon 16 Nov) and restored the next morning.
+    world.db.seed("config/scheduler", switches({ reminders: true }));
+    world.db.poke(`courseGroups/${D}`, { restoredAt: new Date("2026-11-17T09:00:00Z") });
+    const { model } = await draw("zach");
+    assert.equal(model.attention.filter((entry) => entry.kind === "register").length, 0, JSON.stringify(titles(model)));
+    assert.ok(!JSON.stringify(model.attention).includes("We’ll remind"), "a reminder is promised that never comes");
+    const row = model.sessions.find((entry) => entry.groupId === D && entry.dateKey === "2026-11-16");
+    assert.ok(row, "Group D’s week 3 session is in the week shown");
+    assert.deepEqual([row.state, row.remind], ["not-held", null]);
+    const pressed = await remind("claudia", GRACE);
+    assert.deepEqual(
+      [pressed.status, pressed.body.error],
+      [409, "Group D’s session on Mon 16 Nov passed while it was archived, so no register is owed and nobody is reminded."],
+    );
+    assert.deepEqual(world.mail, []);
+  });
+
+  test("a register that was taken for such a session still shows and counts as before", async () => {
+    world.db.poke(`courseGroups/${D}`, { restoredAt: new Date("2026-11-17T09:00:00Z") });
+    world.db.poke(registerPath(D, 3), { pushedAt: new Date("2026-11-16T21:00:00Z") });
+    const { model } = await draw("zach");
+    const row = model.sessions.find((entry) => entry.groupId === D && entry.dateKey === "2026-11-16");
+    assert.ok(row);
+    assert.equal(row.state, "finished");
+    assert.equal(model.attention.filter((entry) => entry.kind === "register").length, 0);
+  });
+
   test("a register marked as not held needs nothing", async () => {
     world.db.poke(registerPath(D, 3), { held: false });
     const { model } = await draw("claudia");

@@ -1,4 +1,5 @@
 import "server-only";
+import { registerOwed } from "@/lib/courses/groupArchive/restored";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { standingUserOf } from "@/lib/courses/programmeLead";
 import { chaseTargets } from "@/lib/courses/registerCover/model";
@@ -83,7 +84,7 @@ export async function chaseFacts(
   db: Firestore,
   input: {
     runId: string;
-    group: Pick<CourseGroupDoc, "id" | "facilitatorUids">;
+    group: Pick<CourseGroupDoc, "id" | "facilitatorUids" | "archived" | "restoredAt">;
     session: ResolvedSession;
     now: Date;
     /** The register's cover as the correction leaves it: a move takes it away, a clear keeps it. */
@@ -100,8 +101,10 @@ export async function chaseFacts(
   const until = (hours: number) => (endsAt ? endsAt.getTime() + (hours + FOLLOW_UP_WINDOW_HOURS) * HOUR_MS : 0);
   const emailOn = jobStateFor(scheduler, REGISTER_REMINDERS_JOB.id, REGISTER_REMINDERS_JOB.enabledByDefault).enabled;
   const cardOn = jobStateFor(scheduler, UNMARKED_REGISTERS_JOB.id, UNMARKED_REGISTERS_JOB.enabledByDefault).enabled;
-  const email: ChaseFacts["email"] = !emailOn ? "off" : now.getTime() < until(courses.unmarkedRegisterGraceHours) ? "returns" : "passed";
-  const card: ChaseFacts["card"] = !cardOn ? "off" : cards.length > 0 || now.getTime() < until(courses.registerTaskHours) ? "returns" : "passed";
+  // A session that passed while the group was archived owes no register, so neither job chases it (`registerOwed`).
+  const owed = registerOwed(group, sessionInstants(session).startsAt);
+  const email: ChaseFacts["email"] = !emailOn ? "off" : owed && now.getTime() < until(courses.unmarkedRegisterGraceHours) ? "returns" : "passed";
+  const card: ChaseFacts["card"] = !cardOn ? "off" : cards.length > 0 || (owed && now.getTime() < until(courses.registerTaskHours)) ? "returns" : "passed";
   if (email !== "returns" || !endsAt) return { email, card, emailTo: null, emailFrom: null };
 
   // Who the job would remind about the register as the correction leaves it:

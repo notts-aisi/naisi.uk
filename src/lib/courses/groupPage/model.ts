@@ -43,6 +43,8 @@ export type WeekChange = "online" | "moved" | "cancelled" | "pushed";
 export type GroupPageWeek = {
   weekNumber: number;
   weekId: string;
+  /** A register is owed for it (`registerOwed`): absent is owed. False for one that passed while the group was archived. */
+  owed?: boolean;
   /** Keys the week's register and its link ("w03"). */
   sessionKey: string;
   /** The week's title on the run ("How fast"), or "". */
@@ -207,6 +209,7 @@ export type GroupPageView = {
 /** A week's register, as the ways to take it in a facilitator's place ask it (`coverChoicesOf`). */
 export function weekRegisterFacts(week: GroupPageWeek): {
   weekNumber: number;
+  owed: boolean;
   started: boolean;
   cancelled: boolean;
   dated: boolean;
@@ -218,6 +221,7 @@ export function weekRegisterFacts(week: GroupPageWeek): {
 } {
   return {
     weekNumber: week.weekNumber,
+    owed: week.owed !== false,
     started: week.started,
     cancelled: week.cancelled,
     dated: Boolean(week.dateKey && week.hhmm),
