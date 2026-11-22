@@ -326,7 +326,8 @@ export function peopleSeed(over = {}) {
 /**
  * The world: the facilitator pages' (pages, routes, Home and its two hooks,
  * the clock), the join's routes (hand-over, placements, Publish, replies),
- * and the People page and the tabs' layout.
+ * and the People page and the tabs' layout. `extraStubs` are handed on to
+ * the facilitator pages' world, for a suite that stubs one more module.
  */
 export async function makePeopleWorld(key = "__peopleWorld", extraStubs = []) {
   const made = await makeFacilitatorPagesWorld(key, extraStubs);
