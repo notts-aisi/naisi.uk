@@ -2034,6 +2034,57 @@ Emails already sent keep the label they were sent with, and so do the rows
 that copied it (a destroy's or a drop-out's course log line, a saved
 template's summary). Cancel and destroy ask for the label as it is now.
 
+## Making a run, the older roles and Careful, on a programme's Settings
+
+The rest of the Course run section (admins only). Every part asks first, and
+only the take-off emails anybody. The words are in
+`src/lib/courses/runCareful/words.ts`.
+
+**Making a new run.** Where the programme names no run and is tied to a
+course, "Make a new run of AGI Strategy" asks for the run's label, academic
+year, cohort and the day week 1 starts, with the run's details checks, and
+`POST /api/admissions/forms/[roundId]/programmes/[programmeId]/run/new`
+makes it and names it on the programme in one transaction
+(`makeProgrammeRun` in `src/lib/applications/handover/run.ts`). The run is
+written with exactly the fields the older course editor's New run writes
+(`createRun`): a draft, every server owned field clean, channel
+`cohort:<runId>`, the admin as its author, plus the cohort when one was
+given. Refused: a programme not tied to a course, one that names a run
+already (with the hand-over's sentence once anybody is handed over), a
+course no longer on the site, and a label another run of the course already
+carries, compared ignoring case and runs of spaces, archived and cancelled
+runs included. Two presses at once make one run. A run made stays a draft
+until somebody destroys it. Naming a run already made is unchanged.
+
+**Somebody who gave their place back.** See "A place given back" in
+docs/applications.md: "Take Kwesi off the run…" opens the take-off sheet,
+which says who is emailed and counts them on its button, and closes their
+row on the run's list in the same act.
+
+**The older roles.** When the run names anybody as a track lead
+(`trackLeadUids`) or a run facilitator (`runFacilitatorUids`) on the older
+run page, the section lists them with "Remove…". The question says what
+they can no longer do: as a track lead, work on the run's weeks,
+applications, groups or registers or email everybody on it
+(`doesTrackLeadWork` in `src/lib/courses/runStaffing.ts` and the cohort
+email's gate); as a run facilitator, open the run or email everybody on it
+(`/learn/[runId]` and `/learn/[runId]/email`). What they do as the
+programme's lead, a group's facilitator or an admin stays. `POST
+.../run/roles` takes one person off one list and writes what the older
+roles route writes, the list and `updatedAt`. Nobody is added here. The
+rules are unchanged: an admin's browser may write every field of a run, as
+before, and nothing on the site writes these two lists from a browser.
+
+**Careful.** Archive is offered once the run is completed or cancelled,
+never while it runs (archiving a run people are on hides it from them while
+its emails go on), through `PATCH /api/courses/runs/[runId]/archive`; an
+archived run says so and offers "Restore the run…" through the same route.
+"Cancel this cohort…" and "Destroy this run…" are the older run page's
+dialogs, word for word (`CancelCohortDialog` and `DestroyDialog` in
+`src/features/courses/RunDangerZone.tsx`): the typed label, the live
+manifest and the receipt. A run being destroyed offers neither archive nor
+cancel, and Destroy resumes it.
+
 ## Which group somebody was in, week by week
 
 A place on a run (`courseEnrolments/{runId}__{uid}`) has one group,

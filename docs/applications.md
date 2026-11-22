@@ -1882,13 +1882,21 @@ the tree for a gate that admits a track lead and not the lead.
 - **Before the hand-over**: they hold no place, so they are not handed
   over, and no list names them.
 - **Afterwards, before Publish has told them a group**: nothing removes
-  them. Their row stays on the run, and so does their group if they are in
-  one. The programme's own read (`GET .../programmes/[programmeId]/run`)
-  names them under `gaveBack`, and their card on the board says "Gave their
-  place back", so that an admin can act: take them out of their group on
-  the board, then take their row off the run's own list (its applications
-  page). A row from the form carries no address, so the run's own decide
-  route emails nobody about it. Publish never writes to somebody whose card
+  them by itself. Their row stays on the run, and so does their group if
+  they are in one. The programme's own read (`GET
+  .../programmes/[programmeId]/run`) names them under `gaveBack`, each with
+  the day they gave it back and the group their seat is still in, and their
+  card on the board says "Gave their place back". An admin takes them off
+  from Course run ("Take Kwesi off the run…"): the take-off sheet every
+  board uses, with `closeRow: true`, which frees the seat, emails whom the
+  sheet says, and closes their row on the run's own list (`withdrawn`, with
+  the run's counts moved from accepted to withdrawn) in the same
+  transaction. A take-off from People in groups leaves the row `accepted`,
+  as it always did. Either way they are then listed under "Taken off the
+  programme". No route reopens a withdrawn row: the run's decide route
+  refuses one. Somebody whose seat was never made (handed over, never
+  placed) has nothing to take off, and Course run offers no button for
+  them. Publish never writes to somebody whose card
   says it, and never waits for one with no group: the card, the board's
   count of who is still to place and Publish's plan ask the one answer
   (`gaveTheirPlaceBack` in `src/lib/courses/placeGivenBack.ts`) of the same
@@ -1907,9 +1915,10 @@ the tree for a gate that admits a track lead and not the lead.
   leaving the programme, the person's own act (next section): their reply
   takes them out of their group. Their row on the run's own list stays.
 
-The hand-over and the panel never take anybody off a run. A person's own
-act does, from either of the two doors to the one leave, and so does staff's
-Remove on the board (next section).
+The hand-over never takes anybody off a run. A person's own act does, from
+either of the two doors to the one leave, and so does staff's Remove on the
+board (next section), or Course run's take-off of somebody who gave their
+place back, after its question.
 
 ### Leaving the programme gives the place back
 
