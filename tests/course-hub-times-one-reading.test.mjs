@@ -231,13 +231,22 @@ const WEEK_READERS = {
     "the person's panel on People in groups, and every mark Rings draws about a person's time (src/features/applications/groups/ringsModel.ts reads its answer and no week), for an admin or the programme's lead (loadProgrammeRun): everybody on the board through boardWeeksFor alone, never about the reader",
   "src/lib/courses/personPage/load.ts": "a person's page for the team: When they're free through personWeekFor alone",
   "src/lib/applications/arrange/load.ts":
-    "Circles' arranging (an admin's Suggest groups on People in groups shown as Rings) and an arrangement's preview, which loadCircles and the preview open for an admin alone (canRunTerm); and the arrangement route's suggestion without Claude for the programme's lead (arrangingReader), worked out only from the rows rowIsServedTo serves the lead and each week only where canReadApplication lets the lead read the application, asked before the week is read",
+    "Circles' arranging (an admin's Suggest groups on People in groups shown as Rings) and an arrangement's preview, which loadCircles and the preview open for an admin alone (canRunTerm); and the arrangement route's suggestion without Claude for the programme's lead (arrangingReader), worked out only from the rows rowIsServedTo serves the lead and each week only where readsApplicationOf (the gated read's own gate) lets the lead read the application, asked before the week is read",
   "src/lib/courses/facilitatorAsks/people.ts": "the chart beside an ask to facilitate, which the Facilitators view leaves out for anybody but an admin, and never sends to Claude",
   "src/lib/courses/placementNotes/section.ts": "Outside the times they gave, on Publish's page: the week drawn for an admin alone; a lead is sent no week there",
   "src/lib/applications/freedPlaces/words.ts": "a freed place's words about a person's week (\"Free Wed afternoons\"), for the freed places page and the offer's email",
   "src/lib/applications/freedPlaces/groups.ts": "which of the run's groups a person on the freed places page can make, for the page offersFreedPlaces opens (an admin and the lead)",
   "src/lib/applications/freedPlaces/load.ts": "the freed places page, which offersFreedPlaces opens for an admin and the lead alone, about people who ranked the programme",
   "src/lib/applications/freedPlaces/offer.ts": "the freed place offer's email to the person themselves: the part of their own week the session falls in",
+};
+
+/**
+ * Who asks `readsApplicationOf` (the application's own gate over what was
+ * sent, which the gated read asks first) without the gated read, and why.
+ */
+const GATE_CALLERS = {
+  "src/lib/applications/arrange/load.ts":
+    "what a programme's lead's suggestion of groups is made from: a person whose application the lead may not read is arranged as somebody who has not said when they are free, before their week is read",
 };
 
 /** Who asks the one gated read (for one person, or for everybody on a board at once), and why. */
@@ -290,9 +299,19 @@ describe("every file that turns a marked week into something a screen draws", ()
     const from = code.indexOf("export function personWeekFor(");
     assert.ok(from >= 0, "personWeekFor is not where it was");
     const body = code.slice(from);
-    const asked = body.indexOf("canReadApplication(reader, form, ranked, joined)");
-    assert.ok(asked > 0, "it does not ask canReadApplication of the ranking and the programme joined");
-    assert.match(body, /if \(!canReadApplication\(reader, form, ranked, joined\)\) return \{ kind: "may-not" \};/);
+    const asked = body.indexOf("readsApplicationOf(reader, form, application)");
+    assert.ok(asked > 0, "it does not ask the application's own gate (readsApplicationOf) of the application it was handed");
+    assert.match(body, /if \(!readsApplicationOf\(reader, form, application\)\) return \{ kind: "may-not" \};/);
+    // The gate itself: canReadApplication over the SENT ranking and the programme joined, and nothing of the week.
+    const gateFrom = code.indexOf("export function readsApplicationOf(");
+    assert.ok(gateFrom >= 0 && gateFrom < from, "readsApplicationOf is not defined above personWeekFor");
+    const gate = code.slice(gateFrom, from);
+    assert.match(gate, /const ranked = sent \? rankedProgrammes\(form, sent\)\.map\(\(programme\) => programme\.id\) : \[\];/);
+    assert.match(gate, /const joined = application && sent \? joinedByInvitation\(application\) : null;/);
+    assert.match(gate, /return canReadApplication\(reader, form, ranked, joined\);/);
+    for (const read of ["paintedWeekOf(", "markedRanges(", "fromFirstMark(", ".availability", "covers("]) {
+      assert.equal(gate.indexOf(read), -1, `the gate reads ${read}`);
+    }
     for (const read of ["paintedWeekOf(", "markedRanges(", "fromFirstMark(", ".availability", "covers("]) {
       const at = body.indexOf(read);
       assert.ok(at === -1 || at > asked, `it reads ${read} before it has asked whether the reader may read the application`);
@@ -310,6 +329,15 @@ describe("every file that turns a marked week into something a screen draws", ()
     for (const read of ["paintedWeekOf(", "markedRanges(", "fromFirstMark(", ".availability", "covers(", "canReadApplication("]) {
       assert.equal(body.indexOf(read), -1, `boardWeeksFor reads ${read} itself`);
     }
+  });
+
+  test("the application's own gate, as a screen handed an application asks it, is asked only where listed", () => {
+    const askers = [...walkSource(SRC)]
+      .map(repoPath)
+      .filter((file) => file !== "src/lib/applications/people/week.ts" && /\breadsApplicationOf\s*\(/.test(codeOf(file)))
+      .sort();
+    assert.deepEqual(askers, Object.keys(GATE_CALLERS).sort());
+    for (const [file, why] of Object.entries(GATE_CALLERS)) assert.ok(why.length > 40, `${file} needs its reason written down`);
   });
 
   test("the gated read is asked only from the pages listed, and the person's page reads no week of its own", () => {

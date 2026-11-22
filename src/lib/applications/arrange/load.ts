@@ -8,12 +8,12 @@ import { currentTimeAnswer } from "@/lib/courses/timeAnswer/model";
 import { enrolmentHasLeft, movedSinceTold, normalizeCourseEnrolment, groupToldAbout } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
 import { runStaffingOf } from "@/lib/courses/runStaffing";
-import { canReadApplication, canRunTerm, roleOnProgramme } from "../access";
-import { isInTerm, joinedByInvitation, placementFor } from "../decisions";
+import { canRunTerm, roleOnProgramme } from "../access";
+import { isInTerm, placementFor } from "../decisions";
 import { compareWithRun, nameOnRecord, placeHoldersOn, type PlaceHolder } from "../handover/holders";
 import { markedRanges } from "@/lib/admissions/availability";
 import { paintedWeekOf } from "../handover/paintedWeek";
-import { rankedProgrammes } from "../sections";
+import { readsApplicationOf } from "../people/week";
 import { RUNS_COLLECTION, RUN_APPLICATIONS_COLLECTION, readRun } from "../handover/run";
 import { defaultLength, hasSessionTime, lengthFromGroups, lengthOptions, pickLength, timesPicture, WEEK_FROM_MONDAY } from "../handover/times";
 import { groupsOf, type LiveGroup } from "../handover/timesLoad";
@@ -50,8 +50,8 @@ import type { ArrangeGroup, ArrangePerson, CandidateTime } from "./plan";
  * BOARD SERVES THEM: the run's rows this lead is served on every staff
  * route (`rowIsServedTo`, with the lead's standing on the run from
  * `runStaffingOf`), and of each person's application only what the
- * application's own gate lets this lead have (`canReadApplication`, asked
- * as the one gated read of a week asks it): somebody whose application the lead may not read
+ * application's own gate lets this lead have (`readsApplicationOf`, the
+ * one place the gated read of a week asks it too): somebody whose application the lead may not read
  * is arranged as somebody who has not said when they are free, with no
  * offer to facilitate and the name on the run's own row, so nothing the
  * suggestion says is worked out from their week. An admin's reading is
@@ -144,19 +144,15 @@ export function arrangingReader(user: SessionUser, form: ApplicationForm, progra
 }
 
 /**
- * May this lead have this person's application: the application's own gate
- * (`canReadApplication`, over the SENT ranking and the programme joined by
- * an accepted invitation, asked exactly as the one gated read of a week asks
- * it in `../people/week.ts`), and never their own, as nobody opens their own
+ * May this lead have this person's application: the one question
+ * `readsApplicationOf` answers (`../people/week.ts`, the application's own
+ * gate over what they sent), and never their own, as nobody opens their own
  * application on the staff screens. Asked before anything of the week is read.
  */
 function leadMayRead(reader: SessionUser, form: ApplicationForm, uid: string, application: ApplicationDoc | null): boolean {
   if (uid === reader.uid) return false;
   const own = application && application.uid === uid ? application : null;
-  const sent = own?.sent ?? null;
-  if (!own || !sent) return false;
-  const ranked = rankedProgrammes(form, sent).map((programme) => programme.id);
-  return canReadApplication(reader, form, ranked, joinedByInvitation(own));
+  return own !== null && own.sent !== null && readsApplicationOf(reader, form, own);
 }
 
 export async function loadArranging(

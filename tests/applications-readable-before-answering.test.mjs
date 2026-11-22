@@ -723,9 +723,16 @@ const ASKERS = {
 
 describe("every file that asks who may read an application says what it does with the answer", () => {
   const access = join(LIBRARY, "access.ts");
+  // The same predicate asked of a whole application (`readsApplicationOf`,
+  // which works out the sent ranking and the programme joined and asks
+  // canReadApplication), defined beside the one gated read of a week.
+  const gateHome = join(LIBRARY, "people", "week.ts");
   const askers = [...walkSource(SRC)]
     .filter((file) => file !== access && /\.tsx?$/.test(file))
-    .filter((file) => calls(stripSource(readFileSync(file, "utf8")), "canReadApplication"))
+    .filter((file) => {
+      const code = stripSource(readFileSync(file, "utf8"));
+      return calls(code, "canReadApplication") || (file !== gateHome && calls(code, "readsApplicationOf"));
+    })
     .map((file) => posix(relative(SRC, file)))
     .sort();
 
@@ -743,6 +750,10 @@ describe("every file that asks who may read an application says what it does wit
   test("the predicate each one asks is the one in access.ts, imported by name", () => {
     for (const file of Object.keys(ASKERS)) {
       const mod = scan(join(SRC, file));
+      if (mod.imports.has("readsApplicationOf")) {
+        assert.equal(resolveImport(mod.file, mod.imports.get("readsApplicationOf") ?? "", SRC), gateHome, `${file} asks another readsApplicationOf`);
+        continue;
+      }
       assert.equal(resolveImport(mod.file, mod.imports.get("canReadApplication") ?? "", SRC), access, `${file} asks another canReadApplication`);
     }
   });
