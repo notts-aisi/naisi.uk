@@ -979,9 +979,14 @@ test(
         const statusBox = adminPage.getByRole("combobox", { name: "Run status", exact: true });
         await statusBox.waitFor({ timeout: WAIT_MS });
         await readToast(adminPage, /Status set to Applications open/, async () => {
+          // The select asks first: the move is sent only from its question.
+          await statusBox.selectOption({ label: "Applications open" });
+          const question = adminPage.getByRole("dialog", { name: /to Applications open\?$/ });
+          await question.waitFor({ timeout: WAIT_MS });
+          await question.getByText("It can’t be moved back.", { exact: false }).waitFor({ timeout: WAIT_MS });
           const [moved] = await Promise.all([
             responseTo(adminPage, "/status", "POST"),
-            statusBox.selectOption({ label: "Applications open" }),
+            question.getByRole("button", { name: "Move it to Applications open", exact: true }).click(),
           ]);
           return okBody(moved, "Moving the run on from draft");
         });
@@ -1119,9 +1124,10 @@ test(
         await weekPage
           .getByRole("heading", { name: `Week 1 · ${WEEK_ONE.title}`, exact: true })
           .waitFor({ timeout: WAIT_MS });
-        // An admin reads "Open the run’s week editor" after it, so the sentence
-        // is held within its line, not as the whole of it.
-        await weekPage.getByText(WEEKS_TAB.notPublished, { exact: false }).waitFor({ timeout: WAIT_MS });
+        // The line is the sentence alone now: nothing leads an admin into the
+        // older week editor from here.
+        await weekPage.getByText(WEEKS_TAB.notPublished, { exact: true }).waitFor({ timeout: WAIT_MS });
+        assert.equal(await weekPage.getByText("Open the run’s week editor").count(), 0, "the week's page leads into the older week editor");
         await adminPage.getByRole("button", { name: "Mark ready", exact: true }).waitFor({ timeout: WAIT_MS });
         assert.equal(await weekPage.getByText(WEEKS_TAB.noPage).count(), 0, "the page still says week 1 has none");
         await first.getByText("Draft", { exact: true }).waitFor({ timeout: WAIT_MS });

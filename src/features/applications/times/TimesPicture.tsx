@@ -48,7 +48,8 @@ import {
  *
  * It is drawn for an admin and for the programme's lead. A lead is not
  * offered what only an admin can do from here: naming the run on the
- * Settings tab, and the run editor.
+ * Settings tab. Groups are added and changed here and on each group's page,
+ * so nothing here leads to the older run editor.
  *
  * Every address here is a page of this site built from stored ids.
  */
@@ -278,8 +279,7 @@ function BestTimes({ picture, names, acts }: { picture: Picture; names: Map<stri
 }
 
 function YourGroups({ view, picture, acts }: { view: TimesView; picture: Picture; acts: boolean }) {
-  const run = view.run;
-  if (!run) return null;
+  if (!view.run) return null;
   const withLength = view.length.source.kind === "mixed";
   const fit = picture.fit;
   // "Add a group" starts on the best time no group meets at, if there is one.
@@ -361,16 +361,6 @@ function YourGroups({ view, picture, acts }: { view: TimesView; picture: Picture
         </div>
       )}
       {acts && <AddGroupButton suggested={free ? { weekday: free.weekday, start: free.start } : null} />}
-      {view.viewer === "admin" ? (
-        <Link
-          href={`/admin/courses/${encodeURIComponent(run.courseId)}/runs/${encodeURIComponent(run.id)}`}
-          className={`${styles.see} ${styles.editorLink}`}
-        >
-          <ArrowedWords
-            words={picture.groups.length === 0 ? "Add groups in the run editor" : "Add or change groups in the run editor"}
-          />
-        </Link>
-      ) : null}
     </section>
   );
 }

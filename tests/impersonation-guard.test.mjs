@@ -284,6 +284,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/runs/[runId]/weeks/[weekId]/lock/route.ts", "takes, keeps or gives back the hold on a week that stops anybody else saving it, named as its holder"],
   ["src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts", "emails the people on a programme a notice about a change to a week, in the presser's name"],
   ["src/app/api/courses/runs/[runId]/weeks/[weekId]/ready/route.ts", "stores a week's Ready, which opens week 1 to everybody holding a place"],
+  ["src/app/api/courses/runs/[runId]/weeks/[weekId]/published/route.ts", "takes a published week back, once it is checked that nobody has started it"],
   ["src/app/api/courses/runs/[runId]/weeks/[weekId]/owner/route.ts", "chooses who owns a week of a run on its programme's Weeks tab"],
   ["src/app/api/courses/runs/[runId]/weeks/[weekId]/mode/route.ts", "holds a whole week's sessions online, or puts them back in person, for every group of a run"],
   ["src/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts", "the week's old Submit, kept for an old page: stamps a week in its caller's own name and sends its written answer to its readers"],

@@ -203,12 +203,12 @@ export type StepState = "done" | "doing" | "todo";
 
 export type StepKey = keyof typeof STEP_TITLE;
 
-/** Where a step's link goes: a view of the programme's own tabs, or the run editor (an admin's). */
+/** Where a step's link goes: always a view of the programme's own tabs. */
 export type StepTarget =
   | "settings"
   | "times"
   | "facilitators"
-  | "run-editor"
+  | "sessions"
   | "groups"
   | "weeks"
   | "week-one"
@@ -421,9 +421,9 @@ function facilitatorsStep(facts: GetReadyFacts): ReadyStep {
 }
 
 function roomsStep(facts: GetReadyFacts): ReadyStep {
-  // Rooms are set in the run editor, which is an admin's: a lead is offered
-  // nowhere to go, because the programme's own tabs set no room.
-  const link = (state: StepState) => (facts.viewer === "admin" ? linkFor("run-editor", STEP_LINK.rooms, state) : null);
+  // Rooms are set on the Groups tab's Sessions view, each group's card, by
+  // the lead and admins alike.
+  const link = (state: StepState) => linkFor("sessions", STEP_LINK.rooms, state);
   if (facts.groups.length === 0) return step("rooms", "todo", NO_GROUPS_YET, link("todo"));
   const { noPlace } = groupGaps(facts);
   if (noPlace.length === 0) return step("rooms", "done", EVERY_GROUP_HAS_A_ROOM, link("done"));

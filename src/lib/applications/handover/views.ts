@@ -38,7 +38,7 @@ export type RunPanelView = {
   choices: RunChoiceView[];
   /** Why the run can no longer be changed here, or null while it can. */
   runLocked: string | null;
-  /** The run's allocation board, once a run is named. */
+  /** People in groups, the programme's Groups tab, once a run is named. */
   boardPath: string | null;
   /** The run's own applications list, once a run is named. */
   listPath: string | null;

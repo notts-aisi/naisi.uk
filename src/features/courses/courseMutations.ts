@@ -592,6 +592,28 @@ export async function setGroupArchived(
   }
 }
 
+/**
+ * Take a published week back. A route, not a browser write: firestore.rules
+ * refuses any browser write that takes `published` from true to false,
+ * because the route has to check first that nobody has ticked or written in
+ * the week and that no group's session for it has passed. Its refusal's one
+ * sentence is what the toast shows.
+ */
+export async function unpublishWeek(runId: string, weekId: string): Promise<void> {
+  const res = await fetch(
+    `/api/courses/runs/${encodeURIComponent(runId)}/weeks/${encodeURIComponent(weekId)}/published`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ published: false }),
+    },
+  );
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(parsed.error ?? "Couldn't unpublish this week.");
+  }
+}
+
 // ---- Route-backed helpers ----
 
 /**

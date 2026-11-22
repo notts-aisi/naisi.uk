@@ -11,6 +11,8 @@ import {
   sessionModeForWeek,
 } from "@/lib/firestore/courseGroups";
 import { weekDocId } from "@/lib/firestore/courses";
+import { readNamingProgramme } from "@/lib/courses/programmeLead";
+import { weeksPath } from "@/lib/courses/weeksTab/paths";
 
 /**
  * Server shell for one week of one group's curriculum.
@@ -101,6 +103,11 @@ export default async function GroupWeekEditPage({
   const to = from ? addDaysToKey(from, 6) : "";
 
   const session = sessionForWeek(group, weekId);
+  // For an admin, the course-wide version on the Weeks page of the programme
+  // that names the run; nobody else is shown the link, so nobody else costs
+  // the read of the forms.
+  const naming = access.isAdmin ? await readNamingProgramme(db, runId).catch(() => null) : null;
+  const weeksHref = naming ? weeksPath(naming.roundId, naming.programmeId, weekId) : null;
 
   return (
     <GroupWeekEditor
@@ -118,6 +125,7 @@ export default async function GroupWeekEditPage({
       location={session.location}
       meetingUrl={session.meetingUrl}
       viewerIsAdmin={access.isAdmin}
+      weeksHref={weeksHref}
     />
   );
 }

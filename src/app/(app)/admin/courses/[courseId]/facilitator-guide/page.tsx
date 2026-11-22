@@ -1,5 +1,6 @@
 import Link from "next/link";
 import FacilitatorGuideLoader, { type LoaderSlot } from "@/features/courses/facilitatorGuide/FacilitatorGuideLoader";
+import OlderEditorLine from "@/features/courses/olderEditor/OlderEditorLine";
 import styles from "@/features/courses/facilitatorGuide/FacilitatorGuideLoader.module.css";
 import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
 import { guideSlots, guideWeekCount, slotKey, slotLabel } from "@/lib/courses/facilitatorGuide/model";
@@ -42,6 +43,7 @@ export default async function FacilitatorGuideAdminPage({ params }: { params: Pr
   if (!db || !reader) {
     return (
       <div className={styles.page}>
+        <OlderEditorLine programme={null} />
         <Link href="/admin/courses" className={styles.back}>
           ← Courses
         </Link>
@@ -73,6 +75,7 @@ export default async function FacilitatorGuideAdminPage({ params }: { params: Pr
 
   return (
     <div className={styles.page}>
+      <OlderEditorLine programme={null} />
       <Link href={courseHref} className={styles.back}>
         ← {reader.courseTitle || "The course"}
       </Link>

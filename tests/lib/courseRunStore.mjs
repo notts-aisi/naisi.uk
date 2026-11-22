@@ -34,6 +34,8 @@ function wrapQuery(inner, max) {
     // for a group's history read newest first off the run's rows.
     orderBy: (...args) => wrapQuery(inner.orderBy(...args), max),
     limit: (n) => wrapQuery(inner, n),
+    // The store's own count, read alone or in its transactions.
+    count: () => inner.count(),
     get: async () => {
       const found = await inner.get();
       const docs = (typeof max === "number" ? found.docs.slice(0, max) : found.docs).map(wrapSnapshot);

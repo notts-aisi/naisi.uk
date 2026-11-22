@@ -25,6 +25,7 @@ import {
 import { ACADEMIC_YEAR_PATTERN, canApproveCourse, type UserDoc } from "@/lib/firestore/users";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
 import { START_DATE_READ_ONLY, goneOutSinceOpened, groupPagePath } from "@/lib/courses/groupPage/words";
+import { programmePath } from "@/lib/courses/weeksTab/paths";
 import {
   COHORT_LIMITS,
   COHORT_TERMS,
@@ -34,6 +35,16 @@ import {
   type CohortTerm,
 } from "@/lib/courses/cohortLabel";
 import { ALLOWED_TRANSITIONS } from "@/lib/courses/runStatus";
+import {
+  ADD_GROUPS_ON_TIMES,
+  COPY_CANT_REPLACE,
+  NOBODY_IS_EMAILED,
+  OPEN_TIMES,
+  keepStatusWords,
+  moveStatusWords,
+  statusQuestionBody,
+  statusQuestionTitle,
+} from "@/lib/courses/olderEditor/words";
 import {
   COURSE_FIELD_LIMITS,
   COURSE_RUN_STATUSES,
@@ -96,6 +107,16 @@ type Props = {
   groupsGoneOut?: boolean;
   /** The programme naming the run, whose Groups tab holds each group's page; null when none does. */
   groupPagesAt?: { roundId: string; programmeId: string } | null;
+  /** That programme's short name ("AGI Strategy"), for the question before a status move; null when none. */
+  programmeName?: string | null;
+  /**
+   * Somebody has ticked or written anything on this run (a `courseProgress`
+   * or `courseExerciseResponses` row with its id), counted by the page on the
+   * server: copying weeks in with Replace is then refused, and the page says
+   * so before the press. The two copy routes count again in their
+   * transactions and are the lock.
+   */
+  peopleStarted?: boolean;
 };
 
 /**
@@ -239,7 +260,14 @@ function useCourseRun(runId: string) {
   return { run, loading, notFound, error, reload };
 }
 
-export default function RunEditor({ courseId, runId, groupsGoneOut = false, groupPagesAt = null }: Props) {
+export default function RunEditor({
+  courseId,
+  runId,
+  groupsGoneOut = false,
+  groupPagesAt = null,
+  programmeName = null,
+  peopleStarted = false,
+}: Props) {
   const { toast, run: runAction, dismiss } = useActionToast();
   // Who is looking. The admissions and allocation ROUTES answer to a narrower
   // set than this page's gate does (see the two links below), so the editor
@@ -339,6 +367,11 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
   // resolving who is looking, before anybody can have typed into one.
   const [showArchived, setShowArchived] = useState(true);
   const [creatingGroup, setCreatingGroup] = useState(false);
+
+  // ---- Status ----
+  // The move picked in the select, waiting on the question's answer. Nothing
+  // is sent until "Move it to …" is pressed.
+  const [askingStatus, setAskingStatus] = useState<CourseRunStatus | null>(null);
 
   // Reseed every section draft whenever the run doc is (re)read. Adjusted
   // during render rather than in an effect, per the React docs and TimeField's
@@ -453,6 +486,7 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
     creatingGroup,
     setCreatingGroup,
     canArchiveGroups,
+    isAdmin,
   };
   const counts = run.applicationCounts;
   // Everyone who has actually filled the form in, whatever admissions has
@@ -556,6 +590,9 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
   // figure can be higher than the difference in counts. Never lower — which
   // is the direction a warning has to err in.
   const templateWeekCount = selectedTemplate?.weekCount ?? 0;
+  // Replace over weeks that exist, on a run somebody has started: refused by
+  // both copy routes, so the press is not offered and the sentence says why.
+  const replaceBlocked = replaceWeeks && weeks.length > 0 && peopleStarted;
   const minWeeksRemoved = selectedTemplate
     ? Math.max(0, weeks.length - templateWeekCount)
     : 0;
@@ -766,7 +803,14 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
     );
   }
 
+  /** The select asks first: a pick opens the question, and only its answer moves the run. */
+  function pickStatus(next: CourseRunStatus) {
+    if (next === currentStatus) return;
+    setAskingStatus(next);
+  }
+
   async function changeStatus(next: CourseRunStatus) {
+    setAskingStatus(null);
     if (next === currentStatus) return;
     let ok = false;
     await runAction(
@@ -1030,7 +1074,7 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
         <div className={styles.statusRow}>
           <ResponsiveSelect
             value={run.status}
-            onChange={(next) => changeStatus(next as CourseRunStatus)}
+            onChange={(next) => pickStatus(next as CourseRunStatus)}
             options={statusOptions.map((s) => ({
               value: s,
               label: COURSE_RUN_STATUS_LABEL[s],
@@ -1318,11 +1362,15 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
             <Button
               type="button"
               onClick={applySource}
-              disabled={!sourceId || saving}
+              disabled={!sourceId || saving || replaceBlocked}
             >
               Copy curriculum in
             </Button>
           </div>
+
+          {replaceBlocked && (
+            <p className={`${pickerStyles.outcome} ${pickerStyles.outcomeRefused}`}>{COPY_CANT_REPLACE}</p>
+          )}
 
           {selectedTemplate && (
             <p className={styles.muted}>
@@ -1330,19 +1378,18 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
             </p>
           )}
 
-          {/* The two sources are guarded differently, so the warning says which
-              guard you actually have. Only apply-template checks for member
-              work; clone-weeks (the older copy-forward route) does not. And
-              only apply-template DELETES — hence the second sentence, which
-              names the removal before the press rather than in the receipt. */}
-          {replaceWeeks && weeks.length > 0 && (
+          {/* Both sources refuse a replace once anybody on this run has
+              ticked or written anything (each counts in its transaction), so
+              the warning says the same for both; the page's own count above
+              says so before the press when it already knows. Only
+              apply-template DELETES, hence the second sentence, which names
+              the removal before the press rather than in the receipt. */}
+          {replaceWeeks && weeks.length > 0 && !replaceBlocked && (
             <p className={`${styles.warn} ${styles.blockWarn}`}>
               This run already has {weeks.length} authored week
               {weeks.length === 1 ? "" : "s"}. Replacing rewrites{" "}
               {weeks.length === 1 ? "it" : "them"} from the source.{" "}
-              {selectedTemplate
-                ? "If anyone on this run has already checked an item off or answered an exercise, the server refuses the whole copy rather than orphan their work — you get a refusal here, not a half-applied curriculum."
-                : "Copying from a run isn't guarded that way: if anyone here has already checked an item off, a rewritten week can leave their row pointing at material the week no longer contains."}
+              If anyone on this run has already ticked an item or answered an exercise, the whole copy is refused and nothing changes.
               {minWeeksRemoved > 0 && (
                 <>
                   {" "}
@@ -1479,6 +1526,36 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
         onSave={saveAsTemplate}
       />
 
+      {/* A status move asks first, saying what the move changes: every move is
+          forward only, and some stop the weekly emails. Cancelling is not
+          offered here; it lives in the danger zone. */}
+      <Modal
+        open={askingStatus !== null}
+        onClose={() => setAskingStatus(null)}
+        ariaLabel={askingStatus ? statusQuestionTitle(programmeName ?? run.courseTitle, run.label, askingStatus) : "Change the status"}
+        width="sm"
+      >
+        {askingStatus && (
+          <div className={pickerStyles.dialog}>
+            <h2 className={pickerStyles.dialogTitle}>
+              {statusQuestionTitle(programmeName ?? run.courseTitle, run.label, askingStatus)}
+            </h2>
+            <p className={pickerStyles.dialogBody}>
+              {statusQuestionBody(run.status, askingStatus, run.enrolMode)}
+            </p>
+            <p className={styles.muted}>{NOBODY_IS_EMAILED}</p>
+            <div className={pickerStyles.dialogActions}>
+              <Button type="button" variant="secondary" onClick={() => setAskingStatus(null)} disabled={saving}>
+                {keepStatusWords(run.status)}
+              </Button>
+              <Button type="button" onClick={() => void changeStatus(askingStatus)} disabled={saving}>
+                {moveStatusWords(askingStatus)}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {/* Deleting a snapshot is admin-only and irreversible, so it asks. It is
           NOT in the Danger zone below: that section is about ending this RUN,
           and a template belongs to the course rather than to any one delivery. */}
@@ -1572,6 +1649,8 @@ type GroupsAndRolesProps = {
   setCreatingGroup: (next: boolean) => void;
   /** An admin or a course approver: the archive route's bar on this page. */
   canArchiveGroups: boolean;
+  /** An admin: on a run no programme names, the one writer of a group's room, campus and link from here. */
+  isAdmin: boolean;
 };
 
 /**
@@ -1602,6 +1681,7 @@ function GroupsAndRoles({
   creatingGroup,
   setCreatingGroup,
   canArchiveGroups,
+  isAdmin,
   members,
   membersLoading,
 }: GroupsAndRolesProps & {
@@ -1626,16 +1706,28 @@ function GroupsAndRoles({
               onChange={setShowArchived}
               label="Show archived groups"
             />
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setCreatingGroup(!creatingGroup)}
-            >
-              {creatingGroup ? "Close" : "New group"}
-            </Button>
+            {/* On a run a programme names, groups are added on its Times
+                view, which checks the name and the length: the line below
+                stands where this button was. */}
+            {!groupPagesAt && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setCreatingGroup(!creatingGroup)}
+              >
+                {creatingGroup ? "Close" : "New group"}
+              </Button>
+            )}
           </div>
         </div>
+
+        {groupPagesAt && (
+          <p className={styles.hint}>
+            {ADD_GROUPS_ON_TIMES}{" "}
+            <Link href={`${programmePath(groupPagesAt.roundId, groupPagesAt.programmeId)}/groups/times`}>{OPEN_TIMES}</Link>
+          </p>
+        )}
 
         {rosterClosed && <p className={styles.hint}>{ROSTER_NOTE_GROUPS}</p>}
 
@@ -1643,7 +1735,7 @@ function GroupsAndRoles({
         {groupsLoading && <AdminLoadingBar label="Loading groups…" />}
 
         <div className={styles.groups}>
-          {creatingGroup && (
+          {creatingGroup && !groupPagesAt && (
             <NewGroupForm
               run={{
                 id: run.id,
@@ -1678,6 +1770,7 @@ function GroupsAndRoles({
               runAction={runAction}
               onSaved={reloadGroups}
               canArchive={canArchiveGroups}
+              isAdmin={isAdmin}
             />
           ))}
         </div>

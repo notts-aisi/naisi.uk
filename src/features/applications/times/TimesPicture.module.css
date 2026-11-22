@@ -380,12 +380,6 @@
   vertical-align: -3px;
 }
 
-/* The way to the run editor, where rooms, names and places are changed. */
-.editorLink {
-  display: block;
-  margin-top: 6px;
-}
-
 /* --- the controls (TimesActions.tsx) ------------------------------------ */
 
 /* "Use for a group" and "Change": a text button at the end of its row, as

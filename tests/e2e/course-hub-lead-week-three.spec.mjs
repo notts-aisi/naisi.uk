@@ -768,7 +768,7 @@ test(
             await adminPage.getByText(words, { exact: true }).first().waitFor({ timeout: WAIT_MS });
           }
 
-          // The week: its label, its days, its published title, and for an admin the way to its editor.
+          // The week: its label, its days, its published title, and the way to its page on the Weeks tab.
           const week = overviewRegion(`Week ${thisWeek} of ${state.weekCount}`);
           await week.waitFor({ timeout: WAIT_MS });
           const weekSaid = await textOf(week);
@@ -778,8 +778,8 @@ test(
           const open = week.getByRole("link", { name: `Open week ${thisWeek}`, exact: true });
           assert.equal(
             await open.getAttribute("href"),
-            `/admin/courses/${enc(state.courseId)}/runs/${enc(state.runId)}/weeks/${weekDocId(thisWeek)}`,
-            "Open week 3 does not lead to the week's editor",
+            `${programmePathOnSite}/weeks/${weekDocId(thisWeek)}`,
+            "Open week 3 does not lead to the week's page on the Weeks tab",
           );
           // The rail marks this week, the day it starts, and says so in words.
           const current = week.locator('[aria-current="step"]');

@@ -2523,6 +2523,19 @@ service cloud.firestore {
                 .hasAny(['blocks', 'ready', 'readyAt', 'readyByUid']);
         }
 
+        // TAKING A WEEK BACK IS THE ROUTE'S, for every writer, admins
+        // included: PATCH /api/courses/runs/[runId]/weeks/[weekId]/published
+        // refuses once anybody has ticked or written in the week, or a
+        // group's session for it has passed, and a rule cannot count any of
+        // that. So no browser write takes `published` from true to false (or
+        // removes it from a published week). Publishing, and every write that
+        // leaves `published` as it is, stands as before.
+        function publishedNotTakenBack() {
+          return resource == null
+            || resource.data.get('published', false) != true
+            || request.resource.data.get('published', false) == true;
+        }
+
         allow read: if isSignedIn();
 
         // `weekId` is "w01".."w60" — zero-padded so doc order matches week
@@ -2533,6 +2546,7 @@ service cloud.firestore {
         // an unaddressable week.
         allow create, update: if canEditRun()
           && serverOnlyWeekFieldsUntouched()
+          && publishedNotTakenBack()
           && weekId.matches('^w[0-9][0-9]$')
           && request.resource.data.weekNumber is int
           && request.resource.data.weekNumber >= 1
@@ -2667,9 +2681,11 @@ service cloud.firestore {
       // `sessionChanges`) and the moment answers to "Can you make this
       // time?" count from (`timeQuestionSince`) change only through the
       // routes, which refuse to move a session whose register was taken. No
-      // browser writes them then, admins included. The room, the meeting
-      // link, the notes, the name, the capacity and the campus stay as they
-      // were, and before the groups go out nothing here applies.
+      // browser writes them then, admins included. The notes, the name and
+      // the capacity stay as they were (the room, the meeting link and the
+      // campus are the routes' for everybody but an admin at any time:
+      // groupRoomAndLinkUnchanged), and before the groups go out nothing
+      // here applies.
       //
       // For everybody but an admin, `runId`, the pace pair, `sessionModes`
       // and `sessionChanges` are already the server's at any time (the three
@@ -2715,6 +2731,22 @@ service cloud.firestore {
       function groupArchivedUnchanged() {
         return request.resource.data.get('archived', false)
           == resource.data.get('archived', false);
+      }
+      // THE ROOM, THE MEETING LINK AND THE CAMPUS ARE THE ROUTES', for
+      // everybody but an admin. They are set on the group's page under its
+      // programme, through Admin SDK routes that write the group's History
+      // (src/lib/courses/roomSet.ts, campusSet.ts, meetingLink/save.ts), and
+      // the older group card no longer sends them on a run a programme names.
+      // An admin keeps them from a browser, which is what a run no programme
+      // names still needs. Null defaults, so an absent field and a stored
+      // null compare equal and a save that leaves the three alone passes.
+      function groupRoomAndLinkUnchanged() {
+        return request.resource.data.get(['session', 'location'], null)
+            == resource.data.get(['session', 'location'], null)
+          && request.resource.data.get(['session', 'meetingUrl'], null)
+            == resource.data.get(['session', 'meetingUrl'], null)
+          && request.resource.data.get('campus', null)
+            == resource.data.get('campus', null);
       }
       // Caps mirror GROUP_FIELD_LIMITS (courseGroups.ts) — the session fields
       // are client-editable by facilitators, so these ARE the boundary.
@@ -2825,8 +2857,10 @@ service cloud.firestore {
         && groupContentOk();
 
       // A named facilitator edits their own group's session (move the slot,
-      // change the room, drop the term's overrides) — per-doc by construction,
-      // same trust shape as an event collaborator. The `sessionModes` map
+      // drop the term's overrides) — per-doc by construction, same trust
+      // shape as an event collaborator. The room, the meeting link and the
+      // campus are the routes' for everybody but an admin
+      // (groupRoomAndLinkUnchanged). The `sessionModes` map
       // rides along UNCHANGED (see groupSessionModesUnchanged): flipping a
       // week virtual/in-person without the route lane's notice-and-audit
       // step is exactly what the pin exists to stop. `archived` is the
@@ -2842,6 +2876,7 @@ service cloud.firestore {
             && groupPinnedFieldsUnchanged()
             && groupSessionModesUnchanged()
             && groupSessionChangesUnchanged()
+            && groupRoomAndLinkUnchanged()
             && groupContentOk()
           )
         )

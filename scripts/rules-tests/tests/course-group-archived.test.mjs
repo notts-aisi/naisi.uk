@@ -114,12 +114,17 @@ const ARCHIVE_CHANGES = [
   ["archive a group that never stored the field", groupDoc({ archived: undefined }), () => ({ archived: true })],
 ];
 
-/** What the pages still write to a group, and must still save. */
+/**
+ * What the pages still write to a group, and must still save. `adminOnly`
+ * marks the room and the campus, which only an admin writes from a browser
+ * (everybody else sets them through the routes on the group's page:
+ * course-older-editor-locks.test.mjs).
+ */
 const KEPT_WRITES = [
   ["the name", () => ({ name: "Group I (Tue)", updatedAt: serverTimestamp() })],
-  ["the room", () => ({ "session.location": "Trent Building A44", updatedAt: serverTimestamp() })],
+  ["the room", () => ({ "session.location": "Trent Building A44", updatedAt: serverTimestamp() }), { adminOnly: true }],
   ["the capacity", () => ({ capacity: 10, updatedAt: serverTimestamp() })],
-  ["the campus", () => ({ campus: "jubilee", updatedAt: serverTimestamp() })],
+  ["the campus", () => ({ campus: "jubilee", updatedAt: serverTimestamp() }), { adminOnly: true }],
   ["a save that sends archived as it is", () => ({ name: "Group I", archived: false, updatedAt: serverTimestamp() })],
 ];
 
@@ -215,12 +220,14 @@ describe("courseGroups: every other write stands as it was", () => {
       for (const uid of GROUP_WRITERS) {
         const db = await asUser(uid);
         for (const archived of [false, true]) {
-          for (const [label, patch] of KEPT_WRITES) {
+          for (const [label, patch, about = {}] of KEPT_WRITES) {
             await reseedGroup(groupDoc({ archived }));
             const write = patch();
             const what = `${uid}, ${when}: ${label}${archived ? " on an archived group" : ""}`;
             // Sending the stored value is no change; sending false to an archived group is one.
             if (archived && write.archived === false) {
+              await refused(groups(db).doc("g1").update(write), what);
+            } else if (about.adminOnly && uid !== "admin1") {
               await refused(groups(db).doc("g1").update(write), what);
             } else {
               await allowed(groups(db).doc("g1").update(write), what);

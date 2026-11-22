@@ -51,7 +51,6 @@ export default function WeekPageView({
   runId,
   roundId,
   programmeId,
-  viewer,
   editor,
   programme,
 }: {
@@ -59,7 +58,7 @@ export default function WeekPageView({
   runId: string;
   roundId: string;
   programmeId: string;
-  /** Who is looking: an admin is also shown the way to the run's week editor. */
+  /** Who is looking. Both see the same page: Mark ready publishes the week. */
   viewer: "admin" | "lead";
   /** The week as the in-place editor reads it (`loadWeekEditor`), or null when it could not be read. */
   editor: WeekEditorView | null;
@@ -131,17 +130,7 @@ export default function WeekPageView({
         {page.hasPage && !page.empty && <WeekReady runId={runId} weekId={week.weekId} ready={page.ready} />}
       </div>
       {page.hasPage && !page.published && !page.empty && (
-        <p className={styles.muted}>
-          {notPublishedWords(week.weekNumber)}
-          {viewer === "admin" && (
-            <>
-              {" "}
-              <Link href={weekEditorPath(page.courseId, runId, week.weekId)} className={styles.inlineLink}>
-                Open the run’s week editor
-              </Link>
-            </>
-          )}
-        </p>
+        <p className={styles.muted}>{notPublishedWords(week.weekNumber)}</p>
       )}
       {page.ready && <p className={styles.done}>{readyLine(week.weekNumber)}</p>}
       <p className={styles.muted}>{`Due dates come from each group’s day: the written answer ${page.due} its session.`}</p>
@@ -163,11 +152,6 @@ export default function WeekPageView({
       )}
     </section>
   );
-}
-
-/** The run's week editor, an admin's, where a week is published. */
-function weekEditorPath(courseId: string, runId: string, weekId: string): string {
-  return `/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(runId)}/weeks/${encodeURIComponent(weekId)}`;
 }
 
 /** What Ready means for this week, said under the press once it is marked. */

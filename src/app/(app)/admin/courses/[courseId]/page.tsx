@@ -1,4 +1,5 @@
 import CourseEditor from "@/features/courses/CourseEditor";
+import OlderEditorLine from "@/features/courses/olderEditor/OlderEditorLine";
 
 /**
  * Per-course editor. Route params are Promises in Next 16, so this stays an
@@ -14,5 +15,10 @@ export default async function AdminCourseEditorPage({
   params: Promise<{ courseId: string }>;
 }) {
   const { courseId } = await params;
-  return <CourseEditor courseId={courseId} />;
+  return (
+    <>
+      <OlderEditorLine programme={null} />
+      <CourseEditor courseId={courseId} />
+    </>
+  );
 }

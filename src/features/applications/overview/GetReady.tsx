@@ -25,18 +25,19 @@ import styles from "./ProgrammeOverview.module.css";
  * are free, which says how many it emails.
  *
  * Every link is a page of the programme's own tabs, built from the two ids
- * the page was reached by; "Set rooms" is the run editor's, offered to an
- * admin only, because the programme's tabs set no room.
+ * the page was reached by; "Set rooms" is the Groups tab's Sessions view,
+ * where each group's room is set, for the lead and admins alike.
  *
  * Not drawn, because it is not built: "Suggest to another programme’s lead"
  * under somebody who gave their place back (its email is not drawn).
  */
 
 /** A view of the programme's tabs, by where a step leads. */
-const SEGMENT: Record<Exclude<StepTarget, "run-editor">, string> = {
+const SEGMENT: Record<StepTarget, string> = {
   settings: "/setup",
   times: "/groups/times",
   facilitators: "/groups/facilitators",
+  sessions: "/groups/sessions",
   groups: "/groups",
   weeks: "/weeks",
   "week-one": "/weeks/w01",
@@ -65,7 +66,7 @@ function StateMark({ state }: { state: ReadyStep["state"] }) {
   );
 }
 
-type Where = { roundId: string; programmeId: string; courseId: string; runId: string };
+type Where = { roundId: string; programmeId: string };
 
 function StepLink({ link, where }: { link: NonNullable<ReadyStep["link"]>; where: Where }) {
   const className = link.look === "text" ? styles.readyTextLink : styles.readyButtonLink;
@@ -78,13 +79,6 @@ function StepLink({ link, where }: { link: NonNullable<ReadyStep["link"]>; where
     ) : (
       <span>{link.label}</span>
     );
-  if (link.to === "run-editor") {
-    return (
-      <Link href={`/admin/courses/${encodeURIComponent(where.courseId)}/runs/${encodeURIComponent(where.runId)}`} className={className}>
-        {body}
-      </Link>
-    );
-  }
   return (
     <Link
       href={`/admin/admissions/forms/${encodeURIComponent(where.roundId)}/programmes/${encodeURIComponent(where.programmeId)}${SEGMENT[link.to]}`}
@@ -123,16 +117,12 @@ export default function GetReady({
   model,
   roundId,
   programmeId,
-  courseId,
-  runId,
 }: {
   model: GetReadyModel;
   roundId: string;
   programmeId: string;
-  courseId: string;
-  runId: string;
 }) {
-  const where: Where = { roundId, programmeId, courseId, runId };
+  const where: Where = { roundId, programmeId };
   const { places, facilitators, notSaid } = model;
   return (
     <div className={styles.readyPage}>

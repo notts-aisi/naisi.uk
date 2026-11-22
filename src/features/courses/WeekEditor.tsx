@@ -28,7 +28,7 @@ import {
   type CourseWeekDoc,
   type WeekPlanEntry,
 } from "@/lib/firestore/courses";
-import { ensureWeekDoc, saveWeek } from "./courseMutations";
+import { ensureWeekDoc, saveWeek, unpublishWeek } from "./courseMutations";
 import ExerciseBuilder from "./ExerciseBuilder";
 import MarkReady from "./MarkReady";
 import MaterialListEditor from "./MaterialListEditor";
@@ -70,6 +70,13 @@ type Props = {
   weekId: string;
   /** This week on the Weeks page of the programme that names the run, or null when none does. */
   weeksHref: string | null;
+  /**
+   * Read by the page on the server: the sentence that says the week stays
+   * published, when it is published and somebody has started it
+   * (`readWeekInUse`), in place of the Published switch; null otherwise.
+   * The unpublish route asks again, in its transaction, and is the lock.
+   */
+  staysPublished?: string | null;
 };
 
 type WeekLoad = {
@@ -189,7 +196,7 @@ function buildChecklistItem(row: ChecklistRow): ChecklistItem {
   };
 }
 
-export default function WeekEditor({ courseId, runId, weekId, weeksHref }: Props) {
+export default function WeekEditor({ courseId, runId, weekId, weeksHref, staysPublished = null }: Props) {
   const { toast, run: runAction, dismiss } = useActionToast();
   // Loading a week as blocks is an admin's job for now; its route refuses everyone else.
   const { role } = useAuth();
@@ -313,9 +320,16 @@ export default function WeekEditor({ courseId, runId, weekId, weeksHref }: Props
     }
     setHeaderError(null);
 
+    // Taking a published week back is the unpublish route's, which refuses
+    // once anybody has started the week; firestore.rules refuses the browser
+    // write. It goes first, so a refusal saves nothing. Publishing is still
+    // written here, and `published` is sent only then: a page opened before
+    // somebody else published the week never sends its stale false.
+    const unpublishing = saved.published && !published;
     let ok = false;
     await runAction(
       async () => {
+        if (unpublishing) await unpublishWeek(runId, weekId);
         await saveWeek(runId, weekId, {
           // `weekNumber` rides along on every header save so a week plan that
           // has since been reordered heals the stored label rather than
@@ -324,7 +338,7 @@ export default function WeekEditor({ courseId, runId, weekId, weeksHref }: Props
           title: trimmedTitle,
           summary: summary.trim().slice(0, COURSE_FIELD_LIMITS.weekSummary),
           estimatedMinutes,
-          published,
+          ...(published && !saved.published ? { published: true } : {}),
           pitching,
         });
         ok = true;
@@ -499,13 +513,17 @@ export default function WeekEditor({ courseId, runId, weekId, weeksHref }: Props
             </Field>
 
             <div className={styles.switchCell}>
-              <Switch
-                checked={published}
-                onChange={setPublished}
-                label="Published"
-                description="Unpublished weeks are hidden from the public page and from members."
-                size="lg"
-              />
+              {saved.published && staysPublished ? (
+                <p className={styles.staysPublished}>{staysPublished}</p>
+              ) : (
+                <Switch
+                  checked={published}
+                  onChange={setPublished}
+                  label="Published"
+                  description="Unpublished weeks are hidden from the public page and from members."
+                  size="lg"
+                />
+              )}
             </div>
           </div>
 

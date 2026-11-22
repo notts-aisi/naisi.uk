@@ -726,9 +726,14 @@ test(
         const statusBox = adminPage.getByRole("combobox", { name: "Run status", exact: true });
         await statusBox.waitFor({ timeout: WAIT_MS });
         await readToast(adminPage, /Status set to Applications open/, async () => {
+          // The select asks first: the move is sent only from its question.
+          await statusBox.selectOption({ label: "Applications open" });
+          const question = adminPage.getByRole("dialog", { name: /to Applications open\?$/ });
+          await question.waitFor({ timeout: WAIT_MS });
+          await question.getByText("It can’t be moved back.", { exact: false }).waitFor({ timeout: WAIT_MS });
           const [response] = await Promise.all([
             responseTo(adminPage, "/status", "POST"),
-            statusBox.selectOption({ label: "Applications open" }),
+            question.getByRole("button", { name: "Move it to Applications open", exact: true }).click(),
           ]);
           return okBody(response, "Moving the run on from draft");
         });

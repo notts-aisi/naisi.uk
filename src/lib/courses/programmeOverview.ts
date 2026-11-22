@@ -261,18 +261,19 @@ function weekCard(
   records: RunRecords,
   card: NonNullable<ReturnType<typeof cardWeek>>,
   theme: string | null,
-  viewer: OverviewViewer,
-  courseId: string,
+  programmePath: string,
 ): OverviewWeek {
   const slots = taughtSlots(records);
   const total = slots.length;
   const label = card.phase === "before" ? "Before the start" : card.phase === "after" ? "Finished" : "This week";
   const title =
     card.weekNumber !== null ? `Week ${card.weekNumber} of ${total}` : (card.breakLabel?.trim() || "A week off");
+  // The week's page on the programme's own Weeks tab, which the lead and
+  // admins both reach.
   const open =
-    viewer.isAdmin && card.weekNumber !== null && courseId
+    card.weekNumber !== null
       ? {
-          href: `/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(records.run.id)}/weeks/${weekDocId(card.weekNumber)}`,
+          href: `${programmePath}/weeks/${weekDocId(card.weekNumber)}`,
           label: `Open week ${card.weekNumber}`,
         }
       : null;
@@ -474,7 +475,7 @@ export async function buildProgrammeOverview(
       card.weekNumber !== null
         ? ((await resolveWeekDoc(db, records.run.id, null, weekDocId(card.weekNumber))).week?.title.trim() || null)
         : null;
-    week = weekCard(records, card, theme, viewer, place.courseId);
+    week = weekCard(records, card, theme, place.programmePath);
     if (!anyGroupMet && card.weekNumber === 1 && weekOneReady) {
       week.ready = { runId: records.run.id, weekId: weekOneId, ready: true, line: WEEK_ONE_READY };
     }
@@ -645,12 +646,10 @@ export async function buildProgrammeOverview(
       detail: one
         ? `${who} met on ${dayLabel(found.lastKey)} and meets again on ${dayLabel(found.nextKey)}. Week ${weekNumber} isn’t published, so people in the group can’t open it yet.`
         : `${who} meet again from ${dayLabel(found.nextKey)}. Week ${weekNumber} isn’t published, so people in these groups can’t open it yet.`,
-      link: viewer.isAdmin && place.courseId
-        ? {
-            href: `/admin/courses/${encodeURIComponent(place.courseId)}/runs/${encodeURIComponent(records.run.id)}/weeks/${weekDocId(weekNumber)}`,
-            label: `Open week ${weekNumber}`,
-          }
-        : null,
+      link: {
+        href: `${place.programmePath}/weeks/${weekDocId(weekNumber)}`,
+        label: `Open week ${weekNumber}`,
+      },
     });
   }
 

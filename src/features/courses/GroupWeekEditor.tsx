@@ -347,6 +347,12 @@ type EditorProps = {
   location: string;
   meetingUrl: string | null;
   viewerIsAdmin: boolean;
+  /**
+   * This week on the Weeks page of the programme that names the run, for an
+   * admin, or null: the course-wide version is linked there, and only a run
+   * no programme names still links to the older week editor.
+   */
+  weeksHref?: string | null;
 };
 
 export default function GroupWeekEditor({
@@ -362,6 +368,7 @@ export default function GroupWeekEditor({
   location,
   meetingUrl,
   viewerIsAdmin,
+  weeksHref = null,
 }: EditorProps) {
   const router = useRouter();
   const { toast, run: runAction, dismiss } = useActionToast();
@@ -580,7 +587,14 @@ export default function GroupWeekEditor({
         <h2 className={styles.sectionTitle}>What {groupName} reads</h2>
         <p className={styles.hint}>
           {OLDER_EDITORS.groupLine}
-          {viewerIsAdmin && (
+          {viewerIsAdmin && weeksHref && (
+            <>
+              {" "}
+              You&apos;re an admin: the course-wide version is on{" "}
+              <Link href={weeksHref}>the programme’s Weeks page</Link>.
+            </>
+          )}
+          {viewerIsAdmin && !weeksHref && (
             <>
               {" "}
               You&apos;re an admin: the course-wide version lives in the{" "}

@@ -294,7 +294,14 @@ describe("2. the week and its sessions", () => {
     const { model, text: said, html } = await draw("claudia");
     assert.deepEqual(
       { label: model.week.label, title: model.week.title, span: model.week.span, theme: model.week.theme, open: model.week.open },
-      { label: "This week", title: "Week 3 of 6", span: "Thu 12 to Wed 18 Nov", theme: "Who decides what AGI means", open: null },
+      // The week's page on the Weeks tab, the lead's as much as an admin's.
+      {
+        label: "This week",
+        title: "Week 3 of 6",
+        span: "Thu 12 to Wed 18 Nov",
+        theme: "Who decides what AGI means",
+        open: { href: `${PAGE_PATH}/weeks/w03`, label: "Open week 3" },
+      },
     );
     assert.deepEqual(
       model.week.rail.map((week) => `${week.label} ${week.date}, ${week.stateWord}`),
@@ -309,12 +316,13 @@ describe("2. the week and its sessions", () => {
     );
     assert.match(said, /This week Week 3 of 6 Thu 12 to Wed 18 Nov Who decides what AGI means/);
     assert.match(html, /<li class="railStep railCurrent" aria-current="step">/);
-    assert.ok(!html.includes("/admin/courses/"), "the lead was sent to a page they cannot open");
+    assert.ok(!html.includes("/admin/courses/"), "the Overview sent somebody into the older editor");
   });
 
-  test("an admin is offered the week's editor", async () => {
-    const { model } = await draw("zach");
-    assert.deepEqual(model.week.open, { href: `/admin/courses/${COURSE.agi}/runs/${RUN.agi}/weeks/w03`, label: "Open week 3" });
+  test("an admin is offered the same week's page on the Weeks tab, never the older week editor", async () => {
+    const { model, html } = await draw("zach");
+    assert.deepEqual(model.week.open, { href: `${PAGE_PATH}/weeks/w03`, label: "Open week 3" });
+    assert.ok(!html.includes("/admin/courses/"), "the Overview sent an admin into the older editor");
   });
 
   test("before the first day the card is week 1's, and after the last week it says Finished", async () => {
@@ -401,7 +409,7 @@ describe("3. needs attention", () => {
       detail(EVERY_ITEM[2]).detail,
       "Groups A and D meet again from Thu 19 Nov. Week 4 isn’t published, so people in these groups can’t open it yet.",
     );
-    assert.equal(detail(EVERY_ITEM[2]).link, null, "the lead has no week editor to open");
+    assert.deepEqual(detail(EVERY_ITEM[2]).link, { href: `${PAGE_PATH}/weeks/w04`, label: "Open week 4" }, "the lead opens the week on the Weeks tab");
     // The reminder ships off; the task is on, 60 hours after the session ended.
     assert.equal(detail(EVERY_ITEM[3]).detail, "If it’s still not pushed on Thu 19 Nov at 8am, you and admins get a task.");
     // CHANGED ON PURPOSE (November 2026), with covering a register: the line
@@ -423,7 +431,7 @@ describe("3. needs attention", () => {
       "We’ll remind Grace on Wed 18 Nov at 8am. If it’s still not pushed on Thu 19 Nov at 8am, Claudia and admins get a task.",
     );
     const week = model.attention.find((entry) => entry.kind === "week");
-    assert.deepEqual(week.link, { href: `/admin/courses/${COURSE.agi}/runs/${RUN.agi}/weeks/w04`, label: "Open week 4" });
+    assert.deepEqual(week.link, { href: `${PAGE_PATH}/weeks/w04`, label: "Open week 4" });
   });
 
   test("the hours are read from Course settings, and a task already made is said so", async () => {

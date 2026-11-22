@@ -1,4 +1,5 @@
 import CoursePageEditor from "@/features/courses/CoursePageEditor";
+import OlderEditorLine from "@/features/courses/olderEditor/OlderEditorLine";
 
 /**
  * `/admin/courses/[courseId]/page`: the editor for the course's PUBLIC
@@ -22,5 +23,10 @@ export default async function AdminCoursePagePage({
   params: Promise<{ courseId: string }>;
 }) {
   const { courseId } = await params;
-  return <CoursePageEditor courseId={courseId} />;
+  return (
+    <>
+      <OlderEditorLine programme={null} />
+      <CoursePageEditor courseId={courseId} />
+    </>
+  );
 }

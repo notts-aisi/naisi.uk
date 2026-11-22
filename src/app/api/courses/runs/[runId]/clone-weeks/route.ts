@@ -14,6 +14,8 @@ import {
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { weekBlocksField } from "@/lib/courses/weekBlocks/model";
 import { RUN_GUIDE_FIELDS, runGuideFields } from "@/lib/courses/guide/model";
+import { runStarted } from "@/lib/courses/olderEditor/runStarted";
+import { COPY_CANT_REPLACE } from "@/lib/courses/olderEditor/words";
 
 /**
  * Copy-forward: clone one run's `weeks` subcollection into another run of the
@@ -44,9 +46,14 @@ import { RUN_GUIDE_FIELDS, runGuideFields } from "@/lib/courses/guide/model";
  * (`templateWeekFields()`, which both directions of the snapshot copy and the
  * apply route also use) rather than by refusing to have a second place. Note
  * the one real difference in behaviour: `apply-template` REMOVES target weeks
- * its snapshot has no counterpart for, and refuses outright while any member
- * work exists on the run; this route only skips or overwrites and has no such
- * gate. A caller choosing between them is choosing between those guarantees.
+ * its snapshot has no counterpart for; this route only skips or overwrites.
+ * Both refuse to REPLACE a week once anybody has started the run (any
+ * `courseProgress` or `courseExerciseResponses` row with its id,
+ * `runStarted`): overwriting weeks people have ticked and answered would
+ * leave their rows pointing at items the copy may not hold. Counted inside
+ * the same transaction as the writes, so a tick racing the copy is either
+ * counted (and the copy refused) or lands on the new weeks. Copying into
+ * weeks the run does not have yet is never refused for it.
  *
  * Two properties make this route safe to press twice:
  *
@@ -76,6 +83,16 @@ import { RUN_GUIDE_FIELDS, runGuideFields } from "@/lib/courses/guide/model";
 const MAX_DOCS_PER_BATCH = 300;
 
 type WeekWrite = { ref: DocumentReference; data: Record<string, unknown> };
+
+/** Thrown out of the transaction to refuse a replace with a status. */
+class CloneRefusal extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
+}
 
 export async function POST(
   req: Request,
@@ -218,14 +235,35 @@ export async function POST(
     });
   }
 
-  for (let i = 0; i < pending.length; i += MAX_DOCS_PER_BATCH) {
-    const batch = db.batch();
-    for (const write of pending.slice(i, i + MAX_DOCS_PER_BATCH)) {
-      // `set` (not `update`): most targets don't exist yet, and an overwrite
-      // must replace the week wholesale rather than merge two curricula.
-      batch.set(write.ref, write.data);
+  // With `overwrite`, the copy may replace weeks the run already has, so it
+  // runs in one transaction with its writes: the run's week ids are read
+  // again in it, and when the copy would replace any of them, whether
+  // anybody has started the run is counted in it too. The run holds at most
+  // 60 weeks, well inside a transaction's writes. Without `overwrite` the copy
+  // only fills weeks the run does not have and writes in batches, as always.
+  if (overwrite) {
+    try {
+      await db.runTransaction(async (tx) => {
+        const stored = new Set((await tx.get(targetWeeks.select())).docs.map((d) => d.id));
+        const replaces = pending.some((write) => stored.has(write.ref.id));
+        if (replaces && (await runStarted(db, runId, tx))) throw new CloneRefusal(COPY_CANT_REPLACE, 409);
+        // `set` (not `update`): an overwrite must replace the week wholesale
+        // rather than merge two curricula.
+        for (const write of pending) tx.set(write.ref, write.data);
+      });
+    } catch (err) {
+      if (err instanceof CloneRefusal) return NextResponse.json({ error: err.message, peopleStarted: true }, { status: err.status });
+      throw err;
     }
-    await batch.commit();
+  } else {
+    for (let i = 0; i < pending.length; i += MAX_DOCS_PER_BATCH) {
+      const batch = db.batch();
+      for (const write of pending.slice(i, i + MAX_DOCS_PER_BATCH)) {
+        // `set` (not `update`): every target here is a week the run lacks.
+        batch.set(write.ref, write.data);
+      }
+      await batch.commit();
+    }
   }
 
   // The programme's Start here and Glossary, on the weeks' terms: each the

@@ -1,0 +1,38 @@
+/* The line at the top of every older course editor page. */
+.line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-accent-ring);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.text {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  font-weight: 500;
+}
+
+.link:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+@media (max-width: 36rem) { /* --bp-sm */
+  .line {
+    padding: var(--space-3) var(--space-4);
+  }
+}
