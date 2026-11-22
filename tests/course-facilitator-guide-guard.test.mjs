@@ -155,6 +155,10 @@ const READERS = {
     gate: "facilitatorGuideReader(",
     why: "a course's printables as an A4 PDF, one session's or the whole document's, drawn on request for the gate's three; the one calm sentence and not a byte of a PDF for everybody else",
   },
+  "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/page.tsx": {
+    gate: "facilitatorGuideWriter(",
+    why: "a programme's Weeks tab, for its lead and admins: for an admin alone, whether the course's Handbook and Printables are loaded, by title and the day each was saved, read behind facilitatorGuideWriter for this course, so Course documents can offer each one's loader; the lead is read nothing",
+  },
   "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/page.tsx": {
     gate: "facilitatorGuideReader(",
     why: "a week's page on a programme's Weeks tab, for its lead and admins: the titles loaded in the week's session plan and notes, for the guide box, read only behind facilitatorGuideWriter too",
@@ -282,7 +286,7 @@ const THROUGH = {
 };
 
 /** The store's reads that hand a document's words or titles back. */
-const READS = /\b(?:readGuideIndex|readGuidePage|readGuideSlot|saveGuideSlot)\(/;
+const READS = /\b(?:readGuideIndex|readGuidePage|readGuideSlot|saveGuideSlot|readCourseDocumentsLoaded)\(/;
 
 /** What `path` reaches when `skip` is taken out of the tree. */
 function reachWithout(path, skip) {
@@ -345,7 +349,7 @@ describe("2. every page and route that reaches the guide asks the gate first", (
     for (const read of ["readGuideIndex", "readGuidePage"]) {
       assert.match(FILES.get(STORE).code, new RegExp(`export async function ${read}\\(db: Firestore, reader: GuideReader`), read);
     }
-    for (const write of ["readGuideSlot", "saveGuideSlot"]) {
+    for (const write of ["readGuideSlot", "saveGuideSlot", "readCourseDocumentsLoaded"]) {
       assert.match(FILES.get(STORE).code, new RegExp(`export async function ${write}\\(db: Firestore, writer: GuideWriter`), write);
     }
   });

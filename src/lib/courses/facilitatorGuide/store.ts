@@ -115,11 +115,7 @@ export async function readGuidePage(db: Firestore, reader: GuideReader, page: Gu
  * one's loader. Takes the loader's own gate (`GuideWriter`), so it answers
  * only somebody that loader admits. Titles and times, never the words.
  */
-export async function readCourseDocumentsLoaded(
-  db: Firestore,
-  writer: GuideWriter,
-  keys: readonly CourseDocumentKey[],
-): Promise<Array<{ key: CourseDocumentKey; title: string | null; savedAt: Date | null }>> {
+export async function readCourseDocumentsLoaded(db: Firestore, writer: GuideWriter, keys: readonly CourseDocumentKey[]): Promise<Array<{ key: CourseDocumentKey; title: string | null; savedAt: Date | null }>> {
   const found = await Promise.all(keys.map((key) => readSlot(db, writer.courseId, { kind: "course", key })));
   return keys.map((key, at) => {
     const doc = found[at];
