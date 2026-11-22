@@ -225,6 +225,9 @@ describe("1. Sending", () => {
     assert.equal(logRows.length, 1);
     assert.equal(logRows[0].subject, "Somebody sent the admins a message about access needs");
     assert.ok(!/Chloe|Nguyen/.test(JSON.stringify(logRows[0])));
+    // Nor does the row say who by an id: the log is read without opening the message, and is kept after the account goes.
+    assert.equal(logRows[0].actorUid, null, "the log row of the admins' alert carries an actor");
+    assert.ok(!JSON.stringify(logRows[0]).toLowerCase().includes("chloe"), "the log row of the admins' alert names the person by an id");
     assert.match(text, /What they wrote is on the request’s page, for admins only, and isn’t in this email\. Opening it is recorded\./);
     assert.match(text, /You get this because you switched on emails about messages to the team\. You can switch it off on the Requests page\./);
     assert.match(text, new RegExp(`/admin/admissions/requests/${id}`));

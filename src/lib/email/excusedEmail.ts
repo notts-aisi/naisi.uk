@@ -51,8 +51,8 @@ export async function sendExcusedEmail(opts: {
   to: string;
   /** The recipient's own first name, or "" for no name in the greeting. */
   name: string;
-  /** Who decided or replied: the send's actor in the log. */
-  actorUid: string;
+  /** Who decided, replied or asked: the send's actor in the log. Left out when the log must name nobody. */
+  actorUid?: string;
   runId: string;
   /** The person's own email, a facilitator's, or an admin's about a new request. */
   audience: "person" | "facilitator" | "admin";

@@ -97,7 +97,8 @@ export async function sendTeamMessage(db: Firestore, user: SessionUser, press: A
   // outside its transaction: a failed send never fails the message.
   if (outcome.ok && tellsAdmins) {
     try {
-      // An access ask's alert names nobody (its subject is kept in the email log), so no name is read for it.
+      // An access ask's alert names nobody (its subject is kept in the email log), so no name is read for it,
+      // and the log's own row for the send carries no actor (`namesNobody`).
       const personName = press.topic === ACCESS_TOPIC ? "" : await askerNameForAdmins(db, user.uid);
       await emailAdminsWords(db, {
         runId: "",
@@ -108,6 +109,7 @@ export async function sendTeamMessage(db: Firestore, user: SessionUser, press: A
             : newMessageEmailWords({ personName, topic: press.topic, askedAt: now, now }),
         link: excusedRequestUrl(process.env.NEXT_PUBLIC_APP_URL ?? "", outcome.request.id),
         which: "team",
+        namesNobody: press.topic === ACCESS_TOPIC,
       });
     } catch (err) {
       console.error("[team message email] could not tell the admins", err instanceof Error ? err.message : "unknown");
