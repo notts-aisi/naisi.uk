@@ -32,9 +32,9 @@ import {
   archivedRunsWords,
   hoursAWeekWords,
   runNameWords,
-  runRowView,
   type RunProgrammes,
 } from "@/lib/courses/coursePage/words";
+import { runRowView } from "@/lib/courses/coursePage/runRows";
 import { facilitatorGuideAdminPath } from "@/lib/courses/facilitatorGuide/model";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import {

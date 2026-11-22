@@ -43,12 +43,14 @@ const made = makeWorld("__coursePages");
 const { world, reset, lib } = made;
 const W = await lib("courses", "coursePage", "words.ts");
 const L = await lib("courses", "coursePage", "runProgrammes.ts");
+const R = await lib("courses", "coursePage", "runRows.ts");
 
 const EDITOR = read("src", "features", "courses", "CourseEditor.tsx");
 const LIST = read("src", "features", "courses", "CoursesList.tsx");
 const STRIP = read("src", "features", "courses", "CourseSectionStrip.tsx");
 const WORDS = read("src", "lib", "courses", "coursePage", "words.ts");
 const LOADER = read("src", "lib", "courses", "coursePage", "runProgrammes.ts");
+const ROWS = read("src", "lib", "courses", "coursePage", "runRows.ts");
 const COURSE_PAGE = read("src", "app", "(app)", "admin", "courses", "[courseId]", "page.tsx");
 const LIST_PAGE = read("src", "app", "(app)", "admin", "courses", "page.tsx");
 const RULES = read("firestore.rules");
@@ -132,7 +134,7 @@ describe("1. the words", () => {
 
   test("no dashes in the new words, and nobody is called the course's collaborator", () => {
     assert.doesNotMatch(WORDS, /[–—]/);
-    for (const source of [WORDS, EDITOR, LIST, STRIP, LOADER, COURSE_PAGE, LIST_PAGE]) {
+    for (const source of [WORDS, EDITOR, LIST, STRIP, LOADER, ROWS, COURSE_PAGE, LIST_PAGE]) {
       assert.doesNotMatch(source, /collaborator/i);
     }
   });
@@ -242,7 +244,7 @@ describe("3. a run's row on a course's page", () => {
   const OLDER = { kind: "older-run" };
   const rowsFor = async (reader) => {
     const programmes = await runsFor(reader);
-    return [RUN.agi, RUN.agiSpring].map((id) => W.runRowView({ id, status: world.db.read(`courseRuns/${id}`).status }, programmes));
+    return [RUN.agi, RUN.agiSpring].map((id) => R.runRowView({ id, status: world.db.read(`courseRuns/${id}`).status }, programmes));
   };
 
   test("an admin and the programme's lead: Open the programme on the run it names, the older run page on the one it does not", async () => {
@@ -276,11 +278,11 @@ describe("3. a run's row on a course's page", () => {
   });
 
   test("when the server could not say: the stage alone, and the older run page", () => {
-    assert.deepEqual(W.runRowView({ id: RUN.agi, status: "applications-open" }, null), { line: "Running", opens: OLDER });
+    assert.deepEqual(R.runRowView({ id: RUN.agi, status: "applications-open" }, null), { line: "Running", opens: OLDER });
   });
 
   test("a run id that is a name every object carries is no run's programme", () => {
-    assert.deepEqual(W.runRowView({ id: "constructor", status: "draft" }, {}), { line: "Draft · no programme names it", opens: OLDER });
+    assert.deepEqual(R.runRowView({ id: "constructor", status: "draft" }, {}), { line: "Draft · no programme names it", opens: OLDER });
   });
 
   test("the row draws exactly what runRowView says, and builds the older run page's address in one place", () => {
@@ -358,7 +360,7 @@ describe("4. each card's reads and writes", () => {
 
   test("New course writes as it did, offered to whoever the create rule admits", () => {
     assert.match(LIST, /newId = await createCourse\(\{/);
-    assert.match(LIST, /const mayMakeCourse = role === "admin" \|\| permissions\.draftCourse === true;/);
+    assert.match(LIST, /const mayMakeCourse = role !== null && canDraftCourse\(\{ role, permissions \}\);/);
     assert.match(RULES, /match \/courses\/\{courseId\} \{[\s\S]*?allow create: if canDraftCourse\(\)/);
     assert.match(RULES, /function canDraftCourse\(\)\s*\{ return hasPerm\('draftCourse'\);\s*\}/);
   });

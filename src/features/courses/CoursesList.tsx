@@ -19,6 +19,7 @@ import {
   useOneShotList,
 } from "@/features/admin/adminList";
 import { getClientDb } from "@/lib/firebase/client";
+import { canDraftCourse } from "@/lib/firestore/users";
 import {
   COURSES_INTRO,
   COURSE_COLUMNS,
@@ -59,7 +60,7 @@ export default function CoursesList() {
   const { toast, run: runAction, dismiss } = useActionToast();
   const { role, permissions } = useAuth();
   // The rule a new course is written under: an admin, or a holder of draftCourse.
-  const mayMakeCourse = role === "admin" || permissions.draftCourse === true;
+  const mayMakeCourse = role !== null && canDraftCourse({ role, permissions });
 
   const { items: courses, loading, error } = useCourses();
 
@@ -178,7 +179,7 @@ export default function CoursesList() {
             <caption className={page.srOnly}>{caption}</caption>
             <thead>
               <tr>
-                <th scope="col">{COURSE_COLUMNS.course}</th>
+                <th scope="col">{COURSE_COLUMNS.title}</th>
                 <th scope="col">{COURSE_COLUMNS.track}</th>
                 <th scope="col">{COURSE_COLUMNS.status}</th>
                 <th scope="col">{COURSE_COLUMNS.level}</th>
@@ -189,7 +190,7 @@ export default function CoursesList() {
             <tbody>
               {rows.map((course) => (
                 <tr key={course.id}>
-                  <th scope="row" data-label={COURSE_COLUMNS.course}>
+                  <th scope="row" data-label={COURSE_COLUMNS.title}>
                     <Link href={`/admin/courses/${encodeURIComponent(course.id)}`} className={page.nameLink}>
                       {course.title || "(untitled)"}
                     </Link>

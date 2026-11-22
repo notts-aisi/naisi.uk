@@ -262,9 +262,9 @@ const HELD = new Map([
     },
   ],
   [
-    "src/lib/courses/coursePage/runProgrammes.ts",
+    "src/lib/courses/coursePage/",
     {
-      why: "the Runs card on a course's page: it reads the form's programmes by the id `namingProgrammeIn` found on that form, for the programme's name and whether the reader may open its Overview",
+      why: "the Runs card on a course's page: `runProgrammes.ts` reads the form's programmes by the id `namingProgrammeIn` found on that form, for the programme's name and whether the reader may open its Overview, and `runRows.ts` reads the map it builds by the id of a run of the course, for that run's row",
     },
   ],
   [
