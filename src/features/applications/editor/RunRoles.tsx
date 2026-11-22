@@ -57,21 +57,25 @@ export default function RunRoles({
     }
   }
 
-  const lists: W.RoleList[] = ["trackLeads", "runFacilitators"];
+  // Each list by name, in the order the section draws them.
+  const lists: [W.RoleList, RunRolePersonView[]][] = [
+    ["trackLeads", roles.trackLeads],
+    ["runFacilitators", roles.runFacilitators],
+  ];
   const title = asking ? W.removeTitle(asking.person.name, asking.list) : "";
 
   return (
     <div className={styles.part}>
       <h3 className={styles.partTitle}>{W.ROLES_TITLE}</h3>
       <p className={styles.small}>{W.ROLES_NOTE}</p>
-      {lists.map((list) =>
-        roles[list].length === 0 ? null : (
+      {lists.map(([list, people]) =>
+        people.length === 0 ? null : (
           <div key={list} className={styles.group}>
             <p className={styles.groupTitle}>
-              {W.ROLE_HEADINGS[list]} ({roles[list].length})
+              {W.ROLE_HEADINGS[list]} ({people.length})
             </p>
             <ul className={styles.rows}>
-              {roles[list].map((person) => (
+              {people.map((person) => (
                 <li key={person.uid} className={styles.row}>
                   <span className={styles.rowName}>{person.name}</span>
                   <button

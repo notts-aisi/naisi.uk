@@ -1,9 +1,10 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import kit from "@/features/applications/kit/kit.module.css";
-import { CancelCohortDialog, DestroyDialog, InterruptedBanner } from "@/features/courses/RunDangerZone";
+import { CancelCohortDialog, DestroyDialog, InterruptedBanner, NO_LABEL_TO_TYPE } from "@/features/courses/DangerZoneParts";
 import useDestroy from "@/features/courses/useDestroy";
 import type { RunCarefulView } from "@/lib/applications/handover/views";
 import * as W from "@/lib/courses/runCareful/words";
@@ -98,6 +99,8 @@ export default function RunCareful({
     if (phase === "done") void onDone("");
   }
 
+  // A destroyed run's receipt leads back to this page, which then says the run has gone.
+  const here = usePathname() ?? "";
   const interrupted = phase === "idle" ? destroy.interrupted : null;
   const subtitle = careful.courseTitle ? `${careful.courseTitle} · ${careful.label || runId}` : careful.label || runId;
   const archiving = asking === "archive" || asking === "restore";
@@ -233,16 +236,13 @@ export default function RunCareful({
         nameLabel="run label"
         expectedName={careful.label}
         subtitle={subtitle}
-        extraBlockers={careful.label ? [] : [NO_LABEL]}
+        extraBlockers={careful.label ? [] : [NO_LABEL_TO_TYPE]}
         confirmText={confirmText}
         onConfirmTextChange={setConfirmText}
         manifestBusy={destroy.manifestState === "loading"}
-        doneHref={`/admin/courses/${encodeURIComponent(careful.courseId)}`}
-        doneLabel="Back to the course"
+        doneHref={here}
+        doneLabel={W.BACK_TO_SETTINGS}
       />
     </div>
   );
 }
-
-/** The older run page's sentence for a run with no label to type. */
-const NO_LABEL = "This run has no label, so there is nothing to type as confirmation: give it a label in the run’s details first.";

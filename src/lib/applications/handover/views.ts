@@ -101,8 +101,7 @@ export type RunCarefulView = {
   archive: "offer" | "not-yet" | "archived" | null;
   /** The status table lets this run be cancelled. */
   canCancel: boolean;
-  /** The run's course, for the destroy receipt's way back. */
-  courseId: string;
+  /** The run's course, for the dialogs' line under their titles. */
   courseTitle: string;
   /** The run's label exactly as stored: the cancel and destroy dialogs ask for it typed. */
   label: string;

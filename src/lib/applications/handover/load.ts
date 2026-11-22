@@ -233,7 +233,6 @@ function carefulOf(read: RunRead): RunCarefulView {
   return {
     archive: destroying ? null : run.archived ? "archived" : over ? "offer" : "not-yet",
     canCancel: !destroying && ALLOWED_TRANSITIONS[run.status].includes("cancelled"),
-    courseId: run.courseId,
     courseTitle: run.courseTitle,
     label: run.label,
   };

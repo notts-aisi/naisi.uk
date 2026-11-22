@@ -140,5 +140,7 @@ export const CANCELLED = "Cohort cancelled";
 export const DESTROY_TITLE = "Destroy this run";
 export const DESTROY_HINT = "Removes the run and what hangs off it, with a receipt. For a run made by mistake.";
 export const DESTROY_BUTTON = "Destroy this run…";
+/** Where a destroyed run's receipt leads: this page, read again. */
+export const BACK_TO_SETTINGS = "Back to the programme’s Settings";
 
 export const NOBODY_IS_EMAILED = "Nobody is emailed.";
