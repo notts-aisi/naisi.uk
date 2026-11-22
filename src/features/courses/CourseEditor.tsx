@@ -19,6 +19,7 @@ import ResponsiveSelect, {
 } from "@/components/ui/ResponsiveSelect";
 import { AdminLoadingBar, AdminPage } from "@/features/admin/adminList";
 import BlockEditor from "@/components/blocks/BlockEditor";
+import { own } from "@/lib/applications/keys";
 import { crestForCourse } from "@/lib/crests/resolve";
 import {
   COURSE_SECTIONS,
@@ -384,7 +385,7 @@ export default function CourseEditor({
 
   /** One run's row: its name, its stage and programme, and the way on where there is one. */
   const runRow = (run: CourseRunDoc) => {
-    const programme = programmes ? (programmes[run.id] ?? null) : null;
+    const programme = programmes ? (own(programmes, run.id) ?? null) : null;
     const line =
       programmes === null
         ? runStageLabel(run.status)

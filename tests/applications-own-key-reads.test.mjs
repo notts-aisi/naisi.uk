@@ -262,6 +262,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/coursePage/runProgrammes.ts",
+    {
+      why: "the Runs card on a course's page: it reads the form's programmes by the id `namingProgrammeIn` found on that form, for the programme's name and whether the reader may open its Overview",
+    },
+  ],
+  [
     "src/lib/courses/programmeLead.ts",
     {
       why: "the one answer to who leads the programme that names a course run: it reads each form's programmes by the ids on that form's own programmeIds, to find the programme whose runId names the run and take its lead",
@@ -396,7 +402,7 @@ const HELD = new Map([
   [
     "src/features/courses/",
     {
-      why: "a course application's answers: the apply form reads them by the run's question ids, and the admissions queue by the answers' own keys",
+      why: "a course application's answers: the apply form reads them by the run's question ids, and the admissions queue by the answers' own keys; and a course's page reads the programme naming each run out of the map the server handed it (`readRunProgrammes`), by the id of a run it read itself",
     },
   ],
   [
