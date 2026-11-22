@@ -30,6 +30,11 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * and refuse whatever Publish refuses, whatever this page shows. What can
  * follow by itself is read here, on the server, from the scheduler's own
  * switches (`readWhatFollows`), and never changed.
+ *
+ * ONLY AN ADMIN PUBLISHES. Whether the reader is one is decided here, from
+ * the session, and handed down: the programme's lead reads the whole page,
+ * with one line where the buttons are. The publish routes refuse the lead
+ * whatever this page draws.
  */
 export default async function ProgrammePublishPage({
   params,
@@ -64,7 +69,14 @@ export default async function ProgrammePublishPage({
         <span>{PUBLISH_BACK}</span>
       </Link>
       <h2 className={styles.title}>{publishHeading(view.programmeName)}</h2>
-      {ready ? <PublishReadiness model={buildReadiness(ready.facts)} roundId={view.roundId} programmeId={view.programmeId} /> : null}
+      {ready ? (
+        <PublishReadiness
+          model={buildReadiness(ready.facts)}
+          roundId={view.roundId}
+          programmeId={view.programmeId}
+          admin={user.role === "admin"}
+        />
+      ) : null}
       <PublishGroups runId={view.run.id} follows={follows} admin={user.role === "admin"} />
     </div>
   );

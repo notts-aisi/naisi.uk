@@ -110,6 +110,13 @@ type Props = {
    * admin adds them.
    */
   runEditorHref?: string | null;
+  /**
+   * An admin is looking, as the server page decided from the session. Only
+   * an admin publishes: anybody else who may place people here is shown
+   * Publish's area with one line where its buttons are, and the routes
+   * refuse them whatever this board draws.
+   */
+  admin: boolean;
 };
 
 /** Column id for the unallocated pool. Not a group id — there is no such group. */
@@ -702,7 +709,7 @@ function BoardColumn({
 // Board
 // ---------------------------------------------------------------------------
 
-export default function AllocationBoard({ courseId, runId, runEditorHref }: Props) {
+export default function AllocationBoard({ courseId, runId, runEditorHref, admin }: Props) {
   const editorHref =
     runEditorHref === undefined
       ? `/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(runId)}`
@@ -1554,6 +1561,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
             result={publishLines}
             onTest={handleTest}
             onPublish={handlePublish}
+            admin={admin}
           />
 
           {/* The V2-3 divergence disclosure. `role="status"`, not `alert`:

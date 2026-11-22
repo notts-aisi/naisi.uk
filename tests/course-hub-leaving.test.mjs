@@ -514,7 +514,7 @@ describe("2. leaving a run the application form placed you on", () => {
 
   test("Publish waits for nobody who left, and writes to none of them", async () => {
     await leave("amara");
-    const pressed = await w.join.publish("claudia");
+    const pressed = await w.join.publish("zach");
     assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
     assert.deepEqual(pressed.body.unplaced, []);
     assert.ok(!world.mail.slice(1).some((sent) => sent.to === "amara@example.com" || sent.to === "sam@example.com"));

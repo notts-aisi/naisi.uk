@@ -9,10 +9,13 @@
  *
  *  1. THE LEAD PASSES EVERY TRACK LEAD'S GATE ON THEIR RUN, and is answered
  *     what an admin is answered past it: the board, placing, removing and
- *     putting back, Publish and its test, the run's own queue, staffing a
+ *     putting back, Publish's own page, the run's own queue, staffing a
  *     group, copying weeks, a note on a material, the retrospective, a
  *     group's week, the run's email, and the list of who can facilitate.
- *     Sending a group its week's email again stays an admin's.
+ *     Sending a group its week's email again stays an admin's, and so do
+ *     Publish and its test: only an admin publishes, so the lead and the
+ *     run's track lead are refused both in one sentence, and an admin who
+ *     presses after them publishes as before.
  *  2. NOBODY ELSE GAINS ANYTHING. The lead of another programme, the
  *     programme's reviewer, a facilitator, a member placed on the run and a
  *     member on nothing are refused exactly where they were, and somebody
@@ -145,13 +148,15 @@ const ROUTES = [
   {
     name: "POST Publish's test",
     ask: (who, o) => call(who, routes.publishTest.POST, run, { course: true, ...o }),
-    // The track lead is told the run's people came from the form.
-    expect: { zach: 200, claudia: 200, yusuf: 403 },
+    // CHANGED ON PURPOSE (November 2026): only an admin publishes, so only an
+    // admin tests it. The lead and the track lead are told so.
+    expect: { zach: 200 },
   },
   {
     name: "POST Publish, before anybody has sent a test",
     ask: (who, o) => call(who, routes.publish.POST, run, { body: { emails: 6 }, course: true, ...o }),
-    expect: { zach: 409, claudia: 409, yusuf: 403 },
+    // CHANGED ON PURPOSE (November 2026): only an admin publishes.
+    expect: { zach: 409 },
   },
   {
     name: "GET the run's own queue",
@@ -259,7 +264,7 @@ describe("1 and 2. every route a track lead passes, as every kind of caller", ()
     });
   }
 
-  test("the lead is answered what an admin is answered: the same people on the board, and the same email sent to themselves", async () => {
+  test("the lead is answered what an admin is answered on the board, is refused Publish and its test in one sentence, and an admin then publishes", async () => {
     await ready();
     const asAdmin = (await join_.board("zach")).body;
     const asLead = (await join_.board("claudia")).body;
@@ -267,14 +272,28 @@ describe("1 and 2. every route a track lead passes, as every kind of caller", ()
     assert.equal(asLead.publish.adminOnly, false);
     assert.equal(asLead.publish.emails, asAdmin.publish.emails);
 
+    // CHANGED ON PURPOSE (November 2026): only an admin publishes. The lead's
+    // test and press are refused in Publish's one sentence, nothing is sent
+    // and nothing is stamped.
+    const ONLY_ADMINS = "Only an admin publishes. Ask an admin when the groups are ready.";
+    const before = everything();
+    const mailBefore = world.mail.length;
     const tested = await call("claudia", routes.publishTest.POST, run, { course: true });
-    assert.equal(tested.status, 200, JSON.stringify(tested.body));
-    assert.deepEqual([...new Set(world.mail.map((mail) => mail.to))], ["claudia@example.com"], "a test reached somebody else");
-    // The lead chooses for anybody placed outside the times they gave, as an admin would.
+    assert.deepEqual([tested.status, tested.body.error], [403, ONLY_ADMINS]);
+    const pressed = await call("claudia", routes.publish.POST, run, { body: { emails: asLead.publish.emails }, course: true });
+    assert.deepEqual([pressed.status, pressed.body.error], [403, ONLY_ADMINS]);
+    assert.equal(world.mail.length, mailBefore, "a refused press or test sent an email");
+    assert.deepEqual(everything(), before, "a refused press or test wrote something");
+
+    // The lead still chooses for anybody placed outside the times they gave,
+    // as an admin would, and an admin's test and press then go as before.
     await join_.withoutNotes("claudia");
-    const summary = (await join_.board("claudia")).body.publish;
+    const adminTest = await call("zach", routes.publishTest.POST, run, { course: true });
+    assert.equal(adminTest.status, 200, JSON.stringify(adminTest.body));
+    assert.deepEqual([...new Set(world.mail.slice(mailBefore).map((mail) => mail.to))], ["zach@example.com"], "a test reached somebody else");
+    const summary = (await join_.board("zach")).body.publish;
     assert.equal(summary.test.state, "fresh");
-    const published = await call("claudia", routes.publish.POST, run, { body: { emails: summary.emails }, course: true });
+    const published = await call("zach", routes.publish.POST, run, { body: { emails: summary.emails }, course: true });
     assert.equal(published.status, 200, JSON.stringify(published.body));
     assert.ok(world.db.read(`courseRuns/${RUN.agi}`).allocationPublishedAt);
   });
@@ -369,7 +388,9 @@ describe("3. the lead's power is worked out from the form on every request", () 
     ["a programme that stops naming the run", () => world.db.poke(formPath, { [`programmes.${AGI}.runId`]: RUN.agiSpring })],
   ]) {
     test(`${why} is refused everywhere the lead passed`, async () => {
-      assert.ok(LEADS.length >= 14, `only ${LEADS.length} routes are the lead's`);
+      // Fourteen until November 2026, when Publish and its test became an
+      // admin's alone (tests/course-publish-admins-only.test.mjs).
+      assert.ok(LEADS.length >= 12, `only ${LEADS.length} routes are the lead's`);
       const refused = {};
       for (const route of LEADS) {
         await ready();

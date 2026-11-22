@@ -309,7 +309,8 @@ describe("2. every page says they hold a place again", () => {
     await remove("claudia", "amara");
     await putBack("claudia", "amara", A);
     // Una is placed and not told in this world, so Publish tells her too.
-    assert.deepEqual(await publishes("claudia"), ["amara@example.com", "una@example.com"]);
+    // An admin presses: only an admin publishes (November 2026).
+    assert.deepEqual(await publishes("zach"), ["amara@example.com", "una@example.com"]);
     const after = await ownPage("amara");
     assert.equal(after.text, before.text);
     assert.deepEqual(after.view.inGroup, before.view.inGroup);

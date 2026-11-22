@@ -5,6 +5,7 @@ import { groupsInWords } from "@/lib/courses/programmeAttendance";
 import type { WeekOneLine } from "@/lib/courses/weekOneLine";
 import {
   AFTER_PUBLISHED,
+  AFTER_PUBLISHED_LEAD,
   ALL_ON_THE_LIST,
   EVERY_GROUP_HAS_A_FACILITATOR,
   EVERY_GROUP_HAS_A_ROOM,
@@ -14,7 +15,9 @@ import {
   NOBODY_UNTIL_DECISIONS,
   NO_GROUPS_YET,
   NO_GROUP_HAS_A_FACILITATOR,
+  PUBLISH_LINK_LEAD,
   PUBLISH_STEP_LINE,
+  PUBLISH_STEP_LINE_LEAD,
   READY_ITEM,
   RUN_NOT_DATED,
   STEP_LINK,
@@ -469,16 +472,23 @@ function publishNeeds(facts: GetReadyFacts): { times: boolean; placed: boolean; 
   };
 }
 
+/**
+ * Publish emails everybody their group, so only an admin presses it. The
+ * programme's lead is told an admin publishes, and is shown the way to what
+ * a press sends rather than asked to press.
+ */
 function publishStep(facts: GetReadyFacts): ReadyStep {
+  const admin = facts.viewer === "admin";
+  const label = admin ? STEP_LINK.publish : PUBLISH_LINK_LEAD;
   if (facts.published) {
     return step(
       "publish",
       "done",
       publishedWords(facts.published.day, facts.published.clock),
-      linkFor("publish", STEP_LINK.publish, "done"),
+      linkFor("publish", label, "done"),
     );
   }
-  return step("publish", "todo", PUBLISH_STEP_LINE, linkFor("publish", STEP_LINK.publish, "todo"), {
+  return step("publish", "todo", admin ? PUBLISH_STEP_LINE : PUBLISH_STEP_LINE_LEAD, linkFor("publish", label, "todo"), {
     note: publishNeedsWords(publishNeeds(facts)),
   });
 }
@@ -730,7 +740,7 @@ export function buildReadiness(facts: GetReadyFacts): ReadinessModel {
     if (!group) continue;
     const firstName = person.firstName || firstWordOf(person.name);
     worth.push(
-      item(`fit-${person.uid}`, "check", placedNotFreeWords(person.name, group.name, group.meets), moveFirstWords(firstName), {
+      item(`fit-${person.uid}`, "check", placedNotFreeWords(person.name, group.name, group.meets), moveFirstWords(firstName, facts.viewer), {
         link: { to: "groups", label: moveButtonWords(firstName) },
       }),
     );
@@ -739,7 +749,10 @@ export function buildReadiness(facts: GetReadyFacts): ReadinessModel {
   return {
     ready: needed.every((entry) => entry.state === "done"),
     published: facts.published
-      ? { when: publishedWords(facts.published.day, facts.published.clock), later: AFTER_PUBLISHED }
+      ? {
+          when: publishedWords(facts.published.day, facts.published.clock),
+          later: facts.viewer === "admin" ? AFTER_PUBLISHED : AFTER_PUBLISHED_LEAD,
+        }
       : null,
     needed,
     worth,

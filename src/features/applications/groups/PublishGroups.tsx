@@ -12,6 +12,7 @@ import type { WhatFollows } from "@/lib/courses/getReady/follows";
 import type { PreviewEmail, PreviewKind, PublishPreview } from "@/lib/courses/getReady/preview";
 import {
   AFTER_YOU_PUBLISH,
+  AFTER_YOU_PUBLISH_LEAD,
   EMAILS_LOADING,
   EMAIL_CARD,
   EMAIL_FIELD,
@@ -40,7 +41,7 @@ import {
   registerRemindersWords,
   yourGroupCountWords,
 } from "@/lib/courses/getReady/words";
-import { emailsLabel, movedPersonWords, publishConfirmText, publishResultLines } from "@/lib/courses/publishWords";
+import { emailsLabel, movedPersonWords, publishConfirmText, publishResultLines, refusalsFor } from "@/lib/courses/publishWords";
 import OutsideNotes from "./OutsideNotes";
 import styles from "./PublishGroups.module.css";
 
@@ -79,7 +80,12 @@ type Props = {
   runId: string;
   /** The scheduled course emails that can follow, read by the page; null when it could not read them. */
   follows?: WhatFollows | null;
-  /** An admin is looking: "Site status" is a link of theirs. */
+  /**
+   * An admin is looking, as the server page decided from the session:
+   * "Site status" is a link of theirs, and only an admin is offered
+   * "Send a test to me" and Publish. Anybody else reads the same page with
+   * one line in their place.
+   */
   admin?: boolean;
 };
 
@@ -463,7 +469,7 @@ export default function PublishGroups({ runId, follows = null, admin = false }: 
       ) : null}
       {preview && preview.refusals.length > 0 ? (
         <div className={styles.unplaced} role="status">
-          {preview.refusals.map((sentence) => (
+          {refusalsFor(preview.refusals, admin ? "admin" : "lead").map((sentence) => (
             <p key={sentence}>{sentence}</p>
           ))}
         </div>
@@ -490,7 +496,8 @@ export default function PublishGroups({ runId, follows = null, admin = false }: 
             result={result}
             onTest={handleTest}
             onPublish={handlePublish}
-            note={AFTER_YOU_PUBLISH}
+            admin={admin}
+            note={admin ? AFTER_YOU_PUBLISH : AFTER_YOU_PUBLISH_LEAD}
           />
         </div>
       ) : (

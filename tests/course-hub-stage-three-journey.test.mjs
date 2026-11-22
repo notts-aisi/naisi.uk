@@ -354,7 +354,7 @@ const WHEN = {
   /** Mon 26 Oct. */
   handingOver: "2026-10-26T10:00:00Z",
   placing: "2026-10-26T14:00:00Z",
-  /** Tue 27 Oct, 5:38pm: the lead's test, then her Publish. */
+  /** Tue 27 Oct, 5:38pm: an admin's test, then their Publish. */
   publishing: "2026-10-27T17:38:00Z",
   /** Wed 4 Nov, after each group's first session: the lead removes Joel. */
   removing: "2026-11-04T10:00:00Z",
@@ -960,11 +960,12 @@ async function namedHandedOverPublished() {
   });
 
   at("publishing");
-  const summary = async () => (await courseCall("claudia", courseRoutes.board.GET, { runId: RUN })).body?.publish ?? null;
-  await courseStep("the lead's test of Publish", 200, "claudia", courseRoutes.publishTest.POST, { runId: RUN });
+  // Only an admin publishes (November 2026): the lead places, an admin tests and presses.
+  const summary = async () => (await courseCall("zach", courseRoutes.board.GET, { runId: RUN })).body?.publish ?? null;
+  await courseStep("an admin's test of Publish", 200, "zach", courseRoutes.publishTest.POST, { runId: RUN });
   const counted = await summary();
   const before = world.mail.length;
-  seen.published = await courseStep("the lead presses Publish with the board's count", 200, "claudia", courseRoutes.publish.POST, { runId: RUN }, {
+  seen.published = await courseStep("an admin presses Publish with the board's count", 200, "zach", courseRoutes.publish.POST, { runId: RUN }, {
     body: { emails: counted?.emails ?? -1 },
   });
   seen.publishedMail = mailSince(before).map((mail) => mail.to).sort();

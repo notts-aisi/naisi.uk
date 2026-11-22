@@ -43,6 +43,12 @@ export function stillToPlace(count: number): string {
 }
 
 export const PUBLISH_GROUPS = "Publish groups…";
+/**
+ * The same way to Publish's own page, for the programme's lead: an admin
+ * presses it, and the page shows the lead what a press sends. The
+ * Overview's checklist says the same (`PUBLISH_LINK_LEAD`).
+ */
+export const PUBLISH_GROUPS_LEAD = "What Publish sends…";
 
 export const TO_PLACE = "To place";
 
@@ -104,14 +110,16 @@ export const NOT_TOLD_YET = "Not told yet";
  * the board's order. The link is "Publish to email them". Somebody moved back
  * to the group they were told about is not in it.
  */
-export function movedSinceWords(firstNames: readonly string[]): { lead: string; link: string } {
+export function movedSinceWords(firstNames: readonly string[], admin = true): { lead: string; link: string } {
   const names =
     firstNames.length <= 1
       ? (firstNames[0] ?? "")
       : `${firstNames.slice(0, -1).join(", ")} and ${firstNames[firstNames.length - 1]}`;
+  const them = firstNames.length === 1 ? "them" : "each of them";
   return {
     lead: `${firstNames.length} moved since they were told: ${names}. They see their new group now.`,
-    link: firstNames.length === 1 ? "Publish to email them about it" : "Publish to email each of them about it",
+    // Only an admin publishes: the programme's lead is told who does.
+    link: admin ? `Publish to email ${them} about it` : `An admin publishes to email ${them} about it`,
   };
 }
 
@@ -120,12 +128,15 @@ export function movedSinceWords(firstNames: readonly string[]): { lead: string; 
  * published: Ana, Raj and Tom. Publish to tell them." First names, in the
  * board's order. The link is "Publish to tell them".
  */
-export function placedSinceWords(firstNames: readonly string[]): { lead: string; link: string } {
+export function placedSinceWords(firstNames: readonly string[], admin = true): { lead: string; link: string } {
   const names =
     firstNames.length <= 1
       ? (firstNames[0] ?? "")
       : `${firstNames.slice(0, -1).join(", ")} and ${firstNames[firstNames.length - 1]}`;
-  return { lead: `${firstNames.length} placed since you published: ${names}.`, link: "Publish to tell them" };
+  // Only an admin publishes: the programme's lead did not, and is told who does.
+  return admin
+    ? { lead: `${firstNames.length} placed since you published: ${names}.`, link: "Publish to tell them" }
+    : { lead: `${firstNames.length} placed since the groups were published: ${names}.`, link: "An admin publishes to tell them" };
 }
 
 /** What became of somebody's group email, when it did not go. */
@@ -193,6 +204,9 @@ export function gaveBackTitle(count: number): string {
 
 /** The note under the board before Publish has been pressed, the board's. */
 export const BEFORE_PUBLISH = "People see their group only when you publish. Until then, moving people emails nobody.";
+/** The same, for the programme's lead, who places people and whom an admin publishes for. */
+export const BEFORE_PUBLISH_LEAD =
+  "People see their group only when an admin publishes. Until then, moving people emails nobody.";
 
 /**
  * The note once it has been. Somebody told their group is never hidden by a
@@ -200,6 +214,9 @@ export const BEFORE_PUBLISH = "People see their group only when you publish. Unt
  */
 export const AFTER_PUBLISH =
   "People see their group only when you publish. Somebody told their group sees a move at once, and your next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until you publish again.";
+/** The same, for the programme's lead. */
+export const AFTER_PUBLISH_LEAD =
+  "People see their group only when an admin publishes. Somebody told their group sees a move at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until an admin publishes again.";
 
 /** Somebody holding a place who has not been handed over to the run, in the To place column. */
 export function notOnTheRunWords(count: number, admin: boolean): string {

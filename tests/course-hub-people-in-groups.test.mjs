@@ -396,9 +396,14 @@ describe("3. the board says what the records say, in the board's words", () => {
   test("the line, the publish line, To place, each group and each card, before Publish", async () => {
     await termOnTheBoard();
     const { text: said, html } = await open(PeoplePage, "claudia");
-    // The publish line beside the views, and the line over the board.
-    assert.match(said, /Facilitators 2 still to place Publish groups… 4 holding a place · 2 in a group · 2 to place · 1 invited/);
-    assert.match(html, new RegExp(`<a href="${PAGE_PATH}/groups/publish" class="btn publishLink">Publish groups…</a>`));
+    // The publish line beside the views, and the line over the board. Only
+    // an admin publishes, so the lead's way to Publish's page says what it
+    // shows them (November 2026), and an admin's says "Publish groups…".
+    assert.match(said, /Facilitators 2 still to place What Publish sends… 4 holding a place · 2 in a group · 2 to place · 1 invited/);
+    assert.match(html, new RegExp(`<a href="${PAGE_PATH}/groups/publish" class="btn publishLink">What Publish sends…</a>`));
+    const asAdmin = await open(PeoplePage, "zach");
+    assert.match(asAdmin.html, new RegExp(`<a href="${PAGE_PATH}/groups/publish" class="btn publishLink">Publish groups…</a>`));
+    assert.ok(asAdmin.text.endsWith(words.BEFORE_PUBLISH), asAdmin.text.slice(-200));
     // To place: Bea and Tariq, with what each card says.
     assert.match(
       said,
@@ -419,7 +424,8 @@ describe("3. the board says what the records say, in the board's words", () => {
     );
     // Who gave their place back, and the note under the board.
     assert.match(said, /Gave their place back \(1\) Nina Petrova · The times don’t work for me/);
-    assert.ok(said.endsWith(words.BEFORE_PUBLISH), said.slice(-200));
+    assert.ok(said.endsWith(words.BEFORE_PUBLISH_LEAD), said.slice(-200));
+    assert.equal(words.BEFORE_PUBLISH_LEAD, "People see their group only when an admin publishes. Until then, moving people emails nobody.");
     // Each card's menu, named as the board names it.
     assert.deepEqual(
       [...html.matchAll(/aria-label="(Move [^"]+ to another group)"/g)].map((m) => m[1]),
@@ -454,11 +460,12 @@ describe("3. the board says what the records say, in the board's words", () => {
     await termOnTheBoard();
     assert.equal((await reply("tariq", { reply: "cant-make-it", reason: { kind: "times", other: "" } })).status, 200);
     const { text: said, html } = await open(PeoplePage, "claudia");
-    assert.match(said, /1 still to place Publish groups… 3 holding a place · 2 in a group · 1 to place · 1 invited To place 1 Bea Lindqvist/);
+    assert.match(said, /1 still to place What Publish sends… 3 holding a place · 2 in a group · 1 to place · 1 invited To place 1 Bea Lindqvist/);
     assert.ok(!html.includes("Move Tariq Mensah to another group"), "Tariq's card is still in To place");
     assert.match(said, /Gave their place back \(2\) Nina Petrova · The times don’t work for me Tariq Mensah · The times don’t work for me/);
-    // Publish does not wait for Tariq either: one press, one answer.
-    const refused = await publish("claudia");
+    // Publish does not wait for Tariq either: one press, one answer (an
+    // admin's: only an admin publishes).
+    const refused = await publish("zach");
     assert.deepEqual(refused.body.unplaced, ["Bea Lindqvist"]);
   });
 
@@ -470,7 +477,7 @@ describe("3. the board says what the records say, in the board's words", () => {
       { uid: "tariq", groupId: A },
     ]);
     const { text: said } = await open(PeoplePage, "claudia");
-    assert.match(said, /Facilitators Publish groups… 4 holding a place · 4 in a group · 0 to place · 1 invited To place 0 Everyone holding a place is in a group\./);
+    assert.match(said, /Facilitators What Publish sends… 4 holding a place · 4 in a group · 0 to place · 1 invited To place 0 Everyone holding a place is in a group\./);
   });
 
   test("after Publish the note says what a move does now", async () => {
@@ -483,7 +490,12 @@ describe("3. the board says what the records say, in the board's words", () => {
     const pressed = await publish("zach");
     assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
     const { text: said } = await open(PeoplePage, "claudia");
-    assert.ok(said.endsWith(words.AFTER_PUBLISH), said.slice(-200));
+    assert.ok(said.endsWith(words.AFTER_PUBLISH_LEAD), said.slice(-200));
+    assert.equal(
+      words.AFTER_PUBLISH_LEAD,
+      "People see their group only when an admin publishes. Somebody told their group sees a move at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until an admin publishes again.",
+    );
+    assert.ok((await open(PeoplePage, "zach")).text.endsWith(words.AFTER_PUBLISH), "an admin's note is not the one it always was");
   });
 });
 
@@ -514,8 +526,9 @@ describe("4. the line, the number beside Publish and the People tab count with o
       const people = await loadProgrammePeople(world.db, sessionFor(who), ROUND, AGI);
       assert.equal(counts.holding, people.view.counts.coming + people.view.counts["havent-said"], who);
       assert.equal(counts.invited, people.view.counts.invited, who);
-      // Publish refuses for exactly the people the line says are still to place.
-      const refused = await publish(who);
+      // Publish refuses for exactly the people the line says are still to
+      // place. An admin's press: only an admin publishes (November 2026).
+      const refused = await publish("zach");
       assert.equal(refused.status, 409, JSON.stringify(refused.body));
       assert.deepEqual([refused.body.unplaced.length, counts.toPlace, counts.notOnTheRun], [2, 2, 0], who);
       assert.deepEqual([...refused.body.unplaced].sort(), ["Bea Lindqvist", "Tariq Mensah"]);
@@ -614,9 +627,19 @@ describe("5. Publish's own page draws Publish as the board did, under its readin
         placeConfirmations: null,
       },
     });
-    assert.match(said, /Send a test to me/);
-    assert.match(said, /Publish and send \d+ emails?/);
-    assert.ok(said.includes(getReadyWords.AFTER_YOU_PUBLISH), "what publishing does next is said above the buttons");
+    // CHANGED ON PURPOSE (November 2026): only an admin publishes. The lead
+    // reads the same area with one line where its two buttons are, and an
+    // admin is drawn the buttons.
+    assert.doesNotMatch(said, /Send a test to me/);
+    assert.doesNotMatch(said, /Publish and send \d+ emails?/);
+    assert.ok(said.includes("Only an admin publishes. Ask an admin when the groups are ready."), "the lead is not told who publishes");
+    assert.ok(said.includes(getReadyWords.AFTER_YOU_PUBLISH_LEAD), "what publishing does next is said above the line");
+    const asAdmin = await open(PublishPage, "zach");
+    assert.equal(find(asAdmin.element, "PublishGroups")[0].props.admin, true);
+    assert.match(asAdmin.text, /Send a test to me/);
+    assert.match(asAdmin.text, /Publish and send \d+ emails?/);
+    assert.ok(asAdmin.text.includes(getReadyWords.AFTER_YOU_PUBLISH), "what publishing does next is said above the buttons");
+    assert.ok(!asAdmin.text.includes("Only an admin publishes."), "an admin is told to ask an admin");
   });
 });
 

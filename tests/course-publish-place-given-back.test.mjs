@@ -20,7 +20,8 @@
  *     press leave them out: nobody who gave their place back is emailed a
  *     group, counted, stamped as told, put on the cohort's list or pushed.
  *     The summary says how many, and the press sends exactly the number on
- *     the button. As an admin and as the programme's lead. Somebody handed
+ *     the button. As an admin and as the programme's lead, who reads and
+ *     places while an admin presses (only an admin publishes). Somebody handed
  *     over and never placed who gives it back is not waited for either:
  *     their card stays in Unallocated with its badge, the rail counts them
  *     apart from who is still to place, and the press goes without them.
@@ -224,6 +225,13 @@ async function leaves(uid) {
 }
 
 const summary = async (who) => (await board(who)).body.publish;
+/**
+ * Who presses "Send a test to me" and Publish: an admin, whoever else reads
+ * and places. Only an admin publishes (November 2026,
+ * tests/course-publish-admins-only.test.mjs), so the programme's lead below
+ * places, reads the board and chooses the notes, and an admin presses.
+ */
+const PRESSER = "zach";
 const sendTest = (who) => call(who, routes.publishTest.POST, { runId: RUN.agi }, { course: true });
 const pressWith = (who, emails) => call(who, routes.publish.POST, { runId: RUN.agi }, { body: { emails }, course: true });
 const remove = (who, uid) => takeOff(call, who, routes.remove.POST, { runId: RUN.agi, uid });
@@ -237,11 +245,11 @@ async function testThenPress(who) {
   // A choice for anybody placed outside the times they gave, as Publish's
   // page asks for first: "Send without a note".
   await join_.withoutNotes(who);
-  const tested = await sendTest(who);
+  const tested = await sendTest(PRESSER);
   assert.equal(tested.status, 200, JSON.stringify(tested.body));
   const shown = (await summary(who)).emails;
   const before = realMail().length;
-  const pressed = await pressWith(who, shown);
+  const pressed = await pressWith(PRESSER, shown);
   assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
   return { shown, pressed, sent: realMail().slice(before) };
 }
@@ -288,7 +296,10 @@ async function drawn(who) {
   assert.equal(answer.status, 200, JSON.stringify(answer.body));
   world.board = answer.body;
   try {
-    const html = renderToStaticMarkup(createElement(AllocationBoard, { courseId: COURSE.agi, runId: RUN.agi, runEditorHref: null }));
+    // Whether an admin is looking is the server page's answer, handed down.
+    const html = renderToStaticMarkup(
+      createElement(AllocationBoard, { courseId: COURSE.agi, runId: RUN.agi, runEditorHref: null, admin: who === "zach" }),
+    );
     const text = html
       .replace(/<[^>]+>/g, " ")
       .replace(/&#x27;/g, "'")
@@ -356,7 +367,7 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
       );
 
       // The test is the first person a press writes to: Bea, never Amara.
-      const tested = await sendTest(who);
+      const tested = await sendTest(PRESSER);
       assert.deepEqual([tested.status, tested.body.emails, tested.body.recorded], [200, 2, true]);
       const [person, facilitator] = await Promise.all(world.mail.map(opened));
       // Bea's group email: its greeting and first words, the board's since October 2026 (until then "You've been placed, Bea").
@@ -367,7 +378,7 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
       assert.equal(groupSizeIn(facilitator.text), 1);
 
       // The press sends exactly the number on the button, and Amara nothing.
-      const pressed = await pressWith(who, (await summary(who)).emails);
+      const pressed = await pressWith(PRESSER, (await summary(who)).emails);
       assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
       assert.equal(realMail().length, 6);
       assert.deepEqual(realMail().filter((mail) => !isFacilitating(mail)).map((mail) => mail.to).sort(), [
@@ -484,7 +495,7 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
       );
 
       // The test is the first person a press writes to, never Tariq.
-      const tested = await sendTest(who);
+      const tested = await sendTest(PRESSER);
       assert.deepEqual([tested.status, tested.body.emails, tested.body.recorded], [200, 2, true]);
       const [person] = await Promise.all(world.mail.filter(isTest).map(opened));
       // A group email: its greeting and first words, the board's since October 2026 (until then "You've been placed, ").
@@ -492,7 +503,7 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
       assert.ok(!person.text.includes("Tariq"), person.text);
 
       // The press is not refused for Tariq, and sends the number on the button.
-      const pressed = await pressWith(who, (await summary(who)).emails);
+      const pressed = await pressWith(PRESSER, (await summary(who)).emails);
       assert.deepEqual([pressed.status, pressed.body.unplaced], [200, []], JSON.stringify(pressed.body));
       assert.equal(realMail().length, 6);
       assert.deepEqual(realMail().filter((mail) => !isFacilitating(mail)).map((mail) => mail.to).sort(), [
@@ -526,8 +537,8 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
     assert.ok(view.text.includes("4 accepted · 2 placed · 1 unallocated · 1 gave their place back Refresh"), view.text);
     assert.ok(view.text.includes("Unallocated 1 Accepted applicants with no group yet."), view.text);
     assert.ok(!view.text.includes("No one is in two groups."), view.text);
-    await sendTest("claudia");
-    const refused = await pressWith("claudia", (await summary("claudia")).emails);
+    await sendTest(PRESSER);
+    const refused = await pressWith(PRESSER, (await summary("claudia")).emails);
     assert.deepEqual([refused.status, refused.body.unplaced], [409, ["Bea Lindqvist"]]);
     assert.equal(realMail().length, 0);
   });
@@ -568,7 +579,7 @@ describe("2. beside a card that left by each door, one removed, a late placement
       const { shown: number, pressed, sent } = await testThenPress(who);
       // The test: Kit's email, Tom's and Sofia's, to the presser.
       const tests = await Promise.all(world.mail.slice(mailBefore).filter(isTest).map(opened));
-      assert.deepEqual(tests.map((mail) => mail.to), [`${who}@example.com`, `${who}@example.com`, `${who}@example.com`]);
+      assert.deepEqual(tests.map((mail) => mail.to), [`${PRESSER}@example.com`, `${PRESSER}@example.com`, `${PRESSER}@example.com`]);
       // Kit's group email, the board's words since October 2026 (until then "You've been placed, Kit").
       assert.ok(tests[0].text.includes("Hi Kit, You’re in Group "), tests[0].text);
       // The press: the number on the button, and those two.
@@ -624,7 +635,12 @@ describe("3. the board draws it: the sentence, the badges, the button's number a
       // And Sofia, told about Group A, is told Kit has joined it (since 29
       // October 2026: until then "1 person and 1 facilitator", 2 emails).
       assert.ok(view.text.includes("1 person, 1 facilitator and 1 facilitator told who has joined"), view.text);
-      assert.ok(view.text.includes("Publish and send 3 emails"));
+      // Only an admin is drawn the button (November 2026); the lead reads who publishes in its place.
+      if (who === "zach") assert.ok(view.text.includes("Publish and send 3 emails"));
+      else {
+        assert.ok(!view.text.includes("Publish and send"), view.text);
+        assert.ok(view.text.includes(words.PUBLISH_ONLY_ADMINS), view.text);
+      }
       // The badge on Una's card, on the two who left by giving theirs back,
       // and on Tariq's, whose removal gave it back (3 until the follow-ups to
       // Publish of October 2026, when a removal gave nothing back).

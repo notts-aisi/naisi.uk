@@ -890,7 +890,7 @@ describe("8. a notice about ONE session goes to the people of that session's wee
 describe("9. a real Publish after a move, and the person's own page", () => {
   const sent = () => world.mail.map((mail) => [mail.to, mail.subject, mail.kind]);
   const aboutFreya = () => JSON.stringify(world.mail).match(/freya/gi)?.length ?? 0;
-  const publish = () => w.join.publish("claudia");
+  const publish = () => w.join.publish("zach");
 
   test("a staff move, then Publish: nothing is sent about the person", async () => {
     assert.equal((await publish()).status, 200);

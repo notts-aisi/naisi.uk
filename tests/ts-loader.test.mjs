@@ -267,6 +267,11 @@ const USERS = new Map([
       "wording, another .ts module, to hold that a link to one token is saved and read back as the token alone",
   ],
   [
+    "course-publish-refusal-words.test.mjs",
+    "loads the three emails' composers and the words around Publish, .ts modules, to ask each composer every problem it " +
+      "knows and say each sentence to an admin and to a lead",
+  ],
+  [
     "course-offer.test.mjs",
     "loads the hub's own route, a .ts module, for the pure rule that decides an offer; the route's graph is the " +
       "hub's whole reach, which the shared loader compiles to one file a module",

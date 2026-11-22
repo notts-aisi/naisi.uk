@@ -285,8 +285,10 @@ describe("2. Publish tells a facilitator who holds a place their group and their
     // Four placed (Amara and Bea in A, Dev and Tariq in C); Sofia and Amara
     // facilitate Group A and Tom Group C. Group B has nobody yet.
     assert.deepEqual([shown.emails, shown.people, shown.facilitators], [7, 4, 3]);
-    assert.equal((await sendTest("claudia")).status, 200);
-    const pressed = await pressNow("claudia");
+    // The lead reads the count; an admin tests and presses (only an admin
+    // publishes, November 2026).
+    assert.equal((await sendTest("zach")).status, 200);
+    const pressed = await pressNow("zach");
     assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
     assert.deepEqual(
       realMail().map((mail) => mail.to).sort(),

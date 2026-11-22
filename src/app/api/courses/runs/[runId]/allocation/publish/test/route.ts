@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { formPlaceFactsFor } from "@/lib/applications/handover/board";
 import { loadPublishPlan, pressBatch, readGroupSessions, recordPublishTest } from "@/lib/courses/allocationPublish";
-import { PUBLISH_ADMIN_ONLY } from "@/lib/courses/publishWords";
+import { PUBLISH_ADMIN_ONLY, PUBLISH_ONLY_ADMINS, refusalsFor } from "@/lib/courses/publishWords";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { sendCourseApplicationEmail, type CourseEmailDelivery } from "@/lib/email/courseApplicationEmails";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -17,9 +17,11 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * press of Publish would send them now, each marked as a test, to the address
  * on the caller's own session.
  *
- * THE SAME CALLERS AS PUBLISH, decided the same way: an admin, the lead of
- * the programme that names the run, or one of the run's track leads on a run
- * the application form does not fill. The address is the session's and is
+ * THE SAME CALLERS AS PUBLISH, decided the same way: an admin, and nobody
+ * else. The lead of the programme that names the run and the run's track
+ * leads are refused with Publish's own sentence (`PUBLISH_ONLY_ADMINS`)
+ * before any application row is read: a test is what unlocks a press, and
+ * neither may press. The address is the session's and is
  * never taken from the request, so a test reaches nobody but whoever asked
  * for it. It tells no applicant or facilitator anything, and stamps no
  * enrolment and no marker.
@@ -75,6 +77,9 @@ export async function POST(_req: Request, ctx: Ctx) {
   if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  // Only an admin publishes, so only an admin tests it: the test is what
+  // unlocks the press. Refused before any application row is read.
+  if (!staffing.isAdmin) return NextResponse.json({ error: PUBLISH_ONLY_ADMINS }, { status: 403 });
 
   // The run's rows, each asked who it is served to with the caller's own
   // standing on the run, exactly as Publish reads them: the test is
@@ -99,7 +104,8 @@ export async function POST(_req: Request, ctx: Ctx) {
   if (plan.adminOnly) return NextResponse.json({ error: PUBLISH_ADMIN_ONLY }, { status: 403 });
   if (plan.refusals.length > 0) {
     return NextResponse.json(
-      { error: ["No test was sent.", ...plan.refusals].join(" "), reasons: plan.refusals },
+      // An admin's words: only an admin reaches here.
+      { error: ["No test was sent.", ...refusalsFor(plan.refusals, "admin")].join(" "), reasons: refusalsFor(plan.refusals, "admin") },
       { status: 409 },
     );
   }
