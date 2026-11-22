@@ -1,6 +1,6 @@
 import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
-import type { Firestore } from "firebase-admin/firestore";
+import type { Firestore, Transaction } from "firebase-admin/firestore";
 import {
   PICKS_ONLY_HERE,
   PITCHING_NO_RUN,
@@ -18,8 +18,9 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { storedPitchSettings } from "@/lib/firestore/courses";
 import { opensProgrammeGroups, roleOnProgramme } from "../access";
 import { own } from "../keys";
-import { isId } from "../normalise";
-import { loadForm } from "../repo";
+import type { ProgrammeSettings } from "../model";
+import { isApplicationForm, isId, normaliseForm, type ApplicationForm } from "../normalise";
+import { formRef, loadForm } from "../repo";
 import { RUNS_COLLECTION, readRun } from "./run";
 
 /**
@@ -31,6 +32,8 @@ import { RUNS_COLLECTION, readRun } from "./run";
  * the run is read: the people the Pitches view itself is drawn for. A
  * reviewer of the programme is refused; anybody with no role on it is told
  * the programme is not there.
+ * Asked again inside the transaction that writes, of the form it reads,
+ * and the run written is the one that form names then (`mayChange`).
  *
  * WHAT: the run's `pitchSettings` (`storedPitchSettings`) and `teamsFrom`,
  * the fields and the shape the run editor's Pitching week section writes,
@@ -60,6 +63,29 @@ class Refusal extends Error {
   }
 }
 
+/**
+ * Who may, and the programme they may for, from one reading of the form: an
+ * admin or the programme's lead (`opensProgrammeGroups`), on a programme
+ * that names a run. Asked once before the transaction, so a refusal reads
+ * nothing of the run, and again inside it, of the form the transaction read.
+ */
+function mayChange(user: SessionUser, form: ApplicationForm | null, programmeId: string): { ok: true; programme: ProgrammeSettings; runId: string } | Refusal {
+  const programme = form ? own(form.programmes, programmeId) : null;
+  if (!form || !programme) return new Refusal(NO_PROGRAMME, 404);
+  const role = roleOnProgramme(user, form, programmeId);
+  if (role === null) return new Refusal(NO_PROGRAMME, 404);
+  if (!opensProgrammeGroups(role)) return new Refusal(PITCHING_WEEK_NOT_YOURS, 403);
+  if (programme.runId === null) return new Refusal(PITCHING_NO_RUN, 409);
+  return { ok: true, programme, runId: programme.runId };
+}
+
+/** The form as the transaction reads it. */
+async function formIn(tx: Transaction, db: Firestore, roundId: string): Promise<ApplicationForm | null> {
+  const snap = await tx.get(formRef(db, roundId));
+  const data = snap.exists ? snap.data() : undefined;
+  return data && isApplicationForm(data) ? normaliseForm(snap.id, data) : null;
+}
+
 export async function savePitchingWeek(
   db: Firestore,
   user: SessionUser,
@@ -68,18 +94,17 @@ export async function savePitchingWeek(
   next: PitchingWeekInput,
 ): Promise<PitchingWeekSaved | PitchingWeekRefused> {
   if (!isId(roundId) || !isId(programmeId)) return { ok: false, status: 404, error: NO_PROGRAMME };
-  const form = await loadForm(db, roundId);
-  const programme = form ? own(form.programmes, programmeId) : null;
-  if (!form || !programme) return { ok: false, status: 404, error: NO_PROGRAMME };
-  const role = roleOnProgramme(user, form, programmeId);
-  if (role === null) return { ok: false, status: 404, error: NO_PROGRAMME };
-  if (!opensProgrammeGroups(role)) return { ok: false, status: 403, error: PITCHING_WEEK_NOT_YOURS };
-  if (programme.runId === null) return { ok: false, status: 409, error: PITCHING_NO_RUN };
+  const before = mayChange(user, await loadForm(db, roundId), programmeId);
+  if (before instanceof Refusal) return { ok: false, status: before.status, error: before.message };
 
-  const hasTeams = programme.kind === "incubator";
-  const runRef = db.collection(RUNS_COLLECTION).doc(programme.runId);
   try {
     return await db.runTransaction(async (tx): Promise<PitchingWeekSaved> => {
+      // Asked again of the form this transaction reads: a lead replaced, or
+      // the run the programme names changed, since the first read is met here.
+      const now = mayChange(user, await formIn(tx, db, roundId), programmeId);
+      if (now instanceof Refusal) throw now;
+      const hasTeams = now.programme.kind === "incubator";
+      const runRef = db.collection(RUNS_COLLECTION).doc(now.runId);
       const snap = await tx.get(runRef);
       const read = snap.exists ? readRun(snap.id, snap.data()) : null;
       if (!read || read.destroying) throw new Refusal(RUN_GONE, 404);
@@ -94,7 +119,7 @@ export async function savePitchingWeek(
       }
 
       if (next.teamsFrom !== stored.teamsFrom) {
-        // One equality on one field, so no declared index.
+        // Whether any team exists, read in this transaction: one equality on one field, so no declared index.
         const teams = await tx.get(db.collection(TEAMS_COLLECTION).where("runId", "==", run.id));
         if (!teams.empty) throw new Refusal(TEAMS_MADE_ALREADY, 409);
       }

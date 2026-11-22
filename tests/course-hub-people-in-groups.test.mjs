@@ -331,6 +331,10 @@ describe("2. the view is the People tab's answers, field by field", () => {
     assert.deepEqual(Object.keys(lead).sort(), [
       "blank",
       "gaveBack",
+      // Whether the programme is an incubator, so it has teams and the row
+      // of views offers Pitches: a yes or no about the programme, never about
+      // a person, which the lead and an admin both know from its kind.
+      "hasTeams",
       "holders",
       "invited",
       "people",
@@ -342,6 +346,7 @@ describe("2. the view is the People tab's answers, field by field", () => {
       "sent",
       "viewer",
     ]);
+    assert.equal(lead.hasTeams, false, "AGI Strategy is a fellowship");
     assert.deepEqual([...lead.holders].sort(), ["amara", "bea", "dev", "tariq"]);
     assert.deepEqual(lead.people.amara, { name: "Amara Okafor", detail: "BSc Mathematics · Graduating 2028", coming: true });
     assert.equal(lead.people.dev.coming, false);

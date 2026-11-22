@@ -242,6 +242,52 @@ describe("4. a save while teams are already made", () => {
   });
 });
 
+describe("4b. who may, and whether a team exists, asked inside the transaction that writes", () => {
+  const FORM = `admissionRounds/${ROUND}`;
+  /** Make `change` after the route's first read of the form and before its transaction opens. */
+  function beforeTheTransaction(change) {
+    const run = world.courseDb.runTransaction;
+    let done = false;
+    world.courseDb.runTransaction = (fn) => {
+      if (!done) {
+        done = true;
+        change();
+      }
+      return run.call(world.courseDb, fn);
+    };
+  }
+
+  test("a lead replaced after the first read is refused, before the transaction or while it runs, and the run is not written", async () => {
+    for (const when of ["before", "while"]) {
+      reset();
+      admitted();
+      const run = JSON.stringify(world.db.read(RUN_PATH));
+      const change = () => world.db.poke(FORM, { [`programmes.${INCUBATOR}.leadUid`]: "claudia" });
+      if (when === "before") beforeTheTransaction(change);
+      else world.db.beforeCommit = change;
+      const answer = await save("tess", body({ pickLimit: 2 }));
+      assert.deepEqual(short(answer), [404, "That programme is not on this form."], when);
+      assert.equal(JSON.stringify(world.db.read(RUN_PATH)), run, `${when}: the run was written`);
+    }
+  });
+
+  test("the run the programme names when the transaction reads the form is the one written", async () => {
+    beforeTheTransaction(() => world.db.poke(FORM, { [`programmes.${INCUBATOR}.runId`]: RUN.agi }));
+    const incubatorRun = JSON.stringify(world.db.read(RUN_PATH).pitchSettings);
+    const answer = await save("tess", { teamsFrom: null, pickLimit: 2, teamSizeMin: null, teamSizeMax: null, teamsMadeOn: null });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.equal(JSON.stringify(world.db.read(RUN_PATH).pitchSettings), incubatorRun, "the run no longer named was written");
+    assert.equal(world.db.read(`courseRuns/${RUN.agi}`).pitchSettings.pickLimit, 2);
+  });
+
+  test("a team made while the transaction runs stops a change of how teams are made", async () => {
+    world.db.beforeCommit = () => world.db.seed("courseTeams/made-meanwhile", { runId: INC.run, courseId: INC.course, groupId: INC.thursday, name: "Made meanwhile", project: "", source: { kind: "hand" }, memberUids: [], toldAs: [] });
+    const answer = await save("tess", body({ teamsFrom: "agenda" }));
+    assert.deepEqual(short(answer), [409, SETTINGS.TEAMS_MADE_ALREADY]);
+    assert.equal(runNow().teamsFrom, "pitches");
+  });
+});
+
 describe("5. what each kind of programme is shown on Pitches", () => {
   test("teams from the pitches, with a pitching week: the card with the week and its first session, then the pitches", async () => {
     for (const who of ["zach", "tess"]) {
