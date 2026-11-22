@@ -326,7 +326,7 @@ const BOX =
  */
 const HOME_FORM = (name) =>
   `export default function ${name}(props) {\n` +
-  `  globalThis.__viewAsOwn.handed.${name} = { holdsNoPlace: props.holdsNoPlace, beforeGroups: props.beforeGroups, surveys: props.surveys, names: Object.keys(props).sort() };\n` +
+  `  globalThis.__viewAsOwn.handed.${name} = { holdsNoPlace: props.holdsNoPlace, beforeGroups: props.beforeGroups, surveys: props.surveys, programmes: props.programmes, names: Object.keys(props).sort() };\n` +
   "  return globalThis.__viewAsOwn.createElement('div', null, props.applications, props.nothingYet);\n" +
   "}";
 /** The list of somebody's runs: it draws what it is handed to stand where its empty state would, and nothing else here is about an application. */
@@ -410,6 +410,7 @@ const STUBS = new Map([
   ["./ComingUp", NOTHING("ComingUp")],
   ["./TermCard", NOTHING("TermCard")],
   ["./home.module.css", STYLES],
+  ["./ProgrammesHome.module.css", STYLES],
   [
     "./homeData",
     "export async function homeEvents() {\n" +
@@ -747,6 +748,10 @@ describe("whether a member holds a place is asked for the member, and for nobody
     "holdsNoPlace",
     "invite",
     "nothingYet",
+    // CHANGED ON PURPOSE (November 2026): "Your programmes", for a lead,
+    // made from the Programmes list; null for every account here, none of
+    // whom is named on a form, and in a view-as session whoever is viewed.
+    "programmes",
     "surveys",
     "termCard",
   ];
@@ -756,6 +761,7 @@ describe("whether a member holds a place is asked for the member, and for nobody
     assert.deepEqual(world.handed.HomeMember.names, HANDED_TO_HOME, "Home is handed something else");
     assert.deepEqual(world.handed.HomeMember.beforeGroups, [], "Home is handed a card where no programme names a run");
     assert.deepEqual(world.handed.HomeMember.surveys, [], "Home is handed a survey card where nobody was sent a survey");
+    assert.equal(world.handed.HomeMember.programmes, null, "Home is handed a Programmes card for somebody named on no form");
     return { holdsNoPlace: world.handed.HomeMember.holdsNoPlace, rows: world.handed.YourApplications.rows };
   };
   /** The list of programmes: what it has drawn where its empty state would be. */

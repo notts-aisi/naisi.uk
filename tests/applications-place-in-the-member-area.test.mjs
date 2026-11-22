@@ -199,6 +199,7 @@ const { loadTs } = createLoader({
     ["@/features/courses/RunCard", `export default ({ entry }) => ${h}("div", null, "[run " + entry.runId + "]");`],
     ["@/components/motion/PageEnter", `export default ({ children }) => ${h}("div", null, children);`],
     ["./home.module.css", CLASS_NAMES],
+    ["./ProgrammesHome.module.css", CLASS_NAMES],
     ["./page.module.css", CLASS_NAMES],
     ["./MyCoursesSummary.module.css", CLASS_NAMES],
     ["./YourApplications.module.css", CLASS_NAMES],
@@ -719,8 +720,12 @@ describe("Home, for a member on no run", () => {
     const slots = code.slice(code.indexOf("type Slots = {"), code.indexOf("};", code.indexOf("type Slots = {")));
     assert.deepEqual(
       [...slots.matchAll(/^\s*(\w+)\??:/gm)].map((match) => match[1]),
-      ["given", "invite", "termCard", "comingUpRows", "comingUpCards", "applications", "nothingYet", "holdsNoPlace", "beforeGroups", "surveys", "finishProfile"],
+      ["given", "invite", "programmes", "termCard", "comingUpRows", "comingUpCards", "applications", "nothingYet", "holdsNoPlace", "beforeGroups", "surveys", "finishProfile"],
     );
+    // CHANGED ON PURPOSE (November 2026): "Your programmes", a lead's card,
+    // is a slot rendered on the server from the Programmes list, which says
+    // nothing about the reader's own place.
+    assert.match(slots, /programmes\?: ReactNode;/);
     assert.match(slots, /holdsNoPlace: boolean;/);
     // The cards come worded from the server, by week 1's door: section 7.
     assert.match(slots, /beforeGroups: readonly BeforeGroupsCard\[\];/);
