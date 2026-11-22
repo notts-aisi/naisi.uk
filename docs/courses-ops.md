@@ -2080,8 +2080,8 @@ never while it runs (archiving a run people are on hides it from them while
 its emails go on), through `PATCH /api/courses/runs/[runId]/archive`; an
 archived run says so and offers "Restore the run…" through the same route.
 "Cancel this cohort…" and "Destroy this run…" are the older run page's
-dialogs, word for word (`CancelCohortDialog` and `DestroyDialog` in
-`src/features/courses/RunDangerZone.tsx`): the typed label, the live
+dialogs, word for word (`CancelCohortDialog` and `DestroyDialog`, shared
+from `src/features/courses/DangerZoneParts.tsx`): the typed label, the live
 manifest and the receipt. A run being destroyed offers neither archive nor
 cancel, and Destroy resumes it.
 
