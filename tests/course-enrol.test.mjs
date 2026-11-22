@@ -818,8 +818,16 @@ test("SOURCE: reinstating exists, and is the repair the copy promises", () => {
   // inverse. Both ask the one gate a track lead passes, before anything else
   // is read, and that gate holds a track lead to the bar through
   // isNamedWithStanding.
+  // The remove route asks the gate before it looks for the run, so somebody
+  // with no right is answered the same whether the run exists or not: a run
+  // that is not there has no track leads.
+  assert.match(REINSTATE_ROUTE, /const staffing = await runStaffingOf\(db, actor, run\);/);
+  assert.match(REMOVE_ROUTE, /const staffing = await runStaffingOf\(db, actor, stored \?\? \{ id: runId, trackLeadUids: \[\] \}\);/);
+  assert.ok(
+    REMOVE_ROUTE.indexOf("if (!doesTrackLeadWork(staffing)) {") < REMOVE_ROUTE.indexOf('{ error: "Run not found" }'),
+    "the remove route says a run is not found before it asks the gate",
+  );
   for (const route of [REINSTATE_ROUTE, REMOVE_ROUTE]) {
-    assert.match(route, /const staffing = await runStaffingOf\(db, actor, run\);/);
     assert.match(
       route,
       /if \(!doesTrackLeadWork\(staffing\)\) \{\s*return NextResponse\.json\(\{ error: "Forbidden" \}, \{ status: 403 \}\);/,

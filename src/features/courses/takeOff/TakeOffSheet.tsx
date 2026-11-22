@@ -109,7 +109,7 @@ export default function TakeOffSheet({
   return (
     <Modal open onClose={onClose} ariaLabel={sheet?.title ?? ASKING} width="sm" sheet>
       {(dismiss) => (
-        <section className={styles.sheet} aria-labelledby={`${boxId}-title`} data-testid="take-off-sheet">
+        <section className={styles.sheet} aria-labelledby={`${boxId}-title`}>
           <h2 id={`${boxId}-title`} className={styles.title}>
             {sheet?.title ?? ASKING}
           </h2>
