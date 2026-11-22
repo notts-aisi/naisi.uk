@@ -113,6 +113,7 @@ const READERS = {
   "lib/courses/finishing/whoFinished.ts": { treats: "no-words", why: "who finished counts written answers sent, by their first-sent time, never their words" },
   "lib/courses/olderEditor/runStarted.ts": { treats: "no-words", why: "counts a run's rows, a number for refusing a replace of weeks somebody has started" },
   "lib/courses/olderEditor/weekInUse.ts": { treats: "no-words", why: "counts a week's rows, a number for refusing to unpublish a week somebody has started" },
+  "lib/courses/weekPlanEdit/kept.ts": { treats: "no-words", why: "counts a run's rows, a number for refusing to move or remove weeks once anything is kept against them" },
   "lib/courses/staffMove/plan.ts": {
     treats: "no-words",
     why: "the move page reads the moved person's own rows only for whether a week from the move on holds something written (a written answer by its count of words), and shows a week's number, never a word",

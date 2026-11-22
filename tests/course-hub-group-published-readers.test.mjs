@@ -479,6 +479,14 @@ const READERS = {
       "the Programmes page's 'holding a place', for an admin or the programme's lead alone: two aggregate counts of the " +
       "run's seats, which name nobody and say nothing of any group, so no placement is shown or sent",
   },
+  "lib/courses/weekPlanEdit/facts.ts": {
+    kind: "staff",
+    proof: ["const told = places.docs.some((doc) => (doc.data() ?? {}).allocatedEmailAt != null);"],
+    why:
+      "the week plan's check, for an admin or the programme's lead alone after the route's gate: the run's places are read " +
+      "only to ask whether Publish has told anybody (the plan is then read only) and whether any holds a visit, a move or a " +
+      "time answer; no seat or group is shown or sent",
+  },
   "lib/courses/weekRooms/load.ts": {
     kind: "staff",
     proof: ['if (!visible) return { status: "none" };'],

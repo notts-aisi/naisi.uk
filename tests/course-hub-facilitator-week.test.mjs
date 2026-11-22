@@ -1090,6 +1090,7 @@ const PROGRESS_ADDRESSERS = {
   "lib/courses/sourceRatings.ts": ["aggregate", "the sources people rated as totals, for a programme lead's Surveys tab: the retrospective's projection, with no uid, and its count"],
   "lib/courses/olderEditor/runStarted.ts": ["count", "counts a run's rows for the two copies' refusal to replace weeks somebody has started: a number, never a row"],
   "lib/courses/olderEditor/weekInUse.ts": ["count", "counts a week's rows for the refusal to unpublish a week somebody has started: a number, never a row"],
+  "lib/courses/weekPlanEdit/kept.ts": ["count", "counts a run's rows for the week plan's refusal to move or remove weeks once anything is kept against them: a number, never a row"],
   "lib/firestore/accountDeletion.ts": ["deletion", "deleting an account deletes its rows"],
   "lib/firestore/courseDeletion.ts": ["deletion", "destroying a run counts and deletes its rows"],
 };
