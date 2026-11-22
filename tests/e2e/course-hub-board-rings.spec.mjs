@@ -95,7 +95,10 @@ test("course hub: People in groups shown as Rings", { skip: skipReason ?? false 
   const ringOf = (group) => page.getByRole("region", { name: group.name, exact: true });
   // The legend under the rings: drawn on Rings alone (a column is a region of the group's name too).
   const legend = () => page.getByText("Click a person to see their week", { exact: false }).first();
-  const ringChips = (group) => page.locator(`section[aria-label="${group.name}"] button[title]`);
+  // A ring's name tags: buttons titled with the person's full name. Not "button[title]": on Columns each card's
+  // "..." menu is a button titled "Move to…" inside a section of the group's name, so that would count the cards.
+  const ringChips = (group, people) =>
+    page.locator(people.map((person) => `section[aria-label="${group.name}"] button[title^="${person.first}"]`).join(", "));
 
   try {
     await step("the admin names the running course run on the programme's Settings tab and hands its people over", async () => {
@@ -128,7 +131,10 @@ test("course hub: People in groups shown as Rings", { skip: skipReason ?? false 
       await okBody(read, "Reading everybody's week for the rings");
       await page.waitForURL((url) => url.pathname === boardPath && url.searchParams.get("show") === "rings", { timeout: WAIT_MS });
       await legend().waitFor({ timeout: WAIT_MS });
-      await page.reload({ waitUntil: "domcontentloaded" });
+      // The rings' marks come from the panel's read, made again after the reload: waited for, so that the next
+      // step's "nobody is tagged" is read from rings drawn with everybody's week, not before it arrived.
+      const [again] = await Promise.all([responseTo("/panel", "GET"), page.reload({ waitUntil: "domcontentloaded" })]);
+      await okBody(again, "Reading everybody's week again after the reload");
       await legend().waitFor({ timeout: WAIT_MS });
       assert.equal(await showAs().getByRole("link", { name: "Rings", exact: true }).getAttribute("aria-current"), "true", "a reload lost Rings");
     });
@@ -184,8 +190,14 @@ test("course hub: People in groups shown as Rings", { skip: skipReason ?? false 
       assert.equal(await columns.getAttribute("href"), boardPath);
       await columns.click();
       await page.waitForURL((url) => url.pathname === boardPath && !url.searchParams.has("show"), { timeout: WAIT_MS });
+      // The state the step is about: the columns board drawn (Rings draws no "Groups board"), and the rings' legend gone.
       await page.getByRole("region", { name: "Groups board", exact: true }).waitFor({ timeout: WAIT_MS });
-      assert.equal(await ringChips(groupA).count(), 0, "a ring is still drawn on Columns");
+      await legend().waitFor({ state: "detached", timeout: WAIT_MS });
+      assert.equal(await ringChips(groupA, peopleA).count(), 0, "a ring is still drawn on Columns");
+      // Each of Group A's people is a card in its column instead.
+      for (const person of peopleA) {
+        await ringOf(groupA).getByRole("button", { name: new RegExp(`^${escapeRegExp(person.first)}\\b`) }).first().waitFor({ timeout: WAIT_MS });
+      }
     });
   } finally {
     await context.close().catch(() => {});
