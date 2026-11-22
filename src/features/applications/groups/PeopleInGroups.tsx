@@ -36,7 +36,17 @@ import { own } from "@/lib/applications/keys";
 import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupResolve";
 import { movedSentence } from "@/lib/courses/moveWords";
 import Circles from "@/features/applications/circles/Circles";
-import { CONNECTION, LEGEND, LEGEND_LEAD, STOP_CONFIRM, SUGGEST, SUGGESTING, facilitatorSavedWords } from "@/features/applications/circles/circlesWords";
+import {
+  BACK_TO_COLUMNS,
+  BACK_TO_RINGS,
+  CONNECTION,
+  LEGEND,
+  LEGEND_LEAD,
+  STOP_CONFIRM,
+  SUGGEST,
+  SUGGESTING,
+  facilitatorSavedWords,
+} from "@/features/applications/circles/circlesWords";
 import type { ArrangementOptionsView, CirclesView } from "@/lib/applications/arrange/view";
 import BoardPersonPanel, { type PanelSubject } from "./BoardPersonPanel";
 import { withShow, type BoardShow } from "./boardShow";
@@ -105,12 +115,17 @@ import { useBoardPanel } from "./useBoardPanel";
  * them out. Shown as Rings, that read is made at once, since the rings need
  * it; Columns still makes it only once a panel is opened.
  *
- * AN ADMIN'S ARRANGING, on Rings: "Suggest groups" in the toolbar reads the
- * run's groups through Circles' own route and asks for a suggestion, then
- * draws Circles' arranging in place of the rings (`Circles`, with its
- * preview, Apply, Ask Claude and every change it saves through the site's
- * own routes) until "Back to the rings". The lead is offered none of it, as
- * before: Circles' route answers an admin alone.
+ * ARRANGING, on Columns and on Rings, once decisions have gone out:
+ * "Suggest groups" in the toolbar reads the run's groups and asks for a
+ * suggestion without Claude, then draws Circles' arranging in place of the
+ * board (`Circles`, with its preview, Apply and every change it saves
+ * through the site's own routes) until "Back to the rings" or "Back to the
+ * columns". An admin reads the groups through Circles' own route and is
+ * offered Ask Claude there. The programme's lead reads them through the
+ * lead's own route (`arranging`), worked out only from the rows the board
+ * serves the lead and the weeks the lead may read, and the screen names
+ * neither Claude nor Pangram, asks neither and leads nowhere an admin's
+ * alone. Showing the board the other way closes it.
  *
  * SELECT SEVERAL, BEFORE THE GROUPS GO OUT, on Columns: the toolbar's
  * "Select several" puts a box on every card, and a bar names who is chosen
@@ -426,10 +441,11 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
   }, [openUid]);
   // A change to who facilitates a group, sent from the panel and not answered yet.
   const [staffing, setStaffing] = useState(false);
-  // An admin's arranging on Rings: Circles' own read of the groups, and the suggestion the press asked for.
+  // The arranging: the read of the groups, the suggestion the press asked for, and how the board was shown when it opened.
   const [arranging, setArranging] = useState<{
     circles: CirclesView;
     opening: { arrangement: ArrangementOptionsView | null; error: string | null };
+    openedOn: BoardShow;
   } | null>(null);
   const [openingArranging, setOpeningArranging] = useState(false);
   // Select several, before the groups go out: whether the boxes are drawn, who is chosen, whether
@@ -764,7 +780,7 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
   );
 
   // -------------------------------------------------------------------------
-  // An admin's arranging, on Rings
+  // The arranging, for an admin and the programme's lead
   // -------------------------------------------------------------------------
 
   // "Suggest groups": Circles' own read of the run's groups (its route answers
@@ -776,7 +792,8 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
     const base = `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
     setOpeningArranging(true);
     try {
-      const res = await fetch(`${base}/circles`, { cache: "no-store" });
+      // An admin reads Circles' own route; the programme's lead, the lead's own (no Claude or Pangram).
+      const res = await fetch(`${base}/${view.viewer === "admin" ? "circles" : "arranging"}`, { cache: "no-store" });
       const body = (await res.json().catch(() => null)) as { circles?: CirclesView; error?: string } | null;
       if (!res.ok || !body?.circles) {
         await raise(body?.error || CONNECTION);
@@ -798,13 +815,13 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
         opening = { arrangement: null, error: CONNECTION };
       }
       setOpenUid(null);
-      setArranging({ circles, opening });
+      setArranging({ circles, opening, openedOn: show });
     } catch {
       await raise(CONNECTION);
     } finally {
       setOpeningArranging(false);
     }
-  }, [view.roundId, view.programmeId, raise]);
+  }, [view.roundId, view.programmeId, view.viewer, show, raise]);
 
   // "Back to the rings": whatever the arranging saved is read again, the board and everybody's week.
   const leaveArranging = useCallback(() => {
@@ -819,7 +836,7 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
   // saved (an Apply included) is read again, the board and everybody's week,
   // exactly as "Back to the rings" reads them.
   const [owedReads, setOwedReads] = useState(0);
-  if (arranging !== null && !rings) {
+  if (arranging !== null && arranging.openedOn !== show) {
     setArranging(null);
     setOwedReads((n) => n + 1);
   }
@@ -896,7 +913,7 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
   const boardHref = groupsPath(view.roundId, view.programmeId);
   // Publish's page, carrying on how the board was shown, so its way back keeps it.
   const publishHref = withShow(`${boardHref}/publish`, show);
-  const arrangingNow = rings && admin ? arranging : null;
+  const arrangingNow = arranging !== null && arranging.openedOn === show ? arranging : null;
   // Select several is there only before the groups go out, on Columns.
   const selectable = !rings && view.sent && data !== null && !data.run.allocationPublishedAt;
   const picking = selectable && selecting;
@@ -940,8 +957,8 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
           {words.SELECT_SEVERAL}
         </button>
       ) : null}
-      {/* Suggesting groups is an admin's, as it was on Circles. */}
-      {rings && admin ? (
+      {/* Suggesting groups, for an admin and the programme's lead, once decisions have gone out. */}
+      {view.sent ? (
         <button
           type="button"
           className={`${shared.btn} ${styles.publishLink}`}
@@ -1163,11 +1180,17 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
     </>
   );
 
-  // An admin's arranging, on Rings, in place of the rings and the panel until "Back to the rings".
+  // The arranging, in place of the board and the panel until its way back.
   if (arrangingNow) {
     return (
       <GroupsFrame views={views} beside={beside}>
-        <Circles initial={arrangingNow.circles} opening={arrangingNow.opening} onLeave={leaveArranging} />
+        <Circles
+          initial={arrangingNow.circles}
+          opening={arrangingNow.opening}
+          onLeave={leaveArranging}
+          leaveLabel={arrangingNow.openedOn === "rings" ? BACK_TO_RINGS : BACK_TO_COLUMNS}
+          forLead={!admin}
+        />
         <ActionToast toast={toast} onDismiss={dismiss} />
       </GroupsFrame>
     );

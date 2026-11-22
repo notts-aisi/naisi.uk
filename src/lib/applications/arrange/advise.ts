@@ -180,7 +180,10 @@ export function ringPeopleOf(
     people[person.uid] = {
       uid: person.uid,
       name: person.name,
-      href: `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications/${encodeURIComponent(person.uid)}`,
+      // No way to an application the reader may not open (the lead's, `unread`).
+      href: person.unread
+        ? ""
+        : `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications/${encodeURIComponent(person.uid)}`,
       offered: person.facilitates,
       told: person.told,
       toldGroupId: person.toldGroupId ?? null,
@@ -194,6 +197,7 @@ export function ringPeopleOf(
         marked: [...(person.marked ?? [])],
         fromFirstMark: person.week.kind === "given" && person.week.minimal === true,
       },
+      ...(person.unread ? { unread: true as const } : {}),
       potential: potential(person.uid),
       flags: note?.flags ?? null,
       read: read

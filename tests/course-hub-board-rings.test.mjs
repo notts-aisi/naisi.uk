@@ -28,9 +28,10 @@
  *     sentence about Sofia's time arrives, while an admin is drawn both, and
  *     the lead is drawn the marks of the people they may read.
  *  4. RINGS IS THE SAME BOARD: its moves are the card's own, its legend is
- *     Circles' own (the lead's without Claude and Pangram), and an admin's
- *     Suggest groups goes through Circles' own route, which the lead is
- *     never offered.
+ *     Circles' own (the lead's without Claude and Pangram), and Suggest
+ *     groups goes through Circles' own route for an admin and through the
+ *     lead's own route for the programme's lead
+ *     (`tests/course-hub-lead-arranging.test.mjs`).
  *
  * Built on `tests/lib/peopleWorld.mjs`, as `tests/course-hub-board-panel.test.mjs`
  * is: AGI Strategy after decision day, Claudia leads it, Lloyd reviews it,
@@ -438,11 +439,13 @@ describe("3. what the lead is never sent or drawn on Rings", () => {
       assert.ok(!props.includes(marker), `the board's props carry ${marker}`);
     }
     assert.doesNotMatch(props, /"availability"|"marked"|"chart"|"week"/, "the board's props carry a week");
-    assert.doesNotMatch(drawn.html, /class="free"|Pangram|Claude|Suggest groups/, "the lead's page draws a week, a read, or an admin's arranging");
+    assert.doesNotMatch(drawn.html, /class="free"|Pangram|Claude|Suggest with Claude/, "the lead's page draws a week, a read, or something that asks Claude");
     assert.equal(drawn.wrote, false);
-    // An admin's page, shown as Rings, offers Suggest groups; shown as Columns, it does not.
-    assert.match((await w.draw(PeoplePage, "zach", PARAMS, { show: "rings" })).html, />Suggest groups</);
-    assert.doesNotMatch((await w.draw(PeoplePage, "zach", PARAMS, {})).html, /Suggest groups/);
+    // Suggest groups is offered to an admin and to the programme's lead, on Rings and on Columns, once decisions have gone out.
+    for (const who of ["zach", "claudia"]) {
+      assert.match((await w.draw(PeoplePage, who, PARAMS, { show: "rings" })).html, />Suggest groups</, who);
+      assert.match((await w.draw(PeoplePage, who, PARAMS, {})).html, />Suggest groups</, who);
+    }
   });
 });
 
@@ -471,7 +474,7 @@ async function drawBoard(who, query) {
 }
 
 describe("3b. the page's own Rings, as the lead and as an admin", () => {
-  test("the lead's page draws the lead's legend, no Claude, no Pangram, no Suggest groups, and nothing about Sofia's time", async () => {
+  test("the lead's page draws the lead's legend, no Claude, no Pangram, Suggest groups without Claude, and nothing about Sofia's time", async () => {
     await world();
     const drawn = await drawBoard("claudia", { show: "rings" });
     // Rings itself was drawn, so the searches below are of rings, not of a loading card.
@@ -481,9 +484,11 @@ describe("3b. the page's own Rings, as the lead and as an admin", () => {
     for (const marker of [...Object.values(ADMINS_ONLY), SOFIA_CANT, circlesWords.LEGEND]) {
       assert.ok(!drawn.html.includes(marker), `the lead's page draws ${marker}`);
     }
-    for (const word of [/Pangram/, /Claude/, /aria-label="Pangram flagged answers"/, />Suggest groups</]) {
+    for (const word of [/Pangram/, /Claude/, /aria-label="Pangram flagged answers"/, />Suggest with Claude</]) {
       assert.doesNotMatch(drawn.html, word, `the lead's page draws ${word}`);
     }
+    // The lead is offered Suggest groups, which reads the lead's own route and asks nothing of Claude.
+    assert.match(drawn.html, />Suggest groups</);
     // The marks the lead may have are drawn: Bea's empty week, on the ring Bea sits in.
     assert.match(drawn.text, /Bea\b[^.]* didn’t mark this time as free on their application\./);
     // Publish's footnote is under the rings too, in the lead's words.
@@ -505,12 +510,12 @@ describe("3b. the page's own Rings, as the lead and as an admin", () => {
     assert.ok(drawn.text.includes("People see their group only when you publish."), "an admin's Rings lost Publish's footnote");
   });
 
-  test("Columns, drawn from the same reads, has no rings and no Suggest groups", async () => {
+  test("Columns, drawn from the same reads, has no rings, and offers Suggest groups as Rings does", async () => {
     await world();
     const drawn = await drawBoard("zach", {});
     assert.ok(!drawn.text.includes(circlesWords.LEGEND), "Columns draws the rings' legend");
     assert.ok(!sofiaChip(drawn.html), "Columns draws a ring");
-    assert.doesNotMatch(drawn.html, />Suggest groups</);
+    assert.match(drawn.html, />Suggest groups</);
     assert.match(drawn.html, /aria-label="Groups board"/);
   });
 });
@@ -628,7 +633,7 @@ describe("3d. Circles' live rings never said who backs up a lead who did not off
 // ---------------------------------------------------------------------------
 
 describe("4. Rings is the same board, its moves the card's own", () => {
-  test("a ring's Move here is the card's move, and Suggest groups is Circles' own route and suggestion", () => {
+  test("a ring's Move here is the card's move, and Suggest groups is an admin's Circles route or the lead's own, and a suggestion without Claude", () => {
     const board = codeOf("features/applications/groups/PeopleInGroups.tsx");
     assert.match(board, /onMoveHere=\{\(groupId\) => \{\s*if \(subject\?\.kind === "row"\) void moveOne\(subject\.row\.uid, groupId\);/);
     // The one way a card moves anybody, still one: the mid-term question first, then the allocate route.
@@ -637,12 +642,14 @@ describe("4. Rings is the same board, its moves the card's own", () => {
     const rings = codeOf("features/applications/groups/ringsModel.ts");
     assert.doesNotMatch(rings, /fromForm|canMakeGroupIds|availability|markedRanges|fetch\(/);
     assert.doesNotMatch(codeOf("features/applications/groups/RingsBoard.tsx"), /\bfetch\(|fromForm/);
-    // Suggest groups reads Circles' route and asks for a suggestion without Claude; the button is an admin's on Rings alone.
-    assert.match(board, /fetch\(`\$\{base\}\/circles`, \{ cache: "no-store" \}\)/);
+    // Suggest groups reads Circles' route for an admin and the lead's own route for the lead, and asks for a suggestion
+    // without Claude; the button is there for both, on Rings and on Columns, once decisions have gone out.
+    assert.match(board, /fetch\(`\$\{base\}\/\$\{view\.viewer === "admin" \? "circles" : "arranging"\}`, \{ cache: "no-store" \}\)/);
     assert.match(board, /JSON\.stringify\(\{ askClaude: false, minutes: String\(circles\.minutes\), startAgain: false \}\)/);
-    assert.match(board, /\{rings && admin \? \(\s*<button/);
-    // Shown as Columns while an admin's arranging is open, the arranging closes and the board and the weeks are read again.
-    assert.match(board, /if \(arranging !== null && !rings\) \{\s*setArranging\(null\);\s*setOwedReads\(\(n\) => n \+ 1\);\s*\}/);
+    assert.match(board, /\{view\.sent \? \(\s*<button/);
+    assert.match(board, /forLead=\{!admin\}/);
+    // Shown the other way while the arranging is open, the arranging closes and the board and the weeks are read again.
+    assert.match(board, /if \(arranging !== null && arranging\.openedOn !== show\) \{\s*setArranging\(null\);\s*setOwedReads\(\(n\) => n \+ 1\);\s*\}/);
     assert.match(board, /if \(owedReads > 0\) \{\s*reload\(\);\s*retryPanel\(\);\s*\}/);
     // Shown as Rings, everybody's week is read at once; on Columns only once a panel is opened.
     assert.match(board, /useBoardPanel\(view\.roundId, view\.programmeId, openUid !== null \|\| rings, groupsKey\)/);

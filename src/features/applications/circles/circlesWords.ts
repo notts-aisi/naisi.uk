@@ -42,6 +42,25 @@ export const LEDE =
   "Each ring is one of the run’s groups, with the people in it now. Click a person to see their week against every group’s time, what Claude made of their application and their Pangram flags, and to move them. A move saves straight away, as on People in groups. Nobody is emailed: Publish tells people their group. Only admins see this.";
 
 /**
+ * The same, for the programme's lead, who is shown no Claude and no Pangram:
+ * it leaves out what Claude made of the application, the Pangram flags and
+ * that only admins see the screen.
+ */
+export const LEDE_LEAD =
+  "Each ring is one of the run’s groups, with the people in it now. Click a person to see their week against every group’s time, and to move them. A move saves straight away, as on People in groups. Nobody is emailed: Publish tells people their group.";
+
+/** On People in groups shown as Columns, closing the arranging and going back to the columns. */
+export const BACK_TO_COLUMNS = "Back to the columns";
+
+/**
+ * For the programme's lead, in place of a week: the lead may not read this
+ * person's application, so nothing of when they are free is shown.
+ */
+export const ONLY_ADMINS_SEE_WEEK = "Only admins see when they’re free.";
+/** The same, beside their name among the people not in a group. */
+export const ONLY_ADMINS_SEE_WEEK_SHORT = "only admins see when they’re free";
+
+/**
  * "40 on the run’s list · 34 in a group · 6 not in a group · 3 placed and not
  * told yet · 2 moved since they were told".
  */
@@ -59,10 +78,12 @@ export function countsLine(counts: {
 }
 
 /** People holding a place who cannot be placed yet. */
-export function notOnListWords(names: readonly string[]): string {
+export function notOnListWords(names: readonly string[], admin = true): string {
   const shown = names.length > 6 ? [...names.slice(0, 6), `${names.length - 6} more`] : [...names];
   const verb = names.length === 1 ? "holds a place but isn’t" : "hold a place but aren’t";
-  return `${listInWords(shown)} ${verb} on the run’s list yet, so they can’t be placed. Hand them over on the Settings tab.`;
+  // The programme's lead is told who hands them over, as People in groups tells the lead.
+  const who = admin ? "Hand them over on the Settings tab." : "An admin hands them over on the Settings tab.";
+  return `${listInWords(shown)} ${verb} on the run’s list yet, so they can’t be placed. ${who}`;
 }
 
 export const GO_TO_SETTINGS = "Go to Settings";

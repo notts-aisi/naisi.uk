@@ -27,6 +27,7 @@ import {
   NOT_A_FACILITATOR,
   NOT_READ,
   NO_WEEK,
+  ONLY_ADMINS_SEE_WEEK,
   OFFERED,
   OPEN_APPLICATION,
   POTENTIAL,
@@ -77,6 +78,7 @@ export default function PersonPanel({
   onClose,
   runId,
   onAnswerChanged,
+  forLead = false,
 }: {
   person: RingPerson;
   /** The ring they are in on the screen, or null. */
@@ -101,6 +103,8 @@ export default function PersonPanel({
   runId: string | null;
   /** "They meant some weeks" saved: Circles reads the run again. */
   onAnswerChanged: (message: string) => void;
+  /** The programme's lead: no Claude, no Pangram, and no way to an application the lead may not read. */
+  forLead?: boolean;
 }) {
   const facilitates = person.appointed
     .map((id) => rings.find((each) => each.id === id))
@@ -116,12 +120,14 @@ export default function PersonPanel({
     <div className={styles.person}>
       <div className={styles.personHead}>
         <strong>{person.name}</strong>
-        <a className={styles.link} href={person.href} target="_blank" rel="noreferrer">
-          {OPEN_APPLICATION}
-        </a>
+        {person.href ? (
+          <a className={styles.link} href={person.href} target="_blank" rel="noreferrer">
+            {OPEN_APPLICATION}
+          </a>
+        ) : null}
       </div>
       <p className={styles.line}>
-        {person.offered ? OFFERED : DIDNT_OFFER}
+        {person.unread ? "" : person.offered ? OFFERED : DIDNT_OFFER}
         {person.told ? TOLD : ""}
         {person.littleMarked ? LITTLE_MARKED : ""}
       </p>
@@ -151,8 +157,9 @@ export default function PersonPanel({
           {person.potential.why}
         </p>
       ) : null}
-      <p className={person.flags ? styles.flagLine : styles.line}>{pangramLine(person.flags)}</p>
-      {read ? (
+      {/* Claude's and Pangram's reads are an admin's: the lead's screen names neither. */}
+      {forLead ? null : <p className={person.flags ? styles.flagLine : styles.line}>{pangramLine(person.flags)}</p>}
+      {forLead ? null : read ? (
         <div className={styles.read}>
           <p className={styles.line}>
             {read.lean ? <strong>{LEAN(read.lean)}</strong> : null}
@@ -185,7 +192,9 @@ export default function PersonPanel({
       ) : (
         <p className={styles.line}>{whereLine(ring?.name ?? null)}</p>
       )}
-      {person.week.said ? null : <p className={styles.flagLine}>{NO_WEEK}</p>}
+      {person.week.said ? null : <p className={styles.flagLine}>{forLead && person.unread ? ONLY_ADMINS_SEE_WEEK : NO_WEEK}</p>}
+      {/* Nothing of a week the reader may not read: no chart, so no bar says they can't make a time. */}
+      {person.unread ? null : (
       <WeekChart
         grid={grid}
         marked={person.week.marked}
@@ -206,6 +215,7 @@ export default function PersonPanel({
         disabled={disabled || pinned}
         onPick={(key) => onMove(key)}
       />
+      )}
       {!pinned && starts.length > 0 ? (
         <div className={styles.starts}>
           <span className={styles.line}>{START_A_GROUP}</span>
@@ -255,7 +265,7 @@ export default function PersonPanel({
           {DONE}
         </button>
       </div>
-      {ring && !pinned && !person.offered ? (
+      {ring && !pinned && !person.offered && !person.unread ? (
         <p className={styles.line}>
           {preview && role ? PREVIEW_NOT_OFFERED : ASK_THEM_WHY}{" "}
           {!preview ? (

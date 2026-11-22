@@ -278,6 +278,8 @@ export async function loadArranging(
       moved: seat?.moved ?? null,
       appointed: appointed.get(row.uid) ?? [],
       timeAnswer: seat?.answer ?? null,
+      // Only ever for the lead: no way to an application the lead may not open.
+      ...(readable ? {} : { unread: true }),
     });
   }
 
