@@ -580,9 +580,10 @@ export function makeWorld(key = "__handover", extraStubs = []) {
   /**
    * One request to a real handler, as `who` (a uid, or null for nobody
    * signed in). `course: true` hands the handler the course routes' view of
-   * the database. Answers `{ status, body }`; a handler that throws is a 599.
+   * the database, and `query` ("?minutes=60") is the address's query.
+   * Answers `{ status, body }`; a handler that throws is a 599.
    */
-  async function call(who, handler, params, { body, course = false, viewAs = false } = {}) {
+  async function call(who, handler, params, { body, course = false, viewAs = false, query = "" } = {}) {
     requests += 1;
     world.user = sessionOf(who);
     world.course = course;
@@ -596,7 +597,7 @@ export function makeWorld(key = "__handover", extraStubs = []) {
     };
     if (body !== undefined) init.body = JSON.stringify(body);
     try {
-      const response = await handler(new Request("https://naisi.invalid/api", init), {
+      const response = await handler(new Request(`https://naisi.invalid/api${query}`, init), {
         params: Promise.resolve(params),
       });
       return { status: response.status, body: structuredClone(response.body) };

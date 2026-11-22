@@ -22,7 +22,9 @@
  *     wrote on the run), no week of somebody whose application they may not
  *     read (Ines, on the run's own list, invited here without ranking it),
  *     and no Claude or Pangram read. Ines planted with distinctive times
- *     gives the lead exactly the answer she gives with none.
+ *     on four days gives the lead exactly the answer Ines with none gives,
+ *     whole, for every request shape the route takes from a lead and for
+ *     the lead's arranging read, while an admin's answer changes.
  *  4. THE PREVIEW BEFORE DECISION DAY STAYS AN ADMIN'S.
  *
  * Built on `tests/lib/peopleWorld.mjs` (Claudia leads AGI Strategy, Lloyd
@@ -50,6 +52,7 @@ export async function askClaudeForJson(input) {
 
 const w = await makePeopleWorld("__suggestSuite", [["@/lib/ai/claude", CLAUDE_STUB]]);
 const route = await w.formRoute("programmes", "[programmeId]", "arrangement");
+const arrangingRoute = await w.formRoute("programmes", "[programmeId]", "arranging");
 const { ARRANGE_ADMIN_OR_LEAD } = await w.loadTs("lib/applications/arrange/load.ts");
 const { CLAUDE_ADMINS_ONLY, PREVIEW_ADMINS_ONLY } = await w.loadTs("lib/applications/arrange/advise.ts");
 
@@ -59,8 +62,12 @@ const ADMINS_ONLY = {
   claudeStrength: "Asks sharp questions about the harbour.",
   claudeConcern: "Little said about the keepers' pay.",
 };
-/** Ines's week: Wednesday lunchtimes, which make Group C, and Saturday mornings, which nobody else marked. */
-const INES_WEEK = week({ 3: [["12:00", "16:00"]], 6: [["09:00", "12:00"]] });
+/**
+ * Ines's week, on four days: all of Monday, Tuesday evening (Group B's time),
+ * Wednesday lunchtimes (Group C's) and Saturday mornings, which nobody else
+ * marked.
+ */
+const INES_WEEK = week({ 1: [["09:00", "21:00"]], 2: [["17:00", "21:00"]], 3: [["12:00", "16:00"]], 6: [["09:00", "12:00"]] });
 const NOTHING = week({});
 /** Another term's hand-over, which wrote a row on this run that is not AGI Strategy's lead's. */
 const ELSEWHERE = { roundId: "spring-2026__r0und0ld", programmeId: "older-programme" };
@@ -68,7 +75,7 @@ const ELSEWHERE = { roundId: "spring-2026__r0und0ld", programmeId: "older-progra
 /**
  * The world: the term, the hand-over pressed, then on the run's own list
  * Ines (a row of the run's own form, invited to AGI Strategy without ranking
- * it, so its lead may not read her application) and Omar (a row another
+ * it, so its lead may not read the application) and Omar (a row another
  * term's hand-over wrote, which the board never serves the lead), both
  * placed by an admin. Amara is in Group B, Bea in Group A.
  */
@@ -234,7 +241,7 @@ describe("3. a lead's suggestion is built from nothing the lead may not read", (
     const lead = (await suggest("claudia")).body.arrangement;
     assert.ok(!("omar" in lead.people), "the lead is arranged a row the board does not serve them");
     assert.doesNotMatch(JSON.stringify(lead), /omar|Omar/, "the lead is told about Omar");
-    // Ines is on the lead's board (a row of the run's own form), and nothing of her week is.
+    // Ines is on the lead's board (a row of the run's own form), and nothing of Ines's week is.
     assert.equal(lead.people.ines.name, "Ines Carvalho");
     assert.deepEqual(lead.people.ines.week, { said: false, marked: [], fromFirstMark: false });
     assert.equal(lead.people.ines.offered, false);
@@ -249,16 +256,47 @@ describe("3. a lead's suggestion is built from nothing the lead may not read", (
     }
   });
 
-  test("Ines with distinctive times gives the lead exactly the answer Ines with none gives", async () => {
+  test("Ines with distinctive times gives the lead exactly the answer Ines with none gives, for every request shape and the arranging read", async () => {
+    // Every shape the route takes from a lead: what it is asked for, as Circles and the board send it.
+    const SHAPES = [
+      { askClaude: false },
+      { askClaude: false, startAgain: true },
+      { askClaude: false, size: 2 },
+      { askClaude: false, size: 3 },
+      { askClaude: false, minutes: "60" },
+      { askClaude: false, minutes: "180" },
+      { askClaude: false, startAgain: true, size: 3, minutes: "180" },
+      { askClaude: false, startAgain: false, size: 30, minutes: "90" },
+    ];
+    /** Every answer the lead and an admin are given, whole, in the world as it stands. */
+    const answers = async () => {
+      const out = { lead: [], admin: [] };
+      for (const body of SHAPES) {
+        const lead = await suggest("claudia", body);
+        assert.equal(lead.status, 200, `${JSON.stringify(body)}: ${JSON.stringify(lead.body)}`);
+        out.lead.push(lead.body);
+        out.admin.push((await suggest("zach", body)).body);
+      }
+      for (const minutes of [undefined, "60", "180"]) {
+        const read = await w.call("claudia", arrangingRoute.GET, { roundId: ROUND, programmeId: AGI }, { query: minutes ? `?minutes=${minutes}` : "" });
+        assert.equal(read.status, 200, JSON.stringify(read.body));
+        out.lead.push(read.body);
+        out.admin.push((await w.call("zach", arrangingRoute.GET, { roundId: ROUND, programmeId: AGI })).body);
+      }
+      return out;
+    };
     await world({ inesWeek: INES_WEEK });
-    const withTimes = (await suggest("claudia")).body.arrangement;
-    const adminWithTimes = (await suggest("zach")).body.arrangement;
+    const withTimes = await answers();
     await world({ inesWeek: NOTHING });
-    const withNone = (await suggest("claudia")).body.arrangement;
-    const adminWithNone = (await suggest("zach")).body.arrangement;
-    assert.deepEqual(withTimes, withNone, "something in the lead's answer is worked out from Ines's week");
-    // An admin's answer does change, so the equality above is the gate's and not the seed's.
-    assert.notDeepEqual(adminWithTimes.people.ines, adminWithNone.people.ines);
+    const withNone = await answers();
+    withTimes.lead.forEach((answer, i) => {
+      assert.deepEqual(answer, withNone.lead[i], `something in the lead's answer ${i} is worked out from Ines's week`);
+    });
+    // An admin's answers do change, so each equality above is the gate's and not the seed's.
+    withTimes.admin.forEach((answer, i) => {
+      assert.notDeepEqual(answer, withNone.admin[i], `an admin's answer ${i} is the same with and without Ines's week`);
+    });
+    assert.deepEqual(globalThis.__suggestAsked, []);
   });
 
   test("an admin's suggestion is what it was: every row, every week", async () => {

@@ -210,7 +210,7 @@ describe("2. what the lead is never sent or drawn", () => {
       assert.equal(person.potential, null, `${uid} carries a rating`);
       assert.ok(!person.week.marked.some((stretch) => stretch.weekday === 6), `${uid}'s week carries Ines's Saturday`);
     }
-    // Ines: on the lead's board, and nothing of her application.
+    // Ines: on the lead's board, and nothing of the application.
     assert.deepEqual(
       { week: lead.people.ines.week, offered: lead.people.ines.offered, href: lead.people.ines.href, unread: lead.people.ines.unread, littleMarked: lead.people.ines.littleMarked },
       { week: { said: false, marked: [], fromFirstMark: false }, offered: false, href: "", unread: true, littleMarked: false },
