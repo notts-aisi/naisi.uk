@@ -742,7 +742,7 @@ due at the session's end plus the hours, born notified so it emails nobody.
 | Marker | `schedulerMarkers/unmarked__{groupId}__{sessionKey}` |
 | Task id | `tasks/course-register__{runId}__{groupId}__{sessionKey}` |
 | Window | sessions whose END is between the task's hours and those hours plus 24 |
-| Runs scanned | status `applications-open`, `applications-closed` or `running` |
+| Runs scanned | status `applications-open`, `applications-closed` or `running`; archived groups skipped |
 | `maxLateHours` | 72 |
 | Config | `registerTaskHours` (60), `unmarkedScanBudgetMs` (12000), `maxFollowUpTasksPerTick` (25) |
 
@@ -753,6 +753,10 @@ a tick every 15 minutes gives each session about ninety-six chances to be seen,
 which covers a scheduler that has been down for most of a day. The cost: a
 register still unpushed a week later has one card and gets no second one, so
 the board is the only record.
+
+**An archived group raises no card**, as the facilitators' reminder skips it:
+nobody is chased for the register of a group that no longer meets. Its
+finished registers count exactly as before.
 
 **It scans every live status, not `running` alone.** The pre-course holds its
 six sessions while the admission round is still open, so its run sits at

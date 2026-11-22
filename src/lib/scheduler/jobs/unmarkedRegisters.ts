@@ -398,6 +398,10 @@ async function scanRun(
     }
 
     const group = normalizeCourseGroup(groupDoc.id, groupDoc.data() ?? {});
+    // An archived group is unstaffed: nobody is chased for its registers, as
+    // the facilitators' reminder skips it (`registerReminders`). Its finished
+    // registers count exactly as before; this only raises no new card.
+    if (group.archived) continue;
     // A corrupt plan or a half-authored calendar yields sessions with no
     // date, and `isWithinFollowUpWindow` reads a missing instant as "cannot
     // say" rather than as "now". So a run whose dates have not been typed
