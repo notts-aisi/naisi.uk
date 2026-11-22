@@ -151,6 +151,13 @@ const NAMES_AN_APPLICATION_KIND = new Map([
     },
   ],
   [
+    "src/lib/courses/weekPlanEdit/view.ts",
+    {
+      role: "reads",
+      why: "asks whether the form's log holds any offer of freed places, by kind alone, so a move of week 1's dates can say such an email may have named the old date; reads no subject and no sentence",
+    },
+  ],
+  [
     "src/lib/applications/review/decide.ts",
     {
       role: "writes",

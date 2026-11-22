@@ -14,7 +14,7 @@ import {
   judgeMatch,
   judgePutBack,
   judgeRemoveLeft,
-  leftBehindOf,
+  pagesAfterLastWeek,
   lockIsLive,
   namingOf,
   readDone,
@@ -146,7 +146,7 @@ export async function loadWeekPlanView(db: Firestore, runId: string, now: Date =
   const weeks = runRef.collection("weeks");
   const weekSnap = await weeks.get();
   const docs = new Map(weekSnap.docs.map((doc) => [doc.id, (doc.data() ?? {}) as Record<string, unknown>] as const));
-  const left = drifted || outOfOrder ? [] : leftBehindOf(plan, docs.keys());
+  const left = drifted || outOfOrder ? [] : pagesAfterLastWeek(plan, docs.keys());
 
   // Every address a step could touch: the plan's own, each number's, the pages after its last week and the next one.
   const weeksInPlan = plan.filter((entry) => entry.kind === "week").length;

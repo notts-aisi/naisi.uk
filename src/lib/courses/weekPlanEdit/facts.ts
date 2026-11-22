@@ -271,7 +271,7 @@ export function runWeekFields(run: CourseRunDoc): boolean {
  * builder's Remove left behind, or a week copied in from the course past the
  * plan's end. In address order.
  */
-export function leftBehindOf(plan: readonly WeekPlanEntry[], pages: Iterable<string>): string[] {
+export function pagesAfterLastWeek(plan: readonly WeekPlanEntry[], pages: Iterable<string>): string[] {
   const taught = plan.filter((entry) => entry.kind === "week").length;
   const out: string[] = [];
   for (const address of pages) {
