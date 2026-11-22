@@ -1145,6 +1145,13 @@ const ROUND_SURFACES = {
       "form's own loader before it reads anybody's application or team, and answers a round that " +
       "is not a form as a programme that is not here",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/pitching-week": {
+    kind: "form",
+    why:
+      "saves pitching week's settings on the run a programme names, from Groups, Pitches, through " +
+      "savePitchingWeek, which loads the round with the form's own loader before it reads the run, and " +
+      "answers a round that is not a form as a programme that is not here",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell": {
     kind: "form",
     why:

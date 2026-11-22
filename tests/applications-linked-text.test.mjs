@@ -1097,6 +1097,20 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/pitches/ProgrammePitches.tsx",
+    {
+      built: ["weeksPath(view.roundId, view.programmeId)"],
+      from: "the Weeks tab, where pitching week is ticked (src/lib/courses/weeksTab/paths.ts), made from the form's and the programme's ids the view read, each encoded. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/features/applications/teams/ProgrammeTeams.tsx",
+    {
+      built: ["pitchesHref", "pitchesHref"],
+      from: "Groups, Pitches, where pitching week's settings are set: the programme's own path (programmePath in src/lib/courses/weeksTab/paths.ts, from the form's and the programme's ids, each encoded) and `/groups/pitches`. Nothing anybody typed",
+    },
+  ],
+  [
     "src/features/applications/weeks/WeeksNotYours.tsx",
     {
       built: ["`${programmePath(roundId, programmeId)}/applications`"],
