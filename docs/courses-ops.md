@@ -6600,10 +6600,14 @@ talk; the code is `src/lib/courses/packsAndCases/`.
 4. **Copy the slips in.** Each person in the group has a row, the group's
    facilitators included (they take part too): their pathway, then their
    case. A case list offers only that pathway's cases. A case with a content
-   note is never in a list: it stays out of the draw.
+   note is in no list until that row's "Asked for this one" is ticked.
 5. **Swaps** go through the group's facilitators: "Swap two people" swaps
-   everything two people have; Save keeps it. Changing somebody's pathway
-   takes back a case the new one does not offer.
+   what two people were given, never a pathway somebody picked; Save keeps
+   it. A swap is refused in a sentence when the two people have not picked
+   the same pathway, when one of them is a facilitator whose own pick the
+   page does not show, or when it would give a case with a content note to
+   somebody who has not asked for one. Changing somebody's pathway takes
+   back a case the new one does not offer.
 6. **Save** writes only what changed. Nobody is emailed: each person sees
    theirs on that week's page.
 7. **A week whose session has started or been held.** The page says which
