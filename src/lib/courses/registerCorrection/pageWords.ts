@@ -809,17 +809,19 @@ export function requestsWaitingTitle(count: number): string {
 
 /**
  * Home's line under "Requests waiting", from a count PER KIND, each kind its
- * own sentence (none for a kind with nothing waiting): requests to go to
- * another session, then to be excused, then register corrections. A later
+ * own sentence (none for a kind with nothing waiting): requests to change
+ * group, to go to another session, then to be excused, then register corrections. A later
  * kind adds its own count and sentence; nothing is ever counted as a
  * correction because it is not something else.
  */
-export function requestsWaitingLine(counts: { corrections: number; excused?: number; visits?: number; messages?: number }): string {
+export function requestsWaitingLine(counts: { corrections: number; excused?: number; visits?: number; moves?: number; messages?: number }): string {
   const corrections = Math.max(counts.corrections, 0);
   const excused = Math.max(counts.excused ?? 0, 0);
   const visits = Math.max(counts.visits ?? 0, 0);
+  const moves = Math.max(counts.moves ?? 0, 0);
   const messages = Math.max(counts.messages ?? 0, 0);
   const lines: string[] = [];
+  if (moves > 0) lines.push(moves === 1 ? "Somebody has asked to change group." : `${moves} requests to change group are waiting.`);
   if (visits > 0) lines.push(visits === 1 ? "Somebody has asked to go to another group’s session." : `${visits} requests to go to another session are waiting.`);
   if (excused > 0) lines.push(excused === 1 ? "Somebody has asked to be excused from a week." : `${excused} requests to be excused are waiting.`);
   if (messages > 0) lines.push(messagesWaitingWords(messages));

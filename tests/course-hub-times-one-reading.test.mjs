@@ -132,8 +132,8 @@ describe("one reading of a painted week", () => {
  */
 const WORDS_READERS = {
   "src/lib/applications/handover/whyOffered.ts": {
-    why: "the \"Why:\" line under each session a person is offered on their own form for another session this week",
-    callers: ["src/lib/courses/visitRequest/own.ts"],
+    why: "the \"Why:\" line under each session a person is offered on their own form for another session this week, and under each group on their own form to change group for good",
+    callers: ["src/lib/courses/moveRequest/own.ts", "src/lib/courses/visitRequest/own.ts"],
   },
 };
 

@@ -8,6 +8,7 @@ import { sessionOf, ticketEntryOf } from "@/lib/courses/excused/card";
 import type { ExcusedOwnView } from "@/lib/courses/excused/own";
 import type { JoiningOnlineView } from "@/lib/courses/joiningOnline/model";
 import type { AnotherSessionView } from "@/lib/courses/visitRequest/own";
+import type { ChangeGroupView } from "@/lib/courses/moveRequest/own";
 import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import {
   cardGroupLineWords,
@@ -24,6 +25,7 @@ import { ticketFacts } from "../sessionChange/cardFacts";
 import SessionNotice from "../sessionChange/SessionNotice";
 import VisitCard from "../visit/VisitCard";
 import { GoToAnotherSession, VisitRequestDeclined, VisitRequestWaiting, VisitRequestWithdrawn } from "../visitRequest/CardParts";
+import { ChangeGroupButton, MoveRequestApproved, MoveRequestDeclined, MoveRequestWaiting } from "../moveRequest/CardParts";
 import TicketAnswers from "../weekly/TicketAnswers";
 import NextSessionCard from "./NextSessionCard";
 
@@ -56,7 +58,9 @@ import NextSessionCard from "./NextSessionCard";
  * they have said they are joining online. While such a request waits, the
  * card carries it first, with "Withdraw the request", and keeps "Can't make
  * it" and "I'm joining online"; a decline they have not dismissed is said at
- * the top.
+ * the top. On the programme page alone, "Change group for good" beside them
+ * while a request can be sent, a request to change group waiting with its
+ * Withdraw, and its decision's message at the top (`changeGroupFor`).
  * `locked` (an admin looking as the member) draws them and lets nothing be
  * pressed.
  */
@@ -66,6 +70,12 @@ export type CardAnswers = {
   joiningOnline: JoiningOnlineView | null;
   excused: ExcusedOwnView | null;
   anotherSession?: AnotherSessionView | null;
+  /**
+   * Changing group for good: handed by the programme page alone (Home never
+   * is), so its button, a request waiting, and its decision's message are
+   * drawn there and nowhere else.
+   */
+  changeGroup?: ChangeGroupView | null;
 };
 
 /** The session the next session's card is about: the first visit when it comes first, else their own group's next. */
@@ -105,6 +115,8 @@ export default function NextSessionCards({
   const joiningOnline = answers?.joiningOnline ?? null;
   const excused = answers?.excused ?? null;
   const another = answers?.anotherSession ?? null;
+  // Never on Home, whatever it is handed.
+  const change = home ? null : (answers?.changeGroup ?? null);
   // What they said about joining a session online, as each press saved it.
   const [saidBySession, setSaidBySession] = useState<Record<string, boolean>>({});
   const saidOf = (view: JoiningOnlineView | null) => (view ? (saidBySession[view.sessionKey] ?? view.said) : false);
@@ -244,11 +256,19 @@ export default function NextSessionCards({
       ) : another?.withdrawn ? (
         <VisitRequestWithdrawn key={another.withdrawn.requestId} line={another.withdrawn.line} />
       ) : null}
+      {change?.waiting && <MoveRequestWaiting key={change.waiting.requestId} waiting={change.waiting} locked={locked} />}
       {ownAnswers}
       {offersAnother && <GoToAnotherSession runId={runId} locked={locked} />}
+      {change?.offer && <ChangeGroupButton runId={runId} locked={locked} />}
     </>
   );
-  const declined = another?.declined ? <VisitRequestDeclined key={another.declined.requestId} declined={another.declined} locked={locked} className={wrapClass} /> : null;
+  const declined = (
+    <>
+      {another?.declined ? <VisitRequestDeclined key={another.declined.requestId} declined={another.declined} locked={locked} className={wrapClass} /> : null}
+      {change?.declined ? <MoveRequestDeclined key={change.declined.requestId} declined={change.declined} locked={locked} className={wrapClass} /> : null}
+      {change?.approved ? <MoveRequestApproved key={change.approved.requestId} approved={change.approved} className={wrapClass} /> : null}
+    </>
+  );
   const ownCard =
     group && facts && eyebrowInput ? (
       <NextSessionCard
@@ -326,9 +346,18 @@ export default function NextSessionCards({
       </>
     );
   }
+  // A request to change group waiting with no card of their own to carry it
+  // (no session of theirs still to come): drawn by itself, so Withdraw is never out of reach.
+  const strayMoveWaiting =
+    change?.waiting && !ownCard ? (
+      <div className={wrapClass}>
+        <MoveRequestWaiting key={change.waiting.requestId} waiting={change.waiting} locked={locked} />
+      </div>
+    ) : null;
   return (
     <>
       {declined}
+      {strayMoveWaiting}
       {around.first.map((visit, at) => visitCardOf(visit, at === 0 ? visitLabel(visit) : ""))}
       {ownBlock}
       {around.later.map((visit) => visitCardOf(visit, ""))}

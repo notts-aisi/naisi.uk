@@ -663,7 +663,7 @@ describe("5. the Requests page and one request's page: an admin's alone", () => 
     const requestsPage = (await loadTs(join("app", "(app)", "admin", "admissions", "requests", "page.tsx"))).default;
     const asAdmin = await draw(requestsPage, "zach", {});
     assert.match(asAdmin.html, /data-testid="requests-email-me"/);
-    assert.match(asAdmin.text, /Email me about new requests When somebody asks to be excused or to go to another session: who, when and which weeks, never their reason\./);
+    assert.match(asAdmin.text, /Email me about new requests When somebody asks to be excused, to go to another session or to change group: who, when and which weeks, never their reason\./);
     assert.match(asAdmin.html, /type="checkbox"[^>]*checked=""/);
     world.db.poke("users/zach", { requestEmails: { excused: false } });
     assert.doesNotMatch((await draw(requestsPage, "zach", {})).html, /type="checkbox"[^>]*checked=""/, "a switched-off admin reads it on");

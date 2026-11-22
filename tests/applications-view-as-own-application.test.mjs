@@ -96,6 +96,8 @@ const OWN_READS = {
   // week for its "Why:" lines (`whyOfferedFor`), unless told it is a view-as
   // session.
   anotherSessionPageFor: "@/lib/courses/visitRequest/own",
+  // The form to change group for good reads it the same way for its "Why:" lines.
+  changeGroupPageFor: "@/lib/courses/moveRequest/own",
 };
 
 const GUARD_FIRST = /^\{\s*const blocked = await assertNotImpersonating\(\);\s*if \(blocked\) return blocked;/;
@@ -176,6 +178,12 @@ const HELD = {
     asks: "const locked = markerIsLive(await getImpersonator(), access.user.uid);",
     passes: "anotherSessionPageFor(db, { ...asked, viewingAs: locked })",
     why: "the form for another session this week, whose \"Why:\" lines read the caller's own painted week",
+  },
+  "app/(app)/learn/[runId]/change-group/page.tsx#ChangeGroupPage": {
+    how: "passes-the-check",
+    asks: "const locked = markerIsLive(await getImpersonator(), access.user.uid);",
+    passes: "changeGroupPageFor(db, { ...asked, viewingAs: locked })",
+    why: "the form to change group for good, whose \"Why:\" lines read the caller's own painted week",
   },
   "app/(public)/applications/[roundId]/page.tsx#ApplicationDetailPage": {
     how: "after-the-form",

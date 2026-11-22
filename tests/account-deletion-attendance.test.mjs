@@ -598,6 +598,17 @@ test("a message to the team goes with the account of the person who sent it; one
   assert.deepEqual([...db.docs.keys()], ["repliedByThem"]);
 });
 
+test("a request to change group goes with the account of the person who asked, reason and all; one an admin decided, replied to or took stays", async () => {
+  // Asked by and about the same person, with their own words; who decided,
+  // replied or took it is named in fields the sweep never reads.
+  const db = makeRequestsDb({
+    theirs: { kind: "move", askedByUid: "gone", subjectUid: "gone", reason: "My lab runs all term.", decidedByUid: "admin", handlingUid: "admin", change: { toGroupId: "grpF", replies: [{ text: "Any news?", byUid: "admin" }] } },
+    actedOnByThem: { kind: "move", askedByUid: "someone", subjectUid: "someone", decidedByUid: "gone", handlingUid: "gone", change: { toGroupId: "grpF", replies: [{ text: "Yes.", byUid: "gone" }] } },
+  });
+  assert.equal(await deleteCourseRequestsOf(db, "gone"), 1, "the request is counted once");
+  assert.deepEqual([...db.docs.keys()], ["actedOnByThem"]);
+});
+
 test("the cascade calls the requests sweep, and its summary counts it", () => {
   const cascade = readFileSync(join(SRC, "lib", "firestore", "accountDeletion.ts"), "utf8");
   assert.match(cascade, /summary\.courseRequestsDeleted = await deleteCourseRequestsOf\(db, uid\);/);

@@ -11767,7 +11767,13 @@ describe("v16 says a register records the room or online, and you may tell us in
     // Only the request's decision passes an approval to the visit's writer,
     // and with the request's own subject: the staff visit route can never
     // write a word for somebody who did not say it.
-    assert.deepEqual(sourceFilesNaming(/\bapproves:\s*\{/), ["src/lib/courses/visitRequest/decide.ts"], "an approval passed to the visit's writer from anywhere but the request's decision");
+    // A request to change group passes its own approval to the MOVE's writer, which writes no
+    // register word: only a file that calls the visit's writer counts here.
+    assert.deepEqual(
+      sourceFilesNaming(/\bapproves:\s*\{/).filter((file) => /\barrangeVisit\(/.test(withoutComments(read(file)))),
+      ["src/lib/courses/visitRequest/decide.ts"],
+      "an approval passed to the visit's writer from anywhere but the request's decision",
+    );
     assert.equal((decide.match(/\bapproves:\s*\{/g) ?? []).length, 1);
     assert.match(decide, /const saved = await arrangeVisit\(db, \{\s+runId: request\.runId,\s+uid: request\.subjectUid,/);
     assert.equal((decide.match(/\bonline:/g) ?? []).length, 1, "the tick passed from anywhere but the request");

@@ -1,8 +1,10 @@
 import { Refusal } from "@/features/applications/editor/Refusals";
 import ExcusedRequestPage from "@/features/courses/requests/ExcusedRequestPage";
 import RequestPage from "@/features/courses/requests/RequestPage";
+import MoveRequestPage from "@/features/courses/requests/MoveRequestPage";
 import TeamMessagePage from "@/features/courses/requests/TeamMessagePage";
 import VisitRequestPage from "@/features/courses/requests/VisitRequestPage";
+import { loadMoveRequestPage } from "@/lib/courses/moveRequest/page";
 import { loadTeamMessagePage } from "@/lib/courses/teamAsk/page";
 import { loadVisitRequestPage } from "@/lib/courses/visitRequest/page";
 import { loadExcusedRequestPage } from "@/lib/courses/excused/page";
@@ -22,6 +24,7 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * which answers everybody else `none`): its reason, how often the person has
  * been excused and its decisions are never drawn for a programme's lead. So
  * is a REQUEST TO GO TO ANOTHER SESSION (`loadVisitRequestPage`), and a
+ * REQUEST TO CHANGE GROUP FOR GOOD (`loadMoveRequestPage`), and a
  * MESSAGE TO THE TEAM (`loadTeamMessagePage`). The loaders
  * are tried in turn, each answering `none` for a kind it does not read.
  *
@@ -42,6 +45,8 @@ export default async function OneRequestPage({ params }: { params: Promise<{ req
     if (excused.status === "ok") return <ExcusedRequestPage view={excused.view} />;
     const visit = await loadVisitRequestPage(db, user, requestId, new Date());
     if (visit.status === "ok") return <VisitRequestPage view={visit.view} />;
+    const move = await loadMoveRequestPage(db, user, requestId, new Date());
+    if (move.status === "ok") return <MoveRequestPage view={move.view} />;
     const message = await loadTeamMessagePage(db, user, requestId);
     if (message.status === "ok") return <TeamMessagePage view={message.view} />;
   }

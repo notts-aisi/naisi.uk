@@ -2448,6 +2448,68 @@ export const ROUTES = {
         "but an admin, who is told it is missing. Its answer is { ok, dismissed }.",
     },
   },
+  "/api/courses/runs/[runId]/requests/move": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Asking to change group for good: view-as is refused first, then the session, then the body (the group " +
+        "chosen and why, both needed) is checked before anything is read, so every signed-in persona meets the same " +
+        "400 on an empty one. Only the caller's own place is read once a whole body arrives. Its answer is { ok, request }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/move/approve": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Approving a request to change group for good: view-as first, then anybody but an admin is one 403 before " +
+        "anything is read, and an admin is told a missing request is missing, before the body is read. Its answer " +
+        "is { ok, status, toGroupId, fromGroupId, weekNumber, message, emails }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/move/decline": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Declining a request to change group for good: view-as first, then anybody but an admin is one 403 before " +
+        "anything is read, and an admin is told a missing request is missing, before the reply is checked. Its " +
+        "answer is { ok, status, emailed }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/move/reply": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Replying to a request to change group for good without deciding it: view-as first, then anybody but an " +
+        "admin is one 403 before anything is read, and an admin is told a missing request is missing, before the " +
+        "reply is checked. Its answer is { ok, status, replied, emailed }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/move/take": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Taking a request to change group for good: view-as first, then anybody but an admin is one 403 before " +
+        "anything is read, and an admin is told a missing request is missing. Its answer is { ok, handlingUid }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/move/withdraw": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Withdrawing a request to change group for good: view-as first, then the request is read; only the person " +
+        "who asked withdraws it, and a missing request is one 403 for everybody but an admin, who is told it is " +
+        "missing. Its answer is { ok, status }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/move/dismiss": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Dismissing the message that a request to change group for good was declined: view-as first, then the " +
+        "request is read; only the person who asked dismisses it, and a missing request is one 403 for everybody " +
+        "but an admin, who is told it is missing. Its answer is { ok, dismissed }.",
+    },
+  },
   "/api/courses/groups/[groupId]/cant-make-it": {
     POST: {
       expect: signedIn(400),
@@ -5776,6 +5838,12 @@ export const PAGES = {
       "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
       "missing, and the page sends anybody not taking part in it to the run's home.",
   },
+  "/(app)/learn/[runId]/change-group": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page sends anybody not taking part in it to the run's home.",
+  },
   "/(app)/learn/[runId]/notes": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
@@ -7538,6 +7606,9 @@ export const REAL_ROUTES = {
   "/api/courses/runs/[runId]/visit/cancel": {
     POST: bodyFirst("Then only the caller's own place on the run is read, and a cancel needs a visit of theirs in that week."),
   },
+  "/api/courses/runs/[runId]/requests/move": {
+    POST: bodyFirst("Then only the caller's own place on the run is read, and an ask needs a place the staff move could move."),
+  },
   "/api/courses/runs/[runId]/requests/visit": {
     POST: bodyFirst("Then only the caller's own place on the run is read, and an ask needs a week of theirs that can take one."),
   },
@@ -8537,6 +8608,11 @@ export const REAL_PAGES = {
     participant: c(200, "Holds an active place, and the way out is open: the page to leave."),
   }),
   "/(app)/learn/[runId]/another-session": learnPage({
+    admin: c("run", "An admin holds no place on the run: sent to the run's home."),
+    facilitator: c(200, "Holds a told place in a group they also facilitate: the page, which says nothing can be asked."),
+    participant: c(200, "Holds a told place: the page, with the form or the one sentence saying nothing can be asked now."),
+  }),
+  "/(app)/learn/[runId]/change-group": learnPage({
     admin: c("run", "An admin holds no place on the run: sent to the run's home."),
     facilitator: c(200, "Holds a told place in a group they also facilitate: the page, which says nothing can be asked."),
     participant: c(200, "Holds a told place: the page, with the form or the one sentence saying nothing can be asked now."),

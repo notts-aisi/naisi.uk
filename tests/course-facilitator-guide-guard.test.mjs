@@ -207,6 +207,30 @@ const THROUGH = {
     via: "lib/courses/allocationPublish.ts",
     why: "moving somebody to another group for good mid-term forgets Publish's markers for the move by Publish's own marker ids, and reads nothing of the guide",
   },
+  "app/api/courses/requests/[requestId]/move/approve/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "approving a member's request to change group makes the move through the staff move's own writer, which forgets Publish's markers for the move by Publish's own marker ids, and reads nothing of the guide",
+  },
+  "app/api/courses/requests/[requestId]/move/decline/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "declining a member's request to change group shares its module with the approval, which moves through the staff move's writer and its Publish marker ids; declining itself writes the decision and reads nothing of the guide",
+  },
+  "app/api/courses/requests/[requestId]/move/reply/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "replying to a member's request to change group shares its module with the approval, which moves through the staff move's writer and its Publish marker ids; a reply reads nothing of the guide",
+  },
+  "app/api/courses/requests/[requestId]/move/take/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "taking a member's request to change group shares its module with the approval, which moves through the staff move's writer and its Publish marker ids; taking it reads nothing of the guide",
+  },
+  "app/api/courses/requests/[requestId]/move/withdraw/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "withdrawing a request to change group shares its module with the approval, which moves through the staff move's writer and its Publish marker ids; withdrawing reads nothing of the guide",
+  },
+  "app/api/courses/requests/[requestId]/move/dismiss/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "dismissing a declined request to change group shares its module with the approval, which moves through the staff move's writer and its Publish marker ids; dismissing reads nothing of the guide",
+  },
   "app/api/courses/runs/[runId]/allocate/route.ts": {
     via: "lib/courses/allocationPublish.ts",
     why: "a move made mid-term on the allocation board goes through the same writer as the move page, which takes Publish's marker ids from its module, and the board's move reads nothing of the guide",

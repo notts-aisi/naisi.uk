@@ -25,6 +25,7 @@ import type { CantMakeItView } from "@/lib/courses/cantMakeIt/model";
 import { lastSessionOf, ticketEntryOf } from "@/lib/courses/excused/card";
 import type { ExcusedOwnView } from "@/lib/courses/excused/own";
 import type { AnotherSessionView } from "@/lib/courses/visitRequest/own";
+import type { ChangeGroupView } from "@/lib/courses/moveRequest/own";
 import LastSessionCard from "./excused/LastSessionCard";
 import OwnRequests from "./excused/OwnRequests";
 import type { JoiningOnlineView } from "@/lib/courses/joiningOnline/model";
@@ -200,6 +201,12 @@ type Props = {
    * declined, and their own such requests for "Your requests". Null draws none.
    */
   anotherSession?: AnotherSessionView | null;
+  /**
+   * Changing group for good, worked out by the server page (`changeGroupFor`):
+   * the card's "Change group for good", a request waiting, its decision's
+   * message, and their own such requests for "Your requests". Null draws none.
+   */
+  changeGroup?: ChangeGroupView | null;
   /** An admin is looking at this as the member: the card's answers are drawn and cannot be pressed. */
   viewAs?: boolean;
   /** The session's own uid, from the server gate: the ticks' row, and "(you)" in the group. */
@@ -531,6 +538,7 @@ export default function RunHome({
   joiningOnline = null,
   excused = null,
   anotherSession = null,
+  changeGroup = null,
   viewAs = false,
   guide = null,
   facilitatorGuide = null,
@@ -674,7 +682,7 @@ export default function RunHome({
     <NextSessionCards
       runId={runId}
       data={data}
-      answers={{ cantMakeIt, joiningOnline, excused, anotherSession }}
+      answers={{ cantMakeIt, joiningOnline, excused, anotherSession, changeGroup }}
       locked={viewAs}
       calendar={learnerGroup !== null || access.isFacilitator}
       wrapClass={order.ticket}
@@ -696,12 +704,13 @@ export default function RunHome({
         />
       </div>
     ) : null;
-  // "Your requests": one list, their requests to be excused and to go to another session, newest first.
+  // "Your requests": one list, their requests to be excused, to go to another session and to change group, newest first.
   const excusedRows = entry === "ask" && excused ? excused.requests : [];
   const visitRows = anotherSession?.rows ?? [];
+  const moveRows = changeGroup?.rows ?? [];
   const ownRequests =
-    excusedRows.length > 0 || visitRows.length > 0 ? (
-      <OwnRequests requests={excusedRows} visitRequests={visitRows} className={"marks" in order ? order.marks : order.group} />
+    excusedRows.length > 0 || visitRows.length > 0 || moveRows.length > 0 ? (
+      <OwnRequests requests={excusedRows} visitRequests={visitRows} moveRequests={moveRows} className={"marks" in order ? order.marks : order.group} />
     ) : null;
 
   const weekCard =

@@ -257,6 +257,10 @@ const READERS = {
     kinds: ["now"],
     why: "the admins' rows and page of requests to go to another session read each host's register of the request's week only to hand the one rule (visitRequestStandingOf, which asks the group they belong to that week) whether the session happened; the place itself is handed to that rule unread",
   },
+  "lib/courses/moveRequest/own.ts": {
+    kinds: ["now"],
+    why: "a person's own request to change group for good names the group they asked from and the group they asked for, and the approved line reads the first session of the group they are in now, from the week the move was made: never a week's group",
+  },
   "lib/courses/visitRequest/own.ts": {
     kinds: ["own"],
     why: "the week a person may ask to go to another session in is that of their next session with the group they belong to, and none is offered while a visit already stands that week (visitInWeek)",
@@ -562,7 +566,7 @@ describe("the tree: every reader of a week's group says which group it means", (
     assert.deepEqual(defining, ["lib/firestore/courseEnrolments.ts"]);
   });
 
-  test("two things call the writer: the staff move's save and a move made mid-term on the board, each behind its one route; no page, no job, nothing else", () => {
+  test("two things call the writer: the staff move's save and a move made mid-term on the board, each behind its one route (the save also behind an admin's approval of the person's own request, itself behind one route); no page, no job, nothing else", () => {
     const calling = files
       .filter(([file, code]) => file !== "lib/courses/moveFromWeek.ts" && /\bmoveFromWeek\s*(?:<[^>]*>)?\s*\(/.test(code))
       .map(([file]) => file)
@@ -571,8 +575,15 @@ describe("the tree: every reader of a week's group says which group it means", (
     // And each save is reached from one route alone.
     const reaching = files
       .filter(([file, code]) => file !== "lib/courses/staffMove/save.ts" && /\bsaveMove\s*\(/.test(code))
+      .map(([file]) => file)
+      .sort();
+    assert.deepEqual(reaching, ["app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move/route.ts", "lib/courses/moveRequest/decide.ts"]);
+    // The approval that calls it is reached from its one route alone (the
+    // browser's press of the same name only posts to that route).
+    const approving = files
+      .filter(([file, code]) => file !== "lib/courses/moveRequest/decide.ts" && /import\s*\{[^}]*\bapproveMoveRequest\b[^}]*\}\s*from\s*"@\/lib\/courses\/moveRequest\/decide"/.test(code))
       .map(([file]) => file);
-    assert.deepEqual(reaching, ["app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move/route.ts"]);
+    assert.deepEqual(approving, ["app/api/courses/requests/[requestId]/move/approve/route.ts"]);
     const boardReaching = files
       .filter(([file, code]) => file !== "lib/courses/staffMove/board.ts" && /\bsaveBoardMove\s*\(/.test(code))
       .map(([file]) => file);

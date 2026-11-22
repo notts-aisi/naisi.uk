@@ -9,6 +9,8 @@ import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
 import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
 import { liveWaitingVisitRequests } from "@/lib/courses/visitRequest/page";
+import { normalizeMoveRequest, type MoveRequestDoc } from "@/lib/firestore/courseMemberRequests";
+import { liveWaitingMoveRequests } from "@/lib/courses/moveRequest/page";
 import { openByKind } from "./kinds";
 import { loadRequestsPage, requestShownTo } from "./load";
 
@@ -47,14 +49,14 @@ export async function requestsWaitingFor(db: Firestore, user: SessionUser, now: 
 
 /**
  * How many requests wait for somebody, and how many of each kind, each
- * counted by itself: register corrections, requests to be excused and to go
- * to another session, and messages to the team (those three an admin's
- * alone). A kind with no count here is in `count` and in no line of Home's
- * words until it brings its own.
+ * counted by itself: register corrections, requests to be excused, to go to
+ * another session and to change group, and messages to the team (those four
+ * an admin's alone). A kind with no count here is in `count` and in no line
+ * of Home's words until it brings its own.
  */
-export type RequestsWaiting = { count: number; corrections: number; excused: number; visits: number; messages: number };
+export type RequestsWaiting = { count: number; corrections: number; excused: number; visits: number; moves: number; messages: number };
 
-export const NO_REQUESTS_WAITING: RequestsWaiting = { count: 0, corrections: 0, excused: 0, visits: 0, messages: 0 };
+export const NO_REQUESTS_WAITING: RequestsWaiting = { count: 0, corrections: 0, excused: 0, visits: 0, moves: 0, messages: 0 };
 
 /**
  * How many requests about one run wait for somebody to decide them, as the
@@ -101,9 +103,19 @@ export async function requestsWaitingOnRun(
             )
           ).length
         : 0;
+    // Requests to change group, still waiting, live (not gone by themselves): an admin's alone, likewise.
+    const moves =
+      opts.excused === true
+        ? (
+            await liveWaitingMoveRequests(
+              db,
+              snap.docs.map((doc) => normalizeMoveRequest(doc.id, doc.data() ?? {})).filter((each): each is MoveRequestDoc => each !== null && each.runId === runId),
+            )
+          ).length
+        : 0;
     // The lead of the programme that names the run, with their standing on this request: a track lead decides none.
     const leadsRun = user.role === "admin" || (await programmeLedBy(db, user, runId)) !== null;
-    return waiting.filter((each) => requestShownTo(user, groups.get(each.groupId), runId, leadsRun)).length + excused + visits;
+    return waiting.filter((each) => requestShownTo(user, groups.get(each.groupId), runId, leadsRun)).length + excused + visits + moves;
   } catch (err) {
     console.warn("[programme] could not count the requests waiting", err);
     return 0;

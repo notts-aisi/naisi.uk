@@ -733,6 +733,12 @@ const WITHDRAWN_WRITERS = {
     proof: 'status: "withdrawn" satisfies CourseEnrolmentStatus,',
     why: "the one leave: what leaving writes to the seat, for both doors",
   },
+  "lib/courses/moveRequest/decide.ts": {
+    // The write, and the withdraw's answer and its type, which name the same status.
+    writes: 3,
+    proof: 'status: "withdrawn",',
+    why: "withdrawing a request to change group for good marks the request withdrawn, by the person's own press; the seat it reads, to say whether the request still waits, is never written here (approving moves the person through the staff move's own writer)",
+  },
   "lib/courses/visitRequest/decide.ts": {
     // The write, and the withdraw's answer and its type, which name the same status.
     writes: 3,

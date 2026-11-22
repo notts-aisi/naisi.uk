@@ -10,6 +10,7 @@ import { useHydrated } from "@/hooks/useHydrated";
 import { EMAIL_ME_ABOUT_REQUESTS, EMAIL_ME_LINE } from "@/lib/courses/excused/words";
 import * as V from "@/lib/courses/visitRequest/words";
 import * as T from "@/lib/courses/teamAsk/words";
+import { CHANGE_GROUP_FOR_GOOD, MOVES_WHO_SEES, moveRequestTitleWords } from "@/lib/courses/moveRequest/words";
 import * as R from "@/lib/courses/excused/requestWords";
 import * as P from "@/lib/courses/registerCorrection/pageWords";
 import type { RequestRow, RequestsPageView } from "@/lib/courses/requests/load";
@@ -39,7 +40,9 @@ import styles from "./Requests.module.css";
  * session, an admin's alone: who, "One week at another session", from which
  * group to which and the day, when, who has it), then register corrections,
  * then requests to be excused. A later kind adds its own section. The tabs'
- * counts are worked out over every row.
+ * counts are worked out over every row. Requests to change group for good
+ * share "Moves and visits" (an admin's alone: who, "Change group for good",
+ * from which group to which, when, who has it), each row its own kind's.
  *
  * MESSAGES TO THE TEAM are an admin's alone too, in their own section after
  * requests to be excused ("Something’s wrong, something else"): who, the
@@ -133,7 +136,9 @@ export default function RequestsList({
   const excusedShown = rowsOfKind(inTab, REQUEST_KINDS.excused);
   const anyExcused = view.viewer === "admin" && rowsOfKind(view.rows, REQUEST_KINDS.excused).length > 0;
   const visitsShown = rowsOfKind(inTab, REQUEST_KINDS.visits);
-  const anyVisits = view.viewer === "admin" && rowsOfKind(view.rows, REQUEST_KINDS.visits).length > 0;
+  const movesShown = rowsOfKind(inTab, REQUEST_KINDS.moves);
+  // "Moves and visits" holds both kinds, each row its own kind's.
+  const anyVisits = view.viewer === "admin" && (rowsOfKind(view.rows, REQUEST_KINDS.visits).length > 0 || rowsOfKind(view.rows, REQUEST_KINDS.moves).length > 0);
   const messagesShown = rowsOfKind(inTab, REQUEST_KINDS.messages);
   const anyMessages = view.viewer === "admin" && rowsOfKind(view.rows, REQUEST_KINDS.messages).length > 0;
   // Over every row of the programme chosen, whatever its kind.
@@ -197,10 +202,13 @@ export default function RequestsList({
           <h2 id="requests-visits" className={styles.cardTitle}>
             {V.MOVES_AND_VISITS}
           </h2>
-          {visitsShown.length === 0 ? (
+          {visitsShown.length === 0 && movesShown.length === 0 ? (
             <p className={styles.line}>{P.NOTHING_IN_THIS_VIEW}</p>
           ) : (
             <ul className={styles.rows} role="list">
+              {movesShown.map((row) => (
+                <MoveRowItem key={row.id} row={row} />
+              ))}
               {visitsShown.map((row) => (
                 <VisitRowItem key={row.id} row={row} />
               ))}
@@ -351,6 +359,7 @@ export default function RequestsList({
         </p>
         {view.viewer === "admin" && <p className={styles.line}>{R.EXCUSED_WHO_SEES}</p>}
         {view.viewer === "admin" && <p className={styles.line}>{V.VISITS_WHO_SEES}</p>}
+        {view.viewer === "admin" && <p className={styles.line}>{MOVES_WHO_SEES}</p>}
         {view.viewer === "admin" && <p className={styles.line}>{T.MESSAGES_WHO_SEES}</p>}
       </aside>
     </div>
@@ -409,6 +418,36 @@ function MessageRowItem({ row }: { row: RequestRow }) {
       <div className={styles.rowEnd}>
         <Chip tone={TONE[row.state]}>{P.stateChip(row.state)}</Chip>
         <Link href={requestPath(row.id)} className={styles.open} aria-label={`${P.OPEN}: ${T.messageTitleWords(row.subject.name, topic)}`}>
+          {P.OPEN}
+        </Link>
+      </div>
+    </li>
+  );
+}
+
+/** One request to change group for good, as its row: who, the kind, from which group to which, when, who has it or who decided it. */
+function MoveRowItem({ row }: { row: RequestRow }) {
+  return (
+    <li className={styles.row} data-testid="request-row" data-kind="move">
+      <div className={styles.rowBody}>
+        <p className={styles.rowTitle}>
+          <strong>{row.subject.name}</strong> · {CHANGE_GROUP_FOR_GOOD}
+        </p>
+        <p className={styles.line}>
+          {[
+            [row.programme.name, row.about ?? ""].filter(Boolean).join(", "),
+            P.dayAndClock(row.askedAt),
+            row.state === "approved" || row.state === "declined"
+              ? V.decidedRowWords(row.state, row.decidedBy?.name ?? "", P.dayAndClock(row.decidedAt))
+              : P.handlingWords(row.handling, row.mine),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      </div>
+      <div className={styles.rowEnd}>
+        <Chip tone={TONE[row.state]}>{P.stateChip(row.state)}</Chip>
+        <Link href={requestPath(row.id)} className={styles.open} aria-label={`${P.OPEN}: ${moveRequestTitleWords(row.subject.name)}`}>
           {P.OPEN}
         </Link>
       </div>

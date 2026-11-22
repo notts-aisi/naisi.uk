@@ -501,6 +501,32 @@ const READERS = {
       "waits (an active learner's place in the group they asked from that week); it shows no member a placement and " +
       "names nobody to a facilitator",
   },
+  "lib/courses/moveRequest/facts.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "Asking to change group for good: the caller's own seat only, read by their uid and shown to nobody else; a seat " +
+      "Publish has not told them about takes no part, so the card offers no button, the form nothing, and the ask is " +
+      "refused as nothing to ask (the staff move's own placeTakesMove asks the same again)",
+  },
+  "lib/courses/moveRequest/page.ts": {
+    kind: "staff",
+    proof: ['if (actor.role !== "admin") return { status: "none" };', 'if (viewer.role !== "admin" || requests.length === 0) return [];'],
+    why:
+      "A request to change group for good, for admins alone (its page, its row, and the counts Home and a programme's " +
+      "head ask only for an admin): the person's seat is read by its address only to say whether the request still " +
+      "waits (an active learner's place in the group they asked from, unmoved since); it shows no member a placement " +
+      "and names nobody to a facilitator",
+  },
+  "lib/courses/moveRequest/decide.ts": {
+    kind: "staff",
+    proof: ["const found = await forAdmin(db, actor, requestId, normalizeMoveRequest);"],
+    why:
+      "Deciding, replying to or taking a request to change group for good, for admins alone (forAdmin refuses anybody " +
+      "else first), and its asker withdrawing it: the person's seat is read by its address only to say whether the " +
+      "request still waits; approving moves them through the staff move's own writer, behind its own refusals (a seat " +
+      "Publish has not told never reaches a write); it shows no member a placement and names nobody to a facilitator",
+  },
   "lib/courses/visitRequest/decide.ts": {
     kind: "staff",
     proof: ['if (actor.role !== "admin") return fail(403, "Forbidden");'],

@@ -185,6 +185,19 @@ const MUST_GUARD = [
   ["src/app/api/courses/requests/ask/route.ts", "sends the team a message, in the sender's name, and emails the admins who switched that on"],
   ["src/app/api/courses/requests/[requestId]/team/take/route.ts", "says who is dealing with a message to the team, in their name"],
   ["src/app/api/courses/requests/[requestId]/team/reply/route.ts", "replies to a message to the team, closing it and emailing the person, in the replier's name"],
+  [
+    "src/app/api/courses/runs/[runId]/requests/move/route.ts",
+    "asks to change group for good, in the asker's name, and emails the admins that it has arrived",
+  ],
+  [
+    "src/app/api/courses/requests/[requestId]/move/approve/route.ts",
+    "approves a request to change group for good, moving the person's place, both groups' counts and history and emailing the person and both groups' facilitators, in the approver's name",
+  ],
+  ["src/app/api/courses/requests/[requestId]/move/decline/route.ts", "declines a request to change group for good and emails the person the reply, in the decider's name"],
+  ["src/app/api/courses/requests/[requestId]/move/reply/route.ts", "replies to a request to change group for good and emails the person, in the replier's name"],
+  ["src/app/api/courses/requests/[requestId]/move/take/route.ts", "says who is dealing with a request to change group for good, in their name"],
+  ["src/app/api/courses/requests/[requestId]/move/withdraw/route.ts", "withdraws a request to change group for good, in the asker's name"],
+  ["src/app/api/courses/requests/[requestId]/move/dismiss/route.ts", "dismisses the message that a request to change group for good was declined, in the asker's name"],
   ["src/app/api/courses/groups/[groupId]/attendance/push/route.ts", "locks a register, rewrites every member's attendance record and mails the group"],
   [
     "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts",

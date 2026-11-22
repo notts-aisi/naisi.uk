@@ -1,7 +1,7 @@
 import "server-only";
 import { MAX_OWN } from "@/lib/courses/excused/ask";
 import { normalizeExcusedRequest, type ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
-import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
+import { normalizeMoveRequest, normalizeVisitRequest, type MoveRequestDoc, type VisitRequestDoc } from "@/lib/firestore/courseMemberRequests";
 import { excusalStandsFor } from "@/lib/courses/excused/marking";
 import { factOf, requestStandingOf, weeksAbout } from "@/lib/courses/excused/model";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
@@ -145,6 +145,12 @@ export type VisitFacts = {
    * on the Requests page, unless it is the request being approved.
    */
   visitRequests: VisitRequestDoc[];
+  /**
+   * The person's own requests to change group for good on the run (the same
+   * read, through the move kind's own normaliser): one request at a time, so
+   * none of another kind is asked while one waits (`../requests/oneAtATime.ts`).
+   */
+  moveRequests: MoveRequestDoc[];
 };
 
 /**
@@ -334,7 +340,10 @@ export async function readVisitFacts(
   const visitRequests = requestSnap.docs
     .map((doc) => normalizeVisitRequest(doc.id, doc.data() ?? {}))
     .filter((request): request is VisitRequestDoc => request !== null && request.runId === run.id && request.subjectUid === uid);
-  return { ok: true, facts: { run, destroying, groups, place, person, accounts, places, registers, oneGroup, requests, visitRequests } };
+  const moveRequests = requestSnap.docs
+    .map((doc) => normalizeMoveRequest(doc.id, doc.data() ?? {}))
+    .filter((request): request is MoveRequestDoc => request !== null && request.runId === run.id && request.subjectUid === uid);
+  return { ok: true, facts: { run, destroying, groups, place, person, accounts, places, registers, oneGroup, requests, visitRequests, moveRequests } };
 }
 
 /** A live group's sessions. */

@@ -17,6 +17,7 @@ export const REQUEST_KINDS = {
   corrections: "register-correction",
   excused: "excused",
   visits: "visit",
+  moves: "move",
   messages: "team-message",
 } as const;
 
@@ -45,12 +46,13 @@ export function tabCounts(rows: readonly KindRow[]): { waiting: number; handling
 }
 
 /** Home's counts of what waits, each kind counted by itself. */
-export function openByKind(rows: readonly KindRow[]): { corrections: number; excused: number; visits: number; messages: number } {
+export function openByKind(rows: readonly KindRow[]): { corrections: number; excused: number; visits: number; moves: number; messages: number } {
   const open = (kind: string) => rowsOfKind(rows, kind).filter((row) => isOpen(row.state)).length;
   return {
     corrections: open(REQUEST_KINDS.corrections),
     excused: open(REQUEST_KINDS.excused),
     visits: open(REQUEST_KINDS.visits),
     messages: open(REQUEST_KINDS.messages),
+    moves: open(REQUEST_KINDS.moves),
   };
 }

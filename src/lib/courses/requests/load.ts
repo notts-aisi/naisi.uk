@@ -27,6 +27,8 @@ import { normalizeVisitRequest, type VisitRequestDoc } from "@/lib/firestore/cou
 import { visitRequestRows } from "@/lib/courses/visitRequest/page";
 import { normalizeTeamMessage, type TeamMessageDoc, type TeamTopic } from "@/lib/firestore/courseTeamAsks";
 import { teamMessageRows } from "@/lib/courses/teamAsk/page";
+import { normalizeMoveRequest, type MoveRequestDoc } from "@/lib/firestore/courseMemberRequests";
+import { moveRequestRows } from "@/lib/courses/moveRequest/page";
 import { sessionKeyParts } from "./decide";
 import { tabCounts } from "./kinds";
 
@@ -62,13 +64,13 @@ export type RequestPerson = { uid: string; name: string };
 export type RequestRow = {
   id: string;
   /**
-   * `excused` and `visit` rows are admins' only (`src/lib/courses/excused/page.ts`,
-   * `src/lib/courses/visitRequest/page.ts`). A later kind widens this union
+   * `excused`, `visit` and `move` rows are admins' only (`src/lib/courses/excused/page.ts`,
+   * `src/lib/courses/visitRequest/page.ts`, `src/lib/courses/moveRequest/page.ts`). A later kind widens this union
    * and brings its own row builder and its own section of the page. A
    * message to the team (`team-message`, `src/lib/courses/teamAsk/page.ts`)
    * is admins' only too, belongs to no run and is `replied` once answered.
    */
-  kind: CourseRequestKind | "excused" | "visit" | "team-message";
+  kind: CourseRequestKind | "excused" | "visit" | "move" | "team-message";
   status: CourseRequestStatus | "replied";
   state: RequestState;
   askedBy: RequestPerson;
@@ -91,7 +93,7 @@ export type RequestRow = {
   mine: boolean;
   decidedBy: RequestPerson | null;
   decidedAt: string | null;
-  /** A visit request's line: "Group C to Group I, Wed 11 Nov"; absent on every other kind. */
+  /** A visit request's line, "Group C to Group I, Wed 11 Nov", or a move request's, "Group C to Group F"; absent on every other kind. */
   about?: string;
   /** A message to the team's topic; absent on every other kind. */
   topic?: TeamTopic;
@@ -233,18 +235,21 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
   const weekStartsAt = weekStartOf(now);
 
   let requests: CourseRequestDoc[] = [];
-  // Requests to be excused and to go to another session: admins' only, read
+  // Requests to be excused, to go to another session and to change group: admins' only, read
   // from the same two lists, each through its own kind's normaliser.
   let excused: ExcusedRequestDoc[] = [];
   let visits: VisitRequestDoc[] = [];
   // Messages to the team: admins' only, from the same two lists, through their own normaliser.
   let messages: TeamMessageDoc[] = [];
+  let moves: MoveRequestDoc[] = [];
   const read = (snap: FirebaseFirestore.QuerySnapshot) =>
     snap.docs.map((doc) => normalizeCourseRequest(doc.id, doc.data() ?? {})).filter((each): each is CourseRequestDoc => each !== null);
   const readExcused = (snap: FirebaseFirestore.QuerySnapshot) =>
     snap.docs.map((doc) => normalizeExcusedRequest(doc.id, doc.data() ?? {})).filter((each): each is ExcusedRequestDoc => each !== null);
   const readVisits = (snap: FirebaseFirestore.QuerySnapshot) =>
     snap.docs.map((doc) => normalizeVisitRequest(doc.id, doc.data() ?? {})).filter((each): each is VisitRequestDoc => each !== null);
+  const readMoves = (snap: FirebaseFirestore.QuerySnapshot) =>
+    snap.docs.map((doc) => normalizeMoveRequest(doc.id, doc.data() ?? {})).filter((each): each is MoveRequestDoc => each !== null);
   if (isAdmin) {
     const [waiting, decided] = await Promise.all([
       db.collection(COURSE_REQUESTS_COLLECTION).where("status", "==", "waiting").limit(MAX_REQUESTS).get(),
@@ -269,6 +274,9 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
       if (message) messagesById.set(message.id, message);
     }
     messages = [...messagesById.values()];
+    const movesById = new Map<string, MoveRequestDoc>();
+    for (const each of [...readMoves(waiting), ...readMoves(decided)]) movesById.set(each.id, each);
+    moves = [...movesById.values()];
   } else {
     const snaps = await Promise.all(
       led.runIds.map((runId) => db.collection(COURSE_REQUESTS_COLLECTION).where("runId", "==", runId).limit(MAX_REQUESTS).get()),
@@ -282,11 +290,13 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
       ((each.status === "approved" || each.status === "declined") && each.decidedAt !== null && each.decidedAt.getTime() >= weekStartsAt.getTime()),
   );
 
-  const [ctx, excusedRows, visitRows, messageRows] = await Promise.all([
+  const [ctx, excusedRows, visitRows, moveRows, messageRows] = await Promise.all([
     context(db, requests, actor),
     excusedRequestRows(db, excused, led.naming, actor),
     // Live waiting ones and those decided this week: one closed by itself or gone with the place is on no list.
     visitRequestRows(db, visits, led.naming, actor, weekStartsAt, now),
+    // Likewise for requests to change group: one that went by itself is on no list.
+    moveRequestRows(db, moves, led.naming, actor, weekStartsAt),
     // Waiting ones, and those replied to this week.
     teamMessageRows(db, messages, actor, weekStartsAt),
   ]);
@@ -296,7 +306,7 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
   // lead to an archived group. The runs are led already (`ledRuns`); the rest
   // is the group's, read once above. (Requests to be excused are an admin's alone.)
   requests = requests.filter((each) => requestShownTo(actor, ctx.groups.get(each.groupId), each.runId, led.runIds.includes(each.runId)));
-  const rows: RequestRow[] = [...requests.map((each) => rowOf(each, ctx, led.naming, actor)), ...excusedRows, ...visitRows, ...messageRows]
+  const rows: RequestRow[] = [...requests.map((each) => rowOf(each, ctx, led.naming, actor)), ...excusedRows, ...visitRows, ...moveRows, ...messageRows]
     .sort(
       (a, b) =>
         ORDER[a.state] - ORDER[b.state] ||
