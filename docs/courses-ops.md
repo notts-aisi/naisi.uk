@@ -1550,14 +1550,17 @@ names" below). Step 6, Publish, is an admin's alone.
    Everybody who holds a place on the programme gets a row on the run's own
    list. Nobody is emailed and nobody is put in a group.
 5. **Put people in groups**, on People in groups (the run's allocation
-   board) or, for an admin, on Circles (the same groups as rings, with each
-   person's week beside every group). Every move on either saves at once and
-   moves nobody else. Each card says which groups that person can make, from
-   the week they painted on the form, or that they gave no availability.
-   Circles' "Suggest" (with or without Claude) is a preview over the groups
-   as they are: it seats only people in no group, keeps every appointed
+   board), shown as Columns or as Rings (the same groups as rings round each
+   group's time; "Show as" in the toolbar, kept in the address as
+   `?show=rings`, so a link to the board opens Columns). Every move either
+   way saves at once and moves nobody else. Each card says which groups that
+   person can make, from the week they painted on the form, or that they gave
+   no availability; on Rings a red tag says the same, for the people whose
+   application the reader may read. For an admin, Rings' "Suggest groups"
+   opens Circles' arranging: a preview over the groups as they are (with or
+   without Claude) that seats only people in no group, keeps every appointed
    facilitator in their group, and "Apply N changes" sends only what it
-   lists. Give each group its campus (University Park, Jubilee or Online) and
+   lists. Circles' old address opens People in groups shown as Rings. Give each group its campus (University Park, Jubilee or Online) and
    the room it meets in every week on the group's own page (its Room row: the
    Room panel holds both), or on Circles. The campus emails nobody: it saves
    as it is chosen. On the group's page the room's own button says how many
@@ -3398,6 +3401,16 @@ they already open; nothing under `/admin/courses` is needed.
   two routes refuse the lead with the same sentence. The Overview's "Get
   ready for week 1" and the board's lines say an admin publishes, never
   that the lead should.
+- **People in groups, shown as Columns or Rings**: "Show as" in the
+  toolbar, kept in the address alone (`?show=rings`; anything else is
+  Columns), and carried on by the tab's row of views and Publish's way back.
+  Rings is the same board, panel, moves and Publish, each group drawn as a
+  ring, for the lead as for an admin. Its marks about anybody's time come
+  only from the panel's read below, made at once on Rings: the lead is drawn
+  them for the people whose application the lead may read, and nothing for
+  anybody else; Pangram's flag and the legend's Claude and Pangram are an
+  admin's. An admin's "Suggest groups" there opens Circles' arranging, which
+  the lead is never offered.
 - **People in groups, a person's panel**: every name on the board (a card,
   somebody invited, a facilitator in a column's head, a name in "Gave their
   place back") opens a panel beside the board, which then scrolls sideways

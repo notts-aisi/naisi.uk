@@ -2224,10 +2224,37 @@ person saved or sent go out (below).
   account-id order and reviewers lettered once across the programme. A name
   an admin types into a question is swapped for its label before it is
   sent. Neither answer is stored.
-- **Arranging groups: Circles.** A view of a programme's Groups tab, beside
-  People in groups, for an admin alone (it shows marked weeks and Claude's
-  reads; `src/features/applications/circles/`, the page under
-  `(tabs)/groups/circles`). IT OPENS ON THE RUN'S GROUPS AS THEY ARE
+- **People in groups, shown as Columns or Rings.** The Groups tab's first
+  view draws the run's allocation board one of two ways, chosen in the
+  toolbar ("Show as Columns / Rings") and KEPT IN THE ADDRESS AND NOWHERE
+  ELSE: `?show=rings` is Rings, anything else, no choice included, is
+  Columns (`boardShowOf` in `src/features/applications/groups/boardShow.ts`).
+  No key in the browser's storage, no cookie and no stored field remembers
+  it; a reload and a shared link keep it, and the tab's row of views and
+  Publish's way back carry it on (`withShow`). RINGS IS THE SAME BOARD drawn
+  as Circles drew it, for an admin and the programme's lead alike
+  (`RingsBoard.tsx`): To place as a row of names (somebody invited among
+  them), each group a ring with its name, how full it is and its time in the
+  middle and its people round the edge, the same toolbar, counts, panel,
+  moves (the middle of a ring is the card's own move) and Publish, and
+  Circles' legend under it. EVERY MARK ABOUT SOMEBODY'S TIME on Rings (the
+  red tag, "didn’t mark this time as free on their application", "(can’t
+  make it)") comes from the person's panel's one gated read alone
+  (`ringsOf` in `ringsModel.ts`, over `GET .../programmes/[programmeId]/panel`,
+  which is made at once on Rings): a person whose application the reader may
+  not read is drawn by name and nothing else. Pangram's "!" and the legend's
+  words about Claude and Pangram are an admin's; the lead's legend leaves
+  them out. Circles' old address (`(tabs)/groups/circles`) forwards an admin
+  and the programme's lead to `groups?show=rings`, tells a reviewer the tab
+  is the lead's and an admin's, and draws "there is no programme here" for
+  anybody else; the row of views no longer offers Circles.
+- **Arranging groups: Circles' arranging.** On People in groups shown as
+  Rings, an admin's "Suggest groups" reads the run's groups through the
+  `circles` GET and asks for a suggestion without Claude, then draws Circles'
+  own arranging in place of the rings until "Back to the rings" (an admin's
+  alone: it shows marked weeks and Claude's reads;
+  `src/features/applications/circles/`). The lead is offered none of it, as
+  before. IT OPENS ON THE RUN'S GROUPS AS THEY ARE
   (`arrange/circles.ts`, read again through the `circles` GET after every
   change, which writes nothing and asks Claude nothing): one ring per live
   group with the people in it now and its facilitators, "Not in a group" for
@@ -2246,7 +2273,7 @@ person saved or sent go out (below).
   words (`notMovedWords`), never a code. Somebody who facilitates a group is
   never moved: their panel says to change who facilitates it first. The
   Times view keeps its heatmap, Best times and Your groups, with a link to
-  Circles where the rings were. SUGGESTIONS ARE A PREVIEW over the rings
+  People in groups shown as Rings where the rings were. SUGGESTIONS ARE A PREVIEW over the rings
   ("Suggest groups", or "Suggest with Claude"), up to five options, worked
   out from when each person said they are free (`arrange/plan.ts`):
   EVERYBODY ALREADY PLACED STAYS WHERE THEY ARE, told or not, and every
