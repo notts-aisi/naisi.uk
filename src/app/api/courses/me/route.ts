@@ -240,7 +240,21 @@ export type MyRunEntry = {
    * already makes; nothing more is read for it.
    */
   facilitates?: MyFacilitatedGroup[];
+  /**
+   * THE ARCHIVED GROUPS THE CALLER STILL FACILITATES ON THIS RUN, when they
+   * facilitate no live one on it: each group's name and when it was archived
+   * (an ISO instant, or null for a group archived before that was kept),
+   * most recently archived first, for Home's "Group F was archived on Mon 2
+   * Nov." in place of "You don’t have a group yet.". Read from the same
+   * query of the caller's own groups as `facilitates`.
+   *
+   * ABSENT on every other row, a member's included.
+   */
+  archivedFacilitates?: MyArchivedGroup[];
 };
+
+/** One archived group the caller still facilitates, as Home says it. */
+export type MyArchivedGroup = { name: string; archivedAt: string | null };
 
 /** One group the caller facilitates, as My programmes links it. */
 export type MyFacilitatedGroup = {
@@ -417,8 +431,13 @@ export async function GET() {
   const facilitatedRunIds = new Set<string>();
   // The same groups, by run, for the card's links: named fields only.
   const facilitatedGroupsByRun = new Map<string, CourseGroupDoc[]>();
+  // And the archived ones that still name them, by run, for Home's sentence.
+  const archivedGroupsByRun = new Map<string, CourseGroupDoc[]>();
   for (const doc of facilitatedSnap.docs) {
     const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
+    if (group.archived && group.runId && rowRunIds.has(group.runId) && isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids)) {
+      archivedGroupsByRun.set(group.runId, [...(archivedGroupsByRun.get(group.runId) ?? []), group]);
+    }
     if (group.archived || !group.runId || !rowRunIds.has(group.runId)) continue;
     if (!isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids)) continue;
     facilitatedRunIds.add(group.runId);
@@ -637,6 +656,8 @@ export async function GET() {
         : null;
       const calendar = resolveCalendar(run, group);
       const facilitated = facilitatedGroupsByRun.get(run.id) ?? [];
+      // Only with no live group of theirs on the run: Home says the newest.
+      const archivedHere = facilitated.length === 0 ? (archivedGroupsByRun.get(run.id) ?? []) : [];
       return {
         runId: run.id,
         courseId: run.courseId,
@@ -669,6 +690,13 @@ export async function GET() {
                   room: each.session.location.trim(),
                 }),
               ),
+            }
+          : {}),
+        ...(archivedHere.length > 0
+          ? {
+              archivedFacilitates: [...archivedHere]
+                .sort((a, b) => (b.archivedAt?.getTime() ?? 0) - (a.archivedAt?.getTime() ?? 0) || a.name.localeCompare(b.name))
+                .map((each): MyArchivedGroup => ({ name: each.name, archivedAt: each.archivedAt ? each.archivedAt.toISOString() : null })),
             }
           : {}),
       };

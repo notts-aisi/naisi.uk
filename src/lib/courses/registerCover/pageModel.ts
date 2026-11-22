@@ -15,6 +15,8 @@ import { cameBy, type AttendanceStatus } from "@/lib/firestore/courseAttendance"
 /** What the group's page knows about one week's register. */
 export type WeekRegisterFacts = {
   weekNumber: number;
+  /** A register is owed for it (`registerOwed`); false for one that passed while the group was archived. Absent is owed. */
+  owed?: boolean;
   /** The session's start has passed. */
   started: boolean;
   /** The session was called off through a change. */
@@ -63,6 +65,8 @@ const NONE: CoverChoices = { offered: false, covering: false, someoneElse: false
 export function coverChoicesOf(week: WeekRegisterFacts): CoverChoices {
   if (week.finished || week.cancelled || week.heldFalse || !week.dated) return NONE;
   if (week.facilitatorStarted) return { ...NONE, helpOnly: true };
+  // Nobody is asked to take a register that is not owed (`registerOwed`).
+  if (week.owed === false) return NONE;
   return { offered: true, covering: true, someoneElse: true, didNotHappen: week.started, helpOnly: false };
 }
 

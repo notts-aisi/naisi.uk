@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PACE_ARCHIVED } from "@/lib/courses/groupArchive/words";
 import { FieldValue } from "firebase-admin/firestore";
 import { isValidDateKey, type WeekPlanEntry } from "@/lib/courses/weekPlan";
 import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
@@ -257,6 +258,10 @@ export async function PATCH(
   }
   if (!group) {
     return NextResponse.json({ error: "Group not found" }, { status: 404 });
+  }
+  // An archived group's pace changes for nobody, an admin included: its page says to restore it first.
+  if (group.archived) {
+    return NextResponse.json({ error: PACE_ARCHIVED }, { status: 409 });
   }
   if (!group.runId) {
     return NextResponse.json(

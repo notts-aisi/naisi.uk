@@ -175,9 +175,20 @@ describe("the group page", () => {
     cases.push(["tom", ELSEWHERE]);
     for (const [who, groupId] of cases) assertCalm(await pages.group(who, groupId), "group", `${who} on ${short(groupId)}`);
 
-    // An archived group, to the facilitators it had (not admitted here) and to strangers.
+    // An archived group, to strangers: the same bytes as a group that is not there.
     w.world.db.poke(`courseGroups/${B}`, { archived: true });
-    for (const who of ["rahul", "sofia", "farah", "tom", "chloe", "claudia"]) assertCalm(await pages.group(who), "group", `${who} on an archived group`);
+    for (const who of ["tom", "chloe", "claudia"]) assertCalm(await pages.group(who), "group", `${who} on an archived group`);
+  });
+
+  test("an archived group's own facilitators are not admitted either, and are told it was archived and who to ask, in place of the page", async () => {
+    w.world.db.poke(`courseGroups/${B}`, { archived: true });
+    for (const who of ["rahul", "sofia", "farah"]) {
+      const drawn = await pages.group(who);
+      assert.equal(drawn.to ?? null, null, who);
+      assert.ok(drawn.text.includes("Group B is archived."), `${who}: ${drawn.text.slice(0, 300)}`);
+      assert.match(drawn.text, /Its registers are kept\. (\S+, the programme’s lead,|An admin) can tell you more\./, who);
+      assert.doesNotMatch(drawn.text, /Take the register|Write to/, who);
+    }
   });
 
   test("an admin, whom it admits to every group, is never told it is not theirs: the second answer, the same at every address it cannot open", async () => {

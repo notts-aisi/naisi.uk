@@ -266,6 +266,18 @@ describe("1. who is due, and when", () => {
     assert.equal(mailTo("amara")[0].subject, "Week 2: your session is on Tue 27 Oct");
   });
 
+  test("no reminder about a session that started before the group was last restored", async () => {
+    // A stamp no real restore writes (a restore is never after the clock), to
+    // show the job asks: Group B's week 2 starts Tue 27 Oct, 6pm GMT.
+    world.db.poke(`courseGroups/${GROUP.b}`, { restoredAt: new Date("2026-10-27T19:00:00Z") });
+    await runJob(DUE.b2three);
+    for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 0, uid);
+    // Restored before it started: reminded as ever.
+    world.db.poke(`courseGroups/${GROUP.b}`, { restoredAt: new Date("2026-10-21T08:00:00Z") });
+    await runJob(DUE.b2three.getTime() + 60_000);
+    for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1, `${uid}, after a restore before the session`);
+  });
+
   test("the 1-day reminder, after the clocks go back, at 9am GMT", async () => {
     await runJob(DUE.b2one.getTime() - 60_000);
     // The 3-day reminder was two days ago, while no tick ran: far too late to

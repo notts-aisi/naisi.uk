@@ -1,4 +1,5 @@
 import "server-only";
+import { registerOwed } from "@/lib/courses/groupArchive/restored";
 import type { Firestore } from "firebase-admin/firestore";
 import { firstNameOfUser, readNamingProgramme, readRunLead, standingUserOf, type RunLead } from "@/lib/courses/programmeLead";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
@@ -358,6 +359,10 @@ async function remindForGroup(
       (entry): entry is { session: ResolvedSession; startsAt: Date; endsAt: Date } =>
         entry.startsAt !== null &&
         entry.endsAt !== null &&
+        // A session that started before the group was last restored passed
+        // while it was archived: nobody met, no register is owed, and nobody
+        // is reminded about it (`registerOwed`).
+        registerOwed(group, entry.startsAt) &&
         isWithinFollowUpWindow(entry.endsAt, ctx.now, config.unmarkedRegisterGraceHours),
     );
   if (due.length === 0) return "done";

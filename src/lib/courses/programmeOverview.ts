@@ -543,6 +543,10 @@ export async function buildProgrammeOverview(
           line: `${counts.came} of ${counts.of} came`,
           seeIt: attendanceHref(group.id),
         });
+      } else if (facts.ended && !facts.owed) {
+        // It passed while the group was archived: nobody met, and nobody is
+        // asked for its register (`registerOwed`).
+        sessions.push({ ...base, state: "not-held", pill: "Not held", line: null });
       } else if (facts.ended) {
         const reminder = reminderStates.get(`${group.id}__${facts.session.sessionKey}`) ?? { sendable: [], reminded: [] };
         const count = reminder.sendable.length;

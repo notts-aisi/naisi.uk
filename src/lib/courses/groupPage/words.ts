@@ -549,26 +549,8 @@ export function roomPanelTitle(groupName: string): string {
 export const ROOM_PANEL_HINT = "The room the group meets in every week. One week’s room is changed with Change this week.";
 
 // ---------------------------------------------------------------------------
-// Archiving the group, and restoring it
+// Archiving the group, and restoring it: src/lib/courses/groupArchive/words.ts
 // ---------------------------------------------------------------------------
-
-/** The last part of how the group meets: archiving it, through the group archive route. */
-export const ARCHIVE = "Archive";
-export const ARCHIVE_LINE =
-  "An archived group no longer meets and drops out of allocation. Its finished registers stay on people’s records.";
-/** "Archive Group B". */
-export function archiveButtonWords(groupName: string): string {
-  return `Archive ${groupName}`;
-}
-/** The run editor's own words while the press is on its way. */
-export const ARCHIVING = "Archiving group…";
-export const RESTORING = "Restoring group…";
-/** An archived group's page, which offers only putting it back. */
-export const ARCHIVED_LINE = "This group is archived.";
-/** "Restore Group B". */
-export function restoreButtonWords(groupName: string): string {
-  return `Restore ${groupName}`;
-}
 
 // ---------------------------------------------------------------------------
 // A group that is not this programme's

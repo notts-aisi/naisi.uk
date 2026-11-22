@@ -152,6 +152,13 @@ export type CourseAuditKind =
   /** The group renamed from its page (`before.name`, `after.name`). Nobody is emailed. */
   | "group-renamed"
   /**
+   * The group archived from its page, or restored there, through the archive
+   * route. Nobody is emailed. Under Everything on the group's History only.
+   * A facilitator a restore takes off writes its own `facilitator-removed`.
+   */
+  | "group-archived"
+  | "group-restored"
+  /**
    * The five below are a session's REGISTER: who took it in whose place, and
    * what was done when a session did not happen or moved. Each carries `weekId`.
    *
@@ -261,6 +268,8 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "group-link-set",
   "group-places-changed",
   "group-renamed",
+  "group-archived",
+  "group-restored",
   "register-covered",
   "register-given",
   "facilitator-record-changed",
@@ -312,6 +321,8 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "group-link-set": "Meeting link set",
   "group-places-changed": "Places changed",
   "group-renamed": "Group renamed",
+  "group-archived": "Group archived",
+  "group-restored": "Group restored",
   "register-covered": "Register taken in a facilitator’s place",
   "register-given": "Session given to somebody covering",
   "facilitator-record-changed": "Whether a facilitator was there changed",

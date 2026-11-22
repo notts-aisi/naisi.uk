@@ -582,6 +582,19 @@ describe("5. a facilitator who holds a place writes to the group's other people,
     world.mail.length = 0;
   }
 
+  test("an archived group is written to by nobody, an admin included, and nothing is sent", async (t) => {
+    await afterPublish(t);
+    world.db.poke(`courseGroups/${A}`, { archived: true });
+    world.mail.length = 0;
+    const { EMAIL_ARCHIVED } = await made.loadTs("lib/courses/groupArchive/words.ts");
+    const answer = await call("zach", groupEmailRoute.POST, { groupId: A }, {
+      body: { subject: "Room change", body: "We are in B5 this week.", testOnly: false },
+      course: true,
+    });
+    assert.deepEqual([answer.status, answer.body.error], [409, EMAIL_ARCHIVED]);
+    assert.deepEqual(world.mail, []);
+  });
+
   test("the group email reaches everybody in the group but its writer", async (t) => {
     await afterPublish(t);
     const byAmara = await call("amara", groupEmailRoute.POST, { groupId: A }, {

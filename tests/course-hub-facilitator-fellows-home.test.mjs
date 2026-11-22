@@ -140,3 +140,54 @@ describe("a facilitator who holds a place, on the hub, Home and their group's pa
     assert.equal((await summary("zach", A)).body.toReview, 1);
   });
 });
+
+describe("Home for a facilitator whose only group on the run was archived", () => {
+  /** Rahul's Home, drawn with the hub's own entry for the run and the overview's answer. */
+  async function rahulsHome() {
+    const entry = await hubEntry("rahul");
+    ui.overview = (await call("rahul", routes.overview.GET, { runId: RUN.agi }, { course: true })).body;
+    ui.summary = null;
+    const html = renderToStaticMarkup(createElement(components.HomeFacilitator, { given: "Rahul", invite: null, entry, comingUp: null, more: null }));
+    return { entry, text: textOf(html) };
+  }
+
+  test("says what the group's own page says, in place of You don't have a group yet", async () => {
+    world.db.poke(`courseGroups/${B}`, { archived: true, archivedAt: new Date("2026-11-02T10:15:00Z"), archivedByUid: "zach" });
+    const { entry, text } = await rahulsHome();
+    assert.deepEqual(entry.archivedFacilitates, [{ name: "Group B", archivedAt: "2026-11-02T10:15:00.000Z" }]);
+    assert.ok(text.includes("Group B was archived on Mon 2 Nov."), text);
+    // The programme's lead by first name, as the overview names them.
+    const lead = ui.overview.programme?.leadFirstName;
+    assert.ok(lead, "the world's programme has a lead");
+    assert.ok(text.includes(`Its registers are kept. ${lead}, the programme’s lead, can tell you more.`), text);
+    assert.ok(!text.includes("You don’t have a group yet."), text);
+  });
+
+  test("a group archived before the day was kept says it is archived", async () => {
+    world.db.poke(`courseGroups/${B}`, { archived: true });
+    const { entry, text } = await rahulsHome();
+    assert.deepEqual(entry.archivedFacilitates, [{ name: "Group B", archivedAt: null }]);
+    assert.ok(text.includes("Group B is archived."), text);
+  });
+
+  test("somebody who truly has no group is still told You don't have a group yet, and the hub names nothing archived", async () => {
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["sofia"] });
+    const { entry, text } = await rahulsHome();
+    assert.equal(entry?.archivedFacilitates, undefined);
+    assert.ok(text.includes("You don’t have a group yet."), text);
+  });
+
+  test("two groups on the run, one archived: Home shows the live one, and names no archived group", async () => {
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "amara", "rahul"] });
+    world.db.poke(`courseGroups/${B}`, { archived: true });
+    const { entry, text } = await rahulsHome();
+    assert.equal(entry?.archivedFacilitates, undefined, "Rahul still runs Group A");
+    assert.ok(!text.includes("was archived") && !text.includes("is archived."), text);
+    assert.ok(!text.includes("You don’t have a group yet."), text);
+  });
+
+  test("a member's row never carries the field", async () => {
+    world.db.poke(`courseGroups/${B}`, { archived: true });
+    assert.equal((await hubEntry("bea"))?.archivedFacilitates, undefined);
+  });
+});

@@ -248,3 +248,20 @@ describe("the claims carry the run and the person, and go with either", () => {
     assert.ok(world.db.read("courseNudges/other__chloe"), "another kind's record stays");
   });
 });
+
+describe("a restore emails nobody later", () => {
+  test("no Week 5 email about a session that started before the group was last restored", async () => {
+    // A stamp no real restore writes (a restore is never after the clock), to
+    // show the job asks: Group B's week 5 starts Tue 17 Nov at 6pm.
+    const sessionB = resolveSessions(runOf(), groupOf(GROUP.b)).find((each) => each.weekNumber === 5);
+    assert.ok(sessionB, "Group B has a week 5");
+    const control = await ticks("2026-11-10T08:00:00Z", 30);
+    const toB = control.filter(([, who]) => ["amara", "chloe", "farah"].includes(who));
+    assert.ok(toB.length > 0, "Group B's people were not emailed about week 5 at all");
+    reset(seedWorld({ scheduled: true }));
+    for (const n of [4, 5]) world.db.poke(`courseRuns/${RUN}/weeks/w0${n}`, { published: true });
+    world.db.poke(`courseGroups/${GROUP.b}`, { restoredAt: new Date("2026-11-17T19:00:00Z") });
+    const got = await ticks("2026-11-10T08:00:00Z", 30);
+    assert.deepEqual(got.filter(([, who]) => ["amara", "chloe", "farah"].includes(who)), [], "emailed about a session before the restore");
+  });
+});

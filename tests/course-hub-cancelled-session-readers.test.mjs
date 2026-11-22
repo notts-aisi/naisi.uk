@@ -173,10 +173,11 @@ const READERS = {
   },
   "lib/courses/groupArchive/read.ts": {
     kind: "asks",
-    proof: ["startedSessions(run, group, now).filter((session) => !session.cancelled)", "held: register.held"],
+    proof: ["resolveSessions(run, group).filter((session) => !session.cancelled)", "held: register.held"],
     why:
-      "what archiving a group reads of its registers: only those of sessions that have started and were not called off, " +
-      "so a session called off is never a register left unfinished, and one said not to have happened counts as done",
+      "what archiving a group reads of its registers: only those of sessions that were not called off (whether each is " +
+      "finished asked only of those that have started, who covers it of all), so a session called off is never a register " +
+      "left unfinished or a session given to cover, and one said not to have happened counts as done",
   },
   "lib/courses/staffMove/plan.ts": {
     kind: "asks",

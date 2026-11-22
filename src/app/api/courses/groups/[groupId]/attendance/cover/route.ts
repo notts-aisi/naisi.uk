@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { COVER_ARCHIVED } from "@/lib/courses/groupArchive/words";
 import { FieldValue } from "firebase-admin/firestore";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { groupNoticeWindow, sendGroupChangeNotice, type NoticeTally } from "@/lib/courses/groupChange/notice";
@@ -135,6 +136,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
   if (gated.facilitates) return NextResponse.json({ error: COVER_REFUSAL.facilitates }, { status: 403 });
   if (!gated.isAdmin && !gated.leads) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { group, runId } = gated;
+  // An archived group's sessions are covered and given to nobody, an admin included: its page says to restore it first.
+  if (group.archived) return NextResponse.json({ error: COVER_ARCHIVED }, { status: 409 });
 
   let raw: unknown;
   try {

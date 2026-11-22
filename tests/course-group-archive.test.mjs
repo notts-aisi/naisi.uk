@@ -16,30 +16,37 @@
  *
  * ## What this guards
  *
- *  1. WHO: an admin, an approveCourse holder and the lead of the programme
- *     that names the run; never the group's own facilitator, the run's track
- *     lead, a course drafter, a member or a view-as session. Refused before
- *     the body is read.
- *  2. ARCHIVING IS REFUSED, in one sentence and with nothing written, while
- *     anybody still holds a place in the group (three sentences: the plain
- *     one, a run with no other group, a run that is over by its status or by
- *     the clock), a freed place offered in its name is not answered,
- *     somebody moved from a week still to come is in it until then, a visit
- *     to one of its sessions is still to come, or a register of a session
+ *  1. WHO: an admin and the lead of the programme that names the run; never
+ *     a course approver who leads nothing, the group's own facilitator, the
+ *     run's track lead, a course drafter, a member or a view-as session.
+ *     Refused before the body is read, and a group that is not there is the
+ *     same 403 to all of them as one that is.
+ *  2. ARCHIVING IS REFUSED, in one sentence with the way to put it right and
+ *     with nothing written, on a run that is over (by its status, or by the
+ *     clock with its status still running, which never says "completed"),
+ *     for the last group of a run under way that still meets, while anybody
+ *     still holds a place in the group, a freed place offered in its name is
+ *     not answered, somebody moved from a week still to come is in it until
+ *     then, a visit to one of its sessions is still to come (named, with the
+ *     day, and the way through once it can no longer be called off), one of
+ *     its sessions is given to somebody to cover, or a register of a session
  *     that has started, in a week somebody's place names for the group, is
  *     neither finished nor said not to have happened.
- *  3. ALLOWED once none of that holds: the write is `archived` and
- *     `updatedAt`, nothing else in the database moves, and a move or a visit
- *     in a week that has met is no reason to refuse.
- *  4. THE TRANSACTION decides again on what it reads: somebody placed in the
- *     group between the first read and the write is answered, not archived
- *     over.
- *  5. RESTORING is refused while one of the group's facilitators holds a
- *     place in another group; both are refused on a run being destroyed; a
- *     press for the state the group has writes nothing.
+ *  3. ALLOWED once none of that holds: the write is `archived`,
+ *     `archivedAt`, `archivedByUid` and `updatedAt`, and one History row;
+ *     nothing else in the database moves and nobody is emailed.
+ *  4. THE TRANSACTION decides again on what it reads.
+ *  5. RESTORING writes `archived`, `restoredAt` and `updatedAt` and one
+ *     History row; a facilitator who now sits in another group comes off
+ *     through the one writer, with its own row; it is refused on a run being
+ *     destroyed or over and while another live group has its name; a press
+ *     for the state the group has writes nothing.
  *  6. THE ONE WRITER: no file in `src` or `scripts` writes `archived` to a
  *     group but the route, read with the compiler's parser.
- *  7. The run editor's switch and the group's page call the route.
+ *  7. The older run editor's switch (an admin's alone now) and the group's
+ *     page call the route.
+ *  8. EVERY ROUTE BEHIND THE SIX ROWS refuses an archived group, an admin
+ *     and the programme's lead alike, writing nothing.
  */
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -47,7 +54,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { CAST, RUN, makeSessionsWorld, updatesSeed } from "./lib/sessionsWorld.mjs";
+import { AGI, AWAY, CAST, ROUND, RUN, TUE_24, makeSessionsWorld, updatesSeed } from "./lib/sessionsWorld.mjs";
 import { applicationPath, session, userDoc } from "./lib/applicationsSmallTerm.mjs";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -58,6 +65,20 @@ const route = await w.courseRoute("groups", "[groupId]", "archive");
 const words = await w.loadTs("lib/courses/groupArchive/words.ts");
 const plan = await w.loadTs("lib/courses/groupArchive/plan.ts");
 const staffMove = await w.loadTs("lib/courses/staffMove/plan.ts");
+const restoredLib = await w.loadTs("lib/courses/groupArchive/restored.ts");
+const SIX_ROWS = {
+  time: await w.formRoute("programmes", "[programmeId]", "groups", "[groupId]", "time"),
+  room: await w.formRoute("programmes", "[programmeId]", "groups", "[groupId]", "room"),
+  campus: await w.formRoute("programmes", "[programmeId]", "groups", "[groupId]", "campus"),
+  places: await w.formRoute("programmes", "[programmeId]", "groups", "[groupId]", "places"),
+  name: await w.formRoute("programmes", "[programmeId]", "groups", "[groupId]", "name"),
+  link: await w.courseRoute("groups", "[groupId]", "meeting-link"),
+  facilitators: await w.courseRoute("groups", "[groupId]", "facilitators"),
+  change: await w.courseRoute("groups", "[groupId]", "session", "change"),
+  regular: await w.courseRoute("groups", "[groupId]", "session", "regular"),
+  cover: await w.courseRoute("groups", "[groupId]", "attendance", "cover"),
+  pace: await w.courseRoute("groups", "[groupId]", "pace"),
+};
 
 const B = "agi-autumn-2026-monday__grp00001";
 const A = "agi-autumn-2026-thursday__grp00002";
@@ -120,6 +141,11 @@ const press = (who, groupId, body, options = {}) => w.call(who, route.PATCH, { g
 const archive = (who, groupId) => press(who, groupId, { archived: true });
 const restore = (who, groupId) => press(who, groupId, { archived: false });
 const stored = (groupId) => world.db.read(`courseGroups/${groupId}`);
+/** What a press changed: the paths, and each document as it now is. */
+const changedBy = (before, after) =>
+  after.filter(([path, doc]) => JSON.stringify(before.find(([p]) => p === path)?.[1]) !== JSON.stringify(doc));
+/** An account's display name as stored, which an admin is shown. */
+const displayName = (uid) => world.db.read(`users/${uid}`)?.displayName;
 
 /** The press is refused with exactly this sentence, and the database is as it was. */
 async function refusedWith(who, groupId, body, sentence) {
@@ -137,7 +163,7 @@ async function refusedWith(who, groupId, body, sentence) {
 describe("1. who may archive or restore a group", () => {
   const CASES = [
     ["zach", 400, "an admin"],
-    ["paula", 400, "an approveCourse holder"],
+    ["paula", 403, "an approveCourse holder who leads nothing"],
     ["yusuf", 403, "the run's track lead"],
     ["claudia", 400, "the lead of the programme that names the run"],
     ["rahul", 403, "a facilitator of the group"],
@@ -164,11 +190,26 @@ describe("1. who may archive or restore a group", () => {
     assert.equal(stored(D).archived, false);
   });
 
-  test("a group that is not there: 403 for anybody it would be asked of, 404 for an admin or an approver", async () => {
-    assert.equal((await archive("yusuf", "no-such-group")).status, 403);
-    assert.equal((await archive("rahul", "no-such-group")).status, 403);
-    assert.equal((await archive("paula", "no-such-group")).status, 404);
+  test("a group that is not there: the same 403 as one that is for anybody it would be asked of, 404 for an admin", async () => {
+    w.reset(seed(finishedD()));
+    for (const who of ["yusuf", "rahul", "paula", "tess", "amara"]) {
+      const there = await archive(who, D);
+      const missing = await archive(who, "no-such-group");
+      assert.equal(there.status, 403, who);
+      assert.deepEqual(missing, there, `${who}: a missing group is told apart from one that is there`);
+    }
+    assert.equal((await archive("zach", "no-such-group")).status, 404);
     assert.equal((await archive("zach", "a/b")).status, 404);
+  });
+
+  test("a course approver who leads nothing is refused even where the archive would go through", async () => {
+    w.reset(seed(finishedD()));
+    const before = everything();
+    assert.equal((await archive("paula", D)).status, 403);
+    w.reset(seed({ [`courseGroups/${D}`]: groupD({ archived: true }) }));
+    assert.equal((await restore("paula", D)).status, 403);
+    w.reset(seed(finishedD()));
+    assert.equal(everything(), before);
   });
 
   test("a group's own facilitator and the run's track lead are refused, even where the archive would go through", async () => {
@@ -198,33 +239,65 @@ describe("1. who may archive or restore a group", () => {
 // ---------------------------------------------------------------------------
 
 describe("2. archiving is refused while it would lose something", () => {
-  test("people still in the group, counted as the Groups tab counts them", async () => {
+  test("people still in the group, counted as the Groups tab counts them, with the way to move them", async () => {
     // Amara, Dev, Ines and Omar; Nina left, and Rahul and Sofia's rows are a facilitator's.
     await refusedWith("zach", B, { archived: true }, "Group B still has 4 people in it. Move them to another group first, then archive it.");
+    const answer = await archive("claudia", B);
+    assert.deepEqual(answer.body.fix, { kind: "people" });
     assert.equal(words.stillHasPeopleWords("Group I", 1), "Group I still has 1 person in it. Move them to another group first, then archive it.");
   });
 
-  const CLOSED_FOR_APPROVERS =
-    "Group B still has 4 people in it, and nobody can be moved on this run any more, so it stays as it is: " +
-    "to put the term away, archive the run instead, under Archive in the run editor.";
-  const CLOSED_FOR_THE_LEAD =
-    "Group B still has 4 people in it, and nobody can be moved on this run any more, so it stays as it is: " +
-    "to put the term away, ask an admin to archive the run instead.";
+  test("people still in it, one of whom facilitates it too: take them off its facilitators first", async () => {
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "amara"] });
+    await refusedWith(
+      "zach",
+      B,
+      { archived: true },
+      "Group B still has 4 people in it. Move them to another group first, then archive it. " +
+        "One of them facilitates it too: take them off its facilitators on Facilitators before moving them.",
+    );
+  });
 
-  test("people still in the group on a run that takes no move any more", async () => {
-    for (const over of [{ status: "completed" }, { status: "cancelled" }, { archived: true }]) {
-      w.reset(seed({ [`courseRuns/${RUN.agi}`]: { ...updatesSeed()[`courseRuns/${RUN.agi}`], ...over } }));
-      await refusedWith("zach", B, { archived: true }, CLOSED_FOR_APPROVERS);
-      await refusedWith("paula", B, { archived: true }, CLOSED_FOR_APPROVERS);
-      await refusedWith("claudia", B, { archived: true }, CLOSED_FOR_THE_LEAD);
+  const COMPLETED = "AGI Strategy’s run is completed, so its groups stay as they are for the record.";
+
+  test("a run that is over by its status: every group, emptied or not, both ways", async () => {
+    for (const [over, sentence] of [
+      [{ status: "completed" }, COMPLETED],
+      [{ status: "cancelled" }, "AGI Strategy’s run is cancelled, so its groups stay as they are for the record."],
+      [{ archived: true }, "AGI Strategy’s run is archived, so its groups stay as they are for the record."],
+    ]) {
+      const run = { ...updatesSeed()[`courseRuns/${RUN.agi}`], ...over };
+      w.reset(seed({ ...finishedD(), [`courseRuns/${RUN.agi}`]: run }));
+      for (const who of ["zach", "claudia"]) {
+        await refusedWith(who, B, { archived: true }, sentence);
+        await refusedWith(who, D, { archived: true }, sentence);
+      }
+      w.reset(seed({ [`courseGroups/${D}`]: groupD({ archived: true }), [`courseRuns/${RUN.agi}`]: run }));
+      await refusedWith("zach", D, { archived: false }, sentence);
     }
   });
 
-  test("people still in the group once the run's last session has ended, its status still running", async () => {
+  test("a run whose last session has ended, its status still running: said so, never completed", async () => {
+    w.reset(seed(finishedD()));
     w.at("2026-12-20T10:00:00Z");
     assert.ok(!["completed", "cancelled"].includes(w.run().status) && !w.run().archived, "its status says nothing is over");
-    await refusedWith("zach", B, { archived: true }, CLOSED_FOR_APPROVERS);
-    await refusedWith("claudia", B, { archived: true }, CLOSED_FOR_THE_LEAD);
+    const sentence = "AGI Strategy’s run has had its last session, so its groups stay as they are for the record.";
+    await refusedWith("zach", B, { archived: true }, sentence);
+    await refusedWith("claudia", D, { archived: true }, sentence);
+    assert.doesNotMatch(sentence, /completed/);
+  });
+
+  test("the run's last group that still meets, with people in it or none", async () => {
+    for (const other of [A, C, D]) world.db.poke(`courseGroups/${other}`, { archived: true });
+    const sentence = "Group B is AGI Strategy’s only group, so it can’t be archived. To end the programme early, an admin cancels the cohort.";
+    await refusedWith("claudia", B, { archived: true }, sentence);
+    w.reset(seed(finishedD()));
+    for (const other of [A, B, C]) world.db.poke(`courseGroups/${other}`, { archived: true });
+    await refusedWith("zach", D, { archived: true }, sentence.replace("Group B", "Group D"));
+    assert.equal(
+      words.lastGroupWords("Group A", "Alignment"),
+      "Group A is Alignment’s only group, so it can’t be archived. To end the programme early, an admin cancels the cohort.",
+    );
   });
 
   test("a freed place offered in the group's name and not answered", async () => {
@@ -250,17 +323,6 @@ describe("2. archiving is refused while it would lose something", () => {
     }
   });
 
-  test("people still in the run's only group that still meets", async () => {
-    for (const other of [A, C, D]) world.db.poke(`courseGroups/${other}`, { archived: true });
-    await refusedWith(
-      "claudia",
-      B,
-      { archived: true },
-      "Group B still has 4 people in it, and its run has no other group that still meets to move them to, " +
-        "so it stays as it is while they hold their places.",
-    );
-  });
-
   test("somebody moved to another group from a week still to come is in it until then", async () => {
     w.reset(
       seed({
@@ -276,24 +338,122 @@ describe("2. archiving is refused while it would lose something", () => {
     );
   });
 
-  test("a one-week visit to one of its sessions still to come", async () => {
-    w.reset(
-      seed({
-        ...finishedD(),
-        [placePath("bea")]: { ...updatesSeed()[placePath("bea")], visits: [{ weekNumber: 5, groupId: D, arrangedByUid: "claudia", arrangedAt: new Date("2026-11-18T10:00:00Z") }] },
-      }),
-    );
+  /** Bea, of Group A, visiting Group D's week 5 session (Mon 30 Nov). */
+  const beaVisitsD = () => ({
+    ...finishedD(),
+    [placePath("bea")]: { ...updatesSeed()[placePath("bea")], visits: [{ weekNumber: 5, groupId: D, arrangedByUid: "claudia", arrangedAt: new Date("2026-11-18T10:00:00Z") }] },
+  });
+
+  test("a one-week visit to one of its sessions still to come: the visitor, the day, and their page", async () => {
+    w.reset(seed(beaVisitsD()));
+    const name = displayName("bea");
     await refusedWith(
       "zach",
       D,
       { archived: true },
-      "Group D still has 1 visit to come, in week 5. Cancel it, or archive the group once that session has met and its register is finished.",
+      `${name} is visiting Group D’s week 5 session on Mon 30 Nov. Call the visit off on Bea’s page first, then archive the group.`,
     );
+    assert.deepEqual((await archive("claudia", D)).body.fix, { kind: "person", uid: "bea", firstName: "Bea" });
+  });
+
+  test("a visit that can no longer be called off: the way through that is left", async () => {
+    w.reset(seed(beaVisitsD()));
+    // Fri 27 Nov: Bea's own Group A met on Thu 26 Nov for week 5, so the visit stands.
+    w.at("2026-11-27T10:00:00Z");
+    for (const n of [4]) world.db.seed(registerPath(D, n), register(D, n, { pushedAt: new Date("2026-11-23T20:00:00Z") }));
+    const answer = await archive("zach", D);
+    assert.equal(answer.status, 409, JSON.stringify(answer.body));
+    assert.equal(
+      answer.body.error,
+      `${displayName("bea")} is visiting Group D’s week 5 session on Mon 30 Nov, and it’s too late to call the visit off. ` +
+        "Archive the group once that session has met and its register is finished.",
+    );
+    assert.equal(answer.body.fix, null);
+  });
+
+  test("the visit's own deadline decides: with the visitor's own session called off, or their group archived, it can still be called off", async () => {
+    const ordinary = `${displayName("bea")} is visiting Group D’s week 5 session on Mon 30 Nov. Call the visit off on Bea’s page first, then archive the group.`;
+    // Bea's own Group A week 5 session (Thu 26 Nov) was called off: the host's session is the deadline.
+    const calledOff = { w05: { kind: "cancelled", dateKey: "2026-11-26", reason: "Room flooded.", byUid: "claudia", at: new Date("2026-11-20T10:00:00Z") } };
+    w.reset(seed({ ...beaVisitsD(), [registerPath(D, 4)]: register(D, 4, { pushedAt: new Date("2026-11-23T20:00:00Z") }) }));
+    world.db.poke(`courseGroups/${A}`, { sessionChanges: calledOff });
+    w.at("2026-11-27T10:00:00Z");
+    let answer = await archive("zach", D);
+    assert.deepEqual([answer.status, answer.body.error], [409, ordinary], "own session called off");
+    assert.deepEqual(answer.body.fix, { kind: "person", uid: "bea", firstName: "Bea" });
+    // Her own group archived: no session of its own that week, so the same.
+    w.reset(seed({ ...beaVisitsD(), [registerPath(D, 4)]: register(D, 4, { pushedAt: new Date("2026-11-23T20:00:00Z") }) }));
+    world.db.poke(`courseGroups/${A}`, { archived: true });
+    w.at("2026-11-27T10:00:00Z");
+    answer = await archive("zach", D);
+    assert.deepEqual([answer.status, answer.body.error], [409, ordinary], "own group archived");
+    assert.notEqual(answer.body.fix, null);
+  });
+
+  /** Group D's week 4 session (Mon 23 Nov, 6pm), given to Sofia to cover until the end of that day. */
+  const givenToSofia = () => ({
+    ...finishedD(),
+    [registerPath(D, 4)]: {
+      runId: RUN.agi,
+      groupId: D,
+      weekNumber: 4,
+      records: {},
+      held: true,
+      cover: {
+        kind: "given",
+        byUid: "sofia",
+        at: new Date("2026-11-18T10:00:00Z"),
+        covering: ["tom"],
+        grantedByUid: "claudia",
+        grantedAt: new Date("2026-11-18T10:00:00Z"),
+        until: new Date("2026-11-24T00:00:00Z"),
+      },
+    },
+  });
+
+  test("a session given to somebody to cover: Change this week, and nothing tells them", async () => {
+    w.reset(seed(givenToSofia()));
+    const name = displayName("sofia");
+    const first = name.split(" ")[0];
+    await refusedWith(
+      "zach",
+      D,
+      { archived: true },
+      `Group D’s week 4 session has been given to ${name} to cover. Move it or call it off under Change this week first, then archive the group. ` +
+        `The site doesn’t tell ${first}, so let them know.`,
+    );
+    assert.deepEqual((await archive("claudia", D)).body.fix, { kind: "week", weekNumber: 4 });
+  });
+
+  test("a session given to cover that has started holds until midnight; a cover that has lapsed, or a session called off, is no reason", async () => {
+    w.reset(seed(givenToSofia()));
+    w.at("2026-11-23T19:00:00Z");
+    const answer = await archive("zach", D);
+    assert.equal(answer.status, 409);
+    assert.equal(answer.body.error, `Group D’s week 4 session was given to ${displayName("sofia")} to cover, and it stays theirs until midnight. Archive the group after that.`);
+    assert.equal(answer.body.fix, null);
+    // The next morning the cover has lapsed, and nobody's place names week 4.
+    w.reset(seed(givenToSofia()));
+    w.at("2026-11-24T09:00:00Z");
+    assert.equal((await archive("zach", D)).status, 200);
+    // Called off under Change this week: the session is not one to cover.
+    const calledOff = { w04: { kind: "cancelled", dateKey: "2026-11-23", reason: "Room flooded.", byUid: "claudia", at: new Date("2026-11-19T09:00:00Z") } };
+    w.reset(seed({ ...givenToSofia(), [`courseGroups/${D}`]: groupD({ sessionChanges: calledOff }) }));
+    assert.equal((await archive("zach", D)).status, 200);
   });
 
   test("an emptied or spare group nobody's place names archives with no register opened", async () => {
     const answer = await archive("zach", D);
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
+  });
+
+  test("an unfinished register's refusal opens that week's register", async () => {
+    w.reset(seed(beaInDUntilWeek4()));
+    const answer = await archive("zach", D);
+    assert.equal(answer.status, 409);
+    assert.equal(answer.body.fix.kind, "register");
+    assert.equal(answer.body.fix.weekNumber, 1);
+    assert.match(answer.body.fix.sessionKey, /w01/);
   });
 
   test("a register is asked about only for a week somebody's place names for the group, a visit included", async () => {
@@ -346,22 +506,31 @@ describe("2. archiving is refused while it would lose something", () => {
 // ---------------------------------------------------------------------------
 
 describe("3. archiving once nothing is lost", () => {
-  test("writes the field and updatedAt, and nothing else anywhere", async () => {
+  test("writes the field, when and by whom, updatedAt and one History row, and nothing else anywhere", async () => {
     w.reset(seed(finishedD()));
     const before = JSON.parse(everything());
-    const answer = await archive("paula", D);
+    const answer = await archive("claudia", D);
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
     assert.deepEqual(answer.body, { ok: true, archived: true });
-    const after = JSON.parse(everything());
-    const changed = after.filter(([path, doc]) => JSON.stringify(before.find(([p]) => p === path)?.[1]) !== JSON.stringify(doc));
-    assert.deepEqual(changed.map(([path]) => path), [`courseGroups/${D}`]);
+    const changed = changedBy(before, JSON.parse(everything()));
+    const paths = changed.map(([path]) => path);
+    assert.equal(paths.length, 2, paths.join(", "));
+    assert.ok(paths.includes(`courseGroups/${D}`));
+    const row = changed.find(([path]) => path.startsWith("courseAudit/"));
+    assert.ok(row, "one History row");
+    assert.equal(row[1].kind, "group-archived");
+    assert.equal(row[1].groupId, D);
+    assert.equal(row[1].actorUid, "claudia");
+    assert.equal(row[1].detail, "Archived Group D.");
+    assert.equal(row[1].emailed, 0);
     const was = before.find(([p]) => p === `courseGroups/${D}`)[1];
-    const now = changed[0][1];
+    const now = changed.find(([p]) => p === `courseGroups/${D}`)[1];
     assert.deepEqual(
       Object.keys(now).filter((key) => JSON.stringify(now[key]) !== JSON.stringify(was[key])).sort(),
-      ["archived", "updatedAt"],
+      ["archived", "archivedAt", "archivedByUid", "updatedAt"],
     );
     assert.equal(now.archived, true);
+    assert.equal(now.archivedByUid, "claudia");
     assert.equal(world.mail.length, 0, "archiving emails nobody");
   });
 
@@ -427,7 +596,7 @@ describe("4. the transaction decides on what it read", () => {
       world.db.poke(placePath("bea"), { visits: [{ weekNumber: 5, groupId: D, arrangedByUid: "claudia", arrangedAt: new Date("2026-11-19T10:00:00Z") }] });
     const answer = await archive("zach", D);
     assert.equal(answer.status, 409, JSON.stringify(answer.body));
-    assert.match(answer.body.error, /^Group D still has 1 visit to come, in week 5\./);
+    assert.match(answer.body.error, /is visiting Group D’s week 5 session on Mon 30 Nov\./);
     assert.equal(stored(D).archived, false);
   });
 
@@ -446,32 +615,65 @@ describe("4. the transaction decides on what it read", () => {
 // ---------------------------------------------------------------------------
 
 describe("5. restoring", () => {
-  test("goes through for an archived group whose facilitators hold no place elsewhere", async () => {
-    w.reset(seed({ [`courseGroups/${D}`]: groupD({ archived: true }) }));
+  test("writes the field, restoredAt, updatedAt and one History row, keeping when and by whom it was archived", async () => {
+    const archivedAt = new Date("2026-11-02T10:15:00Z");
+    w.reset(seed({ [`courseGroups/${D}`]: groupD({ archived: true, archivedAt, archivedByUid: "claudia" }) }));
+    const before = JSON.parse(everything());
     const answer = await restore("claudia", D);
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
-    assert.equal(stored(D).archived, false);
+    const changed = changedBy(before, JSON.parse(everything()));
+    assert.equal(changed.length, 2, changed.map(([path]) => path).join(", "));
+    const was = before.find(([p]) => p === `courseGroups/${D}`)[1];
+    const now = changed.find(([p]) => p === `courseGroups/${D}`)[1];
+    assert.deepEqual(
+      Object.keys(now).filter((key) => JSON.stringify(now[key]) !== JSON.stringify(was[key])).sort(),
+      ["archived", "restoredAt", "updatedAt"],
+    );
+    assert.equal(now.archived, false);
+    assert.equal(now.archivedByUid, "claudia", "who archived it is kept");
+    const row = changed.find(([path]) => path.startsWith("courseAudit/"))[1];
+    assert.equal(row.kind, "group-restored");
+    assert.equal(row.detail, "Restored Group D.");
+    assert.equal(world.mail.length, 0, "restoring emails nobody");
   });
 
-  test("is refused while one of its facilitators holds a place in another group", async () => {
+  test("a facilitator who now sits in another group comes off through the one writer, with its usual History line", async () => {
+    // Tariq holds a place in Group C; Tom holds none.
     w.reset(seed({ [`courseGroups/${D}`]: groupD({ archived: true, facilitatorUids: ["tom", "tariq"] }) }));
-    await refusedWith(
-      "zach",
-      D,
-      { archived: false },
-      "Group D can’t be restored while 1 of its facilitators holds a place in Group C: a facilitator who holds a place " +
-        "sits in the group they facilitate. Take them off Group D’s facilitators in the run editor first, then restore it.",
+    const seatBefore = world.db.read(placePath("tariq"));
+    const before = JSON.parse(everything());
+    const answer = await restore("zach", D);
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.equal(stored(D).archived, false);
+    assert.deepEqual(stored(D).facilitatorUids, ["tom"]);
+    assert.deepEqual(world.db.read(placePath("tariq")), seatBefore, "a learner's place is never touched");
+    const rows = changedBy(before, JSON.parse(everything())).filter(([path]) => path.startsWith("courseAudit/")).map(([, doc]) => doc);
+    assert.deepEqual(rows.map((row) => row.kind).sort(), ["facilitator-removed", "group-restored"]);
+    const removed = rows.find((row) => row.kind === "facilitator-removed");
+    assert.equal(removed.subjectUid, "tariq");
+    assert.equal(world.mail.length, 0, "restoring emails nobody");
+  });
+
+  test("a facilitator who now holds a place in no group comes off too, and the question says so", async () => {
+    w.reset(seed({ [`courseGroups/${D}`]: groupD({ archived: true, facilitatorUids: ["tom", "bea"] }) }));
+    world.db.poke(placePath("bea"), { groupId: null });
+    const answer = await restore("zach", D);
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.deepEqual(stored(D).facilitatorUids, ["tom"]);
+    assert.equal(world.db.read(placePath("bea")).groupId, null, "their place is untouched");
+    assert.equal(
+      words.sitsElsewhereWords("Group F", [{ name: "Rahul Mehta", groupName: "" }], []),
+      "Rahul Mehta now holds a place on the run in no group, so Group F comes back with no facilitator. Add one on Facilitators.",
     );
-    // Anybody else who may restore is told to ask an admin, who alone changes an archived group's facilitators.
-    for (const who of ["paula", "claudia"]) {
-      await refusedWith(
-        who,
-        D,
-        { archived: false },
-        "Group D can’t be restored while 1 of its facilitators holds a place in Group C: a facilitator who holds a place " +
-          "sits in the group they facilitate. Ask an admin to take them off Group D’s facilitators in the run editor, then restore it.",
-      );
-    }
+  });
+
+  test("is refused while another group of the run that still meets has its name", async () => {
+    w.reset(seed({ [`courseGroups/${D}`]: groupD({ archived: true }) }));
+    world.db.poke(`courseGroups/${C}`, { name: "group d" });
+    await refusedWith("claudia", D, { archived: false }, "Another group is now called Group D. Rename that group first, then restore this one.");
+    // An archived group of the same name is no reason.
+    world.db.poke(`courseGroups/${C}`, { archived: true });
+    assert.equal((await restore("claudia", D)).status, 200);
   });
 
   test("both are refused on a run being destroyed", async () => {
@@ -480,6 +682,14 @@ describe("5. restoring", () => {
     await refusedWith("zach", D, { archived: true }, words.ARCHIVE_REFUSAL.destroying);
     w.reset(seed({ [`courseGroups/${D}`]: groupD({ archived: true }), [`courseRuns/${RUN.agi}`]: run }));
     await refusedWith("zach", D, { archived: false }, words.ARCHIVE_REFUSAL.destroying);
+  });
+
+  test("the transaction decides again: a group given the name between the two reads is answered", async () => {
+    w.reset(seed({ [`courseGroups/${D}`]: groupD({ archived: true }) }));
+    world.db.beforeCommit = () => world.db.poke(`courseGroups/${C}`, { name: "Group D" });
+    const answer = await restore("zach", D);
+    assert.equal(answer.status, 409, JSON.stringify(answer.body));
+    assert.equal(stored(D).archived, true);
   });
 
   test("a body that does not say true or false is refused", async () => {
@@ -496,12 +706,59 @@ describe("the words", () => {
     assert.equal(words.weeksWords([2, 3]), "weeks 2 and 3");
     assert.equal(words.weeksWords([1, 2, 4]), "weeks 1, 2 and 4");
     assert.equal(words.groupName("  "), "Untitled group");
+  });
+
+  test("the design's words, as the page says them", () => {
+    assert.equal(words.archiveLinkWords("Group C"), "Archive Group C…");
+    assert.equal(words.archiveLineWords("Group C"), "Takes Group C out of allocation, lists and reminders. Its registers and history stay.");
+    assert.equal(words.archiveQuestionTitle("Group E"), "Archive Group E?");
     assert.equal(
-      words.facilitatorSitsElsewhereWords("Group I", 2, ["Group J", "Group K"], true),
-      "Group I can’t be restored while 2 of its facilitators hold places in Group J and Group K: a facilitator who holds a place " +
-        "sits in the group they facilitate. Take them off Group I’s facilitators in the run editor first, then restore it.",
+      words.archiveQuestionBody("Group E"),
+      "Group E leaves the board, All groups and every reminder, and drops out of allocation. It stays on the run for the record, with its registers and history, and can be restored.",
     );
-    assert.equal(words.visitsToComeWords("Group I", 2, [4, 5]), "Group I still has 2 visits to come, in weeks 4 and 5. Cancel them, or archive the group once those sessions have met and their registers are finished.");
+    assert.equal(words.NOBODY_IS_EMAILED, "Nobody is emailed.");
+    assert.equal(words.archiveButtonWords("Group E"), "Archive Group E");
+    assert.equal(words.keepButtonWords("Group E"), "Keep Group E");
+    assert.equal(words.ARCHIVING, "Archiving…");
+    assert.equal(words.archivedSaidWords("Group E"), "Group E is archived. Nobody was emailed.");
+    assert.equal(words.OPEN_PEOPLE_IN_GROUPS, "Open People in groups");
+    assert.equal(words.openRegisterWords(2), "Open week 2’s register");
+    assert.equal(words.openPersonWords("Agnes"), "Open Agnes’s page");
+    assert.equal(words.changeWeekWords(3), "Change week 3’s session");
+    assert.equal(
+      words.visitToComeWords({ visitorName: "Agnes Ilori", visitorFirstName: "Agnes", name: "Group E", weekNumber: 3, dayLabel: "Fri 20 Nov", callable: true }),
+      "Agnes Ilori is visiting Group E’s week 3 session on Fri 20 Nov. Call the visit off on Agnes’s page first, then archive the group.",
+    );
+    assert.equal(
+      words.archivedSentence("Group F", "Mon 2 Nov", "Maya Rao"),
+      "Group F was archived on Mon 2 Nov by Maya Rao. It is out of allocation, lists and reminders. Its registers and history stay here.",
+    );
+    assert.equal(words.archivedSentence("Group F", "", ""), "Group F is archived. It is out of allocation, lists and reminders. Its registers and history stay here.");
+    assert.equal(words.howMetTitle("Group F"), "How Group F met");
+    assert.equal(words.NOTHING_CHANGES_WHILE_ARCHIVED, "Nothing here changes while the group is archived. Restore it first.");
+    assert.equal(words.restoreLinkWords("Group F"), "Restore Group F…");
+    assert.equal(words.restoreQuestionTitle("Group F"), "Restore Group F?");
+    assert.equal(
+      words.restoreQuestionBody("Group F", "Fridays, 11am to 1pm", ""),
+      "Group F comes back on the board, All groups and reminders, as it was when it was archived: Fridays, 11am to 1pm, no room.",
+    );
+    assert.equal(
+      words.sitsElsewhereWords("Group F", [{ name: "Rahul Mehta", groupName: "Group B" }], []),
+      "Rahul Mehta now sits in Group B as one of its people, so Group F comes back with no facilitator. Add one on Facilitators.",
+    );
+    assert.equal(
+      words.sitsElsewhereWords("Group F", [{ name: "Rahul Mehta", groupName: "Group B" }], ["Priya Shah"]),
+      "Rahul Mehta now sits in Group B as one of its people, so Group F comes back with Priya Shah as its facilitator.",
+    );
+    assert.equal(words.sitsElsewhereWords("Group F", [], ["Priya Shah"]), "");
+    assert.equal(words.KEEP_IT_ARCHIVED, "Keep it archived");
+    assert.equal(words.restoreButtonWords("Group F"), "Restore Group F");
+    assert.equal(words.nameTakenWords("Group F"), "Another group is now called Group F. Rename that group first, then restore this one.");
+    assert.equal(words.restoredSaidWords("Group F"), "Group F is back. Nobody was emailed.");
+    assert.equal(words.facilitatorArchivedTitle("Group F", "Mon 2 Nov"), "Group F was archived on Mon 2 Nov.");
+    assert.equal(words.facilitatorArchivedTitle("Group F", ""), "Group F is archived.");
+    assert.equal(words.facilitatorArchivedLine("Maya"), "Its registers are kept. Maya, the programme’s lead, can tell you more.");
+    assert.equal(words.facilitatorArchivedLine(null), "Its registers are kept. An admin can tell you more.");
   });
 
   test("no dashes in the words", () => {
@@ -808,11 +1065,12 @@ describe("7. the run editor and the group's page call the route", () => {
       assert.ok(editor.includes(said), said);
     }
     assert.match(editor, /await setGroupArchived\(group\.id, next\);/);
-    // A course drafter reaches the editor and the route refuses them: the switch is disabled, and says who.
+    // A course drafter and a course approver reach the editor and the route refuses them: the switch is disabled, and says who.
     assert.match(editor, /disabled=\{disabled \|\| !canArchive\}/);
-    assert.match(editor, /"Only an admin or somebody who can approve courses archives or restores a group here; the programme’s lead does it from the group’s page\."/);
+    assert.match(editor, /\{!canArchive && <p className=\{styles\.hint\}>\{ARCHIVE_IS_AN_ADMINS\}<\/p>\}/);
+    assert.equal(words.ARCHIVE_IS_AN_ADMINS, "Only an admin archives or restores a group here.");
     const runEditor = read("features", "courses", "RunEditor.tsx");
-    assert.match(runEditor, /const canArchiveGroups = role !== null && canApproveCourse\(\{ role, permissions \}\);/);
+    assert.match(runEditor, /const canArchiveGroups = role === "admin";/);
     assert.match(runEditor, /canArchive=\{canArchiveGroups\}/);
     const mutations = read("features", "courses", "courseMutations.ts");
     assert.match(mutations, /\/api\/courses\/groups\/\$\{encodeURIComponent\(groupId\)\}\/archive/);
@@ -822,6 +1080,164 @@ describe("7. the run editor and the group's page call the route", () => {
   test("the group's page archives and restores through the same route", () => {
     const panel = read("features", "courses", "groupPage", "ArchiveGroup.tsx");
     assert.match(panel, /\/api\/courses\/groups\/\$\{encodeURIComponent\(groupId\)\}\/archive/);
-    assert.match(read("features", "courses", "groupPage", "GroupPage.tsx"), /<ArchiveItem groupId=\{view\.groupId\} groupName=\{view\.groupName\} \/>/);
+    const page = read("features", "courses", "groupPage", "GroupPage.tsx");
+    assert.match(page, /<ArchiveFoot groupName=\{view\.groupName\} onOpen=\{\(\) => open\(\{ kind: "archive" \}\)\} \/>/);
+    assert.match(page, /<ArchivePanel/);
+    assert.match(page, /<RestorePanel/);
+    // After archiving, the Sessions view says it from the address.
+    assert.match(page, /\?archived=\$\{encodeURIComponent\(view\.groupId\)\}/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Every route behind the six rows refuses an archived group
+// ---------------------------------------------------------------------------
+
+describe("8. nothing behind the six rows changes an archived group", () => {
+  const programme = (groupId) => ({ roundId: ROUND, programmeId: AGI, groupId });
+  /** Each route the live page's rows press, with a body it would take for Group B while it is live. */
+  const PRESSES = [
+    // Group D's: the time route changes a time only until Publish has told somebody it, and nobody is in D.
+    ["Day and time, the programme's time route", (who) => w.call(who, SIX_ROWS.time.PUT, programme(D), { body: { weekday: 3, start: "18:00", from: { weekday: 1, start: "18:00" } } })],
+    ["Day and time, a new regular time from a week", (who) => w.call(who, SIX_ROWS.regular.POST, { groupId: B }, { body: { fromWeek: 5, weekday: 3, time: "18:00", length: 120, room: "Hallward B12", preview: true }, course: true })],
+    ["Change this week", (who) => w.call(who, SIX_ROWS.change.POST, { groupId: B }, { body: { reason: AWAY, week: 4, dateKey: TUE_24, kind: "cancel", tell: false }, course: true })],
+    ["Room", (who) => w.call(who, SIX_ROWS.room.PUT, programme(B), { body: { room: "Portland A21" } })],
+    ["Campus", (who) => w.call(who, SIX_ROWS.campus.PUT, programme(B), { body: { campus: "jubilee" } })],
+    ["Meeting link", (who) => w.call(who, SIX_ROWS.link.POST, { groupId: B }, { body: { sessionKey: "w04", url: "https://meet.example/group-b-new", everyWeek: true }, course: true })],
+    ["Facilitators", (who) => w.call(who, SIX_ROWS.facilitators.POST, { groupId: B }, { body: { uids: ["rahul"] }, course: true })],
+    ["Places", (who) => w.call(who, SIX_ROWS.places.PUT, programme(B), { body: { places: 12 } })],
+    ["Name", (who) => w.call(who, SIX_ROWS.name.PUT, programme(B), { body: { name: "Tuesday evenings" } })],
+    // And the routes behind the live page's week cards and its other doors.
+    ["Take the register in a facilitator's place", (who) => w.call(who, SIX_ROWS.cover.POST, { groupId: B }, { body: { weekNumber: 5 }, course: true })],
+    [
+      "The group's own pace",
+      (who) => {
+        const weeks = w.run().weekPlan;
+        return w.call(who, SIX_ROWS.pace.PATCH, { groupId: B }, { body: { paceWeekPlan: [...weeks.slice(0, 5), { kind: "break", label: "Reading week" }, ...weeks.slice(5)] }, course: true });
+      },
+    ],
+  ];
+
+  test("each goes through on the live group, so the bodies are ones it takes", async () => {
+    for (const [what, go] of PRESSES) {
+      w.reset(seed());
+      const answer = await go("zach");
+      assert.equal(answer.status, 200, `${what}: ${answer.status} ${JSON.stringify(answer.body)}`);
+    }
+  });
+
+  test("each is refused on the archived group, for an admin and the programme's lead, writing nothing", async () => {
+    for (const [what, go] of PRESSES) {
+      for (const who of ["zach", "claudia"]) {
+        w.reset(seed());
+        world.db.poke(`courseGroups/${B}`, { archived: true });
+        world.db.poke(`courseGroups/${D}`, { archived: true });
+        const before = everything();
+        const answer = await go(who);
+        assert.notEqual(answer.status, 200, `${what}, ${who}: ${JSON.stringify(answer.body)}`);
+        assert.ok([400, 403, 409].includes(answer.status), `${what}, ${who}: ${answer.status}`);
+        assert.equal(everything(), before, `${what}, ${who}: wrote something`);
+        assert.equal(world.mail.length, 0, `${what}, ${who}: emailed`);
+      }
+    }
+  });
+
+  // Writing to an archived group is refused in tests/course-hub-facilitator-fellows.test.mjs, whose world loads the email route.
+  test("covering a session and the pace say why, to an admin", async () => {
+    world.db.poke(`courseGroups/${B}`, { archived: true });
+    for (const [what, sentence] of [
+      ["Take the register in a facilitator's place", words.COVER_ARCHIVED],
+      ["The group's own pace", words.PACE_ARCHIVED],
+    ]) {
+      const answer = await PRESSES.find(([each]) => each === what)[1]("zach");
+      assert.deepEqual([answer.status, answer.body.error], [409, sentence], what);
+    }
+  });
+
+  test("the meeting link and the facilitators say why, to an admin", async () => {
+    world.db.poke(`courseGroups/${B}`, { archived: true });
+    const link = await PRESSES.find(([what]) => what === "Meeting link")[1]("zach");
+    assert.deepEqual([link.status, link.body.error], [409, words.LINK_ARCHIVED]);
+    const facilitators = await PRESSES.find(([what]) => what === "Facilitators")[1]("zach");
+    assert.deepEqual([facilitators.status, facilitators.body.error], [409, words.FACILITATORS_ARCHIVED]);
+  });
+});
+
+describe("startedBeforeRestore, the one question every job asks", () => {
+  test("a session that started before the group was last restored, and nothing for a group never restored", () => {
+    const restoredAt = new Date("2026-11-19T10:00:00Z");
+    assert.equal(restoredLib.startedBeforeRestore({ restoredAt }, new Date("2026-11-16T18:00:00Z")), true);
+    assert.equal(restoredLib.startedBeforeRestore({ restoredAt }, new Date("2026-11-23T18:00:00Z")), false);
+    assert.equal(restoredLib.startedBeforeRestore({ restoredAt }, restoredAt), false);
+    assert.equal(restoredLib.startedBeforeRestore({ restoredAt: null }, new Date("2026-11-16T18:00:00Z")), false);
+    assert.equal(restoredLib.startedBeforeRestore({}, new Date("2026-11-16T18:00:00Z")), false);
+    assert.equal(restoredLib.startedBeforeRestore({ restoredAt }, null), false);
+  });
+
+  test("the two jobs about sessions still to come ask it too", () => {
+    for (const job of ["nextWeekEmail", "weekReminders"]) {
+      const source = readFileSync(join(REPO, "src", "lib", "scheduler", "jobs", `${job}.ts`), "utf8");
+      assert.match(source, /import \{ startedBeforeRestore \} from "@\/lib\/courses\/groupArchive\/restored";/, job);
+      assert.match(source, /startedBeforeRestore\(group, /, job);
+    }
+  });
+
+  test("registerOwed: none while archived, none for a session that started before the restore, and every other one", () => {
+    const restoredAt = new Date("2026-11-19T10:00:00Z");
+    const before = new Date("2026-11-16T18:00:00Z");
+    const after = new Date("2026-11-23T18:00:00Z");
+    assert.equal(restoredLib.registerOwed({ archived: true }, after), false);
+    assert.equal(restoredLib.registerOwed({ archived: false, restoredAt }, before), false);
+    assert.equal(restoredLib.registerOwed({ archived: false, restoredAt }, after), true);
+    assert.equal(restoredLib.registerOwed({ archived: false }, before), true);
+  });
+});
+
+/**
+ * EVERY READER OF AN UNFINISHED REGISTER asks whether one is owed
+ * (`registerOwed`), walked from the tree: a file that calls the chase's own
+ * tests (`isRegisterUnmarked`, `followUpDueAt`, `isWithinFollowUpWindow`), the
+ * Attendance tab's facts (`groupSessions`, which carry `owed`), or the group
+ * page's ways to take a register (`coverChoicesOf`, `noticeWeekOf`). Each
+ * either asks (calls `registerOwed` or reads `owed`), or is listed below with
+ * why it asks nobody for a register. Both directions: a listed file must
+ * still be a reader, and must not have started asking.
+ */
+const ASKS_FOR_NO_REGISTER = {
+  "src/lib/courses/unmarkedRegisters.ts": "defines the chase's own tests; every caller asks",
+  "src/app/api/courses/groups/[groupId]/attendance/push/route.ts": "takes a card off the board once a register is pushed; asks nobody for anything",
+  "src/features/courses/groupPage/GroupPage.tsx": "asks through `weekRegisterFacts`, which carries each week's `owed` into `coverChoicesOf` (src/lib/courses/registerCover/pageModel.ts)",
+  "src/lib/courses/personPage/load.ts": "one person's attendance record: reads each session's marks and whether it was held; offers no register to take",
+  "src/lib/surveys/leadOverview.ts": "counts the sessions held for the reports' card; asks nobody for a register",
+};
+
+describe("every reader of an unfinished register asks whether one is owed", () => {
+  const READS = /\b(?:isRegisterUnmarked|followUpDueAt|isWithinFollowUpWindow|groupSessions|coverChoicesOf|noticeWeekOf)\(/;
+  const DEFINES = /export function (?:groupSessions|coverChoicesOf|noticeWeekOf)\(/;
+  const ASKS = /\bregisterOwed\(|\.owed\b|owed === false/;
+  const readers = new Map();
+  for (const file of sourceFiles(join(REPO, "src"))) {
+    const path = relative(REPO, file).split("\\").join("/");
+    const text = readFileSync(file, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    // A local function of the same name is not the Attendance tab's.
+    if (/function groupSessions\(opened/.test(text)) continue;
+    if (READS.test(text) || DEFINES.test(text)) readers.set(path, ASKS.test(text));
+  }
+
+  test("the walk finds the readers this guard knows by name", () => {
+    for (const path of ["src/lib/courses/programmeOverview.ts", "src/lib/scheduler/jobs/registerReminders.ts", "src/lib/scheduler/jobs/unmarkedRegisters.ts"]) {
+      assert.ok(readers.has(path), path);
+    }
+  });
+
+  test("each asks, or is listed with why it asks nobody for a register", () => {
+    const silent = [...readers].filter(([path, asks]) => !asks && !(path in ASKS_FOR_NO_REGISTER)).map(([path]) => path);
+    assert.deepEqual(silent, [], "a reader of unfinished registers that never asks registerOwed: ask it, or list it with why");
+    for (const path of Object.keys(ASKS_FOR_NO_REGISTER)) {
+      assert.ok(readers.has(path), `${path} is listed but reads no register any more: take it off the list`);
+      assert.equal(readers.get(path), false, `${path} asks registerOwed now: take it off the list`);
+    }
   });
 });

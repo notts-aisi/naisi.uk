@@ -5,6 +5,9 @@ import { firstName as firstNameOf } from "@/app/(app)/dashboard/homeWords";
 import GroupNotesCard from "@/features/courses/facilitator/GroupNotesCard";
 import JoiningOnlineBox from "@/features/courses/facilitator/JoiningOnlineBox";
 import NotForYou from "@/features/courses/facilitator/NotForYou";
+import ArchivedGroupNotice from "@/features/courses/facilitator/ArchivedGroupNotice";
+import { readRunLead } from "@/lib/courses/programmeLead";
+import { londonDayLabel } from "@/lib/courses/londonLabels";
 import { isAddressableId } from "@/lib/addressableId";
 import {
   FacilitatorTicket,
@@ -199,12 +202,14 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * layout admits and this gate does not is given `NotForYou`, the same bytes
  * for a real group that is not theirs, an archived one, a group of another
  * run and an id that names nothing, so someone guessing group ids learns
- * nothing about which ones exist. It says the page is for a group's
+ * nothing about which ones exist. The one exception is a facilitator the
+ * archived group still names: they are told it was archived, when, and that
+ * the programme's lead can tell them more (`ArchivedGroupNotice`). It says the page is for a group's
  * facilitators and admins: this page does not admit the programme's lead.
  * An admin, whom this page admits to every group, is never told it is not
  * theirs: at an id that names nothing or another run's group they are given
  * the fixed "can't be opened" answer instead. An archived group's
- * facilitator is not admitted here, so keeps the first answer.
+ * facilitator is not admitted to the page, and is given that one sentence.
  * Somebody with no role on the run, and every made-up run id, is still sent
  * to My programmes by the layout before this page runs. And this is a UI
  * gate: the register, the notes and the email ROUTES re-derive the same
@@ -297,6 +302,24 @@ export default async function GroupHomePage({
       "courseGroups.facilitatorUids",
       group.facilitatorUids,
     );
+  // A facilitator the archived group still names, with standing, is told it
+  // was archived, when, and who to ask; anybody else not admitted is given
+  // the same calm page as for a group that is not there.
+  if (
+    !access.isAdmin &&
+    group.archived &&
+    group.runId === runId &&
+    isNamedWithStanding(access.user, "courseGroups.facilitatorUids", group.facilitatorUids)
+  ) {
+    const lead = await readRunLead(db, runId).catch(() => null);
+    return (
+      <ArchivedGroupNotice
+        groupName={group.name}
+        dayLabel={group.archivedAt ? londonDayLabel(group.archivedAt) : ""}
+        leadFirstName={lead?.firstName || null}
+      />
+    );
+  }
   if (group.runId !== runId || !(access.isAdmin || facilitatesThisGroup)) {
     return <NotForYou page="group" admitted={admin} />;
   }

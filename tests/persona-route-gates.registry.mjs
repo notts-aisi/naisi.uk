@@ -2615,12 +2615,12 @@ export const ROUTES = {
   },
   "/api/courses/groups/[groupId]/archive": {
     PATCH: {
-      expect: adminOnly(400, { approveCourse: 400 }),
+      expect: adminOnly(400),
       why:
-        "Archiving or restoring a group: view-as is refused first, then the session. An admin and an approveCourse " +
-        "holder are decided on the session and meet the body check; anybody else is asked whether they lead the " +
-        "programme naming the group's run, so an id that addresses nothing is one 403 for them before the body is read. " +
-        "A group's facilitators and a run's track leads are refused like anybody else.",
+        "Archiving or restoring a group: view-as is refused first, then the session. An admin is decided on the session " +
+        "and meets the body check; anybody else is asked whether they lead the programme naming the group's run, so an " +
+        "id that addresses nothing is one 403 for them before the body is read, the same as a group that is there. A " +
+        "course approver who leads nothing, a group's facilitators and a run's track leads are refused like anybody else.",
     },
   },
   "/api/courses/groups/[groupId]/facilitators": {
@@ -5256,7 +5256,8 @@ export const PAGES = {
       "The admissions tree's gate, then the page's own (loadProgrammeRun, decided from the form before the run is read, " +
       "the gate of every Groups view): one group's page is the programme's lead's and an admin's, so a reviewer on the form " +
       "is told the tab is theirs, a programme the caller has no role on renders 'there is no programme here', and a group " +
-      "that is not a live group of the run the programme names renders a calm not-here page, each with a 200. " +
+      "that is not a group of the run the programme names renders a calm not-here page, each with a 200. An archived group " +
+      "of the run is drawn read only for the same two, with Restore; nobody else is told it exists. " +
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
@@ -5801,7 +5802,10 @@ export const PAGES = {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when " +
-      "the run is missing, and the run's own roster decides the rest once it exists.",
+      "the run is missing, and the run's own roster decides the rest once it exists. The battery's made-up " +
+      "runs reach no archived group: an archived group's own facilitator (told it was archived) and everybody " +
+      "else (the same page as a missing group) are held by tests/course-group-page.test.mjs and " +
+      "tests/course-hub-not-for-you.test.mjs.",
   },
   "/(app)/learn/[runId]/group/[groupId]/edit": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
@@ -7235,9 +7239,8 @@ export const REAL_ROUTES = {
     PATCH: {
       another: {
         anonymous: c(401, NO_SESSION),
-        "*": c(403, "Neither leads the programme naming the group's run nor approves courses: refused before the body is read."),
+        "*": c(403, "Does not lead the programme naming the group's run, a course approver included: refused before the body is read."),
         admin: c(400, "An admin archives any group, so admitted, then the body is checked: an empty one says neither archive nor restore."),
-        approveCourse: c(400, "A course approver archives any group, so admitted, then the body is checked."),
       },
       theirs: {
         lead: c(400, "Leads the programme that names the group's run and runs the group from its page, so admitted, then the body is checked."),

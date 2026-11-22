@@ -13,6 +13,7 @@ import { byHandElsewhereWords, byHandFullWords, byHandNotYoursWords } from "@/li
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { facilitatorAddedHeadline, facilitatorRemovedHeadline, historyDetail } from "@/lib/courses/groupChange/words";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
+import { FACILITATORS_ARCHIVED } from "@/lib/courses/groupArchive/words";
 import { isAddressableId } from "@/lib/addressableId";
 import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 import type { Firestore } from "firebase-admin/firestore";
@@ -40,6 +41,10 @@ import type { Firestore } from "firebase-admin/firestore";
  * wrote is the business of an admin and of the lead of the programme that
  * names the run (`rowIsServedTo`), so anybody else adding that person saves
  * nothing either.
+ *
+ * AN ARCHIVED GROUP'S FACILITATORS CHANGE FOR NOBODY, an admin included: one
+ * sentence (409), read in the transaction, and nothing written. Restoring it
+ * is the archive route's, which takes off anybody who now sits elsewhere.
  *
  * HISTORY: each person added or taken off writes one row of the group's
  * history (`facilitator-appointed`, `facilitator-removed`), in the same
@@ -81,6 +86,7 @@ async function groupNameOf(db: Firestore, groupId: string): Promise<string> {
 
 type Outcome =
   | { kind: "gone" }
+  | { kind: "archived" }
   | { kind: "not-yours" }
   | { kind: "seat"; problem: SeatProblem; groupName: string }
   | { kind: "saved"; placed: string[] };
@@ -152,6 +158,9 @@ export async function POST(
     const fresh = await tx.get(groupRef);
     if (!fresh.exists) return { kind: "gone" };
     const stored = normalizeCourseGroup(fresh.id, fresh.data() ?? {});
+    // An archived group's facilitators change for nobody: restoring it is the
+    // one change it takes, and a restore takes off anybody who now sits elsewhere.
+    if (stored.archived) return { kind: "archived" };
     const current = asUidList(fresh.data()?.facilitatorUids);
     const { added, removed } = facilitatorChange(current, next);
     const touched = [...added, ...removed];
@@ -227,6 +236,7 @@ export async function POST(
   });
 
   if (outcome.kind === "gone") return NextResponse.json({ error: "Group not found" }, { status: 404 });
+  if (outcome.kind === "archived") return NextResponse.json({ error: FACILITATORS_ARCHIVED }, { status: 409 });
   if (outcome.kind === "not-yours") {
     // Names nobody: such a row is named to an admin or the programme's lead only.
     return NextResponse.json({ error: byHandNotYoursWords() }, { status: 409 });

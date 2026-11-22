@@ -1,4 +1,5 @@
 import "server-only";
+import { registerOwed } from "@/lib/courses/groupArchive/restored";
 import type { Firestore } from "firebase-admin/firestore";
 import { clockWords, namesInWords } from "@/lib/courses/facilitatingEmail";
 import { runEndOf } from "@/lib/courses/finishing/runEnd";
@@ -468,6 +469,12 @@ export type GroupSessionFacts = {
   started: boolean;
   ended: boolean;
   tag: GridSessionTag;
+  /**
+   * Whether a register is owed for it (`registerOwed`): false while the group
+   * is archived and for a session that started before it was last restored.
+   * Such a session is never "not finished": nobody is asked for its register.
+   */
+  owed: boolean;
 };
 
 /** Every week's first session of a group, keyed by week, with the clock's and the register's facts. */
@@ -488,15 +495,16 @@ export function groupSessions(records: RunRecords, group: CourseGroupDoc, now: D
     const finished = register?.pushedAt instanceof Date;
     const started = startsAt !== null && startsAt.getTime() <= now.getTime();
     const ended = endsAt !== null && endsAt.getTime() <= now.getTime();
+    const owed = registerOwed(group, startsAt);
     let tag: GridSessionTag = null;
     if (session.dateKey) {
       if (!held) tag = "not-held";
       else if (finished) tag = null;
-      else if (ended) tag = "not-finished";
+      else if (ended) tag = owed ? "not-finished" : null;
       else if (session.dateKey === todayKey) tag = minutesOf(session.session.startTimeLocal) >= EVENING_FROM ? "tonight" : "today";
       else if (session.dateKey === tomorrowKey) tag = "tomorrow";
     }
-    out.set(session.weekNumber, { session, startsAt, endsAt, register, held, finished, started, ended, tag });
+    out.set(session.weekNumber, { session, startsAt, endsAt, register, held, finished, started, ended, tag, owed });
   }
   return out;
 }

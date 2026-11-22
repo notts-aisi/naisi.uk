@@ -1188,7 +1188,8 @@ test("a jumped week's email has no path to a send once its session has started",
   const third = sessions.findIndex((session) => session.weekNumber === 3);
   const starts = new Date(`${sessions[third].dateKey}T12:00:00Z`);
   assert.equal(nextWeekEmailTiming(sessions, third, new Date(starts.getTime() + 86_400_000)).state, "past");
-  assert.match(WEEK_EMAIL_JOB, /if \(timing\.state === "due" && markerId\) \{/);
+  // And never about a session that started before the group was last restored (`startedBeforeRestore`).
+  assert.match(WEEK_EMAIL_JOB, /if \(timing\.state === "due" && markerId && !startedBeforeRestore\(group, timing\.startsAt\)\) \{/);
   assert.match(ATTENDANCE_PUSH, /sessionAfter\(sessions, session\.sessionKey\)/);
   // No week parameter anywhere: nobody can ask for a past week's email.
   for (const source of [WEEK_EMAIL, WEEK_EMAIL_JOB, REMINDERS_JOB]) {
@@ -1359,10 +1360,14 @@ test("GUARD — archiving a group withdraws it from every live surface at once",
 
 test("archiving a group leaves the enrolments, the count and the publish gate as they were", () => {
   // The card's `setGroupArchived` sends one field to the archive route, and
-  // the route writes two: `archived` and `updatedAt`, in its one transaction.
-  // It does not unplace anyone and does not zero `memberCount`; it refuses
-  // instead while anybody still holds a place in the group
-  // (tests/course-group-archive.test.mjs presses it).
+  // the route writes the group's own fields (`archived`, when and by whom, or
+  // `restoredAt`, and `updatedAt`) and its History rows, in its one
+  // transaction; a restore takes a facilitator who now sits elsewhere off
+  // through the one writer, which never touches a learner's place. It does
+  // not unplace anyone and does not zero `memberCount`; it refuses instead
+  // while anybody still holds a place in the group
+  // (tests/course-group-archive.test.mjs presses it, and holds that nothing
+  // else in the database moves).
   assert.match(
     COURSE_MUTATIONS,
     /export async function setGroupArchived\([\s\S]*?fetch\(`\/api\/courses\/groups\/\$\{encodeURIComponent\(groupId\)\}\/archive`, \{\s*method: "PATCH",[\s\S]*?body: JSON\.stringify\(\{ archived \}\),/,
@@ -1372,8 +1377,14 @@ test("archiving a group leaves the enrolments, the count and the publish gate as
     /setGroupArchived[\s\S]{0,400}(memberCount|updateDoc)/,
     "setGroupArchived writes the group again from the browser: update this test",
   );
-  assert.match(ARCHIVE_ROUTE, /tx\.update\(groupRef, \{ archived, updatedAt: FieldValue\.serverTimestamp\(\) \}\);/);
-  assert.equal(ARCHIVE_ROUTE.match(/\.(update|set|create|delete)\(/g)?.length, 1, "the archive route makes one write");
+  assert.match(
+    ARCHIVE_ROUTE,
+    /tx\.update\(groupRef, \{\s*archived: true,\s*archivedAt: FieldValue\.serverTimestamp\(\),\s*archivedByUid: actor\.uid,\s*updatedAt: FieldValue\.serverTimestamp\(\),\s*\}\);/,
+  );
+  assert.match(ARCHIVE_ROUTE, /const restored = \{ archived: false, restoredAt: FieldValue\.serverTimestamp\(\), updatedAt: FieldValue\.serverTimestamp\(\) \};/);
+  // Every write is to the group, a History row, or the one writer of a group's facilitators: never a place directly.
+  assert.doesNotMatch(ARCHIVE_ROUTE, /collection\("courseEnrolments"\)/, "the archive route now writes a place: update this test");
+  assert.equal(ARCHIVE_ROUTE.match(/\.delete\(/g), null, "the archive route deletes something");
   assert.doesNotMatch(ARCHIVE_ROUTE, /memberCount/, "the archive route now touches memberCount: update this test");
 
   // And publish deliberately does NOT filter archived, so those members count

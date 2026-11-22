@@ -244,9 +244,12 @@ function registerRowOf(facts: GroupSessionFacts, todayKey: string, people: { cel
       ? "not-held"
       : facts.finished
         ? "finished"
-        : facts.ended
-          ? "not-finished"
-          : "today";
+        : facts.ended && !facts.owed
+          ? // It passed while the group was archived: nobody met, and no register is owed (`registerOwed`).
+            "not-held"
+          : facts.ended
+            ? "not-finished"
+            : "today";
   return { weekNumber: session.weekNumber, dateKey: session.dateKey, startTimeLocal: session.session.startTimeLocal, state, came, of };
 }
 

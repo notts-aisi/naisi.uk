@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { LINK_ARCHIVED } from "@/lib/courses/groupArchive/words";
 import { isAddressableId } from "@/lib/addressableId";
 import { parseMeetingLink, saveSessionLink } from "@/lib/courses/meetingLink/save";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
@@ -75,6 +76,8 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   if (!isAdmin && !facilitatesLiveGroup && !staffsRunId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!group) return NextResponse.json({ error: "Group not found" }, { status: 404 });
+  // An archived group's link changes for nobody, an admin included (asked again in the save's transaction).
+  if (group.archived) return NextResponse.json({ error: LINK_ARCHIVED }, { status: 409 });
 
   let raw: unknown;
   try {

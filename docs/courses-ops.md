@@ -2307,25 +2307,39 @@ before.
 
 ## Archiving a group
 
-A group is archived from two places, both through
-`PATCH /api/courses/groups/[groupId]/archive`: Archive, the last part of "How
-Group B meets" on the group's own page under its programme's Groups tab, and,
-on a run no programme names (which has no such page), the Archived switch on
-its card in the older run editor. On a run a programme names, that card says
-"Archive and restore are on Group C’s page." with the way there instead. Nothing else changes
-`courseGroups.archived`: `firestore.rules` pins the field against every
-browser write, an admin's included (`groupArchivedUnchanged`), and a group is
-born not archived. The route admits an admin, an `approveCourse` holder (the
-people the run editor's switch serves) and the lead of the programme that
-names the run (`programmeLedBy`), who runs the group from its page. Nobody
-else: a group's own facilitators and a run's track leads are refused. In the
-run editor the switch is disabled for a course drafter who cannot approve,
-with a line saying who archives a group.
+A group is archived and restored from two places, both through
+`PATCH /api/courses/groups/[groupId]/archive`: "Archive Group C…" under the
+six rows of "How Group C meets" on the group's own page under its
+programme's Groups tab, and, on a run no programme names (which has no such
+page), the Archived switch on its card in the older run editor. On a run a
+programme names, that card says "Archive and restore are on Group C’s page."
+with the way there instead.
 
-An archived group's page opens on "This group is archived." and Restore, and
-nothing else; the Groups tab lists the run's archived groups under its board
-("Archived:"), each to its page, so a group archived by mistake is put back
-from there or from the run editor's switch.
+**Who.** An admin, and the lead of the programme that names the run
+(`programmeLedBy`). Nobody else: a course approver who leads nothing, a
+group's own facilitators and a run's track leads are refused, and to all of
+them a group that is not there is the same 403 as one that is. On a run no
+programme names that leaves admins: the older card's switch is disabled for
+anybody else, with "Only an admin archives or restores a group here."
+
+**The fields.** `archived`, `archivedAt`, `archivedByUid` and `restoredAt`
+are the route's alone: `firestore.rules` pins all four against every browser
+write, an admin's included (`groupArchivedUnchanged`), and a group is born
+with none set. Archiving writes the first three and `updatedAt`; restoring
+writes `archived`, `restoredAt` and `updatedAt` and keeps who archived it.
+A group archived before the day and the name were kept says "Group F is
+archived." with neither. Each writes one row of the group's History, the
+person in its own column beside "Archived Group F." or "Restored Group F.",
+under Everything only.
+
+**Archiving asks first.** The question says what it does ("Group E leaves
+the board, All groups and every reminder, and drops out of allocation. It
+stays on the run for the record, with its registers and history, and can be
+restored.") and "Nobody is emailed.", with "Archive Group E" and "Keep Group
+E". Once it goes through the page goes to the Groups tab's Sessions view,
+which says "Group E is archived. Nobody was emailed." from its address
+(`?archived=`) only while the group is archived, so a reload after a restore
+says nothing.
 
 **What archiving keeps.** The group stays on the run for the record, with its
 registers, its history and its places as they are; nothing is moved, counted
@@ -2336,50 +2350,114 @@ session held count, for the people whose record of groups by week names that
 week (`countsFromArchivedGroup`, above).
 
 **When a group may be archived.** Only when that loses nothing. The route
-refuses, in one sentence that names the group and writes nothing (409), while:
+refuses, in one sentence that names the group, with the way to put it right
+beside it on the page, and writes nothing (409), in this order:
 
+- the run is being destroyed;
+- the run is over: completed, cancelled or archived by its status ("AGI
+  Strategy’s run is completed, so its groups stay as they are for the
+  record."), or its last session has ended while its status still says
+  running ("AGI Strategy’s run has had its last session, so …"). Emptied
+  groups too: a term is put away by archiving the run;
+- it is the last group of a run under way that still meets ("Group A is
+  Alignment’s only group, so it can’t be archived. To end the programme
+  early, an admin cancels the cohort.");
 - anybody still holds a place in it (a learner who has not left, as the Groups
-  tab counts them): "Group I still has 3 people in it. Move them to another
-  group first, then archive it." Where nobody can be moved (the run is over,
-  by its status or because its last session has ended, or it is cancelled or
-  archived) the sentence says to archive the run instead; where the run has
-  no other group that still meets (an incubator's one group) it says the
-  group stays as it is. Either way its people's attendance and who finished
-  read only a group that still meets;
+  tab counts them), with "Open People in groups"; when one of them
+  facilitates it too, whom the board will not move, the sentence says to
+  take them off its facilitators first;
 - a freed place offered in its name is not answered yet;
 - somebody moved to another group from a week still to come is in it until
-  then (their record of groups by week names it for a session that has not
-  started);
-- a one-week visit to one of its sessions is still to come;
+  then;
+- a one-week visit to one of its sessions is still to come, naming the
+  visitor and the day, with "Open Agnes’s page", their visit's page, where it
+  is called off (calling it off emails the visitor and both groups'
+  facilitators, as it always has). Whether it can still be called off is the
+  call-off's own deadline (`cancelDeadline`): once the visitor's own session
+  that week has started it cannot, and the sentence says to archive the
+  group once that session has met and its register is finished; a visitor
+  whose own session that week was called off, or whose group is archived,
+  can be called off until this group's session starts;
+- one of its sessions not called off is given to somebody to cover and the
+  cover still holds. Nothing takes a given session back: moving it or calling
+  it off under Change this week ends the cover (a move takes it off the
+  register, with a History line; a session called off is not one to cover),
+  and nothing tells the person covering, so the sentence says to let them
+  know, with "Change week 3’s session". Once the session has started the
+  cover holds until midnight and the sentence says to archive it after that;
 - a register of a session that has started, in a week somebody's place still
-  names for this group (the week they belonged to it, or a visit to it), is
-  neither finished nor marked as not having happened, a register nobody
-  opened included ("Group I’s register
-  for week 2 isn’t finished. Finish it, or say the session didn’t happen, then
-  archive the group: an unfinished register counts for nothing once a group
-  is archived."). A session called off is not asked about, and nor is a week
-  nobody's place names: once nobody holds a place in it, an archived group's
-  register is read for nobody else, so an emptied or spare group archives
-  without its later sessions being called off.
+  names for this group, is neither finished nor marked as not having
+  happened, with "Open week 2’s register". A week nobody's place names is not
+  asked about.
 
-So closing a term by archiving its groups works for a group nobody is in any
-more; a group whose people are still in it at the end of a term stays as it
-is, and the term is put away by archiving the run. A session still to come given to somebody to cover is no reason to refuse
-once nobody is due at it, and the group's facilitators simply stop seeing a
-group nobody is in.
+**The archived group's page**, for the lead and admins: the chip, "Group F
+was archived on Mon 2 Nov by Maya Rao. It is out of allocation, lists and
+reminders. Its registers and history stay here.", "Restore Group F…", "How
+Group F met" as its six rows with no buttons, "Nothing here changes while the
+group is archived. Restore it first.", then Week by week (no buttons, no
+register notice, and `?take=` opens no sheet) and History. Every route
+behind the live page's rows and week cards (the time, a new regular time,
+Change this week, the room, the campus, the meeting link, the facilitators,
+the places, the name, covering a session or giving it to somebody, the
+group's own pace and writing to the group) refuses an archived group, an
+admin's press included. Saving a register is left open to an admin on
+purpose: admins correct registers. The Groups tab's "Archived:" line
+lists the run's archived groups, each to this page.
 
-**Restoring** is refused while one of the group's facilitators holds a place
-in another group of the run, because a facilitator who holds a place sits in
-the group they facilitate and no other: an admin takes them off the group's
-facilitators in the run editor first (the sentence tells anybody else to ask
-an admin). Both directions are refused on a run being destroyed. The
-checks are read once, then read again inside the transaction that writes, so
-a change in between is answered rather than archived over.
+**Restoring** asks first too: "Group F comes back on the board, All groups and
+reminders, as it was when it was archived: Fridays, 11am to 1pm, no room.",
+"Nobody is emailed.", "Keep it archived" and "Restore Group F"; then "Group F
+is back. Nobody was emailed." on its page. It is refused on a run being
+destroyed or over, and while another group of the run that still meets has
+its name ("Another group is now called Group F. Rename that group first, then
+restore this one."). A facilitator who now holds a place in another group of
+the run is no reason to refuse: the question says so beforehand ("Rahul Mehta
+now sits in Group B as one of its people, so Group F comes back with no
+facilitator. Add one on Facilitators."), and the restore takes them off
+through the one writer of a group's facilitators (`writeFacilitatorChange`),
+with its usual `facilitator-removed` History line; their place is untouched.
+So does a facilitator who now holds a place on the run in no group.
 
+**A restore emails nobody, later as well as now, and nothing asks for a
+register of a session that passed while the group was archived.** Those
+sessions come back with no register. One question decides whether a register
+is owed for a session of a group (`registerOwed`,
+`src/lib/courses/groupArchive/restored.ts`): none while the group is
+archived, and none for a session that started before `restoredAt`. Every
+reader of an unfinished register asks it: the Overview's sessions (such a
+session reads "Not held"), its Needs attention and its promises of a reminder
+and a task, the Remind press and its route (which sends nothing and says no
+register is owed), the Attendance tab's "not finished", the facilitator's
+own list of registers, the group page's ways to take a register, a
+correction's word on whether the chase comes back, archiving's own check,
+and the register reminder and the "register not taken" card.
+`tests/course-group-archive.test.mjs` walks every reader and fails one that
+does not ask. Next week's email and the reminders before a session, which
+are only ever about a session still to start, ask `startedBeforeRestore` too.
+A register that was taken for such a session still shows and counts as any
+register does. A check-in is
+opened by a facilitator at a session, which an archived group's facilitators
+cannot reach, so its reminder has none to send.
+
+**What its facilitators see.** A facilitator the archived group still names
+who opens its page (by an old link: My programmes lists no archived group,
+and Home links to the run) is told "Group F
+was archived on Mon 2 Nov." and "Its registers are kept. Maya, the
+programme’s lead, can tell you more." (the lead's first name; "An admin can
+tell you more." with no lead), with the way to My programmes. Home says the
+same in place of "You don’t have a group yet." when their only group on the
+run was archived, and still says "You don’t have a group yet." to somebody
+with no group at all. Anybody else who is not staff gets the page that says
+it is not for them, the same as for a group that is not there.
+
+The checks are read once, then read again inside the transaction that
+writes, so a change in between is answered rather than archived over.
 `tests/course-group-archive.test.mjs` presses the route as every kind of
-caller and in each of these states, and holds that nothing else in `src` or
-`scripts` writes the field; `scripts/rules-tests/tests/course-group-archived.test.mjs`
-holds the pin.
+caller and in each of these states, holds the routes behind the six rows to
+refusing an archived group, and holds that nothing else in `src` or
+`scripts` writes the field; `tests/course-group-page.test.mjs` draws the
+question, the archived page and the facilitator's sentence;
+`scripts/rules-tests/tests/course-group-archived.test.mjs` holds the pins.
 
 ## The older course editor, while it is retired
 

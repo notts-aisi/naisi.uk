@@ -1,4 +1,5 @@
 import "server-only";
+import { startedBeforeRestore } from "@/lib/courses/groupArchive/restored";
 import type { Firestore } from "firebase-admin/firestore";
 import WeekEmail from "@/emails/WeekEmail";
 import { rawCountsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
@@ -852,7 +853,10 @@ async function remindForGroup(
 ): Promise<"done" | "out-of-time"> {
   const { db, ctx } = state;
   const sessions = resolveSessions(runState.run, group);
-  const due = dueReminders(sessions, ctx.now, ctx.maxLateHours);
+  // A session that started before the group was last restored passed while
+  // it was archived; a reminder is only ever before a session starts, so
+  // this only says so.
+  const due = dueReminders(sessions, ctx.now, ctx.maxLateHours).filter((each) => !startedBeforeRestore(group, each.startsAt));
   if (due.length === 0) return "done";
   // Everybody whose group FOR THE SESSION'S WEEK is this one, read once a
   // week for its reminders (`groupForWeek`): somebody moved from a later week
