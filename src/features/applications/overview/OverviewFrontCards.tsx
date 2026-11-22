@@ -25,7 +25,7 @@ export type ApplicationsToReadProps = {
 
 export function ApplicationsToReadCard({ title, count, line, action }: ApplicationsToReadProps) {
   return (
-    <section className={styles.card} aria-labelledby="overview-to-read" data-testid="overview-to-read">
+    <section className={styles.card} aria-labelledby="overview-to-read">
       <div className={styles.cardHead}>
         <h2 id="overview-to-read" className={styles.cardTitle}>
           {title}
@@ -49,7 +49,7 @@ export type RequestsCardProps = {
 
 export function RequestsCard({ title, count, line, action }: RequestsCardProps) {
   return (
-    <section className={styles.card} aria-labelledby="overview-requests" data-testid="overview-requests">
+    <section className={styles.card} aria-labelledby="overview-requests">
       <div className={styles.cardHead}>
         <h2 id="overview-requests" className={styles.cardTitle}>
           {title}

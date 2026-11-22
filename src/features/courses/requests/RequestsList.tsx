@@ -195,7 +195,7 @@ export default function RequestsList({
           ))}
         </div>
         {view.filter ? (
-          <p className={styles.filterOn} data-testid="requests-filter">
+          <p className={styles.filterOn}>
             <span className={styles.filterLabel}>{P.FILTER_PROGRAMME_LABEL}</span>{" "}
             <strong>{view.filter.name || P.A_PROGRAMME}</strong>{" "}
             <Link href={REQUESTS_PATH} className={styles.filterClear}>

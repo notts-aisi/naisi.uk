@@ -993,8 +993,8 @@ const BUILT = new Map([
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/page.tsx",
     {
-      built: ["`${programmePath}/applications`"],
-      from: "the programme's own Applications tab, for a reviewer told the Overview is not theirs: made from the form's and the programme's ids in the address, encoded",
+      built: ["`${programmePath}/applications`", "requestsForRunPath(records.run.id)"],
+      from: "the programme's own Applications tab, for a reviewer told the Overview is not theirs: made from the form's and the programme's ids in the address, encoded; and the Requests page narrowed to the run the programme names, from the run's stored id, encoded (requestsForRunPath)",
     },
   ],
   [
@@ -1445,6 +1445,22 @@ const BUILT = new Map([
     {
       built: ["card.open.href", "doors.length === 1 ? doors[0] : PROGRAMMES_PATH"],
       from: "the addresses the Programmes list builds (src/lib/applications/programmes/list.ts): a programme's Overview and a term's page, from ids; and the Programmes page, a fixed address in the code (`PROGRAMMES_PATH`)",
+    },
+  ],
+  [
+    // The Overview's Applications to read: the Applications tab's address, from ids.
+    "src/lib/applications/programmes/overview.ts",
+    {
+      built: ["href", "href", "href"],
+      from: "a programme's Applications tab, from the form's round id (applicationFormPath) and the programme's own id",
+    },
+  ],
+  [
+    // The Overview's Applications to read and Requests cards: the addresses the page handed them.
+    "src/features/applications/overview/OverviewFrontCards.tsx",
+    {
+      built: ["action.href", "action.href"],
+      from: "the Overview page's: a programme's Applications tab from the form's and the programme's ids (applicationsToReadOn), and the Requests page narrowed by the run's id (requestsForRunPath)",
     },
   ],
 ]);

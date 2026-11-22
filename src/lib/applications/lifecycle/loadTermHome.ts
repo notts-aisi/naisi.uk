@@ -12,12 +12,8 @@ import { termPictureFor } from "../review/term";
 import { listDecisions, listReviews, listSentApplications, listSentApplicationsOnce } from "../staffRepo";
 import type { ProgrammeWork } from "./termHome";
 
-type Reads = {
-  applications: Awaited<ReturnType<typeof listSentApplications>>;
-  decisions: Awaited<ReturnType<typeof listDecisions>>;
-  sets: Awaited<ReturnType<typeof loadQuestionSets>>;
-  reviews: Awaited<ReturnType<typeof listReviews>>;
-};
+type Term = ReturnType<typeof termPictureFor>;
+type Sets = Awaited<ReturnType<typeof loadQuestionSets>>;
 
 /**
  * The numbers the term page shows, each from the code behind the screen its
@@ -71,7 +67,8 @@ export async function loadTermNumbers(
     scores ? listReviews(db, form.round.id) : [],
   ]);
 
-  const work = workOn(user, form, roles.map((entry) => entry.programmeId), { applications, decisions, sets, reviews });
+  const term = termPictureFor({ form, applications, decisions, reviews, viewerUid: user.uid });
+  const work = workOn(user, form, roles.map((entry) => entry.programmeId), term, sets);
 
   let pool: TermNumbers["pool"] = null;
   if (canRunTerm(user)) {
@@ -84,10 +81,12 @@ export async function loadTermNumbers(
   return { work, pool };
 }
 
-/** Each of these programmes' numbers, from what was read: the term page's own arithmetic. */
-function workOn(user: SessionUser, form: ApplicationForm, programmeIds: readonly string[], reads: Reads): Record<string, ProgrammeWork> {
-  const { applications, decisions, sets, reviews } = reads;
-  const term = termPictureFor({ form, applications, decisions, reviews, viewerUid: user.uid });
+/**
+ * Each of these programmes' numbers, from the term as this caller may see it
+ * (`termPictureFor`, which each caller makes with the caller's own
+ * application left out): the term page's own arithmetic.
+ */
+function workOn(user: SessionUser, form: ApplicationForm, programmeIds: readonly string[], term: Term, sets: Sets): Record<string, ProgrammeWork> {
   const noNames = new Map<string, string>();
   const { viewer } = viewerFor(user, form, noNames);
   const work: Record<string, ProgrammeWork> = {};
@@ -150,5 +149,6 @@ export async function loadProgrammeWork(
     scores ? loadQuestionSets(db, form.round.id) : [],
     scores ? listReviews(db, form.round.id) : [],
   ]);
-  return workOn(user, form, [programmeId], { applications, decisions, sets, reviews })[programmeId] ?? null;
+  const term = termPictureFor({ form, applications, decisions, reviews, viewerUid: user.uid });
+  return workOn(user, form, [programmeId], term, sets)[programmeId] ?? null;
 }

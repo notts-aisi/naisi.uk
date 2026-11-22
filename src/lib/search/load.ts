@@ -317,8 +317,9 @@ function programmeCandidates(
   for (const { form, programme } of entries) {
     const name = programme.shortName.trim() || programme.name.trim();
     if (!name) continue;
+    // "you" for the reader's own, by the lead's own bar (as `isTheirs` asks it), never a bare comparison of ids.
     const lead = programme.leadUid
-      ? programme.leadUid === viewer.uid
+      ? isNamedWithStanding(viewer, "admissionRounds.leadUid", programme.leadUid)
         ? "Lead: you"
         : `Lead: ${leadNameOf(programme.leadUid)}`
       : "Lead: No lead yet";

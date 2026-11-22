@@ -132,7 +132,7 @@ const requestsPage = (who, run) => draw(RequestsPage, who, { query: run === unde
 
 /** The Requests card's figure and line, or null when there is no card. */
 function requestsCard(html) {
-  const at = html.indexOf('data-testid="overview-requests"');
+  const at = html.indexOf('aria-labelledby="overview-requests"');
   if (at < 0) return null;
   const card = html.slice(at, html.indexOf("</section>", at));
   return {
@@ -145,7 +145,7 @@ function requestsCard(html) {
 
 /** The Applications to read card, or null. */
 function toReadCard(html) {
-  const at = html.indexOf('data-testid="overview-to-read"');
+  const at = html.indexOf('aria-labelledby="overview-to-read"');
   if (at < 0) return null;
   const card = html.slice(at, html.indexOf("</section>", at));
   const badge = /countBadge">(\d+)</.exec(card);

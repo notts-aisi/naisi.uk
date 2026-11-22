@@ -12,7 +12,7 @@ import CertificatesSection from "./CertificatesSection";
 import GetReady from "./GetReady";
 import OverviewByWeekSections from "./OverviewByWeek";
 import OverviewMarkReady from "./OverviewMarkReady";
-import { ApplicationsToReadCard, RequestsCard, type ApplicationsToReadProps, type RequestsCardProps } from "./OverviewFrontCards";
+import { ApplicationsToReadCard, RequestsCard } from "./OverviewFrontCards";
 import RemindButton from "./RemindButton";
 import WhoFinished from "./WhoFinished";
 import styles from "./ProgrammeOverview.module.css";
@@ -187,9 +187,9 @@ export default function ProgrammeOverview({
   /** "Get ready for week 1", before any group has met (`buildGetReady`); null once one has. */
   getReady?: { model: GetReadyModel; courseId: string; runId: string } | null;
   /** Applications to read, while the form takes or decides them; null otherwise. */
-  toRead?: ApplicationsToReadProps | null;
+  toRead?: { title: string; count: number | null; line: string; action: { label: string; href: string } } | null;
   /** Requests about the programme's people that wait; null when none does. */
-  requests?: RequestsCardProps | null;
+  requests?: { title: string; count: number; line: string; action: { label: string; href: string } } | null;
 }) {
   if (getReady) {
     const ready = <GetReady model={getReady.model} roundId={roundId} programmeId={programmeId} />;
