@@ -27,7 +27,7 @@ import {
   wantsReadiness,
   type LifecycleView,
 } from "@/lib/applications/lifecycle/view";
-import { PROGRAMMES_PATH } from "@/lib/applications/programmesPath";
+import { PROGRAMMES_PATH } from "@/lib/applications/programmes/path";
 import { PROGRAMME_STANDING_LABEL } from "@/lib/applications/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";

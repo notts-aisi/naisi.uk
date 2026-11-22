@@ -1407,7 +1407,7 @@ const BUILT = new Map([
     // ADDED (November 2026), with the Programmes page: a term's page, and a
     // programme's Overview and applications, from the form's and the
     // programme's ids.
-    "src/lib/applications/programmesList.ts",
+    "src/lib/applications/programmes/list.ts",
     {
       built: ["`${base}/applications`", "`${base}/overview`", "applicationFormPath(entry.form.round.id)", "applications.href", "applications.href", "home"],
       from: "pages of a term: the term's own path from the form's id, and a programme's Overview and applications from its id",
@@ -1417,7 +1417,7 @@ const BUILT = new Map([
     "src/app/(app)/admin/admissions/programmes/page.tsx",
     {
       built: ["programme.open.href", "programme.review.href", "term.href", "term.href"],
-      from: "the addresses the Programmes list builds (src/lib/applications/programmesList.ts): a term's page and a programme's pages, from ids",
+      from: "the addresses the Programmes list builds (src/lib/applications/programmes/list.ts): a term's page and a programme's pages, from ids",
     },
   ],
 ]);

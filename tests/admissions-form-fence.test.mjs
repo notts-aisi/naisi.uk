@@ -492,6 +492,13 @@ const ROUND_SURFACES = {
       "through loadProgrammePeople, which starts from the form's own loader and answers 'none' for a round that " +
       "is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]": {
+    kind: "form",
+    why:
+      "a programme's own address with no tab, which forwards to its Overview or its applications. It reaches the " +
+      "round only through loadProgrammeForStaff, the form's own loader, which answers null for a round that is not " +
+      "a form, and the page then says there is no programme here",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview": {
     kind: "form",
     why:

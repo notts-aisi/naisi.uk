@@ -9,20 +9,18 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
 import type { SessionUser } from "@/lib/firebase/session";
 import { registerSwitchesIn } from "@/lib/scheduler/registerSwitches";
-import { opensProgrammeGroups, roleOnProgramme, type ProgrammeRole } from "./access";
-import { isInTerm } from "./decisions";
-import { listFormsForStaff, type LoadedForm } from "./editor/load";
-import { applicationFormPath } from "./editor/olderRounds";
-import { projectFormForStaff } from "./editor/views";
-import { placeHoldersOn } from "./handover/holders";
-import { RUNS_COLLECTION } from "./handover/run";
-import { own } from "./keys";
-import { loadTermNumbers, type TermNumbers } from "./lifecycle/loadTermHome";
-import type { TermStage } from "./lifecycle/status";
-import { lineFor, stageSummaryFor } from "./lifecycle/view";
-import type { ApplicationDoc, DecisionDoc, ProgrammeKind, ProgrammeSettings } from "./model";
-import type { ApplicationForm } from "./normalise";
-import { listDecisions, listSentApplications } from "./staffRepo";
+import { opensProgrammeGroups, roleOnProgramme, type ProgrammeRole } from "../access";
+import { listFormsForStaff, type LoadedForm } from "../editor/load";
+import { applicationFormPath } from "../editor/olderRounds";
+import { projectFormForStaff } from "../editor/views";
+import { RUNS_COLLECTION } from "../handover/run";
+import { own } from "../keys";
+import { loadTermNumbers, type TermNumbers } from "../lifecycle/loadTermHome";
+import type { TermStage } from "../lifecycle/status";
+import { lineFor, stageSummaryFor } from "../lifecycle/view";
+import type { ProgrammeKind, ProgrammeSettings } from "../model";
+import type { ApplicationForm } from "../normalise";
+import { countPlaceHoldersOnEach } from "../people/load";
 
 /**
  * THE PROGRAMMES A READER MAY OPEN, term by term: what the Programmes page
@@ -67,11 +65,13 @@ import { listDecisions, listSentApplications } from "./staffRepo";
  *  - for a term past decision day and not cancelled or archived: every run
  *    its programmes name, in one `getAll`, and the groups of each run not
  *    marked completed or cancelled (one equality each);
- *  - for a term the reader is shown with a programme whose applications they
- *    read the numbers of (taking or deciding applications, or one they
- *    review), or past decision day with one whose groups they open: its sent
- *    applications and its decisions, once each, and the question sets and
- *    reviews for a reviewer (`loadTermNumbers`);
+ *  - for a term taking or deciding applications, or one with a programme
+ *    the reader reviews: its sent applications and decisions, and for a
+ *    reviewer its question sets and reviews (`loadTermNumbers`, the term
+ *    page's own numbers, the reader's own application left out);
+ *  - for a term past decision day with a programme whose groups the reader
+ *    opens: its sent applications and decisions, once, for how many hold a
+ *    place on each (`countPlaceHoldersOnEach`);
  *  - for a programme whose groups the reader opens, once one of its groups
  *    has met: the run's registers and the reached weeks' documents
  *    (`firstNeedsYou`), and the scheduler's settings once for the page.
@@ -341,16 +341,16 @@ async function termEntry(
   const decided = form.decisionsSentAt !== null;
   const inSession = stage === "open" || stage === "deciding";
 
-  // Whose applications are counted here, and whose places.
+  // The applications' numbers, as the term's page counts them for this reader
+  // (its own application left out): while the term takes or decides them, and
+  // for a reviewer, whose button is worded from them. Places, once decision
+  // day has gone out, for the programmes whose groups the reader opens.
   const wantsNumbers = hasBegun(stage) && (inSession ? visible.length > 0 : visible.some((each) => each.role === "reviewer"));
-  const wantsHolders = decided && visible.some((each) => opensProgrammeGroups(each.role));
-  let read: { applications: ApplicationDoc[]; decisions: Map<string, DecisionDoc> } | null = null;
-  if (wantsNumbers || wantsHolders) {
-    const [applications, decisions] = await Promise.all([listSentApplications(db, form), listDecisions(db, form.round.id)]);
-    read = { applications, decisions };
-  }
-  const numbers: TermNumbers | null = wantsNumbers && read ? await loadTermNumbers(db, user, form, read) : null;
-  const inTerm = read ? read.applications.filter(isInTerm) : [];
+  const groupsOf = decided ? visible.filter((each) => opensProgrammeGroups(each.role)).map((each) => each.programme.id) : [];
+  const [numbers, holders]: [TermNumbers | null, Map<string, number> | null] = await Promise.all([
+    wantsNumbers ? loadTermNumbers(db, user, form) : null,
+    groupsOf.length > 0 ? countPlaceHoldersOnEach(db, form, groupsOf) : null,
+  ]);
 
   const home = applicationFormPath(form.round.id);
   const anyRunBegun = form.programmeIds.some((id) => {
@@ -380,7 +380,8 @@ async function termEntry(
       const week = runWeekWords(runRead, now);
       if (week) parts.push(week);
       if (runRead && runRead !== "gone" && runRead.end) parts.push(plural(runRead.groups.length, "group", "groups"));
-      if (read) parts.push(`${placeHoldersOn(form, programme.id, inTerm, read.decisions).length} holding a place`);
+      const holding = holders?.get(programme.id);
+      if (holding !== undefined) parts.push(`${holding} holding a place`);
       line = parts.length > 0 ? parts.join(" · ") : null;
       if (runRead && runRead !== "gone" && runRead.end && !programmeIsOver(programme, runRead)) {
         needsYou = await firstNeedsYou(db, runRead.run, runRead.groups, await endingWord(), now);

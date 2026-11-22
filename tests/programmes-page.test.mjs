@@ -80,7 +80,7 @@ const made = makeWorld("__programmesPage", [
 ]);
 const { world, reset, loadTs } = made;
 
-const { loadProgrammesList, programmeIsOver, stageWordsFor } = await loadTs(join("lib", "applications", "programmesList.ts"));
+const { loadProgrammesList, programmeIsOver, stageWordsFor } = await loadTs(join("lib", "applications", "programmes", "list.ts"));
 const { buildProgrammeOverview } = await loadTs(join("lib", "courses", "programmeOverview.ts"));
 const { readRunRecords } = await loadTs(join("lib", "courses", "programmeAttendance.ts"));
 const { default: ProgrammesPage } = await loadTs(join("app", "(app)", "admin", "admissions", "programmes", "page.tsx"));

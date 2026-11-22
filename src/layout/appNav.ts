@@ -24,7 +24,7 @@
  * holds to page files.
  */
 
-import { PROGRAMMES_PATH } from "@/lib/applications/programmesPath";
+import { PROGRAMMES_PATH } from "@/lib/applications/programmes/path";
 import { FACILITATOR_GUIDE } from "@/lib/courses/facilitatorGuide/words";
 import { UNNAMED_GROUP_WORDS, facilitatingCourses, type FacilitatingGroup } from "@/lib/courses/facilitatingMenu";
 

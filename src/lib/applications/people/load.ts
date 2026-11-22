@@ -252,6 +252,30 @@ export async function countPlaceHolders(
 }
 
 /**
+ * How many hold a place on each of these programmes now: `countPlaceHolders`
+ * for several programmes of one form, from one read of the term, for the
+ * Programmes page's cards. The same people by the same test. Empty until
+ * decisions have been sent, when nobody holds one yet.
+ */
+export async function countPlaceHoldersOnEach(
+  db: Firestore,
+  form: ApplicationForm,
+  programmeIds: readonly string[],
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (form.decisionsSentAt === null) return out;
+  const [applications, decisions] = await Promise.all([
+    listSentApplications(db, form),
+    listDecisions(db, form.round.id),
+  ]);
+  const inTerm = applications.filter(isInTerm);
+  for (const programmeId of programmeIds) {
+    out.set(programmeId, placeHoldersOn(form, programmeId, inTerm, decisions).length);
+  }
+  return out;
+}
+
+/**
  * Who holds a place on the programme now, by name: the same people
  * `countPlaceHolders` counts, by the same test, for a reader that lists them
  * (the Coursework tab and a person's page, for the programme's lead and

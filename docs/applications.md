@@ -361,7 +361,7 @@ a reviewer and a view-as session.
 The menu's Programmes entry opens `/admin/admissions/programmes`: every
 programme of a term that is not over that the reader may open, a section a
 term, then Earlier terms. The list is made on the server, by one module,
-`src/lib/applications/programmesList.ts` (`loadProgrammesList`), so that
+`src/lib/applications/programmes/list.ts` (`loadProgrammesList`), so that
 anything else that lists programmes asks the same question. Nothing is
 filtered in the browser.
 
@@ -2352,8 +2352,8 @@ All in `src/lib/applications/`.
 | `freedPlaces/groups.ts`, `freedPlaces/load.ts`, `freedPlaces/offer.ts` | The run's calendar and groups; the page's read; the one writer of an offer, its emails and its test | server, staff |
 | `nextTerm/rows.ts`, `nextTerm/words.ts` | Next term: who to ask: what counts, the rows and the page's words | anywhere |
 | `nextTerm/load.ts` | Next term's read, for an admin | server, staff |
-| `programmesList.ts` | The Programmes page's list: the terms that are not over and the programmes on each the reader may open, when a term is over, and Earlier terms | server, staff |
-| `programmesPath.ts` | Where the Programmes page is | anywhere |
+| `programmes/list.ts` | The Programmes page's list: the terms that are not over and the programmes on each the reader may open, when a term is over, and Earlier terms | server, staff |
+| `programmes/path.ts` | Where the Programmes page is | anywhere |
 
 ## Rules for anything built on this
 

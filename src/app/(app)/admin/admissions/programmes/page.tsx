@@ -11,7 +11,7 @@ import {
   type ProgrammeCard,
   type ProgrammesList,
   type TermEntry,
-} from "@/lib/applications/programmesList";
+} from "@/lib/applications/programmes/list";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 

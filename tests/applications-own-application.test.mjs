@@ -212,6 +212,11 @@ const READS_THE_LISTS = {
     why: "the number beside a programme's People tab: everybody who holds a place on it, an admin who applied included, by the hand-over's own test. It counts nobody until the term is marked as sent",
     holds: "after-the-send",
   },
+  "lib/applications/people/load.ts#countPlaceHoldersOnEach": {
+    kind: "everybody",
+    why: "the Programmes page's 'holding a place' on each card: countPlaceHolders for several programmes of one form from one read, the same people by the same test, an admin who applied included. It counts nobody until the term is marked as sent",
+    holds: "after-the-send",
+  },
   "lib/applications/intake/load.ts#loadIntake": {
     kind: "viewer",
     why: "a plan of who goes where is a decision about each person in it, so the admin's own application is left out of the term as on every review screen, and Claude is never told about it",

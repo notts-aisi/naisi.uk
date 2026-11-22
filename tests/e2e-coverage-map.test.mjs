@@ -1950,7 +1950,7 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/programmes": {
     reason:
-      "The Programmes page: a committee screen whose every card, count and line comes from src/lib/applications/programmesList.ts, which tests/programmes-page.test.mjs runs and renders as every kind of caller against a whole term; a fault in it is seen by the lead or admin using it.",
+      "The Programmes page: a committee screen whose every card, count and line comes from src/lib/applications/programmes/list.ts, which tests/programmes-page.test.mjs runs and renders as every kind of caller against a whole term; a fault in it is seen by the lead or admin using it.",
     coverWhen:
       "When a browser spec walks a lead from the menu into their programme, which is the journey this page starts.",
   },

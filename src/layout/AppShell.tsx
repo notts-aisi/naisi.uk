@@ -21,7 +21,7 @@ import { clearSelfHealAttempt } from "@/lib/navigation/selfHealGuard";
 import { InstallLink } from "@/features/pwa/InstallLink";
 import { FOOTER_LINK } from "@/lib/societyFeedback/words";
 import { ASK_THE_TEAM, ASK_THE_TEAM_PATH } from "@/lib/courses/teamAsk/words";
-import { PROGRAMMES_PATH } from "@/lib/applications/programmesPath";
+import { PROGRAMMES_PATH } from "@/lib/applications/programmes/path";
 import {
   BOTTOM_BAR_MENU_LABEL,
   barTitleFor,
