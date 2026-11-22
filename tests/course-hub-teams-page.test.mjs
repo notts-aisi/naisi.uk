@@ -15,7 +15,7 @@ import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AGI, AT, CALLERS, INC, INCUBATOR, PITCH, ROUND, makeTeamsWorld, teamsSeed, textOf } from "./lib/teamsWorld.mjs";
+import { AGI, AT, CALLERS, INCUBATOR, PITCH, ROUND, makeTeamsWorld, teamsSeed, textOf } from "./lib/teamsWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: AT.wednesdayNoon });
 
