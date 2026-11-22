@@ -1385,7 +1385,7 @@ const NOT_COVERED = {
   },
   "/api/courses/runs/[runId]/weeks/[weekId]/published": {
     reason:
-      "The older week editor's way to take a published week back, refused once anybody has ticked or written in the week, a live group's session for it has passed, or it is week 1 open early: every caller, every refusal, its words and that a refusal writes nothing are executed against the real route by tests/older-editor-locks.test.mjs, and the browser write it replaces is refused by scripts/rules-tests/tests/course-older-editor-locks.test.mjs. No spec opens the older week editor.",
+      "The older week editor's way to take a published week back, refused once anybody has ticked or written in the week, or a live group's session for it has passed: every caller, every refusal, its words and that a refusal writes nothing are executed against the real route by tests/older-editor-locks.test.mjs, and the browser write it replaces is refused by scripts/rules-tests/tests/course-older-editor-locks.test.mjs. No spec opens the older week editor.",
     coverWhen: "When a browser spec opens the older week editor; it goes with that editor in the step that retires it.",
   },
   "/api/courses/runs/[runId]/weeks/[weekId]/mode": {

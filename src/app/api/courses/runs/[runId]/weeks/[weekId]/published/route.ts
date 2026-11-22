@@ -3,7 +3,6 @@ import { FieldValue } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import { readWeekInUse, weekIdNumber, type WeekInUse } from "@/lib/courses/olderEditor/weekInUse";
 import { weekStaysPublishedWords } from "@/lib/courses/olderEditor/words";
-import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -24,9 +23,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
  * cannot count.
  *
  * THE RULE (the owner's): a week stays published once anybody has ticked or
- * written in it, or its session has passed, and week 1 stays published while
- * it is open early to everybody holding a place. `readWeekInUse` asks all of
- * it, and the refusal says "People have started week 3, so it stays
+ * written in it, or its session has passed. `readWeekInUse` asks it, and the refusal says "People have started week 3, so it stays
  * published." with no count of people and no names.
  *
  * WHO. The people who could unpublish a week before this route existed, the
@@ -96,13 +93,12 @@ export async function PATCH(req: Request, ctx: Params) {
     return NextResponse.json({ error: "That isn’t a week of a run: weeks are w01 to w60." }, { status: 404 });
   }
 
-  const namedByProgramme = (await readNamingProgramme(db, runId)) !== null;
   const weekRef = db.collection("courseRuns").doc(runId).collection("weeks").doc(weekId);
 
   let weekNumber: number;
   try {
     weekNumber = await db.runTransaction(async (tx) => {
-      const facts = await readWeekInUse(db, { runId, weekId, namedByProgramme, now: new Date() }, tx);
+      const facts = await readWeekInUse(db, { runId, weekId, now: new Date() }, tx);
       if (!facts) throw new Refusal("That week isn’t on this run.", 404);
       if (!facts.week.published) return facts.weekNumber;
       if (facts.inUse) throw new Refusal(weekStaysPublishedWords(facts.weekNumber), 409, facts.inUse);

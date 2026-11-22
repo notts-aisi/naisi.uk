@@ -75,35 +75,52 @@ export function statusQuestionTitle(name: string, runLabel: string, next: Course
  *    facilitator's My programmes (facilitatingMenu.ts), the weekly jobs scan
  *    Applications open, Applications closed and Running only (nextWeekEmail,
  *    weekReminders, registerReminders, unmarkedRegisters,
- *    surveyCheckInReminders), the hand-over refuses a draft
- *    (handover/blocker.ts), and the run's own form opens only in
- *    Applications open (window.ts) while sign-ups open in any of the three
- *    (enrolWindow.ts).
- *  - Leaving Applications open: the run's own form takes applications only
- *    in Applications open (window.ts); sign-ups to an open-enrolment run go
- *    on in the other two (enrolWindow.ts); the weekly jobs scan all three.
- *  - Applications closed to Running: the jobs scan both; a member's list of
- *    programmes puts a running run first (`/api/courses/me`, STATUS_RANK).
+ *    surveyCheckInReminders), and the hand-over refuses a draft
+ *    (handover/blocker.ts).
+ *  - The run's own application form: a run a programme names takes no
+ *    application through it at any status (`apply/route.ts`, before the
+ *    window is read), so on such a run no sentence speaks of it. On any
+ *    other admissions run it takes applications only in Applications open
+ *    (window.ts). Sign-ups to an open-enrolment run, which no programme can
+ *    name, go on in all three live statuses (enrolWindow.ts).
+ *  - Into Running: a member's list of programmes ranks a running run above
+ *    one whose applications are open or closed, and orders running runs by
+ *    their label (`/api/courses/me`, STATUS_RANK), so the run moves up it.
  *  - Running to Completed: the weekly jobs and the My work mirror stop
  *    (sync-tasks), the groups leave My programmes (facilitatingMenu.ts), the
  *    hand-over refuses (handover/run.ts) and so does moving staff
  *    (staffMove/plan.ts).
  */
-export function statusQuestionBody(from: CourseRunStatus, next: CourseRunStatus, enrolMode: CourseEnrolMode): string | null {
-  const open = enrolMode === "open";
+export function statusQuestionBody(
+  from: CourseRunStatus,
+  next: CourseRunStatus,
+  enrolMode: CourseEnrolMode,
+  namedByProgramme: boolean,
+): string | null {
+  const open = enrolMode === "open" && !namedByProgramme;
+  const ownForm = enrolMode !== "open" && !namedByProgramme;
   const back = "It can’t be moved back.";
+  const movesUp = "the run moves up each member’s list of programmes, with any other running ones";
   if (from === "draft" && next === "applications-open") {
-    return `Members can see it, its groups join each facilitator’s My programmes, the weekly emails and reminders start, people can be handed over to it, and ${
-      open ? "sign-ups open on the dates set below" : "its own application form opens on the dates set below"
-    }. ${back}`;
+    const opens = open
+      ? ", and sign-ups open on the dates set below"
+      : ownForm
+        ? ", and its own application form opens on the dates set below"
+        : ", and people can be handed over to it";
+    return `Members can see it, its groups join each facilitator’s My programmes, the weekly emails and reminders start${opens}. ${back}`;
   }
-  if (from === "applications-open" && (next === "applications-closed" || next === "running")) {
-    return open
-      ? `Sign-ups stay open on the dates set below, and the weekly emails and reminders go on. ${back}`
-      : `Its own application form stops taking applications. The weekly emails and reminders go on. ${back}`;
+  if (from === "applications-open" && next === "applications-closed") {
+    if (open) return `Sign-ups stay open on the dates set below, and the weekly emails and reminders go on. ${back}`;
+    if (ownForm) return `Its own application form stops taking applications. The weekly emails and reminders go on. ${back}`;
+    return `The weekly emails and reminders go on. ${back}`;
+  }
+  if (from === "applications-open" && next === "running") {
+    if (open) return `Sign-ups stay open on the dates set below, the weekly emails and reminders go on, and ${movesUp}. ${back}`;
+    if (ownForm) return `Its own application form stops taking applications. The weekly emails and reminders go on, and ${movesUp}. ${back}`;
+    return `The weekly emails and reminders go on, and ${movesUp}. ${back}`;
   }
   if (from === "applications-closed" && next === "running") {
-    return `The weekly emails and reminders go on as they are, and the run moves to the top of each member’s list of programmes. ${back}`;
+    return `The weekly emails and reminders go on as they are, and ${movesUp}. ${back}`;
   }
   if (from === "running" && next === "completed") {
     return `The weekly emails and reminders stop, its groups leave each facilitator’s My programmes, and nobody more can be handed over or moved. ${back}`;

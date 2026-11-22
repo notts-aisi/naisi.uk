@@ -922,10 +922,11 @@ describe("courseGroups", () => {
     for (const uid of ["facil", "lead", "approver"]) {
       await assertFails((await asUser(uid)).collection("courseGroups").doc("g1").update({ campus: "jubilee" }));
     }
-    // Zach's three, as stored, and nothing else: not a label, not another
-    // campus, not another type. A browser now meets the list only when a
-    // group is born (an admin's update takes the admin branch, which the
-    // shape checks never bound), so it is held there, for each value.
+    // The three campuses the owner asked for, as stored, and nothing else:
+    // not a label, not another campus, not another type. A browser meets the
+    // list only when a group is born (an admin's update takes the admin
+    // branch, which the shape checks never bound), so it is held there, for
+    // each value.
     const approver = await asUser("approver");
     let n = 2;
     for (const campus of ["university-park", "jubilee", "online", null]) {

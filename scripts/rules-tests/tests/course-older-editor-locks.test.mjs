@@ -16,7 +16,9 @@
  * 2. TAKING A WEEK BACK. No browser write takes a run's week's `published`
  *    from true to false, or removes it from a published week, admins
  *    included: PATCH /api/courses/runs/[runId]/weeks/[weekId]/published does
- *    it once it has checked nobody has started the week. Publishing, and
+ *    it once it has checked nobody has started the week. No browser deletes
+ *    a run's week at all, admins included: the routes remove weeks (the
+ *    destroy cascade, Normalise week ids, the copies). Publishing, and
  *    every save that leaves `published` as it is, stands as before, and a
  *    week is still created unpublished.
  *
@@ -309,6 +311,17 @@ describe("courseRuns weeks: no browser write takes a published week back", () =>
         await admin.doc(`courseRuns/run1/weeks/${id}`).delete();
       });
       await allowed(weeks(db).doc(id).set(weekDoc({ weekNumber: 2, title: "", published: false })), `${uid}: created unpublished`);
+    }
+  });
+
+  it("refuses every browser a week's delete, admins included: removing a week is the routes'", async () => {
+    await seedWorld();
+    for (const uid of [...WEEK_WRITERS, "facil", "learner"]) {
+      const db = await asUser(uid);
+      for (const published of [true, false]) {
+        await reseed("courseRuns/run1/weeks/w01", weekDoc({ published }));
+        await refused(weeks(db).doc("w01").delete(), `${uid}: delete a week, published ${published}`);
+      }
     }
   });
 

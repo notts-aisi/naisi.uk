@@ -14,9 +14,10 @@
  *     facilitator, a reviewer and a drafter who did not write the run get
  *     the same 403 and nothing is written. What it refuses, with the owner's
  *     sentence and no count of people: a week anybody has ticked or written
- *     in, a week a live group's session for has passed (an archived group's
- *     does not count), and week 1 while it is open early to everybody holding
- *     a place. A refusal writes nothing.
+ *     in, and a week a live group's session for has passed (an archived
+ *     group's does not count). That is the whole rule: week 1 open early to
+ *     everybody holding a place, with nobody started, is taken back as any
+ *     week. A refusal writes nothing.
  *  2. COPYING WEEKS IN FROM ANOTHER RUN WITH REPLACE. Refused once anybody
  *     has started the run, in its transaction, with the board's sentence,
  *     and nothing is written; copying into weeks the run does not have is
@@ -166,14 +167,14 @@ describe("1. unpublishing a week", () => {
     assert.equal(world.db.read(weekPath("w02")).published, false);
   });
 
-  test("week 1 stays published while it is open early to everybody holding a place; taken out of Ready, it answers as any week", async () => {
+  test("week 1 open early to everybody holding a place, which nobody has started and no group has met for, is taken back as any week", async () => {
     for (const path of world.db.paths()) if (path.startsWith("courseExerciseResponses/")) world.db.seed(path, { runId: "elsewhere", weekId: "w09", uid: "x" });
+    // Published and marked ready on a run a programme names: open early.
     world.db.poke(weekPath("w01"), { ready: true });
-    const open = await press("claudia", { weekId: "w01" });
-    assert.deepEqual([open.status, open.body.inUse, open.body.error], [409, "week-one-open", words.weekStaysPublishedWords(1)]);
-    world.db.poke(weekPath("w01"), { ready: false });
-    const closed = await press("claudia", { weekId: "w01" });
-    assert.equal(closed.status, 200, JSON.stringify(closed.body));
+    const answer = await press("claudia", { weekId: "w01" });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.deepEqual(answer.body, { ok: true, week: { weekId: "w01", weekNumber: 1, published: false } });
+    assert.equal(world.db.read(weekPath("w01")).published, false);
   });
 
   test("a week already unpublished is left as it is, and an address that is not a week is 404", async () => {
@@ -238,21 +239,43 @@ describe("3. the question before a status move", () => {
   test("every move the select offers has its paragraph, and each says it can't be moved back", () => {
     for (const [from, tos] of Object.entries(ALLOWED_TRANSITIONS)) {
       for (const to of tos.filter((each) => each !== "cancelled")) {
-        for (const mode of ["admissions", "open"]) {
-          const said = words.statusQuestionBody(from, to, mode);
-          assert.ok(said, `${from} to ${to} (${mode})`);
+        for (const [mode, named] of [["admissions", false], ["admissions", true], ["open", false]]) {
+          const said = words.statusQuestionBody(from, to, mode, named);
+          assert.ok(said, `${from} to ${to} (${mode}${named ? ", named" : ""})`);
           assert.match(said, / It can’t be moved back\.$/);
           assert.doesNotMatch(said, /[\u2013\u2014]/, "no dashes");
         }
       }
     }
-    assert.equal(words.statusQuestionBody("running", "draft", "admissions"), null);
+    assert.equal(words.statusQuestionBody("running", "draft", "admissions", true), null);
+  });
+
+  test("on a run a programme names, no sentence speaks of the run's own application form, which takes no application at any status", () => {
+    assert.equal(
+      words.statusQuestionBody("draft", "applications-open", "admissions", true),
+      "Members can see it, its groups join each facilitator’s My programmes, the weekly emails and reminders start, and people can be handed over to it. It can’t be moved back.",
+    );
+    assert.equal(
+      words.statusQuestionBody("applications-open", "applications-closed", "admissions", true),
+      "The weekly emails and reminders go on. It can’t be moved back.",
+    );
+    assert.equal(
+      words.statusQuestionBody("applications-open", "running", "admissions", true),
+      "The weekly emails and reminders go on, and the run moves up each member’s list of programmes, with any other running ones. It can’t be moved back.",
+    );
+    for (const [from, to] of [["draft", "applications-open"], ["applications-open", "applications-closed"], ["applications-open", "running"], ["applications-closed", "running"]]) {
+      assert.doesNotMatch(words.statusQuestionBody(from, to, "admissions", true), /application form|sign-ups/, `${from} to ${to}`);
+    }
+    // On a run no programme names, its own form is what the move opens and closes.
+    assert.match(words.statusQuestionBody("draft", "applications-open", "admissions", false), /its own application form opens on the dates set below\./);
+    assert.match(words.statusQuestionBody("applications-open", "applications-closed", "admissions", false), /^Its own application form stops taking applications\./);
+    assert.doesNotMatch(words.statusQuestionBody("applications-closed", "running", "admissions", true), /to the top/);
   });
 
   test("the Completed question is the owner's, word for word", () => {
     assert.equal(words.statusQuestionTitle("AGI Strategy", "Autumn 2026", "completed"), "Move AGI Strategy, Autumn 2026 to Completed?");
     assert.equal(
-      words.statusQuestionBody("running", "completed", "admissions"),
+      words.statusQuestionBody("running", "completed", "admissions", true),
       "The weekly emails and reminders stop, its groups leave each facilitator’s My programmes, and nobody more can be handed over or moved. It can’t be moved back.",
     );
     assert.equal(words.NOBODY_IS_EMAILED, "Nobody is emailed.");
@@ -265,6 +288,7 @@ describe("3. the question before a status move", () => {
     assert.match(editor, /onChange=\{\(next\) => pickStatus\(next as CourseRunStatus\)\}/);
     assert.match(editor, /onClick=\{\(\) => void changeStatus\(askingStatus\)\}/);
     assert.equal([...editor.matchAll(/setRunStatus\(/g)].length, 1, "one call of the status route");
+    assert.match(editor, /statusQuestionBody\(run\.status, askingStatus, run\.enrolMode, groupPagesAt !== null\)/, "the question knows whether a programme names the run");
   });
 });
 

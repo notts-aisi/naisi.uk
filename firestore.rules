@@ -2559,9 +2559,14 @@ service cloud.firestore {
           && request.resource.data.get('checklist', []).size() <= 15
           && weekQuestionsOk(request.resource.data.get('questions', []));
 
-        // Destroying authored content outranks editing it: a drafter or
-        // track lead can blank a week's fields but not remove the doc.
-        allow delete: if isAdmin() || canApproveCourse();
+        // REMOVING A WEEK IS THE ROUTES', for every browser, admins included:
+        // the destroy cascade, Normalise week ids and the copies (Admin SDK).
+        // A delete takes a week from the people who ticked and answered in it
+        // more surely than an unpublish does, and skips both the unpublish
+        // route's check and the copies' (publishedNotTakenBack above). No page
+        // deletes a week; removing a slot from the week plan leaves its
+        // document where it is.
+        allow delete: if false;
 
         // A week's history, one record per save (who, when, and the week
         // after it), and its edit lock (who is editing it now): server-only,

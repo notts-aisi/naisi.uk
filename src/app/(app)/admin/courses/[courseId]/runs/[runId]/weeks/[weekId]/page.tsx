@@ -21,8 +21,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
  * address of this week on its Weeks page, where the week's blocks are changed
  * and it is marked ready: only the two ids of the form and the programme
  * reach the page, as a link. And whether the week is in use
- * (`readWeekInUse`: anybody has ticked or written in it, a group's session
- * for it has passed, or it is week 1 open early), so that a published week
+ * (`readWeekInUse`: anybody has ticked or written in it, or a group's
+ * session for it has passed), so that a published week
  * says it stays published in place of its switch: only that sentence reaches
  * the page, never a count or a name. The unpublish route asks again and is
  * the lock.
@@ -38,7 +38,7 @@ export default async function AdminCourseWeekPage({
   const weeksHref = naming ? weeksPath(naming.roundId, naming.programmeId, weekId) : null;
   const facts =
     db && isAddressableId(runId)
-      ? await readWeekInUse(db, { runId, weekId, namedByProgramme: naming !== null, now: new Date() }).catch(() => null)
+      ? await readWeekInUse(db, { runId, weekId, now: new Date() }).catch(() => null)
       : null;
   const staysPublished = facts && facts.week.published && facts.inUse ? weekStaysPublishedWords(facts.weekNumber) : null;
   return <WeekEditor courseId={courseId} runId={runId} weekId={weekId} weeksHref={weeksHref} staysPublished={staysPublished} />;

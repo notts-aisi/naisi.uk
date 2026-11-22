@@ -2380,9 +2380,9 @@ each with the readers that make it true.
 **A week stays published once it is in use.** A week stays published once
 anybody has ticked or written in it (any `courseProgress` row with its run
 and week number, any `courseExerciseResponses` row with its run and week
-id), or a live group's session for it has passed; and week 1, marked ready on
-a run a programme names, stays published while it is open early to everybody
-holding a place (take its Ready back on the Weeks tab first). Taking a week
+id), or a live group's session for it has passed. That is the whole rule:
+week 1 open early to everybody holding a place, which nobody has started and
+no group has met for, is taken back as any week can be. Taking a week
 back is `PATCH /api/courses/runs/[runId]/weeks/[weekId]/published` alone,
 `{ "published": false }`, for an admin, a course approver, the course drafter
 who wrote the run, its track leads and the programme's lead; it checks and
@@ -2390,18 +2390,21 @@ writes in one transaction and refuses with "People have started week 3, so it
 stays published. Change its blocks instead: each save is kept in its
 history." (409, nothing written; no count of people, no names). The rules
 refuse any browser write that takes `published` from true to false, admins
-included (`publishedNotTakenBack`); publishing stays a browser write. The
+included (`publishedNotTakenBack`), and no browser deletes a run's week at
+all, admins included: the routes remove weeks (the destroy cascade,
+Normalise week ids, the copies). Publishing stays a browser write. The
 older week page shows the sentence in place of its switch when it already
 knows.
 
-**Copying weeks in with Replace refuses once anybody has started.** The copy
-from another run (`clone-weeks`) now refuses a replace of weeks the run has
-once any `courseProgress` or `courseExerciseResponses` row carries the run,
-counted in the transaction that writes, as the copy from a saved template
-always has: "People have started this run, so copying in can’t replace its
-weeks. Copy into empty weeks only." Copying into weeks the run does not have
-goes on. The run page counts the same rows on the server and shows the
-sentence before the press.
+**Copying weeks in with Replace refuses once anybody has started.** Both
+copies, from another run (`clone-weeks`) and from a saved template
+(`apply-template`), refuse to replace a run's weeks once anybody has started
+the run (any `courseProgress` or `courseExerciseResponses` row with its id),
+counted in the transaction that writes. The copy from another run says
+"People have started this run, so copying in can’t replace its weeks. Copy
+into empty weeks only.", and copying into weeks the run does not have goes
+on. The run page counts the same rows on the server and shows the sentence
+before the press.
 
 **The doors.** Nothing in the newer pages leads into the older editor where
 the job has a newer home: the Overview's "Open week N" opens the week on the

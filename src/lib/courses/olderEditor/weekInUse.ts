@@ -1,7 +1,6 @@
 import "server-only";
 import type { Firestore, Query, Transaction } from "firebase-admin/firestore";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
-import { weekIsReady } from "@/lib/courses/weekReady";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, normalizeCourseWeek, type CourseRunDoc, type CourseWeekDoc } from "@/lib/firestore/courses";
 
@@ -22,13 +21,11 @@ import { normalizeCourseRun, normalizeCourseWeek, type CourseRunDoc, type Course
  *    row and neither needs a declared index.
  *  - A SESSION THAT HAS PASSED. Any group of the run that is not archived
  *    whose session for this week, on its own calendar, has ended.
- *  - WEEK 1 OPEN EARLY. Before groups go out, week 1 of a run a programme
- *    names opens to everybody holding a place once it is published and
- *    marked ready (`src/lib/courses/weekOne/door.ts`). Whether a given person
- *    has it open is their application's business, so the question is asked
- *    of the week instead: week 1, marked ready, on a run a programme names,
- *    stays published. Taking Ready back first (the Weeks tab) is the way to
- *    close the early door; it then answers this as any other week.
+ *
+ * That is the whole rule. Week 1 open early to everybody holding a place
+ * (`src/lib/courses/weekOne/door.ts`) answers it as any other week: with
+ * nobody having ticked or written in it and no session of it passed, it may
+ * be taken back.
  *
  * `tx` given, every read is the transaction's, so the unpublish route's check
  * and its write are one unit: a tick that lands first is counted, and one
@@ -36,7 +33,7 @@ import { normalizeCourseRun, normalizeCourseWeek, type CourseRunDoc, type Course
  * older week page asks the same question to say so before the press.
  */
 
-export type WeekInUse = "work" | "met" | "week-one-open";
+export type WeekInUse = "work" | "met";
 
 export type WeekInUseFacts = {
   run: CourseRunDoc;
@@ -59,16 +56,14 @@ const MAX_GROUPS = 50;
 
 /**
  * The run, the week and whether the week is in use. Null when the run or the
- * week is not there (or the run is being destroyed). `namedByProgramme` is
- * whether a programme names the run, read by the caller from the forms,
- * which are no part of the transaction.
+ * week is not there (or the run is being destroyed).
  */
 export async function readWeekInUse(
   db: Firestore,
-  args: { runId: string; weekId: string; namedByProgramme: boolean; now: Date },
+  args: { runId: string; weekId: string; now: Date },
   tx?: Transaction,
 ): Promise<WeekInUseFacts | null> {
-  const { runId, weekId, namedByProgramme, now } = args;
+  const { runId, weekId, now } = args;
   const idNumber = weekIdNumber(weekId);
   if (idNumber === null) return null;
   const runRef = db.collection("courseRuns").doc(runId);
@@ -105,6 +100,5 @@ export async function readWeekInUse(
       );
     if (met) inUse = "met";
   }
-  if (inUse === null && idNumber === 1 && namedByProgramme && weekIsReady(week)) inUse = "week-one-open";
   return { run, week, weekNumber, inUse };
 }

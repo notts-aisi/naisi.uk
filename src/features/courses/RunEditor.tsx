@@ -592,6 +592,10 @@ export default function RunEditor({
   const templateWeekCount = selectedTemplate?.weekCount ?? 0;
   // Replace over weeks that exist, on a run somebody has started: refused by
   // both copy routes, so the press is not offered and the sentence says why.
+  // For a saved template this is the route's own test. For another run the
+  // route refuses only when the copy would replace one of this run's weeks,
+  // and this page does not read the other run's week documents to know, so
+  // for a run whose weeks are all new here it errs closed.
   const replaceBlocked = replaceWeeks && weeks.length > 0 && peopleStarted;
   const minWeeksRemoved = selectedTemplate
     ? Math.max(0, weeks.length - templateWeekCount)
@@ -1541,7 +1545,7 @@ export default function RunEditor({
               {statusQuestionTitle(programmeName ?? run.courseTitle, run.label, askingStatus)}
             </h2>
             <p className={pickerStyles.dialogBody}>
-              {statusQuestionBody(run.status, askingStatus, run.enrolMode)}
+              {statusQuestionBody(run.status, askingStatus, run.enrolMode, groupPagesAt !== null)}
             </p>
             <p className={styles.muted}>{NOBODY_IS_EMAILED}</p>
             <div className={pickerStyles.dialogActions}>
