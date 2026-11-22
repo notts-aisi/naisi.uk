@@ -115,9 +115,10 @@ import { useBoardPanel } from "./useBoardPanel";
  * them out. Shown as Rings, that read is made at once, since the rings need
  * it; Columns still makes it only once a panel is opened.
  *
- * ARRANGING, on Columns and on Rings, once decisions have gone out:
- * "Suggest groups" in the toolbar reads the run's groups and asks for a
- * suggestion without Claude, then draws Circles' arranging in place of the
+ * ARRANGING, on Columns and on Rings: "Suggest groups" in the toolbar, for
+ * an admin at any time (before decisions go out a preview, an admin's
+ * alone) and for the programme's lead once decisions have gone out, reads
+ * the run's groups and asks for a suggestion without Claude, then draws Circles' arranging in place of the
  * board (`Circles`, with its preview, Apply and every change it saves
  * through the site's own routes) until "Back to the rings" or "Back to the
  * columns". An admin reads the groups through Circles' own route and is
@@ -783,11 +784,12 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
   // The arranging, for an admin and the programme's lead
   // -------------------------------------------------------------------------
 
-  // "Suggest groups": Circles' own read of the run's groups (its route answers
-  // an admin alone), then a suggestion over them without Claude, as Circles'
-  // own "Suggest groups" asks. Nothing is written. A suggestion that could
-  // not be worked out opens the arranging with its reason, where it can be
-  // asked again.
+  // "Suggest groups": the run's groups as they are (an admin's through
+  // Circles' own route, the lead's through the lead's own, which carries no
+  // Claude or Pangram), then a suggestion over them without Claude, as
+  // Circles' own "Suggest groups" asks. Nothing is written. A suggestion that
+  // could not be worked out opens the arranging with its reason, where it can
+  // be asked again.
   const openArranging = useCallback(async () => {
     const base = `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
     setOpeningArranging(true);
@@ -833,11 +835,11 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
     panelRead.retry();
   }, [reload, panelRead]);
 
-  // Shown as Columns while an admin's arranging is open (the toolbar's
-  // Columns, or the browser's Back): the page stays mounted across the
+  // Shown the other way while the arranging is open (the toolbar's Columns
+  // or Rings, or the browser's Back), for either reader: the page stays mounted across the
   // address's change, so the arranging is closed here, and whatever it
   // saved (an Apply included) is read again, the board and everybody's week,
-  // exactly as "Back to the rings" reads them.
+  // exactly as its own way back reads them.
   const [owedReads, setOwedReads] = useState(0);
   if (arranging !== null && arranging.openedOn !== show) {
     setArranging(null);
@@ -960,8 +962,9 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
           {words.SELECT_SEVERAL}
         </button>
       ) : null}
-      {/* Suggesting groups, for an admin and the programme's lead, once decisions have gone out. */}
-      {view.sent ? (
+      {/* Suggesting groups: an admin at any time (before decisions go out it is a preview, an
+          admin's alone), and the programme's lead once decisions have gone out. */}
+      {view.sent || admin ? (
         <button
           type="button"
           className={`${shared.btn} ${styles.publishLink}`}

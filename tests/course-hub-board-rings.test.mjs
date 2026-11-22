@@ -524,6 +524,34 @@ describe("3b. the page's own Rings, as the lead and as an admin", () => {
 // 3c. A person's answer about their group's time, in the panel
 // ---------------------------------------------------------------------------
 
+describe("3b2. who is offered Suggest groups, before and after decision day", () => {
+  /** Whether the page, as `who`, shown as `query` says, draws the toolbar's Suggest groups. */
+  const offers = async (who, query) => />Suggest groups</.test((await w.draw(PeoplePage, who, PARAMS, query)).html);
+
+  test("an admin at any time, on Rings and on Columns; the programme's lead only once decisions have gone out", async () => {
+    await world();
+    for (const query of [{ show: "rings" }, {}]) {
+      assert.equal(await offers("zach", query), true, `an admin after decisions, ${JSON.stringify(query)}`);
+      assert.equal(await offers("claudia", query), true, `the lead after decisions, ${JSON.stringify(query)}`);
+    }
+    w.world.db.poke(`admissionRounds/${ROUND}`, { decisionsSentAt: null });
+    for (const query of [{ show: "rings" }, {}]) {
+      // Before decision day the suggestion is an admin's preview, and the lead's own route refuses.
+      assert.equal(await offers("zach", query), true, `an admin before decisions, ${JSON.stringify(query)}`);
+      assert.equal(await offers("claudia", query), false, `the lead before decisions, ${JSON.stringify(query)}`);
+    }
+  });
+
+  test("Select several is drawn on Columns before the groups go out, never on Rings", async () => {
+    await world();
+    w.world.db.poke(`courseRuns/${RUN.agi}`, { allocationPublishedAt: null });
+    for (const who of ["zach", "claudia"]) {
+      assert.match((await drawBoard(who, {})).html, />Select several</, `${who} on Columns`);
+      assert.doesNotMatch((await drawBoard(who, { show: "rings" })).html, /Select several/, `${who} on Rings`);
+    }
+  });
+});
+
 describe("3c. the panel says their answer about their group's time, for the readers the card says it to", () => {
   const drawPanel = (row, columnId, extra = {}) =>
     renderToStaticMarkup(
@@ -646,7 +674,7 @@ describe("4. Rings is the same board, its moves the card's own", () => {
     // without Claude; the button is there for both, on Rings and on Columns, once decisions have gone out.
     assert.match(board, /view\.viewer === "admin"\s*\? await fetch\(`\$\{base\}\/circles`, \{ cache: "no-store" \}\)\s*: await fetch\(`\$\{base\}\/arranging`, \{ cache: "no-store" \}\)/);
     assert.match(board, /JSON\.stringify\(\{ askClaude: false, minutes: String\(circles\.minutes\), startAgain: false \}\)/);
-    assert.match(board, /\{view\.sent \? \(\s*<button/);
+    assert.match(board, /\{view\.sent \|\| admin \? \(\s*<button/);
     assert.match(board, /forLead=\{!admin\}/);
     // Shown the other way while the arranging is open, the arranging closes and the board and the weeks are read again.
     assert.match(board, /if \(arranging !== null && arranging\.openedOn !== show\) \{\s*setArranging\(null\);\s*setOwedReads\(\(n\) => n \+ 1\);\s*\}/);
