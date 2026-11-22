@@ -676,6 +676,14 @@ const READERS = {
       "holds a place in the group (the Groups tab counts it too). It answers a count and group names to whoever may " +
       "archive the group, and shows nobody a placement",
   },
+  "lib/courses/placesAndName/set.ts": {
+    kind: "writer",
+    proof: ['const placesQuery = db.collection("courseEnrolments").where("runId", "==", runId);', "inGroup: placesInGroup({ group, places: enrolments }).length,"],
+    why:
+      "what changing a group's places reads: every place on the run, told or not, because an untold seat still " +
+      "holds a place in the group (the Groups tab and the archive check count it too), so the places can't go below " +
+      "it. It answers a count to the programme's lead or an admin, who are shown every place, and shows nobody a placement",
+  },
   "lib/courses/moveFromWeek.ts": {
     kind: "writer",
     proof: ["if (!placementIsTold(place)) return { ok: false, refusal: \"not-told\" };", "patch.toldGroupId = fromGroupId;"],

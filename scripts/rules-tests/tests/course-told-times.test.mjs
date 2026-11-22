@@ -167,18 +167,16 @@ const GROUP_TIME_CHANGES = [
 /**
  * What the pages still write to a group once its run's groups have gone out,
  * in the shapes they write it. The group card in the run editor saves the
- * name, the capacity and the notes by dotted path (`updateGroup`), and, only
- * for an admin on a run no programme names, the room, the link and the
- * campus (GROUP_ROOM_WRITES below: for everybody else those are the routes',
- * at any time, which course-older-editor-locks.test.mjs holds). Its archive
+ * notes by dotted path (`updateGroup`), and, only for an admin on a run no
+ * programme names, the name, the capacity, the room, the link and the campus
+ * (GROUP_ROOM_WRITES below: for everybody else those are the routes', at any
+ * time, which course-older-editor-locks.test.mjs holds). Its archive
  * switch goes through a route, and no browser changes `archived` at all:
  * course-group-archived.test.mjs holds that refusal for every writer, before
  * and after the groups go out.
  */
 const GROUP_KEPT_WRITES = [
   ["the notes", () => ({ "session.notes": "Bring the reading.", updatedAt: serverTimestamp() })],
-  ["the name", () => ({ name: "Group A (Tue)", updatedAt: serverTimestamp() })],
-  ["the capacity", () => ({ capacity: 10, updatedAt: serverTimestamp() })],
   [
     "the group card's save once the groups have gone out, on a run a programme names",
     () => ({
@@ -203,10 +201,14 @@ const GROUP_KEPT_WRITES = [
 ];
 
 /**
- * The card's writes that change the room, the link or the campus: an admin's
- * alone from a browser, before the groups go out and after.
+ * The card's writes that change the name, the capacity, the room, the link
+ * or the campus: an admin's alone from a browser, before the groups go out
+ * and after. (The name and the capacity were among the kept writes until the
+ * group's page had Places and Name.)
  */
 const GROUP_ROOM_WRITES = [
+  ["the name", () => ({ name: "Group A (Tue)", updatedAt: serverTimestamp() })],
+  ["the capacity", () => ({ capacity: 10, updatedAt: serverTimestamp() })],
   ["the room", () => ({ "session.location": "Trent Building A44", updatedAt: serverTimestamp() })],
   ["the meeting link", () => ({ "session.meetingUrl": "https://meet.example.com/group-a", updatedAt: serverTimestamp() })],
   ["the campus", () => ({ campus: "jubilee", updatedAt: serverTimestamp() })],
@@ -376,7 +378,7 @@ describe("courseGroups: a group's time once its run's groups have gone out", () 
     }
   });
 
-  it("still saves everything else the pages write: the notes, the name, the capacity", async () => {
+  it("still saves everything else the pages write: the notes, and the name and the capacity sent as stored", async () => {
     await seedWorld();
     for (const uid of GROUP_WRITERS) {
       const db = await asUser(uid);
@@ -387,7 +389,7 @@ describe("courseGroups: a group's time once its run's groups have gone out", () 
     }
   });
 
-  it("still saves an admin's room, link and campus; everybody else's go through the routes", async () => {
+  it("still saves an admin's name, capacity, room, link and campus; everybody else's go through the routes", async () => {
     await seedWorld();
     for (const uid of GROUP_WRITERS) {
       const db = await asUser(uid);

@@ -305,6 +305,21 @@ describe("4. the older group card and New group on a run a programme names", () 
     assert.doesNotMatch(card, /\n\s+campus,\n\s+\},\n\s+enrolMode/, "the card sends the campus whatever");
   });
 
+  test("the name and the capacity follow the room: sent only when the card may change them and they changed", () => {
+    // Fields for an admin on a run no programme names, exactly as the room; words everywhere else.
+    assert.match(card, /const nameAndPlacesEditable = roomEditable;/);
+    assert.match(card, /const nameChanged = nameAndPlacesEditable && trimmedName !== group\.name;/);
+    assert.match(card, /const capacityChanged = nameAndPlacesEditable && nextCapacity !== group\.capacity;/);
+    assert.match(card, /\.\.\.\(nameChanged \? \{ name: trimmedName \} : \{\}\)/);
+    assert.match(card, /\.\.\.\(capacityChanged \? \{ capacity: nextCapacity \} : \{\}\)/);
+    assert.doesNotMatch(card, /\n\s+name: trimmedName,\n\s+capacity: nextCapacity,/, "the card sends the name and the capacity whatever");
+    // As words: "Change it on Group C's page" on a run a programme names, the room's sentence for anybody else elsewhere.
+    assert.match(card, /\{nameAndPlacesEditable \? \(\n\s+<div className=\{styles\.twoCol\}>/);
+    assert.equal((card.match(/changeOnGroupPageWords\(groupName\)/g) ?? []).length, 5, "the time, the room, the link, the name and the capacity");
+    assert.equal((card.match(/ONLY_AN_ADMIN_HERE/g) ?? []).length, 5, "imported once, and under the room, the link, the name and the capacity");
+    assert.equal(words.ONLY_AN_ADMIN_HERE, "Only an admin can change these here.");
+  });
+
   test("the Archived switch is the board's sentence and link where a group page exists", () => {
     assert.equal(words.archiveOnGroupPageWords("Group C"), "Archive and restore are on Group C’s page.");
     assert.equal(words.openGroupPageWords("Group C"), "Open Group C’s page");

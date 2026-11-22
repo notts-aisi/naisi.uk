@@ -312,15 +312,19 @@ describe("1. the arithmetic of a group's page", () => {
       { id: "2", category: "people" },
       { id: "3", category: "link" },
       { id: "4", category: "registers" },
+      { id: "5", category: "name-and-places" },
     ];
-    assert.deepEqual(model.filterHistory(rows, "everything").map((row) => row.id), ["1", "2", "3", "4"]);
+    assert.deepEqual(model.filterHistory(rows, "everything").map((row) => row.id), ["1", "2", "3", "4", "5"]);
     assert.deepEqual(model.filterHistory(rows, "time-and-room").map((row) => row.id), ["1"]);
     assert.deepEqual(model.filterHistory(rows, "people").map((row) => row.id), ["2"]);
     assert.deepEqual(model.filterHistory(rows, "link").map((row) => row.id), ["3"]);
     // ADDED (November 2026): the Registers filter, now registers log there
     // (taking one in a facilitator's place, giving a session, didn't happen).
     assert.deepEqual(model.filterHistory(rows, "registers").map((row) => row.id), ["4"]);
-    assert.deepEqual(words.HISTORY_FILTERS.map((each) => each.label), ["Everything", "Time and room", "People", "Link", "Registers"]);
+    // CHANGED ON PURPOSE (November 2026): Name and places, second, for the
+    // rows the group's page writes when its places or name change.
+    assert.deepEqual(model.filterHistory(rows, "name-and-places").map((row) => row.id), ["5"]);
+    assert.deepEqual(words.HISTORY_FILTERS.map((each) => each.label), ["Everything", "Name and places", "Time and room", "People", "Link", "Registers"]);
     assert.equal(model.historyWhenWords("2026-11-10T12:20:00Z"), "Tue 10 Nov, 12:20pm");
   });
 
@@ -679,7 +683,9 @@ describe("3. the group's page, and the facilitator's cut", () => {
       "How Group B meets",
       "Day and time",
       "Tuesdays, 6pm to 8pm",
-      "Leads and admins change the regular time, room and facilitators. Facilitators change one week and set the link.",
+      // CHANGED ON PURPOSE (November 2026): leads and admins now change all
+      // six rows, Places and Name among them.
+      "Leads and admins change all of this. Facilitators change one week and set the link.",
       "Week by week",
       "History",
       "Tue 3 Nov · no register",

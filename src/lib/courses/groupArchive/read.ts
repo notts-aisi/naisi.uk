@@ -13,6 +13,27 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { startedSessions, type GroupArchiveFacts } from "./plan";
 
 /**
+ * THE FREED PLACES OFFERED IN A GROUP'S NAME AND NOT ANSWERED YET, counted
+ * from the applications whose `freedPlace.groupId` names it (the query is
+ * the caller's: one equality on that map field, so no declared index):
+ * still in the term, and the invitation standing (`standingOf`). One
+ * accepted is a place the board seats, so it is not counted here. Archiving
+ * waits on these. (A group's places count the accepted ones too, until they
+ * are placed: `readHeldSeats` in src/lib/courses/placesAndName/held.ts.)
+ */
+export function freedOffersIn(snap: QuerySnapshot, groupId: string): number {
+  return snap.docs
+    .map((doc) => normaliseApplication(doc.id, doc.data()))
+    .filter((application) => application !== null && application.freedPlace?.groupId === groupId)
+    .filter((application) => application !== null && isInTerm(application) && standingOf(application).kind === "invitation").length;
+}
+
+/** The query `freedOffersIn` counts: the applications a freed place in this group's name was offered on. */
+export function freedOffersQuery(db: Firestore, groupId: string): Query {
+  return db.collection(APPLICATIONS_COLLECTION).where("freedPlace.groupId", "==", groupId);
+}
+
+/**
  * WHAT ARCHIVING OR RESTORING ONE GROUP READS, once before the press's
  * transaction and again inside it, so the decision the press writes on is
  * the one made of what the transaction read.
@@ -47,12 +68,7 @@ export async function readGroupArchiveFacts(
     // field, so no declared index.
     list(db.collection(APPLICATIONS_COLLECTION).where("freedPlace.groupId", "==", group.id)),
   ]);
-  // Offered and not answered yet: still in the term, and the invitation
-  // standing (`standingOf`). One accepted is a place the board seats.
-  const freedOffers = offersSnap.docs
-    .map((doc) => normaliseApplication(doc.id, doc.data()))
-    .filter((application) => application !== null && application.freedPlace?.groupId === group.id)
-    .filter((application) => application !== null && isInTerm(application) && standingOf(application).kind === "invitation").length;
+  const freedOffers = freedOffersIn(offersSnap, group.id);
   const run = runSnap.exists ? normalizeCourseRun(runSnap.id, runSnap.data() ?? {}) : null;
   const destroying = runSnap.exists && runSnap.data()?.destroying === true;
   const runGroups = groupsSnap.docs

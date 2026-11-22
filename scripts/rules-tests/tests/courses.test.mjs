@@ -887,9 +887,11 @@ describe("courseGroups", () => {
         },
       }),
     );
-    // The parent run's track lead shares the lane.
+    // The parent run's track lead shares the lane. (The notes: the name is
+    // the name route's for all but an admin now, which
+    // course-older-editor-locks.test.mjs holds.)
     await assertSucceeds(
-      (await asUser("lead")).collection("courseGroups").doc("g1").update({ name: "Group A (Tue)" }),
+      (await asUser("lead")).collection("courseGroups").doc("g1").update({ "session.notes": "Bring the reading." }),
     );
   });
 
@@ -2148,8 +2150,15 @@ describe("courseGroups: V3 server-owned fields and the capacity ceiling", () => 
     await assertSucceeds(
       db.collection("courseGroups").doc("grp-max").set(groupDoc({ capacity: 40 })),
     );
+    // An update past it is refused; since the places route took the
+    // capacity, an approver's browser is refused any change to it as well
+    // (course-older-editor-locks.test.mjs), so the ceiling stands guard on
+    // creates and on a capacity sent as it is stored.
     await assertFails(
       db.collection("courseGroups").doc("grp-max").update({ capacity: 41 }),
+    );
+    await assertSucceeds(
+      db.collection("courseGroups").doc("grp-max").update({ capacity: 40, "session.notes": "Full house." }),
     );
     await assertFails(
       db.collection("courseGroups").doc("grp-zero").set(groupDoc({ capacity: 0 })),
@@ -2235,11 +2244,18 @@ describe("courseGroups: V3 server-owned fields and the capacity ceiling", () => 
         .update({ session: { ...groupDoc().session, notes: "Room changed again." } }),
     );
 
-    // And an approver setting a capacity is the repair, so the wedge is not
-    // permanent once somebody knows what happened.
+    // And setting a capacity is the repair, so the wedge is not permanent
+    // once somebody knows what happened. An admin sets it from a browser (on
+    // a run no programme names, the older group card); everybody else's
+    // browser is refused the capacity at any time, since it is the places
+    // route's (course-older-editor-locks.test.mjs).
     const approver = await asUser("approver");
-    await assertSucceeds(
+    await assertFails(
       approver.collection("courseGroups").doc("grp-flip").update({ capacity: 12 }),
+    );
+    const admin = await asUser("admin1");
+    await assertSucceeds(
+      admin.collection("courseGroups").doc("grp-flip").update({ capacity: 12 }),
     );
   });
 });

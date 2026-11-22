@@ -124,7 +124,7 @@ export type GroupPageHistoryRow = {
   actorName: string;
   headline: string;
   rest: string;
-  category: "time-and-room" | "people" | "link" | "registers" | "other";
+  category: "name-and-places" | "time-and-room" | "people" | "link" | "registers" | "other";
 };
 
 /** Everything a group's page draws, read on the server (`loadGroupPage`). Names only: no address, no link. */
@@ -155,6 +155,16 @@ export type GroupPageView = {
     /** The group has a standing link. Never the link. */
     hasLink: boolean;
   };
+  /**
+   * The group's own limit (`capacity`, null for no limit), the people in it
+   * as the Groups tab counts them (learner places whose group it is that have
+   * not left, `placesInGroup`) and the seats freed places hold in it (offered
+   * and not answered, or accepted by somebody not placed yet): the places
+   * can't go below the two together. `noLimitAllowed` is false on an
+   * open-enrolment run, whose groups always have a number. For admins and
+   * the lead; null on the facilitator's page.
+   */
+  places: { capacity: number | null; inGroup: number; heldSeats: number; noLimitAllowed: boolean } | null;
   /** Admins, the programme's lead and the run's track leads change the regular time and room. */
   canChangeRegular: boolean;
   /** The programme's lead's first name, for the facilitator's "Claudia or an admin ..." */

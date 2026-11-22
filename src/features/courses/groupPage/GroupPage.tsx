@@ -15,6 +15,7 @@ import {
   type GroupPageWeek,
 } from "@/lib/courses/groupPage/model";
 import * as W from "@/lib/courses/groupPage/words";
+import * as P from "@/lib/courses/placesAndName/words";
 import * as S from "@/lib/courses/excused/staffWords";
 import { coverChoicesOf, noticeWeekOf } from "@/lib/courses/registerCover/pageModel";
 import * as C from "@/lib/courses/registerCover/pageWords";
@@ -26,6 +27,8 @@ import AttendanceTab from "./AttendanceTab";
 import ChangePanel, { type ChangeStart } from "./ChangePanel";
 import GivePanel from "./GivePanel";
 import LinkPanel from "./LinkPanel";
+import NamePanel from "./NamePanel";
+import PlacesPanel from "./PlacesPanel";
 import RemindPanel from "./RemindPanel";
 import RoomPanel from "./RoomPanel";
 import { readingHref } from "@/lib/courses/coursework/reading";
@@ -78,6 +81,10 @@ export type GroupPageLinks = {
   people: string;
   /** The programme's room route for this group. */
   roomPath: string;
+  /** The programme's places route for this group. */
+  placesPath?: string | null;
+  /** The programme's name route for this group. */
+  namePath?: string | null;
   /** The Requests page, where a line's waiting ask is decided; null where the reader has no way there. */
   requests?: string | null;
   /** The programme's reading view of one person's week, before the person (".../coursework"); left out, names are plain text. */
@@ -97,6 +104,8 @@ type Panel =
   | { kind: "change"; start: ChangeStart; didNotHappen?: boolean }
   | { kind: "link"; week: { weekNumber: number; sessionKey: string } | null }
   | { kind: "room" }
+  | { kind: "places" }
+  | { kind: "name" }
   | { kind: "give"; weekNumber: number }
   | { kind: "remind"; weekNumber: number; only: { uid: string; firstName: string } | null };
 
@@ -444,10 +453,17 @@ export default function GroupPage({
           <p className={styles.meetsWho}>{W.WHO_CHANGES_WHAT}</p>
         </div>
         <dl className={styles.meets}>
+          {/* Six rows, in this order: Day and time (with the length), Room,
+              Meeting link, Facilitators, Places and Name; then Archive. On a
+              phone each button sits under its value and opens a sheet. */}
           <div className={styles.meetsItem}>
             <dt className={styles.meetsLabel}>{W.DAY_AND_TIME}</dt>
             <dd className={styles.meetsValue}>
-              {timeSet ? W.dayAndTimeWords(view.meets.weekday, view.meets.hhmm, view.meets.minutes) : W.NOT_SET_YET}
+              {timeSet
+                ? [W.dayAndTimeWords(view.meets.weekday, view.meets.hhmm, view.meets.minutes), W.lengthLine(view.meets.minutes)]
+                    .filter(Boolean)
+                    .join(" · ")
+                : W.NOT_SET_YET}
             </dd>
             <dd className={styles.meetsAction}>
               {timeSet && view.weeks.length > 0 ? (
@@ -467,25 +483,6 @@ export default function GroupPage({
               )}
             </dd>
           </div>
-          {timeSet && (
-            <div className={styles.meetsItem}>
-              <dt className={styles.meetsLabel}>{W.LENGTH}</dt>
-              <dd className={styles.meetsValue}>{W.lengthLine(view.meets.minutes) || W.NOT_SET_YET}</dd>
-              {view.weeks.length > 0 && (
-                <dd className={styles.meetsAction}>
-                  <button
-                    type="button"
-                    className={styles.button}
-                    disabled={!hydrated}
-                    aria-label={`${W.CHANGE}: ${W.LENGTH}`}
-                    onClick={() => open({ kind: "change", start: { choice: "regular", weekNumber: null } })}
-                  >
-                    {W.CHANGE}
-                  </button>
-                </dd>
-              )}
-            </div>
-          )}
           <div className={styles.meetsItem}>
             <dt className={styles.meetsLabel}>{W.ROOM}</dt>
             <dd className={styles.meetsValue}>{view.meets.room ? W.roomLine(view.meets.room, campus) : W.NOT_SET_YET}</dd>
@@ -529,6 +526,36 @@ export default function GroupPage({
                 {view.facilitatorNames.length > 0 ? W.CHANGE : W.ADD_A_FACILITATOR}
               </Link>
             </dd>
+          </div>
+          {view.places && (
+            <div className={styles.meetsItem}>
+              <dt className={styles.meetsLabel}>{P.PLACES}</dt>
+              <dd className={styles.meetsValue}>{P.placesRowWords(view.places.capacity, view.places.inGroup)}</dd>
+              {links.placesPath && (
+                <dd className={styles.meetsAction}>
+                  <button
+                    type="button"
+                    className={styles.button}
+                    disabled={!hydrated}
+                    aria-label={`${W.CHANGE}: ${P.PLACES}`}
+                    onClick={() => open({ kind: "places" })}
+                  >
+                    {W.CHANGE}
+                  </button>
+                </dd>
+              )}
+            </div>
+          )}
+          <div className={styles.meetsItem}>
+            <dt className={styles.meetsLabel}>{P.NAME}</dt>
+            <dd className={styles.meetsValue}>{view.groupName}</dd>
+            {links.namePath && (
+              <dd className={styles.meetsAction}>
+                <button type="button" className={styles.button} disabled={!hydrated} onClick={() => open({ kind: "name" })}>
+                  {P.RENAME}
+                </button>
+              </dd>
+            )}
           </div>
           <ArchiveItem groupId={view.groupId} groupName={view.groupName} />
         </dl>
@@ -816,6 +843,10 @@ export default function GroupPage({
             ? W.SET_THE_LINK
             : panel?.kind === "room"
               ? W.roomPanelTitle(view.groupName)
+              : panel?.kind === "places"
+                ? P.placesPanelTitle(view.groupName)
+                : panel?.kind === "name"
+                  ? P.renamePanelTitle(view.groupName)
               : panel?.kind === "give"
                 ? C.SOMEONE_ELSE_IS_COVERING
                 : panel?.kind === "change" && panel.didNotHappen
@@ -869,6 +900,39 @@ export default function GroupPage({
                 router.refresh();
               }}
             />
+          ) : panel.kind === "places" ? (
+            view.places && links.placesPath ? (
+              <PlacesPanel
+                key={opened}
+                groupName={view.groupName}
+                places={view.places}
+                placesPath={links.placesPath}
+                onClose={dismiss}
+                onDone={(words) => {
+                  dismiss();
+                  // A save that changed nothing closes the panel and says nothing.
+                  if (words === null) return;
+                  setSaid(words);
+                  router.refresh();
+                }}
+              />
+            ) : null
+          ) : panel.kind === "name" ? (
+            links.namePath ? (
+              <NamePanel
+                key={opened}
+                groupName={view.groupName}
+                namePath={links.namePath}
+                onClose={dismiss}
+                onDone={(words) => {
+                  dismiss();
+                  // A save that changed nothing closes the panel and says nothing.
+                  if (words === null) return;
+                  setSaid(words);
+                  router.refresh();
+                }}
+              />
+            ) : null
           ) : panel.kind === "link" ? (
             <LinkPanel
               key={opened}
