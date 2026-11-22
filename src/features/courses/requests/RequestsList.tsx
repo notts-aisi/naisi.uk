@@ -197,7 +197,7 @@ export default function RequestsList({
         {view.filter ? (
           <p className={styles.filterOn} data-testid="requests-filter">
             <span className={styles.filterLabel}>{P.FILTER_PROGRAMME_LABEL}</span>{" "}
-            <strong>{view.filter.name || P.A_PROGRAMME}</strong>
+            <strong>{view.filter.name || P.A_PROGRAMME}</strong>{" "}
             <Link href={REQUESTS_PATH} className={styles.filterClear}>
               {P.ALL_REQUESTS}
             </Link>
