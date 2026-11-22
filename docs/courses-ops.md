@@ -1491,8 +1491,8 @@ Decide any waiting request first: it would have no page.
 The term's application form decides who holds a place on each programme
 (see [docs/applications.md](applications.md), "From the form onto a course
 run"). Groups are formed on a course run's allocation board. This is the
-order the two are joined in. Steps 1 to 4 are an admin's. Steps 5 and 7
-the programme's lead does too, on the run their programme names, from the
+order the two are joined in. Steps 1 to 4 are an admin's. The programme's
+lead does steps 5 and 7 too, on the run their programme names, from the
 programme's own page (see "A programme's lead on the run their programme
 names" below). Step 6, Publish, is an admin's alone.
 
@@ -1640,12 +1640,15 @@ names" below). Step 6, Publish, is an admin's alone.
   are added, and reads "You’ll see your group’s names when groups go out."
   where the names will be. Moving people around on the board emails nobody
   and shows nobody anything.
-- **After Publish, press Publish again soon after any move or late
-  placement.** Somebody already told their group sees a move at once (see
-  "Moving somebody already told their group" above), and the next press
+- **After Publish, an admin presses Publish again soon after any move or
+  late placement.** Somebody already told their group sees a move at once
+  (see "Moving somebody already told their group" above), and the next press
   emails them that they have moved. Somebody placed late, or put back after
   they left, reads nothing of the run, is on no group's roster or register,
   and gets none of the group's mail until Publish emails them their group.
+  A programme's lead who moves somebody, places somebody late or puts
+  somebody back after the groups have gone out emails nobody by doing it:
+  the person waits for an admin to publish again, so the lead asks one.
 - **Publish never emails somebody who gave their place back.** Somebody
   placed and not told yet who replies "I can’t make it" keeps their seat
   until somebody Removes it, and their card says "Gave their place back".
@@ -1899,7 +1902,8 @@ delivery for `course-taken-off` rows to that person and their group's
 facilitators, and if none went, tell the person by hand.
 
 To put somebody back, an admin or the programme's lead places them again on
-the board and presses Publish, which emails them: placing them clears the
+the board, which emails nobody, and an admin presses Publish, which emails
+them (a lead asks an admin to publish again): placing them clears the
 day, the reason and Publish's stamp, and gives them back the place on the
 form that leaving or Remove gave up, in the same transaction
 (`readPlaceToRestore` and `restorePlaces` in
