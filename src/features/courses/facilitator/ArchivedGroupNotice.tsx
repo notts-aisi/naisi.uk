@@ -27,7 +27,7 @@ export default function ArchivedGroupNotice({
   leadFirstName: string | null;
 }) {
   return (
-    <div className={styles.page} data-testid="archived-group">
+    <div className={styles.page}>
       <h1 className={styles.heading}>{facilitatorArchivedTitle(groupName, dayLabel)}</h1>
       <p className={styles.who}>{facilitatorArchivedLine(leadFirstName)}</p>
       <Link href="/learn" className={`${facilitator.buttonPrimary} ${styles.way}`}>

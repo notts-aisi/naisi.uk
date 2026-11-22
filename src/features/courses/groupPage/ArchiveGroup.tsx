@@ -132,7 +132,7 @@ export function ArchivePanel({
 
   const titleId = `${ids}-title`;
   return (
-    <section className={styles.panel} aria-labelledby={titleId} data-testid="archive-question">
+    <section className={styles.panel} aria-labelledby={titleId}>
       <div className={styles.panelHead}>
         <h2 id={titleId} className={styles.panelTitle}>
           {A.archiveQuestionTitle(groupName)}
@@ -195,7 +195,7 @@ export function RestorePanel({
 
   const titleId = `${ids}-title`;
   return (
-    <section className={styles.panel} aria-labelledby={titleId} data-testid="restore-question">
+    <section className={styles.panel} aria-labelledby={titleId}>
       <div className={styles.panelHead}>
         <h2 id={titleId} className={styles.panelTitle}>
           {A.restoreQuestionTitle(groupName)}

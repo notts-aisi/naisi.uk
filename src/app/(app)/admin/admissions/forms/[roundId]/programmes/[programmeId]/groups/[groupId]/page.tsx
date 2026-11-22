@@ -25,7 +25,7 @@ import { archivedSentence, restoreQuestionBody, restoredSaidWords, sitsElsewhere
 import { dayAndTimeWords, roomLine } from "@/lib/courses/groupPage/words";
 import { CAMPUS_LABEL } from "@/lib/courses/campusWords";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
-import { accountNamesOf, seesFullNames } from "@/lib/names/staffName";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 
 /**
  * ONE GROUP'S PAGE, under the programme's Groups tab, at
@@ -160,8 +160,8 @@ export default async function ProgrammeGroupPage({
         : Promise.resolve(null),
       readGroupArchiveFacts(db, group.id, now, undefined, user).catch(() => null),
     ]);
-    const byNames = byData ? accountNamesOf(byData) : null;
-    const byName = byNames ? ((seesFullNames(user) ? (byNames.full ?? byNames.goBy) : byNames.goBy) ?? "") : "";
+    // As the reader may see them (the names rule): the committee and admins the full name.
+    const byName = byData ? nameForViewer(user, accountNamesOf(byData), "") : "";
     const plan = facts ? restorePlan(facts, now) : null;
     const groupNames = new Map(live.map((each) => [each.id, each.name] as const));
     const restoreNote =

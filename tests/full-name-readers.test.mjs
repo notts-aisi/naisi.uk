@@ -411,6 +411,21 @@ const READERS = new Map([
     proof: ['nameByUid.set(doc.id, nameForViewer(viewer, accountNamesOf(data), "NAISI member"));'],
     why: "a register's rows, named for the viewer each caller hands it: the register's route hands it the session; what reaches the people themselves hands it no role, and reads the name they go by",
   }],
+  ["src/app/api/courses/groups/[groupId]/archive/route.ts", {
+    who: "rule",
+    proof: ['const name = account?.exists ? nameForViewer(null, accountNamesOf(account.data() ?? {}), "That person") : "That person";'],
+    why: "restoring a group: the History row for a facilitator a restore takes off keeps the name they go by, which anybody who reads the group's history may be shown, as the facilitators route's row does",
+  }],
+  ["src/lib/courses/groupArchive/read.ts", {
+    who: "rule",
+    proof: ['const name = nameForViewer(viewer, accountNamesOf(data), "NAISI member");'],
+    why: "archiving or restoring a group: a refusal names a visitor or whoever covers a session, and the restore question its facilitators, to the presser (an admin or the programme's lead) by the presser's own session",
+  }],
+  ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/page.tsx", {
+    who: "rule",
+    proof: ['const byName = byData ? nameForViewer(user, accountNamesOf(byData), "") : "";'],
+    why: "an archived group's page, for an admin or the programme's lead: who archived it, named for the reader's own session",
+  }],
   ["src/app/api/courses/groups/[groupId]/facilitators/route.ts", {
     who: "rule",
     proof: [

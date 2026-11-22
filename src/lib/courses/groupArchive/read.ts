@@ -12,7 +12,7 @@ import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/cours
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { firstNameOfUser, readNamingProgramme } from "@/lib/courses/programmeLead";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
-import { accountNamesOf, seesFullNames, type NameViewer } from "@/lib/names/staffName";
+import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 import type { RegisterCover } from "@/lib/firestore/courseAttendance";
 import type { GroupArchiveFacts, NamedPerson } from "./plan";
 
@@ -50,7 +50,7 @@ export function freedOffersQuery(db: Firestore, groupId: string): Query {
  * have started, and who covers it, for all); and the accounts a sentence may
  * name: anybody with a visit to the group, whoever covers one of its
  * sessions and its facilitators, each named as `viewer` may see them
- * (`seesFullNames`: the committee and admins the full name, anybody else
+ * (`nameForViewer`: the committee and admins the full name, anybody else
  * the name they go by). The programme naming the run is read outside the
  * transaction: only its name is said. Null when the group is not there.
  */
@@ -139,8 +139,7 @@ export async function readGroupArchiveFacts(
   const names = new Map<string, NamedPerson>();
   for (const account of accounts) {
     const data = (account.exists ? account.data() : null) ?? {};
-    const both = accountNamesOf(data);
-    const name = (seesFullNames(viewer) ? (both.full ?? both.goBy) : both.goBy) ?? "NAISI member";
+    const name = nameForViewer(viewer, accountNamesOf(data), "NAISI member");
     names.set(account.id, { name, firstName: firstNameOfUser(data) || name });
   }
   const programmeName = (naming?.shortName ?? "").trim() || (run?.courseTitle ?? "").trim();

@@ -145,9 +145,12 @@ describe("1. who opens a group's page, its register and its summary", () => {
     assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH()}" class="crumb crumbDesk">Group B</a>`));
   });
 
-  test("an archived group: its facilitators are kept out of both pages; an admin reads them with nothing to press", async () => {
+  test("an archived group: its facilitators are kept out of both pages, told only that it was archived; an admin reads them with nothing to press", async () => {
     world.db.poke(`courseGroups/${B}`, { archived: true });
-    assert.equal(outcomeOf(await groupPage("rahul")), "not for you");
+    const own = await groupPage("rahul");
+    assert.equal(own.to, null);
+    assert.ok(own.text.includes("Group B is archived."), own.text.slice(0, 300));
+    assert.doesNotMatch(own.text, /Write to|Change a session|Add a note|Weeks & schedule|Take the register/);
     assert.equal((await registerPage("rahul")).to, RUN_HOME);
     const asAdmin = await groupPage("zach");
     assert.equal(asAdmin.to, null);
