@@ -1,0 +1,126 @@
+/* A week's settings, its Published card and How it landed, on a week's page on
+   a programme's Weeks tab, and the tab's Course documents card. The buttons,
+   lines and panels are the tab's own (weeks.module.css); these are the parts
+   the tab had no class for. */
+
+.headRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* "This is pitching week": a box and its two lines, the whole label a target. */
+.tick {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.box {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin: 12px 0 0;
+  accent-color: var(--color-accent);
+}
+.tickLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;
+  padding-top: 10px;
+  cursor: pointer;
+}
+.tickName {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Questions to think about: one box and its Remove a row. */
+.questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.question {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.question > input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The question before a week is unpublished. */
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
+/* How it landed, and the Course documents card: a name, its line and a button a row. */
+.landed {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.documentRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+.documentRow:first-child {
+  border-top: 0;
+}
+.reading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+.landed > .reading:first-child,
+.documentRow > .reading {
+  border-top: 0;
+  padding: 0;
+}
+.readingText {
+  min-width: 0;
+}
+.readingName {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.noteBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 36rem) {
+  .reading {
+    flex-wrap: wrap;
+  }
+  .question {
+    flex-wrap: wrap;
+  }
+}

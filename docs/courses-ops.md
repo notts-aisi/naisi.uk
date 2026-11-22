@@ -5490,6 +5490,90 @@ route and is untouched. Neither the run's editor nor a group's routes write the 
 so a week they change is found again ("as it stood") before the next save
 here.
 
+## A week's settings, unpublishing, how it landed, and the course documents
+
+Four jobs that only the older course editor did now sit on a programme's
+Weeks tab and a week's page there, for admins and the programme's lead (the
+tab's own gate, `loadProgrammeRun`). Nothing here emails anybody, and nothing
+a member, a facilitator or a scheduled job reads changes until somebody
+presses Save, Unpublish or a loader's Save.
+
+**Course documents, first on the tab** (`loadCourseDocuments`,
+`src/lib/courses/weeksTab/documents.ts`). For an admin: the run's Start here
+and Glossary, and the course's Handbook and Printables, each saying whose it
+is and whether it is loaded; Load or Replace opens today's paste under the
+row (the run editor's `GuideLoader`, the facilitator guide's
+`FacilitatorGuideLoader` on that one place). The programme's lead is shown
+one line, "Course documents: an admin loads these.", and no row: the run's
+two load through an admins-only route, and the Handbook and Printables are
+shared by every run of the course, live ones included (the facilitator
+guide's own gate, `facilitatorGuideWriter`, is unchanged). A course
+document says the day it was last saved ("Loaded on Mon 19 Oct", its guide
+row's `updatedAt`); the run's two live on the run's own document, whose time
+any save of the run moves, so they say only "Loaded". Nothing new is written.
+
+**This week's settings** gains the title, the summary, "This is pitching
+week" and "Questions to think about", saved together by "Save the week’s
+settings" through `PUT /api/courses/runs/[runId]/weeks/[weekId]/settings`.
+Its gate is the week's other edits' (an admin, or the lead of the programme
+that names the run, from the forms before anything is read); then the
+address, the run, the week (a week with no page is refused), then each field
+with the older editor's checks and the rules' limits (`checkSettings`,
+`src/lib/courses/weekSettings/model.ts`): a title that is not empty and at
+most 120 characters, a summary of at most 1,000, the tick true or false, and
+at most five questions of one line each, none empty and none over 160, in
+the group week route's words. Like every save of a week it is refused while
+somebody else holds the week's lock, and refused when the settings as stored
+are not the ones the page read (the page sends their fingerprint as `base`,
+`settingsFingerprint`): "This week’s settings have changed since you opened
+them: somebody saved the week meanwhile. Load the week again to see what they
+say now." So a save from an older page never writes back what somebody
+changed meanwhile. The pitching week tick keeps to one pitching week (see
+"Pitching week", Setting it up). A save that changes nothing writes nothing
+("Nothing changed, so nothing was saved."). A save writes the changed fields
+and, for a week written as blocks, one line in the week's history (kind
+`edit`, no block named, the blocks kept as they stand: "This week’s
+settings: new title and questions"), with the week as found first when the
+history does not end with it. A week not written as blocks has no history,
+so its settings save with no line. "How long it takes" (the older estimated
+minutes) is not offered: only a course's public week page shows it, and only
+for a week not written as blocks. A group with its own copy of the week
+reads that copy whole (`resolveWeekDoc`), so it keeps its own title, summary
+and questions, which a save never touches: its facilitators and its people
+go on seeing them as the copy has them, and the line under the questions
+says so. Restoring an older save from the week's history brings back that
+save's title too, so it can undo a title changed here; it never touches the
+summary, the questions or the tick.
+
+**Published, and unpublishing.** The week's page asks `readWeekInUse`
+(`src/lib/courses/olderEditor/weekInUse.ts`) for a published week and says,
+in use, the unpublish route's own sentence ("People have started week 3, so
+it stays published. Change its blocks instead: each save is kept in its
+history."), and otherwise "Nobody has started week 5 yet." with
+"Unpublish week 5…", which asks first and then sends the checked route
+(`PATCH .../published`, above). Whatever that route refuses is said in its
+own words: a week somebody has ticked or written in and a week whose session
+has passed get the sentence above, which tells the lead to change its blocks
+instead. Week 1 open early to everybody holding a place is not refused while
+nobody has started it, as the route's rule says; while it is open early
+(ready, decisions sent, groups not gone out) the question adds "People
+holding a place can open week 1 now. Unpublishing closes it to them, with
+Start here and the Glossary, until it’s marked ready again." After the
+press: "Week 5 is back to draft. Nobody was emailed." Unpublishing writes `published` only; a
+week reads as ready only while published (`weekIsReady`), so Mark ready
+publishes it again.
+
+**How it landed**, staff only, for each reading of the week: its rating and
+how many finished it, from the run's look back
+(`GET /api/courses/runs/[runId]/retrospective`, through `useRetrospective`)
+filtered to the week's own readings, and the team's notes through
+`POST .../material-notes`. The look back admits admins, course drafters and
+approvers, the run's track leads and the programme's lead; the week's page is
+drawn for admins and the lead, so they see it. An average shows once three
+people have rated a reading (`RETRO_ANONYMITY_FLOOR`); below that "Rated by 2
+so far" with no average; nobody's name or id is beside a rating, and the only
+names are on the notes, each signed by the member of staff who wrote it.
+
 ## The week stays open
 
 A week written as blocks saves as its person goes, and NOTHING CLOSES AT THE
@@ -6548,12 +6632,17 @@ programme's Teams tab (see Teams, below). The code is
 
 ### Setting it up
 
-1. **Tick the week.** In the run editor, open the week, and under Week
-   details switch on **This is pitching week**, then save. It is off by
-   default and there is no week number anywhere in the code: the run's
-   pitching week is the lowest-numbered week ticked. The run editor's
-   Pitching week section says which week is ticked, and asks you to untick
-   any others.
+1. **Tick the week.** On the programme's Weeks tab, open the week, tick
+   **This is pitching week** under This week's settings, and press "Save the
+   week’s settings" (the run editor's week page still has the same switch).
+   It is off by default and there is no week number anywhere in the code:
+   the run's pitching week is the lowest-numbered week ticked, and the line
+   under the tick on every week's page names it. The Weeks tab's save keeps
+   to one pitching week: it refuses to tick a week while another is ticked
+   ("Week 3 is pitching week. Untick it there first."), and once any pitch
+   or team is on the run it refuses to untick pitching week or tick another
+   ("Pitches or teams are on this run already, so pitching week can’t be
+   moved or unticked."), because every pitch and pick is read by that week.
 2. **Set the run's numbers**, in that Pitching week section of the run
    editor: how many pitches a person may pick, the smallest and largest a
    team may be, and the day the teams are made. Each is blank until somebody

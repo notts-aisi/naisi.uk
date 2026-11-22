@@ -17,6 +17,9 @@ import {
 import type { WeekEditorView } from "@/lib/courses/weekEdit/editor";
 import { weekHistoryPath } from "@/lib/courses/weeksTab/paths";
 import { GroupWeekPaste, WeekModeField, WeekOwnerField, WeekPaste, WeekReady } from "./WeekControls";
+import HowItLanded from "./HowItLanded";
+import WeekPublished from "./WeekPublished";
+import WeekSettingsFields from "./WeekSettingsFields";
 import EditWeekView from "./edit/EditWeekView";
 import WeekEditProvider from "./edit/WeekEditProvider";
 import styles from "./weeks.module.css";
@@ -28,8 +31,12 @@ import styles from "./weeks.module.css";
  * it" (the paste box, Read it, what we found, the things to check, the
  * answers a paste would take out, Save draft, and Copy as Markdown for a week
  * written as blocks); "This week’s settings" (Owner, This week is In person or
- * Online, and the facilitator guide box); then Preview as a fellow and Mark
- * ready, and the line about when written work is due.
+ * Online, then the title, the summary, the pitching week tick and the
+ * questions to think about, the facilitator guide box, and "Save the week’s
+ * settings", which saves those four together); "Published", and taking the
+ * week back while nobody has started it; "How it landed", staff only; then
+ * Preview as a fellow and Mark ready, and the line about when written work is
+ * due.
  *
  * A week of the plan with no page yet shows the paste box with a line above
  * it, as its first save makes the page; Mark ready waits for a week with
@@ -53,6 +60,9 @@ export default function WeekPageView({
   programmeId,
   editor,
   programme,
+  stays = null,
+  pitchingWeek = null,
+  weekOneOpen = false,
 }: {
   page: WeekPage;
   runId: string;
@@ -64,10 +74,28 @@ export default function WeekPageView({
   editor: WeekEditorView | null;
   /** The programme's short name. */
   programme: string;
+  /** The unpublish route's sentence for a week in use (`readWeekInUse`), or null while nobody has started it. */
+  stays?: string | null;
+  /** The week the pitching pages treat as pitching week, or null. */
+  pitchingWeek?: number | null;
+  /** Week 1 is open early to everybody holding a place: unpublishing it closes it, and Start here and the Glossary, to them. */
+  weekOneOpen?: boolean;
 }) {
   const { week } = page;
   const heading = page.title ? `Week ${week.weekNumber} · ${page.title}` : `Week ${week.weekNumber}`;
   const partlyOnline = page.groups.filter((group) => group.online).map((group) => group.name);
+  const guide = page.guide ? (
+    <div className={styles.setting}>
+      <p className={styles.settingLabel}>{GUIDE_LABEL}</p>
+      {page.guide.slots && <FacilitatorGuideLoader courseId={page.courseId} slots={page.guide.slots} />}
+      <p className={styles.muted}>
+        {GUIDE_READERS_LINE}{" "}
+        <Link href={page.guide.href} className={styles.inlineLink}>
+          {`Open week ${week.weekNumber} of the facilitator guide`}
+        </Link>
+      </p>
+    </div>
+  ) : null;
   return (
     <section className={styles.weekPage} aria-labelledby="week-page-title">
       <header className={styles.weekHead}>
@@ -107,19 +135,26 @@ export default function WeekPageView({
           state={week.online}
           partly={week.online === "some" ? partlyOnlineWords(partlyOnline) : null}
         />
-        {page.guide && (
-          <div className={styles.setting}>
-            <p className={styles.settingLabel}>{GUIDE_LABEL}</p>
-            {page.guide.slots && <FacilitatorGuideLoader courseId={page.courseId} slots={page.guide.slots} />}
-            <p className={styles.muted}>
-              {GUIDE_READERS_LINE}{" "}
-              <Link href={page.guide.href} className={styles.inlineLink}>
-                {`Open week ${week.weekNumber} of the facilitator guide`}
-              </Link>
-            </p>
-          </div>
+        {page.hasPage ? (
+          <WeekSettingsFields
+            runId={runId}
+            weekId={week.weekId}
+            weekNumber={week.weekNumber}
+            stored={{ title: page.title, summary: page.summary, pitching: page.pitching, questions: page.questions }}
+            base={page.settingsBase}
+            pitchingWeek={pitchingWeek}
+          >
+            {guide}
+          </WeekSettingsFields>
+        ) : (
+          guide
         )}
       </section>
+
+      {page.hasPage && (
+        <WeekPublished runId={runId} weekId={week.weekId} weekNumber={week.weekNumber} published={page.published} stays={stays} weekOneOpen={weekOneOpen} />
+      )}
+      {page.hasPage && page.sourceIds.length > 0 && <HowItLanded runId={runId} weekNumber={week.weekNumber} sourceIds={page.sourceIds} />}
 
       <div className={styles.actions}>
         {page.hasPage && page.blockWeek && (

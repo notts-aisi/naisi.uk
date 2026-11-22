@@ -62,6 +62,15 @@ const READS_WITHOUT_A_LIST = new Map([
         "a facilitator sits in: never a list of groups on a page.",
     },
   ],
+  // A note for the team on one reading, from How it landed on a week's page.
+  [
+    "src/app/api/courses/runs/[runId]/material-notes/route.ts",
+    {
+      why:
+        "Saving a note on one reading reads the run's groups to ask whether the author facilitates one and where that " +
+        "reading sits: a yes or no and a week number, never a list of groups on a page.",
+    },
+  ],
   // Whether a week is in use, for the older week editor's unpublish refusal.
   [
     "src/lib/courses/olderEditor/weekInUse.ts",
@@ -481,6 +490,11 @@ const FETCHES_IT_CANNOT_READ = new Map([
     "src/features/courses/WeekBlocksLoader.tsx",
     "The week loader's card, at the address it is handed (the run's week, or one group's own copy of it, on the " +
       "Weeks tab): it reads and saves one week's blocks, never a run's groups.",
+  ],
+  [
+    "src/features/courses/GuideLoader.tsx",
+    "The run's Start here or Glossary paste card, at that document's own route (`/runs/[runId]/guide/[doc]`, the Weeks " +
+      "tab's Course documents, for an admin): it reads and saves one document on the run, never a run's groups.",
   ],
   [
     "src/features/courses/facilitatorGuide/FacilitatorGuideLoader.tsx",

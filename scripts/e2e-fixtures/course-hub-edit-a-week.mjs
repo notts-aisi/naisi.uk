@@ -62,6 +62,7 @@ export const EDIT_A_WEEK_STEPS = [
   "the history lists every save, compares the first with now and restores it as a new save, and the member's tick is still there",
   "a facilitator and a member are refused the week's page, its history and its routes",
   "the lead rewords a prompt the member answered: her week page shows the earlier wording under her words, and the facilitator's reflections with names show the question when it was written",
+  "the lead saves week 3's settings: the history names the change, Published says people have started it and offers no unpublish, and How it landed names nobody",
 ];
 
 /**
@@ -184,6 +185,8 @@ export const SPEC = {
       "/api/courses/runs/[runId]/weeks/[weekId]/history",
       "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]",
       "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]/restore",
+      "/api/courses/runs/[runId]/weeks/[weekId]/settings",
+      "/api/courses/runs/[runId]/retrospective",
       "/api/courses/runs/[runId]/my-exercises",
       "/api/courses/runs/[runId]/first-read",
     ],
@@ -210,7 +213,9 @@ export const SPEC = {
    * reading by the facilitator moved from the group's reflections with names
    * to the page of one question on 13 November 2026, when that page was
    * retired; it has not yet run in a browser: the pull request's end-to-end
-   * job runs it first.
+   * job runs it first. The thirteenth step, the lead saving week 3's settings
+   * with Published and How it landed read beside it, was added on 22 November
+   * 2026 and has not yet run in a browser either: the same job runs it first.
    */
   status: "verified",
   seed,

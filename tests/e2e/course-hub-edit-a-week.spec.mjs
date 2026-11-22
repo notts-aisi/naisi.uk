@@ -70,6 +70,7 @@ import {
   openBrowser,
   signInWithPassword,
   stubRecaptchaOnLoopback,
+  waitForHydration,
 } from "../../scripts/e2e/lib/browser.mjs";
 import { getMessage, hrefUrls, messagesTo } from "../../scripts/e2e/lib/mailpit.mjs";
 import {
@@ -119,7 +120,19 @@ const REFLECTION = Object.freeze({
 });
 
 /** The words the pages say, restated from src/lib/courses/weekEdit/pageWords.ts and words.ts. */
+const WORDS_SETTINGS = {
+  /** "Save the week’s settings": SAVE_SETTINGS in src/lib/courses/weekSettings/words.ts. */
+  saveSettings: "Save the week’s settings",
+  /** The history's line for a new title alone: settingsHistoryLine there. */
+  settingsSummary: "This week’s settings: new title",
+  /** weekStaysPublishedWords in src/lib/courses/olderEditor/words.ts, for week 3. */
+  staysPublished: "People have started week 3, so it stays published. Change its blocks instead: each save is kept in its history.",
+  /** STAFF_ONLY in src/lib/courses/weekSettings/words.ts. */
+  staffOnly: "Staff only",
+};
+
 const WORDS = {
+  ...WORDS_SETTINGS,
   committee: "Committee",
   recognisedSwitch: "SU-recognised committee",
   chooseLead: "Choose a lead",
@@ -762,6 +775,48 @@ test(
         await answer.waitFor({ timeout: WAIT_MS });
         const said = await wordsIn(answer);
         assert.ok(said.includes(`${adasWords} ${WORDS.staffEarlier} ${REFLECTION.label}`), `the reflection with names does not say the question when it was written: ${said}`);
+      });
+
+      await step("the lead saves week 3's settings: the history names the change, Published says people have started it and offers no unpublish, and How it landed names nobody", async () => {
+        activePage = leadPage;
+        await leadPage.goto(weekUrl, { waitUntil: "domcontentloaded" });
+        const title = leadPage.locator(`#week-title-${WEEK_ID}`);
+        await title.waitFor({ timeout: WAIT_MS });
+        await waitForHydration(leadPage, `#week-title-${WEEK_ID}`);
+        const before = await storedWeek();
+        const newTitle = `${before?.title ?? "Week 3"} (settings)`;
+        await title.fill(newTitle);
+        const [savedResponse] = await Promise.all([
+          responseTo(leadPage, `${api}/settings`, "PUT"),
+          leadPage.getByRole("button", { name: WORDS.saveSettings, exact: true }).click(),
+        ]);
+        const saved = await okBody(savedResponse, "Saving the week's settings");
+        assert.equal(saved.saved, true, `the settings save answered ${JSON.stringify(saved)}`);
+        assert.equal((await storedWeek())?.title, newTitle, "the title was not stored");
+        const saves = await storedSaves();
+        const last = saves[saves.length - 1];
+        assert.deepEqual([last.kind, last.blockId, last.summary], ["edit", null, WORDS.settingsSummary], "the history does not name the settings change");
+
+        // Published: people have started week 3, in the unpublish route's own sentence, and nothing to press.
+        const published = leadPage.locator(`section[aria-labelledby="week-published-${WEEK_ID}"]`);
+        await published.getByText(WORDS.staysPublished, { exact: true }).waitFor({ timeout: WAIT_MS });
+        assert.equal(await leadPage.getByRole("button", { name: /^Unpublish week / }).count(), 0, "a started week offers Unpublish");
+
+        // How it landed: read from the run's look back, and nobody's name or id on it.
+        const [lookBack] = await Promise.all([
+          responseTo(leadPage, `/api/courses/runs/${enc(state.runId)}/retrospective`, "GET"),
+          leadPage.reload({ waitUntil: "domcontentloaded" }),
+        ]);
+        await okBody(lookBack, "The run's look back");
+        const landed = leadPage.locator('section[aria-labelledby="how-it-landed-title"]');
+        await landed.getByText(WORDS.staffOnly, { exact: true }).waitFor({ timeout: WAIT_MS });
+        await landed.locator("li").first().waitFor({ timeout: WAIT_MS });
+        const landedWords = await wordsIn(landed);
+        for (const person of state.people) {
+          for (const mark of [person.displayName, person.uid].filter(Boolean)) {
+            assert.ok(!landedWords.includes(mark), `How it landed names ${person.key}`);
+          }
+        }
       });
     } finally {
       await facilitatorContext.close().catch(() => {});

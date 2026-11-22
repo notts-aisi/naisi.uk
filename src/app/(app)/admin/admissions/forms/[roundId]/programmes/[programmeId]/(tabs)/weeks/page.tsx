@@ -1,14 +1,22 @@
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import RunBlank from "@/features/applications/groups/RunBlank";
+import CourseDocuments from "@/features/applications/weeks/CourseDocuments";
 import WeeksList from "@/features/applications/weeks/WeeksList";
+import styles from "@/features/applications/weeks/weeks.module.css";
 import WeeksNotYours from "@/features/applications/weeks/WeeksNotYours";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
+import { facilitatorGuideWriter } from "@/lib/courses/facilitatorGuide/access";
+import { readCourseDocumentsLoaded } from "@/lib/courses/facilitatorGuide/store";
+import { loadCourseDocuments } from "@/lib/courses/weeksTab/documents";
 import { loadWeeksTab } from "@/lib/courses/weeksTab/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * One programme's Weeks tab: when weeks open, "Copy weeks
+ * One programme's Weeks tab: first the course's documents (the run's Start
+ * here and Glossary, the course's Handbook and Printables) for an admin, and
+ * one line for the lead (`loadCourseDocuments`; the course's two are read
+ * here, behind `facilitatorGuideWriter`); then when weeks open, "Copy weeks
  * from the course", and every week of the run the programme names, in order,
  * with its state, first session, ready-by day and owner, each a link to the
  * week's own page.
@@ -34,5 +42,15 @@ export default async function ProgrammeWeeksPage({
   if (!view.run) return <RunBlank view={view} />;
   const tab = await loadWeeksTab(db, view.run.id, view.programmeName, user);
   if (!tab) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
-  return <WeeksList tab={tab} roundId={view.roundId} programmeId={view.programmeId} review={{ viewer: view.viewer, now: new Date() }} />;
+  // The course's Handbook and Printables, for an admin alone, read only once
+  // the facilitator guide's loader gate has admitted them for this course.
+  const writer = user.role === "admin" && tab.courseId ? await facilitatorGuideWriter(db, user, tab.courseId) : null;
+  const course = writer ? await readCourseDocumentsLoaded(db, writer, ["handbook", "printables"]) : null;
+  const documents = await loadCourseDocuments(db, user, { runId: tab.runId }, course);
+  return (
+    <div className={styles.stack}>
+      <CourseDocuments runId={tab.runId} courseId={tab.courseId} documents={documents} />
+      <WeeksList tab={tab} roundId={view.roundId} programmeId={view.programmeId} review={{ viewer: view.viewer, now: new Date() }} />
+    </div>
+  );
 }

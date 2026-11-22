@@ -189,3 +189,23 @@ export function noPageWords(weekNumber: number): string {
 export const WEEKS_NOT_YOURS_TITLE = "Only the programme’s lead and admins can open Weeks";
 export const WEEKS_NOT_YOURS =
   "Weeks is where the programme’s weeks are written and marked ready, so only the programme’s lead or an admin can open it.";
+
+/**
+ * The Course documents card, first on the tab, for an admin; a lead is given
+ * the one line instead. The admin's lede says who reads each pair, since the
+ * run's two are read by everyone holding a place, not in the facilitator
+ * guide.
+ */
+export const DOCUMENTS_TITLE = "Course documents";
+export const DOCUMENTS_ADMINS = "Admins load these";
+export const DOCUMENTS_LEDE_ADMIN =
+  "Everyone holding a place reads the run’s. Facilitators read the course’s in the facilitator guide. Each opens its paste.";
+/** The programme's lead's whole card: the Handbook and Printables are every run of the course's, live ones included. */
+export const DOCUMENTS_LEAD = "Course documents: an admin loads these.";
+/** "This run’s · Loaded on Fri 30 Oct", "The course’s · Not loaded". */
+export function documentLine(whose: "run" | "course", loaded: boolean, loadedOn: string | null): string {
+  const owner = whose === "run" ? "This run’s" : "The course’s";
+  return `${owner} · ${loaded ? (loadedOn ? `Loaded on ${loadedOn}` : "Loaded") : "Not loaded"}`;
+}
+export const DOCUMENT_LOAD = "Load";
+export const DOCUMENT_REPLACE = "Replace";
