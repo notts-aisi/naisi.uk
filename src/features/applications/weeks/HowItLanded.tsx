@@ -9,12 +9,15 @@ import {
   ADD_NOTE,
   CANCEL,
   LANDED_LEDE,
+  LANDED_LOADING,
   LANDED_PARTIAL,
   LANDED_TITLE,
+  NOTE_REPLACES,
   SAVE_NOTE,
   STAFF_ONLY,
   SAVING,
   landedLine,
+  landedRowsFor,
   noteLabelWords,
   notesCountWords,
 } from "@/lib/courses/weekSettings/words";
@@ -47,14 +50,13 @@ import own from "./weekSettings.module.css";
  */
 export default function HowItLanded({ runId, weekNumber, sourceIds }: { runId: string; weekNumber: number; sourceIds: string[] }) {
   const hydrated = useHydrated();
-  const { data, error, addNote } = useRetrospective(runId);
+  const { data, loading, error, addNote } = useRetrospective(runId);
   const [open, setOpen] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
-  const byId = new Map((data?.materials ?? []).map((row) => [row.itemId, row] as const));
-  const rows = sourceIds.map((id) => byId.get(id)).filter((row): row is MaterialRetroRow => row !== undefined);
+  const rows: MaterialRetroRow[] = landedRowsFor(data?.materials ?? [], sourceIds);
 
   function choose(itemId: string | null) {
     setOpen(itemId);
@@ -84,6 +86,7 @@ export default function HowItLanded({ runId, weekNumber, sourceIds }: { runId: s
         <Chip tone="neutral">{STAFF_ONLY}</Chip>
       </div>
       <p className={styles.muted}>{LANDED_LEDE}</p>
+      {loading && !error && <p className={styles.muted}>{LANDED_LOADING}</p>}
       {error && (
         <p className={styles.problem} role="alert">
           {error.message}
@@ -123,7 +126,7 @@ export default function HowItLanded({ runId, weekNumber, sourceIds }: { runId: s
               ))}
             </ul>
           )}
-          <Field id={`landed-note-${opened.itemId}`} label={noteLabelWords(opened.title)} error={problem}>
+          <Field id={`landed-note-${opened.itemId}`} label={noteLabelWords(opened.title)} hint={NOTE_REPLACES} error={problem}>
             <Textarea
               id={`landed-note-${opened.itemId}`}
               value={draft}

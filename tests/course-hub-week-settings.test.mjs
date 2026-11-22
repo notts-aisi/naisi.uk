@@ -35,6 +35,8 @@ const retroRoute = await courseRoute("runs", "[runId]", "retrospective");
 const words = await loadTs(join("lib", "courses", "weekSettings", "words.ts"));
 const tabWords = await loadTs(join("lib", "courses", "weeksTab", "words.ts"));
 const { RETRO_ANONYMITY_FLOOR } = await loadTs(join("lib", "firestore", "courseTemplates.ts"));
+const { settingsFingerprint } = await loadTs(join("lib", "courses", "weekSettings", "model.ts"));
+const { normalizeCourseWeek } = await loadTs(join("lib", "firestore", "courses.ts"));
 
 const ALL = [...PERSONAS, ["april", "a course approver"]];
 const tab = { roundId: ROUND, programmeId: AGI };
@@ -43,7 +45,29 @@ const weekPath = (id) => `courseRuns/${RUN.agi}/weeks/${id}`;
 const historyOf = (id) => world.db.paths().filter((path) => path.startsWith(`${weekPath(id)}/history/`)).sort().map((path) => world.db.read(path));
 const everything = () => JSON.stringify(world.db.paths().sort().map((path) => [path, world.db.read(path)]));
 const SETTINGS = { title: "How sure are you?", summary: "", pitching: false, questions: [] };
-const save = (who, weekId, body, extra = {}) => call(who, settingsRoute.PUT, { runId: RUN.agi, weekId }, { body, course: true, ...extra });
+/** The settings' fingerprint as a page reading the week now would send it. */
+function baseOf(weekId) {
+  const raw = world.db.read(weekPath(weekId));
+  if (!raw) return "0000000000000000";
+  const week = normalizeCourseWeek(weekId, raw);
+  return settingsFingerprint({ title: week.title, summary: week.summary, pitching: week.pitching, questions: week.questions });
+}
+/** A save from a page read now, unless the body says its own base. */
+const save = (who, weekId, body, extra = {}) =>
+  call(who, settingsRoute.PUT, { runId: RUN.agi, weekId }, { body: body && typeof body === "object" && !("base" in body) && "title" in body ? { base: baseOf(weekId), ...body } : body, course: true, ...extra });
+/** The props a page handed the element that carries `key`, found anywhere in what it drew. */
+function propsWith(element, key) {
+  if (!element || typeof element !== "object") return null;
+  if (Array.isArray(element)) {
+    for (const each of element) {
+      const found = propsWith(each, key);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (element.props && key in element.props) return element.props;
+  return propsWith(element.props?.children, key);
+}
 const unpublish = (who, weekId, extra = {}) => call(who, publishedRoute.PATCH, { runId: RUN.agi, weekId }, { body: { published: false }, course: true, ...extra });
 const STAYS = (n) => `People have started week ${n}, so it stays published. Change its blocks instead: each save is kept in its history.`;
 
@@ -91,13 +115,14 @@ describe("1. the Weeks tab's Course documents", () => {
     for (const m of page.html.matchAll(/<button[^>]*aria-expanded="false"[^>]*>/g)) assert.match(m[0], /disabled=""/);
   });
 
-  test("the programme's lead: the course's two, which their loader takes, and a line for the run's two, which it does not", async () => {
+  test("the programme's lead: the one line, and no row, Load or Replace on any of the four", async () => {
     const page = await draw("claudia", TabPage, tab);
-    assert.ok(page.text.includes("Handbook The course’s · Loaded on Mon 19 Oct Replace"), page.text);
-    assert.ok(page.text.includes("Printables The course’s · Not loaded Load"), page.text);
-    assert.ok(page.text.includes(tabWords.DOCUMENTS_LEDE_LEAD));
-    assert.ok(page.text.includes("Start here and the Glossary: an admin loads these."));
-    for (const absent of ["This run’s", "Admins load these"]) assert.ok(!page.text.includes(absent), absent);
+    assert.ok(page.text.includes("Course documents: an admin loads these."), page.text);
+    for (const absent of ["Start here", "Glossary", "Handbook", "Printables", "This run’s", "The course’s", "Admins load these", "Replace"]) {
+      assert.ok(!page.text.includes(absent), absent);
+    }
+    assert.ok(!/<button[^>]*>(<span>)?Load(<\/span>)?<\/button>/.test(page.html), "a lead is offered Load");
+    assert.ok(page.text.indexOf("Course documents: an admin loads these.") < page.text.indexOf("Weeks, in order"));
   });
 
   test("nobody else is shown the card: the tab's own gate answers them first", async () => {
@@ -171,8 +196,8 @@ describe("2. this week's settings", () => {
         assert.equal((await save(who, "w04", bad)).status, 400, `${who}: ${JSON.stringify(bad)}`);
       }
     }
-    assert.equal((await call("claudia", settingsRoute.PUT, { runId: RUN.tais, weekId: "w01" }, { body: SETTINGS, course: true })).status, 403, "another programme's run");
-    assert.equal((await call("tess", settingsRoute.PUT, { runId: RUN.agi, weekId: "w01" }, { body: SETTINGS, course: true })).status, 403, "the lead of another programme");
+    assert.equal((await call("claudia", settingsRoute.PUT, { runId: RUN.tais, weekId: "w01" }, { body: { ...SETTINGS, base: "0000000000000000" }, course: true })).status, 403, "another programme's run");
+    assert.equal((await call("tess", settingsRoute.PUT, { runId: RUN.agi, weekId: "w01" }, { body: { ...SETTINGS, base: baseOf("w01") }, course: true })).status, 403, "the lead of another programme");
     await world.db.collection(`courseRuns/${RUN.agi}/weeks`).doc("w06").delete();
     assert.deepEqual([(await save("claudia", "w06", SETTINGS)).status, (await save("claudia", "w06", SETTINGS)).body.error], [404, "Week 6 has no page on this run yet."]);
     assert.equal((await save("claudia", "w09", SETTINGS)).status, 404);
@@ -241,11 +266,124 @@ describe("2. this week's settings", () => {
     assert.ok(page.text.includes("Week 3 is pitching week. Its pitches show on Groups, Pitches."), page.text);
   });
 
+  test("a save from a page older than the settings as stored is refused, and writes nothing", async () => {
+    const stale = baseOf("w03");
+    assert.equal((await save("zach", "w03", { ...SETTINGS, questions: ["What would change your mind?"] })).status, 200);
+    const before = everything();
+    // The lead, on a page read before the admin's save, changes only the title.
+    const answer = await save("claudia", "w03", { ...SETTINGS, base: stale, title: "Who decides" });
+    assert.deepEqual([answer.status, answer.body.error], [409, words.SETTINGS_CHANGED]);
+    assert.equal(everything(), before, "a stale save wrote");
+    assert.deepEqual(world.db.read(weekPath("w03")).questions, ["What would change your mind?"], "the admin's questions were undone");
+    // A save with no base, or a base that is not one, is refused before the gate.
+    for (const who of ["chloe", "claudia"]) {
+      for (const base of [undefined, "", "not-a-fingerprint"]) {
+        const sent = await call(who, settingsRoute.PUT, { runId: RUN.agi, weekId: "w03" }, { body: { ...SETTINGS, ...(base === undefined ? {} : { base }) }, course: true });
+        assert.deepEqual([sent.status, sent.body.error], [400, words.SETTINGS_BASE], `${who} ${String(base)}`);
+      }
+    }
+  });
+
+  test("a save while somebody else holds the week's lock is refused with the holder named; the holder's own save goes through", async () => {
+    world.db.seed(`${weekPath("w03")}/editLock/current`, { holderUid: "zach", since: new Date(NOW), keptAt: new Date(NOW) });
+    const before = everything();
+    const answer = await save("claudia", "w03", { ...SETTINGS, title: "Who decides" });
+    assert.equal(answer.status, 409, JSON.stringify(answer.body));
+    assert.match(answer.body.error, /is editing week 3, since .*\. You can read it; you can save once .* saves or leaves\./);
+    assert.equal(everything(), before, "a save under somebody else's lock wrote");
+    assert.equal((await save("zach", "w03", { ...SETTINGS, title: "Who decides" })).status, 200, "the holder is refused");
+  });
+
+  test("a stored title or summary with a space at an end is not rewritten by a save that leaves it alone", async () => {
+    world.db.poke(weekPath("w04"), { summary: "A line about week 4. " });
+    const answer = await save("claudia", "w04", { ...SETTINGS, title: "Week 4 readings, renamed", summary: "A line about week 4." });
+    assert.equal(answer.status, 200);
+    assert.equal(world.db.read(weekPath("w04")).summary, "A line about week 4. ", "the summary was rewritten");
+  });
+
+  test("a week changed where no history is kept is found again, as it stood, before the next settings line", async () => {
+    assert.equal((await save("claudia", "w03", { ...SETTINGS, title: "Who decides" })).status, 200);
+    const blocks = world.db.read(weekPath("w03")).blocks;
+    world.db.poke(weekPath("w03"), { blocks: blocks.slice(0, -1) });
+    assert.equal((await save("claudia", "w03", { ...SETTINGS, title: "Who decides now" })).status, 200);
+    assert.deepEqual(historyOf("w03").map((row) => [row.kind, row.summary]).slice(2), [
+      ["found", "The week as it stood, changed where no history is kept"],
+      ["edit", "This week’s settings: new title"],
+    ]);
+  });
+
+  test("drawing a week's page writes nothing", async () => {
+    const before = everything();
+    for (const who of ["claudia", "zach"]) for (const weekId of ["w01", "w03", "w04", "w06"]) await draw(who, WeekPage, at(weekId));
+    assert.equal(everything(), before);
+  });
+
   test("a week written before blocks saves its settings with no history line", async () => {
     const answer = await save("claudia", "w04", { ...SETTINGS, title: "Week 4, renamed", summary: "A line about week 4." });
     assert.equal(answer.status, 200);
     assert.deepEqual([world.db.read(weekPath("w04")).title, world.db.read(weekPath("w04")).summary], ["Week 4, renamed", "A line about week 4."]);
     assert.deepEqual(historyOf("w04"), []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2b. One pitching week
+// ---------------------------------------------------------------------------
+
+describe("2b. one pitching week", () => {
+  const tickOn = (who, weekId) => save(who, weekId, { title: world.db.read(weekPath(weekId)).title, summary: world.db.read(weekPath(weekId)).summary ?? "", pitching: true, questions: world.db.read(weekPath(weekId)).questions ?? [] });
+  const tickOff = (who, weekId) => save(who, weekId, { title: world.db.read(weekPath(weekId)).title, summary: world.db.read(weekPath(weekId)).summary ?? "", pitching: false, questions: world.db.read(weekPath(weekId)).questions ?? [] });
+  const pitch = (id, weekId) =>
+    world.db.seed(`coursePitches/${id}`, { runId: RUN.agi, courseId: COURSE.agi, groupId: B, weekId, weekNumber: Number(weekId.slice(1)), byUids: ["chloe"], wouldJoinUids: ["farah"] });
+
+  test("ticking a week while another is ticked is refused, naming the week to untick", async () => {
+    world.db.poke(weekPath("w03"), { pitching: true });
+    const before = everything();
+    const answer = await tickOn("claudia", "w04");
+    assert.deepEqual([answer.status, answer.body.error], [409, "Week 3 is pitching week. Untick it there first."]);
+    assert.equal(everything(), before);
+  });
+
+  test("once anybody has pitched or picked, pitching week can't be unticked, and another week can't take it", async () => {
+    world.db.poke(weekPath("w04"), { pitching: true });
+    pitch("p1", "w04");
+    const before = everything();
+    const off = await tickOff("claudia", "w04");
+    assert.deepEqual([off.status, off.body.error], [409, words.PITCHING_IN_USE]);
+    assert.equal(everything(), before);
+    // No week ticked now (by hand), pitches made in week 4: ticking week 5 would move them out of sight.
+    world.db.poke(weekPath("w04"), { pitching: false });
+    const moved = await tickOn("zach", "w05");
+    assert.deepEqual([moved.status, moved.body.error], [409, words.PITCHING_IN_USE]);
+    // Ticking the week they were made in again is no move.
+    assert.equal((await tickOn("claudia", "w04")).status, 200);
+  });
+
+  test("once a team is made, pitching week can't be unticked", async () => {
+    world.db.poke(weekPath("w04"), { pitching: true });
+    world.db.seed("courseTeams/t1", { runId: RUN.agi, name: "Team one", memberUids: ["chloe"] });
+    const off = await tickOff("claudia", "w04");
+    assert.deepEqual([off.status, off.body.error], [409, words.PITCHING_IN_USE]);
+  });
+
+  test("with nothing pitched and no team, a week is ticked and unticked", async () => {
+    assert.equal((await tickOn("claudia", "w04")).status, 200);
+    assert.equal(world.db.read(weekPath("w04")).pitching, true);
+    assert.equal((await tickOff("claudia", "w04")).status, 200);
+    assert.equal(world.db.read(weekPath("w04")).pitching, false);
+  });
+
+  test("the line under the tick names the week the pitching pages treat as pitching week, never a later week ticked too", async () => {
+    world.db.poke(weekPath("w03"), { pitching: true });
+    world.db.poke(weekPath("w04"), { pitching: true });
+    const four = await draw("claudia", WeekPage, at("w04"));
+    assert.ok(four.text.includes("This is pitching week Week 3 is pitching week."), four.text);
+    assert.ok(!four.text.includes("Week 4 is pitching week"));
+    const three = await draw("claudia", WeekPage, at("w03"));
+    assert.ok(three.text.includes("Week 3 is pitching week. Its pitches show on Groups, Pitches."));
+    world.db.poke(weekPath("w03"), { pitching: false });
+    world.db.poke(weekPath("w04"), { pitching: false });
+    assert.ok((await draw("claudia", WeekPage, at("w04"))).text.includes("This is pitching week Its pitches show on Groups, Pitches."));
   });
 });
 
@@ -300,6 +438,12 @@ describe("3. Published and unpublishing", () => {
     world.db.poke(weekPath("w01"), { published: true, ready: true, readyAt: new Date("2026-10-19T12:00:00Z"), readyByUid: "claudia" });
     const page = await draw("claudia", WeekPage, at("w01"));
     assert.ok(page.text.includes("Nobody has started week 1 yet. Unpublish week 1…"), page.text);
+    // Open early (ready, decisions sent, groups not gone out): the question says what unpublishing closes.
+    assert.equal(propsWith(page.element, "weekOneOpen")?.weekOneOpen, true);
+    world.db.poke(`courseRuns/${RUN.agi}`, { allocationPublishedAt: new Date("2026-10-19T12:00:00Z") });
+    assert.equal(propsWith((await draw("claudia", WeekPage, at("w01"))).element, "weekOneOpen")?.weekOneOpen, false, "groups have gone out");
+    world.db.poke(`courseRuns/${RUN.agi}`, { allocationPublishedAt: null });
+    assert.equal(propsWith((await draw("claudia", WeekPage, at("w04"))).element, "weekOneOpen")?.weekOneOpen, false, "week 4 is no week 1");
     const answer = await unpublish("claudia", "w01");
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
     assert.equal(world.db.read(weekPath("w01")).published, false);
@@ -319,6 +463,14 @@ describe("4. how it landed", () => {
     tick("farah", "w4v1", 4, { rating: 4, completed: false });
     tick("kofi", "w4v1", 4, { rating: 5 });
   }
+
+  test("only this week's readings, in the week's own order, and the partial line in plain words", () => {
+    const rows = [{ itemId: "b" }, { itemId: "x" }, { itemId: "a" }];
+    assert.deepEqual(words.landedRowsFor(rows, ["a", "b", "a", "gone"]).map((row) => row.itemId), ["a", "b"]);
+    assert.equal(words.LANDED_PARTIAL, "This run has too many ticks and ratings to count at once, so these numbers are lower than the real ones.");
+    assert.equal(words.notesCountWords(1), "1 note");
+    assert.equal(words.notesCountWords(2), "2 notes");
+  });
 
   test("the floor is three, and the lines say an average only from three", () => {
     assert.equal(RETRO_ANONYMITY_FLOOR, 3);

@@ -61,6 +61,8 @@ export default function WeekPageView({
   editor,
   programme,
   stays = null,
+  pitchingWeek = null,
+  weekOneOpen = false,
 }: {
   page: WeekPage;
   runId: string;
@@ -74,6 +76,10 @@ export default function WeekPageView({
   programme: string;
   /** The unpublish route's sentence for a week in use (`readWeekInUse`), or null while nobody has started it. */
   stays?: string | null;
+  /** The week the pitching pages treat as pitching week, or null. */
+  pitchingWeek?: number | null;
+  /** Week 1 is open early to everybody holding a place: unpublishing it closes it, and Start here and the Glossary, to them. */
+  weekOneOpen?: boolean;
 }) {
   const { week } = page;
   const heading = page.title ? `Week ${week.weekNumber} · ${page.title}` : `Week ${week.weekNumber}`;
@@ -135,6 +141,8 @@ export default function WeekPageView({
             weekId={week.weekId}
             weekNumber={week.weekNumber}
             stored={{ title: page.title, summary: page.summary, pitching: page.pitching, questions: page.questions }}
+            base={page.settingsBase}
+            pitchingWeek={pitchingWeek}
           >
             {guide}
           </WeekSettingsFields>
@@ -144,7 +152,7 @@ export default function WeekPageView({
       </section>
 
       {page.hasPage && (
-        <WeekPublished runId={runId} weekId={week.weekId} weekNumber={week.weekNumber} published={page.published} stays={stays} />
+        <WeekPublished runId={runId} weekId={week.weekId} weekNumber={week.weekNumber} published={page.published} stays={stays} weekOneOpen={weekOneOpen} />
       )}
       {page.hasPage && page.sourceIds.length > 0 && <HowItLanded runId={runId} weekNumber={week.weekNumber} sourceIds={page.sourceIds} />}
 

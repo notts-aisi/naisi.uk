@@ -12,15 +12,13 @@ import type { SessionUser } from "@/lib/firebase/session";
  * here and Glossary, and the course's Handbook and Printables, each with
  * whose it is, whether it is loaded and when, and its loader.
  *
- * Each row is offered only to somebody its loader admits, decided by that
- * loader's own gate, so the card is never a second way round one:
- *
- *  - Start here and the Glossary are loaded through `/api/courses/runs/
- *    [runId]/guide/[doc]`, which admits admins only: an admin's rows alone.
- *  - The Handbook and Printables are loaded through `/api/courses/[courseId]/
- *    facilitator-guide/[slot]`, whose gate (`facilitatorGuideWriter`) admits
- *    an admin and the lead of a programme that names a live run of the
- *    course: both see them.
+ * FOR AN ADMIN. The programme's lead is given one line instead ("Course
+ * documents: an admin loads these.") and no row: the run's two are loaded
+ * through an admins-only route, and the Handbook and Printables are shared by
+ * every run of the course, live ones included, so a lead does not load them
+ * here (the facilitator guide's own gate, `facilitatorGuideWriter`, is not
+ * changed). Each row is read only once that loader's gate has admitted the
+ * caller.
  *
  * WHEN. A course document keeps the time it was last saved (`updatedAt` on
  * its guide row), so it says "Loaded on Mon 19 Oct". The run's two are kept on
@@ -43,17 +41,17 @@ export type CourseDocumentRow = {
 };
 
 export type CourseDocuments = {
-  /** The caller is an admin: they load all four. */
+  /** The caller is an admin: they load all four. Nobody else is given a row. */
   admin: boolean;
   rows: CourseDocumentRow[];
 };
 
-/** The card, for the caller, or null when no loader admits them for any row. */
+/** The card, for the caller: an admin's rows, or no rows for anybody else (the page draws the lead's one line). */
 export async function loadCourseDocuments(
   db: Firestore,
   user: SessionUser,
   run: { runId: string; courseId: string },
-): Promise<CourseDocuments | null> {
+): Promise<CourseDocuments> {
   const admin = user.role === "admin";
   const rows: CourseDocumentRow[] = [];
   if (admin) {
@@ -62,7 +60,7 @@ export async function loadCourseDocuments(
     rows.push({ key: "start-here", name: "Start here", whose: "run", loaded: readRunStartHere(raw) !== null, title: null, loadedOn: null });
     rows.push({ key: "glossary", name: "Glossary", whose: "run", loaded: readRunGlossary(raw) !== null, title: null, loadedOn: null });
   }
-  const writer = run.courseId ? await facilitatorGuideWriter(db, user, run.courseId) : null;
+  const writer = admin && run.courseId ? await facilitatorGuideWriter(db, user, run.courseId) : null;
   if (writer) {
     const loaded = await readCourseDocumentsLoaded(db, writer, ["handbook", "printables"]);
     for (const doc of loaded) {
@@ -76,5 +74,5 @@ export async function loadCourseDocuments(
       });
     }
   }
-  return rows.length > 0 ? { admin, rows } : null;
+  return { admin, rows };
 }

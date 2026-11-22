@@ -191,18 +191,17 @@ export const WEEKS_NOT_YOURS =
   "Weeks is where the programme’s weeks are written and marked ready, so only the programme’s lead or an admin can open it.";
 
 /**
- * The Course documents card, first on the tab. "Admins load these" and the
- * lead's line are the board's; the lede for an admin says who reads each pair,
- * since the run's two are read by everyone holding a place, not in the
- * facilitator guide.
+ * The Course documents card, first on the tab, for an admin; a lead is given
+ * the one line instead. The admin's lede says who reads each pair, since the
+ * run's two are read by everyone holding a place, not in the facilitator
+ * guide.
  */
 export const DOCUMENTS_TITLE = "Course documents";
 export const DOCUMENTS_ADMINS = "Admins load these";
 export const DOCUMENTS_LEDE_ADMIN =
   "Everyone holding a place reads the run’s. Facilitators read the course’s in the facilitator guide. Each opens its paste.";
-export const DOCUMENTS_LEDE_LEAD = "Facilitators read them in the facilitator guide. Each opens the paste: Paste a document, then check it.";
-/** For a lead, in place of the run's two, which only an admin's loader takes. */
-export const DOCUMENTS_RUN_ADMINS = "Start here and the Glossary: an admin loads these.";
+/** The programme's lead's whole card: the Handbook and Printables are every run of the course's, live ones included. */
+export const DOCUMENTS_LEAD = "Course documents: an admin loads these.";
 /** "This run’s · Loaded on Fri 30 Oct", "The course’s · Not loaded". */
 export function documentLine(whose: "run" | "course", loaded: boolean, loadedOn: string | null): string {
   const owner = whose === "run" ? "This run’s" : "The course’s";

@@ -63,9 +63,11 @@ const WORDS: Record<GuideDocName, { title: string; hint: string; field: string; 
 type Props = {
   runId: string;
   doc: GuideDocName;
+  /** Called once a save has landed, for a page that shows whether the document is loaded (the Weeks tab's Course documents). */
+  onSaved?: () => void;
 };
 
-export default function GuideLoader({ runId, doc }: Props) {
+export default function GuideLoader({ runId, doc, onSaved }: Props) {
   const url = `/api/courses/runs/${encodeURIComponent(runId)}/guide/${doc}`;
   const words = WORDS[doc];
   const [markdown, setMarkdown] = useState("");
@@ -144,6 +146,7 @@ export default function GuideLoader({ runId, doc }: Props) {
       setReadFor(null);
       setMarkdown("");
       setAsked((n) => n + 1);
+      onSaved?.();
       return;
     }
     // A refused save answers with the read as it stands now: show that instead.

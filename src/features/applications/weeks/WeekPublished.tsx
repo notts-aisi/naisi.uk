@@ -9,6 +9,7 @@ import {
   NOBODY_IS_EMAILED,
   PUBLISHED,
   UNPUBLISH_BODY,
+  UNPUBLISH_WEEK_ONE_OPEN,
   nobodyStartedWords,
   unpublishAskWords,
   unpublishQuestionWords,
@@ -41,6 +42,7 @@ export default function WeekPublished({
   weekNumber,
   published,
   stays,
+  weekOneOpen = false,
 }: {
   runId: string;
   weekId: string;
@@ -49,6 +51,8 @@ export default function WeekPublished({
   published: boolean;
   /** The route's sentence for a week in use, or null while nobody has started it. */
   stays: string | null;
+  /** Week 1 is open early to everybody holding a place: the question says what unpublishing closes. */
+  weekOneOpen?: boolean;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -74,6 +78,8 @@ export default function WeekPublished({
     } catch (err) {
       setAsking(false);
       setProblem(err instanceof Error ? err.message : "That didn’t save. Try again.");
+      // A refusal means the week changed meanwhile (somebody started it): read the card again.
+      router.refresh();
     } finally {
       setBusy(false);
     }
@@ -117,6 +123,7 @@ export default function WeekPublished({
               {unpublishQuestionWords(weekNumber)}
             </h2>
             <p>{UNPUBLISH_BODY}</p>
+            {weekOneOpen && <p>{UNPUBLISH_WEEK_ONE_OPEN}</p>}
             <p className={styles.muted}>{NOBODY_IS_EMAILED}</p>
             <div className={styles.actions}>
               <button type="button" className={styles.button} onClick={dismiss} disabled={busy}>

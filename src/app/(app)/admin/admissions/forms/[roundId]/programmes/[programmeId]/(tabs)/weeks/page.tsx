@@ -12,8 +12,8 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
  * One programme's Weeks tab: first the course's documents (the run's Start
- * here and Glossary, the course's Handbook and Printables), each row only
- * for somebody its loader admits (`loadCourseDocuments`); then when weeks open, "Copy weeks
+ * here and Glossary, the course's Handbook and Printables) for an admin, and
+ * one line for the lead (`loadCourseDocuments`); then when weeks open, "Copy weeks
  * from the course", and every week of the run the programme names, in order,
  * with its state, first session, ready-by day and owner, each a link to the
  * week's own page.
@@ -42,7 +42,7 @@ export default async function ProgrammeWeeksPage({
   const documents = await loadCourseDocuments(db, user, { runId: tab.runId, courseId: tab.courseId });
   return (
     <div className={styles.stack}>
-      {documents && <CourseDocuments runId={tab.runId} courseId={tab.courseId} documents={documents} />}
+      <CourseDocuments runId={tab.runId} courseId={tab.courseId} documents={documents} />
       <WeeksList tab={tab} roundId={view.roundId} programmeId={view.programmeId} review={{ viewer: view.viewer, now: new Date() }} />
     </div>
   );

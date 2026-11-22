@@ -3657,7 +3657,7 @@ export const ROUTES = {
     PUT: {
       expect: adminOnly(404),
       drive: {
-        body: { title: "Week one", summary: "", pitching: false, questions: [] },
+        body: { base: "0000000000000000", title: "Week one", summary: "", pitching: false, questions: [] },
         why:
           "An empty body is the same 400 for every signed-in persona; a whole one reaches the gate, which " +
           "every persona here but the admin fails, and the admin meets the week address check.",
@@ -8252,7 +8252,7 @@ export const REAL_ROUTES = {
   "/api/courses/runs/[runId]/weeks/[weekId]/settings": {
     PUT: {
       realDrive: {
-        body: { title: "Week one", summary: "", pitching: false, questions: [] },
+        body: { base: "0000000000000000", title: "Week one", summary: "", pitching: false, questions: [] },
         why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
       },
       another: {

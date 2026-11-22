@@ -3,11 +3,10 @@
  * week's page on a programme's Weeks tab, and of the route that saves the
  * settings. No server import, so the page and the route say the same thing.
  *
- * The drawn words are copied exactly, with their apostrophes, and "started"
- * stands wherever the drawing said "opened": the site records nobody opening
- * a page and does not start to (the owner's decision), so what it can say is
- * that somebody has ticked or written in a week. The words it does not draw
- * are as few as the page needs, in the same voice.
+ * The page says "started" and never "opened": the site records nobody
+ * opening a page and does not start to (the owner's decision), so what it can
+ * say is that somebody has ticked or written in a week. Every sentence is as
+ * short as the page needs, in the same voice.
  */
 
 import { COURSE_FIELD_LIMITS } from "@/lib/firestore/courses";
@@ -23,18 +22,23 @@ export const SUMMARY_LABEL = "Summary";
 export const SUMMARY_HINT = "A line or two about the week.";
 export const PITCHING_LABEL = "This is pitching week";
 export const PITCHING_HINT = "Its pitches show on Groups, Pitches.";
-/** Under the tick once the week is stored as pitching week. */
+/** Under the tick on the week the pitching pages treat as pitching week (`readPitchingWeek`). */
 export function pitchingWeekWords(weekNumber: number): string {
   return `Week ${weekNumber} is pitching week. Its pitches show on Groups, Pitches.`;
 }
+/** Under the tick on any other week, while a week is pitching week. */
+export function otherPitchingWeekWords(weekNumber: number): string {
+  return `Week ${weekNumber} is pitching week.`;
+}
 export const QUESTIONS_LABEL = "Questions to think about";
 /**
- * Under the questions. The drawing said each group's facilitators can change
- * their own group's copy; they cannot (a group's own copy of a week is made
- * and changed only by the programme's lead and admins), so this says only
- * what a save does: a group with its own copy keeps the questions in it.
+ * Under the questions. Each group's facilitators cannot change their group's
+ * copy (a group's own copy of a week is made and changed only by the
+ * programme's lead and admins), so this says only what a save does: a group
+ * with its own copy reads that copy whole (`resolveWeekDoc`), so it keeps its
+ * own title, summary and questions.
  */
-export const QUESTIONS_HINT = "A group with its own copy of this week keeps the questions in its copy.";
+export const QUESTIONS_HINT = "A group with its own copy of this week keeps its own title, summary and questions.";
 export const REMOVE = "Remove";
 export const ADD_QUESTION = "Add a question";
 export const SAVE_SETTINGS = "Save the week’s settings";
@@ -66,6 +70,17 @@ export function questionEmptyWords(n: number): string {
   return `Question ${n} is empty. Write it, or remove it.`;
 }
 export const QUESTION_LONG = `Questions must be ${COURSE_FIELD_LIMITS.weekQuestion} characters or fewer.`;
+/** A save from a page older than the week's settings as stored, in the words of a block saved from an older page. */
+export const SETTINGS_CHANGED =
+  "This week’s settings have changed since you opened them: somebody saved the week meanwhile. Load the week again to see what they say now.";
+/** A save that does not say which version of the settings it changes. */
+export const SETTINGS_BASE = "Load the week again: the save doesn’t say which version of the settings it changes.";
+/** Ticking a week while another is ticked: a run has one pitching week. */
+export function pitchingElsewhereWords(weekNumber: number): string {
+  return `Week ${weekNumber} is pitching week. Untick it there first.`;
+}
+/** Unticking or moving pitching week once anybody has pitched or a team is made: their pitches and picks are read by that week. */
+export const PITCHING_IN_USE = "Pitches or teams are on this run already, so pitching week can’t be moved or unticked.";
 /** A save that changes nothing: the week editor's words. */
 export const NOTHING_CHANGED = "Nothing changed, so nothing was saved.";
 export const SETTINGS_SAVED = "The week’s settings are saved.";
@@ -102,6 +117,9 @@ export function unpublishQuestionWords(weekNumber: number): string {
 }
 export const UNPUBLISH_BODY =
   "Nobody has started it yet. It goes back to draft and leaves the programme page until you mark it ready again.";
+/** In the question for week 1 while it is open early to everybody holding a place (`weekOne/door.ts`). */
+export const UNPUBLISH_WEEK_ONE_OPEN =
+  "People holding a place can open week 1 now. Unpublishing closes it to them, with Start here and the Glossary, until it’s marked ready again.";
 export const NOBODY_IS_EMAILED = "Nobody is emailed.";
 export const KEEP_PUBLISHED = "Keep it published";
 /** The question's press. */
@@ -122,7 +140,7 @@ export const STAFF_ONLY = "Staff only";
 export const LANDED_LEDE =
   "From people’s ratings and ticks this week. Ratings stay hidden until enough people have rated a reading.";
 /** When the run has more ticks and ratings than one read counts. */
-export const LANDED_PARTIAL = "This run has more ticks than one look counts, so these numbers are short.";
+export const LANDED_PARTIAL = "This run has too many ticks and ratings to count at once, so these numbers are lower than the real ones.";
 
 /**
  * A reading's line: "Rated 4.3 out of 5 by 11 · finished by 14 of 23" once
@@ -148,3 +166,16 @@ export function noteLabelWords(title: string): string {
 }
 export const CANCEL = "Cancel";
 export const SAVE_NOTE = "Save the note";
+/** Under the note box: a note is one per reading per author, and saving again replaces it. */
+export const NOTE_REPLACES = "Saving replaces any note you wrote on it before.";
+/** While the run's look back is read. */
+export const LANDED_LOADING = "Loading…";
+
+/**
+ * This week's rows of the run's look back, in the week's own order: only the
+ * readings whose ids the page handed in (`sourceIds`), each once.
+ */
+export function landedRowsFor<T extends { itemId: string }>(materials: readonly T[], sourceIds: readonly string[]): T[] {
+  const byId = new Map(materials.map((row) => [row.itemId, row] as const));
+  return [...new Set(sourceIds)].map((id) => byId.get(id)).filter((row): row is T => row !== undefined);
+}

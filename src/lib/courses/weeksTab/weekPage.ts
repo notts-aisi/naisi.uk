@@ -7,6 +7,7 @@ import { dayBeforeWords } from "@/lib/courses/weekBlocks/markdownWrite";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekReadiness, weekSources } from "@/lib/courses/weekBlocks/reader";
 import { weekIsReady } from "@/lib/courses/weekReady";
+import { settingsFingerprint } from "@/lib/courses/weekSettings/model";
 import { normalizeGroupWeek, sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { normalizeCourse, normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses";
 import type { WeekOwner, WeeksTab, WeeksTabWeek } from "./load";
@@ -70,6 +71,8 @@ export type WeekPage = {
   summary: string;
   pitching: boolean;
   questions: string[];
+  /** The settings' fingerprint as stored, which a save carries as its `base` (`settingsFingerprint`). */
+  settingsBase: string;
   /** The ids of the week's readings (`weekSources`), in order: How it landed reads these rows of the run's look back. */
   sourceIds: string[];
 };
@@ -146,6 +149,7 @@ export async function loadWeekPage(db: Firestore, tab: WeeksTab, week: WeeksTabW
     summary: doc?.summary ?? "",
     pitching: doc?.pitching === true,
     questions: doc ? [...doc.questions] : [],
+    settingsBase: doc ? settingsFingerprint({ title: doc.title, summary: doc.summary, pitching: doc.pitching, questions: doc.questions }) : "",
     sourceIds: doc ? weekSources(doc).map((source) => source.id) : [],
   };
 }

@@ -19,6 +19,7 @@ import {
   TITLE_EMPTY,
   TITLE_HINT,
   TITLE_LABEL,
+  otherPitchingWeekWords,
   pitchingWeekWords,
   questionEmptyWords,
   questionName,
@@ -35,6 +36,12 @@ import own from "./weekSettings.module.css";
  * decides who may and checks every field again. The facilitator guide box,
  * which saves on its own, is handed in as `children` and drawn above the
  * press, where the week's settings end.
+ *
+ * The save carries the settings' fingerprint as the page read them (`base`),
+ * so the route refuses a save from a page older than what is stored, and it
+ * refuses while somebody else holds the week's lock, as every save of a week
+ * does. The line under the pitching tick names the week the pitching pages
+ * treat as pitching week, which may be another week.
  *
  * Nothing is written until the press. Once the route has answered the page is
  * read again from the server, so what the boxes hold is what is stored. Every
@@ -53,6 +60,8 @@ export default function WeekSettingsFields({
   weekId,
   weekNumber,
   stored,
+  base,
+  pitchingWeek,
   children,
 }: {
   runId: string;
@@ -60,6 +69,10 @@ export default function WeekSettingsFields({
   weekNumber: number;
   /** The week's settings as stored. */
   stored: Settings;
+  /** Their fingerprint, sent with the save so a save from an older page is refused (`settingsFingerprint`). */
+  base: string;
+  /** The week the pitching pages treat as pitching week (`readPitchingWeek`), or null while none is ticked. */
+  pitchingWeek: number | null;
   children?: ReactNode;
 }) {
   const router = useRouter();
@@ -102,7 +115,7 @@ export default function WeekSettingsFields({
       const res = await fetch(`/api/courses/runs/${encodeURIComponent(runId)}/weeks/${encodeURIComponent(weekId)}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, summary, pitching, questions: rows.map((row) => row.text) }),
+        body: JSON.stringify({ base, title, summary, pitching, questions: rows.map((row) => row.text) }),
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
       if (!res.ok) throw new Error(body.error ?? "That didn’t save. Try again.");
@@ -150,7 +163,13 @@ export default function WeekSettingsFields({
         />
         <label htmlFor={pitchingId} className={own.tickLabel}>
           <span className={own.tickName}>{PITCHING_LABEL}</span>
-          <span className={styles.muted}>{stored.pitching ? pitchingWeekWords(weekNumber) : PITCHING_HINT}</span>
+          <span className={styles.muted}>
+            {pitchingWeek === null
+              ? PITCHING_HINT
+              : pitchingWeek === weekNumber
+                ? pitchingWeekWords(weekNumber)
+                : otherPitchingWeekWords(pitchingWeek)}
+          </span>
         </label>
       </div>
 

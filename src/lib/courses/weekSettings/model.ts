@@ -23,11 +23,13 @@
  */
 
 import { COURSE_FIELD_LIMITS, oneLineQuestion } from "@/lib/firestore/courses";
+import { fingerprintOf } from "../weekEdit/model";
 import {
   QUESTION_LONG,
   QUESTION_NOT_TEXT,
   QUESTIONS_NOT_A_LIST,
   QUESTIONS_TOO_MANY,
+  SETTINGS_BASE,
   SETTINGS_BODY,
   SUMMARY_LONG,
   TITLE_EMPTY,
@@ -43,14 +45,31 @@ export type WeekSettings = {
   questions: string[];
 };
 
-/** The body's shape, before the gate: four fields of the right kinds, or the one sentence. */
-export function settingsBodyOf(raw: unknown): { ok: true; body: { title: string; summary: string; pitching: boolean; questions: unknown[] } } | { ok: false; error: string } {
+/**
+ * WHICH VERSION A SAVE CHANGES. The page hands the route the fingerprint of
+ * the settings as it read them (`base`), as a block's editor hands its block's
+ * (`blockFingerprint`): a save from a page older than what is stored is
+ * refused, so it never writes back what somebody else changed meanwhile. The
+ * four fields are read as stored, through the week's reader.
+ */
+export function settingsFingerprint(stored: WeekSettings): string {
+  return fingerprintOf([stored.title, stored.summary, stored.pitching, stored.questions]);
+}
+
+/** A fingerprint as a save may carry it: sixteen hex characters. */
+const BASE = /^[0-9a-f]{16}$/;
+
+/** The body's shape, before the gate: the base and four fields of the right kinds, or the one sentence. */
+export function settingsBodyOf(
+  raw: unknown,
+): { ok: true; body: { base: string; title: string; summary: string; pitching: boolean; questions: unknown[] } } | { ok: false; error: string } {
   const body = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
   if (!body || typeof body.title !== "string" || typeof body.summary !== "string" || typeof body.pitching !== "boolean" || !("questions" in body)) {
     return { ok: false, error: SETTINGS_BODY };
   }
   if (!Array.isArray(body.questions)) return { ok: false, error: QUESTIONS_NOT_A_LIST };
-  return { ok: true, body: { title: body.title, summary: body.summary, pitching: body.pitching, questions: body.questions } };
+  if (typeof body.base !== "string" || !BASE.test(body.base)) return { ok: false, error: SETTINGS_BASE };
+  return { ok: true, body: { base: body.base, title: body.title, summary: body.summary, pitching: body.pitching, questions: body.questions } };
 }
 
 /** The questions, checked whole, as the group week route checks a group's. */
@@ -79,11 +98,13 @@ export function checkSettings(body: { title: string; summary: string; pitching: 
   return { ok: true, settings: { title, summary, pitching: body.pitching, questions: questions.questions } };
 }
 
-/** What a save changes against the week as stored; empty when it changes nothing. */
+/** What a save changes against the week as stored; empty when it changes nothing. Only these fields are written. */
 export function settingsChanges(stored: WeekSettings, next: WeekSettings): SettingsChange[] {
   const changes: SettingsChange[] = [];
-  if (stored.title !== next.title) changes.push("title");
-  if (stored.summary !== next.summary) changes.push("summary");
+  // Compared as a save stores them, trimmed, so a stored title or summary
+  // with a space at an end is not rewritten by a save that did not touch it.
+  if (stored.title.trim() !== next.title) changes.push("title");
+  if (stored.summary.trim() !== next.summary) changes.push("summary");
   if (stored.pitching !== next.pitching) changes.push(next.pitching ? "pitching-on" : "pitching-off");
   if (JSON.stringify(stored.questions) !== JSON.stringify(next.questions)) changes.push("questions");
   return changes;
