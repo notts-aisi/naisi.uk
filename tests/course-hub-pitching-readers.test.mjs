@@ -85,6 +85,10 @@ const READERS = {
     proof: ["wouldJoinUids: pitch.wouldJoinUids,"],
     why: "making a pitch a team, by the programme's lead or an admin: the people who would join it (in its group, in no team yet, up to the largest team) are put in it, so the lead learns who picked a pitch only as the people of the team they made from it",
   },
+  "app/api/courses/runs/[runId]/weeks/[weekId]/settings/route.ts": {
+    proof: ['.where("runId", "==", runId).select("weekId")'],
+    why: "a week's settings, for the programme's lead and admins: whether any pitch is on the run and which week it was made in, read as the week id alone, so pitching week is never unticked or moved from under them; no pick is read",
+  },
   "lib/firestore/accountDeletion.ts": {
     proof: ["FieldValue.arrayRemove(uid)"],
     why: "account deletion takes the person off every pitch and every list of who would join one",
