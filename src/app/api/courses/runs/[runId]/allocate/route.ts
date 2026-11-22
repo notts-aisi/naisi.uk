@@ -817,7 +817,7 @@ export async function POST(req: Request, ctx: Ctx) {
          * can: in the request's order, the first refusal of any kind.
          */
         const stoppedTogether = (): Stopped | null => {
-          if (runNow && (!runNow.exists || (runNow.data() ?? {}).allocationPublishedAt)) {
+          if (runNow && (!runNow.exists || runNow.data()?.allocationPublishedAt)) {
             return { uid: null, reason: "published", groupId: null };
           }
           const refusedUids = new Set([
