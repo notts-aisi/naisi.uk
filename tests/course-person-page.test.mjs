@@ -44,6 +44,7 @@ const pages = {
   cut: (await w.loadTs(join("app", "(app)", "learn", "[runId]", "group", "[groupId]", "people", "[uid]", "page.tsx"))).default,
 };
 const model = await w.loadTs(join("lib", "courses", "personPage", "model.ts"));
+const PersonPage = (await w.loadTs(join("features", "courses", "personPage", "PersonPage.tsx"))).default;
 const { GroupPeopleCard } = await w.loadTs(join("features", "courses", "facilitator", "GroupCards.tsx"));
 
 /** Every word anybody wrote in the world: none may ever be in a view or on a page. */
@@ -387,15 +388,22 @@ describe("what the page says is true of the live records", () => {
     assert.ok(!viewOf(await team("zach")).activity.some((line) => /Publish/.test(line.said)), "a stopped email is said to have told them");
   });
 
-  test("somebody who left: the head and their attendance only, as the tabs show a leaver; the cut refuses them", async () => {
+  test("somebody who left: none of the Coursework tab's sections, as the tabs show a leaver; the cut refuses them", async () => {
     w.reset(seed({ [`courseAttendance/${RUN.agi}__${B}__w01`]: registerDoc(B, 1, { amara: "present", kofi: "present", sam: "present" }) }));
     for (const who of ["zach", "claudia"]) {
       const drawn = await team(who, "sam");
       const view = viewOf(drawn);
       assert.ok(view, `${who} is handed Sam's page`);
-      // The head (with, for an admin alone, their address) and the attendance.
-      const head = who === "zach" ? ["about", "attendance", "back", "email", "header", "reader", "uid"] : ["about", "attendance", "back", "header", "reader", "uid"];
+      // The head (with, for an admin alone, their address), where the place stands, when they're free, the
+      // application the People tab offers for them, the attendance, and for an admin alone Claude and Pangram and the
+      // account. No coursework, feedback, notes, Move or Visit.
+      const head =
+        who === "zach"
+          ? ["about", "account", "application", "attendance", "back", "claude", "email", "free", "freeFoot", "header", "place", "reader", "uid"]
+          : ["about", "application", "attendance", "back", "free", "freeFoot", "header", "place", "reader", "uid"];
       assert.deepEqual(Object.keys(view).sort(), head, `${who}: a section the tabs do not show for a leaver`);
+      assert.deepEqual(view.place, [{ key: "place", label: "Place", value: "Left the programme · Mon 2 Nov" }], `${who}: no group line for somebody who left`);
+      assert.ok(!("timeAnswer" in view), "an answer about a group is never shown off a seat that has left");
       assert.equal(view.header.group, null);
       assert.match(view.header.status, /Left the programme/);
       assert.equal(view.attendance.counts.find((count) => count.key === "room").value, 1, "the mark the register kept");
@@ -661,43 +669,66 @@ describe("the header's details and its two links", () => {
   test("the strip of section links names only the sections the reader is shown", async () => {
     w.reset(seed());
     const strip = (drawn) => [...drawn.html.matchAll(/href="#person-([a-z]+)"/g)].map((match) => match[1]);
-    assert.deepEqual(strip(await team("zach")), ["coursework", "attendance", "feedback", "notes", "application", "events", "activity"]);
-    assert.deepEqual(strip(await team("claudia")), ["coursework", "attendance", "feedback", "notes", "application"]);
-    assert.deepEqual(strip(await team("zach", "zach")), ["coursework", "attendance", "feedback", "events", "activity"], "no notes and no application about themselves");
+    assert.deepEqual(strip(await team("zach")), ["place", "free", "application", "coursework", "attendance", "feedback", "notes", "events", "activity", "account"]);
+    assert.deepEqual(strip(await team("claudia")), ["place", "free", "application", "coursework", "attendance", "feedback", "notes"]);
+    assert.deepEqual(
+      strip(await team("zach", "zach")),
+      ["place", "coursework", "attendance", "feedback", "events", "activity", "account"],
+      "no week, no notes and no application about themselves",
+    );
     assert.deepEqual(strip(await cut("rahul")), [], "the cut has no strip");
     for (const id of strip(await team("zach"))) assert.match((await team("zach")).html, new RegExp(`id="person-${id}"`), `${id}: the link has somewhere to go`);
   });
 });
 
 describe("the application's line", () => {
-  test("ranked and accepted: the board's line, with Read the application, for an admin and the lead", async () => {
+  test("the day they applied and the programmes they ranked, with Open their application, for an admin and the lead", async () => {
     w.reset(seed());
     for (const who of ["zach", "claudia"]) {
       const view = viewOf(await team(who));
       assert.deepEqual(view.application, {
         href: `/admin/admissions/forms/${ROUND}/programmes/${AGI}/applications/amara`,
-        label: "Read the application",
-        line: "Ranked AGI Strategy first. Accepted Fri 23 Oct.",
+        label: "Open their application",
+        line: "Applied on Fri 9 Oct: AGI Strategy first, Technical AI Safety second.",
       }, who);
+      // Decision day accepted Amara onto AGI Strategy on Fri 23 Oct: the day the place became theirs.
+      assert.equal(view.place[0].value, "Holds a place on AGI Strategy since Fri 23 Oct", who);
     }
   });
 
-  test("a ranking says where the programme sat; an application that did not rank it says only what it has", async () => {
+  test("the programmes in their order; somebody who joined by invitation, from the day they said yes", async () => {
     const s = seed();
     const path = `admissionApplications/${ROUND}__amara`;
     s[path] = { ...s[path], sent: { ...s[path].sent, rankedProgrammeIds: [TAIS, AGI] } };
     w.reset(s);
-    assert.equal(viewOf(await team("zach")).application.line, "Ranked AGI Strategy second. Accepted Fri 23 Oct.");
+    assert.equal(viewOf(await team("zach")).application.line, "Applied on Fri 9 Oct: Technical AI Safety first, AGI Strategy second.");
     w.reset(seed());
-    // Kofi ranked only Technical AI Safety and said yes to an invitation to AGI Strategy: no ranking of it to say.
-    assert.equal(viewOf(await team("zach", "kofi")).application.line, "Said yes to an invitation Tue 27 Oct.");
-    assert.equal(viewOf(await team("claudia", "kofi")).application.line, "Said yes to an invitation Tue 27 Oct.");
+    // Kofi ranked only Technical AI Safety and said yes to an invitation to AGI Strategy on Tue 27 Oct.
+    for (const who of ["zach", "claudia"]) {
+      const kofi = viewOf(await team(who, "kofi"));
+      assert.equal(kofi.application.line, "Applied on Fri 9 Oct: Technical AI Safety first.", who);
+      assert.equal(kofi.place[0].value, "Holds a place on AGI Strategy since Tue 27 Oct", who);
+    }
+  });
+
+  test("whether they offered to facilitate, on a form that asks: what they said, never Claude's rating", async () => {
+    const s = seed();
+    s[`admissionRounds/${ROUND}`] = { ...s[`admissionRounds/${ROUND}`], asksFacilitating: true };
+    const path = `admissionApplications/${ROUND}__amara`;
+    s[path] = { ...s[path], sent: { ...s[path].sent, wantsToFacilitate: true } };
+    w.reset(s);
+    for (const who of ["zach", "claudia"]) {
+      const drawn = await team(who);
+      assert.equal(viewOf(drawn).application.line, "Applied on Fri 9 Oct: AGI Strategy first, Technical AI Safety second. Offered to facilitate.", who);
+      assert.match(viewOf(await team(who, "dev")).application.line, / Didn’t offer to facilitate\.$/, who);
+      assert.doesNotMatch(drawn.text, /As a facilitator:/, `${who}: Claude's rating of somebody as a facilitator is on the page`);
+    }
   });
 
   test("nobody is sent the line without the link: not about themselves, not on the cut", async () => {
     w.reset(seed());
     assert.ok(!("application" in viewOf(await team("zach", "zach"))));
-    assert.doesNotMatch(JSON.stringify(viewOf(await cut("rahul"))), /Ranked|Accepted|invitation/);
+    assert.doesNotMatch(JSON.stringify(viewOf(await cut("rahul"))), /Applied on|Holds a place|invitation|facilitate\./);
   });
 });
 
@@ -1020,19 +1051,302 @@ describe("this piece's model, pure", () => {
     assert.deepEqual(lines, [{ at: "2026-11-04T10:40:00.000Z", when: "Wed 4 Nov, 10:40am", said: "Kwame Asante visits Group F for week 1.", who: "Zach Levin" }]);
   });
 
-  test("the words: joined, ranked, accepted, an invitation, the events count", async () => {
+  test("the words: joined, applied, a place held, the events count", async () => {
     const words = await w.loadTs(join("lib", "courses", "personPage", "words.ts"));
     assert.equal(words.joinedMonthWords(new Date("2026-09-14T10:00:00Z")), "Sep 2026");
     assert.equal(words.joinedMonthWords(new Date("2026-06-30T23:30:00Z")), "Jul 2026", "the month in London");
-    assert.equal(words.rankedWords("AGI Strategy", 1), "Ranked AGI Strategy first.");
-    assert.equal(words.rankedWords("AGI Strategy", 3), "Ranked AGI Strategy third.");
-    assert.equal(words.acceptedWords(null), "Accepted.");
-    assert.equal(words.invitationTakenWords(null), "Said yes to an invitation.");
+    const sat = new Date("2026-10-24T10:00:00+01:00");
+    assert.equal(words.appliedWords(sat, ["AGI Strategy", "Technical AI Safety"], false), "Applied on Sat 24 Oct: AGI Strategy first, Technical AI Safety second. Didn’t offer to facilitate.");
+    assert.equal(words.appliedWords(sat, ["AGI Strategy"], true), "Applied on Sat 24 Oct: AGI Strategy first. Offered to facilitate.");
+    assert.equal(words.appliedWords(null, ["AGI Strategy", "Alignment", "Governance"], null), "AGI Strategy first, Alignment second, Governance third.", "no day on record: the ranking alone");
+    assert.equal(words.holdsPlaceWords("AGI Strategy", new Date("2026-10-28T12:00:00Z")), "Holds a place on AGI Strategy since Wed 28 Oct");
+    assert.equal(words.holdsPlaceWords("AGI Strategy", null), "Holds a place on AGI Strategy");
+    assert.equal(words.onlyAdminsSeeWords("Sofia"), "Only admins see when Sofia is free.");
+    assert.equal(words.openAccountWords("Leo"), "Open Leo’s account");
     assert.equal(words.signedUpWords(1, 0, 0), "Signed up to 1 this term.", "no second sentence with nothing that counts");
     assert.equal(words.signedUpWords(4, 1, 0), "Signed up to 4 this term. Came to 0 of the 1 that is over where they held a place and check-in was used.");
     assert.equal(words.signedUpWords(4, 2, 1), "Signed up to 4 this term. Came to 1 of the 2 that are over where they held a place and check-in was used.");
     assert.equal(words.signedUpWords(0, 0, 0), "Not signed up to any this term.", "no second sentence with no sign-ups");
     assert.equal(words.visitDueWords("Group F", null), "Due at Group F: a visit");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The top of the page: place and group, when they're free, the application,
+// and an admin's Claude, Pangram and account
+// ---------------------------------------------------------------------------
+
+/** A marker planted in each field only an admin may read, and the week's own mark on the page. */
+const ADMINS_ONLY = {
+  claudeSummary: "Reads the lighthouse case closely and carefully.",
+  claudeStrength: "Asks sharp questions about the harbour.",
+  claudeConcern: "Little said about the keepers' pay.",
+};
+const ASSESSMENT = `admissionAssessments/${ROUND}__amara`;
+const ACCESS_TEXT = "A seat near the door, please.";
+
+/** The top's world: Amara's answer about Group B's time, Claude's and Pangram's reads of Amara's application, and Sofia's application to another programme. */
+function topSeed(over = {}) {
+  const s = seed();
+  s[AMARA_SEAT] = {
+    ...s[AMARA_SEAT],
+    timeAnswer: {
+      kind: "mostWeeks",
+      forGroupId: B,
+      reason: "I have a lab on Tue 17 Nov.",
+      alternatives: "Thursday evening that week.",
+      sessionKeys: ["w03"],
+      at: new Date("2026-11-01T10:00:00Z"),
+    },
+  };
+  s[ASSESSMENT] = {
+    roundId: ROUND,
+    uid: "amara",
+    read: {
+      summary: ADMINS_ONLY.claudeSummary,
+      programmes: { [AGI]: { lean: "strong", leanReason: "", fit: "" } },
+      strengths: [ADMINS_ONLY.claudeStrength],
+      concerns: [ADMINS_ONLY.claudeConcern],
+      thinAnswers: [],
+    },
+    pangram: { answers: [{ key: "x", worthALook: true }], failed: [], tooShort: 0, at: "" },
+  };
+  // Sofia facilitates Groups A and B, holds no place on the run, and applied to Technical AI Safety alone.
+  const amara = s[`admissionApplications/${ROUND}__amara`];
+  s[`admissionApplications/${ROUND}__sofia`] = {
+    ...amara,
+    uid: "sofia",
+    email: "sofia@example.com",
+    displayName: "Sofia Rossi",
+    sent: { ...amara.sent, aboutYou: { ...amara.sent.aboutYou, preferredName: "Sofia" }, rankedProgrammeIds: [TAIS] },
+    draft: { ...amara.draft, rankedProgrammeIds: [TAIS] },
+    status: "pooled",
+    result: { kind: "no-offer", programmeId: null, publishedAt: new Date("2026-10-23T08:00:00Z"), email: "sent", emailedAt: new Date("2026-10-23T08:00:00Z") },
+    attendance: null,
+  };
+  return { ...s, ...over };
+}
+
+/** How many stretches of somebody's week the page draws: each is one block of the chart's `free` class. */
+const stretchesIn = (html) => (html.match(/class="free"/g) ?? []).length;
+
+describe("the top of the page, as every kind of reader", () => {
+  test("an admin: Place and group, the week with their answer, the application with Claude and Pangram, and the account", async () => {
+    w.reset(topSeed());
+    const drawn = await team("zach");
+    const view = viewOf(drawn);
+    assert.deepEqual(view.place, [
+      { key: "place", label: "Place", value: "Holds a place on AGI Strategy since Fri 23 Oct" },
+      { key: "group", label: "Group", value: "Group B, Tuesdays 6pm · told on Wed 28 Oct" },
+      { key: "coming", label: "Coming", value: "Said they’re coming" },
+    ]);
+    assert.equal(view.free.kind, "given");
+    assert.deepEqual(view.free.groups.map((group) => [group.name, group.said, group.current]), [
+      ["Group B · Tuesdays 6pm", "All 2 hours in their time", true],
+      ["Group A · Thursdays 6pm", "All 2 hours in their time", false],
+      ["Group C · Wednesdays 1pm", "None of it in their time", false],
+    ]);
+    assert.equal(view.free.littleMarked, null);
+    assert.equal(stretchesIn(drawn.html), 2, "Tuesday's and Thursday's evenings");
+    assert.match(drawn.text, /In this group/);
+    assert.deepEqual(view.timeAnswer, {
+      title: "Their answer about Group B’s time",
+      said: "Can make most weeks · Misses week 3",
+      why: "I have a lab on Tue 17 Nov.",
+      wouldWork: "Thursday evening that week.",
+    });
+    assert.equal(view.freeFoot, "Admins and AGI Strategy’s lead see this. Facilitators never do.");
+    assert.deepEqual(view.claude, {
+      lines: [`Claude’s lean: strong. ${ADMINS_ONLY.claudeSummary}`, `Strengths: ${ADMINS_ONLY.claudeStrength}.`, `Concerns: ${ADMINS_ONLY.claudeConcern}.`],
+      pangram: "Pangram: 1 answer worth a look. Read them before deciding; a flag is never a finding on its own.",
+      flagged: true,
+    });
+    assert.match(drawn.text, /Claude and Pangram Only admins see this/);
+    assert.deepEqual(view.account, { href: "/admin/members/amara", label: "Open Amara’s account" });
+    assert.match(drawn.html, /href="\/admin\/members\/amara"/);
+    assert.equal(view.email, "amara@example.com");
+    // The order the design draws: Place and group, the application, then When they're free beside them.
+    const at = (words) => drawn.text.indexOf(words);
+    assert.ok(at("Place and group") < at("Applied on") && at("Applied on") < at("Their answer about"), "the sections are out of order");
+    assert.ok(!drawn.html.includes(ACCESS_TEXT), "an access requirement is on the page");
+  });
+
+  test("the programme's lead: the week and their answer, and none of Claude, Pangram, the address, the account, access needs, SU membership, events or activity", async () => {
+    w.reset(topSeed());
+    const drawn = await team("claudia");
+    const view = viewOf(drawn);
+    // The lead may read Amara's application (Amara ranked AGI Strategy), so the lead is shown Amara's week (the owner's decision, 22 Nov 2026).
+    assert.equal(view.free.kind, "given");
+    assert.equal(stretchesIn(drawn.html), 2);
+    assert.equal(view.timeAnswer.said, "Can make most weeks · Misses week 3");
+    assert.equal(view.freeFoot, "Admins and AGI Strategy’s lead see this. Facilitators never do.");
+    assert.equal(view.application.line, "Applied on Fri 9 Oct: AGI Strategy first, Technical AI Safety second.");
+    for (const key of ["claude", "account", "email", "events", "activity", "signedUp"]) assert.ok(!(key in view), `the lead is handed ${key}`);
+    const payload = JSON.stringify(view);
+    for (const [what, marker] of [...Object.entries(ADMINS_ONLY), ["access requirement", ACCESS_TEXT]]) {
+      assert.ok(!payload.includes(marker), `the lead's payload carries ${what}`);
+      assert.ok(!drawn.html.includes(marker), `the lead's page shows ${what}`);
+    }
+    for (const word of [/Pangram/, /Claude/, /Only admins see this/, /\/admin\/members\//, /@/, /SU membership|suMembership/i, /As a facilitator/]) {
+      assert.doesNotMatch(drawn.html, word, `the lead's page carries ${word}`);
+      assert.doesNotMatch(payload, word, `the lead's payload carries ${word}`);
+    }
+    assertNothingWritten(drawn, "lead, top");
+  });
+
+  test("everybody else is refused the page, and is drawn none of the week and none of an admin's fields", async () => {
+    w.reset(topSeed());
+    // Tess leads Technical AI Safety. Amara ranked it, Dev did not: the page is the programme's, so both are refused.
+    const cases = [
+      [null, "amara"],
+      ["nobody", "amara"],
+      ["amara", "amara"],
+      ["rahul", "amara"],
+      ["yusuf", "amara"],
+      ["lloyd", "amara"],
+      ["tess", "amara"],
+      ["tess", "dev"],
+    ];
+    for (const [who, uid] of cases) {
+      const drawn = await team(who, uid);
+      assert.equal(viewOf(drawn), null, `${who} is handed ${uid}'s page`);
+      assert.equal(stretchesIn(drawn.html), 0, `${who} is drawn ${uid}'s week`);
+      for (const marker of [...Object.values(ADMINS_ONLY), ACCESS_TEXT, "When they’re free", "in their time", "Their answer about", "/admin/members/"]) {
+        assert.ok(!drawn.html.includes(marker), `${who} is drawn ${marker}`);
+      }
+      assert.equal(drawn.wrote, false);
+    }
+  });
+
+  test("a view-as session: the admin tree is closed, so the page is not drawn even as somebody who may open it", async () => {
+    w.reset(topSeed());
+    const layout = (await w.loadTs(join("app", "(app)", "admin", "layout.tsx"))).default;
+    const child = createElement("p", null, ADMINS_ONLY.claudeSummary);
+    w.world.viewAs = true;
+    try {
+      const drawn = await w.draw(() => layout({ children: child }), "claudia", {});
+      assert.ok(!drawn.html.includes(ADMINS_ONLY.claudeSummary), "the admin tree draws its page in a view-as session");
+    } finally {
+      w.world.viewAs = false;
+    }
+    // And outside one, the same layout draws the page.
+    const open = await w.draw(() => layout({ children: child }), "claudia", {});
+    assert.ok(open.html.includes(ADMINS_ONLY.claudeSummary), "the check above proves nothing: the layout never draws its page");
+  });
+
+  test("somebody whose application the lead may not read: the page refuses them, and the gated read answers one sentence and nothing derived from the week", async () => {
+    w.reset(topSeed());
+    const week = await w.loadTs(join("lib", "applications", "people", "week.ts"));
+    const repo = await w.loadTs(join("lib", "applications", "repo.ts"));
+    const staff = await w.loadTs(join("lib", "applications", "staffRepo.ts"));
+    const form = await repo.loadForm(w.world.db, ROUND);
+    const groups = [{ id: B, name: "Group B", session: { weekday: 2, startTimeLocal: "18:00", durationMinutes: 120 } }];
+    const as = (uid) => ({ ...w.sessionOf(uid), admissionsReviewer: w.world.db.read(`users/${uid}`)?.admissionsReviewer === true });
+    // Sofia facilitates with no place and applied to another programme; Ines was invited here and has not accepted.
+    for (const uid of ["sofia", "ines"]) {
+      const application = await staff.loadApplication(w.world.db, form, uid);
+      assert.ok(application?.sent, `${uid} has an application to read`);
+      const forLead = week.personWeekFor(as("claudia"), form, { uid, application }, groups, null);
+      assert.deepEqual(forLead, { kind: "may-not" }, `${uid}: the lead is answered more than may-not`);
+      assert.equal(week.personWeekFor(as("zach"), form, { uid, application }, groups, null).kind, "given", `${uid}: an admin reads the week`);
+      assert.deepEqual(week.personWeekFor(as("claudia"), form, { uid, application: null }, groups, null), { kind: "may-not" }, "no application says the same to the lead");
+      const drawn = await team("claudia", uid);
+      assert.equal(viewOf(drawn), null, `${uid} is a row of the lead's People tab`);
+      assert.match(drawn.text, /Nobody to show here/);
+      assert.equal(stretchesIn(drawn.html), 0);
+    }
+    // Amara is the lead's to read; and the reader is never answered about their own week.
+    const amara = await staff.loadApplication(w.world.db, form, "amara");
+    assert.equal(week.personWeekFor(as("claudia"), form, { uid: "amara", application: amara }, groups, B).kind, "given");
+    assert.deepEqual(week.personWeekFor(as("amara"), form, { uid: "amara", application: amara }, groups, B), { kind: "own" });
+    // The sentence the page draws for may-not, and nothing made from the week beside it.
+    const free = model.personFreeViewOf({ kind: "may-not" }, "Sofia", groups.map((group) => ({ ...group, fits: true, current: true })), { startMinute: 540, endMinute: 1260 });
+    assert.deepEqual(free, { kind: "may-not", line: "Only admins see when Sofia is free." });
+    const base = viewOf(await team("claudia"));
+    const { timeAnswer: _answer, freeFoot: _foot, ...rest } = base;
+    const drawn = renderToStaticMarkup(createElement(PersonPage, { view: { ...rest, free } }));
+    assert.match(drawn, /Only admins see when Sofia is free\./);
+    assert.equal(stretchesIn(drawn), 0);
+    for (const derived of ["in their time", "In this group", "Marked under 4 hours", "class=\"bar", "class=\"readAs", "Facilitators never do"]) {
+      assert.ok(!drawn.includes(derived), `the may-not section draws ${derived}`);
+    }
+    assert.ok(!/another programme|applied to/i.test(free.line), "the sentence says where or whether they applied");
+  });
+
+  test("nothing marked, and marked under four hours: the board's sentences, and the lighter shade", async () => {
+    w.reset(topSeed());
+    const bea = await team("claudia", "bea");
+    assert.deepEqual([viewOf(bea).free.kind, viewOf(bea).free.line], ["nothing", "They haven’t said when they’re free, so nothing is shaded."]);
+    assert.equal(stretchesIn(bea.html), 0);
+    assert.ok(viewOf(bea).free.chart, "the empty chart, with the groups on it");
+    const tariq = await team("zach", "tariq");
+    const view = viewOf(tariq);
+    assert.equal(view.free.kind, "given");
+    assert.equal(view.free.littleMarked, "Marked under 4 hours in the week. The lighter shade runs from their first mark each day to the end of the day.");
+    assert.match(tariq.html, /class="readAs"/, "the lighter shade");
+    // An hour on Tuesday from 6pm, read from then on: Group B's session is all in their time.
+    assert.equal(view.free.groups.find((group) => group.name.startsWith("Group B")).said, "All 2 hours in their time");
+  });
+
+  test("the reader's own page has no week; an answer is shown only off a seat still in its group", async () => {
+    w.reset(topSeed());
+    const own = viewOf(await team("zach", "zach"));
+    for (const key of ["free", "timeAnswer", "freeFoot", "claude", "application"]) assert.ok(!(key in own), `${key} about themselves`);
+    assert.deepEqual(own.account, { href: "/admin/members/zach", label: "Open Zach’s account" });
+    // Kofi is placed in Group B and not told: an admin sees "Not told yet"; the lead is shown no group.
+    assert.equal(viewOf(await team("zach", "kofi")).place[1].value, "Group B, Tuesdays 6pm · Not told yet");
+    assert.equal(viewOf(await team("claudia", "kofi")).place[1].value, "Not in a group yet");
+  });
+
+  test("the facilitator's cut is unchanged: no top sections, and it never links to the team's page", async () => {
+    w.reset(topSeed());
+    const drawn = await cut("rahul");
+    const view = viewOf(drawn);
+    assert.deepEqual(Object.keys(view).sort(), ["attendance", "back", "elsewhere", "feedback", "header", "uid", "weeks"]);
+    assert.doesNotMatch(drawn.html, /href="\/admin\//, "the cut links into the admin area");
+    assert.equal(stretchesIn(drawn.html), 0);
+    for (const marker of ["Place and group", "When they’re free", "Their answer about", ...Object.values(ADMINS_ONLY)]) assert.ok(!drawn.html.includes(marker), marker);
+  });
+});
+
+describe("every name opens the page, where it would open", () => {
+  test("the Attendance tab: each name the reader's People tab has, and no other", async () => {
+    w.reset(topSeed({ [`courseEnrolments/${RUN.agi}__omar`]: { ...peopleSeed()[AMARA_SEAT], uid: "omar", groupId: C } }));
+    for (const who of ["claudia", "zach"]) {
+      const { html } = await w.attendanceTab(who);
+      const path = `/admin/admissions/forms/${ROUND}/programmes/${AGI}/people`;
+      assert.match(html, new RegExp(`href="${path}/amara"`), `${who}: Amara's name does not open Amara's page`);
+      // Omar was told no offer: on the run by hand, and no row of the People tab, so the page would not open.
+      assert.match(html, /Omar/, `${who}: Omar is not on the register`);
+      assert.doesNotMatch(html, new RegExp(`href="${path}/omar"`), `${who}: Omar's name opens a page that would refuse`);
+    }
+  });
+
+  test("the Applications tab after decision day: an admin's and the lead's names of people holding a place; a reviewer's, and everybody else's, the application", async () => {
+    w.reset(topSeed());
+    const page = (await w.loadTs(join(PROGRAMME, "(tabs)", "applications", "page.tsx"))).default;
+    const people = `/admin/admissions/forms/${ROUND}/programmes/${AGI}/people`;
+    const applications = `/admin/admissions/forms/${ROUND}/programmes/${AGI}/applications`;
+    for (const who of ["claudia", "zach"]) {
+      const { html } = await w.draw(page, who, { roundId: ROUND, programmeId: AGI });
+      assert.match(html, new RegExp(`href="${people}/amara"`), `${who}: Amara holds a place, and the name still opens only the application`);
+      assert.doesNotMatch(html, new RegExp(`href="${applications}/amara"`), `${who}: Amara's name still opens the application`);
+      assert.match(html, new RegExp(`href="${applications}/omar"`), `${who}: Omar holds no place, and the name opens something else`);
+      assert.doesNotMatch(html, new RegExp(`href="${people}/omar"`));
+      assert.doesNotMatch(html, new RegExp(`href="${people}/nina"`), `${who}: Nina gave the place back, and the name opens the person's page`);
+    }
+    const { html } = await w.draw(page, "lloyd", { roundId: ROUND, programmeId: AGI });
+    assert.match(html, new RegExp(`href="${applications}/amara"`), "a reviewer's name opens the application");
+    assert.doesNotMatch(html, new RegExp(`href="${people}/`), "a reviewer is sent to a page that refuses them");
+  });
+
+  test("before decision day the Applications tab's names open the application, for everybody", async () => {
+    const s = topSeed();
+    s[`admissionRounds/${ROUND}`] = { ...s[`admissionRounds/${ROUND}`], decisionsSentAt: null };
+    w.reset(s);
+    const page = (await w.loadTs(join(PROGRAMME, "(tabs)", "applications", "page.tsx"))).default;
+    const { html } = await w.draw(page, "zach", { roundId: ROUND, programmeId: AGI });
+    assert.doesNotMatch(html, new RegExp(`href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/people/`));
   });
 });
 

@@ -45,6 +45,7 @@
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FIELD_VALUE_STUB, makeDb } from "./lib/applicationsStore.mjs";
@@ -71,6 +72,7 @@ import {
   walkSource,
 } from "./lib/functionScan.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(REPO_ROOT, "src");
@@ -691,5 +693,55 @@ describe("somebody who may read the application is told what is in the way", () 
     assert.equal(one.status, 200);
     assert.equal(one.body.changed, true);
     assert.equal(db.read(decisionPath("amara")).programmes[AGI].decision, "accept");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Every file that asks the predicate
+// ---------------------------------------------------------------------------
+
+/**
+ * EVERY FILE UNDER `src` THAT ASKS `canReadApplication`, and what it answers
+ * with the answer. Who may read an application is one predicate, and what
+ * the application holds (the answers, when somebody is free, the other
+ * programmes they ranked) reaches a screen only through a file on this list,
+ * so a second reader of applications cannot appear unnoticed. Checked both
+ * ways; comments are read as nothing.
+ */
+const ASKERS = {
+  "lib/applications/review/load.ts": "the review screen and its list: everybody the predicate refuses is told Not found",
+  "lib/applications/review/saveReview.ts": "a reviewer's row about an application, written only where they may read it",
+  "lib/applications/review/decide.ts": "a decision, refused in the same words as for nothing sent where the caller may not read the application",
+  "lib/applications/freedPlaces/offer.ts": "offering a freed place to somebody, refused as nobody where the caller may not read their application",
+  "lib/applications/handover/agenda.ts": "the hand-over's list of what waits, which leaves out every application the caller may not read",
+  "lib/applications/people/load.ts": "the People tab's rows, each somebody whose application the reader may open; a person's page opens only for a row",
+  "lib/applications/people/week.ts":
+    "when somebody is free, for a staff page: the week they marked only where the reader may read the application, and otherwise one answer and nothing derived from the week",
+};
+
+describe("every file that asks who may read an application says what it does with the answer", () => {
+  const access = join(LIBRARY, "access.ts");
+  const askers = [...walkSource(SRC)]
+    .filter((file) => file !== access && /\.tsx?$/.test(file))
+    .filter((file) => calls(stripSource(readFileSync(file, "utf8")), "canReadApplication"))
+    .map((file) => posix(relative(SRC, file)))
+    .sort();
+
+  test("the list is the tree, both ways", () => {
+    assert.ok(askers.includes("lib/applications/review/load.ts"), "the walk found none of the known askers: has the tree moved?");
+    assert.deepEqual(
+      askers,
+      Object.keys(ASKERS).sort(),
+      "a file asks canReadApplication and is not on the list, or a listed file no longer asks. Say what it does " +
+        "with the answer, and what of an application it shows, and add it with the reason.",
+    );
+    for (const [file, why] of Object.entries(ASKERS)) assert.ok(why.length > 40, `${file} needs its reason written down`);
+  });
+
+  test("the predicate each one asks is the one in access.ts, imported by name", () => {
+    for (const file of Object.keys(ASKERS)) {
+      const mod = scan(join(SRC, file));
+      assert.equal(resolveImport(mod.file, mod.imports.get("canReadApplication") ?? "", SRC), access, `${file} asks another canReadApplication`);
+    }
   });
 });

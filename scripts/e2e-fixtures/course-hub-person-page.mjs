@@ -7,8 +7,10 @@
  * Dan having written, ticked and sent what the plan says. The spec
  * (`tests/e2e/course-hub-person-page.spec.mjs`) is the harness's admin: the
  * run named on the Settings tab, Ada's name on the People tab to her page,
- * the page's sections and what an admin alone is handed, and "Read week 1"
- * into the reading view of that week.
+ * the page's top (Place and group, When they're free, the application, and
+ * Claude and Pangram and the account, which an admin alone is handed), the
+ * page's sections and what an admin alone is handed, and "Read week 1" into
+ * the reading view of that week.
  *
  * ## What it does not drive
  *
@@ -23,6 +25,7 @@ import { countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs"
 export const PERSON_PAGE_STEPS = [
   "the admin names the running course run on the programme's Settings tab",
   "a person's name on the People tab opens their page on the programme",
+  "the page's top: Place and group, When they're free, and the application with Claude and Pangram and the account for an admin",
   "the page shows their coursework week by week, their attendance as counts and the feedback they were given, with Move",
   "an admin's page carries Events and Activity, and nothing about conduct",
   "Read week 1 opens the reading view of that week",

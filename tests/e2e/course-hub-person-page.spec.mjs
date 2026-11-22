@@ -5,7 +5,8 @@
  * The term T2 stands on, three weeks in with its weeks written as blocks
  * (scripts/e2e-fixtures/worlds/course-hub-term.mjs, point "coursework")
  * -> the admin names the running run on the programme's Settings tab -> Ada's
- * name on the People tab opens her page -> the page's Coursework, Attendance
+ * name on the People tab opens Ada's page -> Place and group, When they're
+ * free, the application with Claude and Pangram, and the account -> the page's Coursework, Attendance
  * and Feedback cards, and Move -> Events and Activity, which an admin alone
  * is handed, and no word about conduct -> "Read week 1" opens the reading
  * view of Ada's week 1.
@@ -101,6 +102,21 @@ test("course hub: an admin opens a person's page on a programme", { skip: skipRe
       await name.click();
       await page.waitForURL((url) => url.pathname === personPath, { timeout: WAIT_MS });
       await page.getByRole("heading", { name: new RegExp(`^${escapeRegExp(ada.first)}\\b`), level: 1 }).waitFor({ timeout: WAIT_MS });
+    });
+
+    await step("the page's top: Place and group, When they're free, and the application with Claude and Pangram and the account for an admin", async () => {
+      for (const title of ["Place and group", "When they’re free", "Application", "Account"]) {
+        await page.getByRole("heading", { name: title, level: 2, exact: true }).waitFor({ timeout: WAIT_MS });
+      }
+      await page.getByRole("heading", { name: "Claude and Pangram", level: 3, exact: true }).waitFor({ timeout: WAIT_MS });
+      const place = flat((await page.getByRole("region", { name: "Place and group", exact: true }).textContent()) ?? "");
+      assert.ok(place.includes(`Holds a place on ${state.programmeName}`), `Place and group says: ${place}`);
+      const application = page.getByRole("link", { name: "Open their application", exact: true });
+      assert.equal(await application.getAttribute("href"), `${programmePath}/applications/${enc(ada.uid)}`);
+      const account = page.getByRole("link", { name: `Open ${ada.first}’s account`, exact: true });
+      assert.equal(await account.getAttribute("href"), `/admin/members/${enc(ada.uid)}`);
+      const free = flat((await page.getByRole("region", { name: "When they’re free", exact: true }).textContent()) ?? "");
+      assert.ok(free.includes(`Admins and ${state.programmeName}’s lead see this. Facilitators never do.`), `When they're free says: ${free}`);
     });
 
     await step("the page shows their coursework week by week, their attendance as counts and the feedback they were given, with Move", async () => {

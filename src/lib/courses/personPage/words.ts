@@ -64,30 +64,116 @@ export const GOES_BY = "Goes by";
 export const JOINED = "Joined";
 export const ADMINS_ONLY_NOTE = "(admins only)";
 export const EMAIL_ADDRESS = "Email address";
-export const APPLICATION_WHO = "Admins and leads";
-export const READ_THE_APPLICATION = "Read the application";
+export const OPEN_THEIR_APPLICATION = "Open their application";
 
 /** "Sep 2026": the month an account joined, in London, its name cut to three letters as the house dates cut it ("Sept" never). */
 export function joinedMonthWords(at: Date): string {
   return `${formatSiteDate(at, { month: "short" }).slice(0, 3)} ${formatSiteDate(at, { year: "numeric" })}`;
 }
 
+// ---------------------------------------------------------------------------
+// Place and group
+// ---------------------------------------------------------------------------
+
+export const PLACE_AND_GROUP = "Place and group";
+export const PLACE = "Place";
+export const GROUP = "Group";
+export const COMING = "Coming";
+export const SAID_COMING = "Said they’re coming";
+
+/** "Holds a place on AGI Strategy since Wed 28 Oct", or without the day when none is on record. */
+export function holdsPlaceWords(programmeName: string, since: Date | null): string {
+  return since ? `Holds a place on ${programmeName} since ${londonDayLabel(since)}` : `Holds a place on ${programmeName}`;
+}
+
+/** "Group C, Wednesdays 3pm", or the group alone while it has no weekly time. */
+export function groupAndTimeWords(group: string, when: string | null): string {
+  return when ? `${group}, ${when}` : group;
+}
+
+/** "told on Fri 30 Oct", after the group: the day Publish's email about it went. */
+export function toldOnWords(at: Date): string {
+  return `told on ${londonDayLabel(at)}`;
+}
+
+// ---------------------------------------------------------------------------
+// When they're free
+// ---------------------------------------------------------------------------
+
+export const WHEN_FREE = "When they’re free";
+export const CHART_LABEL = "When they said they are free, and when each group meets";
+export const IN_THIS_GROUP = "In this group";
+export const LITTLE_MARKED = "Marked under 4 hours in the week. The lighter shade runs from their first mark each day to the end of the day.";
+export const NOTHING_MARKED = "They haven’t said when they’re free, so nothing is shaded.";
+export const NO_LONGER_ON_FILE = "When they’re free is no longer on file, so nothing is shaded.";
+
+/** "Only admins see when Sofia is free.": a reader who may not read the application, told nothing of it. */
+export function onlyAdminsSeeWords(firstName: string): string {
+  return `Only admins see when ${firstName} is free.`;
+}
+
+/** "Group C · Wednesdays 3pm", in the list under the chart. */
+export function chartGroupWords(group: string, when: string | null): string {
+  return when ? `${group} · ${when}` : group;
+}
+
+/** "All 2 hours in their time", "1 hour of it in their time", "None of it in their time". */
+export function inTheirTimeWords(fits: boolean, minutes: number, length: string, inTheirs: string | null): string {
+  if (fits) return `All ${length} in their time`;
+  if (minutes > 0 && inTheirs) return `${inTheirs} of it in their time`;
+  return "None of it in their time";
+}
+
+/** "Their answer about Group C’s time". */
+export function theirAnswerWords(group: string): string {
+  return `Their answer about ${group}’s time`;
+}
+
+/** "Can make most weeks · Misses week 3", or "Can make most weeks" with no week named. */
+export function mostWeeksWords(misses: string | null): string {
+  return misses ? `Can make most weeks · ${misses}` : "Can make most weeks";
+}
+
+/** "Admins and AGI Strategy’s lead see this. Facilitators never do." */
+export function whoSeesWeekWords(programmeName: string): string {
+  return `Admins and ${programmeName}’s lead see this. Facilitators never do.`;
+}
+
+// ---------------------------------------------------------------------------
+// The application
+// ---------------------------------------------------------------------------
+
 const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
 
-/** "Ranked AGI Strategy first." */
-export function rankedWords(programmeName: string, choice: number): string {
-  const ordinal = ORDINALS[choice - 1] ?? `number ${choice}`;
-  return `Ranked ${programmeName} ${ordinal}.`;
+/** "first", "second", ... */
+export function ordinalWords(choice: number): string {
+  return ORDINALS[choice - 1] ?? `number ${choice}`;
 }
 
-/** "Accepted Wed 28 Oct.", or "Accepted." with no day on record. */
-export function acceptedWords(at: Date | null): string {
-  return at ? `Accepted ${londonDayLabel(at)}.` : "Accepted.";
+/**
+ * "Applied on Sat 24 Oct: AGI Strategy first, Technical AI Safety second.",
+ * with "Didn’t offer to facilitate." or "Offered to facilitate." after it on
+ * a form that asks. With no day on record, the ranking alone.
+ */
+export function appliedWords(appliedOn: Date | null, ranked: readonly string[], offered: boolean | null): string {
+  const ranking = ranked.map((name, at) => `${name} ${ordinalWords(at + 1)}`).join(", ");
+  const head = appliedOn ? `Applied on ${londonDayLabel(appliedOn)}: ${ranking}.` : `${ranking.charAt(0).toUpperCase()}${ranking.slice(1)}.`;
+  if (offered === null) return head;
+  return `${head} ${offered ? "Offered to facilitate." : "Didn’t offer to facilitate."}`;
 }
 
-/** "Said yes to an invitation Thu 29 Oct.", or without the day when none is on record. */
-export function invitationTakenWords(at: Date | null): string {
-  return at ? `Said yes to an invitation ${londonDayLabel(at)}.` : "Said yes to an invitation.";
+export const CLAUDE_AND_PANGRAM = "Claude and Pangram";
+export const ONLY_ADMINS_SEE_THIS = "Only admins see this";
+
+// ---------------------------------------------------------------------------
+// The account
+// ---------------------------------------------------------------------------
+
+export const ACCOUNT = "Account";
+
+/** "Open Leo’s account". */
+export function openAccountWords(firstName: string): string {
+  return `Open ${firstName}’s account`;
 }
 
 /**

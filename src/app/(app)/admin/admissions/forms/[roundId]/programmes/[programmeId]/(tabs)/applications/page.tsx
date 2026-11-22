@@ -3,6 +3,7 @@ import ApplicationsBoard from "@/features/applications/review/ApplicationsBoard"
 import NotHere from "@/features/applications/review/NotHere";
 import { isAddressableId } from "@/lib/addressableId";
 import { offersFreedPlaces } from "@/lib/applications/freedPlaces/rules";
+import { loadProgrammePeople } from "@/lib/applications/people/load";
 import { loadProgrammeBoard } from "@/lib/applications/review/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -43,6 +44,16 @@ export default async function ProgrammeApplicationsPage({
   // Freed places are offered after decision day, by whoever offersFreedPlaces
   // admits: the link is drawn for them alone, and its page asks again.
   const offers = result.board.round.decisionsSent && offersFreedPlaces(result.board.viewer.role);
+  // After decision day, an admin's and the lead's names of people holding a place open their page on the programme,
+  // where that page opens for them (a row of their People tab); everybody else, and every reviewer, keeps the application.
+  const people =
+    db && result.board.round.decisionsSent && (result.board.viewer.role === "admin" || result.board.viewer.role === "lead")
+      ? await loadProgrammePeople(db, user, roundId, programmeId)
+      : null;
+  const personHrefs =
+    people?.status === "ok"
+      ? Object.fromEntries(people.view.rows.filter((row) => row.category === "holding").map((row) => [row.uid, row.personHref]))
+      : null;
   return (
     <ApplicationsRoot>
       <ApplicationsBoard
@@ -50,6 +61,7 @@ export default async function ProgrammeApplicationsPage({
         listPath={`/admin/admissions/${base}`}
         apiPath={`/api/admissions/${base}`}
         freedPlacesPath={offers ? `/admin/admissions/${base}/freed-places` : null}
+        personHrefs={personHrefs}
         assessments={
           // Claude's and Pangram's marks are an admin's alone: the route asks
           // again, and refuses anybody else before it reads anything.

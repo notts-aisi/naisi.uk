@@ -4770,7 +4770,7 @@ describe("the course hub passage", () => {
         ],
         [
           "src/lib/courses/personPage/load.ts",
-          "A person's page for the team: the one application by address, read only where the People tab hands the reader its link (an admin, or the programme's lead whose review screens may open it; canReadApplication), for the line beside that link: where they ranked the programme, and the day decision day accepted them or they said yes to an invitation. The facilitator's cut never reads it",
+          "A person's page for the team: the one application by address, never the reader's own. Shown only where the People tab hands the reader its link (an admin, or the programme's lead whose review screens may open it; canReadApplication): the day they applied, the programmes they ranked and whether they offered to facilitate, and the day decision day accepted them or they said yes to an invitation. When they are free goes through the one gated read (personWeekFor), which asks canReadApplication itself and answers anybody else with nothing derived from the week; never an access requirement, an address or the answer about SU membership. The facilitator's cut never reads it",
         ],
         [
           "src/lib/courses/weekNotes/store.ts",
@@ -10994,6 +10994,31 @@ describe("v15 lets the people running a programme rate written work for each oth
       "the reading view reads Pangram's reading for somebody who is not an admin, or of an answer they may not review or read",
     );
     // tests/course-work-ratings.test.mjs draws the reading view as an admin, the lead, a facilitator and on an admin's own page.
+  });
+
+  test("\"What comes back is seen by admins only\": Claude's and Pangram's reads of an application, beside a person, are read for an admin alone", () => {
+    v15Says(["What comes back is seen by admins only,"]);
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bnotesFor\(db,/),
+      new Map([
+        [
+          "src/lib/applications/arrange/advise.ts",
+          "the reader itself, and Suggest groups and Ask about the arrangement, each of which refuses anybody but an admin (canRunTerm) before it reads",
+        ],
+        ["src/lib/applications/arrange/circles.ts", "Circles, which answers admins-only for anybody else before it reads anybody"],
+        [
+          "src/lib/courses/personPage/load.ts",
+          "a person's page for the team: Claude and Pangram inside the application's card, read only once the reader is known to be an admin, and never about the reader themselves",
+        ],
+      ]),
+      "reading Claude's and Pangram's reads of an application",
+      "The policy says what Claude and Pangram return is seen by admins only. A new caller shows it somewhere new: decide it is an admin's alone first.",
+    );
+    const page = strip(read("src/lib/courses/personPage/load.ts"));
+    assert.match(page, /isAdmin && !self \? notesFor\(db, gate\.view\.roundId, gate\.view\.programmeId, \[uid\]\) : Promise\.resolve\(null\),/, "the person's page reads Claude's and Pangram's reads for somebody who is not an admin");
+    assert.match(page, /\.\.\.\(assessment \? \{ claude: claudeLinesOf\(assessment\.get\(uid\) \?\? null\) \} : \{\}\),/);
+    assert.match(page, /\.\.\.\(isAdmin \? \{ account: \{ href: `\/admin\/members\/\$\{encodeURIComponent\(uid\)\}`/, "the link to the account is put in the view for somebody who is not an admin");
+    // tests/course-person-page.test.mjs draws the page as every reader, and searches the lead's for a marker planted in each.
   });
 
   test("Kairos receives the ratings at a programme's end, and nothing of these", () => {

@@ -351,6 +351,7 @@ describe("2. the view is the People tab's answers, field by field", () => {
     assert.ok(!("ines" in lead.people), "the lead was handed an invitation to somebody who did not rank the programme");
   });
 
+  // The lead and admins read a person's week on that person's page alone (tests/course-person-page.test.mjs); the board carries which groups each can make, never the week.
   test("no address, no painted week and no answer reaches the board", async () => {
     await termOnTheBoard();
     for (const who of ["claudia", "zach"]) {

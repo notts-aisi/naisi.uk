@@ -11,6 +11,7 @@ import { firstQuestionHref } from "@/lib/courses/coursework/forwards";
 import { loadWrittenQueues } from "@/lib/courses/writtenAnswers/queue";
 import { compareGroupsByMeeting } from "@/lib/firestore/courseGroups";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
+import { loadProgrammePeople } from "@/lib/applications/people/load";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { leadNotesHeading, notesWhoLine } from "@/lib/courses/facilitatorPageWords";
 import { readRunGroupNotes } from "@/lib/courses/groupNotes/readers";
@@ -30,6 +31,11 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * (`buildRunAttendance`), from the run's records: who is a row follows the
  * register's own rule, so a lead sees the people Publish has told, and an
  * admin everybody placed. Nothing here marks anything.
+ *
+ * EACH NAME OPENS THE PERSON'S PAGE on the programme, where that page would
+ * open for this reader: the rows of their People tab (`loadProgrammePeople`,
+ * the page's own test). Any other name (somebody placed on the run with no
+ * application on the form behind it, a facilitator among them) stays words.
  *
  * `?group=<id>` opens the tab on one group: the Overview's "See it" links
  * here that way. An id that is not one of the run's groups is ignored.
@@ -79,7 +85,13 @@ export default async function ProgrammeAttendancePage({
   // The viewer's role decides the name each row is shown by (`nameForViewer`).
   const model = buildRunAttendance(records, { isAdmin: view.viewer === "admin", role: user.role }, new Date());
   const asked = typeof query.group === "string" ? query.group : "all";
-  const [notes, programme] = await Promise.all([readRunGroupNotes(db, view.run.id, user), runProgrammeOf(db, view.run.id)]);
+  const [notes, programme, people] = await Promise.all([
+    readRunGroupNotes(db, view.run.id, user),
+    runProgrammeOf(db, view.run.id),
+    // Whose name opens their page on the programme: the rows of this reader's People tab, the page's own test.
+    loadProgrammePeople(db, user, view.roundId, view.programmeId),
+  ]);
+  const personHrefs = people.status === "ok" ? Object.fromEntries(people.view.rows.map((row) => [row.uid, row.personHref])) : {};
   // Who reads the notes, as the line under each card says it: "you" to the
   // lead, the lead by first name to an admin.
   const lead =
@@ -117,6 +129,7 @@ export default async function ProgrammeAttendancePage({
         programmeId={view.programmeId}
         programmeName={view.programmeName}
         initialGroup={model.groups.some((group) => group.id === asked) ? asked : "all"}
+        personHrefs={personHrefs}
       />
       {writtenQueues && liveGroups.length > 0 && (
         <div className={facilitator.leadNotes}>

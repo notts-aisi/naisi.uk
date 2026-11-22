@@ -837,6 +837,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/groups/ProgrammeAttendance.tsx",
+    {
+      built: ["personHrefs[person.uid]"],
+      from: "the person's page on the programme, which their name on the register opens: each the People tab's own `personHref`, built on the server from the programme's own path and the person's uid, encoded, for the rows of the reader's People tab alone",
+    },
+  ],
+  [
     "src/features/applications/circles/PersonPanel.tsx",
     {
       built: ["person.href", "facilitatorsHref", "facilitatorsHref"],
@@ -1176,10 +1183,17 @@ const BUILT = new Map([
   [
     "src/features/applications/review/ApplicationsBoard.tsx",
     {
-      built: ["`${listPath}/${nextUid}`", "`${listPath}/${row.uid}`", "freedPlacesPath", "href"],
+      built: [
+        "`${listPath}/${nextUid}`",
+        "freedPlacesPath",
+        "href",
+        "personHrefs && Object.hasOwn(personHrefs, row.uid) ? personHrefs[row.uid] : `${listPath}/${row.uid}`",
+      ],
       from:
         "a programme's list of applications, one application by its owner's account id, and the " +
-        "programme's freed-places page, which the list's own page builds from the form's and the programme's ids",
+        "programme's freed-places page, which the list's own page builds from the form's and the programme's ids; " +
+        "after decision day, for an admin and the lead, the page on the programme of each person holding a place, " +
+        "the People tab's own `personHref`, built on the server from the programme's path and the uid, encoded",
     },
   ],
   [

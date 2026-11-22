@@ -63,6 +63,13 @@ type Props = {
    * Null for everybody else, and the column and the bar are not drawn.
    */
   assessments?: { marksPath: string; formApiBase: string } | null;
+  /**
+   * After decision day, for an admin and the programme's lead: the page on
+   * the programme of each person who holds a place, by uid, which their name
+   * opens instead of the application. Absent, and for everybody else (a
+   * reviewer, somebody who holds no place), the name opens the application.
+   */
+  personHrefs?: Readonly<Record<string, string>> | null;
 };
 
 const LEAN_CHIP = {
@@ -81,6 +88,7 @@ export default function ApplicationsBoard({
   apiPath,
   freedPlacesPath = null,
   assessments = null,
+  personHrefs = null,
 }: Props) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -497,7 +505,7 @@ export default function ApplicationsBoard({
                   <Row
                     key={row.uid}
                     row={row}
-                    href={`${listPath}/${row.uid}`}
+                    href={personHrefs && Object.hasOwn(personHrefs, row.uid) ? personHrefs[row.uid] : `${listPath}/${row.uid}`}
                     showScore={programme.usesScores}
                     mark={assessments ? (own(marks, row.uid) ?? null) : undefined}
                     selectable={canAct}

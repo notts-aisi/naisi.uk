@@ -3,15 +3,23 @@ import type { ReactNode } from "react";
 import PersonNotes from "@/features/admin/memberNotes/PersonNotes";
 import { MemberEventsView } from "@/features/admin/MemberEvents";
 import { PERSON_EVENTS_WORDS } from "@/lib/events/attendanceWords";
-import type { AttendanceView, FacilitatorPersonView, FeedbackLine, PersonWeekRow, TeamPersonView } from "@/lib/courses/personPage/model";
+import type { AttendanceView, FacilitatorPersonView, FeedbackLine, PersonWeekRow, TeamPersonView, WeekChartView } from "@/lib/courses/personPage/model";
+import { WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
+import chartStyles from "@/features/applications/times/WeekChart.module.css";
 import {
+  ACCOUNT,
   ACTIVITY,
   ACTIVITY_HINT,
   ACTIVITY_WHO,
   ADMINS_ONLY_NOTE,
   APPLICATION,
-  APPLICATION_WHO,
   ATTENDANCE,
+  CHART_LABEL,
+  CLAUDE_AND_PANGRAM,
+  IN_THIS_GROUP,
+  ONLY_ADMINS_SEE_THIS,
+  PLACE_AND_GROUP,
+  WHEN_FREE,
   ATTENDANCE_HINT,
   COURSEWORK,
   COURSEWORK_HINT,
@@ -236,14 +244,113 @@ function Feedback({ feedback, none }: { feedback: readonly FeedbackLine[]; none:
 /** The strip of links to the sections this reader is shown, in the page's order. */
 function sectionsOf(view: TeamPersonView): Array<{ id: string; label: string }> {
   return [
+    { id: "person-place", label: PLACE_AND_GROUP },
+    view.free || view.timeAnswer ? { id: "person-free", label: WHEN_FREE } : null,
+    view.application ? { id: "person-application", label: APPLICATION } : null,
     view.weeks ? { id: "person-coursework", label: COURSEWORK } : null,
     { id: "person-attendance", label: ATTENDANCE },
     view.feedback ? { id: "person-feedback", label: FEEDBACK } : null,
     view.notes ? { id: "person-notes", label: NOTES } : null,
-    view.application ? { id: "person-application", label: APPLICATION } : null,
     view.events ? { id: "person-events", label: EVENTS } : null,
     view.activity ? { id: "person-activity", label: ACTIVITY } : null,
+    view.account ? { id: "person-account", label: ACCOUNT } : null,
   ].filter((each): each is { id: string; label: string } => each !== null);
+}
+
+/**
+ * ONE PERSON'S WEEK, read only: the chart the model worked out
+ * (`weekChartOf`), drawn with the chart's own sheet beside a person in
+ * Circles, with nothing to press.
+ */
+function WeekChartDrawn({ chart }: { chart: WeekChartView }) {
+  const pct = (value: number) => `${value}%`;
+  return (
+    <div className={chartStyles.chart} role="img" aria-label={CHART_LABEL}>
+      <div className={chartStyles.axis} aria-hidden="true">
+        {chart.hours.map((hour) => (
+          <span key={hour.label} className={chartStyles.hour} style={{ top: pct(hour.top) }}>
+            {hour.label}
+          </span>
+        ))}
+      </div>
+      {chart.days.map((day) => (
+        <div key={day.name} className={chartStyles.day}>
+          <span className={chartStyles.dayName}>{day.name}</span>
+          <div className={chartStyles.column}>
+            {day.readAs ? <span className={chartStyles.readAs} style={{ top: pct(day.readAs.top), height: pct(day.readAs.height) }} /> : null}
+            {day.free.map((block) => (
+              <span key={`${block.top}`} className={chartStyles.free} style={{ top: pct(block.top), height: pct(block.height) }} />
+            ))}
+            {day.bars.map((bar) => (
+              <span
+                key={bar.key}
+                className={[chartStyles.bar, bar.fits ? chartStyles.barFits : chartStyles.barNot, bar.current ? chartStyles.barCurrent : ""].filter(Boolean).join(" ")}
+                style={{ top: pct(bar.top), height: pct(bar.height), left: pct(bar.left), width: pct(bar.width) }}
+                title={bar.title}
+              >
+                {bar.letter}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** When they're free: the week as this reader may see it, their answer about their group's time, and who sees both. */
+function WhenFree({ view }: { view: TeamPersonView }) {
+  const { free, timeAnswer } = view;
+  return (
+    <Card id="person-free" title={WHEN_FREE}>
+      {free?.kind === "may-not" ? <p className={styles.line}>{free.line}</p> : null}
+      {free?.kind === "nothing" ? (
+        <>
+          {free.chart ? <WeekChartDrawn chart={free.chart} /> : null}
+          <p className={styles.line}>{free.line}</p>
+        </>
+      ) : null}
+      {free?.kind === "given" ? (
+        <>
+          <WeekChartDrawn chart={free.chart} />
+          {free.littleMarked ? <p className={styles.line}>{free.littleMarked}</p> : null}
+          {free.groups.length > 0 ? (
+            <ul className={styles.fitList}>
+              {free.groups.map((group) => (
+                <li key={group.key} className={styles.fitItem}>
+                  <span className={styles.stack}>
+                    <span className={styles.fitName}>
+                      <span className={`${styles.dot} ${group.fits ? styles.dotFits : styles.dotNot}`} aria-hidden="true" />
+                      {group.name}
+                    </span>
+                    <span className={styles.listWhen}>{group.said}</span>
+                  </span>
+                  {group.current ? <span className={styles.chip}>{IN_THIS_GROUP}</span> : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
+      ) : null}
+      {timeAnswer ? (
+        <div className={styles.answer}>
+          <h3 className={styles.answerTitle}>{timeAnswer.title}</h3>
+          <p className={styles.line}>{timeAnswer.said}</p>
+          {timeAnswer.why ? (
+            <p className={styles.line}>
+              <strong>{WHY}</strong> {timeAnswer.why}
+            </p>
+          ) : null}
+          {timeAnswer.wouldWork ? (
+            <p className={styles.line}>
+              <strong>{WOULD_WORK}</strong> {timeAnswer.wouldWork}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {view.freeFoot ? <p className={styles.hint}>{view.freeFoot}</p> : null}
+    </Card>
+  );
 }
 
 /** THE TEAM'S PAGE: for an admin and the programme's lead. */
@@ -287,20 +394,6 @@ export default function PersonPage({ view }: { view: TeamPersonView }) {
             ) : null}
           </dl>
         ) : null}
-        {view.visit || view.move ? (
-          <div className={styles.actions}>
-            {view.visit ? (
-              <Link href={view.visit.href} className={styles.action}>
-                {view.visit.label}
-              </Link>
-            ) : null}
-            {view.move ? (
-              <Link href={view.move.href} className={styles.action}>
-                {view.move.label}
-              </Link>
-            ) : null}
-          </div>
-        ) : null}
       </header>
 
       {sections.length > 1 ? (
@@ -312,6 +405,47 @@ export default function PersonPage({ view }: { view: TeamPersonView }) {
           ))}
         </nav>
       ) : null}
+
+      <div className={styles.top}>
+        <div className={styles.topMain}>
+          <Card id="person-place" title={PLACE_AND_GROUP}>
+            <dl className={styles.placeList}>
+              {view.place.map((line) => (
+                <div key={line.key} className={styles.placeRow}>
+                  <dt>{line.label}</dt>
+                  <dd>{line.value}</dd>
+                </div>
+              ))}
+            </dl>
+            {view.visit || view.move ? (
+              <div className={styles.actions}>
+                {view.visit ? (
+                  <Link href={view.visit.href} className={styles.button}>
+                    {view.visit.label}
+                  </Link>
+                ) : null}
+                {view.move ? (
+                  <Link href={view.move.href} className={styles.button}>
+                    {view.move.label}
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
+          </Card>
+
+          {view.application ? (
+            <Card id="person-application" title={APPLICATION}>
+              {view.application.line ? <p className={styles.line}>{view.application.line}</p> : null}
+              <Link href={view.application.href} className={styles.button}>
+                {view.application.label}
+              </Link>
+              {view.claude ? <ClaudeAndPangram claude={view.claude} /> : null}
+            </Card>
+          ) : null}
+        </div>
+
+        {view.free || view.timeAnswer ? <WhenFree view={view} /> : null}
+      </div>
 
       {view.weeks ? (
         <Card id="person-coursework" title={COURSEWORK} hint={COURSEWORK_HINT}>
@@ -341,15 +475,6 @@ export default function PersonPage({ view }: { view: TeamPersonView }) {
         </div>
       ) : null}
 
-      {view.application ? (
-        <Card id="person-application" title={APPLICATION} who={APPLICATION_WHO}>
-          {view.application.line ? <p className={styles.line}>{view.application.line}</p> : null}
-          <Link href={view.application.href} className={styles.action}>
-            {view.application.label}
-          </Link>
-        </Card>
-      ) : null}
-
       {view.events ? (
         <Card id="person-events" title={PERSON_EVENTS_WORDS.title} who={EVENTS_WHO}>
           {view.signedUp ? <p className={styles.line}>{view.signedUp}</p> : null}
@@ -376,7 +501,35 @@ export default function PersonPage({ view }: { view: TeamPersonView }) {
           )}
         </Card>
       ) : null}
+
+      {view.account ? (
+        <Card id="person-account" title={ACCOUNT} who={ONLY_ADMINS_SEE_THIS}>
+          <Link href={view.account.href} className={styles.button}>
+            {view.account.label}
+          </Link>
+        </Card>
+      ) : null}
     </div>
+  );
+}
+
+/** Claude's and Pangram's reads, inside the application's card: an admin's alone, and labelled so. */
+function ClaudeAndPangram({ claude }: { claude: NonNullable<TeamPersonView["claude"]> }) {
+  return (
+    <section className={styles.inner} aria-labelledby="person-claude">
+      <div className={styles.cardHead}>
+        <h3 id="person-claude" className={styles.answerTitle}>
+          {CLAUDE_AND_PANGRAM}
+        </h3>
+        <span className={styles.chip}>{ONLY_ADMINS_SEE_THIS}</span>
+      </div>
+      {claude.lines.map((line, at) => (
+        <p key={at} className={styles.line}>
+          {line}
+        </p>
+      ))}
+      <p className={claude.flagged ? styles.flagLine : styles.line}>{claude.pangram}</p>
+    </section>
   );
 }
 

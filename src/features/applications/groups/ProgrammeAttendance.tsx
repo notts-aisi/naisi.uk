@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { cameWords } from "@/lib/courses/attendanceWords";
@@ -141,11 +142,14 @@ function ByPerson({
   groups,
   footerName,
   footerTotals,
+  personHrefs,
 }: {
   model: RunAttendance;
   groups: GridGroup[];
   footerName: string;
   footerTotals: GridWeekTotal[];
+  /** Each name's page on the programme, where it would open for this reader. */
+  personHrefs: Readonly<Record<string, string>>;
 }) {
   const [opened, setOpened] = useState<Set<string>>(() => new Set());
   const columns = model.weeks.length + 2;
@@ -218,7 +222,13 @@ function ByPerson({
                     <span className={styles.personInner}>
                       <InitialsChip name={person.name} uid={person.uid} size="sm" />
                       <span className={styles.personText}>
-                        <span className={styles.personName}>{person.name}</span>
+                        {Object.hasOwn(personHrefs, person.uid) ? (
+                          <Link href={personHrefs[person.uid]} className={`${styles.personName} ${styles.personLink}`}>
+                            {person.name}
+                          </Link>
+                        ) : (
+                          <span className={styles.personName}>{person.name}</span>
+                        )}
                         {person.left && <span className={styles.leftLine}>{person.left}</span>}
                       </span>
                       {person.absentInARow > 0 && (
@@ -370,6 +380,7 @@ export default function ProgrammeAttendance({
   programmeId,
   programmeName,
   initialGroup = "all",
+  personHrefs = {},
 }: {
   model: RunAttendance;
   roundId: string;
@@ -378,6 +389,12 @@ export default function ProgrammeAttendance({
   programmeName: string;
   /** A group's id to open the tab on, from "See it" on the Overview; "all" otherwise. */
   initialGroup?: string;
+  /**
+   * Each name's page on the programme, by uid: only for the people the page
+   * opens for this reader (the rows of their People tab). A name with none
+   * is drawn as words, as before.
+   */
+  personHrefs?: Readonly<Record<string, string>>;
 }) {
   const [view, setView] = useState<"person" | "week">("person");
   const [shown, setShown] = useState<string>(
@@ -463,7 +480,7 @@ export default function ProgrammeAttendance({
       </div>
 
       {view === "person" ? (
-        <ByPerson model={model} groups={groups} footerName={footerName} footerTotals={footerTotals} />
+        <ByPerson model={model} groups={groups} footerName={footerName} footerTotals={footerTotals} personHrefs={personHrefs} />
       ) : (
         <ByWeek model={model} groups={groups} footerName={footerName} footerTotals={footerTotals} />
       )}

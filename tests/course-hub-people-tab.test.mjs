@@ -160,7 +160,8 @@ describe("1. who opens the People tab", () => {
 // ---------------------------------------------------------------------------
 
 describe("2. nothing a lead may not read", () => {
-  test("no address, access requirement, answer or painted week reaches the page, for the lead or an admin", async () => {
+  // The lead and admins read a person's week on that person's page alone (tests/course-person-page.test.mjs); the tab carries fit marks and never the week.
+  test("no address, access requirement, answer or painted week reaches the People tab, for the lead or an admin", async () => {
     for (const who of ["claudia", "zach"]) {
       const { html, view } = await open(who);
       const sent = JSON.stringify(view);
