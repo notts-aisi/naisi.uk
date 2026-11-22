@@ -2358,6 +2358,69 @@ export const ROUTES = {
         "checked. Its answer is { ok, status, replied, emailed }.",
     },
   },
+  "/api/courses/runs/[runId]/requests/visit": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Asking to go to another group's session for a week: view-as is refused first, then the session, then the " +
+        "body (the session chosen, by its group, and anything added) is checked before anything is read, so every " +
+        "signed-in persona meets the same 400 on an empty one. Only the caller's own place is read once a whole " +
+        "body arrives. Its answer is { ok, request }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/visit/approve": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Approving a request to go to another session: view-as first, then anybody but an admin is one 403 before " +
+        "anything is read, and an admin is told a missing request is missing, before the body is read. Its answer " +
+        "is { ok, weekNumber, hostGroupId, message, emails, status }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/visit/decline": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Declining a request to go to another session: view-as first, then anybody but an admin is one 403 before " +
+        "anything is read, and an admin is told a missing request is missing, before the reply is checked. Its " +
+        "answer is { ok, status, emailed }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/visit/reply": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Replying to a request to go to another session without deciding it: view-as first, then anybody but an " +
+        "admin is one 403 before anything is read, and an admin is told a missing request is missing, before the " +
+        "reply is checked. Its answer is { ok, status, replied, emailed }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/visit/take": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Taking a request to go to another session: view-as first, then anybody but an admin is one 403 before " +
+        "anything is read, and an admin is told a missing request is missing. Its answer is { ok, handlingUid }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/visit/withdraw": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Withdrawing a request to go to another session: view-as first, then the request is read; only the person " +
+        "who asked withdraws it, and a missing request is one 403 for everybody but an admin, who is told it is " +
+        "missing. Its answer is { ok, status }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/visit/dismiss": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Dismissing the message that a request to go to another session was declined: view-as first, then the " +
+        "request is read; only the person who asked dismisses it, and a missing request is one 403 for everybody " +
+        "but an admin, who is told it is missing. Its answer is { ok, dismissed }.",
+    },
+  },
   "/api/courses/groups/[groupId]/cant-make-it": {
     POST: {
       expect: signedIn(400),
@@ -3062,7 +3125,7 @@ export const ROUTES = {
       // the programme page's own server answers (`nextSessionAnswersFor`),
       // each null when there is nothing to offer, and whether an admin is
       // looking as the member (tests/course-next-session-card.test.mjs).
-      fields: ["cantMakeIt", "joiningOnline", "excused", "viewAs"],
+      fields: ["cantMakeIt", "joiningOnline", "excused", "anotherSession", "viewAs"],
       why:
         "Session required, then the programme page's own gate reads the run. The battery's id " +
         "addresses nothing, so every signed-in persona is told the run is missing. It writes nothing.",
@@ -5679,6 +5742,12 @@ export const PAGES = {
       "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
       "missing, and the page sends anybody who cannot leave a seat of their own on it to the run's home.",
   },
+  "/(app)/learn/[runId]/another-session": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page sends anybody not taking part in it to the run's home.",
+  },
   "/(app)/learn/[runId]/notes": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
@@ -7434,6 +7503,9 @@ export const REAL_ROUTES = {
   "/api/courses/runs/[runId]/visit/cancel": {
     POST: bodyFirst("Then only the caller's own place on the run is read, and a cancel needs a visit of theirs in that week."),
   },
+  "/api/courses/runs/[runId]/requests/visit": {
+    POST: bodyFirst("Then only the caller's own place on the run is read, and an ask needs a week of theirs that can take one."),
+  },
   "/api/courses/runs/[runId]/enrol-mode": {
     PATCH: adminAlone("A run's enrolment mode", c(400, "An admin meets the body check: no mode.")),
   },
@@ -8428,6 +8500,11 @@ export const REAL_PAGES = {
     admin: c("run", "An admin holds no place to leave: sent to the run's home."),
     facilitator: c("run", "Facilitates a group of the run: the way out is closed until they come off its facilitators, so sent to the run's home."),
     participant: c(200, "Holds an active place, and the way out is open: the page to leave."),
+  }),
+  "/(app)/learn/[runId]/another-session": learnPage({
+    admin: c("run", "An admin holds no place on the run: sent to the run's home."),
+    facilitator: c(200, "Holds a told place in a group they also facilitate: the page, which says nothing can be asked."),
+    participant: c(200, "Holds a told place: the page, with the form or the one sentence saying nothing can be asked now."),
   }),
   "/(app)/learn/[runId]/notes": learnPage({
     admin: c("run", "An admin holds no learner place: sent to the run's home."),

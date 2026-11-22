@@ -804,14 +804,26 @@ export function requestsWaitingTitle(count: number): string {
   return count === 1 ? "Request waiting" : "Requests waiting";
 }
 
-export function requestsWaitingLine(count: number, excused = 0): string {
-  const asked = Math.min(Math.max(excused, 0), count);
-  const corrections = count - asked;
-  const correctionsLine =
-    corrections === 1 ? "A facilitator has asked for a line of a register to be corrected." : `Facilitators have asked for ${corrections} lines of registers to be corrected.`;
-  const excusedLine = asked === 1 ? "Somebody has asked to be excused from a week." : `${asked} requests to be excused are waiting.`;
-  if (asked === 0) return correctionsLine;
-  return corrections === 0 ? excusedLine : `${excusedLine} ${correctionsLine}`;
+/**
+ * Home's line under "Requests waiting", from a count PER KIND, each kind its
+ * own sentence (none for a kind with nothing waiting): requests to go to
+ * another session, then to be excused, then register corrections. A later
+ * kind adds its own count and sentence; nothing is ever counted as a
+ * correction because it is not something else.
+ */
+export function requestsWaitingLine(counts: { corrections: number; excused?: number; visits?: number }): string {
+  const corrections = Math.max(counts.corrections, 0);
+  const excused = Math.max(counts.excused ?? 0, 0);
+  const visits = Math.max(counts.visits ?? 0, 0);
+  const lines: string[] = [];
+  if (visits > 0) lines.push(visits === 1 ? "Somebody has asked to go to another group’s session." : `${visits} requests to go to another session are waiting.`);
+  if (excused > 0) lines.push(excused === 1 ? "Somebody has asked to be excused from a week." : `${excused} requests to be excused are waiting.`);
+  if (corrections > 0) {
+    lines.push(
+      corrections === 1 ? "A facilitator has asked for a line of a register to be corrected." : `Facilitators have asked for ${corrections} lines of registers to be corrected.`,
+    );
+  }
+  return lines.join(" ");
 }
 
 /** The programme's head: "2 requests waiting" */

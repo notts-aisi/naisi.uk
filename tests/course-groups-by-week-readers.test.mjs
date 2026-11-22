@@ -249,6 +249,18 @@ const READERS = {
     kinds: ["week"],
     why: "the notice audience asked for a group and a week hands the week through to the people whose session that week is the group's (resolveNoticeAudience with the week)",
   },
+  "lib/courses/visitRequest/standing.ts": {
+    kinds: ["own"],
+    why: "a person's own request to go to another session waits only while the group they belong to that week (ownGroupForWeek) is the one they asked from: moved for good from that week or before, the request went with the place",
+  },
+  "lib/courses/visitRequest/page.ts": {
+    kinds: ["now"],
+    why: "the admins' rows and page of requests to go to another session read each host's register of the request's week only to hand the one rule (visitRequestStandingOf, which asks the group they belong to that week) whether the session happened; the place itself is handed to that rule unread",
+  },
+  "lib/courses/visitRequest/own.ts": {
+    kinds: ["own"],
+    why: "the week a person may ask to go to another session in is that of their next session with the group they belong to, and none is offered while a visit already stands that week (visitInWeek)",
+  },
   "lib/courses/visit/card.ts": {
     kinds: ["week", "own"],
     why: "the visitor's own card names the group they stay in that week (ownGroupForWeek) and their next session back with it, the next they are due at there (sessionsWithGroup, the session's group week by week)",

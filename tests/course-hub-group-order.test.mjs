@@ -70,6 +70,15 @@ const READS_WITHOUT_A_LIST = new Map([
         "groups the place belongs to: never a list of groups on a page.",
     },
   ],
+  // A request to go to another session: whether it still waits.
+  [
+    "src/lib/courses/visitRequest/page.ts",
+    {
+      why:
+        "The admins' rows and page of requests to go to another session read each run's groups to say whether a request " +
+        "still waits and to name its two groups: never a list of groups on a page.",
+    },
+  ],
   // A session called off: the visits to it that end with it.
   [
     "src/lib/courses/visit/hostOff.ts",

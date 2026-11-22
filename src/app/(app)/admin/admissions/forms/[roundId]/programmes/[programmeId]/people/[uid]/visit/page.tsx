@@ -89,7 +89,7 @@ export default async function StaffVisitPage({
   const week = asked !== null && weeks.some((each) => each.weekNumber === asked && !each.visiting) ? asked : null;
   const sessions = week !== null ? sessionChoices(facts, week, now) : [];
   const to = week !== null && typeof query.to === "string" && isAddressableId(query.to) ? query.to : null;
-  const planned = week !== null && to ? planVisit(facts, week, to, user.uid, now) : null;
+  const planned = week !== null && to ? planVisit(facts, week, to, user.uid, now, null, { isAdmin: user.role === "admin" }) : null;
   const limit = await visitLimitRefusal(db, facts.run.id, uid, user.uid);
   const page: VisitPageView = {
     roundId: view.roundId,

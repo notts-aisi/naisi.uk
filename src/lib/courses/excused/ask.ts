@@ -38,6 +38,8 @@ import {
 } from "./model";
 import { ADMIN_EMAILS_A_DAY, adminsToldTodayIn, emailAdminsAboutRequest } from "./alert";
 import { standingRequestsIn } from "./standing";
+import { ownVisitRequestsIn, visitRequestStandingRead } from "../visitRequest/standing";
+import { ASK_REFUSAL } from "../visitRequest/words";
 import { EXCUSED_REFUSAL, askClosedWords, type NewRequestWeek } from "./words";
 
 /**
@@ -62,7 +64,9 @@ import { EXCUSED_REFUSAL, askClosedWords, type NewRequestWeek } from "./words";
  * register and the person's own requests (one equality on `subjectUid`)
  * first, so two asks at once cannot both land on the same week. NOTHING ON
  * ANY REGISTER: a waiting request never holds a register up. Nobody is
- * emailed.
+ * emailed. A week whose own request to go to another session still waits is
+ * refused ("You already have a request waiting. Withdraw it to send
+ * another."): one request at a time.
  */
 
 export type AskOutcome =
@@ -196,11 +200,22 @@ export async function askToBeExcused(
     );
     // Their requests that still bear on a week, and how many of their asks
     // on this run today have emailed the admins: reads, before any write.
-    const [registerSnaps, own, adminsToldToday] = await Promise.all([
+    const [registerSnaps, own, adminsToldToday, visitRequests, runGroups] = await Promise.all([
       Promise.all(registerRefs.map((ref) => tx.get(ref))),
       standingRequestsIn(tx, db, user.uid, run.id),
       adminsToldTodayIn(tx, db, user.uid, run.id, todayKey),
+      ownVisitRequestsIn(tx, db, user.uid, run.id),
+      tx.get(db.collection("courseGroups").where("runId", "==", run.id).limit(MAX_GROUPS)),
     ]);
+    // Their own request to go to another session in one of these weeks, still
+    // waiting (the one rule, `visitRequestStandingOf`, the host's register read
+    // as every reader reads it): one request at a time, so it is withdrawn first.
+    const groupsOfRun = runGroups.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})).filter((each) => each.runId === run.id);
+    const askedWeeks = new Set(sessions.map((session) => session.weekNumber));
+    for (const request of visitRequests.filter((each) => each.status === "waiting" && askedWeeks.has(each.change.weekNumber))) {
+      const standing = await visitRequestStandingRead((ref) => tx.get(ref), db, { request, run, groups: groupsOfRun, place: seat, now });
+      if (standing.state === "waiting") return refuse(409, ASK_REFUSAL.alreadyWaiting);
+    }
 
     const weeks: Record<string, unknown>[] = [];
     const choices: ConfirmWeek[] = [];

@@ -4,7 +4,7 @@ import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { excusedRequestUrl, sendExcusedEmail, type ExcusedEmailOutcome } from "@/lib/email/excusedEmail";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
-import { newRequestEmailWords, soonWords, type NewRequestWeek } from "./words";
+import { newRequestEmailWords, soonWords, type ExcusedEmailWords, type NewRequestWeek } from "./words";
 
 /**
  * THE ADMINS ARE TOLD A REQUEST TO BE EXCUSED HAS ARRIVED, so one made at
@@ -65,13 +65,79 @@ const ADMIN_READER = { role: "admin" } as const;
 /** Most admins read: an admin's document is the most PII-dense one this platform holds. */
 const MAX_ADMINS = 50;
 
-/** Whether an admin's own switch lets this email through: on unless they stored false. */
-export function wantsRequestEmails(data: Record<string, unknown>): boolean {
+/**
+ * THE SWITCHES "Email me about new requests" can read, each a key of
+ * `users/{uid}.requestEmails` with its own default. Requests to be excused and
+ * requests to go to another session are both on `excused`, on unless an
+ * admin stored false, so the one switch an admin already has covers both. A
+ * later kind adds its own key here, with its own default.
+ */
+export const REQUEST_EMAIL_SWITCHES = { excused: { on: true } } as const;
+
+export type RequestEmailSwitch = keyof typeof REQUEST_EMAIL_SWITCHES;
+
+/** Whether a body's `which` names a switch: absent is the existing one. */
+export function requestEmailSwitchOf(raw: unknown): RequestEmailSwitch | null {
+  if (raw === undefined) return "excused";
+  return typeof raw === "string" && Object.hasOwn(REQUEST_EMAIL_SWITCHES, raw) ? (raw as RequestEmailSwitch) : null;
+}
+
+/** Whether an admin's own switch lets this email through: its stored value, or the switch's default. */
+export function wantsRequestEmails(data: Record<string, unknown>, which: RequestEmailSwitch = "excused"): boolean {
   const stored = data.requestEmails;
-  return !(stored && typeof stored === "object" && (stored as { excused?: unknown }).excused === false);
+  const value = stored && typeof stored === "object" ? (stored as Record<string, unknown>)[which] : undefined;
+  return typeof value === "boolean" ? value : REQUEST_EMAIL_SWITCHES[which].on;
 }
 
 export type RequestAlertOutcome = { sent: number; failed: number; skipped: number };
+
+/**
+ * THE ONE SEND OF EVERY ALERT ABOUT A NEW REQUEST: finished words and the
+ * link, to every admin except the person asking and except an admin whose
+ * own switch (`which`) is off. Never throws; returns counts. Through the
+ * door of requests to be excused (`sendExcusedEmail`, audience admin).
+ */
+export async function emailAdminsWords(
+  db: Firestore,
+  input: { runId: string; askerUid: string; words: ExcusedEmailWords; link: string; which?: RequestEmailSwitch },
+): Promise<RequestAlertOutcome> {
+  const done: RequestAlertOutcome = { sent: 0, failed: 0, skipped: 0 };
+  const which = input.which ?? "excused";
+  try {
+    const admins = await db.collection("users").where("role", "==", "admin").limit(MAX_ADMINS).get();
+    for (const doc of admins.docs) {
+      const data = doc.data() ?? {};
+      const email = typeof data.email === "string" ? data.email.trim() : "";
+      // Never the person asking, never an admin who switched it off, never an account with no address.
+      if (doc.id === input.askerUid || data.role !== "admin" || !email || !wantsRequestEmails(data, which)) {
+        done.skipped += 1;
+        continue;
+      }
+      const own = accountNamesOf(data);
+      const outcome: ExcusedEmailOutcome = await sendExcusedEmail({
+        to: email,
+        name: (own.goBy ?? "").split(/\s+/)[0] ?? "",
+        actorUid: input.askerUid,
+        runId: input.runId,
+        audience: "admin",
+        link: input.link,
+        words: input.words,
+      });
+      if (outcome === "failed") done.failed += 1;
+      else done.sent += 1;
+    }
+  } catch (err) {
+    console.error("[request email] could not tell the admins", input.runId, err instanceof Error ? err.message : "unknown");
+    done.failed += 1;
+  }
+  return done;
+}
+
+/** The admins' name for the person asking, as the rule names them for an admin. */
+export async function askerNameForAdmins(db: Firestore, askerUid: string): Promise<string> {
+  const asker = await db.collection("users").doc(askerUid).get();
+  return nameForViewer(ADMIN_READER, accountNamesOf(asker.exists ? (asker.data() ?? {}) : {}), "");
+}
 
 export async function emailAdminsAboutRequest(
   db: Firestore,
@@ -85,16 +151,11 @@ export async function emailAdminsAboutRequest(
     now: Date;
   },
 ): Promise<RequestAlertOutcome> {
-  const done: RequestAlertOutcome = { sent: 0, failed: 0, skipped: 0 };
   try {
-    const [admins, asker] = await Promise.all([
-      db.collection("users").where("role", "==", "admin").limit(MAX_ADMINS).get(),
-      db.collection("users").doc(input.askerUid).get(),
-    ]);
     const todayKey = londonDateKey(input.now);
-    // Every reader is an admin (the loop skips anybody else), so the person is
+    // Every reader is an admin (the send skips anybody else), so the person is
     // named as the rule names them for an admin.
-    const personName = nameForViewer(ADMIN_READER, accountNamesOf(asker.exists ? (asker.data() ?? {}) : {}), "");
+    const personName = await askerNameForAdmins(db, input.askerUid);
     const words = newRequestEmailWords({
       personName,
       groupName: input.groupName,
@@ -104,30 +165,9 @@ export async function emailAdminsAboutRequest(
       soon: soonWords(input.weeks, input.now, todayKey, addDaysToKey(todayKey, 1), londonDateKey),
     });
     const link = excusedRequestUrl(process.env.NEXT_PUBLIC_APP_URL ?? "", input.requestId);
-    for (const doc of admins.docs) {
-      const data = doc.data() ?? {};
-      const email = typeof data.email === "string" ? data.email.trim() : "";
-      // Never the person asking, never an admin who switched it off, never an account with no address.
-      if (doc.id === input.askerUid || data.role !== "admin" || !email || !wantsRequestEmails(data)) {
-        done.skipped += 1;
-        continue;
-      }
-      const own = accountNamesOf(data);
-      const outcome: ExcusedEmailOutcome = await sendExcusedEmail({
-        to: email,
-        name: (own.goBy ?? "").split(/\s+/)[0] ?? "",
-        actorUid: input.askerUid,
-        runId: input.runId,
-        audience: "admin",
-        link,
-        words,
-      });
-      if (outcome === "failed") done.failed += 1;
-      else done.sent += 1;
-    }
+    return await emailAdminsWords(db, { runId: input.runId, askerUid: input.askerUid, words, link, which: "excused" });
   } catch (err) {
     console.error("[excused request email] could not tell the admins", input.runId, err instanceof Error ? err.message : "unknown");
-    done.failed += 1;
+    return { sent: 0, failed: 1, skipped: 0 };
   }
-  return done;
 }

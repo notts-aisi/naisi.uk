@@ -406,7 +406,7 @@ export const REQUEST_EMAILS_REFUSAL = { body: "Say on or off: { on: true } or { 
 
 /** Under the switch on the Requests page. */
 export const EMAIL_ME_ABOUT_REQUESTS = "Email me about new requests";
-export const EMAIL_ME_LINE = "When somebody asks to be excused: who, which weeks and when, never their reason.";
+export const EMAIL_ME_LINE = "When somebody asks to be excused or to go to another session: who, when and which weeks, never their reason.";
 
 /** A reply without a decision, to the person. */
 export function replyEmailWords(input: {

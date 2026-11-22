@@ -2,6 +2,8 @@
 
 import type { OwnExcusedRequest } from "@/lib/courses/excused/own";
 import * as O from "@/lib/courses/excused/ownWords";
+import type { OwnVisitRow } from "@/lib/courses/visitRequest/own";
+import { ROW_CHIP, type OwnVisitRowState } from "@/lib/courses/visitRequest/words";
 import styles from "./Excuse.module.css";
 
 const date = (iso: string | null): Date | null => {
@@ -17,18 +19,40 @@ const TONE: Record<O.OwnWeekState, string> = {
   withdrawn: styles.chipPlain,
 };
 
+const VISIT_TONE: Record<OwnVisitRowState, string> = {
+  waiting: styles.chipWaiting,
+  approved: styles.chipExcused,
+  declined: styles.chipPlain,
+  withdrawn: styles.chipPlain,
+  closed: styles.chipPlain,
+};
+
 /**
- * "YOUR REQUESTS": the person's own requests to be excused on this programme,
- * newest first, one row per week with where it stands and who decided it
- * and when (by first name). Their own records only (`excusedFor`), and never
- * a count of how often they have been excused. Drawn nothing with none.
+ * "YOUR REQUESTS": the person's own requests on this programme, one list,
+ * newest first: to be excused, one row per week with where it stands and who
+ * decided it and when (by first name), and to go to another group's session
+ * for a week, one row each ("Group I for week 2"), with a reply under it when
+ * there is one. Their own records only (`excusedFor`, `anotherSessionFor`),
+ * and never a count of how often they have been excused. Drawn nothing with
+ * none.
  */
-export default function OwnRequests({ requests, className }: { requests: readonly OwnExcusedRequest[]; className?: string }) {
-  const rows = requests.flatMap((request) =>
+export default function OwnRequests({
+  requests,
+  visitRequests = [],
+  className,
+}: {
+  requests: readonly OwnExcusedRequest[];
+  visitRequests?: readonly OwnVisitRow[];
+  className?: string;
+}) {
+  const excusedRows = requests.flatMap((request) =>
     request.weeks
       .filter((week): week is typeof week & { state: O.OwnWeekState } => week.state in O.OWN_STATE_WORDS)
-      .map((week) => ({ request, week })),
+      .map((week) => ({ kind: "excused" as const, at: request.askedAt ?? "", request, week })),
   );
+  const visitRows = visitRequests.map((row) => ({ kind: "visit" as const, at: row.askedAt ?? "", row }));
+  // Newest first across both kinds; a request's own weeks keep their order.
+  const rows = [...excusedRows, ...visitRows].sort((a, b) => b.at.localeCompare(a.at));
   if (rows.length === 0) return null;
   const now = new Date();
   return (
@@ -37,17 +61,28 @@ export default function OwnRequests({ requests, className }: { requests: readonl
         {O.YOUR_REQUESTS}
       </h2>
       <ul className={styles.ownRows} role="list">
-        {rows.map(({ request, week }) => (
-          <li key={`${request.id}-${week.sessionKey}`} className={styles.ownRow}>
-            <div className={styles.ownBody}>
-              <p className={styles.ownTitle}>{O.excusedForWords(week.weekNumber, week.occurrence)}</p>
-              <p className={styles.small}>
-                {O.ownRowLineWords({ state: week.state, by: week.by?.firstName ?? "", at: date(week.at), askedAt: date(request.askedAt), now })}
-              </p>
-            </div>
-            <span className={`${styles.chip} ${TONE[week.state]}`}>{O.OWN_STATE_WORDS[week.state]}</span>
-          </li>
-        ))}
+        {rows.map((each) =>
+          each.kind === "visit" ? (
+            <li key={each.row.id} className={styles.ownRow} data-kind="visit">
+              <div className={styles.ownBody}>
+                <p className={styles.ownTitle}>{each.row.title}</p>
+                <p className={styles.small}>{each.row.line}</p>
+                {each.row.reply && <p className={styles.small}>{each.row.reply}</p>}
+              </div>
+              <span className={`${styles.chip} ${VISIT_TONE[each.row.state]}`}>{ROW_CHIP[each.row.state]}</span>
+            </li>
+          ) : (
+            <li key={`${each.request.id}-${each.week.sessionKey}`} className={styles.ownRow}>
+              <div className={styles.ownBody}>
+                <p className={styles.ownTitle}>{O.excusedForWords(each.week.weekNumber, each.week.occurrence)}</p>
+                <p className={styles.small}>
+                  {O.ownRowLineWords({ state: each.week.state, by: each.week.by?.firstName ?? "", at: date(each.week.at), askedAt: date(each.request.askedAt), now })}
+                </p>
+              </div>
+              <span className={`${styles.chip} ${TONE[each.week.state]}`}>{O.OWN_STATE_WORDS[each.week.state]}</span>
+            </li>
+          ),
+        )}
       </ul>
     </section>
   );

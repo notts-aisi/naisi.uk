@@ -492,6 +492,24 @@ const READERS = {
       "to check they still hold an active learner's place in the request's group before a line is written; it shows " +
       "no member a placement and names nobody to a facilitator",
   },
+  "lib/courses/visitRequest/page.ts": {
+    kind: "staff",
+    proof: ['if (actor.role !== "admin") return { status: "none" };', 'if (viewer.role !== "admin" || requests.length === 0) return [];'],
+    why:
+      "A request to go to another session, for admins alone (its page, its row, and the counts Home and a programme's " +
+      "head ask only for an admin): the person's seat is read by its address only to say whether the request still " +
+      "waits (an active learner's place in the group they asked from that week); it shows no member a placement and " +
+      "names nobody to a facilitator",
+  },
+  "lib/courses/visitRequest/decide.ts": {
+    kind: "staff",
+    proof: ['if (actor.role !== "admin") return fail(403, "Forbidden");'],
+    why:
+      "Deciding, replying to or taking a request to go to another session, for admins alone, and its asker withdrawing " +
+      "it: the person's seat is read by its address only to say whether the request still waits; approving arranges " +
+      "the visit through the staff visit's own writer, behind its own refusals (a seat Publish has not told never " +
+      "reaches a write); it shows no member a placement and names nobody to a facilitator",
+  },
   "lib/applications/people/load.ts": {
     kind: "staff",
     proof: ['if (!opensProgrammeGroups(role)) return { status: "not-yours" };'],

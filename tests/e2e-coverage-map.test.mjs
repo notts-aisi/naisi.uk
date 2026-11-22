@@ -779,6 +779,46 @@ const NOT_COVERED = {
       "Course hub: what Home's card for a member's next session can be told, the programme page's own server answers. tests/course-next-session-card.test.mjs executes it as the person, another member, a facilitator with no place, an admin and signed out, and draws Home's card and the programme page's from the same world and compares them. The browser specs that open Home as a member were changed with it and have not been run since.",
     coverWhen: "When a browser spec that signs in as a member and opens Home passes with this route answering its card.",
   },
+  "/api/courses/runs/[runId]/requests/visit": {
+    reason:
+      "Course hub: a member asking to go to another group's session in the week of their next session, from their own form. tests/course-visit-request.test.mjs executes it as the person, somebody with no place, a facilitator and signed out, with one request at a time, a full session, nothing to ask and the admins' email under its cap. No browser spec signs in as a member and asks.",
+    coverWhen: "When a browser spec signs in as a member, opens Go to another session this week from the card and sends the request.",
+  },
+  "/api/courses/requests/[requestId]/visit/approve": {
+    reason:
+      "Course hub: an admin approving a member's request to go to another session, which arranges the visit through the staff visit's own writer in the same transaction. tests/course-visit-request.test.mjs executes it as an admin, the asker, a lead and signed out, with the count on the button and the over-the-limit warning checked at the press, and proves the visit written is the staff visit's own. No browser spec decides one.",
+    coverWhen: "When a browser spec signs in as an admin and approves a member's request from its page on the Requests page.",
+  },
+  "/api/courses/requests/[requestId]/visit/decline": {
+    reason:
+      "Course hub: an admin declining a member's request to go to another session, with the reply. tests/course-visit-request.test.mjs executes it as an admin and as everybody it refuses, with the person's email. No browser spec decides one.",
+    coverWhen: "When a browser spec signs in as an admin and declines a member's request from its page.",
+  },
+  "/api/courses/requests/[requestId]/visit/reply": {
+    reason:
+      "Course hub: an admin replying to a member's request to go to another session without deciding it. tests/course-visit-request.test.mjs executes it as an admin and as everybody it refuses, with the person's email and what the card then says. No browser spec replies to one.",
+    coverWhen: "When a browser spec signs in as an admin and replies to a member's request without deciding it.",
+  },
+  "/api/courses/requests/[requestId]/visit/take": {
+    reason:
+      "Course hub: an admin saying they are dealing with a member's request to go to another session. tests/course-visit-request.test.mjs executes it as an admin and as everybody it refuses. No browser spec takes one.",
+    coverWhen: "When a browser spec signs in as an admin and presses Take it on a member's request.",
+  },
+  "/api/courses/requests/[requestId]/visit/withdraw": {
+    reason:
+      "Course hub: a member withdrawing their own request to go to another session. tests/course-visit-request.test.mjs executes it as the asker, an admin and somebody else, while it waits, once decided and once it closed by itself. No browser spec signs in as a member and withdraws.",
+    coverWhen: "When a browser spec signs in as a member with a request waiting and presses Withdraw the request on the card.",
+  },
+  "/api/courses/requests/[requestId]/visit/dismiss": {
+    reason:
+      "Course hub: a member dismissing the message that their request to go to another session was declined. tests/course-visit-request.test.mjs executes it as the asker and as everybody it refuses. No browser spec signs in as a member with a declined request.",
+    coverWhen: "When a browser spec signs in as a member whose request was declined and presses Dismiss.",
+  },
+  "/(app)/learn/[runId]/another-session": {
+    reason:
+      "Course hub: a member's form for asking to go to another session this week, and the sentence it says when nothing can be asked. tests/course-visit-request.test.mjs draws it as the person, with the week's sessions, the places left and a full one, and as somebody it sends back to the programme page. No browser spec opens it.",
+    coverWhen: "When a browser spec signs in as a member and opens the form from the card on Home or the programme page.",
+  },
   "/api/courses/runs/[runId]/visit/cancel": {
     reason:
       "Course hub: the person cancelling a visit staff arranged for them, from their programme page. tests/course-visit.test.mjs executes it as the person, somebody else and signed out, before and after the earlier of the two sessions starts, with what it takes off the host's register and who it emails. No member signs in on the verified browser spec scripts/e2e-fixtures/course-hub-visit.mjs, which arranges and calls off a visit as staff.",

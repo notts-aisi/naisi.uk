@@ -24,6 +24,7 @@ import CertificateCard from "./CertificateCard";
 import type { CantMakeItView } from "@/lib/courses/cantMakeIt/model";
 import { lastSessionOf, ticketEntryOf } from "@/lib/courses/excused/card";
 import type { ExcusedOwnView } from "@/lib/courses/excused/own";
+import type { AnotherSessionView } from "@/lib/courses/visitRequest/own";
 import LastSessionCard from "./excused/LastSessionCard";
 import OwnRequests from "./excused/OwnRequests";
 import type { JoiningOnlineView } from "@/lib/courses/joiningOnline/model";
@@ -192,6 +193,12 @@ type Props = {
    * and their own requests, read by their own uid. Null draws neither way in.
    */
   excused?: ExcusedOwnView | null;
+  /**
+   * Going to another group's session for a week, worked out by the server
+   * page (`anotherSessionFor`): the card's button, a request waiting or
+   * declined, and their own such requests for "Your requests". Null draws none.
+   */
+  anotherSession?: AnotherSessionView | null;
   /** An admin is looking at this as the member: the card's answers are drawn and cannot be pressed. */
   viewAs?: boolean;
   /** The session's own uid, from the server gate: the ticks' row, and "(you)" in the group. */
@@ -522,6 +529,7 @@ export default function RunHome({
   cantMakeIt = null,
   joiningOnline = null,
   excused = null,
+  anotherSession = null,
   viewAs = false,
   guide = null,
   facilitatorGuide = null,
@@ -665,7 +673,7 @@ export default function RunHome({
     <NextSessionCards
       runId={runId}
       data={data}
-      answers={{ cantMakeIt, joiningOnline, excused }}
+      answers={{ cantMakeIt, joiningOnline, excused, anotherSession }}
       locked={viewAs}
       calendar={learnerGroup !== null || access.isFacilitator}
       wrapClass={order.ticket}
@@ -687,8 +695,13 @@ export default function RunHome({
         />
       </div>
     ) : null;
+  // "Your requests": one list, their requests to be excused and to go to another session, newest first.
+  const excusedRows = entry === "ask" && excused ? excused.requests : [];
+  const visitRows = anotherSession?.rows ?? [];
   const ownRequests =
-    entry === "ask" && excused && excused.requests.length > 0 ? <OwnRequests requests={excused.requests} className={"marks" in order ? order.marks : order.group} /> : null;
+    excusedRows.length > 0 || visitRows.length > 0 ? (
+      <OwnRequests requests={excusedRows} visitRequests={visitRows} className={"marks" in order ? order.marks : order.group} />
+    ) : null;
 
   const weekCard =
     learner && thisWeekNumber >= 1 && (running || beforeStart) ? (

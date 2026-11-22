@@ -97,7 +97,7 @@ export async function POST(req: Request, ctx: Ctx) {
   if (body.kind === "preview") {
     const read = await readVisitFacts(dbReader(db), db, runId, uid, [body.weekNumber], now);
     if (!read.ok) return NextResponse.json({ error: read.error }, { status: read.status });
-    const planned = planVisit(read.facts, body.weekNumber, body.hostGroupId, user.uid, now);
+    const planned = planVisit(read.facts, body.weekNumber, body.hostGroupId, user.uid, now, null, { isAdmin: user.role === "admin" });
     if (!planned.ok) return NextResponse.json({ error: planned.error }, { status: planned.status });
     // The page says before a press when the limit on these emails would refuse it.
     const answer: VisitPreviewAnswer = { ok: true, preview: previewOf(planned.plan, await visitLimitRefusal(db, runId, uid, user.uid)) };

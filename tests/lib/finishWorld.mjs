@@ -251,6 +251,10 @@ const STYLESHEETS = [
   // The programme page's ticket, last session card and own requests about
   // being excused draw with their own stylesheet.
   "./Excuse.module.css",
+  // The card's parts for going to another session, and its form, draw with
+  // their own stylesheet beside the excuse one.
+  "../excused/Excuse.module.css",
+  "./VisitRequest.module.css",
 ];
 
 /** A component stood in by its name and nothing else: the words around it are what a suite reads. */

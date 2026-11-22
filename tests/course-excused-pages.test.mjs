@@ -220,9 +220,17 @@ describe("1. the words, one file per surface", () => {
     assert.equal(R.historyWords({ what: "asked", by: "Grace Chen", weekNumber: null, occurrence: 1, personFirstName: "Grace" }), "Grace sent this");
     assert.equal(R.historyWords({ what: "approved", by: "Zach Levin", weekNumber: 5, occurrence: 1, personFirstName: "" }), "Zach approved week 5");
     // Home's To do line says what waits.
-    assert.equal(correctionWords.requestsWaitingLine(1), "A facilitator has asked for a line of a register to be corrected.");
-    assert.equal(correctionWords.requestsWaitingLine(1, 1), "Somebody has asked to be excused from a week.");
-    assert.equal(correctionWords.requestsWaitingLine(3, 2), "2 requests to be excused are waiting. A facilitator has asked for a line of a register to be corrected.");
+    assert.equal(correctionWords.requestsWaitingLine({ corrections: 1 }), "A facilitator has asked for a line of a register to be corrected.");
+    assert.equal(correctionWords.requestsWaitingLine({ corrections: 0, excused: 1 }), "Somebody has asked to be excused from a week.");
+    assert.equal(correctionWords.requestsWaitingLine({ corrections: 1, excused: 2 }), "2 requests to be excused are waiting. A facilitator has asked for a line of a register to be corrected.");
+    // A count per kind: a request to go to another session never reads as a correction,
+    // and a kind this line has no count for says nothing at all.
+    assert.equal(correctionWords.requestsWaitingLine({ corrections: 0 }), "");
+    assert.equal(correctionWords.requestsWaitingLine({ corrections: 0, visits: 1 }), "Somebody has asked to go to another group’s session.");
+    assert.equal(
+      correctionWords.requestsWaitingLine({ corrections: 2, excused: 1, visits: 3 }),
+      "3 requests to go to another session are waiting. Somebody has asked to be excused from a week. Facilitators have asked for 2 lines of registers to be corrected.",
+    );
     const everything = Object.values(R)
       .filter((value) => typeof value === "string")
       .join(" ");
@@ -655,7 +663,7 @@ describe("5. the Requests page and one request's page: an admin's alone", () => 
     const requestsPage = (await loadTs(join("app", "(app)", "admin", "admissions", "requests", "page.tsx"))).default;
     const asAdmin = await draw(requestsPage, "zach", {});
     assert.match(asAdmin.html, /data-testid="requests-email-me"/);
-    assert.match(asAdmin.text, /Email me about new requests When somebody asks to be excused: who, which weeks and when, never their reason\./);
+    assert.match(asAdmin.text, /Email me about new requests When somebody asks to be excused or to go to another session: who, when and which weeks, never their reason\./);
     assert.match(asAdmin.html, /type="checkbox"[^>]*checked=""/);
     world.db.poke("users/zach", { requestEmails: { excused: false } });
     assert.doesNotMatch((await draw(requestsPage, "zach", {})).html, /type="checkbox"[^>]*checked=""/, "a switched-off admin reads it on");

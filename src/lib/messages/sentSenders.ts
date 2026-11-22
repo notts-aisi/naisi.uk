@@ -52,7 +52,7 @@ export const SENT_KINDS: Record<EmailSendKind, SentEntry> = {
   "course-nudge": { listed: { label: "Weekly course email", byPerson: false } },
   "course-notice": { listed: { label: "Room notice", byPerson: true } },
   "course-enrolment": { notListed: "Somebody joining or leaving a run: their own confirmation." },
-  "course-request": { notListed: "One email to each admin who decides them, saying a request to be excused has arrived. Never the reason." },
+  "course-request": { notListed: "One email to each admin who decides them, saying a request to be excused, or to go to another group’s session for a week, has arrived. Never the reason." },
   "course-joining-online": {
     notListed: "One email to each of a group’s facilitators, saying somebody in the group is joining a session online. Never the meeting link.",
   },
@@ -62,7 +62,7 @@ export const SENT_KINDS: Record<EmailSendKind, SentEntry> = {
   },
   "course-visit": {
     notListed:
-      "A one-week visit to another group’s session, arranged or called off: one email to the person when staff pressed, and one to each facilitator of the two groups. Never the reason.",
+      "A one-week visit to another group’s session, arranged, approved at the person’s own request, or called off: one email to the person when staff pressed, and one to each facilitator of the two groups. Never the reason.",
   },
   "course-feedback": { notListed: "One email to each person saying feedback on their own week is waiting." },
   "course-certificate": { notListed: "One email to each person with their own certificates." },

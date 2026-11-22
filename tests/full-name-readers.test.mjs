@@ -429,8 +429,8 @@ const READERS = new Map([
   }],
   ["src/lib/courses/excused/alert.ts", {
     who: "rule",
-    proof: ['const personName = nameForViewer(ADMIN_READER, accountNamesOf(asker.exists ? (asker.data() ?? {}) : {}), "");'],
-    why: "the email that tells the admins somebody asked to be excused: sent to admins alone (the loop skips anybody else), so the person is named as the rule names them for an admin",
+    proof: ['return nameForViewer(ADMIN_READER, accountNamesOf(asker.exists ? (asker.data() ?? {}) : {}), "");'],
+    why: "the email that tells the admins somebody asked to be excused or to go to another session: sent to admins alone (the send skips anybody else), so the person is named as the rule names them for an admin",
   }],
   ["src/lib/courses/excused/page.ts", {
     who: "rule",
@@ -439,6 +439,14 @@ const READERS = new Map([
       'for (const snap of userSnaps) if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data() ?? {}), "NAISI member"));',
     ],
     why: "a request to be excused, for admins alone: the person, who decided, replied and acted on it, and the register's setters, named for the reader",
+  }],
+  ["src/lib/courses/visitRequest/page.ts", {
+    who: "rule",
+    proof: [
+      'names.set(user.id, nameForViewer(actor, accountNamesOf(data), "NAISI member"));',
+      'for (const snap of userSnaps) if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data() ?? {}), "NAISI member"));',
+    ],
+    why: "a request to go to another session, for admins alone: the person, who has it, who decided and replied, named for the reader",
   }],
   ["src/lib/courses/groupAttendance/load.ts", {
     who: "rule",

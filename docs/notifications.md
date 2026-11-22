@@ -284,6 +284,23 @@ requests that already carry `adminsToldOn` for that day, and marks its own,
 so asking and withdrawing in a loop cannot spend the site's sending
 allowance.
 
+**A new request to go to another group's session for a week goes the same
+way.** When somebody asks from their own form
+(`src/lib/courses/visitRequest/ask.ts`), the admins are sent one email through
+the same door and the same send (`emailAdminsWords`), under the same switch
+(`requestEmails.excused`) and the same daily cap (`adminsToldOn` counts every
+kind of theirs on the run): who asked, the host's session and the group they
+stay in, and the way to the request's page. Never their own words. Declining
+it and a reply without deciding email the person through the door of
+requests to be excused (`src/lib/courses/visitRequest/decide.ts`); approving
+it arranges the visit through the staff visit's own writer, so the person and
+both groups' facilitators are sent exactly the visit's emails
+(`src/lib/courses/visit/save.ts`), the person's with "Your request is
+approved." and the reply. Withdrawing, dismissing a decline and a request
+that closes by itself because nobody decided it before the session email
+nobody. The switch's route takes `{ on, which? }`, `which` naming a key of
+`REQUEST_EMAIL_SWITCHES` and the existing one when left out.
+
 **Joining online, to a group's facilitators, is transactional.** When
 somebody presses "Joining online" for a session on their programme page
 (`src/lib/courses/joiningOnline/seat.ts`), each of the group's facilitators

@@ -7,6 +7,7 @@ import type { CantMakeItView } from "@/lib/courses/cantMakeIt/model";
 import { sessionOf, ticketEntryOf } from "@/lib/courses/excused/card";
 import type { ExcusedOwnView } from "@/lib/courses/excused/own";
 import type { JoiningOnlineView } from "@/lib/courses/joiningOnline/model";
+import type { AnotherSessionView } from "@/lib/courses/visitRequest/own";
 import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import {
   cardGroupLineWords,
@@ -22,6 +23,7 @@ import TicketExcuse from "../excused/TicketExcuse";
 import { ticketFacts } from "../sessionChange/cardFacts";
 import SessionNotice from "../sessionChange/SessionNotice";
 import VisitCard from "../visit/VisitCard";
+import { GoToAnotherSession, VisitRequestDeclined, VisitRequestWaiting, VisitRequestWithdrawn } from "../visitRequest/CardParts";
 import TicketAnswers from "../weekly/TicketAnswers";
 import NextSessionCard from "./NextSessionCard";
 
@@ -49,6 +51,12 @@ import NextSessionCard from "./NextSessionCard";
  * in its states with "I'm joining online" beside it (`TicketExcuse`); for
  * somebody who facilitates the group they hold a place in, today's instant
  * "Can't make it" (`TicketAnswers`). A read that failed offers neither.
+ * "Go to another session this week" beside them on their own group's card,
+ * only for the week the server offers (`anotherSessionFor`) and not once
+ * they have said they are joining online. While such a request waits, the
+ * card carries it first, with "Withdraw the request", and keeps "Can't make
+ * it" and "I'm joining online"; a decline they have not dismissed is said at
+ * the top.
  * `locked` (an admin looking as the member) draws them and lets nothing be
  * pressed.
  */
@@ -57,6 +65,7 @@ export type CardAnswers = {
   cantMakeIt: CantMakeItView | null;
   joiningOnline: JoiningOnlineView | null;
   excused: ExcusedOwnView | null;
+  anotherSession?: AnotherSessionView | null;
 };
 
 /** The session the next session's card is about: the first visit when it comes first, else their own group's next. */
@@ -95,6 +104,7 @@ export default function NextSessionCards({
   const cantMakeIt = answers?.cantMakeIt ?? null;
   const joiningOnline = answers?.joiningOnline ?? null;
   const excused = answers?.excused ?? null;
+  const another = answers?.anotherSession ?? null;
   // What they said about joining a session online, as each press saved it.
   const [saidBySession, setSaidBySession] = useState<Record<string, boolean>>({});
   const saidOf = (view: JoiningOnlineView | null) => (view ? (saidBySession[view.sessionKey] ?? view.said) : false);
@@ -215,6 +225,30 @@ export default function NextSessionCards({
     : null;
   const schedule = facts ? data.weekSchedule.find((week) => week.weekNumber === facts.weekNumber) : undefined;
   const saidOnline = saidOf(ownJoiningOnline);
+  // Going to another session that week: the waiting request in place of the
+  // buttons, else the button beside them for the week the server offers.
+  const offersAnother =
+    another?.offer !== null &&
+    another?.offer !== undefined &&
+    !another.waiting &&
+    group?.id === another.offer.homeGroupId &&
+    facts?.weekNumber === another.offer.weekNumber &&
+    !saidOnline;
+  // While one waits, the request comes first and their own session's
+  // buttons stay beside it: a member can always say something about their
+  // own session. Withdrawn today, the line that says so, as the server reads it.
+  const ownCardAnswers = (
+    <>
+      {another?.waiting ? (
+        <VisitRequestWaiting key={another.waiting.requestId} waiting={another.waiting} locked={locked} />
+      ) : another?.withdrawn ? (
+        <VisitRequestWithdrawn key={another.withdrawn.requestId} line={another.withdrawn.line} />
+      ) : null}
+      {ownAnswers}
+      {offersAnother && <GoToAnotherSession runId={runId} locked={locked} />}
+    </>
+  );
+  const declined = another?.declined ? <VisitRequestDeclined key={another.declined.requestId} declined={another.declined} locked={locked} className={wrapClass} /> : null;
   const ownCard =
     group && facts && eyebrowInput ? (
       <NextSessionCard
@@ -243,7 +277,7 @@ export default function NextSessionCards({
         saidOnline={saidOnline && facts.mode !== "virtual"}
         home={home}
         calendar={calendar}
-        answers={ownAnswers}
+        answers={ownCardAnswers}
         next={!visitFirst}
       />
     ) : null;
@@ -279,15 +313,22 @@ export default function NextSessionCards({
       // where the programme page says it, never over a session it is not about.
       return (
         <>
+          {declined}
           {visitCardOf(first, visitLabel(first))}
           {notice}
         </>
       );
     }
-    return ownBlock;
+    return (
+      <>
+        {declined}
+        {ownBlock}
+      </>
+    );
   }
   return (
     <>
+      {declined}
       {around.first.map((visit, at) => visitCardOf(visit, at === 0 ? visitLabel(visit) : ""))}
       {ownBlock}
       {around.later.map((visit) => visitCardOf(visit, ""))}
