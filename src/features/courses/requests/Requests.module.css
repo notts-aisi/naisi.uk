@@ -129,6 +129,7 @@
   font-size: var(--text-sm);
   line-height: 1.55;
   color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .open,
@@ -310,6 +311,7 @@
   display: grid;
   grid-template-columns: 9rem minmax(0, 1fr);
   gap: var(--space-3);
+  overflow-wrap: anywhere;
 }
 
 .historyWhen {

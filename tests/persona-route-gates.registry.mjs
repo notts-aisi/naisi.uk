@@ -2346,7 +2346,7 @@ export const ROUTES = {
       why:
         "An admin's own switch for the email about new requests to be excused: view-as first, then anybody but an " +
         "admin is one 403 before anything is read, and an admin is told a body that is not on or off is not one. " +
-        "It writes the caller's own user document alone. Its answer is { ok, on }.",
+        "It writes the caller's own user document alone; `which: \"team\"` is the second switch, about messages to the team. Its answer is { ok, on }.",
     },
   },
   "/api/courses/requests/[requestId]/excused/reply": {
@@ -2356,6 +2356,33 @@ export const ROUTES = {
         "Replying to a request to be excused without deciding it: view-as first, then anybody but an admin is one " +
         "403 before anything is read, and an admin is told a missing request is missing, before the reply is " +
         "checked. Its answer is { ok, status, replied, emailed }.",
+    },
+  },
+  "/api/courses/requests/ask": {
+    POST: {
+      expect: everyone(400, { anonymous: 401, pending: 403, rejected: 403 }),
+      why:
+        "Sending the team a message from Ask the team: view-as is refused first, then the session, then anybody " +
+        "without an approved account, then the body (a topic the form offers and the message) is checked before " +
+        "anything is read, so every approved persona meets the same 400 on an empty one. Only the caller's own " +
+        "messages today are read once a whole body arrives. Its answer is { ok, request }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/team/take": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Taking a message to the team: view-as first, then anybody but an admin is one 403 before anything is " +
+        "read, and an admin is told a missing message is missing. Its answer is { ok, handlingUid }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/team/reply": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Replying to a message to the team, which closes it and emails the person: view-as first, then anybody " +
+        "but an admin is one 403 before anything is read, and an admin is told a missing message is missing, " +
+        "before the reply is checked. Its answer is { ok, status, emailed }.",
     },
   },
   "/api/courses/runs/[runId]/requests/visit": {
@@ -4917,7 +4944,8 @@ export const PAGES = {
     why:
       "One request's page, under the Requests page in the admissions tree: the tree's gate, then the loader's " +
       "(loadRequestPage, an admin or somebody leading the programme of the request's group, asked through the group's " +
-      "register gate; and for a request to be excused loadExcusedRequestPage, an admin's alone, so a lead is drawn the " +
+      "register gate; and for a request to be excused loadExcusedRequestPage, a request to go to another session " +
+      "loadVisitRequestPage and a message to the team loadTeamMessagePage, each an admin's alone, so a lead is drawn the " +
       "same not-here). The address names no request the world writes, so everybody the tree admits is drawn the same " +
       "calm 'that request isn't here' with a 200, never told whether one exists; everybody else is sent to the dashboard.",
   },
@@ -5886,6 +5914,13 @@ export const PAGES = {
       "page, never a redirect that says which: the one that says it is not for them, the same page " +
       "everybody but the group's live facilitators, the programme's lead and admins is given once it " +
       "exists, and for an admin, whom the page admits to every group, the fixed one that says it can't be opened.",
+  },
+  "/(app)/ask-the-team": {
+    expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "The authed shell: a stranger is sent to sign in, a pending account to the waiting page and a rejected one " +
+      "home by the layout. Every approved account is drawn the form and its own messages, read by the session's " +
+      "uid alone, with the way to another session for somebody holding a told place this term.",
   },
   "/(app)/anonymous-feedback": {
     expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),

@@ -713,6 +713,14 @@ const READERS = {
       "it): it writes the visit on the place, rebuilds the person's own figures and writes history rows, and changes " +
       "nobody's group; the emails go to the people the plan counted. It shows nobody anything",
   },
+  "lib/courses/teamAsk/places.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "one person's places this term for Ask the team: for the person themselves only a place Publish has told them " +
+      "(the way to another session and to their programme page), and for an admin every place, on a message's page, " +
+      "as the allocation board shows them",
+  },
   "lib/courses/staffMove/plan.ts": {
     kind: "told",
     asks: 2,

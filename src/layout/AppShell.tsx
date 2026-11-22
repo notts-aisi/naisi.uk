@@ -20,6 +20,7 @@ import { hardNavigate } from "@/lib/navigation/hardNavigate";
 import { clearSelfHealAttempt } from "@/lib/navigation/selfHealGuard";
 import { InstallLink } from "@/features/pwa/InstallLink";
 import { FOOTER_LINK } from "@/lib/societyFeedback/words";
+import { ASK_THE_TEAM, ASK_THE_TEAM_PATH } from "@/lib/courses/teamAsk/words";
 import {
   BOTTOM_BAR_MENU_LABEL,
   barTitleFor,
@@ -594,10 +595,15 @@ export default function AppShell({
               </div>
             )}
             {children}
-            {/* The foot of every signed-in page: anonymous feedback, which any
-                member can send (docs/surveys.md). A plain link: no read, no
-                count, nothing about whether anybody has sent any. */}
+            {/* The foot of every signed-in page: Ask the team, where a member
+                sends the people running NAISI a message and reads the reply,
+                then anonymous feedback, which any member can send
+                (docs/surveys.md). Two plain links that share nothing: no
+                read, no count, nothing about whether anybody has sent any. */}
             <footer className={styles.appFooter}>
+              <Link href={ASK_THE_TEAM_PATH} className={styles.appFooterLink}>
+                {ASK_THE_TEAM}
+              </Link>
               <Link href="/anonymous-feedback" className={styles.appFooterLink}>
                 {FOOTER_LINK}
               </Link>

@@ -220,6 +220,7 @@ export default async function DashboardPage() {
           excusedWaiting={requestsWaiting.excused}
           visitsWaiting={requestsWaiting.visits}
           correctionsWaiting={requestsWaiting.corrections}
+          messagesWaiting={requestsWaiting.messages}
         />
       ) : (
         <HomeMember

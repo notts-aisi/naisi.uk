@@ -170,8 +170,10 @@ const LEAVING = Object.freeze({
   changedYourMind: "Changed your mind?",
   changedLine: `Email ${SOCIETY} and we’ll see what we can do.`,
   myProgrammes: "My programmes",
-  // The foot of every signed-in page (`FOOTER_LINK` in src/lib/societyFeedback/words.ts):
-  // somebody who left is still a member of the society, so it stays.
+  // The foot of every signed-in page (`ASK_THE_TEAM` in src/lib/courses/teamAsk/words.ts,
+  // then `FOOTER_LINK` in src/lib/societyFeedback/words.ts): somebody who left
+  // is still a member of the society, so both stay.
+  askFoot: "Ask the team",
   feedbackFoot: "Anonymous feedback",
 });
 
@@ -643,14 +645,25 @@ test(
       );
       for (const words of KEPT_NOTHING) assert.ok(!said.includes(words), `the page that says they left shows ${JSON.stringify(words)}: ${said}`);
       // The rest of the main column is the foot every signed-in page carries,
-      // and the foot is its one link and nothing else: they are still a member
-      // of the society, so they may still send anonymous feedback.
+      // and the foot is its two links and nothing else: they are still a
+      // member of the society, so they may still ask the team and send
+      // anonymous feedback.
       const foot = shellFoot(pg);
       assert.equal(await foot.count(), 1, "the page that says they left has no foot, or more than one");
-      assert.equal(await textOf(foot), LEAVING.feedbackFoot, "the foot of the page that says they left says more, or less, than its one link");
+      assert.equal(
+        await textOf(foot),
+        `${LEAVING.askFoot}${LEAVING.feedbackFoot}`,
+        "the foot of the page that says they left says more, or less, than its two links",
+      );
       const footLinks = foot.getByRole("link");
-      assert.equal(await footLinks.count(), 1, "the foot of the page that says they left has more, or fewer, than one link");
-      assert.equal(await textOf(footLinks), LEAVING.feedbackFoot, "the foot's one link is not Anonymous feedback");
+      assert.equal(await footLinks.count(), 2, "the foot of the page that says they left has more, or fewer, than two links");
+      assert.equal(await textOf(footLinks.nth(0)), LEAVING.askFoot, "the foot's first link is not Ask the team");
+      assert.equal(await textOf(footLinks.nth(1)), LEAVING.feedbackFoot, "the foot's second link is not Anonymous feedback");
+      assert.equal(
+        await foot.getByRole("link", { name: LEAVING.askFoot, exact: true }).getAttribute("href"),
+        "/ask-the-team",
+        "Ask the team at the foot does not lead to the member's page",
+      );
       assert.equal(
         await foot.getByRole("link", { name: LEAVING.feedbackFoot, exact: true }).getAttribute("href"),
         "/anonymous-feedback",
@@ -658,7 +671,7 @@ test(
       );
       assert.equal(
         await textOf(pg.locator("main")),
-        `${said}${LEAVING.feedbackFoot}`,
+        `${said}${LEAVING.askFoot}${LEAVING.feedbackFoot}`,
         "the main column of the page that says they left is more than the page and its foot",
       );
       assert.equal(await pg.getByRole("region", { name: "Your sessions" }).count(), 0, "the page that says they left lists their sessions");

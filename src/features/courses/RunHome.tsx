@@ -66,6 +66,7 @@ import { slotWords } from "@/lib/courses/sessionChange/words";
 import { campusLabel } from "@/lib/courses/campus";
 import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import type { OverviewPayload, OverviewWeekSchedule } from "@/app/api/courses/runs/[runId]/overview/route";
+import { ASK_THE_TEAM_PATH, NEED_SOMETHING } from "@/lib/courses/teamAsk/words";
 import NextSessionCards from "./nextSession/NextSessionCards";
 import weekly from "./weekly/weekly.module.css";
 import styles from "./RunHome.module.css";
@@ -897,6 +898,21 @@ export default function RunHome({
           )}
 
           {ownRequests}
+
+          {learner && (
+            /* "Need something?": the way to Ask the team, for somebody taking
+               part. A plain link: nothing is read or counted for it. */
+            <Card as="section" padding="md" className={`${styles.panel} ${weekly.order7}`}>
+              <h3 className={styles.panelTitle}>{NEED_SOMETHING.title}</h3>
+              <p className={styles.panelNote}>{NEED_SOMETHING.line}</p>
+              <Link className={styles.panelLink} href={ASK_THE_TEAM_PATH}>
+                {NEED_SOMETHING.button}
+                <span className={styles.arrow} aria-hidden="true">
+                  →
+                </span>
+              </Link>
+            </Card>
+          )}
 
           {beforeStart && yourGroup}
 

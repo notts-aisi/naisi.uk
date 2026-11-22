@@ -50,7 +50,16 @@ export type EmailSendKind =
   // them and has not switched it off on the Requests page. Its own kind so
   // "were the admins told about Tuesday's request" is answerable without
   // reading subject lines. Its `referenceId` is the RUN id. Never the reason.
+  // A message to the team has arrived goes the same way, to each admin who
+  // switched that on, with an empty `referenceId` (it belongs to no run), and
+  // never what they wrote.
   | "course-request"
+  // The team's reply to one person's own message to the team, from "Ask the
+  // team": one email to them, with the reply. Its own kind so "was Marcus
+  // told the answer" is answerable without reading subject lines, apart from
+  // the course mail. Its `referenceId` is the message's id. Never their own
+  // message.
+  | "team-reply"
   // Somebody in a group said they are joining a session online: one email to
   // each of the group's facilitators, once per person per session. Its own
   // kind so "was Rahul told Chloe is joining online" is answerable without

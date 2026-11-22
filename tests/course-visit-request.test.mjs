@@ -566,7 +566,7 @@ describe("8. A programme's lead, a request to be excused, and kinds the page doe
     for (const kind of Object.values(kinds.REQUEST_KINDS)) {
       assert.ok(kinds.rowsOfKind(rows, kind).every((row) => row.kind === kind), kind);
     }
-    assert.deepEqual(kinds.openByKind(rows), { corrections: 1, excused: 1, visits: 1 });
+    assert.deepEqual(kinds.openByKind(rows), { corrections: 1, excused: 1, visits: 1, messages: 0 });
     assert.deepEqual(kinds.tabCounts(rows), { waiting: 3, handling: 1, done: 2 }, "a later kind's own decided state is done");
     assert.equal(kinds.isDone("replied"), true);
   });

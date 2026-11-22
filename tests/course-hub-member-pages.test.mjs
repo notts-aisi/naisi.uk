@@ -80,6 +80,8 @@ describe("1. the programme home", () => {
         "Week 1 reading one Reading 25 min Open Week 1 reading one " +
         "Week 1 talk Video 20 min Open Week 1 talk " +
         "Week 1 reading two Reading 30 min Open Week 1 reading two Open week 1 → " +
+        // "Need something?", the way to Ask the team, for somebody taking part.
+        "Need something? Ask the team about your group, a session, access or anything else. You’ll get a reply here and by email. Ask the team → " +
         "Your group Group B CN Chloe (you) FH Farah KA Kofi R S Facilitators: Rahul and Sofia " +
         "Names only. Nobody here sees your email address. [RunUpdates] " +
         // Every published week is open to read ahead (Zach, 27 October 2026), with what is done of it;
@@ -115,7 +117,9 @@ describe("1. the programme home", () => {
         "Week 4 Week 4 readings Tue 24 Nov 0 of 3 " +
         "Week 5 Week 5 readings Tue 1 Dec Week 6 Week 6 readings Tue 8 Dec See your progress week by week → " +
         "Your sessions P 3 Nov P 10 Nov · 17 Nov · 24 Nov · 1 Dec · 8 Dec P Present · Not yet " +
-        "Your facilitators fill these in after each session. [RunUpdates] " +
+        "Your facilitators fill these in after each session. " +
+        "Need something? Ask the team about your group, a session, access or anything else. You’ll get a reply here and by email. Ask the team → " +
+        "[RunUpdates] " +
         "Your group Group B CN Chloe (you) FH Farah KA Kofi R S Facilitators: Rahul and Sofia",
     );
     // Open weeks are links, every published one; a week that is not published is not.

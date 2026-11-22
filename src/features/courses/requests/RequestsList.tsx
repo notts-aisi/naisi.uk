@@ -9,6 +9,7 @@ import Switch from "@/components/ui/Switch";
 import { useHydrated } from "@/hooks/useHydrated";
 import { EMAIL_ME_ABOUT_REQUESTS, EMAIL_ME_LINE } from "@/lib/courses/excused/words";
 import * as V from "@/lib/courses/visitRequest/words";
+import * as T from "@/lib/courses/teamAsk/words";
 import * as R from "@/lib/courses/excused/requestWords";
 import * as P from "@/lib/courses/registerCorrection/pageWords";
 import type { RequestRow, RequestsPageView } from "@/lib/courses/requests/load";
@@ -39,6 +40,12 @@ import styles from "./Requests.module.css";
  * group to which and the day, when, who has it), then register corrections,
  * then requests to be excused. A later kind adds its own section. The tabs'
  * counts are worked out over every row.
+ *
+ * MESSAGES TO THE TEAM are an admin's alone too, in their own section after
+ * requests to be excused ("Something’s wrong, something else"): who, the
+ * topic, the start of what they wrote, when, who has it or who replied. An
+ * admin also has a second switch, "Email me about messages to the team",
+ * off unless they switch it on.
  */
 
 type Tab = "waiting" | "handling" | "done";
@@ -49,13 +56,23 @@ const TONE: Record<RequestRow["state"], ChipTone> = {
   approved: "success",
   declined: "neutral",
   withdrawn: "neutral",
+  replied: "success",
 };
 
 function programmeKey(row: RequestRow): string {
   return `${row.programme.roundId ?? ""} ${row.programme.programmeId ?? ""} ${row.runId}`;
 }
 
-export default function RequestsList({ view, emailMe = null }: { view: RequestsPageView; emailMe?: boolean | null }) {
+export default function RequestsList({
+  view,
+  emailMe = null,
+  emailMeTeam = null,
+}: {
+  view: RequestsPageView;
+  emailMe?: boolean | null;
+  /** An admin's own switch for the email about messages to the team; null draws none. */
+  emailMeTeam?: boolean | null;
+}) {
   const [tab, setTab] = useState<Tab>(view.counts.waiting > 0 || view.counts.handling === 0 ? "waiting" : "handling");
   const hydrated = useHydrated();
   // An admin's own switch for the email about new requests to be excused; null draws none.
@@ -81,10 +98,34 @@ export default function RequestsList({ view, emailMe = null }: { view: RequestsP
       setEmailsBusy(false);
     }
   }
+  const [teamEmails, setTeamEmails] = useState<boolean | null>(emailMeTeam);
+  const [teamEmailsBusy, setTeamEmailsBusy] = useState(false);
+  const [teamEmailsProblem, setTeamEmailsProblem] = useState<string | null>(null);
+
+  async function switchTeamEmails(next: boolean) {
+    setTeamEmailsBusy(true);
+    setTeamEmailsProblem(null);
+    try {
+      const res = await fetch("/api/courses/requests/emails", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ on: next, which: "team" }),
+      });
+      const body = (await res.json().catch(() => null)) as { ok?: boolean; on?: boolean; error?: string } | null;
+      if (!res.ok || body?.ok !== true) setTeamEmailsProblem(body?.error ?? "That didn’t save. Try again.");
+      else setTeamEmails(body.on === true);
+    } catch {
+      setTeamEmailsProblem("That didn’t save. Try again.");
+    } finally {
+      setTeamEmailsBusy(false);
+    }
+  }
   const [programme, setProgramme] = useState<string>("all");
 
   const programmes = new Map<string, string>();
-  for (const row of view.rows) programmes.set(programmeKey(row), row.programme.name || "A programme");
+  // A message to the team belongs to no programme: it adds nothing to the
+  // filter, and a programme chosen there shows none (it is in "All" only).
+  for (const row of view.rows) if (row.runId !== "") programmes.set(programmeKey(row), row.programme.name || "A programme");
   const inProgramme = view.rows.filter((row) => programme === "all" || programmeKey(row) === programme);
   const inTab = inProgramme.filter((row) => (tab === "waiting" ? row.state === "waiting" : tab === "handling" ? row.state === "handling" : isDone(row.state)));
   // Each section takes its own kind's rows and no other (`rowsOfKind`).
@@ -93,6 +134,8 @@ export default function RequestsList({ view, emailMe = null }: { view: RequestsP
   const anyExcused = view.viewer === "admin" && rowsOfKind(view.rows, REQUEST_KINDS.excused).length > 0;
   const visitsShown = rowsOfKind(inTab, REQUEST_KINDS.visits);
   const anyVisits = view.viewer === "admin" && rowsOfKind(view.rows, REQUEST_KINDS.visits).length > 0;
+  const messagesShown = rowsOfKind(inTab, REQUEST_KINDS.messages);
+  const anyMessages = view.viewer === "admin" && rowsOfKind(view.rows, REQUEST_KINDS.messages).length > 0;
   // Over every row of the programme chosen, whatever its kind.
   const counts = tabCounts(inProgramme);
   const nothing = view.counts.waiting === 0 && view.counts.handling === 0;
@@ -249,6 +292,23 @@ export default function RequestsList({ view, emailMe = null }: { view: RequestsP
         </section>
       )}
 
+      {anyMessages && (
+        <section className={styles.card} aria-labelledby="requests-messages">
+          <h2 id="requests-messages" className={styles.cardTitle}>
+            {T.MESSAGES_SECTION}
+          </h2>
+          {messagesShown.length === 0 ? (
+            <p className={styles.line}>{P.NOTHING_IN_THIS_VIEW}</p>
+          ) : (
+            <ul className={styles.rows} role="list">
+              {messagesShown.map((row) => (
+                <MessageRowItem key={row.id} row={row} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       {emails !== null && (
         <section className={styles.card} aria-label={EMAIL_ME_ABOUT_REQUESTS} data-testid="requests-email-me">
           <Switch
@@ -266,6 +326,23 @@ export default function RequestsList({ view, emailMe = null }: { view: RequestsP
         </section>
       )}
 
+      {teamEmails !== null && (
+        <section className={styles.card} aria-label={T.EMAIL_ME_ABOUT_MESSAGES}>
+          <Switch
+            checked={teamEmails}
+            onChange={(next) => void switchTeamEmails(next)}
+            disabled={!hydrated || teamEmailsBusy}
+            label={T.EMAIL_ME_ABOUT_MESSAGES}
+            description={T.EMAIL_ME_ABOUT_MESSAGES_LINE}
+          />
+          {teamEmailsProblem && (
+            <p className={styles.problem} role="status">
+              {teamEmailsProblem}
+            </p>
+          )}
+        </section>
+      )}
+
       <aside className={styles.aside}>
         <h2 className={styles.cardTitle}>Who sees what</h2>
         <p className={styles.line}>
@@ -274,6 +351,7 @@ export default function RequestsList({ view, emailMe = null }: { view: RequestsP
         </p>
         {view.viewer === "admin" && <p className={styles.line}>{R.EXCUSED_WHO_SEES}</p>}
         {view.viewer === "admin" && <p className={styles.line}>{V.VISITS_WHO_SEES}</p>}
+        {view.viewer === "admin" && <p className={styles.line}>{T.MESSAGES_WHO_SEES}</p>}
       </aside>
     </div>
   );
@@ -302,6 +380,35 @@ function VisitRowItem({ row }: { row: RequestRow }) {
       <div className={styles.rowEnd}>
         <Chip tone={TONE[row.state]}>{P.stateChip(row.state)}</Chip>
         <Link href={requestPath(row.id)} className={styles.open} aria-label={`${P.OPEN}: ${V.requestTitleWords(row.subject.name)}`}>
+          {P.OPEN}
+        </Link>
+      </div>
+    </li>
+  );
+}
+
+/** One message to the team, as its row: who, the topic, the start of what they wrote, when, who has it or who replied. */
+function MessageRowItem({ row }: { row: RequestRow }) {
+  const topic = row.topic ?? "else";
+  return (
+    <li className={styles.row} data-testid="request-row" data-kind="team-message">
+      <div className={styles.rowBody}>
+        <p className={styles.rowTitle}>
+          <strong>{row.subject.name}</strong> · {T.TOPIC_SHORT[topic]}
+        </p>
+        <p className={styles.line}>
+          {[
+            row.about ? P.quoted(row.about) : "",
+            P.dayOf(row.askedAt),
+            row.state === "replied" ? T.repliedRowWords(row.decidedBy?.name ?? "") : P.handlingWords(row.handling, row.mine),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      </div>
+      <div className={styles.rowEnd}>
+        <Chip tone={TONE[row.state]}>{P.stateChip(row.state)}</Chip>
+        <Link href={requestPath(row.id)} className={styles.open} aria-label={`${P.OPEN}: ${T.messageTitleWords(row.subject.name, topic)}`}>
           {P.OPEN}
         </Link>
       </div>
