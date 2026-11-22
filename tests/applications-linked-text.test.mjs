@@ -844,6 +844,15 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/lib/applications/arrange/advise.ts",
+    {
+      built: [
+        'person.unread ? "" : `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications/${encodeURIComponent(person.uid)}`',
+      ],
+      from: "the person's application on the programme's review screen, from the form's and the programme's ids and the person's uid, encoded; nothing where the reader may not read the application (the programme's lead's `unread`)",
+    },
+  ],
+  [
     "src/features/applications/circles/PersonPanel.tsx",
     {
       built: ["person.href", "facilitatorsHref", "facilitatorsHref"],

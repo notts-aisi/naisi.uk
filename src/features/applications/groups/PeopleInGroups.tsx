@@ -793,7 +793,10 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
     setOpeningArranging(true);
     try {
       // An admin reads Circles' own route; the programme's lead, the lead's own (no Claude or Pangram).
-      const res = await fetch(`${base}/${view.viewer === "admin" ? "circles" : "arranging"}`, { cache: "no-store" });
+      const res =
+        view.viewer === "admin"
+          ? await fetch(`${base}/circles`, { cache: "no-store" })
+          : await fetch(`${base}/arranging`, { cache: "no-store" });
       const body = (await res.json().catch(() => null)) as { circles?: CirclesView; error?: string } | null;
       if (!res.ok || !body?.circles) {
         await raise(body?.error || CONNECTION);

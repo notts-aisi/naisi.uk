@@ -644,7 +644,7 @@ describe("4. Rings is the same board, its moves the card's own", () => {
     assert.doesNotMatch(codeOf("features/applications/groups/RingsBoard.tsx"), /\bfetch\(|fromForm/);
     // Suggest groups reads Circles' route for an admin and the lead's own route for the lead, and asks for a suggestion
     // without Claude; the button is there for both, on Rings and on Columns, once decisions have gone out.
-    assert.match(board, /fetch\(`\$\{base\}\/\$\{view\.viewer === "admin" \? "circles" : "arranging"\}`, \{ cache: "no-store" \}\)/);
+    assert.match(board, /view\.viewer === "admin"\s*\? await fetch\(`\$\{base\}\/circles`, \{ cache: "no-store" \}\)\s*: await fetch\(`\$\{base\}\/arranging`, \{ cache: "no-store" \}\)/);
     assert.match(board, /JSON\.stringify\(\{ askClaude: false, minutes: String\(circles\.minutes\), startAgain: false \}\)/);
     assert.match(board, /\{view\.sent \? \(\s*<button/);
     assert.match(board, /forLead=\{!admin\}/);

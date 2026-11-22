@@ -480,7 +480,8 @@ const FETCHES_IT_CANNOT_READ = new Map([
   ],
   [
     "src/features/applications/circles/Circles.tsx",
-    "An admin's Circles, at the circles and arrangement routes and the group, place and facilitator routes under " +
+    "An admin's Circles, or the programme's lead's, at the circles route (the lead's own arranging route for the lead) " +
+      "and the arrangement route and the group, place and facilitator routes under " +
       "the addresses it builds: it draws the run's groups in the order the circles route answers them, and a " +
       "suggestion's in the order the arrangement route does, each compareGroupsByMeeting's " +
       "(src/lib/applications/arrange/circles.ts, src/lib/applications/arrange/advise.ts).",
