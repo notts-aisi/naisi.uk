@@ -505,7 +505,7 @@ export default function ApplicationsBoard({
                   <Row
                     key={row.uid}
                     row={row}
-                    href={personHrefs && Object.hasOwn(personHrefs, row.uid) ? personHrefs[row.uid] : `${listPath}/${row.uid}`}
+                    href={(personHrefs ? own(personHrefs, row.uid) : undefined) ?? `${listPath}/${row.uid}`}
                     showScore={programme.usesScores}
                     mark={assessments ? (own(marks, row.uid) ?? null) : undefined}
                     selectable={canAct}

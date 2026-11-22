@@ -609,7 +609,7 @@ export function freeGroupLinesOf(groups: ReadonlyArray<ChartGroupInput & { minut
 export function personFreeViewOf(
   week: PersonWeek,
   firstName: string,
-  groups: readonly ChartGroupInput[],
+  groups: ReadonlyArray<Omit<ChartGroupInput, "fits" | "current">>,
   grid: { startMinute: number; endMinute: number },
 ): PersonFreeView | null {
   switch (week.kind) {
@@ -623,7 +623,7 @@ export function personFreeViewOf(
       return {
         kind: "nothing",
         line: NOTHING_MARKED,
-        chart: weekChartOf({ grid, marked: [], fromFirstMark: false, groups: groups.map((group) => ({ ...group, fits: false })) }),
+        chart: weekChartOf({ grid, marked: [], fromFirstMark: false, groups: groups.map((group) => ({ ...group, fits: false, current: false })) }),
       };
     case "given":
       return {
@@ -703,12 +703,12 @@ export function claudeLinesOf(note: {
 /** Their answer about the group they are in now, in the board's words; null with none to show. */
 export function timeAnswerLinesOf(answer: TimeAnswerView | null, groupName: string | null): TimeAnswerLines | null {
   if (!answer || !groupName) return null;
-  const said =
-    answer.kind === "yes"
-      ? MARK_CAN_MAKE
-      : answer.kind === "cant"
-        ? MARK_CANT_MAKE
-        : mostWeeksWords(answer.sessionKeys.length > 0 ? mostWeeksMark(answer.sessionKeys.map(weekOfSessionKey)) : null);
+  let said: string;
+  if (answer.kind === "mostWeeks") {
+    said = mostWeeksWords(answer.sessionKeys.length > 0 ? mostWeeksMark(answer.sessionKeys.map(weekOfSessionKey)) : null);
+  } else {
+    said = answer.kind === "yes" ? MARK_CAN_MAKE : MARK_CANT_MAKE;
+  }
   return {
     title: theirAnswerWords(groupName),
     said,

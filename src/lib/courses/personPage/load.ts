@@ -4,7 +4,7 @@ import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { loadProgrammePeople } from "@/lib/applications/people/load";
 import { statusWords } from "@/lib/applications/people/words";
 import { personWeekFor, type WeekGroup } from "@/lib/applications/people/week";
-import { notesFor } from "@/lib/applications/arrange/advise";
+import { notesFor } from "@/lib/applications/arrange/notes";
 import { own } from "@/lib/applications/keys";
 import type { ApplicationDoc, QuestionSetDoc } from "@/lib/applications/model";
 import type { ApplicationForm } from "@/lib/applications/normalise";

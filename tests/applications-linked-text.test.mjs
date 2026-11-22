@@ -839,7 +839,7 @@ const BUILT = new Map([
   [
     "src/features/applications/groups/ProgrammeAttendance.tsx",
     {
-      built: ["personHrefs[person.uid]"],
+      built: ["hrefOf(person.uid) as string"],
       from: "the person's page on the programme, which their name on the register opens: each the People tab's own `personHref`, built on the server from the programme's own path and the person's uid, encoded, for the rows of the reader's People tab alone",
     },
   ],
@@ -1187,7 +1187,7 @@ const BUILT = new Map([
         "`${listPath}/${nextUid}`",
         "freedPlacesPath",
         "href",
-        "personHrefs && Object.hasOwn(personHrefs, row.uid) ? personHrefs[row.uid] : `${listPath}/${row.uid}`",
+        "(personHrefs ? own(personHrefs, row.uid) : undefined) ?? `${listPath}/${row.uid}`",
       ],
       from:
         "a programme's list of applications, one application by its owner's account id, and the " +

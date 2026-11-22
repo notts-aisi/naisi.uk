@@ -10999,11 +10999,12 @@ describe("v15 lets the people running a programme rate written work for each oth
   test("\"What comes back is seen by admins only\": Claude's and Pangram's reads of an application, beside a person, are read for an admin alone", () => {
     v15Says(["What comes back is seen by admins only,"]);
     assertExactlyTheseFiles(
-      sourceFilesNaming(/\bnotesFor\(db,/),
+      sourceFilesNaming(/\bnotesFor\(db[,:]/),
       new Map([
+        ["src/lib/applications/arrange/notes.ts", "the reader itself, which asks nobody who is reading, so each caller below decides that first"],
         [
           "src/lib/applications/arrange/advise.ts",
-          "the reader itself, and Suggest groups and Ask about the arrangement, each of which refuses anybody but an admin (canRunTerm) before it reads",
+          "Suggest groups and Ask about the arrangement, each of which refuses anybody but an admin (canRunTerm) before it reads",
         ],
         ["src/lib/applications/arrange/circles.ts", "Circles, which answers admins-only for anybody else before it reads anybody"],
         [

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { cameWords } from "@/lib/courses/attendanceWords";
+import { own } from "@/lib/applications/keys";
 import { ONLINE_WORD, roomAndOnlineWords } from "@/lib/courses/joiningOnline/words";
 import type {
   GridCell,
@@ -153,6 +154,8 @@ function ByPerson({
 }) {
   const [opened, setOpened] = useState<Set<string>>(() => new Set());
   const columns = model.weeks.length + 2;
+  /** The person's page on the programme, where it opens for this reader; undefined otherwise. */
+  const hrefOf = (uid: string) => own(personHrefs, uid);
   return (
     <div className={styles.scroll} role="region" aria-label="Attendance grid" tabIndex={0}>
       <table className={styles.table}>
@@ -222,8 +225,8 @@ function ByPerson({
                     <span className={styles.personInner}>
                       <InitialsChip name={person.name} uid={person.uid} size="sm" />
                       <span className={styles.personText}>
-                        {Object.hasOwn(personHrefs, person.uid) ? (
-                          <Link href={personHrefs[person.uid]} className={`${styles.personName} ${styles.personLink}`}>
+                        {hrefOf(person.uid) ? (
+                          <Link href={hrefOf(person.uid) as string} className={`${styles.personName} ${styles.personLink}`}>
                             {person.name}
                           </Link>
                         ) : (
