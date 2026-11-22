@@ -242,7 +242,7 @@ describe("3. the question before a status move", () => {
           const said = words.statusQuestionBody(from, to, mode);
           assert.ok(said, `${from} to ${to} (${mode})`);
           assert.match(said, / It can’t be moved back\.$/);
-          assert.doesNotMatch(said, /[–—]/, "no dashes");
+          assert.doesNotMatch(said, /[\u2013\u2014]/, "no dashes");
         }
       }
     }

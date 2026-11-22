@@ -225,7 +225,7 @@ export default function GroupEditor({
     setError(null);
 
     const nextLocation = session.location.trim();
-    // Empty stays null rather than "" — `meetingUrl` is nullable by design
+    // Empty stays null rather than "": `meetingUrl` is nullable by design
     // and the group card renders "in person only" off exactly that null.
     const nextMeetingUrl = url ? url : null;
     // The room, the link and the campus, only when this card may change them

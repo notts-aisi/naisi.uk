@@ -2857,7 +2857,7 @@ service cloud.firestore {
         && groupContentOk();
 
       // A named facilitator edits their own group's session (move the slot,
-      // drop the term's overrides) — per-doc by construction, same trust
+      // drop the term's overrides), per-doc by construction, same trust
       // shape as an event collaborator. The room, the meeting link and the
       // campus are the routes' for everybody but an admin
       // (groupRoomAndLinkUnchanged). The `sessionModes` map
