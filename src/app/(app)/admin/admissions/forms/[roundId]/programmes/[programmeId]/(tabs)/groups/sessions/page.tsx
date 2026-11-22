@@ -2,13 +2,13 @@ import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import shared from "@/features/applications/editor/editor.module.css";
 import AllGroups from "@/features/applications/groups/AllGroups";
 import GroupsGoOut from "@/features/applications/groups/GroupsGoOut";
+import { boardShowOf } from "@/features/applications/groups/boardShow";
 import GroupsViews, { GroupsFrame, groupsPath, groupsViewPath } from "@/features/applications/groups/GroupsViews";
 import NotYours from "@/features/applications/groups/NotYours";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import { publishLinkWords } from "@/features/applications/groups/peopleInGroupsWords";
 import { ADD_A_GROUP } from "@/lib/courses/groupTimes/words";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
-import { canRunTerm } from "@/lib/applications/access";
 import { loadAllGroups } from "@/lib/courses/allGroups/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
@@ -56,7 +56,7 @@ export default async function ProgrammeAllGroupsPage({
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
-  searchParams: Promise<{ archived?: string | string[] }>;
+  searchParams: Promise<{ archived?: string | string[]; show?: string | string[] }>;
 }) {
   const [{ roundId, programmeId }, query, user] = await Promise.all([params, searchParams, requireAdmissionsPage()]);
   const db = getAdminDb();
@@ -70,7 +70,7 @@ export default async function ProgrammeAllGroupsPage({
       programmeId={view.programmeId}
       current="sessions"
       pitches={view.pitchingWeek !== null}
-      circles={canRunTerm(user)}
+      show={boardShowOf(query?.show)}
     />
   );
   const runSnap = view.run && db ? await db.collection("courseRuns").doc(view.run.id).get() : null;

@@ -35,6 +35,9 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 export const TITLE = "Circles";
 
+/** On People in groups shown as Rings, closing an admin's arranging and going back to the rings. */
+export const BACK_TO_RINGS = "Back to the rings";
+
 export const LEDE =
   "Each ring is one of the run’s groups, with the people in it now. Click a person to see their week against every group’s time, what Claude made of their application and their Pangram flags, and to move them. A move saves straight away, as on People in groups. Nobody is emailed: Publish tells people their group. Only admins see this.";
 
@@ -91,9 +94,12 @@ export function seatsLine(name: string, count: number, room: number | null): str
   return room === null ? `${name} · ${count}` : `${name} · ${count} of ${room}`;
 }
 
+/** Under a ring, before the names of its facilitators who hold no place on the run. */
+export const FACILITATING_OUTSIDE = "Facilitating, with no place on the run:";
+
 /** Under a ring: its facilitators who hold no place on the run. */
 export function facilitatingOutside(names: readonly string[]): string {
-  return `Facilitating, with no place on the run: ${listInWords(names)}`;
+  return `${FACILITATING_OUTSIDE} ${listInWords(names)}`;
 }
 
 export function moveAria(name: string, group: string): string {
@@ -111,6 +117,13 @@ export const WARN = {
 
 export const LEGEND =
   "Click a person to see their week and what Claude made of their application, then click a ring, or a group on their chart, to move them. A red tag is somebody who didn’t mark that time as free, “!” is a Pangram flag, “Not told yet” is somebody Publish hasn’t told their group, and “Moved” is somebody told their group and moved since, whom the next Publish emails.";
+
+/**
+ * The same, for the programme's lead, who is shown no Claude and no Pangram:
+ * it leaves out what Claude made of the application, and the Pangram flag.
+ */
+export const LEGEND_LEAD =
+  "Click a person to see their week, then click a ring, or a group on their chart, to move them. A red tag is somebody who didn’t mark that time as free, “Not told yet” is somebody Publish hasn’t told their group, and “Moved” is somebody told their group and moved since, whom the next Publish emails.";
 
 // ---------------------------------------------------------------------------
 // One person
@@ -357,20 +370,10 @@ export const SOMEBODY = "Somebody";
 export const A_GROUP = "a group";
 
 // ---------------------------------------------------------------------------
-// The lead, and the Times view's link
+// The Times view's link
 // ---------------------------------------------------------------------------
-
-export const ADMINS_ONLY_TITLE = "Circles is for admins";
-export const ADMINS_ONLY =
-  "Circles shows each person’s marked week and what Claude made of their application, which only admins see. People in groups has everybody, and every move.";
-export const GO_TO_PEOPLE_IN_GROUPS = "Go to People in groups";
 
 export const TIMES_LINK_TITLE = "Arrange groups";
 export const TIMES_LINK =
-  "Circles draws each group as a ring with its people, each person’s week against the groups’ times, and suggestions with or without Claude over the groups as they are.";
-export const TIMES_LINK_ACTION = "Open Circles";
-
-/** No run to draw. */
-export function noRunWords(programme: string): string {
-  return `${programme} doesn’t name a course run, or the one it names is no longer on the site. Name one on the Settings tab, under Course run.`;
-}
+  "Rings, on People in groups, draws each group as a ring with its people, each person’s week against the groups’ times, and suggestions with or without Claude over the groups as they are.";
+export const TIMES_LINK_ACTION = "Show as Rings";

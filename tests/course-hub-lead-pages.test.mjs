@@ -80,6 +80,12 @@ const STYLESHEETS = [
   // The person's panel beside the board, and the week chart's sheet it draws with.
   "./BoardPersonPanel.module.css",
   "@/features/applications/times/WeekChart.module.css",
+  // Rings: its own sheet, Circles' rings, and an admin's arranging (Circles) with its campus, room and length pickers.
+  "./RingsBoard.module.css",
+  "@/features/applications/circles/Circles.module.css",
+  "./GroupCampusPicker.module.css",
+  "./GroupRoomField.module.css",
+  "./Select.module.css",
   "./ActionToast.module.css",
   "./Badge.module.css",
   "./Button.module.css",

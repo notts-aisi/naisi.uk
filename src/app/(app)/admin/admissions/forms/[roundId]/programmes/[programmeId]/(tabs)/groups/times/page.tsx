@@ -1,5 +1,6 @@
 import { CirclesLink } from "@/features/applications/circles/CirclesNotes";
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
+import { boardShowOf } from "@/features/applications/groups/boardShow";
 import GroupsViews from "@/features/applications/groups/GroupsViews";
 import NotYours from "@/features/applications/groups/NotYours";
 import TimesPicture from "@/features/applications/times/TimesPicture";
@@ -28,16 +29,19 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * length) is Times' own.
  *
  * For an admin, a short link under the picture (and before decision day
- * under the sentence that stands in for it) leads to Circles, where groups
- * are arranged: the run's groups as rings, and suggestions drawn over them
- * (`src/features/applications/circles/Circles.tsx`).
+ * under the sentence that stands in for it) leads to People in groups shown
+ * as Rings, where an admin arranges groups: the run's groups as rings, and
+ * suggestions drawn over them (`src/features/applications/circles/Circles.tsx`).
+ *
+ * `?show=rings` is how People in groups was shown when this view was opened
+ * from it, carried on by the row of views.
  */
 export default async function ProgrammeTimesPage({
   params,
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
-  searchParams: Promise<{ length?: string | string[]; add?: string | string[] }>;
+  searchParams: Promise<{ length?: string | string[]; add?: string | string[]; show?: string | string[] }>;
 }) {
   const [{ roundId, programmeId }, query, user] = await Promise.all([
     params,
@@ -59,11 +63,11 @@ export default async function ProgrammeTimesPage({
           programmeId={view.programmeId}
           current="times"
           pitches={view.pitchingWeek !== null}
-          circles={view.viewer === "admin"}
+          show={boardShowOf(query?.show)}
         />
       }
       arrange={
-        // Circles is an admin's alone: it shows marked weeks and Claude's reads.
+        // Arranging with suggestions is an admin's alone: it shows Claude's reads.
         view.viewer === "admin" ? <CirclesLink roundId={view.roundId} programmeId={view.programmeId} /> : null
       }
     />

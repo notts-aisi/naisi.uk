@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
+import { boardShowOf, withShow } from "@/features/applications/groups/boardShow";
+import { groupsPath } from "@/features/applications/groups/GroupsViews";
 import NotYours from "@/features/applications/groups/NotYours";
 import PublishGroups from "@/features/applications/groups/PublishGroups";
 import PublishReadiness from "@/features/applications/groups/PublishReadiness";
@@ -38,10 +40,12 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  */
 export default async function ProgrammePublishPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
+  searchParams: Promise<{ show?: string | string[] }>;
 }) {
-  const [{ roundId, programmeId }, user] = await Promise.all([params, requireAdmissionsPage()]);
+  const [{ roundId, programmeId }, query, user] = await Promise.all([params, searchParams, requireAdmissionsPage()]);
   const db = getAdminDb();
   const outcome = db ? await loadProgrammeRun(db, user, roundId, programmeId) : null;
   if (!db || !outcome || outcome.status === "none") return <NoProgrammeHere roundId={roundId} />;
@@ -59,8 +63,9 @@ export default async function ProgrammePublishPage({
 
   return (
     <div className={styles.page}>
+      {/* Back to People in groups, shown the way it was when Publish was opened from it. */}
       <Link
-        href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups`}
+        href={withShow(groupsPath(view.roundId, view.programmeId), boardShowOf(query?.show))}
         className={styles.back}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

@@ -625,3 +625,48 @@
     flex-wrap: wrap;
   }
 }
+
+/* "Show as  Columns | Rings": two links, the one shown marked, kept in the address. */
+.showAs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.showAsLabel {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.showAsChoices {
+  display: inline-flex;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.showAsChoice {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 14px;
+  color: var(--color-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.showAsChoice + .showAsChoice {
+  border-left: 1px solid var(--color-border-strong);
+}
+.showAsChoice:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: -2px;
+}
+.showAsChosen {
+  background: var(--color-surface-hover);
+  font-weight: 700;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .publish {
+    flex-wrap: wrap;
+  }
+}

@@ -57,6 +57,11 @@ export function publishLinkWords(viewer: "admin" | "lead"): string {
 
 export const TO_PLACE = "To place";
 
+/** The toolbar's choice of how the board is shown, kept in the address. */
+export const SHOW_AS = "Show as";
+export const COLUMNS = "Columns";
+export const RINGS = "Rings";
+
 /** "7 of 8", or "7" for a group with no limit. */
 export function seatsWords(count: number, capacity: number | null): string {
   return capacity === null ? String(count) : `${count} of ${capacity}`;
@@ -288,6 +293,11 @@ export const NOT_IN_A_GROUP_PICK = "Not in a group. Pick a group on the chart, o
 /** Under the name of somebody who facilitates a group and holds no place on the run. */
 export const FACILITATING_NO_PLACE = "Facilitating, with no place on the run";
 export const INVITED = "Invited";
+
+/** On Rings, somebody invited and not answered yet, among the people to place: "Chloe Martin · invited". */
+export function invitedTrayWords(name: string): string {
+  return `${name} · invited`;
+}
 
 /** "Chloe hasn’t accepted the invitation yet, so they can’t be placed." */
 export function notAcceptedWords(firstName: string): string {

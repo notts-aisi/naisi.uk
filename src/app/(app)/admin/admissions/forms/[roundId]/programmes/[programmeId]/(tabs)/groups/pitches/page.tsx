@@ -1,8 +1,8 @@
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
+import { boardShowOf } from "@/features/applications/groups/boardShow";
 import GroupsViews, { GroupsFrame } from "@/features/applications/groups/GroupsViews";
 import { PitchesAreTheLeads, ProgrammePitches } from "@/features/applications/pitches/ProgrammePitches";
 import { loadProgrammePitches } from "@/lib/applications/handover/pitchesLoad";
-import { canRunTerm } from "@/lib/applications/access";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
@@ -24,10 +24,12 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  */
 export default async function ProgrammePitchesPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
+  searchParams: Promise<{ show?: string | string[] }>;
 }) {
-  const [{ roundId, programmeId }, user] = await Promise.all([params, requireAdmissionsPage()]);
+  const [{ roundId, programmeId }, query, user] = await Promise.all([params, searchParams, requireAdmissionsPage()]);
   const db = getAdminDb();
   const outcome = db ? await loadProgrammePitches(db, user, roundId, programmeId) : null;
   if (!outcome || outcome.status === "none") return <NoProgrammeHere roundId={roundId} />;
@@ -38,7 +40,7 @@ export default async function ProgrammePitchesPage({
   return (
     <GroupsFrame
       views={
-        <GroupsViews roundId={view.roundId} programmeId={view.programmeId} current="pitches" pitches circles={canRunTerm(user)} />
+        <GroupsViews roundId={view.roundId} programmeId={view.programmeId} current="pitches" pitches show={boardShowOf(query?.show)} />
       }
     >
       <ProgrammePitches view={view} />
