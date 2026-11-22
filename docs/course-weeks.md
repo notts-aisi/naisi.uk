@@ -761,15 +761,19 @@ anything in it is left as it is."
   group of the run has its own copy of it. A week with a title alone, a
   summary, a question, blocks, readings, published, ready, pitching week or
   an owner is left as it is. It deletes nothing, never touches the week
-  plan, writes each week unpublished (Mark ready publishes it), and puts the
-  template's Start here and Glossary on the run only where it has none. A
-  template's week past the run's last week is not copied, and "Copied N
-  weeks in" counts only what was written. Somebody having started the run
+  plan, and writes each week unpublished (Mark ready publishes it). It copies
+  weeks only: never the template's Start here or Glossary, which people
+  holding a place would read at once (an admin loads those from Course
+  documents). A template week that holds nothing is never written or
+  counted; one past the run's last week is not copied; and "Copied N weeks
+  in" counts only what was written. Somebody having started the run
   does not stop it, because nothing they have done is in an empty week.
 - **What a template holds.** Each week's blocks (or, for an older week, its
   readings, exercises, checklist and guide prose), title, summary, questions
   and minutes, at the week ids it was saved from, the run's Start here and
-  Glossary, and three counts about the cohort (`TemplateRetrospective`). No
+  Glossary (which only the run editor's older copy carries to a run), and
+  three counts about the cohort (`TemplateRetrospective`). Its line on the
+  page counts the weeks that hold something. No
   week plan, so no breaks; not a week's pitching week, owner, way it meets
   or Ready; and nobody's work or note (the one person it names is the admin
   who saved it).

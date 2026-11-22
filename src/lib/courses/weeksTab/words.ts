@@ -109,7 +109,7 @@ export function nothingToCopy(courseTitle: string): string {
  * says its count of weeks only.
  */
 export const SAVED_TEMPLATES = "Saved templates";
-/** (MINE) When the course has none. */
+/** When the course has none. */
 export function noTemplatesWords(courseTitle: string): string {
   return `No templates of ${courseTitle.trim() || "this course"} are saved yet.`;
 }
@@ -126,7 +126,7 @@ export function deleteTemplateTitle(label: string): string {
 export const DELETE_TEMPLATE_BODY = "Runs already made from it keep their weeks.";
 export const KEEP_IT = "Keep it";
 export const DELETE_THE_TEMPLATE = "Delete the template";
-/** (MINE) After a delete. */
+/** After a delete. */
 export function deletedWords(label: string): string {
   return `“${label}” is deleted.`;
 }
@@ -136,19 +136,22 @@ export function templateNameExample(courseTitle: string, weeks: number): string 
   return `e.g. ${courseTitle.trim() || "AGI Strategy"}, ${sourceWeeksWords(weeks > 0 ? weeks : 6)}`;
 }
 /**
- * (MINE) Under the name. The board's sentence said the weeks' "settings and
- * guide notes ... with any breaks": a template keeps no week plan, so no
- * breaks; of a week's settings it keeps the title, summary and questions, not
- * pitching week, the owner or how it meets; and the facilitators' session
- * plans and notes are the course's, which every run of it reads already.
+ * Under the name: what a saved template holds of each week. It keeps no week
+ * plan, so no breaks; of a week's settings it keeps the title, summary and
+ * questions, not pitching week, the owner or how it meets. (It also keeps the
+ * run's Start here and Glossary, for the run editor's older copy; Copy it in
+ * never writes those two.)
  */
 export const TEMPLATE_HOLDS = "Saves each week’s blocks, title, summary and questions, in order. Never anybody’s work.";
 export const SAVE_THE_TEMPLATE = "Save the template";
 export function savedTemplateWords(label: string): string {
   return `“${label}” is saved.`;
 }
+/** A run whose plan has no weeks yet has no week to copy into. */
+export const NO_PLAN_WEEKS = "This run’s plan has no weeks yet, so nothing was copied in.";
 /** What a copy of a template did, from the route's own counts: written, left as they were, and past the run's last week. */
-export function copiedInWords(copied: number, left: number, extra: number): string {
+export function copiedInWords(copied: number, left: number, extra: number, planWeeks: number | null = null): string {
+  if (planWeeks === 0) return NO_PLAN_WEEKS;
   const parts = [copied === 0 ? "No weeks were copied in." : copied === 1 ? "Copied 1 week in." : `Copied ${copied} weeks in.`];
   if (left > 0) parts.push("Weeks that had anything in them were left as they were.");
   if (extra > 0) {
@@ -160,7 +163,7 @@ export function copiedInWords(copied: number, left: number, extra: number): stri
   }
   return parts.join(" ");
 }
-/** (MINE) The copy route's refusal of anything but a fill to the programme's lead. */
+/** The copy route's refusal of anything but a fill to the programme's lead. */
 export const FILL_ONLY_FOR_LEAD = "A programme’s lead copies a saved template only into the weeks that are empty.";
 /** What a copy did, from the route's own counts. */
 export function copiedWords(created: number, skipped: number): string {

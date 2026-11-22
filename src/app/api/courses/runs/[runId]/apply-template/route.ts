@@ -33,8 +33,10 @@ import { FILL_ONLY_FOR_LEAD } from "@/lib/courses/weeksTab/words";
  * ## `fill`: only into the weeks that are empty
  *
  * With `fill: true` the copy writes a week only where the run's week is
- * empty, deletes nothing and never touches the week plan
- * (`src/lib/courses/weeksTab/fill.ts` says exactly what empty means). That is
+ * empty, deletes nothing, never touches the week plan, and copies weeks
+ * only: never the template's Start here or Glossary, which members would read
+ * at once (`src/lib/courses/weeksTab/fill.ts` says exactly what empty means).
+ * That is
  * the copy "Copy weeks from the course" on a programme's Weeks tab always
  * asks for, and the only one the lead of the programme that names the run
  * may ask for (`programmeLedBy`, decided from the forms before anything of
@@ -242,7 +244,7 @@ export async function POST(
     try {
       const outcome = await fillEmptyWeeks(db, {
         runId,
-        template: { id: template.id, label: template.label, data: (templateSnap.data() ?? {}) as Record<string, unknown> },
+        template: { id: template.id, label: template.label },
         weeks: sourceWeeks.docs.map((doc) => ({ id: doc.id, data: (doc.data() ?? {}) as Record<string, unknown> })),
         actorUid: actor.uid,
       });
@@ -253,7 +255,7 @@ export async function POST(
         copiedWeeks: outcome.copied,
         left: outcome.left.length,
         extra: outcome.extra,
-        guide: outcome.guide,
+        planWeeks: outcome.planWeeks,
         templateId,
         templateLabel: template.label,
       });

@@ -33,8 +33,10 @@ import styles from "./PitchingWeekCard.module.css";
  * week section checked and writes the same fields.
  *
  * A programme with no teams (not an incubator) is offered only how many
- * pitches each person may pick; the other settings are sent as they are
- * stored, so a save there changes nothing else. Nothing works before the
+ * pitches each person may pick, and one whose teams are made from the agenda
+ * with no pitching week is not offered that, since nobody pitches there; what
+ * the card does not draw is sent as it is stored, so a save changes nothing
+ * else. Nothing works before the
  * page's script has arrived (`useHydrated`). Nobody is emailed.
  */
 
@@ -81,10 +83,14 @@ export default function PitchingWeekCard({
     setTeamsMadeOn(text(stored.teamsMadeOn));
   }
 
+  // Where nobody pitches (teams from the agenda and no pitching week), no
+  // box for picks is drawn; the stored value is sent as it is.
+  const picksHere = !noWeekNeeded;
+
   async function save() {
     const read = inputFromBoxes(
       hasTeams
-        ? { madeFrom, pickLimit, teamMin, teamMax, teamsMadeOn }
+        ? { madeFrom, pickLimit: picksHere ? pickLimit : text(stored.pickLimit), teamMin, teamMax, teamsMadeOn }
         : {
             madeFrom: text(stored.teamsFrom),
             pickLimit,
@@ -147,19 +153,21 @@ export default function PitchingWeekCard({
               </Select>
             </Field>
           )}
-          <Field id="pitching-pick-limit" label={PICKS_EACH}>
-            <Input
-              id="pitching-pick-limit"
-              className={styles.short}
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={COURSE_FIELD_LIMITS.maxPitchPicks}
-              step={1}
-              value={pickLimit}
-              onChange={(event) => setPickLimit(event.target.value)}
-            />
-          </Field>
+          {picksHere && (
+            <Field id="pitching-pick-limit" label={PICKS_EACH}>
+              <Input
+                id="pitching-pick-limit"
+                className={styles.short}
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={COURSE_FIELD_LIMITS.maxPitchPicks}
+                step={1}
+                value={pickLimit}
+                onChange={(event) => setPickLimit(event.target.value)}
+              />
+            </Field>
+          )}
           {hasTeams && (
             <>
               <Field id="pitching-team-min" label={SMALLEST_TEAM}>

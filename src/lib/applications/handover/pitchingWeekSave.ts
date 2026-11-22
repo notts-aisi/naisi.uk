@@ -2,6 +2,7 @@ import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
 import type { Firestore } from "firebase-admin/firestore";
 import {
+  PICKS_ONLY_HERE,
   PITCHING_NO_RUN,
   PITCHING_WEEK_NOT_YOURS,
   PITCHING_WEEK_SAVED,
@@ -36,6 +37,9 @@ import { RUNS_COLLECTION, readRun } from "./run";
  * with `updatedAt`, in one transaction, and only when something changed.
  * Which week is pitching week is never written here (it is that week's own
  * tick). Nothing is emailed.
+ *
+ * A programme with no teams (not an incubator) sets only how many pitches
+ * each person may pick: a body that changes anything else there is refused.
  *
  * WHAT IT KEEPS AS IT IS. Pitches and picks are their own documents and are
  * never touched. Once the run has any team, how its teams are made cannot
@@ -72,6 +76,7 @@ export async function savePitchingWeek(
   if (!opensProgrammeGroups(role)) return { ok: false, status: 403, error: PITCHING_WEEK_NOT_YOURS };
   if (programme.runId === null) return { ok: false, status: 409, error: PITCHING_NO_RUN };
 
+  const hasTeams = programme.kind === "incubator";
   const runRef = db.collection(RUNS_COLLECTION).doc(programme.runId);
   try {
     return await db.runTransaction(async (tx): Promise<PitchingWeekSaved> => {
@@ -81,6 +86,12 @@ export async function savePitchingWeek(
       const run = read.run;
       const stored: PitchingWeekInput = { teamsFrom: run.teamsFrom, settings: run.pitchSettings };
       if (sameSettings(stored, next)) return { ok: true, saved: false, message: NOTHING_CHANGED, settings: bodyOf(stored) };
+
+      // A programme with no teams sets only how many pitches each person may pick.
+      if (!hasTeams) {
+        const keep = (input: PitchingWeekInput) => JSON.stringify({ ...bodyOf(input), pickLimit: null });
+        if (keep(stored) !== keep(next)) throw new Refusal(PICKS_ONLY_HERE, 400);
+      }
 
       if (next.teamsFrom !== stored.teamsFrom) {
         // One equality on one field, so no declared index.

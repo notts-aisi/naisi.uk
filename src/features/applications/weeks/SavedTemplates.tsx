@@ -99,7 +99,7 @@ export default function SavedTemplates({
     setSaid(null);
     const answer = await send(`/api/courses/runs/${encodeURIComponent(runId)}/apply-template`, "POST", { templateId: row.id, fill: true });
     if (answer.ok) {
-      setSaid({ at: row.id, tone: "done", text: copiedInWords(count(answer.body.copied), count(answer.body.left), count(answer.body.extra)) });
+      setSaid({ at: row.id, tone: "done", text: copiedInWords(count(answer.body.copied), count(answer.body.left), count(answer.body.extra), typeof answer.body.planWeeks === "number" ? answer.body.planWeeks : null) });
       router.refresh();
     } else {
       setSaid({ at: row.id, tone: "error", text: errorOf(answer.body, "Couldn’t copy that template in. Try again.") });

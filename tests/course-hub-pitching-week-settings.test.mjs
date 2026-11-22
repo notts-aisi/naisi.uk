@@ -121,8 +121,8 @@ describe("1. who may save", () => {
     }
   });
 
-  test("the lead of another programme is told there is no programme on her own form's other programme, and on her own fellowship gets in", async () => {
-    // Claudia leads AGI Strategy, a fellowship: she may set its picks.
+  test("the lead of another programme is told there is no programme on an incubator it has no role on, and gets in on its own fellowship", async () => {
+    // Claudia leads AGI Strategy, a fellowship, and so may set its picks.
     const answer = await save("claudia", { teamsFrom: null, pickLimit: 2, teamSizeMin: null, teamSizeMax: null, teamsMadeOn: null }, { programmeId: AGI });
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
     assert.equal(world.db.read(`courseRuns/${RUN.agi}`).pitchSettings.pickLimit, 2);
@@ -298,6 +298,31 @@ describe("5. what each kind of programme is shown on Pitches", () => {
     const { text } = await draw("yusuf");
     assert.match(text, /Only the lead and admins can open the pitches/);
     assert.ok(!text.includes("Save pitching week"));
+  });
+});
+
+describe("5b. a programme with no teams, and one whose teams come from the agenda", () => {
+  test("a programme with no teams sets only the picks: changing anything else there is refused, and nothing is written", async () => {
+    const fellowship = { teamsFrom: null, pickLimit: 2, teamSizeMin: null, teamSizeMax: null, teamsMadeOn: null };
+    for (const over of [{ teamsFrom: "agenda" }, { teamSizeMin: 2, teamSizeMax: 4 }, { teamsMadeOn: "2026-11-26" }]) {
+      const before = everything();
+      assert.deepEqual(short(await save("claudia", { ...fellowship, ...over }, { programmeId: AGI })), [400, SETTINGS.PICKS_ONLY_HERE], JSON.stringify(over));
+      assert.equal(everything(), before);
+    }
+    assert.equal((await save("claudia", fellowship, { programmeId: AGI })).status, 200);
+  });
+
+  test("teams from the agenda with no pitching week: no box for picks, where nobody pitches", async () => {
+    reset(teamsSeed({ madeFrom: "agenda" }));
+    admitted();
+    world.db.poke(`${RUN_PATH}/weeks/w03`, { pitching: false });
+    const { html, text } = await draw("tess");
+    assert.ok(!text.includes("Pitches each person may pick"), text);
+    assert.ok(!html.includes('id="pitching-pick-limit"'));
+    for (const shown of ["Teams are made from", "Smallest team", "Largest team", "Teams are made on"]) assert.ok(text.includes(shown), shown);
+    // With a pitching week, people pitch and pick, so the box is drawn.
+    world.db.poke(`${RUN_PATH}/weeks/w03`, { pitching: true });
+    assert.ok((await draw("tess")).html.includes('id="pitching-pick-limit"'));
   });
 });
 

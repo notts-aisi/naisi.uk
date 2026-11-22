@@ -10,6 +10,7 @@ import {
   type CourseTemplateRow,
 } from "@/lib/firestore/courseTemplates";
 import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
+import { templateWeekIsEmpty } from "./fill";
 
 /**
  * THE SAVED TEMPLATES OF A RUN'S COURSE, for "Copy weeks from the course" on
@@ -21,7 +22,9 @@ import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staf
  * whoever saved it as the reader is shown names (`nameForViewer`: staff see
  * full names), read from their account where it still stands and from the
  * name stored on the template otherwise, the day it was saved, and its count
- * of weeks. A template keeps no week plan, so there is no break to count.
+ * of weeks: the weeks that hold something (`templateWeekIsEmpty`), the same
+ * weeks Copy it in would write, so an empty page saved with the term is not
+ * counted. A template keeps no week plan, so there is no break to count.
  *
  * Nothing in a template is anybody's work: its weeks are authored content,
  * and its evidence is three counts (`TemplateRetrospective`).
@@ -52,11 +55,18 @@ export async function loadTemplateList(db: Firestore, courseId: string, viewer: 
   const rows = await courseTemplateRows(db, courseId);
   const uids = [...new Set(rows.map((row) => row.savedByUid).filter((uid) => uid !== ""))];
   const accounts = uids.length > 0 ? await db.getAll(...uids.map((uid) => db.collection("users").doc(uid))) : [];
+  // Each template's weeks, to count the ones that hold something: one list per template, a handful per course.
+  const counts = await Promise.all(
+    rows.map(async (row) => {
+      const weeks = await db.collection(COURSE_TEMPLATES_COLLECTION).doc(row.id).collection("weeks").get();
+      return weeks.docs.filter((doc) => !templateWeekIsEmpty((doc.data() ?? {}) as Record<string, unknown>)).length;
+    }),
+  );
   const names = new Map<string, string>();
   for (const snap of accounts) {
     if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data() ?? {}), ""));
   }
-  return rows.map((row) => {
+  return rows.map((row, i) => {
     const at = row.savedAt ? new Date(row.savedAt) : null;
     const day = at && !Number.isNaN(at.getTime()) ? dayWords(londonDateKey(at)) : "";
     return {
@@ -64,7 +74,7 @@ export async function loadTemplateList(db: Firestore, courseId: string, viewer: 
       label: row.label.trim() || "A template with no name",
       savedOn: day || null,
       savedBy: names.get(row.savedByUid) || row.savedByName.trim() || "NAISI member",
-      weeks: row.weekCount,
+      weeks: counts[i],
     };
   });
 }

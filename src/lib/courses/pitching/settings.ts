@@ -48,23 +48,19 @@ export const MADE_FROM_CHOICES: readonly { value: "" | TeamsFrom; label: string 
 export function pitchingWeekChip(weekNumber: number, firstSession: string | null): string {
   return firstSession ? `Week ${weekNumber} · ${firstSession}` : `Week ${weekNumber}`;
 }
-/** (MINE) For a programme whose teams are made from the agenda and which has no pitching week. */
+/** For a programme whose teams are made from the agenda and which has no pitching week. */
 export const NO_PITCHING_WEEK_NEEDED = "Teams are made from the agenda people ranked, so no pitching week is needed.";
-/** (MINE) Under the card, for a programme with no Teams tab. */
+/** Under the card, for a programme with no Teams tab. */
 export const PICKS_ONLY_HERE = "This programme has no teams, so only how many pitches each person may pick is set here.";
 
 /** The answers and refusals, as the lead reads them. */
 export const PITCHING_WEEK_SAVED = "Pitching week saved.";
 export const SIZES_TOGETHER = "Give the smallest and the largest team together, or leave both blank.";
-/** (MINE) */
 export const NOT_A_WAY = "Teams are made from the pitches, from the agenda, or not set yet.";
-/** (MINE) */
 export const SEND_EVERY_SETTING = "Send every setting of pitching week, each a value or null.";
-/** (MINE) */
 export const PITCHING_WEEK_NOT_YOURS = "Only the programme’s lead and admins can set pitching week.";
-/** (MINE) */
 export const PITCHING_NO_RUN = "This programme doesn’t name a course run yet, so there is no pitching week to set.";
-/** (MINE) Once the run has a team, how teams are made stays as it is: changing it would hide the teams already made. */
+/** Once the run has a team, how teams are made stays as it is: changing it would hide the teams already made. */
 export const TEAMS_MADE_ALREADY = "This run has teams already, so how its teams are made stays as it is.";
 
 /**

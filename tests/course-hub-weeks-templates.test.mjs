@@ -12,7 +12,7 @@
  * a place, Drew drafts courses, April approves them, Zach is the admin. One
  * template of the course is saved, "AGI Strategy, six weeks", six weeks long.
  *
- * Held here, as the brief for this piece asks:
+ * Held here:
  *  1. who may list, copy, save and delete, each route as every caller;
  *  2. the copy writes a week only where it is empty and never deletes one:
  *     an empty run; a run with a written week, a titled-only week and a
@@ -31,6 +31,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
 import { CAST } from "./lib/handoverWorld.mjs";
+import { glossaryDoc, startHereDoc } from "./lib/guideFixture.mjs";
 import { A, AGI, COURSE, NOW, PERSONAS, ROUND, RUN, makeWeeksTabWorld, weeksTabSeed } from "./lib/weeksTabWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
@@ -148,7 +149,7 @@ describe("1. who may do what", () => {
     }
     // The lead names the run their programme names, and a run of this course.
     assert.equal((await listAs("claudia")).status, 403, "no run named");
-    assert.equal((await listAs("claudia", `?runId=${RUN.agiSpring}`)).status, 403, "a run of the course her programme does not name");
+    assert.equal((await listAs("claudia", `?runId=${RUN.agiSpring}`)).status, 403, "a run of the course the lead's programme does not name");
     assert.equal((await listAs("claudia", `?runId=${RUN.tais}`)).status, 403, "a run of another course");
     assert.equal((await ask("claudia", listRoute.GET, { courseId: COURSE.tais }, { query: `?runId=${RUN.agi}` })).status, 403, "another course's list");
     assert.equal((await listAs("tess", `?runId=${RUN.agi}`)).status, 403, "the lead of another programme");
@@ -280,6 +281,81 @@ describe("2. the copy fills weeks that are empty, and nothing else", () => {
     ]) {
       assert.equal(fill.weekDocIsEmpty({ weekNumber: 3, [field]: value }), false, field);
     }
+  });
+});
+
+describe("2b. the copy writes weeks and nothing else", () => {
+  const RUN_PATH = `courseRuns/${RUN.agi}`;
+  /** A template that also holds a Start here and a Glossary, on a run with neither. */
+  async function withGuide() {
+    start({ over: {} });
+    world.db.poke(`courseTemplates/${TEMPLATE}`, { startHere: startHereDoc(), glossary: glossaryDoc() });
+    const guideModel = await lib("courses", "guide", "model.ts");
+    assert.deepEqual(Object.keys(guideModel.runGuideFields(world.db.read(`courseTemplates/${TEMPLATE}`))).sort(), ["glossary", "startHere"], "the template's guide reads back");
+    assert.deepEqual(Object.keys(guideModel.runGuideFields(world.db.read(RUN_PATH))), [], "the run has neither");
+  }
+
+  test("a run with neither document and every week written: nothing is copied, and the run still holds neither", async () => {
+    await withGuide();
+    const answer = await copyIn("claudia");
+    assert.deepEqual([answer.status, answer.body.copied, answer.body.left], [200, 0, 6]);
+    assert.equal("guide" in answer.body, false);
+    const run = world.db.read(RUN_PATH);
+    assert.deepEqual(["startHere" in run, "glossary" in run], [false, false]);
+  });
+
+  test("a run with neither document and empty weeks: the weeks are copied, and the run still holds neither", async () => {
+    await withGuide();
+    for (let n = 1; n <= 6; n += 1) await world.db.collection(RUN_WEEKS).doc(`w0${n}`).delete();
+    const answer = await copyIn("claudia");
+    assert.deepEqual([answer.status, answer.body.copied], [200, 6]);
+    const run = world.db.read(RUN_PATH);
+    assert.deepEqual(["startHere" in run, "glossary" in run], [false, false]);
+  });
+
+  test("the fill's code never reads or writes a run's Start here or Glossary", () => {
+    const code = readFileSync(join(SRC, "lib", "courses", "weeksTab", "fill.ts"), "utf8");
+    assert.doesNotMatch(code, /runGuideFields|RUN_GUIDE_FIELDS|\bstartHere\b|\bglossary\b/);
+  });
+
+  test("a template week that holds nothing is never written or counted, past the plan or not", async () => {
+    start({ weeks: 7 });
+    for (let n = 1; n <= 6; n += 1) await world.db.collection(RUN_WEEKS).doc(`w0${n}`).delete();
+    const empty = { weekNumber: 0, title: "", summary: "", guideBlocks: [], materials: [], exercises: [], checklist: [], questions: [], estimatedMinutes: null, published: true };
+    world.db.seed(`courseTemplates/${TEMPLATE}/weeks/w05`, { ...empty, weekNumber: 5 });
+    world.db.seed(`courseTemplates/${TEMPLATE}/weeks/w07`, { ...empty, weekNumber: 7 });
+    const answer = await copyIn("claudia");
+    assert.deepEqual([answer.body.copied, answer.body.copiedWeeks, answer.body.extra], [5, [1, 2, 3, 4, 6], 0]);
+    assert.equal(world.db.read(weekPath(5)), undefined, "an empty template week wrote a page");
+    // The list counts the same weeks: five that hold something.
+    assert.match((await draw("claudia", CopyPage, PARAMS)).text, /Saved on Mon 19 Oct by Zach Levin · 5 weeks Copy it in/);
+  });
+
+  test("a run already stamped with a template keeps its stamp", async () => {
+    world.db.poke(`courseRuns/${RUN.agi}`, { templateId: "an-earlier-template", templateLabel: "An earlier template" });
+    await world.db.collection(RUN_WEEKS).doc("w06").delete();
+    const answer = await copyIn("claudia");
+    assert.deepEqual([answer.status, answer.body.copied], [200, 1]);
+    const run = world.db.read(`courseRuns/${RUN.agi}`);
+    assert.deepEqual([run.templateId, run.templateLabel], ["an-earlier-template", "An earlier template"]);
+  });
+
+  test("an archived group's own copy of a week leaves that week as it is", async () => {
+    await world.db.collection(RUN_WEEKS).doc("w06").delete();
+    world.db.poke(`courseGroups/${A}`, { archived: true });
+    world.db.seed(`courseGroups/${A}/weeks/w06`, { weekNumber: 6, title: "Group A's own week 6", materials: [] });
+    const answer = await copyIn("claudia");
+    assert.deepEqual([answer.status, answer.body.copied, answer.body.left], [200, 0, 6]);
+    assert.equal(world.db.read(weekPath(6)), undefined);
+  });
+
+  test("a run whose plan has no weeks is told so, and nothing is written", async () => {
+    world.db.poke(`courseRuns/${RUN.agi}`, { weekPlan: [] });
+    const before = everything();
+    const answer = await copyIn("claudia");
+    assert.deepEqual([answer.status, answer.body.copied, answer.body.planWeeks], [200, 0, 0]);
+    assert.equal(everything(), before);
+    assert.equal(words.copiedInWords(0, 0, 6, 0), "This run’s plan has no weeks yet, so nothing was copied in.");
   });
 });
 

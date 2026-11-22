@@ -1,7 +1,6 @@
 import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
 import type { DocumentReference, Firestore } from "firebase-admin/firestore";
-import { runGuideFields, RUN_GUIDE_FIELDS } from "@/lib/courses/guide/model";
 import { normalizeCourseWeek, sanitizeWeekPlan, weekDocId } from "@/lib/firestore/courses";
 import { templateWeekFields } from "@/lib/firestore/courseTemplates";
 
@@ -13,7 +12,10 @@ import { templateWeekFields } from "@/lib/firestore/courseTemplates";
  * The page's first sentence is the promise: "Copying fills weeks that are
  * empty. A week with anything in it is left as it is." So a week is written
  * only when it is EMPTY (`weekIsEmpty`), no week is ever deleted, and the
- * run's week plan is never touched.
+ * run's week plan is never touched. It copies weeks and nothing else: never
+ * the run's Start here or Glossary (an admin loads those from the Weeks tab's
+ * Course documents card), because members read those two as soon as they
+ * exist, with no publish step between.
  *
  * ## What "empty" means
  *
@@ -35,11 +37,13 @@ import { templateWeekFields } from "@/lib/firestore/courseTemplates";
  *
  * The template's week N is its document `wNN`, kept at the id it was saved
  * from (`courseTemplates.ts`: ids are preserved, always), so it goes to the
- * run's `wNN`, which is week N on the run as on every page. It goes only
- * where week N is a taught week of the run's plan: a template week past the
- * run's last week, or one with an id that names no week, is not copied (the
- * answer counts it as `extra`), because a document outside the plan is a
- * week nobody is shown and an address the week plan would then find taken.
+ * run's `wNN`, which is week N on the run as on every page. A template week
+ * that holds nothing (`templateWeekIsEmpty`) is never written and never
+ * counted. One that holds something goes only where week N is a taught week
+ * of the run's plan: one past the run's last week, or with an id that names
+ * no week, is not copied (the answer counts it as `extra`), because a
+ * document outside the plan is a week nobody is shown and an address the
+ * week plan would then find taken.
  *
  * Each week is written with the template's content through the one copy
  * shape (`templateWeekFields`), with the number of its address, NOT
@@ -48,10 +52,9 @@ import { templateWeekFields } from "@/lib/firestore/courseTemplates";
  * and when. Its Ready, pitching week, owner and way it meets are the run's
  * own, so they are not written at all.
  *
- * The run's Start here and Glossary follow the same rule: each the template
- * holds goes onto the run only when the run has none of its own. The run is
- * stamped with the template it came from (`templateId`, `templateLabel`)
- * only when it carries no such stamp yet and a week was written.
+ * The run is stamped with the template it came from (`templateId`,
+ * `templateLabel`) only when it carries no such stamp yet and a week was
+ * written.
  *
  * ## One transaction
  *
@@ -82,6 +85,18 @@ export function weekDocIsEmpty(data: Record<string, unknown> | undefined | null)
   return Object.entries(data).every(([field, value]) => BOOKKEEPING_FIELDS.includes(field) || holdsNothing(value));
 }
 
+/**
+ * A template's week holds nothing: what `weekDocIsEmpty` says of a run's
+ * page, with `published` set aside, since a saved week carries its source's
+ * flag and the copy never writes it.
+ */
+export function templateWeekIsEmpty(data: Record<string, unknown> | undefined | null): boolean {
+  if (!data) return true;
+  const { published, ...rest } = data;
+  void published;
+  return weekDocIsEmpty(rest);
+}
+
 /** The week number a template's week document is saved under, or null for an id that names no week. */
 export function weekNumberOfTemplateId(id: string): number | null {
   const match = WEEK_ID.exec(id);
@@ -99,10 +114,10 @@ export type FillOutcome = {
   copied: number[];
   /** Weeks of the template the run had something in, left as they were. */
   left: number[];
-  /** How many of the template's weeks have no taught week on the run to go into. */
+  /** How many of the template's weeks that hold something have no taught week on the run to go into. */
   extra: number;
-  /** The run's guide documents the template put on it (each only where the run had none). */
-  guide: string[];
+  /** How many taught weeks the run's plan has. */
+  planWeeks: number;
 };
 
 /** Thrown out of the transaction to refuse with a status. */
@@ -124,7 +139,7 @@ export async function fillEmptyWeeks(
   db: Firestore,
   input: {
     runId: string;
-    template: { id: string; label: string; data: Record<string, unknown> };
+    template: { id: string; label: string };
     weeks: readonly TemplateWeek[];
     actorUid: string;
   },
@@ -135,6 +150,7 @@ export async function fillEmptyWeeks(
   const byNumber = new Map<number, TemplateWeek>();
   let unaddressed = 0;
   for (const week of weeks) {
+    if (templateWeekIsEmpty(week.data)) continue;
     const n = weekNumberOfTemplateId(week.id);
     if (n === null) unaddressed += 1;
     else if (!byNumber.has(n)) byNumber.set(n, week);
@@ -194,17 +210,13 @@ export async function fillEmptyWeeks(
     // ---- WRITES. Nothing above may follow one.
     for (const write of writes) tx.set(write.ref, write.data);
 
-    const theirs = runGuideFields(template.data) as Record<string, unknown>;
-    const ours = runGuideFields(raw) as Record<string, unknown>;
-    const guide = RUN_GUIDE_FIELDS.filter((field) => theirs[field] !== undefined && ours[field] === undefined);
-    const runUpdate: Record<string, unknown> = Object.fromEntries(guide.map((field) => [field, theirs[field]]));
+    // The run's own document: only the template it came from, the first time
+    // a week of one is written. Never its Start here or Glossary.
     const stamped = typeof raw.templateId === "string" && raw.templateId !== "";
     if (!stamped && written.length > 0) {
-      runUpdate.templateId = template.id;
-      runUpdate.templateLabel = template.label;
+      tx.update(runRef, { templateId: template.id, templateLabel: template.label, updatedAt: FieldValue.serverTimestamp() });
     }
-    if (Object.keys(runUpdate).length > 0) tx.update(runRef, { ...runUpdate, updatedAt: FieldValue.serverTimestamp() });
 
-    return { copied: written, left, extra: extra.length + unaddressed, guide: [...guide] };
+    return { copied: written, left, extra: extra.length + unaddressed, planWeeks: taught.size };
   });
 }
