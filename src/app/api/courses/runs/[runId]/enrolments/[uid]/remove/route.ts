@@ -217,6 +217,8 @@ const BODY_FIELDS: readonly string[] = ["preview", "emails", "line", "closeRow"]
 /** Course run's take-off closes a row only for somebody who gave their place back. */
 const ROW_NOT_OPEN = "Their row on the run’s list isn’t open, so there’s nothing to close.";
 const STILL_HOLDS_PLACE = "They still hold their place, so their row on the run’s list stays as it is.";
+/** What a closed row on the run's own list says: the application row's status, never a seat's. */
+const ROW_CLOSED: CourseApplicationStatus = "withdrawn";
 
 /**
  * The body: none, `{ preview: true }`, or the count of emails the sheet
@@ -500,7 +502,7 @@ export async function POST(req: Request, ctx: Ctx) {
       if (place) givePlaceBack(tx, place);
       if (closing) {
         tx.update(rowRef, {
-          status: "withdrawn" satisfies CourseApplicationStatus,
+          status: ROW_CLOSED,
           updatedAt: FieldValue.serverTimestamp(),
         });
         tx.update(db.collection("courseRuns").doc(runId), {

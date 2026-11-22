@@ -1667,6 +1667,13 @@ test("a member can still write progress on a completed run, because no route com
   }
   assert.doesNotMatch(STATUS_ROUTE, /courseEnrolments/);
   assert.doesNotMatch(STATUS_MOVE, /courseEnrolments/);
+  // Course run's take-off closes the person's row on the run's own list
+  // (`courseApplications`), never their seat: the remove route's one
+  // `withdrawn` is the application row's, written to the row's reference.
+  assert.match(REMOVE_ROUTE, /const ROW_CLOSED: CourseApplicationStatus = "withdrawn";/);
+  assert.match(REMOVE_ROUTE, /tx\.update\(rowRef, \{\s*status: ROW_CLOSED,/);
+  assert.equal(REMOVE_ROUTE.split("ROW_CLOSED").length - 1, 2);
+  assert.match(REMOVE_ROUTE, /const rowRef = db\.collection\("courseApplications"\)/);
 });
 
 // ===========================================================================
