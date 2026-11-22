@@ -12,16 +12,16 @@ import {
   TEMPLATE_LIMITS,
   aggregateRetrospective,
   courseTemplateId,
-  normalizeCourseTemplate,
   summarizeRetrospective,
-  templateRowOrder,
   templateWeekFields,
-  toTemplateRow,
   type CourseTemplateRow,
   type RetroProgressRow,
 } from "@/lib/firestore/courseTemplates";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { runGuideFields } from "@/lib/courses/guide/model";
+import { isAddressableId } from "@/lib/addressableId";
+import { programmeLedBy } from "@/lib/courses/programmeLead";
+import { courseTemplateRows } from "@/lib/courses/weeksTab/templates";
 
 /**
  * `courseTemplates` for ONE course — the save half (POST) and the picker half
@@ -65,13 +65,17 @@ import { runGuideFields } from "@/lib/courses/guide/model";
  * deliberately coarser than the per-template check in rules: this is a LIST,
  * and resolving each row against its own source run would be a get() per row
  * to narrow an answer that is already the same for every row of one course.
+ *
+ * The lead of the programme that names a run of this course reads the list
+ * too, to copy a template into that run from the programme's Weeks tab: they
+ * name the run (`?runId=`), and are admitted when they lead the programme
+ * that names it (`programmeLedBy`, from the forms) and the run is of this
+ * course. Leading a programme opens nothing on another course. Saving and
+ * deleting stay an admin's.
  */
 
 /** Writes per batch. Firestore's hard limit is 500; a run holds ≤ 60 weeks. */
 const MAX_DOCS_PER_BATCH = 300;
-
-/** Cost ceiling on one course's version list. Five families, a few each. */
-const MAX_TEMPLATES_LISTED = 200;
 
 /**
  * Cost ceiling on the track-lead check's field-masked scan of THIS course's
@@ -302,10 +306,11 @@ export async function POST(
 // ---------------------------------------------------------------------------
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ courseId: string }> },
 ) {
   const { courseId } = await ctx.params;
+  const forRun = (new URL(req.url).searchParams.get("runId") ?? "").trim();
 
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
@@ -345,7 +350,15 @@ export async function GET(
         asUidList((d.data() ?? {}).trackLeadUids),
       ),
     );
-    if (!isLead) {
+    // The lead of the programme that names the run asked about, while it is
+    // a run of this course: the forms first, then the run's course.
+    const leadsTheProgramme =
+      !isLead &&
+      forRun !== "" &&
+      isAddressableId(forRun) &&
+      (await programmeLedBy(db, actor, forRun)) !== null &&
+      leadCandidates.docs.some((d) => d.id === forRun);
+    if (!isLead && !leadsTheProgramme) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }
@@ -353,20 +366,14 @@ export async function GET(
   // No `orderBy`: `savedAt` is a serverTimestamp on every row this route
   // writes, but the house rule is not to order on a field a legacy or
   // hand-made row could be missing (Firestore drops those docs entirely).
-  // Sorted in memory below.
-  const snap = await db
-    .collection(COURSE_TEMPLATES_COLLECTION)
-    .where("courseId", "==", courseId)
-    .limit(MAX_TEMPLATES_LISTED)
-    .get();
-
+  // Sorted in memory.
+  //
   // A missing course is NOT a 404 here. Snapshots deliberately outlive their
   // course (`destroyCourseCascade` leaves template provenance orphaned rather
   // than deleting frozen history), so listing by `courseId` is the honest
-  // read even when nothing answers to that id any more.
-  const templates: CourseTemplateRow[] = snap.docs
-    .map((d) => toTemplateRow(normalizeCourseTemplate(d.id, d.data() ?? {})))
-    .sort(templateRowOrder);
+  // read even when nothing answers to that id any more. The same read the
+  // Weeks tab's copy page lists (`courseTemplateRows`).
+  const templates: CourseTemplateRow[] = await courseTemplateRows(db, courseId);
 
   return NextResponse.json({ templates });
 }

@@ -1,0 +1,95 @@
+/* Saved templates on "Copy weeks from the course": a row's words and its presses, the save form, and the delete question. */
+
+.templateText {
+  display: flex;
+  flex: 1 1 240px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.templateActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+/* "Delete…": a press drawn as a link, with its own colours so Safari paints nothing grey over it. */
+.linkButton {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.linkButton:hover:not(:disabled) {
+  color: var(--color-accent-text-hover);
+}
+.linkButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.saveForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.fieldLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+.dialogHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.close {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.close:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+.buttonCareful {
+  border-color: var(--color-danger-line);
+  color: var(--color-danger-text);
+}
+
+@media (max-width: 36rem) {
+  .templateActions {
+    width: 100%;
+  }
+}

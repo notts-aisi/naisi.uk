@@ -83,10 +83,17 @@ export function joinWords(items: readonly string[]): string {
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
-/** "Copy weeks from the course", its page: the lede, a source's count and button, and when there is nothing to copy. */
-export function copyLede(courseTitle: string): string {
-  const course = courseTitle.trim() || "this course";
-  return `Copy the weeks another run of ${course} holds. Only the weeks this programme doesn’t have yet are copied, each with its ids, so nothing anybody has ticked or written is lost. Weeks it has already stay as they are.`;
+/**
+ * "Copy weeks from the course", its page: the lede, a source's count and
+ * button, and when there is nothing to copy. The lede is the board's, and it
+ * is the promise both copies keep: "Copy its weeks" writes only the weeks
+ * this run has no page for, and "Copy it in" only the weeks that are empty
+ * (`src/lib/courses/weeksTab/fill.ts` says what empty means).
+ */
+export const COPY_LEDE = "Copying fills weeks that are empty. A week with anything in it is left as it is.";
+/** The card of the course's other runs: "Other runs of AGI Strategy". */
+export function otherRunsTitle(courseTitle: string): string {
+  return `Other runs of ${courseTitle.trim() || "this course"}`;
 }
 export function sourceWeeksWords(weeks: number): string {
   return weeks === 1 ? "1 week" : `${weeks} weeks`;
@@ -95,8 +102,66 @@ export const COPY_ITS_WEEKS = "Copy its weeks";
 export function nothingToCopy(courseTitle: string): string {
   return `No other run of ${courseTitle.trim() || "this course"} has weeks to copy yet.`;
 }
-/** For an admin: where a saved template is applied instead. */
-export const TEMPLATES_LINE = "A saved template is applied in the run’s editor.";
+/**
+ * SAVED TEMPLATES, on the same page: each saved template of the course, for
+ * the programme's lead and admins to copy in; "Delete…" and saving one are an
+ * admin's. A template keeps no week plan, so it holds no breaks, and its line
+ * says its count of weeks only.
+ */
+export const SAVED_TEMPLATES = "Saved templates";
+/** (MINE) When the course has none. */
+export function noTemplatesWords(courseTitle: string): string {
+  return `No templates of ${courseTitle.trim() || "this course"} are saved yet.`;
+}
+/** "Saved on Mon 19 Oct by Zach Levin · 6 weeks". */
+export function templateLine(savedOn: string | null, savedBy: string, weeks: number): string {
+  const when = savedOn ? `Saved on ${savedOn}` : "Saved";
+  return `${when} by ${savedBy} · ${sourceWeeksWords(weeks)}`;
+}
+export const COPY_IT_IN = "Copy it in";
+export const DELETE_ASK = "Delete…";
+export function deleteTemplateTitle(label: string): string {
+  return `Delete “${label}”?`;
+}
+export const DELETE_TEMPLATE_BODY = "Runs already made from it keep their weeks.";
+export const KEEP_IT = "Keep it";
+export const DELETE_THE_TEMPLATE = "Delete the template";
+/** (MINE) After a delete. */
+export function deletedWords(label: string): string {
+  return `“${label}” is deleted.`;
+}
+export const SAVE_AS_TEMPLATE = "Save this term’s weeks as a template";
+export const TEMPLATE_NAME = "Template name";
+export function templateNameExample(courseTitle: string, weeks: number): string {
+  return `e.g. ${courseTitle.trim() || "AGI Strategy"}, ${sourceWeeksWords(weeks > 0 ? weeks : 6)}`;
+}
+/**
+ * (MINE) Under the name. The board's sentence said the weeks' "settings and
+ * guide notes ... with any breaks": a template keeps no week plan, so no
+ * breaks; of a week's settings it keeps the title, summary and questions, not
+ * pitching week, the owner or how it meets; and the facilitators' session
+ * plans and notes are the course's, which every run of it reads already.
+ */
+export const TEMPLATE_HOLDS = "Saves each week’s blocks, title, summary and questions, in order. Never anybody’s work.";
+export const SAVE_THE_TEMPLATE = "Save the template";
+export function savedTemplateWords(label: string): string {
+  return `“${label}” is saved.`;
+}
+/** What a copy of a template did, from the route's own counts: written, left as they were, and past the run's last week. */
+export function copiedInWords(copied: number, left: number, extra: number): string {
+  const parts = [copied === 0 ? "No weeks were copied in." : copied === 1 ? "Copied 1 week in." : `Copied ${copied} weeks in.`];
+  if (left > 0) parts.push("Weeks that had anything in them were left as they were.");
+  if (extra > 0) {
+    parts.push(
+      extra === 1
+        ? "1 of the template’s weeks is past this run’s last week, so it wasn’t copied."
+        : `${extra} of the template’s weeks are past this run’s last week, so they weren’t copied.`,
+    );
+  }
+  return parts.join(" ");
+}
+/** (MINE) The copy route's refusal of anything but a fill to the programme's lead. */
+export const FILL_ONLY_FOR_LEAD = "A programme’s lead copies a saved template only into the weeks that are empty.";
 /** What a copy did, from the route's own counts. */
 export function copiedWords(created: number, skipped: number): string {
   const made = created === 0 ? "No weeks were copied" : created === 1 ? "1 week copied" : `${created} weeks copied`;
