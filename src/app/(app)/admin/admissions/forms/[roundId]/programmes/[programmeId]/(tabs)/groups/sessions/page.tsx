@@ -2,13 +2,13 @@ import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import shared from "@/features/applications/editor/editor.module.css";
 import AllGroups from "@/features/applications/groups/AllGroups";
 import GroupsGoOut from "@/features/applications/groups/GroupsGoOut";
+import { boardShowOf, withShow } from "@/features/applications/groups/boardShow";
 import GroupsViews, { GroupsFrame, groupsPath, groupsViewPath } from "@/features/applications/groups/GroupsViews";
 import NotYours from "@/features/applications/groups/NotYours";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import { publishLinkWords } from "@/features/applications/groups/peopleInGroupsWords";
 import { ADD_A_GROUP } from "@/lib/courses/groupTimes/words";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
-import { canRunTerm } from "@/lib/applications/access";
 import { loadAllGroups } from "@/lib/courses/allGroups/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
@@ -56,7 +56,7 @@ export default async function ProgrammeAllGroupsPage({
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
-  searchParams: Promise<{ archived?: string | string[] }>;
+  searchParams: Promise<{ archived?: string | string[]; show?: string | string[] }>;
 }) {
   const [{ roundId, programmeId }, query, user] = await Promise.all([params, searchParams, requireAdmissionsPage()]);
   const db = getAdminDb();
@@ -64,13 +64,15 @@ export default async function ProgrammeAllGroupsPage({
   if (!outcome || outcome.status === "none") return <NoProgrammeHere roundId={roundId} />;
   if (outcome.status === "not-yours") return <NotYours roundId={roundId} programmeId={programmeId} tab="Groups" />;
   const { view } = outcome;
+  // How People in groups was shown when this view was opened from it, carried on by every way back to it.
+  const show = boardShowOf(query?.show);
   const views = (
     <GroupsViews
       roundId={view.roundId}
       programmeId={view.programmeId}
       current="sessions"
       pitches={view.pitchingWeek !== null}
-      circles={canRunTerm(user)}
+      show={show}
     />
   );
   const runSnap = view.run && db ? await db.collection("courseRuns").doc(view.run.id).get() : null;
@@ -97,7 +99,7 @@ export default async function ProgrammeAllGroupsPage({
     <GroupsFrame
       views={views}
       beside={
-        <Link href={`${groupsPath(view.roundId, view.programmeId)}/publish`} className={shared.btn}>
+        <Link href={withShow(`${groupsPath(view.roundId, view.programmeId)}/publish`, show)} className={shared.btn}>
           {publishLinkWords(view.viewer)}
         </Link>
       }
@@ -113,7 +115,7 @@ export default async function ProgrammeAllGroupsPage({
           termRooms: { href: termRoomsPath(view.roundId, view.programmeId), label: TO_TERM_ROOMS },
           // Times' own Add a group, which Times draws only once decisions have gone out: before then, none.
           addGroup: view.decisionsSent ? { href: `${groupsViewPath(view.roundId, view.programmeId, "times")}?add=1`, label: ADD_A_GROUP } : null,
-          people: groupsPath(view.roundId, view.programmeId),
+          people: withShow(groupsPath(view.roundId, view.programmeId), show),
           person: `${base}/people`,
         }}
       />

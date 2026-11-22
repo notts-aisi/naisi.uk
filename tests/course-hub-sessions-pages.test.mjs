@@ -218,15 +218,14 @@ describe("1. All groups is the lead's and an admin's, and changes nothing", () =
         ],
       );
       // The views, with All groups after People in groups and on screen, at
-      // the address the view had as Sessions. Circles is offered to an admin
-      // alone: it shows marked weeks and Claude's reads.
+      // the address the view had as Sessions. The same for an admin and the
+      // lead: Circles is a view no more, but People in groups shown as Rings.
       const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(drawn.html);
       assert.deepEqual(
         [...views[1].matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => [m[2], m[1]]),
         [
           ["People in groups", `${PAGE_PATH}/groups`],
           ["All groups", `${PAGE_PATH}/groups/sessions`],
-          ...(who === "zach" ? [["Circles", `${PAGE_PATH}/groups/circles`]] : []),
           ["Times", `${PAGE_PATH}/groups/times`],
           ["Facilitators", `${PAGE_PATH}/groups/facilitators`],
         ],

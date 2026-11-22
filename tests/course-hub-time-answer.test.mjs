@@ -1114,6 +1114,10 @@ describe("6. the person, the programme's lead and admins read it; nobody else do
     ["features/courses/personPage/PersonPage.tsx", "a person's page: their answer under When they're free, drawn as the model words it"],
     ["features/applications/circles/Ring.tsx", "Circles' rings, an admin's alone: a Can't make this time mark on the live run"],
     [
+      "features/applications/groups/ringsModel.ts",
+      "People in groups shown as Rings, for the lead and admins: a Can't make this time mark on a ring once the groups are published, from the board's own row as Columns' card reads it",
+    ],
+    [
       "features/applications/circles/PersonPanel.tsx",
       "Circles' person panel, an admin's alone: their answer, the weeks a most weeks misses, and for a can't why, what would work and They meant some weeks",
     ],

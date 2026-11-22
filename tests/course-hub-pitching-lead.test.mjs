@@ -220,8 +220,8 @@ describe("the page", () => {
 
   test("an admin also gets the Groups tab's views, with Pitches current", async () => {
     const { html } = await draw("zach");
-    // Circles, after All groups, is an admin's alone.
-    assert.deepEqual(viewsIn(html), ["People in groups", "All groups", "Circles", "Times", "Facilitators", "Pitches"]);
+    // The same views as the lead's: Circles is a view no more, but People in groups shown as Rings.
+    assert.deepEqual(viewsIn(html), ["People in groups", "All groups", "Times", "Facilitators", "Pitches"]);
     assert.match(html, PITCHES_CURRENT);
   });
 
@@ -255,14 +255,14 @@ describe("the page", () => {
       return viewsIn(renderToStaticMarkup(element));
     };
     // People in groups leads the row for every run, All groups after it.
-    // Circles is offered to an admin alone.
+    // The same for both: Circles is a view no more.
     for (const who of ["zach", "tess"]) {
       assert.deepEqual(
         await viewsOnTimes(who, INCUBATOR),
-        ["People in groups", "All groups", ...(who === "zach" ? ["Circles"] : []), "Times", "Facilitators", "Pitches"],
+        ["People in groups", "All groups", "Times", "Facilitators", "Pitches"],
         who,
       );
     }
-    assert.deepEqual(await viewsOnTimes("zach", AGI), ["People in groups", "All groups", "Circles", "Times", "Facilitators"]);
+    assert.deepEqual(await viewsOnTimes("zach", AGI), ["People in groups", "All groups", "Times", "Facilitators"]);
   });
 });

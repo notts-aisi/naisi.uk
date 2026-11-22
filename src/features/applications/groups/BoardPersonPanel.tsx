@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import Dropdown, { type DropdownOption } from "@/components/ui/Dropdown";
 import { ChevronDownIcon } from "@/features/applications/editor/Icons";
-import { DIDNT_OFFER, FACILITATING, OFFERED, STOP_FACILITATING, facilitatesLine } from "@/features/applications/circles/circlesWords";
+import { DIDNT_OFFER, FACILITATING, OFFERED, STOP_FACILITATING, facilitatesLine, whereLine } from "@/features/applications/circles/circlesWords";
 import chartStyles from "@/features/applications/times/WeekChart.module.css";
 import { facilitatesWords } from "@/features/courses/allocationFit";
 import type { AllocGroup, AllocRow } from "@/features/courses/useAllocation";
@@ -25,7 +25,9 @@ import {
 } from "@/lib/courses/personPage/words";
 import type { BoardPanelRead } from "./useBoardPanel";
 import styles from "./BoardPersonPanel.module.css";
-import { POOL } from "./peopleInGroupsBoard";
+import SomeWeeks from "@/features/courses/timeAnswer/SomeWeeks";
+import { WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
+import { POOL, answerLinesOf } from "./peopleInGroupsBoard";
 import * as words from "./peopleInGroupsWords";
 
 /**
@@ -46,6 +48,9 @@ import * as words from "./peopleInGroupsWords";
  * mid-term question once the groups have gone out); "Take off the run…"
  * opens the take-off sheet; "Stop facilitating" is the facilitators route,
  * asked first. The panel emails nobody of its own.
+ *
+ * ON RINGS (`rings`) the panel is the same, and its Placing line is Circles'
+ * own: where they are, and that a group on the chart or a ring moves them.
  */
 
 export type PanelSubject =
@@ -76,6 +81,12 @@ type Props = {
   onTakeOff: () => void;
   onStopFacilitating: (group: AllocGroup) => void;
   onClose: () => void;
+  /** People in groups is shown as Rings, so a ring, not a column, is where a person is moved. */
+  rings?: boolean;
+  /** The run, for "They meant some weeks" under a can't, as on the card. */
+  runId?: string;
+  /** "They meant some weeks" saved: the board is read again. */
+  onAnswerChanged?: (message: string) => void;
 };
 
 const pct = (value: number) => `${value}%`;
@@ -186,6 +197,9 @@ export default function BoardPersonPanel({
   onTakeOff,
   onStopFacilitating,
   onClose,
+  rings = false,
+  runId,
+  onAnswerChanged,
 }: Props) {
   const uid = subject.kind === "row" ? subject.row.uid : subject.uid;
   const person: PanelPerson | null = (read.panel ? own(read.panel.people, uid) : undefined) ?? null;
@@ -202,6 +216,8 @@ export default function BoardPersonPanel({
   const movable = row !== null && !pinned;
   const current = subject.kind === "row" && subject.columnId !== POOL ? subject.columnId : null;
   const pick = movable ? (key: string) => onMove(key) : null;
+  // Their answer about the group they sit in, as the card has it.
+  const answer = row && current ? answerLinesOf(row, columnName(current)) : null;
   // From the application form, and its application gone: the card says so too.
   const goneFromForm = row?.fromForm?.availability === "not-on-file";
   const week: DrawnWeek | null =
@@ -356,8 +372,34 @@ export default function BoardPersonPanel({
 
         {(movable || subject.kind === "facilitator") && whenFree()}
 
+        {/* Their answer about the group they sit in, from the row the board was sent: the card's own, for the same readers. */}
+        {answer ? (
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>{answer.title}</h3>
+            <p className={styles.text}>{answer.said}</p>
+            {answer.why ? (
+              <p className={styles.text}>
+                <strong>{WHY}</strong> {answer.why}
+              </p>
+            ) : null}
+            {answer.wouldWork ? (
+              <p className={styles.text}>
+                <strong>{WOULD_WORK}</strong> {answer.wouldWork}
+              </p>
+            ) : null}
+            {answer.cant && runId && row && onAnswerChanged ? (
+              <SomeWeeks runId={runId} uid={row.uid} disabled={busy} onSaved={onAnswerChanged} />
+            ) : null}
+          </section>
+        ) : null}
+
         {/* Only under a chart they can be moved from: nothing marked, a week this reader may not see, or none read yet, has no group to pick on it. */}
-        {movable && subject.kind === "row" && subject.columnId === POOL && week?.kind === "given" ? (
+        {movable && subject.kind === "row" && rings && week?.kind === "given" ? (
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>{words.PLACING}</h3>
+            <p className={styles.text}>{whereLine(current ? columnName(current) : null)}</p>
+          </section>
+        ) : movable && subject.kind === "row" && subject.columnId === POOL && week?.kind === "given" ? (
           <section className={styles.section}>
             <h3 className={styles.sectionTitle}>{words.PLACING}</h3>
             <p className={styles.text}>{words.NOT_IN_A_GROUP_PICK}</p>

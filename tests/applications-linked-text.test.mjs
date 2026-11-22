@@ -874,8 +874,27 @@ const BUILT = new Map([
   [
     "src/features/applications/groups/PeopleInGroups.tsx",
     {
-      built: ["groupPagePath(view.roundId, view.programmeId, group.id)"],
-      from: "a group's own page under the Groups tab, from the form's, the programme's and the group's ids, encoded (`groupPagePath`). Nothing anybody typed",
+      built: ["boardHref", "groupPagePath(view.roundId, view.programmeId, group.id)", "publishHref", "publishHref", "publishHref", 'withShow(boardHref, "rings")', "withShow(`${boardHref}/times`, show)"],
+      from:
+        "a group's own page under the Groups tab, from the form's, the programme's and the group's ids, encoded (`groupPagePath`); " +
+        "the board's own address (`groupsPath`, from the form's and the programme's ids) for Show as Columns, and with `?show=rings` " +
+        "added by `withShow` for Rings; and Publish's page and the Times view under it, carrying on how the board is shown. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/features/applications/groups/PublishReadiness.tsx",
+    {
+      built: ["withShow(`/admin/admissions/forms/${round}/programmes/${programme}/groups`, show)"],
+      from:
+        "the readiness check's way to People in groups, from the form's and the programme's ids, encoded, with `?show=rings` " +
+        "added by `withShow` only for the one word `boardShowOf` read from Publish's own address. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/features/applications/groups/RingsBoard.tsx",
+    {
+      built: ["groupPagePath(roundId, programmeId, ring.id)"],
+      from: "a group's own page under the Groups tab, from the middle of its ring on People in groups shown as Rings: the form's, the programme's and the group's ids, encoded (`groupPagePath`). Nothing anybody typed",
     },
   ],
   [
@@ -904,8 +923,10 @@ const BUILT = new Map([
   [
     "src/features/applications/circles/CirclesNotes.tsx",
     {
-      built: ['groupsViewPath(roundId, programmeId, "circles")', 'groupsViewPath(roundId, programmeId, "people")'],
-      from: "the Groups tab's own views (Circles, People in groups), from `groupsViewPath` and the form's and the programme's ids",
+      built: ['withShow(groupsViewPath(roundId, programmeId, "people"), "rings")'],
+      from:
+        "the Groups tab's own view People in groups shown as Rings, from `groupsViewPath` and the form's and the programme's ids, " +
+        "with the one word `withShow` adds. Nothing anybody typed",
     },
   ],
   [
@@ -1003,6 +1024,15 @@ const BUILT = new Map([
   [
     "src/features/applications/editor/ProgrammeTabs.tsx",
     { built: ["`${base}/${tab.segment}`"], from: "a programme's own pages: its path and one of the tabs listed in the file" },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish/page.tsx",
+    {
+      built: ["withShow(groupsPath(view.roundId, view.programmeId), boardShowOf(query?.show))"],
+      from:
+        "Publish's way back to People in groups: the Groups tab's own path from the form's and the programme's ids, encoded " +
+        "(`groupsPath`), with `?show=rings` added only for the one word `boardShowOf` reads from the address. Nothing anybody typed",
+    },
   ],
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/page.tsx",
@@ -1152,8 +1182,10 @@ const BUILT = new Map([
   [
     "src/features/applications/groups/GroupsViews.tsx",
     {
-      built: ["groupsViewPath(roundId, programmeId, view)"],
-      from: "the Groups tab's own path, made from the form's and the programme's ids, encoded, and one of the views listed in the file",
+      built: ["withShow(groupsViewPath(roundId, programmeId, view), show)"],
+      from:
+        "the Groups tab's own path, made from the form's and the programme's ids, encoded, and one of the views listed in the file, " +
+        "with `?show=rings` added by `withShow` only for the one word `boardShowOf` reads from the address. Nothing anybody typed",
     },
   ],
   [
@@ -1300,12 +1332,12 @@ const BUILT = new Map([
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions/page.tsx",
     {
       built: [
-        "`${groupsPath(view.roundId, view.programmeId)}/publish`",
         "`${groupsViewPath(view.roundId, view.programmeId, \"times\")}?add=1`",
         "termRoomsPath(view.roundId, view.programmeId)",
         "weekRoomsPath(view.roundId, { programme: view.programmeId })",
+        "withShow(`${groupsPath(view.roundId, view.programmeId)}/publish`, show)",
       ],
-      from: "All groups' Publish groups… and Times' Add a group (groupsPath and groupsViewPath, from the form's and the programme's ids, with a fixed `?add=1`); and the week's rooms and the term's rooms (src/lib/courses/weekRooms/paths.ts), from the form's and the programme's ids, encoded. Nothing anybody typed",
+      from: "All groups' Publish groups… and Times' Add a group (groupsPath and groupsViewPath, from the form's and the programme's ids, with a fixed `?add=1`, and Publish's carrying `?show=rings` through `withShow` only for the one word `boardShowOf` reads); and the week's rooms and the term's rooms (src/lib/courses/weekRooms/paths.ts), from the form's and the programme's ids, encoded. Nothing anybody typed",
     },
   ],
   [

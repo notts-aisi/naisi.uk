@@ -62,6 +62,13 @@ const STYLESHEETS = [
   "./BoardPersonPanel.module.css",
   "@/features/applications/times/WeekChart.module.css",
   "./PublishGroups.module.css",
+  // Rings: its own sheet, Circles' rings, and an admin's arranging (Circles) with its campus, room and length pickers.
+  "./RingsBoard.module.css",
+  "@/features/applications/circles/Circles.module.css",
+  "./Circles.module.css",
+  "./GroupCampusPicker.module.css",
+  "./GroupRoomField.module.css",
+  "./Select.module.css",
   // Publish's own page draws its readiness check (Get ready for week 1's) above the buttons.
   "@/features/applications/groups/PublishGroups.module.css",
   "./ProgrammeOverview.module.css",
@@ -403,7 +410,8 @@ describe("3. the board says what the records say, in the board's words", () => {
     // The publish line beside the views, and the line over the board. Only
     // an admin publishes, so the lead's way to Publish's page says what it
     // shows them (November 2026), and an admin's says "Publish groups…".
-    assert.match(said, /Facilitators 2 still to place What Publish sends… 4 holding a place · 2 in a group · 2 to place · 1 invited/);
+    // Between them, how the board is shown (Columns, as an address with no choice opens it), kept in the address.
+    assert.match(said, /Facilitators 2 still to place Show as Columns Rings What Publish sends… 4 holding a place · 2 in a group · 2 to place · 1 invited/);
     assert.match(html, new RegExp(`<a href="${PAGE_PATH}/groups/publish" class="btn publishLink">What Publish sends…</a>`));
     const asAdmin = await open(PeoplePage, "zach");
     assert.match(asAdmin.html, new RegExp(`<a href="${PAGE_PATH}/groups/publish" class="btn publishLink">Publish groups…</a>`));
@@ -464,7 +472,7 @@ describe("3. the board says what the records say, in the board's words", () => {
     await termOnTheBoard();
     assert.equal((await reply("tariq", { reply: "cant-make-it", reason: { kind: "times", other: "" } })).status, 200);
     const { text: said, html } = await open(PeoplePage, "claudia");
-    assert.match(said, /1 still to place What Publish sends… 3 holding a place · 2 in a group · 1 to place · 1 invited To place 1 Bea Lindqvist/);
+    assert.match(said, /1 still to place Show as Columns Rings What Publish sends… 3 holding a place · 2 in a group · 1 to place · 1 invited To place 1 Bea Lindqvist/);
     assert.ok(!html.includes("Move Tariq Mensah to another group"), "Tariq's card is still in To place");
     assert.match(said, /Gave their place back \(2\) Nina Petrova · The times don’t work for me Tariq Mensah · The times don’t work for me/);
     // Publish does not wait for Tariq either: one press, one answer (an
@@ -481,7 +489,7 @@ describe("3. the board says what the records say, in the board's words", () => {
       { uid: "tariq", groupId: A },
     ]);
     const { text: said } = await open(PeoplePage, "claudia");
-    assert.match(said, /Facilitators What Publish sends… 4 holding a place · 4 in a group · 0 to place · 1 invited To place 0 Everyone holding a place is in a group\./);
+    assert.match(said, /Facilitators Show as Columns Rings What Publish sends… 4 holding a place · 4 in a group · 0 to place · 1 invited To place 0 Everyone holding a place is in a group\./);
   });
 
   test("after Publish the note says what a move does now", async () => {

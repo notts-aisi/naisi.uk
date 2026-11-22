@@ -144,7 +144,7 @@ const text = (html) =>
  * asked the database for, where the gate sent them if it did, and whether
  * anything was written.
  */
-async function draw(who, { programmeId = AGI, length, session, withLayout = false } = {}) {
+async function draw(who, { programmeId = AGI, length, show, session, withLayout = false } = {}) {
   world.user = session === undefined ? sessionFor(who) : session;
   const reads = [];
   const collection = world.db.collection;
@@ -157,7 +157,7 @@ async function draw(who, { programmeId = AGI, length, session, withLayout = fals
   try {
     let element = await TimesPage({
       params,
-      searchParams: Promise.resolve(length === undefined ? {} : { length }),
+      searchParams: Promise.resolve({ ...(length === undefined ? {} : { length }), ...(show === undefined ? {} : { show }) }),
     });
     if (withLayout) element = await ProgrammeLayout({ params, children: element });
     const html = renderToStaticMarkup(element);
@@ -218,12 +218,15 @@ describe("the Groups tab is the lead's and an admin's, decided before anybody is
     assert.doesNotMatch(drawn.text, /Arrange groups/);
   });
 
-  test("an admin is pointed to Circles under the picture, where groups are arranged", async () => {
+  test("an admin is pointed to People in groups shown as Rings under the picture, where groups are arranged", async () => {
     const drawn = await draw("zach");
     assert.match(drawn.text, /Arrange groups/);
-    assert.match(drawn.html, new RegExp(`<a href="${PAGE_PATH}/groups/circles"[^>]*>Open Circles</a>`));
-    // The rings themselves moved to Circles: nothing here suggests or applies.
-    assert.ok(!drawn.text.includes("Suggest"), "the Times view still suggests groups");
+    assert.match(drawn.text, /People in groups shown as Rings draws each group as a ring with its people, and Suggest groups there arranges them, with or without Claude\./);
+    assert.match(drawn.html, new RegExp(`<a href="${PAGE_PATH}/groups\\?show=rings"[^>]*>Show as Rings</a>`));
+    assert.doesNotMatch(drawn.html, /groups\/circles/, "the Times view still leads to Circles' old address");
+    // The rings themselves are on People in groups: the sentence says where Suggest groups is, and nothing here
+    // suggests or applies.
+    assert.doesNotMatch(drawn.html, /<button[^>]*>[^<]*(Suggest|Apply)/, "the Times view still suggests groups");
   });
 
   test("the programme's reviewer is told it is the lead's and an admin's, and only the form's settings were read", async () => {
@@ -443,10 +446,11 @@ describe("what the cards say", () => {
       [...Array(5).fill("Use for a group"), ...Array(3).fill("Change"), "Add a group"],
     );
     for (const m of html.matchAll(/<button([^>]*)>/g)) assert.match(m[1], /type="button"/, "a button that would send a form");
-    // The views are the five an admin has, each a page of the tab: the run's
-    // allocation board (People in groups), All groups (the view that was
-    // Sessions, at its address), Circles (an admin's alone), this one, and
-    // Facilitators.
+    // The views are the four every reader has, each a page of the tab: the
+    // run's allocation board (People in groups, shown as Columns or Rings),
+    // All groups (the view that was Sessions, at its address), this one, and
+    // Facilitators. Circles is a view no more: its address forwards to
+    // People in groups shown as Rings.
     const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(html);
     assert.ok(views, "no views");
     assert.deepEqual(
@@ -454,12 +458,22 @@ describe("what the cards say", () => {
       [
         ["People in groups", `${PAGE_PATH}/groups`],
         ["All groups", `${PAGE_PATH}/groups/sessions`],
-        ["Circles", `${PAGE_PATH}/groups/circles`],
         ["Times", `${PAGE_PATH}/groups/times`],
         ["Facilitators", `${PAGE_PATH}/groups/facilitators`],
       ],
     );
     assert.match(views[1], new RegExp(`<a href="${PAGE_PATH}/groups/times" class="view viewCurrent" aria-current="page">Times</a>`));
+    // Reached from People in groups shown as Rings, every view carries the choice on, so coming back keeps it.
+    const fromRings = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec((await draw("zach", { show: "rings" })).html);
+    assert.deepEqual(
+      [...fromRings[1].matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => [m[2], m[1].replace(/&amp;/g, "&")]),
+      [
+        ["People in groups", `${PAGE_PATH}/groups?show=rings`],
+        ["All groups", `${PAGE_PATH}/groups/sessions?show=rings`],
+        ["Times", `${PAGE_PATH}/groups/times?show=rings`],
+        ["Facilitators", `${PAGE_PATH}/groups/facilitators?show=rings`],
+      ],
+    );
   });
 });
 

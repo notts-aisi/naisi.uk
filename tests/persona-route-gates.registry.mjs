@@ -313,6 +313,12 @@ export const REDIRECTS = {
   programmeQuestion: "/admin/admissions/forms/[roundId]/programmes/[programmeId]/question",
   /** A programme's Overview: where its own address forwards an admin and its lead (second pass). */
   programmeOverview: "/admin/admissions/forms/[roundId]/programmes/[programmeId]/overview",
+  /**
+   * A programme's People in groups, where Circles' old address forwards an admin and its lead
+   * (second pass), shown as Rings: the battery reads a redirect's path alone, `?show=rings` is held
+   * by tests/course-hub-board-rings.test.mjs.
+   */
+  programmeGroups: "/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups",
 };
 
 /** Anonymous is refused for having no session; everyone signed in gets `rest`. */
@@ -1276,8 +1282,9 @@ export const ROUTES = {
       expect: adminOnly(404),
       fields: ["circles"],
       why:
-        "Reading Circles (the run's groups as they are, each person's week and Claude's reads) is admin only, " +
-        "decided on the session before anything is read; the admin is then told the programme is missing.",
+        "Reading Circles' arranging (the run's groups as they are, each person's week and Claude's reads), which an " +
+        "admin opens with Suggest groups on People in groups shown as Rings, is admin only, decided on the session " +
+        "before anything is read; the admin is then told the programme is missing.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/panel": {
@@ -5408,10 +5415,10 @@ export const PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
-      "The admissions tree's gate, then the programme layout's and the page's own: Circles is an admin's alone, so " +
-      "the programme's lead is drawn a note saying so (200), a reviewer is told the tab is the lead's and an admin's, " +
-      "and a programme the caller has no role on, or one that does not exist, renders 'there is no programme here' " +
-      "with a 200.",
+      "Circles' old address, now a forward to People in groups shown as Rings. The admissions tree's gate, then the " +
+      "form: an admin and the programme's lead are forwarded, a reviewer is told the tab is the lead's and an admin's, " +
+      "and a programme the caller has no role on, or one that does not exist (every address here), renders 'there is " +
+      "no programme here' with a 200, so the forward says nothing about whether there is one.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
@@ -8787,7 +8794,20 @@ export const REAL_PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": programmePage("All groups, the view that was Sessions: the rows and the archived groups at the foot."),
   "/(app)/admin/admissions/forms/[roundId]/rooms": termRoomsPage("the week's rooms, its programme's groups alone."),
   "/(app)/admin/admissions/forms/[roundId]/rooms/term": termRoomsPage("the term's rooms, its programme's groups alone."),
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": programmePage("Circles for an admin; the lead is drawn a note that Circles is an admin's."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": {
+    another: {
+      ...PAGE_BASE,
+      "*": c("dashboard", "Not an admin, an approveCourse holder or anybody appointed on a form: the admissions tree sends them to the dashboard."),
+      admin: c("programmeGroups", "An admin, whatever the programme: Circles' old address forwards to People in groups shown as Rings."),
+      approveCourse: c("noProgramme", "Authors application forms, so the admissions tree admits them, but holds no role on this programme: drawn 'there is no programme here', never forwarded."),
+      lead: c("noProgramme", "Appointed to lead a programme on another form, so admitted, but holds no role on this one: drawn 'there is no programme here', never forwarded."),
+    },
+    theirs: {
+      lead: c("programmeGroups", "The programme's own lead: Circles' old address forwards to People in groups shown as Rings, which the lead sees too."),
+      facilitator: c("dashboard", "Facilitating one of the run's groups is not a role on the form: the admissions tree sends a plain member to the dashboard."),
+      participant: c("dashboard", "Holding a place is not a role on the form: the admissions tree sends a plain member to the dashboard."),
+    },
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": programmePage("the Times view."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators": programmePage("the Facilitators view."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": programmePage("everybody who holds a place, by name, with their replies."),

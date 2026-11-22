@@ -26,7 +26,11 @@ import PersonPanel, { type Start } from "./PersonPanel";
 import Ring from "./Ring";
 
 /**
- * CIRCLES, a view of a programme's Groups tab, for an admin.
+ * CIRCLES' ARRANGING, for an admin, on People in groups shown as Rings: what
+ * the toolbar's "Suggest groups" opens there, in place of the rings, and
+ * "Back to the rings" closes (`onLeave`). It was a view of the Groups tab of
+ * its own until it became a way to show People in groups; it is otherwise
+ * unchanged, and opens on the suggestion the press asked for (`opening`).
  *
  * IT OPENS ON THE RUN'S GROUPS AS THEY ARE: one ring for each live group with
  * the people in it now and its facilitators, "Not in a group" for everybody
@@ -91,10 +95,29 @@ const copyOf = (option: RingOption): RingOption => ({
   })),
 });
 
-export default function Circles({ initial }: { initial: CirclesView }) {
+/** A suggestion as the screen holds it: the options as sent, a working copy of each, and the one on screen. */
+function previewOf(next: ArrangementOptionsView): Preview {
+  return {
+    view: next,
+    working: Object.fromEntries(next.options.map((each) => [each.key, copyOf(each)])),
+    active: next.options.find((each) => each.preferred)?.key ?? next.options[0]?.key ?? "",
+  };
+}
+
+export default function Circles({
+  initial,
+  opening = null,
+  onLeave,
+}: {
+  initial: CirclesView;
+  /** The suggestion the press that opened this asked for, or why it could not be worked out. */
+  opening?: { arrangement: ArrangementOptionsView | null; error: string | null } | null;
+  /** Back to the rings of People in groups. */
+  onLeave?: () => void;
+}) {
   const hydrated = useHydrated();
   const [live, setLive] = useState(initial);
-  const [preview, setPreview] = useState<Preview | null>(null);
+  const [preview, setPreview] = useState<Preview | null>(() => (opening?.arrangement ? previewOf(opening.arrangement) : null));
   const [selected, setSelected] = useState<string | null>(null);
   const [minutes, setMinutes] = useState(initial.minutes);
   const [startAgain, setStartAgain] = useState(false);
@@ -102,7 +125,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
   const [chatting, setChatting] = useState(false);
   const [notice, setNotice] = useState<Said | null>(null);
   const [results, setResults] = useState<{ ok: boolean; text: string }[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(opening?.error ?? null);
   const [newDay, setNewDay] = useState(1);
   const [newStart, setNewStart] = useState(18 * 60);
   const [timing, setTiming] = useState<{ key: string; day: number; start: number } | null>(null);
@@ -309,12 +332,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
         setError(answer.error);
         return;
       }
-      const next = answer.data.arrangement as ArrangementOptionsView;
-      setPreview({
-        view: next,
-        working: Object.fromEntries(next.options.map((each) => [each.key, copyOf(each)])),
-        active: next.options.find((each) => each.preferred)?.key ?? next.options[0]?.key ?? "",
-      });
+      setPreview(previewOf(answer.data.arrangement as ArrangementOptionsView));
     } catch {
       setError(W.CONNECTION);
     } finally {
@@ -753,6 +771,13 @@ export default function Circles({ initial }: { initial: CirclesView }) {
   return (
     <section className={styles.panel} aria-label={W.TITLE}>
         <div className={styles.head}>
+          {onLeave ? (
+            <div className={styles.previewHead}>
+              <button type="button" className={styles.quiet} disabled={busy} onClick={onLeave}>
+                {W.BACK_TO_RINGS}
+              </button>
+            </div>
+          ) : null}
           <p className={styles.line}>{W.LEDE}</p>
           {live.sent ? (
             <p className={styles.counts}>

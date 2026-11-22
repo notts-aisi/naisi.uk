@@ -654,14 +654,15 @@ const NOT_COVERED = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     reason:
-      "Circles reading the run's groups again after a change. It writes nothing; who may read it, who is on the screen and that a second Apply sends nothing are executed by tests/applications-circles.test.mjs.",
-    coverWhen: "With a course hub spec after the hand-over: open Circles, move one person, see them in the new ring.",
+      "Circles' arranging reading the run's groups, which an admin opens with Suggest groups on People in groups shown as Rings, and again after a change. It writes nothing; who may read it, who is on the screen and that a second Apply sends nothing are executed by tests/applications-circles.test.mjs, and that the lead is never offered it by tests/course-hub-board-rings.test.mjs.",
+    coverWhen:
+      "When the Rings spec (scripts/e2e-fixtures/course-hub-board-rings.mjs) is verified and also drives an admin's Suggest groups, which reads this route and asks the arrangement route for a suggestion without Claude.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/panel": {
     reason:
-      "The person's panel on People in groups, read once a name is pressed. It writes and emails nothing; who may read it, what each reader is sent of each person (a week only where the application may be read, Claude and Pangram for admins alone) and every panel state are executed by tests/course-hub-board-panel.test.mjs.",
+      "The person's panel on People in groups, read once a name is pressed, and at once when the board is shown as Rings, whose marks come from it alone. It writes and emails nothing; who may read it, what each reader is sent of each person (a week only where the application may be read, Claude and Pangram for admins alone) and every panel state are executed by tests/course-hub-board-panel.test.mjs, and what Rings draws from it for each reader by tests/course-hub-board-rings.test.mjs.",
     coverWhen:
-      "With the groups page's spec after the hand-over: press a name as the lead, see the week, move them from the panel, and see Claude and Pangram only as an admin.",
+      "With the groups page's spec after the hand-over, or the Rings spec (scripts/e2e-fixtures/course-hub-board-rings.mjs) once it is verified: press a name as the lead, see the week, move them from the panel, and see Claude and Pangram only as an admin.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     reason:
@@ -2007,8 +2008,8 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": {
     reason:
-      "An admin's Circles. Its read, its suggestions and Apply's differences are executed by tests/applications-circles.test.mjs and tests/applications-arrange-changes.test.mjs; the page's gate by the persona battery.",
-    coverWhen: "With a course hub spec after the hand-over: open Circles, move one person, see them in the new ring.",
+      "Circles' old address, which forwards an admin and the programme's lead to People in groups shown as Rings: the forward, and what a reviewer and somebody with no role are drawn, are executed by tests/course-hub-board-rings.test.mjs; every reader's answer by the persona battery.",
+    coverWhen: "When the Rings spec (scripts/e2e-fixtures/course-hub-board-rings.mjs), which opens this address and lands on Rings, has run green under the harness and is marked verified.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
     reason:

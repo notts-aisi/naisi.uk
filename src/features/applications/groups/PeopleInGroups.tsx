@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { groupPagePath } from "@/lib/courses/groupPage/words";
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -35,10 +35,15 @@ import type { PeopleInGroupsView } from "@/lib/applications/handover/peopleInGro
 import { own } from "@/lib/applications/keys";
 import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupResolve";
 import { movedSentence } from "@/lib/courses/moveWords";
-import { STOP_CONFIRM, facilitatorSavedWords } from "@/features/applications/circles/circlesWords";
+import Circles from "@/features/applications/circles/Circles";
+import { CONNECTION, LEGEND, LEGEND_LEAD, STOP_CONFIRM, SUGGEST, SUGGESTING, facilitatorSavedWords } from "@/features/applications/circles/circlesWords";
+import type { ArrangementOptionsView, CirclesView } from "@/lib/applications/arrange/view";
 import BoardPersonPanel, { type PanelSubject } from "./BoardPersonPanel";
-import { GroupsFrame } from "./GroupsViews";
+import { withShow, type BoardShow } from "./boardShow";
+import { GroupsFrame, groupsPath } from "./GroupsViews";
 import { focusAfterPanel } from "./panelFocus";
+import RingsBoard, { type TrayPerson } from "./RingsBoard";
+import { moveHereWords, ringsOf, type BoardRing } from "./ringsModel";
 import styles from "./PeopleInGroups.module.css";
 import { POOL, TAKE_OFF, marksOf, menuOptions, notToldYet, type Mark } from "./peopleInGroupsBoard";
 import SomeWeeks from "@/features/courses/timeAnswer/SomeWeeks";
@@ -88,6 +93,25 @@ import { useBoardPanel } from "./useBoardPanel";
  * answers for this reader; every move it makes is the card's own. With no
  * panel open the board is drawn and behaves as it always has.
  *
+ * SHOWN AS COLUMNS OR RINGS (`show`, from the address alone: `?show=rings`,
+ * `./boardShow.ts`). Rings is the same board drawn as Circles drew it, each
+ * group a ring round its time (`RingsBoard`), with the same toolbar, counts,
+ * panel, moves and Publish: a name opens the same panel, and the middle of a
+ * ring is the card's own move. What Rings marks about anybody's time (the
+ * red tag, "didn’t mark this time as free", "(can’t make it)") comes from the
+ * panel's one read alone (`ringsOf`), which the server answers for this
+ * reader: nothing for a person whose application the reader may not read,
+ * and Claude and Pangram for an admin alone, so the lead's legend leaves
+ * them out. Shown as Rings, that read is made at once, since the rings need
+ * it; Columns still makes it only once a panel is opened.
+ *
+ * AN ADMIN'S ARRANGING, on Rings: "Suggest groups" in the toolbar reads the
+ * run's groups through Circles' own route and asks for a suggestion, then
+ * draws Circles' arranging in place of the rings (`Circles`, with its
+ * preview, Apply, Ask Claude and every change it saves through the site's
+ * own routes) until "Back to the rings". The lead is offered none of it, as
+ * before: Circles' route answers an admin alone.
+ *
  * WHAT THE DESIGN DRAWS AND THIS LEAVES OUT, because the feature does not
  * exist yet: "Remind" (when-you're-free open until groups go out, a
  * later slice) and a facilitator's "(no reply yet)" (asking facilitators on
@@ -100,6 +124,8 @@ type Props = {
   view: PeopleInGroupsView & { run: { id: string; courseId: string } };
   /** The Groups tab's row of views, drawn by the page. */
   views: ReactNode;
+  /** How the board is shown, as the address asks: Columns unless it says Rings. */
+  show?: BoardShow;
 };
 
 /** Cards never reorder within a column: the board keeps no order to save. */
@@ -337,8 +363,9 @@ function Column({
 // The board
 // ---------------------------------------------------------------------------
 
-export default function PeopleInGroups({ view, views }: Props) {
+export default function PeopleInGroups({ view, views, show = "columns" }: Props) {
   const runId = view.run.id;
+  const rings = show === "rings";
   const { data, loading, error, reload, place, previewPlace } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
   // "They meant some weeks" saved on a card: the board is read again, and says so.
@@ -379,6 +406,12 @@ export default function PeopleInGroups({ view, views }: Props) {
   }, [openUid]);
   // A change to who facilitates a group, sent from the panel and not answered yet.
   const [staffing, setStaffing] = useState(false);
+  // An admin's arranging on Rings: Circles' own read of the groups, and the suggestion the press asked for.
+  const [arranging, setArranging] = useState<{
+    circles: CirclesView;
+    opening: { arrangement: ArrangementOptionsView | null; error: string | null };
+  } | null>(null);
+  const [openingArranging, setOpeningArranging] = useState(false);
   // The cards wait while the question is open.
   const busy = takingOff !== null || staffing;
 
@@ -455,7 +488,8 @@ export default function PeopleInGroups({ view, views }: Props) {
 
   // The weeks are drawn against the groups' times: read again when a group or its time changes.
   const groupsKey = useMemo(() => groups.map((group) => `${group.id}@${group.sessionLabel}`).join("|"), [groups]);
-  const panelRead = useBoardPanel(view.roundId, view.programmeId, openUid !== null, groupsKey);
+  // Rings marks everybody's time from this read, so it is wanted as soon as Rings is shown.
+  const panelRead = useBoardPanel(view.roundId, view.programmeId, openUid !== null || rings, groupsKey);
   /** A facilitator by uid: the full name and the first name the column's head carries. */
   const facilitatorOf = useCallback(
     (uid: string) => {
@@ -633,6 +667,74 @@ export default function PeopleInGroups({ view, views }: Props) {
   );
 
   // -------------------------------------------------------------------------
+  // An admin's arranging, on Rings
+  // -------------------------------------------------------------------------
+
+  // "Suggest groups": Circles' own read of the run's groups (its route answers
+  // an admin alone), then a suggestion over them without Claude, as Circles'
+  // own "Suggest groups" asks. Nothing is written. A suggestion that could
+  // not be worked out opens the arranging with its reason, where it can be
+  // asked again.
+  const openArranging = useCallback(async () => {
+    const base = `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
+    setOpeningArranging(true);
+    try {
+      const res = await fetch(`${base}/circles`, { cache: "no-store" });
+      const body = (await res.json().catch(() => null)) as { circles?: CirclesView; error?: string } | null;
+      if (!res.ok || !body?.circles) {
+        await raise(body?.error || CONNECTION);
+        return;
+      }
+      const circles = body.circles;
+      let opening: { arrangement: ArrangementOptionsView | null; error: string | null };
+      try {
+        const asked = await fetch(`${base}/arrangement`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ askClaude: false, minutes: String(circles.minutes), startAgain: false }),
+        });
+        const said = (await asked.json().catch(() => ({}))) as { arrangement?: ArrangementOptionsView; error?: string };
+        opening = asked.ok && said.arrangement
+          ? { arrangement: said.arrangement, error: null }
+          : { arrangement: null, error: said.error || `It answered ${asked.status}.` };
+      } catch {
+        opening = { arrangement: null, error: CONNECTION };
+      }
+      setOpenUid(null);
+      setArranging({ circles, opening });
+    } catch {
+      await raise(CONNECTION);
+    } finally {
+      setOpeningArranging(false);
+    }
+  }, [view.roundId, view.programmeId, raise]);
+
+  // "Back to the rings": whatever the arranging saved is read again, the board and everybody's week.
+  const leaveArranging = useCallback(() => {
+    setArranging(null);
+    reload();
+    panelRead.retry();
+  }, [reload, panelRead]);
+
+  // Shown as Columns while an admin's arranging is open (the toolbar's
+  // Columns, or the browser's Back): the page stays mounted across the
+  // address's change, so the arranging is closed here, and whatever it
+  // saved (an Apply included) is read again, the board and everybody's week,
+  // exactly as "Back to the rings" reads them.
+  const [owedReads, setOwedReads] = useState(0);
+  if (arranging !== null && !rings) {
+    setArranging(null);
+    setOwedReads((n) => n + 1);
+  }
+  const retryPanel = panelRead.retry;
+  useEffect(() => {
+    if (owedReads > 0) {
+      reload();
+      retryPanel();
+    }
+  }, [owedReads, reload, retryPanel]);
+
+  // -------------------------------------------------------------------------
   // Dragging, for a pointer
   // -------------------------------------------------------------------------
 
@@ -693,15 +795,51 @@ export default function PeopleInGroups({ view, views }: Props) {
   // Drawing
   // -------------------------------------------------------------------------
 
+  const admin = view.viewer === "admin";
+  const boardHref = groupsPath(view.roundId, view.programmeId);
+  // Publish's page, carrying on how the board was shown, so its way back keeps it.
+  const publishHref = withShow(`${boardHref}/publish`, show);
+  const arrangingNow = rings && admin ? arranging : null;
   const beside = (
     <div className={styles.publish}>
       {view.sent && counts.toPlace > 0 && (
         <span className={styles.stillToPlace}>{words.stillToPlace(counts.toPlace)}</span>
       )}
-      <Link
-        href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
-        className={`${shared.btn} ${styles.publishLink}`}
-      >
+      <span className={styles.showAs}>
+        <span className={styles.showAsLabel} id="people-in-groups-show-as">
+          {words.SHOW_AS}
+        </span>
+        <span className={styles.showAsChoices} role="group" aria-labelledby="people-in-groups-show-as">
+          <Link
+            href={boardHref}
+            scroll={false}
+            className={`${styles.showAsChoice} ${rings ? "" : styles.showAsChosen}`}
+            aria-current={rings ? undefined : "true"}
+          >
+            {words.COLUMNS}
+          </Link>
+          <Link
+            href={withShow(boardHref, "rings")}
+            scroll={false}
+            className={`${styles.showAsChoice} ${rings ? styles.showAsChosen : ""}`}
+            aria-current={rings ? "true" : undefined}
+          >
+            {words.RINGS}
+          </Link>
+        </span>
+      </span>
+      {/* Suggesting groups is an admin's, as it was on Circles. */}
+      {rings && admin ? (
+        <button
+          type="button"
+          className={`${shared.btn} ${styles.publishLink}`}
+          disabled={!data || openingArranging || arrangingNow !== null}
+          onClick={() => void openArranging()}
+        >
+          {openingArranging ? SUGGESTING : SUGGEST}
+        </button>
+      ) : null}
+      <Link href={publishHref} className={`${shared.btn} ${styles.publishLink}`}>
         {words.publishLinkWords(view.viewer)}
       </Link>
     </div>
@@ -769,7 +907,6 @@ export default function PeopleInGroups({ view, views }: Props) {
         />
       ));
   const dragged = draggingUid ? rowsByUid.get(draggingUid) : undefined;
-  const admin = view.viewer === "admin";
   // Once published: everybody sitting in a group whom Publish has not told,
   // in the board's order, by the name a menu item calls them.
   const placedSince = published
@@ -785,6 +922,37 @@ export default function PeopleInGroups({ view, views }: Props) {
     (byColumn.get(group.id) ?? [])
       .filter((row) => !(row.uid in livePending) && row.moved)
       .map((row) => nameOf(row.uid).split(" ")[0]),
+  );
+
+  // Under To place, on Columns and on Rings alike.
+  const poolNotes = (
+    <>
+      {counts.notOnTheRun > 0 && (
+        <p className={styles.columnNote}>
+          {admin ? (
+            <Link
+              href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/setup`}
+              className={styles.noteLink}
+            >
+              {words.notOnTheRunWords(counts.notOnTheRun, true)}
+            </Link>
+          ) : (
+            words.notOnTheRunWords(counts.notOnTheRun, false)
+          )}
+        </p>
+      )}
+      {view.sent && counts.toPlace === 0 && counts.holding > 0 && poolRows.length === 0 && (
+        <p className={styles.columnNote}>{words.EVERYONE_PLACED}</p>
+      )}
+    </>
+  );
+  const noGroupsCard = (
+    <section className={`${shared.card} ${styles.noGroups}`}>
+      <p className={shared.cardNote}>{words.NO_GROUPS}</p>
+      <Link href={withShow(`${boardHref}/times`, show)} className={shared.btn}>
+        {words.GO_TO_TIMES}
+      </Link>
+    </section>
   );
 
   const panelGroup = subject?.kind === "row" && subject.columnId !== POOL ? (groupsById.get(subject.columnId) ?? null) : null;
@@ -814,8 +982,83 @@ export default function PeopleInGroups({ view, views }: Props) {
         if (subject.kind === "row") void stopFacilitating(subject.row.uid, group);
       }}
       onClose={closePanel}
+      rings={rings}
+      runId={runId}
+      onAnswerChanged={onAnswerChanged}
     />
   ) : null;
+
+  // -------------------------------------------------------------------------
+  // Rings
+  // -------------------------------------------------------------------------
+
+  const panelPersonOf = (uid: string) => (panelRead.panel ? (own(panelRead.panel.people, uid) ?? null) : null);
+  const drawnRings: BoardRing[] = rings
+    ? ringsOf({
+        groups,
+        membersOf: (groupId) => byColumn.get(groupId) ?? [],
+        nameOf,
+        panel: panelRead.panel,
+        admin,
+        published,
+      })
+    : [];
+  const tray: TrayPerson[] = [
+    ...poolRows.map((row) => ({ uid: row.uid, name: nameOf(row.uid), invited: false })),
+    ...view.invited.map((person) => ({ uid: person.uid, name: person.name, invited: true })),
+  ];
+  // The middle of a ring moves the person whose panel is open there, as their card's menu would.
+  const moveHere = (ring: BoardRing): string | null => {
+    if (subject?.kind !== "row" || subject.facilitates.length > 0) return null;
+    if (subject.columnId === ring.id || subject.row.uid in livePending) return null;
+    return moveHereWords(panelPersonOf(subject.row.uid), ring.id);
+  };
+  const ringsDrawing = (
+    <>
+      {panelRead.failed ? (
+        <p className={styles.moveNote} role="status">
+          {words.PANEL_FAILED}{" "}
+          <button type="button" className={styles.textButton} onClick={panelRead.retry}>
+            {words.RETRY}
+          </button>
+        </p>
+      ) : null}
+      {/* The board's own element, where the focus goes back to when a panel closes and its name is gone. */}
+      <div ref={boardRef} tabIndex={-1}>
+      <RingsBoard
+        roundId={view.roundId}
+        programmeId={view.programmeId}
+        rings={drawnRings}
+        tray={tray}
+        beforeRings={
+          <>
+            {poolNotes}
+            {groups.length === 0 ? noGroupsCard : null}
+          </>
+        }
+        selected={openUid}
+        selectedName={openUid ? nameOf(openUid) : ""}
+        moveHere={moveHere}
+        busy={busy}
+        onOpen={openPanel}
+        onMoveHere={(groupId) => {
+          if (subject?.kind === "row") void moveOne(subject.row.uid, groupId);
+        }}
+        legend={admin ? LEGEND : LEGEND_LEAD}
+      />
+      </div>
+    </>
+  );
+
+  // An admin's arranging, on Rings, in place of the rings and the panel until "Back to the rings".
+  if (arrangingNow) {
+    return (
+      <GroupsFrame views={views} beside={beside}>
+        <Circles initial={arrangingNow.circles} opening={arrangingNow.opening} onLeave={leaveArranging} />
+        <ActionToast toast={toast} onDismiss={dismiss} />
+      </GroupsFrame>
+    );
+  }
 
   return (
     <GroupsFrame views={views} beside={beside}>
@@ -825,10 +1068,7 @@ export default function PeopleInGroups({ view, views }: Props) {
           {placedSince.length > 0 && (
             <p className={styles.placedSince} role="status">
               {words.placedSinceWords(placedSince, admin).lead}{" "}
-              <Link
-                href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
-                className={styles.noteLink}
-              >
+              <Link href={publishHref} className={styles.noteLink}>
                 {words.placedSinceWords(placedSince, admin).link}
               </Link>
               .
@@ -837,10 +1077,7 @@ export default function PeopleInGroups({ view, views }: Props) {
           {movedSince.length > 0 && (
             <p className={styles.placedSince} role="status">
               {words.movedSinceWords(movedSince, admin).lead}{" "}
-              <Link
-                href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
-                className={styles.noteLink}
-              >
+              <Link href={publishHref} className={styles.noteLink}>
                 {words.movedSinceWords(movedSince, admin).link}
               </Link>
               .
@@ -854,6 +1091,7 @@ export default function PeopleInGroups({ view, views }: Props) {
               </button>
             </p>
           )}
+          {rings ? ringsDrawing : (
           <DndContext
             sensors={sensors}
             collisionDetection={collisionDetection}
@@ -890,35 +1128,11 @@ export default function PeopleInGroups({ view, views }: Props) {
                       </div>
                     ))}
                   </div>
-                  {counts.notOnTheRun > 0 && (
-                    <p className={styles.columnNote}>
-                      {admin ? (
-                        <Link
-                          href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/setup`}
-                          className={styles.noteLink}
-                        >
-                          {words.notOnTheRunWords(counts.notOnTheRun, true)}
-                        </Link>
-                      ) : (
-                        words.notOnTheRunWords(counts.notOnTheRun, false)
-                      )}
-                    </p>
-                  )}
-                  {view.sent && counts.toPlace === 0 && counts.holding > 0 && poolRows.length === 0 && (
-                    <p className={styles.columnNote}>{words.EVERYONE_PLACED}</p>
-                  )}
+                  {poolNotes}
                 </Column>
 
                 {groups.length === 0 ? (
-                  <section className={`${shared.card} ${styles.noGroups}`}>
-                    <p className={shared.cardNote}>{words.NO_GROUPS}</p>
-                    <Link
-                      href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/times`}
-                      className={shared.btn}
-                    >
-                      {words.GO_TO_TIMES}
-                    </Link>
-                  </section>
+                  noGroupsCard
                 ) : (
                   <div className={styles.columns}>
                     {groups.map((group) => {
@@ -1024,6 +1238,7 @@ export default function PeopleInGroups({ view, views }: Props) {
               ) : null}
             </DragOverlay>
           </DndContext>
+          )}
 
           {view.gaveBack.length > 0 && (
             <div className={styles.gaveBack}>
@@ -1062,6 +1277,7 @@ export default function PeopleInGroups({ view, views }: Props) {
             </div>
           )}
 
+          {/* Under the legend on Rings too: the board is used mid-term, and who a move tells is said here. */}
           <p className={styles.footnote}>
             <span className={styles.footnoteIcon} aria-hidden="true">
               <InfoIcon size={16} />

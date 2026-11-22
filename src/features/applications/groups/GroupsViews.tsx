@@ -1,32 +1,35 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ALL_GROUPS } from "@/lib/courses/allGroups/words";
+import { withShow, type BoardShow } from "./boardShow";
 import styles from "./GroupsViews.module.css";
 
 /**
  * THE VIEWS OF A PROGRAMME'S GROUPS TAB, and the row they sit in.
  *
  * Four views exist for every run, in the design's order: People in groups
- * (the run's allocation board), All groups (one row per group, each opening
- * the group's page, and the archived groups at the foot; its address is
- * still `/sessions`, the name it had as Sessions, so every link to it keeps
- * working), Times (when the people holding a place are free) and
- * Facilitators (who staffs each group). An admin has a fifth after All
- * groups, Circles (each group a ring, each person's week against the groups'
- * times, and suggestions drawn over them), which only an admin is offered
- * because it shows painted weeks and Claude's reads. A run with a pitching
- * week has one more, Pitches (the pitches from that week, which teams are
- * made from). Each is its own address under the tab, so a view is a link and
- * the one on screen says so (`aria-current`). The tab itself opens on People
- * in groups.
+ * (the run's allocation board, shown as Columns or as Rings), All groups
+ * (one row per group, each opening the group's page, and the archived groups
+ * at the foot; its address is still `/sessions`, the name it had as
+ * Sessions, so every link to it keeps working), Times (when the people
+ * holding a place are free) and Facilitators (who staffs each group). A run
+ * with a pitching week has one more, Pitches (the pitches from that week,
+ * which teams are made from). Each is its own address under the tab, so a
+ * view is a link and the one on screen says so (`aria-current`). The tab
+ * itself opens on People in groups.
+ *
+ * Circles was a view of its own here until it became People in groups shown
+ * as Rings; its address forwards there. Whether People in groups is shown as
+ * Rings is carried in the address alone (`./boardShow.ts`), and every link in
+ * this row carries it on, so coming back to People in groups from another
+ * view shows it the way it was last looked at.
  */
 
-export type GroupsView = "sessions" | "people" | "circles" | "times" | "facilitators" | "pitches";
+export type GroupsView = "sessions" | "people" | "times" | "facilitators" | "pitches";
 
 const VIEWS: readonly { view: GroupsView; label: string; segment: string }[] = [
   { view: "people", label: "People in groups", segment: "" },
   { view: "sessions", label: ALL_GROUPS, segment: "/sessions" },
-  { view: "circles", label: "Circles", segment: "/circles" },
   { view: "times", label: "Times", segment: "/times" },
   { view: "facilitators", label: "Facilitators", segment: "/facilitators" },
   { view: "pitches", label: "Pitches", segment: "/pitches" },
@@ -48,20 +51,17 @@ export default function GroupsViews({
   programmeId,
   current,
   pitches = false,
-  circles = false,
+  show,
 }: {
   roundId: string;
   programmeId: string;
   current: GroupsView;
   /** The run has a pitching week, so its Pitches view is offered. */
   pitches?: boolean;
-  /** The viewer is an admin, so Circles is offered. */
-  circles?: boolean;
+  /** How People in groups was shown on the address this page was reached by, carried on by every link here. */
+  show?: BoardShow;
 }) {
-  const shown = VIEWS.filter(
-    ({ view }) =>
-      (view !== "pitches" || pitches || current === "pitches") && (view !== "circles" || circles || current === "circles"),
-  );
+  const shown = VIEWS.filter(({ view }) => view !== "pitches" || pitches || current === "pitches");
   return (
     <nav className={styles.views} aria-label="Groups views">
       {shown.map(({ view, label }) => {
@@ -69,7 +69,7 @@ export default function GroupsViews({
         return (
           <Link
             key={view}
-            href={groupsViewPath(roundId, programmeId, view)}
+            href={withShow(groupsViewPath(roundId, programmeId, view), show)}
             className={here ? `${styles.view} ${styles.viewCurrent}` : styles.view}
             aria-current={here ? "page" : undefined}
           >

@@ -6,9 +6,10 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * A PROGRAMME'S GROUPS AS THEY ARE, for Circles to read again after each
- * change it saves: `?minutes=` counts sessions of that length, as the page
- * does. The same reading the page is drawn from (`loadCircles` in
+ * A PROGRAMME'S GROUPS AS THEY ARE, for Circles' arranging, which an admin
+ * opens with "Suggest groups" on People in groups shown as Rings: read when
+ * it opens, and again after each change it saves. `?minutes=` counts
+ * sessions of that length. The same reading the page is drawn from (`loadCircles` in
  * `src/lib/applications/arrange/circles.ts`): who sits in which of the run's
  * groups, who facilitates each, who sits in none, and who holds a place but
  * is not on the run's list.
