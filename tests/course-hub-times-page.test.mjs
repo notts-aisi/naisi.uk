@@ -224,8 +224,9 @@ describe("the Groups tab is the lead's and an admin's, decided before anybody is
     assert.match(drawn.text, /People in groups shown as Rings draws each group as a ring with its people, and Suggest groups there arranges them, with or without Claude\./);
     assert.match(drawn.html, new RegExp(`<a href="${PAGE_PATH}/groups\\?show=rings"[^>]*>Show as Rings</a>`));
     assert.doesNotMatch(drawn.html, /groups\/circles/, "the Times view still leads to Circles' old address");
-    // The rings themselves are on People in groups: nothing here suggests or applies.
-    assert.ok(!drawn.text.includes("Suggest"), "the Times view still suggests groups");
+    // The rings themselves are on People in groups: the sentence says where Suggest groups is, and nothing here
+    // suggests or applies.
+    assert.doesNotMatch(drawn.html, /<button[^>]*>[^<]*(Suggest|Apply)/, "the Times view still suggests groups");
   });
 
   test("the programme's reviewer is told it is the lead's and an admin's, and only the form's settings were read", async () => {
