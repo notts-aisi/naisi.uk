@@ -136,6 +136,8 @@ const ASKS_THE_LEAD_BAR = {
     "roleOnProgramme: a programme's lead on their own form, read from the form the request names; it says nothing about any run",
   "lib/applications/roles.ts":
     "the writer of a programme's lead and reviewers, which asks whether the caller leads the programme they are changing",
+  "lib/applications/programmes/list.ts":
+    "the Programmes page's 'Review N': whether an admin also leads a programme on the form being read, as the term's page counts it; it says nothing about any run",
   "lib/applications/review/load.ts":
     "the review screens' own list of the programmes the caller leads on the form being read; it says nothing about any run",
   "lib/firebase/eligibility.ts": "the registry of bars, where the lead's bar is defined",
