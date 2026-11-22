@@ -93,6 +93,7 @@ const remindRoute = await w.formRoute("programmes", "[programmeId]", "registers"
 const { registerRemindersJob } = await w.loadTs(join("lib", "scheduler", "jobs", "registerReminders.ts"));
 const { default: RunHandOver } = await w.loadTs(join("features", "applications", "editor", "RunHandOver.tsx"));
 const panelWords = await w.loadTs(join("features", "applications", "editor", "runHandOverWords.ts"));
+const carefulWords = await w.loadTs(join("lib", "courses", "runCareful", "words.ts"));
 
 const CALLERS = [
   ["an admin", "zach"],
@@ -493,7 +494,7 @@ describe("6. the hand-over panel lists who left and who was taken off apart from
         "Left the programme",
         "They left by themselves, so their seat is free and their place is given back. There’s nothing to do.",
         "Taken off the programme",
-        "They were taken off the programme on the board, so their seat is free and their place is given back. There’s nothing to do.",
+        "They were taken off the programme, so their seat is free and their place is given back. There’s nothing to do.",
       ],
     );
   });
@@ -505,8 +506,9 @@ describe("6. the hand-over panel lists who left and who was taken off apart from
     for (const name of ["Sam Whitfield", "Omar Haddad"]) assert.ok(!names(panel.gaveBack).includes(name), name);
     assert.ok(text.includes(`Left the programme (1) Sam Whitfield ${panelWords.LEFT_NOTE}`), text);
     assert.ok(text.includes(`Taken off the programme (1) Omar Haddad ${panelWords.TAKEN_OFF_NOTE}`), text);
-    // Everybody else who no longer holds a place keeps the runbook's steps.
-    assert.equal(text.split("Remove them from their group on the board").length - 1, panel.gaveBack.length > 0 ? 1 : 0);
+    // Everybody else who no longer holds a place is listed with Course run's way to take them off.
+    assert.equal(text.split(carefulWords.GAVE_BACK_NOTE).length - 1, panel.gaveBack.length > 0 ? 1 : 0);
+    assert.ok(!text.includes("Remove them from their group on the board"), text);
   });
 
   test("once the programme's lead removes Amara and Dev leaves, the admin's panel lists each of them where they belong", async () => {

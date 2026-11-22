@@ -65,9 +65,56 @@ export type RunDetailsView = {
   groupsGoneOut: boolean;
 };
 
+/**
+ * Somebody on the run's list from this programme who gave their place back
+ * and whose seat is still on the run, or who never had one.
+ */
+export type GaveBackPersonView = HandOverPersonView & {
+  /** The name they go by, for the button: "Kwesi". */
+  firstName: string;
+  /** "Gave their place back on Fri 6 Nov · still in Group B". */
+  line: string;
+  /**
+   * Course run can take them off: a seat still on the run that the form put
+   * there, given back by them and not put back by staff since. False for
+   * somebody with no seat.
+   */
+  canTakeOff: boolean;
+};
+
+/** One person named on one of the older roles of the run. */
+export type RunRolePersonView = { uid: string; name: string };
+
+/** The run's track leads and run facilitators, named on the older run page. */
+export type RunRolesView = {
+  trackLeads: RunRolePersonView[];
+  runFacilitators: RunRolePersonView[];
+};
+
+/** What Careful offers for the named run, from what is stored. */
+export type RunCarefulView = {
+  /**
+   * "offer" once the run is completed or cancelled, "not-yet" before then,
+   * "archived" once it is archived (offered back), null while it is being
+   * destroyed.
+   */
+  archive: "offer" | "not-yet" | "archived" | null;
+  /** The status table lets this run be cancelled. */
+  canCancel: boolean;
+  /** The run's course, for the destroy receipt's way back. */
+  courseId: string;
+  courseTitle: string;
+  /** The run's label exactly as stored: the cancel and destroy dialogs ask for it typed. */
+  label: string;
+};
+
 export type RunPanelView = {
   /** What the programme is called in a sentence: "AGI Strategy". */
   programmeName: string;
+  /** The term the form is for, as the form is named: "Spring 2027". */
+  termName: string;
+  /** No run is named and the programme is tied to a course: "Make a new run of AGI Strategy" is offered. */
+  canMakeRun: boolean;
   /** False until the programme has been tied to its course page. */
   courseTied: boolean;
   /** The run the programme names now, or null. */
@@ -95,7 +142,7 @@ export type RunPanelView = {
    * On the run's list from this programme, no longer holding a place, and
    * their seat still on the run (or no seat): nothing takes them off it.
    */
-  gaveBack: HandOverPersonView[];
+  gaveBack: GaveBackPersonView[];
   /** The same, having left the run by themselves: nothing is left to do. */
   left: HandOverPersonView[];
   /** The same, taken off the run by staff (Remove): nothing is left to do. Each says who took them off and when. */
@@ -108,6 +155,10 @@ export type RunPanelView = {
   stands: RunStandsView | null;
   /** The named run's details, or null with no run named (or the run gone). */
   details: RunDetailsView | null;
+  /** The named run's track leads and run facilitators, or null with no run named (or the run gone). */
+  roles: RunRolesView | null;
+  /** What Careful offers for the named run, or null with no run named (or the run gone). */
+  careful: RunCarefulView | null;
 };
 
 /** What a press of the hand-over reports. */

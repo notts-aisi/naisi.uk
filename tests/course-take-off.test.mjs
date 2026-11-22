@@ -563,7 +563,12 @@ describe("7. every way of taking somebody off asks in the one sheet", () => {
       .map(([file]) => file);
     assert.deepEqual(pressing, ["features/courses/takeOff/TakeOffSheet.tsx"]);
     const opening = files.filter(([, code]) => /from "@\/features\/courses\/takeOff\/TakeOffSheet"/.test(code)).map(([file]) => file).sort();
-    assert.deepEqual(opening, ["features/applications/groups/PeopleInGroups.tsx", "features/courses/AllocationBoard.tsx"]);
+    // Course run on a programme's Settings opens it too, for somebody who gave their place back.
+    assert.deepEqual(opening, [
+      "features/applications/editor/RunHandOver.tsx",
+      "features/applications/groups/PeopleInGroups.tsx",
+      "features/courses/AllocationBoard.tsx",
+    ]);
     for (const [file, code] of files.filter(([file]) => opening.includes(file))) {
       assert.doesNotMatch(code, /window\.confirm\([^)]*(?:off this run|off the run|takeOff)/, `${file} still asks in the browser's own confirmation`);
       assert.match(code, /<TakeOffSheet runId=\{runId\} uid=\{\w+\}/, `${file} does not open the sheet`);

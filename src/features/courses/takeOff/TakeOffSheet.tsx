@@ -21,6 +21,10 @@ import styles from "./TakeOffSheet.module.css";
  * it showed and the line typed for the person. A count that changed in
  * between comes back as a 409 with the new one, and the sheet asks again
  * before anybody can press. Nothing here decides who is emailed.
+ *
+ * Course run on a programme's Settings opens it too, for somebody who gave
+ * their place back (`closeRow`): the same question, and the route closes
+ * their row on the run's own list in the same act.
  */
 
 type Preview = { emails: number; sheet: SheetWords; limit: string | null };
@@ -33,9 +37,12 @@ export default function TakeOffSheet({
   uid,
   onClose,
   onDone,
+  closeRow = false,
 }: {
   runId: string;
   uid: string;
+  /** Course run's take-off of somebody who gave their place back: their row on the run's list is closed with it. */
+  closeRow?: boolean;
   onClose: () => void;
   /** The press went: what it came to, in the route's sentence. */
   onDone: (said: string) => void;
@@ -58,7 +65,7 @@ export default function TakeOffSheet({
     void (async () => {
       let next: { nonce: number; preview: Preview | null; problem: string | null };
       try {
-        const response = await fetch(`${base}/remove`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preview: true }) });
+        const response = await fetch(`${base}/remove`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preview: true, ...(closeRow ? { closeRow } : {}) }) });
         const body = (await response.json().catch(() => null)) as { ok?: boolean; preview?: Preview; error?: string } | null;
         next =
           response.ok && body?.preview?.sheet
@@ -72,7 +79,7 @@ export default function TakeOffSheet({
     return () => {
       stale = true;
     };
-  }, [base, nonce]);
+  }, [base, nonce, closeRow]);
 
   const loading = answered?.nonce !== nonce;
   const preview = loading ? null : (answered?.preview ?? null);
@@ -86,7 +93,7 @@ export default function TakeOffSheet({
       const response = await fetch(`${base}/remove`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emails: preview.emails, ...(line.trim() ? { line: line.trim() } : {}) }),
+        body: JSON.stringify({ emails: preview.emails, ...(line.trim() ? { line: line.trim() } : {}), ...(closeRow ? { closeRow } : {}) }),
       });
       const body = (await response.json().catch(() => null)) as { ok?: boolean; said?: string; error?: string } | null;
       if (response.ok && body?.ok) {
@@ -117,7 +124,7 @@ export default function TakeOffSheet({
    */
   async function afterNoAnswer() {
     try {
-      const response = await fetch(`${base}/remove`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preview: true }) });
+      const response = await fetch(`${base}/remove`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preview: true, ...(closeRow ? { closeRow } : {}) }) });
       const body = (await response.json().catch(() => null)) as { error?: string } | null;
       if (response.status === 409 && body?.error === ALREADY_OFF) {
         onDone(OFF_BUT_EMAILS_UNSURE);

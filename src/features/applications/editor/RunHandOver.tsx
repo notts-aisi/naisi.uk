@@ -4,11 +4,16 @@ import Link from "next/link";
 import { useId, useRef, useState } from "react";
 import Select from "@/components/ui/Select";
 import kit from "@/features/applications/kit/kit.module.css";
+import TakeOffSheet from "@/features/courses/takeOff/TakeOffSheet";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { HandOverPersonView, RunPanelView } from "@/lib/applications/handover/views";
+import * as CW from "@/lib/courses/runCareful/words";
 import { fetchRunPanel, postHandOver, putProgrammeRun } from "./editorClient";
 import shared from "./editor.module.css";
+import RunCareful from "./RunCareful";
 import RunDetails from "./RunDetails";
+import RunMake from "./RunMake";
+import RunRoles from "./RunRoles";
 import RunStands from "./RunStands";
 import styles from "./RunHandOver.module.css";
 import {
@@ -52,6 +57,12 @@ import {
  * picked or what stops a press: those are the server's, and its sentence is
  * shown as it was written.
  *
+ * THE LAST PARTS, each asking first: "Make a new run of AGI Strategy" where
+ * the programme names no run (`RunMake`); taking off somebody who gave their
+ * place back, in the take-off sheet every board uses, which says who it
+ * emails and closes their row on the run's list with it; the run's older
+ * roles with Remove (`RunRoles`); and Careful (`RunCareful`).
+ *
  * "Check again" reads the panel afresh. The course tie is changed in the
  * section above, on the same page, and people reply over several days, so
  * what this drew when the page loaded can be out of date.
@@ -75,6 +86,8 @@ export default function RunHandOver({
   const [receipt, setReceipt] = useState<string | null>(null);
   // What an early move of the run's status did, once the section is read again.
   const [moved, setMoved] = useState<string | null>(null);
+  // Somebody who gave their place back, being taken off in the take-off sheet.
+  const [takingOff, setTakingOff] = useState<string | null>(null);
   // One request at a time: an answer always describes what the last press did.
   const sending = useRef(false);
 
@@ -113,7 +126,16 @@ export default function RunHandOver({
     if (answer) setMoved(said);
   }
 
+  // After a part that wrote through its own route and brought the section back.
+  function redrawn(next: RunPanelView, said: string) {
+    setReceipt(null);
+    setProblem(null);
+    setPanel(next);
+    setMoved(said);
+  }
+
   const idle = live && busy === null;
+  const runId = panel.runId;
   const reasons = unpickable(panel);
 
   return (
@@ -146,7 +168,7 @@ export default function RunHandOver({
             ))}
           </Select>
           <p id={`${ids}-run-hint`} className={shared.hint}>
-            {runHint(panel)}
+            {panel.canMakeRun ? CW.noRunYetWords(panel.programmeName, panel.termName) : runHint(panel)}
           </p>
           {reasons.length > 0 && (
             <ul className={styles.reasons}>
@@ -159,9 +181,25 @@ export default function RunHandOver({
           )}
         </div>
 
+        {panel.canMakeRun && (
+          <RunMake
+            roundId={roundId}
+            programmeId={programmeId}
+            programmeName={panel.programmeName}
+            live={idle}
+            onMade={redrawn}
+          />
+        )}
+
         {problem && (
           <p className={`${shared.notice} ${shared.noticeProblem}`} role="alert">
             {problem}
+          </p>
+        )}
+
+        {panel.runId === null && moved && (
+          <p className={styles.receipt} role="status">
+            {moved}
           </p>
         )}
 
@@ -242,19 +280,32 @@ export default function RunHandOver({
 
             {panel.gaveBack.length > 0 && (
               <div className={styles.group}>
-                <People title="No longer hold a place" people={panel.gaveBack} />
-                <p className={styles.small}>
-                  They gave their place back after they were handed over, and nothing takes them off the run.
-                  Remove them from their group on the board, then change their row on{" "}
-                  {panel.listPath ? (
-                    <Link href={panel.listPath} className={styles.inText}>
-                      the run’s own applications list
-                    </Link>
-                  ) : (
-                    "the run’s own applications list"
-                  )}
-                  . Nobody is emailed by either.
+                <p className={styles.groupTitle}>
+                  {CW.GAVE_BACK_TITLE} ({panel.gaveBack.length})
                 </p>
+                <p className={styles.small}>{CW.GAVE_BACK_NOTE}</p>
+                <ul className={styles.rows}>
+                  {panel.gaveBack.map((person) => (
+                    <li key={person.uid} className={styles.row}>
+                      <div className={styles.rowText}>
+                        <Link href={person.applicationPath} className={styles.person}>
+                          {person.name}
+                        </Link>
+                        <span className={styles.small}>{person.line}</span>
+                      </div>
+                      {person.canTakeOff && panel.runId !== null && (
+                        <button
+                          type="button"
+                          className={styles.quiet}
+                          disabled={!idle}
+                          onClick={() => setTakingOff(person.uid)}
+                        >
+                          {CW.takeOffWords(person.firstName)}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
@@ -286,6 +337,25 @@ export default function RunHandOver({
 
             {panel.otherRows > 0 && <p className={styles.small}>{otherRowsLine(panel.otherRows)}</p>}
           </div>
+        )}
+
+        {panel.runId !== null && panel.roles && (
+          <RunRoles roundId={roundId} programmeId={programmeId} roles={panel.roles} live={idle} onRemoved={redrawn} />
+        )}
+
+        {panel.runId !== null && panel.careful && (
+          <RunCareful runId={panel.runId} careful={panel.careful} live={idle} onDone={(said) => afterMove(said)} />
+        )}
+
+        {takingOff && runId !== null && (
+          <TakeOffSheet runId={runId} uid={takingOff}
+            closeRow
+            onClose={() => setTakingOff(null)}
+            onDone={(said) => {
+              setTakingOff(null);
+              void afterMove(said);
+            }}
+          />
         )}
       </div>
     </section>

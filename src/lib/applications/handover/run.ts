@@ -12,7 +12,15 @@ import {
   normalizeCourseApplication,
   type CourseApplicationDoc,
 } from "@/lib/firestore/courseApplications";
-import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import {
+  COURSE_FIELD_LIMITS,
+  EMPTY_APPLICATION_COUNTS,
+  courseRunChannel,
+  normalizeCourseRun,
+  type CourseRunDoc,
+  type RunCohort,
+} from "@/lib/firestore/courses";
+import { slugId } from "@/lib/firestore/slugId";
 import { canRunTerm } from "../access";
 import { own } from "../keys";
 import { FORM_VERSION } from "../model";
@@ -257,5 +265,132 @@ export async function setProgrammeRun(
       updatedAt: FieldValue.serverTimestamp(),
     });
     return { ok: true, value: { runId, changed: true } } as const;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Making a new run, named on the programme in the same act
+// ---------------------------------------------------------------------------
+
+/**
+ * Two labels are the same label when a person would read them as one: the
+ * same letters, whatever their case, with runs of spaces read as one and the
+ * ends ignored. "AGI Strategy, Spring 2027" and "agi strategy,  spring 2027 "
+ * are the same; "AGI Strategy Spring 2027" (no comma) is another.
+ */
+export function sameRunLabel(a: string, b: string): boolean {
+  const key = (label: string) => label.normalize("NFKC").replace(/\s+/g, " ").trim().toLocaleLowerCase("en-GB");
+  return key(a) !== "" && key(a) === key(b);
+}
+
+/** A label another run of the course already carries. */
+export function runLabelTaken(label: string): string {
+  return `A run called ${label.trim()} already exists. Name that one instead, or give this one another label.`;
+}
+
+/** The programme names a run already that nobody has been handed over to. */
+export const RUN_NAMED_ALREADY = "This programme names a run already. Choose No run yet above to make a new one.";
+
+/** The course the programme is tied to has gone. */
+export const COURSE_GONE = "The course this programme is tied to is no longer on the site.";
+
+/** What a new run is made with: the details form's fields, checked, with its start date. */
+export type NewRunInput = {
+  label: string;
+  academicYear: string;
+  cohort: RunCohort | null;
+  startDate: string;
+};
+
+/**
+ * MAKE A NEW RUN OF THE PROGRAMME'S COURSE AND NAME IT ON THE PROGRAMME, in
+ * one transaction. Admin only, asked before anything is read.
+ *
+ * The run is written with exactly the fields the older course editor's New
+ * run writes (`createRun` in `src/features/courses/courseMutations.ts`): a
+ * draft, every server owned field clean, the channel `cohort:<runId>`, the
+ * caller as its author. The one field beside them is the cohort, written
+ * only when the form gave one, as the run's details save it; never a stored
+ * null. Then `programmes.<id>.runId` names it, as `setProgrammeRun` would.
+ *
+ * Refused, in order: a programme not tied to a course (409); one that names
+ * a run already, with the hand-over's own sentence when people have been
+ * handed over to it (409); a course no longer on the site (409); and a label
+ * another run of the course already carries, compared by `sameRunLabel`,
+ * archived and cancelled runs included (409).
+ *
+ * TWO PRESSES AT ONCE. Both read and write the form's document, so the
+ * second runs again once the first commits, finds the programme naming the
+ * first one's run, and is refused: one run is made.
+ *
+ * Nobody is emailed. Undo is the run's own Destroy: a run made stays a draft
+ * until somebody removes it.
+ */
+export async function makeProgrammeRun(
+  db: Firestore,
+  actor: SessionUser,
+  roundId: string,
+  programmeId: string,
+  input: NewRunInput,
+): Promise<Done<{ runId: string; label: string }> | Refusal> {
+  if (!canRunTerm(actor)) return refuse(403, NOT_AN_ADMIN);
+  if (!isId(roundId)) return NO_FORM;
+  if (!isId(programmeId)) return NO_PROGRAMME;
+  const roundRef = formRef(db, roundId);
+  return db.runTransaction(async (tx: Transaction) => {
+    const snap = await tx.get(roundRef);
+    if (!snap.exists || !isApplicationForm(snap.data())) return NO_FORM;
+    const form = normaliseForm(snap.id, snap.data());
+    const programme = own(form.programmes, programmeId);
+    if (!programme) return NO_PROGRAMME;
+    const courseId = programme.courseId;
+    if (courseId === null) return refuse(409, STANDING_SENTENCE["no-course"]);
+    if (programme.runId !== null) {
+      const there = rowsOf((await tx.get(rowsQuery(db, programme.runId))).docs);
+      return refuse(409, there.some((row) => isRowFrom(row, roundId, programmeId)) ? RUN_LOCKED : RUN_NAMED_ALREADY);
+    }
+    const courseSnap = await tx.get(db.collection("courses").doc(courseId));
+    if (!courseSnap.exists) return refuse(409, COURSE_GONE);
+    // One equality on one field: every run of the course, whatever its state.
+    const runs = await tx.get(db.collection(RUNS_COLLECTION).where("courseId", "==", courseId));
+    if (runs.docs.some((doc) => sameRunLabel(typeof doc.data()?.label === "string" ? doc.data().label : "", input.label))) {
+      return refuse(409, runLabelTaken(input.label));
+    }
+
+    const rawTitle = (courseSnap.data() ?? {}).title;
+    const title = (typeof rawTitle === "string" ? rawTitle : "").trim().slice(0, COURSE_FIELD_LIMITS.title);
+    const label = input.label.trim().slice(0, COURSE_FIELD_LIMITS.runLabel);
+    const ref = db.collection(RUNS_COLLECTION).doc(slugId(`${title} ${label}`));
+    tx.create(ref, {
+      courseId,
+      courseTitle: title,
+      label,
+      academicYear: input.academicYear.trim().slice(0, COURSE_FIELD_LIMITS.academicYear),
+      status: "draft",
+      startDate: input.startDate,
+      weekPlan: [],
+      applicationForm: [],
+      applicationsOpenAt: null,
+      applicationsCloseAt: null,
+      applicationCap: null,
+      admissionsReviewerUids: [],
+      runFacilitatorUids: [],
+      trackLeadUids: [],
+      applicationCounts: EMPTY_APPLICATION_COUNTS,
+      groupCount: 0,
+      enrolMode: "admissions",
+      streams: [],
+      enrolledCount: 0,
+      channel: courseRunChannel(ref.id),
+      authorUid: actor.uid,
+      ...(input.cohort ? { cohort: input.cohort } : {}),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(roundRef, {
+      [`programmes.${programmeId}.runId`]: ref.id,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { ok: true, value: { runId: ref.id, label } } as const;
   });
 }

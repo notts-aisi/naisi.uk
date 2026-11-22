@@ -127,8 +127,12 @@ function freeOf(form: ApplicationForm, application: ApplicationDoc, groups: read
   return tags.length > 0 ? { kind: "fits", tags } : { kind: "fits-none", times: timed.length };
 }
 
-/** The day somebody gave a place back: their reply's own day, or when the application was withdrawn. */
-function gaveBackOn(application: ApplicationDoc): Date | null {
+/**
+ * The day somebody gave a place back: their reply's own day, or when the
+ * application was withdrawn. Read here and by Course run's "No longer hold a
+ * place" (`src/lib/applications/handover/load.ts`), so both say one day.
+ */
+export function gaveBackOn(application: ApplicationDoc): Date | null {
   const said = application.attendance?.answer === "cant-make-it" ? application.attendance.answeredAt : null;
   const declined = application.invitation?.response === "declined" ? application.invitation.respondedAt : null;
   return said ?? declined ?? application.withdrawnAt ?? null;

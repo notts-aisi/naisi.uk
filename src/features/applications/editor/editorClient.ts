@@ -223,3 +223,35 @@ export function postHandOver(
 ): Promise<{ panel: RunPanelView; receipt: HandOverReceiptView }> {
   return call(`${runUrl(roundId, programmeId)}/hand-over`, "POST");
 }
+
+/**
+ * Make a new run of the programme's course and name it on the programme:
+ * the details form's fields, with the start date.
+ */
+export function postNewRun(
+  roundId: string,
+  programmeId: string,
+  details: RunDetailsInput,
+): Promise<{ ok: true; runId: string; label: string; panel: RunPanelView }> {
+  return call(`${runUrl(roundId, programmeId)}/new`, "POST", details);
+}
+
+/** Cancel the named run through the one status route, the older run page's way. */
+export function postRunCancelled(runId: string): Promise<{ ok: true; status: string }> {
+  return call(`/api/courses/runs/${encodeURIComponent(runId)}/status`, "POST", { status: "cancelled" });
+}
+
+/** Archive the named run, or bring it back, through the run's archive route. */
+export function patchRunArchived(runId: string, archived: boolean): Promise<{ ok: true; archived: boolean }> {
+  return call(`/api/courses/runs/${encodeURIComponent(runId)}/archive`, "PATCH", { archived });
+}
+
+/** Take one person off one of the named run's older roles. */
+export function postRunRoleRemoved(
+  roundId: string,
+  programmeId: string,
+  list: "trackLeads" | "runFacilitators",
+  uid: string,
+): Promise<{ ok: true; panel: RunPanelView }> {
+  return call(`${runUrl(roundId, programmeId)}/roles`, "POST", { list, uid });
+}

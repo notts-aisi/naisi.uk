@@ -109,6 +109,10 @@ async function setRunArchived(runId: string, archived: boolean): Promise<void> {
   }
 }
 
+/** A run with no label can't be confirmed by typing it. */
+const NO_LABEL_TO_TYPE =
+  "This run has no label, so there is nothing to type as confirmation — give it one under Run details first.";
+
 /** Live-cohort statuses, where archiving is a bigger deal than usual. */
 const LIVE_STATUSES: CourseRunStatus[] = ["applications-open", "running"];
 
@@ -124,7 +128,6 @@ export default function RunDangerZone({ courseId, run, runAction, onRunChanged }
   const [confirmText, setConfirmText] = useState("");
   const [archiving, setArchiving] = useState(false);
 
-  const cancelConfirmId = useId();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelText, setCancelText] = useState("");
   const [cancelling, setCancelling] = useState(false);
@@ -254,15 +257,9 @@ export default function RunDangerZone({ courseId, run, runAction, onRunChanged }
   // idempotent no-op), so asking it "can a cancelled run be cancelled" got a
   // yes and drew the whole danger card on a cohort that was already called off.
   const canCancel = ALLOWED_TRANSITIONS[run.status].includes("cancelled");
-  const cancelMatches = cancelText === run.label && run.label.length > 0;
-  const cancelWhitespaceOnly =
-    !cancelMatches && cancelText.length > 0 && cancelText.trim() === run.label.trim();
-
   // A run with no label can't be confirmed by typing it. Local, and stated the
   // same way the server's blockers are.
-  const localBlockers = run.label
-    ? []
-    : ["This run has no label, so there is nothing to type as confirmation — give it one under Run details first."];
+  const localBlockers = run.label ? [] : [NO_LABEL_TO_TYPE];
 
   // Suppress the interrupted report while this session is mid-flight or
   // finished: from the moment `destroy()` is called the open audit doc is
@@ -393,77 +390,15 @@ export default function RunDangerZone({ courseId, run, runAction, onRunChanged }
         )}
       </Card>
 
-      <Modal
+      <CancelCohortDialog
         open={cancelOpen}
-        onClose={cancelling ? () => {} : () => setCancelOpen(false)}
-        ariaLabel="Cancel this cohort"
-        width="sm"
-      >
-        <div className={styles.dialog}>
-          <header className={styles.dialogHead}>
-            <h2 className={styles.dialogTitle}>Cancel this cohort</h2>
-            <p className={styles.dialogSubtitle}>
-              {run.courseTitle
-                ? `${run.courseTitle} · ${run.label || run.id}`
-                : run.label || run.id}
-            </p>
-          </header>
-
-          <p className={styles.dangerBody}>
-            The run moves to <strong>Cancelled</strong> and stays there. It
-            leaves the public catalogue and the cohort&apos;s live sections,
-            applications stop being accepted, and no weekly mail goes out.
-            Everything already recorded is kept.
-          </p>
-
-          {run.label ? (
-            <section className={styles.confirmBlock}>
-              <Field
-                id={cancelConfirmId}
-                label="Type the run label to confirm"
-                hint={
-                  cancelWhitespaceOnly
-                    ? "That matches apart from leading or trailing spaces. The check is exact."
-                    : `Exactly “${run.label}”. Nothing is trimmed or corrected.`
-                }
-              >
-                <Input
-                  id={cancelConfirmId}
-                  value={cancelText}
-                  onChange={(e) => setCancelText(e.target.value)}
-                  className={styles.confirmInput}
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                  placeholder={run.label}
-                />
-              </Field>
-            </section>
-          ) : (
-            <BlockerList blockers={localBlockers} />
-          )}
-
-          <div className={styles.dialogActions}>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={cancelling}
-              onClick={() => setCancelOpen(false)}
-            >
-              Keep this cohort
-            </Button>
-            <Button
-              type="button"
-              variant="danger"
-              disabled={!cancelMatches || cancelling}
-              onClick={() => void cancelRun()}
-            >
-              Cancel this cohort
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        run={run}
+        cancelling={cancelling}
+        cancelText={cancelText}
+        onCancelTextChange={setCancelText}
+        onClose={() => setCancelOpen(false)}
+        onConfirm={() => void cancelRun()}
+      />
 
       <DestroyDialog
         open={dialogOpen}
@@ -481,6 +416,111 @@ export default function RunDangerZone({ courseId, run, runAction, onRunChanged }
         doneLabel="Back to the course"
       />
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The cancel dialog
+// ---------------------------------------------------------------------------
+
+/**
+ * "Cancel this cohort", the typed confirmation: the older run page's danger
+ * zone and Course run on a programme's Settings both ask it, in these words.
+ * The caller makes the status move; this only asks.
+ */
+export function CancelCohortDialog({
+  open,
+  run,
+  cancelling,
+  cancelText,
+  onCancelTextChange,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  run: Pick<CourseRunDoc, "id" | "label" | "courseTitle">;
+  cancelling: boolean;
+  cancelText: string;
+  onCancelTextChange: (next: string) => void;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const cancelConfirmId = useId();
+  const cancelMatches = cancelText === run.label && run.label.length > 0;
+  const cancelWhitespaceOnly =
+    !cancelMatches && cancelText.length > 0 && cancelText.trim() === run.label.trim();
+  return (
+    <Modal
+      open={open}
+      onClose={cancelling ? () => {} : onClose}
+      ariaLabel="Cancel this cohort"
+      width="sm"
+    >
+      <div className={styles.dialog}>
+        <header className={styles.dialogHead}>
+          <h2 className={styles.dialogTitle}>Cancel this cohort</h2>
+          <p className={styles.dialogSubtitle}>
+            {run.courseTitle
+              ? `${run.courseTitle} · ${run.label || run.id}`
+              : run.label || run.id}
+          </p>
+        </header>
+
+        <p className={styles.dangerBody}>
+          The run moves to <strong>Cancelled</strong> and stays there. It
+          leaves the public catalogue and the cohort&apos;s live sections,
+          applications stop being accepted, and no weekly mail goes out.
+          Everything already recorded is kept.
+        </p>
+
+        {run.label ? (
+          <section className={styles.confirmBlock}>
+            <Field
+              id={cancelConfirmId}
+              label="Type the run label to confirm"
+              hint={
+                cancelWhitespaceOnly
+                  ? "That matches apart from leading or trailing spaces. The check is exact."
+                  : `Exactly “${run.label}”. Nothing is trimmed or corrected.`
+              }
+            >
+              <Input
+                id={cancelConfirmId}
+                value={cancelText}
+                onChange={(e) => onCancelTextChange(e.target.value)}
+                className={styles.confirmInput}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                placeholder={run.label}
+              />
+            </Field>
+          </section>
+        ) : (
+          <BlockerList blockers={[NO_LABEL_TO_TYPE]} />
+        )}
+
+        <div className={styles.dialogActions}>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={cancelling}
+            onClick={onClose}
+          >
+            Keep this cohort
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            disabled={!cancelMatches || cancelling}
+            onClick={onConfirm}
+          >
+            Cancel this cohort
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

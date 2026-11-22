@@ -113,8 +113,8 @@ export type RunComparison = {
   notAccepted: PlaceHolder[];
   /**
    * On the run's list, put there from this programme, and no longer holding
-   * a place: they gave it back after they were handed over. Nothing removes
-   * them, so they are named for an admin to act on.
+   * a place: they gave it back after they were handed over. Their row is
+   * accepted, or withdrawn once Course run took them off and closed it.
    */
   gaveBack: PlaceHolder[];
   /** Rows on the run that this programme's hand-over did not write. */
@@ -150,7 +150,10 @@ export function compareWithRun(input: {
       if (!holding.has(row.uid)) out.otherRows += 1;
       continue;
     }
-    if (holding.has(row.uid) || row.status !== "accepted") continue;
+    // An accepted row, or one Course run closed when it took them off
+    // (`withdrawn`, in the same act as the seat): either way somebody this
+    // programme handed over who no longer holds a place.
+    if (holding.has(row.uid) || (row.status !== "accepted" && row.status !== "withdrawn")) continue;
     out.gaveBack.push({
       uid: row.uid,
       name: input.names.get(row.uid) ?? (row.displayName.trim() || "Somebody whose application has gone"),
