@@ -1084,6 +1084,8 @@ const ADMINS_ONLY = {
 };
 const ASSESSMENT = `admissionAssessments/${ROUND}__amara`;
 const ACCESS_TEXT = "A seat near the door, please.";
+/** Amara's answer about SU membership in the top's world: everybody else's is "yes". */
+const SU_ANSWER = "not-yet";
 
 /** The top's world: Amara's answer about Group B's time, Claude's and Pangram's reads of Amara's application, and Sofia's application to another programme. */
 function topSeed(over = {}) {
@@ -1111,6 +1113,10 @@ function topSeed(over = {}) {
     },
     pangram: { answers: [{ key: "x", worthALook: true }], failed: [], tooShort: 0, at: "" },
   };
+  // Amara's answer about SU membership, planted as the one answer no other field of the world holds: "not-yet"
+  // (the question has two answers, so its stored value is the marker, searched raw in the props and on the page).
+  const amaraPath = `admissionApplications/${ROUND}__amara`;
+  s[amaraPath] = { ...s[amaraPath], sent: { ...s[amaraPath].sent, suMembership: SU_ANSWER }, draft: { ...s[amaraPath].draft, suMembership: SU_ANSWER } };
   // Sofia facilitates Groups A and B, holds no place on the run, and applied to Technical AI Safety alone.
   const amara = s[`admissionApplications/${ROUND}__amara`];
   s[`admissionApplications/${ROUND}__sofia`] = {
@@ -1187,6 +1193,9 @@ describe("the top of the page, as every kind of reader", () => {
       assert.ok(!payload.includes(marker), `the lead's payload carries ${what}`);
       assert.ok(!drawn.html.includes(marker), `the lead's page shows ${what}`);
     }
+    // The answer about SU membership: the planted value, in the props and on the page, and the field by name.
+    assert.ok(!payload.includes(SU_ANSWER), "the lead's payload carries the answer about SU membership");
+    assert.ok(!drawn.html.includes(SU_ANSWER), "the lead's page carries the answer about SU membership");
     for (const word of [/Pangram/, /Claude/, /Only admins see this/, /\/admin\/members\//, /@/, /SU membership|suMembership/i, /As a facilitator/]) {
       assert.doesNotMatch(drawn.html, word, `the lead's page carries ${word}`);
       assert.doesNotMatch(payload, word, `the lead's payload carries ${word}`);
@@ -1298,6 +1307,40 @@ describe("the top of the page, as every kind of reader", () => {
     assert.equal(viewOf(await team("claudia", "kofi")).place[1].value, "Not in a group yet");
   });
 
+  test("a moved seat: told on a day only while that day's email was about the group shown, and never a day the records do not hold", async () => {
+    const told = peopleSeed()[AMARA_SEAT];
+    // On the board, after Publish told Amara Group B and before the next Publish: Group A, not told it yet.
+    w.reset(topSeed({ [AMARA_SEAT]: { ...told, groupId: A, toldGroupId: B } }));
+    for (const who of ["zach", "claudia"]) {
+      const group = viewOf(await team(who)).place.find((line) => line.key === "group").value;
+      assert.equal(group, "Group A, Thursdays 6pm · Not told yet", `${who}: a move on the board is said to have been told`);
+    }
+    // A staff move during the run, from week 3: its own email told Amara at once, and stamped no day. The day Publish
+    // told Amara Group B (Wed 28 Oct) is not paired with Group A.
+    w.reset(
+      topSeed({
+        [AMARA_SEAT]: {
+          ...told,
+          groupId: A,
+          toldGroupId: A,
+          groupsByWeek: [
+            { groupId: B, fromWeek: 1 },
+            { groupId: A, fromWeek: 3 },
+          ],
+        },
+      }),
+    );
+    for (const who of ["zach", "claudia"]) {
+      const drawn = await team(who);
+      const group = viewOf(drawn).place.find((line) => line.key === "group").value;
+      assert.equal(group, "Group A, Thursdays 6pm · told", `${who}: the move's own telling`);
+      assert.doesNotMatch(group, /Wed 28 Oct/, `${who}: the day of the email about Group B is paired with Group A`);
+    }
+    // Never moved: the day of Publish's email, as before.
+    w.reset(topSeed());
+    assert.equal(viewOf(await team("zach")).place[1].value, "Group B, Tuesdays 6pm · told on Wed 28 Oct");
+  });
+
   test("the facilitator's cut is unchanged: no top sections, and it never links to the team's page", async () => {
     w.reset(topSeed());
     const drawn = await cut("rahul");
@@ -1338,6 +1381,31 @@ describe("every name opens the page, where it would open", () => {
     const { html } = await w.draw(page, "lloyd", { roundId: ROUND, programmeId: AGI });
     assert.match(html, new RegExp(`href="${applications}/amara"`), "a reviewer's name opens the application");
     assert.doesNotMatch(html, new RegExp(`href="${people}/`), "a reviewer is sent to a page that refuses them");
+  });
+
+  test("the two tabs decide a link by the People tab's own rows, from reads they already make", async () => {
+    w.reset(topSeed({ [`courseEnrolments/${RUN.agi}__omar`]: { ...peopleSeed()[AMARA_SEAT], uid: "omar", groupId: C } }));
+    const peopleLoad = await w.loadTs(join("lib", "applications", "people", "load.ts"));
+    const reviewLoad = await w.loadTs(join("lib", "applications", "review", "load.ts"));
+    const repo = await w.loadTs(join("lib", "applications", "repo.ts"));
+    const form = await repo.loadForm(w.world.db, ROUND);
+    for (const who of ["claudia", "zach"]) {
+      const session = { ...w.sessionOf(who), admissionsReviewer: w.world.db.read(`users/${who}`)?.admissionsReviewer === true };
+      const tab = w.viewOf(await w.peoplePage(who)).rows;
+      // The Attendance tab: exactly the People tab's rows.
+      assert.deepEqual([...(await peopleLoad.peopleRowUidsOf(w.world.db, session, form, AGI))].sort(), tab.map((row) => row.uid).sort(), who);
+      // The Applications tab: exactly the rows holding a place (the board's own reads; the viewer's own row is on neither).
+      const board = await reviewLoad.loadProgrammeBoard(w.world.db, session, ROUND, AGI);
+      assert.deepEqual(
+        [...board.holders].sort(),
+        tab.filter((row) => row.category === "holding" && row.uid !== who).map((row) => row.uid).sort(),
+        who,
+      );
+    }
+    // A reviewer is handed no holders, and the route answers the board alone.
+    const lloyd = { ...w.sessionOf("lloyd"), admissionsReviewer: true };
+    assert.deepEqual((await reviewLoad.loadProgrammeBoard(w.world.db, lloyd, ROUND, AGI)).holders, []);
+    assert.deepEqual(await peopleLoad.peopleRowUidsOf(w.world.db, lloyd, form, AGI), new Set());
   });
 
   test("before decision day the Applications tab's names open the application, for everybody", async () => {

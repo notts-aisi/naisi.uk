@@ -22,7 +22,7 @@ import { readRunCoursework } from "@/lib/courses/facilitatorWeek/readers";
 import { readOwnFeedback, cardNamesOf } from "@/lib/courses/feedback/readers";
 import { weeklySlotWords } from "@/lib/courses/facilitatingEmail";
 import { resolveGroupCalendar, type GroupCalendar } from "@/lib/courses/groupResolve";
-import { differsByWeek } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
 import { readPackCaseRecords } from "@/lib/courses/packsAndCases/readers";
 import { buildRunAttendance, groupSessions, readRunRecords, type GroupSessionFacts, type RunRecords } from "@/lib/courses/programmeAttendance";
 import { dayWords } from "@/lib/courses/sessionChange/words";
@@ -43,6 +43,8 @@ import type { SessionUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
   groupForWeek,
+  groupToldAbout,
+  movedSinceTold,
   normalizeCourseEnrolment,
   ownGroupForWeek,
   placementIsShownTo,
@@ -574,8 +576,9 @@ export async function loadTeamPersonPage(
   const freeSection = (inGroupId: string | null): Pick<TeamPersonView, "free" | "timeAnswer" | "freeFoot"> => {
     const free = freeOf(timed, inGroupId);
     const seat = seats.get(uid) ?? null;
-    const inGroup = seat?.groupId ? (liveGroups.find((group) => group.id === seat.groupId) ?? null) : null;
-    // Their answer about the group their seat is in now, where this reader reads answers today (`readsTimeAnswers`).
+    // The group the head shows them in, which is the group their seat is in now: the answer is about that group alone.
+    const inGroup = inGroupId && seat?.groupId === inGroupId ? (liveGroups.find((group) => group.id === inGroupId) ?? null) : null;
+    // Their answer about it, where this reader reads answers today (`readsTimeAnswers`).
     const answer =
       readsTimeAnswers(staffing) && seat && inGroup && !self
         ? timeAnswerLinesOf(currentTimeAnswer(seat, timeQuestionSinceOf(inGroup)), inGroup.name.trim() || "Untitled group")
@@ -650,6 +653,24 @@ export async function loadTeamPersonPage(
   const told = seat !== null && seat.groupId !== null && placementIsShownTo(seat, { isAdmin: false });
   const delivered = seat?.allocatedEmailDelivery !== "held" && seat?.allocatedEmailDelivery !== "suppressed";
   const toldAt = told && delivered ? (seat?.allocatedEmailAt ?? null) : null;
+  /**
+   * What is true of their being told the group shown, from what the seat
+   * records. Not told yet: Publish has not told them, or they were moved on
+   * the board since it did (`movedSinceTold`: the next Publish tells them).
+   * Told on the day of Publish's email: only while that email was about this
+   * group and they have not been moved during the run, since a staff move
+   * tells them by its own email and stamps no day (`allocatedEmailAt` keeps
+   * the earlier email's). Told with no day: about this group, after a move
+   * during the run. Nothing: an email held, or stopped by the do-not-email
+   * list, told nobody.
+   */
+  const toldOfShown = (groupId: string): { kind: "on"; at: Date } | { kind: "undated" } | { kind: "not-yet" } | null => {
+    if (!seat || person.notToldYet || !told) return { kind: "not-yet" };
+    if (movedSinceTold(seat) || groupToldAbout(seat) !== groupId) return { kind: "not-yet" };
+    if (!delivered) return null;
+    if (hasGroupsByWeek(seat)) return { kind: "undated" };
+    return toldAt ? { kind: "on", at: toldAt } : null;
+  };
   const out: TeamPersonView = {
     ...beforeRun,
     header: { ...view.header, name, group: groupLineOf(shownGroup), notTold: person.notToldYet },
@@ -659,8 +680,7 @@ export async function loadTeamPersonPage(
         ? {
             name: shownGroup.name.trim() || "Untitled group",
             when: shownGroup.session ? weeklyWords(shownGroup.session) : null,
-            toldAt: person.notToldYet ? null : toldAt,
-            notTold: person.notToldYet,
+            told: toldOfShown(shownGroup.id),
           }
         : "none",
     ),

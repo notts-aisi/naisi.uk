@@ -18,6 +18,7 @@ import {
   NOT_IN_A_GROUP,
   NOT_TOLD,
   NOTHING_MARKED,
+  TOLD,
   NO_LONGER_ON_FILE,
   PLACE,
   SAID_COMING,
@@ -648,7 +649,17 @@ export function placeLinesOf(input: {
   status: PersonStatus;
   programmeName: string;
   since: Date | null;
-  group: { name: string; when: string | null; toldAt: Date | null; notTold: boolean } | "none" | null;
+  /**
+   * Their group as this reader is shown it, and what is true of their being
+   * told it: told about it on a day the records hold (`on`), told about it
+   * with no day the records hold for that (`undated`: a staff move's own
+   * email tells them at once and stamps no day), not told it yet
+   * (`not-yet`), or nothing to say (null: an email held or stopped).
+   */
+  group:
+    | { name: string; when: string | null; told: { kind: "on"; at: Date } | { kind: "undated" } | { kind: "not-yet" } | null }
+    | "none"
+    | null;
   coming: PersonComing | null;
 }): PlaceLine[] {
   const { status } = input;
@@ -665,7 +676,8 @@ export function placeLinesOf(input: {
   const out: PlaceLine[] = [{ key: "place", label: PLACE, value: place }];
   if (input.group === "none") out.push({ key: "group", label: GROUP, value: NOT_IN_A_GROUP });
   else if (input.group) {
-    const told = input.group.toldAt ? toldOnWords(input.group.toldAt) : input.group.notTold ? NOT_TOLD : null;
+    const said = input.group.told;
+    const told = !said ? null : said.kind === "on" ? toldOnWords(said.at) : said.kind === "undated" ? TOLD : NOT_TOLD;
     const line = groupAndTimeWords(input.group.name, input.group.when);
     out.push({ key: "group", label: GROUP, value: told ? `${line} · ${told}` : line });
   }

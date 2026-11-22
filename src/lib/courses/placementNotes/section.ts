@@ -35,11 +35,12 @@ export type { OutsideRow, OutsideSection };
  * falls in what they gave, so a note is written knowing the overlap. And
  * Claude's draft, which only an admin may ask for. A lead sees neither
  * here: this section sends a lead no week, and the draft is an admin's.
- * (Since 22 Nov 2026 a lead does see a person's week, on that person's page
- * under the programme alone, wherever their review screens may open the
- * application: the one gated read, `personWeekFor` in
- * `src/lib/applications/people/week.ts`. Never a facilitator, never in an
- * email, never sent to Claude.)
+ * (A lead does see a person's week wherever they may read that person's
+ * application, `canReadApplication`: on the application's review page, and
+ * since 22 Nov 2026 on the screens that ask the one gated read,
+ * `personWeekFor` in `src/lib/applications/people/week.ts`, the person's
+ * page under the programme first among them. Never a facilitator, never in
+ * an email, never sent to Claude.)
  *
  * Nothing here writes.
  */

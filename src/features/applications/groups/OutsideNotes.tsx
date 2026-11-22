@@ -26,8 +26,9 @@ import styles from "./OutsideNotes.module.css";
  * session (`WeekChart`, as Arrange groups draws it, with nothing to pick),
  * and how much of the session falls in what they gave, so a note is written
  * knowing the overlap. A lead sees no painted week here (a lead reads a
- * person's week on that person's page alone, where their review screens may
- * open the application), and never Claude's draft. Both come from the notes route
+ * person's week wherever they may read the application: its review page,
+ * and the screens that ask the one gated read, `personWeekFor`), and never
+ * Claude's draft. Both come from the notes route
  * (`/api/courses/runs/[runId]/allocation/publish/notes`), which decides
  * again who may see and save what.
  */

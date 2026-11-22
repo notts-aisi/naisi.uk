@@ -36,8 +36,11 @@ import { rankedProgrammes } from "../sections";
  * the callers are pages.
  *
  * Pure: the caller reads the form and the application, and hands them here.
- * Every screen that draws a person's week to staff asks this, and the list
- * of who does is kept in `tests/course-hub-times-one-reading.test.mjs`.
+ * The rule is who may read the application, not which screen: the
+ * application's own review page draws the week behind the same predicate
+ * (`loadReview`), and every other staff screen that draws it asks this.
+ * Every file that reads a marked week, with its gate, is listed in
+ * `tests/course-hub-times-one-reading.test.mjs`.
  */
 
 /** One of the run's groups that has a weekly session, as the chart draws it. */

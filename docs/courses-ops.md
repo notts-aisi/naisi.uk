@@ -3187,9 +3187,10 @@ who applied to the run itself), nothing painted, a full session, or a session
 in their times whose part of the day their week does not say (somebody who
 marked little time). In a view-as session it is not read. It changes neither
 the order of the list nor what can be chosen. The staff page for arranging a
-visit has no such line: that page also serves the programme's lead, who is
-shown a person's week on that person's page alone (see "A person's page, for
-the team").
+visit has no such line: it lists the sessions on offer, and staff read a
+person's week wherever they may read that person's application (its review
+page, and the screens that ask the one gated read, `personWeekFor`; see "A
+person's page, for the team").
 
 **What the person sees.** On the card (Home and the programme page): "Go to
 another session this week" for the week offered; while it waits, the request

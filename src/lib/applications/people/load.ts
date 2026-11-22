@@ -16,7 +16,7 @@ import type { ApplicationDoc, DecisionDoc, ProgrammeSettings } from "../model";
 import type { ApplicationForm } from "../normalise";
 import { isId } from "../normalise";
 import { loadForm } from "../repo";
-import { listDecisions, listSentApplications } from "../staffRepo";
+import { listDecisions, listDecisionsOnce, listSentApplications, listSentApplicationsOnce } from "../staffRepo";
 import { programmePeople, type PeopleGroup, type PeopleModel, type PeopleSeat } from "./model";
 import type { PeopleView } from "./views";
 import { placesSentence } from "./words";
@@ -243,12 +243,48 @@ export async function countPlaceHolders(
   programmeId: string,
 ): Promise<number | null> {
   if (form.decisionsSentAt === null) return null;
+  // Read once for the page this count heads: the Attendance tab asks the same applications and decisions (`peopleRowUidsOf`).
   const [applications, decisions] = await Promise.all([
-    listSentApplications(db, form),
-    listDecisions(db, form.round.id),
+    listSentApplicationsOnce(db, form),
+    listDecisionsOnce(db, form.round.id),
   ]);
   // Counted from the people in the term, like every other count of places.
   return placeHoldersOn(form, programmeId, applications.filter(isInTerm), decisions).length;
+}
+
+/**
+ * WHOSE PAGE ON THE PROGRAMME WOULD OPEN FOR THIS READER: the uids of the
+ * People tab's rows, by the tab's own model (`programmePeople`), which decides
+ * who is a row from the applications and decisions alone, so neither the run,
+ * its groups nor its seats are read for it. For a screen that links a name to
+ * the person's page only where that page would open (the Attendance tab). The
+ * applications and decisions are the page's one shared read
+ * (`listSentApplicationsOnce`, `listDecisionsOnce`), which the programme's
+ * head has already made for its count. Empty for anybody but an admin and
+ * the programme's lead, and until decisions have gone out.
+ */
+export async function peopleRowUidsOf(
+  db: Firestore,
+  actor: SessionUser,
+  form: ApplicationForm,
+  programmeId: string,
+): Promise<Set<string>> {
+  const programme = own(form.programmes, programmeId);
+  if (!programme || form.decisionsSentAt === null) return new Set();
+  if (!opensProgrammeGroups(roleOnProgramme(actor, form, programmeId))) return new Set();
+  const [applications, decisions] = await Promise.all([listSentApplicationsOnce(db, form), listDecisionsOnce(db, form.round.id)]);
+  const model = programmePeople({
+    form,
+    programmeId: programme.id,
+    applications,
+    decisions,
+    viewer: { uid: actor.uid, canRead: (ranked, joined) => canReadApplication(actor, form, ranked, joined) },
+    groups: [],
+    seats: new Map(),
+    programmePath: "",
+    runNamed: false,
+  });
+  return new Set(model.rows.map((row) => row.uid));
 }
 
 /**

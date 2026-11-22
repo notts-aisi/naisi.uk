@@ -380,8 +380,10 @@ describe("4. the Attendance tab is handed the run's grid, worked out on the serv
     // and (since the week page's shared notes) the notes each group shares on
     // its week pages, both of which the lead reads under the grid, and
     // (since every name opens the person's page, 22 Nov 2026) the form's sent
-    // applications and decisions, read by the People tab's own loader to say
-    // whose page would open for the reader: nothing else.
+    // applications and decisions, the one read the programme's head already
+    // makes for its count (shared within a page's render), asked by the People
+    // tab's own model whose page would open for the reader: nothing else. No
+    // run, group or seat is read again for it.
     assert.deepEqual([...new Set(drawn.reads)].sort(), [
       "admissionApplications",
       "admissionDecisions",

@@ -11,7 +11,8 @@ import { firstQuestionHref } from "@/lib/courses/coursework/forwards";
 import { loadWrittenQueues } from "@/lib/courses/writtenAnswers/queue";
 import { compareGroupsByMeeting } from "@/lib/firestore/courseGroups";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
-import { loadProgrammePeople } from "@/lib/applications/people/load";
+import { peopleRowUidsOf } from "@/lib/applications/people/load";
+import { loadForm } from "@/lib/applications/repo";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { leadNotesHeading, notesWhoLine } from "@/lib/courses/facilitatorPageWords";
 import { readRunGroupNotes } from "@/lib/courses/groupNotes/readers";
@@ -33,8 +34,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * admin everybody placed. Nothing here marks anything.
  *
  * EACH NAME OPENS THE PERSON'S PAGE on the programme, where that page would
- * open for this reader: the rows of their People tab (`loadProgrammePeople`,
- * the page's own test). Any other name (somebody placed on the run with no
+ * open for this reader: the rows of their People tab (`peopleRowUidsOf`, the
+ * tab's own model over the applications and decisions the programme's head
+ * has already read for its count; no run, group or seat is read for it). Any other name (somebody placed on the run with no
  * application on the form behind it, a facilitator among them) stays words.
  *
  * `?group=<id>` opens the tab on one group: the Overview's "See it" links
@@ -88,10 +90,12 @@ export default async function ProgrammeAttendancePage({
   const [notes, programme, people] = await Promise.all([
     readRunGroupNotes(db, view.run.id, user),
     runProgrammeOf(db, view.run.id),
-    // Whose name opens their page on the programme: the rows of this reader's People tab, the page's own test.
-    loadProgrammePeople(db, user, view.roundId, view.programmeId),
+    // Whose name opens their page on the programme: the rows of this reader's People tab, the page's own test, from
+    // the applications and decisions the programme's head has already read for its count.
+    loadForm(db, view.roundId).then((form) => (form ? peopleRowUidsOf(db, user, form, view.programmeId) : new Set<string>())),
   ]);
-  const personHrefs = people.status === "ok" ? Object.fromEntries(people.view.rows.map((row) => [row.uid, row.personHref])) : {};
+  const personPath = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/people`;
+  const personHrefs = Object.fromEntries([...people].map((uid) => [uid, `${personPath}/${encodeURIComponent(uid)}`]));
   // Who reads the notes, as the line under each card says it: "you" to the
   // lead, the lead by first name to an admin.
   const lead =

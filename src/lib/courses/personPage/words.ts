@@ -91,6 +91,9 @@ export function groupAndTimeWords(group: string, when: string | null): string {
   return when ? `${group}, ${when}` : group;
 }
 
+/** "told", after the group, where they were told about it and the records hold no day for that (a staff move's own email). */
+export const TOLD = "told";
+
 /** "told on Fri 30 Oct", after the group: the day Publish's email about it went. */
 export function toldOnWords(at: Date): string {
   return `told on ${londonDayLabel(at)}`;
