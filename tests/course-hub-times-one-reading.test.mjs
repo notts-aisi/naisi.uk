@@ -160,23 +160,79 @@ describe("readers that say a person's own times back to them", () => {
 });
 
 /**
- * WHO HANDS A PERSON'S MARKED STRETCHES TO A STAFF SCREEN. The week itself
- * (each stretch somebody marked, `markedRanges`) is what a chart draws, and
- * it is shown only where its file's gate says. Every file that reads it is
- * listed with that gate, checked both ways, so a second reader cannot appear
- * unnoticed. A programme's lead is shown a person's week only through the one
- * gated read (`personWeekFor`), which asks the application's own rule
- * (`canReadApplication`) before it reads anything of the week.
+ * EVERY FILE THAT TURNS A MARKED WEEK INTO SOMETHING A SCREEN DRAWS, and who
+ * it is for. A week is stored as hex strings (`AvailabilityMask`), so
+ * anything that shows it, or a stretch, an hour, a fit or a word made from
+ * it, either calls one of the codec's readers of a mask (`DECODERS`, in
+ * `src/lib/admissions/availability.ts`) or calls a function listed in
+ * `DERIVED`, which hands back something made from one. Both lists are held
+ * to the source (every exported reader of a mask in the codec is named, and
+ * every derived reader is where it says and reads a week), and every file
+ * that calls either is listed in `WEEK_READERS` with who it serves and the
+ * gate it stands behind, checked both ways. So a new screen that draws a
+ * week, the application's own review page included, fails here until it is
+ * listed with its gate.
+ *
+ * WHO MAY SEE A PERSON'S WEEK on the staff side is who may read their
+ * application (`canReadApplication`): the review page asks it through
+ * `loadReview`, and any other staff screen through the one gated read
+ * (`personWeekFor`). What this cannot see is a file that decodes the hex
+ * strings by hand without the codec: the codec's own comment says nothing
+ * else reads a week out, and a review catches one that tries.
  */
-const STRETCH_READERS = {
-  "src/lib/applications/arrange/load.ts":
-    "Circles and an arrangement's preview, which loadCircles and the arrangement route open for an admin alone (canRunTerm), before anybody is read",
-  "src/lib/courses/facilitatorAsks/people.ts":
-    "the chart beside an ask to facilitate, which the Facilitators view leaves out for anybody but an admin, and which is never sent to Claude",
-  "src/lib/courses/placementNotes/section.ts":
-    "Outside the times they gave, on Publish's page: the week drawn for an admin alone beside their group's session while a note is written; a lead is sent no week there",
-  "src/lib/applications/people/week.ts":
-    "the one gated read of a person's week for a staff page (a person's page under a programme): the week only where canReadApplication admits the reader, and otherwise nothing derived from it",
+const DECODERS = ["decodeMask", "markedRanges", "fromFirstMark", "firstMarkedMinutes", "markedMinutes", "maskCoversSession", "markedSlotCount"];
+
+/** The codec's exports that take a mask and are not readers of what was marked, and why. */
+const NOT_DECODERS = {
+  encodeMask: "writes a mask from a drawn grid: the applicant's own form, never a reader",
+};
+
+/** Functions that hand back something made from a marked week, by name, and the file that defines each. */
+const DERIVED = {
+  availabilityViewFor: "src/lib/applications/review/availabilityView.ts",
+  availabilityHistory: "src/lib/applications/review/earlier.ts",
+  buildReview: "src/lib/applications/review/detail.ts",
+  freeInWords: "src/lib/applications/freedPlaces/words.ts",
+  freeOnInTheirWeek: "src/lib/applications/freedPlaces/words.ts",
+  paintedWeekOf: "src/lib/applications/handover/paintedWeek.ts",
+  personWeekFor: "src/lib/applications/people/week.ts",
+  whyOfferedFor: "src/lib/applications/handover/whyOffered.ts",
+  maskToColumns: "src/features/admissions/availabilityModel.ts",
+};
+
+/** Every file that calls a decoder or a derived reader, with who it serves and the gate it stands behind. */
+const WEEK_READERS = {
+  // The person's own week, back to them.
+  "src/features/admissions/availabilityModel.ts": "the applicant's own grid on the form: their own week, drawn back to them as they paint it",
+  "src/features/admissions/ApplyFlow.tsx": "the older rounds' application form: the applicant's own week, drawn back to them",
+  "src/features/applications/apply/ApplicationForm.tsx": "the application form: the applicant's own week, drawn back to them as they paint it",
+  "src/features/applications/status/WhenYoureFree.tsx": "the person's own application page: their own week, read only",
+  "src/features/applications/status/WhenYoureFreeEditor.tsx": "the person's own application page: changing their own week once they hold a place",
+  "src/lib/applications/handover/whyOffered.ts": "the \"Why:\" line under each session offered to a person on their own form to change session or group: their own week, in words",
+  "src/lib/courses/moveRequest/own.ts": "a person's own form to change group for good: whyOfferedFor about their own week",
+  "src/lib/courses/visitRequest/own.ts": "a person's own form for another session this week: whyOfferedFor about their own week",
+  // Older rounds.
+  "src/lib/admissions/appointmentQueue.ts":
+    "the older appointment rounds' own queue, which counts the slots painted on a round of the older kind; it reads no application made on the form",
+  // The application's own review page: who may read the application.
+  "src/lib/applications/review/availabilityView.ts": "the review page's drawing of a week, handed only what loadReview may show",
+  "src/lib/applications/review/earlier.ts": "the review page's earlier versions of a week, handed only what loadReview may show",
+  "src/lib/applications/review/detail.ts": "the review page's payload (buildReview), whose one caller is loadReview",
+  "src/lib/applications/review/load.ts": "the review page's loader (loadReview), which asks canReadApplication before it builds anything",
+  // The one reading of a week as fits, and the screens of the programme's team.
+  "src/lib/applications/handover/paintedWeek.ts": "the one reading the course side asks: a predicate and the first marks, never the week",
+  "src/lib/applications/handover/board.ts": "the allocation board's fit marks, for the rows rowIsServedTo serves (an admin, and the lead whose programme's hand-over wrote them)",
+  "src/lib/applications/handover/timesLoad.ts": "the times picture on a programme's Groups tab: counts of who can make each start time, never a person's week",
+  "src/lib/applications/people/model.ts": "the People tab's fit marks, for rows of people whose application the reader may read (canReadApplication)",
+  "src/lib/applications/people/week.ts": "the one gated read of a person's week for a staff screen: canReadApplication first, and otherwise nothing derived from the week",
+  "src/lib/courses/personPage/load.ts": "a person's page for the team: When they're free through personWeekFor alone",
+  "src/lib/applications/arrange/load.ts": "Circles and an arrangement's preview, which loadCircles and the arrangement route open for an admin alone (canRunTerm)",
+  "src/lib/courses/facilitatorAsks/people.ts": "the chart beside an ask to facilitate, which the Facilitators view leaves out for anybody but an admin, and never sends to Claude",
+  "src/lib/courses/placementNotes/section.ts": "Outside the times they gave, on Publish's page: the week drawn for an admin alone; a lead is sent no week there",
+  "src/lib/applications/freedPlaces/words.ts": "a freed place's words about a person's week (\"Free Wed afternoons\"), for the freed places page and the offer's email",
+  "src/lib/applications/freedPlaces/groups.ts": "which of the run's groups a person on the freed places page can make, for the page offersFreedPlaces opens (an admin and the lead)",
+  "src/lib/applications/freedPlaces/load.ts": "the freed places page, which offersFreedPlaces opens for an admin and the lead alone, about people who ranked the programme",
+  "src/lib/applications/freedPlaces/offer.ts": "the freed place offer's email to the person themselves: the part of their own week the session falls in",
 };
 
 /** Who asks the one gated read, and why. */
@@ -184,22 +240,42 @@ const GATED_READ_CALLERS = {
   "src/lib/courses/personPage/load.ts": "a person's page for the team: When they're free, never about the reader themselves",
 };
 
-describe("who hands a person's marked stretches to a staff screen", () => {
-  const STRETCHES = /\bmarkedRanges\s*\(/;
+describe("every file that turns a marked week into something a screen draws", () => {
+  const callsAny = (code, names) => names.some((name) => new RegExp(`(?<![A-Za-z0-9_$.])${name}\\s*\\(`).test(code));
+  const names = [...DECODERS, ...Object.keys(DERIVED)];
   const readers = [...walkSource(SRC)]
     .map(repoPath)
-    .filter((file) => file !== DEFINES && STRETCHES.test(codeOf(file)))
+    .filter((file) => file !== DEFINES && callsAny(codeOf(file), names))
     .sort();
 
-  test("every file that reads the stretches is listed with its gate, and every listed file reads them", () => {
+  test("the codec's readers of a mask are all named, and each one is there", () => {
+    const codec = codeOf(DEFINES);
+    const exported = [...codec.matchAll(/export function (\w+)\s*\(([^)]*)\)/g)]
+      .filter((match) => /\bmask\s*:|\bdays\s*:/.test(match[2]))
+      .map((match) => match[1])
+      .sort();
+    assert.deepEqual(exported, [...DECODERS, ...Object.keys(NOT_DECODERS)].sort(), "the codec has a new export that takes a mask: is it a reader of what was marked?");
+    for (const [name, why] of Object.entries(NOT_DECODERS)) assert.ok(why.length > 30, `${name} needs its reason written down`);
+  });
+
+  test("each derived reader is defined where it says, and reads a marked week", () => {
+    for (const [name, file] of Object.entries(DERIVED)) {
+      const code = codeOf(file);
+      assert.match(code, new RegExp(`export (?:async )?function ${name}\\s*\\(`), `${name} is not exported from ${file}`);
+      assert.ok(callsAny(code, names.filter((other) => other !== name)), `${file} defines ${name} and reads no week: drop it from DERIVED`);
+    }
+  });
+
+  test("every file that reads a marked week is listed with who it serves and its gate, and every listed file reads one", () => {
+    assert.ok(readers.includes("src/lib/applications/review/load.ts"), "the walk found no review page: has the tree moved?");
     assert.deepEqual(
       readers,
-      Object.keys(STRETCH_READERS).sort(),
-      "a file reads the stretches somebody marked and is not on the list. A screen that shows a person's week to " +
-        "anybody but an admin asks personWeekFor in src/lib/applications/people/week.ts, which asks canReadApplication " +
-        "first; anything else goes on the list with the gate it stands behind.",
+      Object.keys(WEEK_READERS).sort(),
+      "a file reads a marked week, or something made from one, and is not on the list, or a listed file no longer does. " +
+        "A staff screen that shows a person's week asks personWeekFor in src/lib/applications/people/week.ts, which asks " +
+        "canReadApplication first; anything else goes on the list with who it serves and the gate it stands behind.",
     );
-    for (const [file, why] of Object.entries(STRETCH_READERS)) assert.ok(why.length > 40, `${file} needs its reason written down`);
+    for (const [file, why] of Object.entries(WEEK_READERS)) assert.ok(why.length > 40, `${file} needs its reason written down`);
   });
 
   test("the one gated read asks who may read the application before it reads anything of the week", () => {
@@ -227,7 +303,9 @@ describe("who hands a person's marked stretches to a staff screen", () => {
     for (const [file, why] of Object.entries(GATED_READ_CALLERS)) {
       assert.ok(why.length > 30, `${file} needs its reason written down`);
       const code = codeOf(file);
-      assert.ok(!/\bmarkedRanges\s*\(|\bpaintedWeekOf\s*\(|\bfromFirstMark\s*\(|\.availability\b/.test(code), `${file} reads a week itself`);
+      // No reader of a week but the gated one: no decoder, no derived reader, and no mask read off an application.
+      assert.ok(!callsAny(code, names.filter((name) => name !== "personWeekFor")), `${file} reads a week itself`);
+      assert.ok(!/\.availability\b/.test(code), `${file} reads a mask off an application`);
     }
   });
 });
