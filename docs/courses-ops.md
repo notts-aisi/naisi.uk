@@ -2068,10 +2068,9 @@ until somebody destroys it. Naming a run already made is unchanged.
 
 **Somebody who gave their place back.** See "A place given back" in
 docs/applications.md: "Take Rahul off the run…" opens the take-off sheet,
-which says who is emailed and counts them on its button, and closes their
-row on the run's list in the same act. Nothing opens a closed row again, so
-they can't be put back on this run afterwards, and the sheet says so; one
-switch leaves the row open instead.
+which says who is emailed and counts them on its button. Their row on the
+run's list stays open, so staff can put them back through the board. One
+switch, off, would close the row in the same act instead.
 
 **The older roles.** When the run names anybody as a track lead
 (`trackLeadUids`) or a run facilitator (`runFacilitatorUids`) on the older
@@ -7315,9 +7314,9 @@ to that week's session (Changing a session), which tells the group.
 
 The page's calendar is the run's own: an incubator that meets for seven
 weeks this term and three in February has a week plan of weeks 1 to 7,
-seven breaks and weeks 8 to 10 (the run editor's week plan; an admin can
-add breaks and weeks at the end of a running run until the run's groups have
-gone out, when the plan becomes read only). "The weeks" splits the
+seven breaks and weeks 8 to 10 (the week plan on the programme's Weeks
+tab; an admin can add breaks and weeks at the end of a running run until the
+run's groups have gone out, when the plan becomes read only). "The weeks" splits the
 taught weeks at the breaks and says where this term ends and when the next
 meets.
 

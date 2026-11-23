@@ -46,11 +46,11 @@ export function madeWords(label: string): string {
 
 export const GAVE_BACK_TITLE = "No longer hold a place";
 
-/** Under the list, when the take-off closes the row (`COURSE_RUN_CLOSES_THE_ROW`). The take-off sheet says who is emailed. */
+/** Under the list, were the take-off to close the row (`COURSE_RUN_CLOSES_THE_ROW`, set to false). The take-off sheet says who is emailed. */
 export const GAVE_BACK_NOTE =
   "They gave their place back after they were handed over. Take them off the run here: their seat is freed and their row on the run’s list is closed.";
 
-/** The same, when the take-off leaves the row open. */
+/** The same, when the take-off leaves the row open: what the list says. */
 export const GAVE_BACK_NOTE_ROW_OPEN = "They gave their place back after they were handed over. Take them off the run here: their seat is freed.";
 
 /** The note under the list, as the switch says. */

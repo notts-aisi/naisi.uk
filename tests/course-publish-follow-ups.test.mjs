@@ -94,6 +94,7 @@ const { registerRemindersJob } = await w.loadTs(join("lib", "scheduler", "jobs",
 const { default: RunHandOver } = await w.loadTs(join("features", "applications", "editor", "RunHandOver.tsx"));
 const panelWords = await w.loadTs(join("features", "applications", "editor", "runHandOverWords.ts"));
 const carefulWords = await w.loadTs(join("lib", "courses", "runCareful", "words.ts"));
+const carefulOptions = await w.loadTs(join("lib", "courses", "runCareful", "options.ts"));
 
 const CALLERS = [
   ["an admin", "zach"],
@@ -507,7 +508,7 @@ describe("6. the hand-over panel lists who left and who was taken off apart from
     assert.ok(text.includes(`Left the programme (1) Sam Whitfield ${panelWords.LEFT_NOTE}`), text);
     assert.ok(text.includes(`Taken off the programme (1) Omar Haddad ${panelWords.TAKEN_OFF_NOTE}`), text);
     // Everybody else who no longer holds a place is listed with Course run's way to take them off.
-    assert.equal(text.split(carefulWords.gaveBackNote(true)).length - 1, panel.gaveBack.length > 0 ? 1 : 0);
+    assert.equal(text.split(carefulWords.gaveBackNote(carefulOptions.COURSE_RUN_CLOSES_THE_ROW)).length - 1, panel.gaveBack.length > 0 ? 1 : 0);
     assert.ok(!text.includes("Remove them from their group on the board"), text);
   });
 

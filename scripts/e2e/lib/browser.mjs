@@ -693,6 +693,38 @@ export async function acceptReConsentIfAsked(
 }
 
 /**
+ * Which state the Join requests page (src/app/(app)/admin/(admin-only)/page.tsx)
+ * is drawing at this moment, from what the page itself draws, read once and
+ * never waited for: so a timeout above names itself the next time it happens.
+ * States and the page's own error message only, never a card's text, a name
+ * or an address, because these logs are public. It only describes: no retry,
+ * no reload, no longer wait.
+ */
+async function joinRequestsState(page) {
+  try {
+    const path = new URL(page.url()).pathname;
+    if (path !== "/admin") return `The page was not on Join requests: it ended on ${path}`;
+    const seen = [];
+    const failed = page.getByText("Couldn't load the join requests:", { exact: false });
+    if ((await failed.count()) > 0) {
+      const text = ((await failed.first().textContent()) ?? "").replace(/\s+/g, " ").trim();
+      const message = text.replace(/^Couldn't load the join requests:\s*/, "").slice(0, 300);
+      seen.push(`failed ("Couldn't load the join requests: ${message}")`);
+    }
+    if ((await page.getByText("Loading join requests…", { exact: true }).count()) > 0) {
+      seen.push('still loading ("Loading join requests…")');
+    }
+    if ((await page.getByRole("heading", { name: "Nobody is waiting", exact: true }).count()) > 0) {
+      seen.push('empty ("Nobody is waiting")');
+    }
+    if (seen.length === 0) return "Join requests drew none of its states (loading, failed or empty)";
+    return `Join requests was ${seen.join(" and ")}`;
+  } catch (err) {
+    return `Join requests' state could not be read (${err.message})`;
+  }
+}
+
+/**
  * Approves one waiting applicant through the real Approvals page, as whichever
  * admin is already signed in on this page.
  *
@@ -726,11 +758,11 @@ export async function approvePendingApplicant(page, origin, { email }) {
     .getByTestId("approval-card")
     .first()
     .waitFor({ timeout: WAIT_MS })
-    .catch((err) => {
+    .catch(async (err) => {
       throw new Error(
         `no approval cards appeared on ${origin}/admin within ${WAIT_MS}ms. Either ` +
           `${email} is not waiting for approval, or the signed-in account is not an ` +
-          `admin and the page redirected. ${err.message}`,
+          `admin and the page redirected. ${await joinRequestsState(page)}. ${err.message}`,
       );
     });
   // Ten presses is two hundred applications, which is more than a queue ever
