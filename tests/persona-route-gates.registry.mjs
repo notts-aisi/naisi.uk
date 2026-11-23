@@ -5757,16 +5757,20 @@ export const PAGES = {
   "/(app)/admin/courses": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, draftCourse: 200, approveCourse: 200 }),
     why:
-      "The course authoring tree: requireCourseAuthorPage admits admins and draftCourse and " +
-      "approveCourse holders and sends everyone else to the dashboard; a missing course or " +
-      "run renders the tree's own not-found state.",
+      "The Courses list: the course authoring tree's gate, requireCourseAuthorPage, admits admins and " +
+      "draftCourse and approveCourse holders and sends everyone else to the dashboard, a programme's " +
+      "lead with no course permission included. The page reads nothing on the server; its reads are " +
+      "client-direct, under the rules.",
   },
   "/(app)/admin/courses/[courseId]": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, draftCourse: 200, approveCourse: 200 }),
     why:
-      "The course authoring tree: requireCourseAuthorPage admits admins and draftCourse and " +
-      "approveCourse holders and sends everyone else to the dashboard; a missing course or " +
-      "run renders the tree's own not-found state.",
+      "A course's own page: requireCourseAuthorPage, in the tree's layout and again on the page, admits " +
+      "admins and draftCourse and approveCourse holders and sends everyone else to the dashboard, a " +
+      "programme's lead with no course permission included. For those admitted the page reads, on the " +
+      "server, which programme names each run of the course (readRunProgrammes) and offers a " +
+      "programme's Overview only to a reader it opens for; a course that is not there renders the " +
+      "page's own not-found state with a 200.",
   },
   "/(app)/admin/courses/[courseId]/facilitator-guide": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),

@@ -13,7 +13,7 @@ import {
   DestroyDialog,
   InterruptedBanner,
   UnfinishedNotice,
-} from "./RunDangerZone";
+} from "./DangerZoneParts";
 // Two stylesheets, deliberately. `shared` is the danger-zone vocabulary the
 // run zone owns and this surface renders verbatim — one set of rules for one
 // set of components, so the two confirmations cannot drift visually. `styles`

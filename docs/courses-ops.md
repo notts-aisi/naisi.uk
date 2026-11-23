@@ -1079,7 +1079,7 @@ run.** `collaboratorUids` lives on the COURSE document; a run carries only
 parent course from inside a read rule, which is billed once per candidate
 document on a list and is the pattern the rest of `firestore.rules` refuses.
 Nothing loses a surface today: every client-side reader of a run document
-(`RunEditor`, `WeekEditor`, `AdminCourseList`) sits under `/admin/courses`,
+(`RunEditor`, `WeekEditor`, `CoursesList`) sits under `/admin/courses`,
 whose gate is admin OR `draftCourse` OR `approveCourse`, so a permissionless
 collaborator cannot reach any of them anyway. If that changes, denormalise the
 roster onto the run as a server-pinned array rather than adding the `get()`.
@@ -1089,7 +1089,7 @@ caller with no course permission.** Firestore judges a list on the query's
 potential result set, not on the rows that come back, so an unfiltered query
 is refused even when every stored document happens to be published. This is
 fine today because no such list is issued: `useCourses()` and
-`AdminCourseList` both run inside `/admin/courses`, and every public and
+`CoursesList` both run inside `/admin/courses`, and every public and
 learner surface reads through the Admin SDK fetchers in
 `src/features/courses`, which bypass rules. A future member-facing list must
 constrain on status, and the constraint DIFFERS by collection because the two
@@ -2645,20 +2645,75 @@ refusing an archived group, and holds that nothing else in `src` or
 question, the archived page and the facilitator's sentence;
 `scripts/rules-tests/tests/course-group-archived.test.mjs` holds the pins.
 
+## The Courses list and a course's own page
+
+The menu's Courses entry opens `/admin/courses`, and a course opens
+`/admin/courses/[courseId]`. Both are newer pages now, at the addresses they
+always had, behind the same gate (`requireCourseAuthorPage()`: admin,
+`draftCourse` or `approveCourse`; a programme's lead with no course
+permission is sent to the dashboard), and closed during a view-as session
+with the rest of the admin area. They draw their own heads (the Courses
+entry's `ownHeadAt` in `src/layout/appNav.ts`); the older pages beneath a
+course keep the shared head. Their words are in
+`src/lib/courses/coursePage/words.ts`, and `tests/course-pages-redrawn.test.mjs`
+holds them as every kind of reader. Nothing here emails anybody, and nothing
+new is stored.
+
+**The Courses list** (`CoursesList.tsx`) says what a course is, offers New
+course to an admin or a `draftCourse` holder (the rule a course is created
+under; an approver alone, whose create the rule refuses, is no longer
+offered it), and lists the courses in a table: track, status, level, weekly
+hours ("Up to 5"), and each live run with its stage in Course run's words
+("Autumn 2026, running · Spring 2027, draft"). Archived courses fold at the
+foot. A course's row opens its page; no run is opened from the list. It
+reads what it always read, client-direct: every course, and every run in one
+unfiltered query.
+
+**A course's page** (`CourseEditor.tsx`) has the head (the course's name, its
+status, and its track, level and hours), a strip of its sections down the
+side, then Course details (Save changes and Revert), Public page (Edit the
+public page, to today's public page editor), Runs, and the course's other
+cards as they were: Crest, Rubric for written answers, Routes and deadlines,
+Sealed predictions, Facilitator guide (an admin's), Publishing, Archive and
+the danger zone. Every card reads and writes exactly as before: the course
+and its runs client-direct, the details, credit, introduction and Archive by
+a client write under the rules, the crest, rubric, routes, predictions,
+publish and destroy through their own routes.
+
+**Runs** says each run's stage and the programme that names it ("Running ·
+named on AGI Strategy, Autumn 2026"), read by the page on the server
+(`readRunProgrammes` in `src/lib/courses/coursePage/runProgrammes.ts`: the
+forms once, then `namingProgrammeIn` for each run, the answer
+`readNamingProgramme` gives). "Open the programme" goes to that programme's
+Overview, offered only to a reader the Overview opens for (the admissions
+tree's page gate, then an admin or the programme's lead). Anybody else on
+the page (a course drafter or approver who does not lead it) gets "Open the
+run", to the run's older page, until the older run pages are forwarded. A
+run no programme names (a run people join without applying is one, since no
+programme can name it) says so, and "Open the run" takes it to its older run
+page, which stays for such runs; so does every run when the server read
+fails. Archived runs fold under the live ones with the same row. There is no
+New run: "A run is made, changed and closed on its programme’s Settings,
+under Course run." So a course no programme is tied to cannot get a new run
+anywhere on the site, and no new run that people join without applying can
+be made.
+
 ## The older course editor, while it is retired
 
-The older course editor (`/admin/courses/**`: the list of courses, a course,
-a run, a run's week, its applications, its allocation board and its
-retrospective) is being retired: its jobs move, one at a time, to each
-programme's own pages. Until the last has moved it stays, with its risky
-controls held by checks or turned into words. Nothing here emails anybody,
-and nothing a member, a facilitator or a scheduled job reads has changed.
+The older course editor (`/admin/courses/**` beneath a course: a run, a
+run's week, its applications, its allocation board and its retrospective,
+and the public page editor and the facilitator guide's loader) is being
+retired: its jobs move, one at a time, to each programme's own pages. Until
+the last has moved it stays, with its risky controls held by checks or
+turned into words. Nothing here emails anybody, and nothing a member, a
+facilitator or a scheduled job reads has changed.
 
 **The line at the top of every older page.** "This editor is being retired.
 Groups, weeks and the run’s settings are on each programme’s own pages now."
 On a run a programme names it carries "Open AGI Strategy" (the programme's
 short name), to that programme's Overview. Rendered by the run's own layout
-for a run's pages and by each other page, and held by
+for a run's pages and by each other page except the Courses list and a
+course's page, which are newer pages, and held by
 `tests/older-editor-doors.test.mjs`.
 
 **A group's card on a run a programme names.** The name, the capacity, the
@@ -2739,7 +2794,12 @@ the Weeks tab. Left for a later step, each listed with why in
 run editor", the copy page's "Open the run's editor", Course run's link to
 the run's own applications list, Certificates' "Change it on the course",
 the menu's Courses entry, and a facilitator's week editor on a run no
-programme names. A new door fails that test.
+programme names. The Courses list and a course's page are newer files, so
+their links are doors too: a course's page from the list, the list from a
+course's page and after a destroy, Edit the public page, Load the
+facilitator guide, and Open the run (on a run no programme names, and for a
+reader the programme's Overview does not open for). A new door fails that
+test.
 
 **Deploying.** The two rule changes go out with the code: to the staging
 project after the merge, and to production only with the promotion that

@@ -52,11 +52,11 @@ const SRC = join(REPO_ROOT, "src");
 const ALLOWED = new Map([
   [
     "src/features/courses/useAdminCourses.ts",
-    "useCourses() lists `courses` unfiltered and useCourseRuns() lists `courseRuns` by courseId. Mounted only by AdminCourseList, CourseEditor and CoursePageEditor, all under /admin/courses, whose gate is admin OR draftCourse OR approveCourse. All three satisfy a resource-independent clause in the read rule, so the whole list passes.",
+    "useCourses() lists `courses` unfiltered and useCourseRuns() lists `courseRuns` by courseId. Mounted only by CoursesList, CourseEditor and CoursePageEditor, all under /admin/courses, whose gate is admin OR draftCourse OR approveCourse. All three satisfy a resource-independent clause in the read rule, so the whole list passes.",
   ],
   [
-    "src/features/courses/AdminCourseList.tsx",
-    "One unfiltered `courseRuns` list for the whole page, to label each course row. Same /admin/courses gate.",
+    "src/features/courses/CoursesList.tsx",
+    "One unfiltered `courseRuns` list for the whole Courses list, to name each course's runs in its row. Same /admin/courses gate.",
   ],
   [
     "src/features/courses/RunEditor.tsx",

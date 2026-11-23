@@ -1,0 +1,363 @@
+/*
+ * The Courses list and a course's own page, in the newer pages: the list's
+ * table and its fold, and on a course's page the strip of sections down the
+ * side, the column of cards, and the Runs card's rows. Every colour, space
+ * and radius reads a token from src/theme/tokens.css.
+ */
+
+/* --- the head's crumb ---------------------------------------------------- */
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+.crumb:hover {
+  color: var(--color-accent-text);
+}
+.crumb:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* --- the list's table ---------------------------------------------------- */
+
+.tableCard {
+  min-width: 0;
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.tableScroll {
+  position: relative;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.table {
+  width: 100%;
+  min-width: 48rem;
+  border-collapse: collapse;
+  font-size: var(--text-ui, 0.9375rem);
+  color: var(--color-text);
+}
+.table th,
+.table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.table thead th {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  border-bottom-color: var(--color-border-strong);
+}
+.table tbody th {
+  font-weight: 500;
+}
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.nameLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  margin: calc(-1 * var(--space-3)) 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.nameLink:hover {
+  color: var(--color-text);
+}
+.nameLink:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- a fold: archived courses, archived runs ----------------------------- */
+
+.fold {
+  min-width: 0;
+}
+.fold > .tableCard,
+.fold > .runs {
+  margin-top: var(--space-3);
+}
+.foldSummary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  color: var(--color-accent-text);
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+.foldSummary::-webkit-details-marker {
+  display: none;
+}
+/* The fold's own mark: a chevron that points down once it is open. */
+.foldSummary::before {
+  content: "";
+  flex: none;
+  width: 0.45em;
+  height: 0.45em;
+  margin-right: var(--space-2);
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--transition-fast);
+}
+.fold[open] > .foldSummary::before {
+  transform: rotate(45deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .foldSummary::before {
+    transition: none;
+  }
+}
+.foldSummary:hover {
+  color: var(--color-accent-text-hover);
+}
+.foldSummary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* --- a course's page: the strip and the cards ---------------------------- */
+
+.columns {
+  display: grid;
+  grid-template-columns: 13.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-6);
+  min-width: 0;
+}
+.strip {
+  position: sticky;
+  top: var(--space-4);
+  min-width: 0;
+}
+.stripList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stripLink {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text-soft, var(--color-text));
+  font-size: 15px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.stripLink:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+.stripLink:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.stripCurrent {
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+/* Each card is the target of a jump from the strip. */
+.anchor {
+  min-width: 0;
+  scroll-margin-top: var(--space-6);
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Weekly hours: a short number, kept to a short box. */
+.hours {
+  max-width: 14rem;
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.note {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* A way on, drawn as a quiet button: Edit the public page, Open the programme. */
+.action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.action:hover {
+  background: var(--color-surface-hover);
+}
+.action:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* --- the Runs card ------------------------------------------------------- */
+
+.runs {
+  display: flex;
+  flex-direction: column;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.runRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.runRow:last-child {
+  border-bottom: 0;
+}
+.runText {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+.runName {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.runLine {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* --- mobile -------------------------------------------------------------- */
+
+/* Below the large breakpoint the strip is a row above the cards, scrolling
+   inside itself; on a phone the list's rows become small cards. */
+@media (max-width: 60rem) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+  .strip {
+    position: static;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .stripList {
+    flex-direction: row;
+    gap: var(--space-1);
+  }
+}
+
+@media (max-width: 36rem) {
+  .tableCard {
+    padding: var(--space-1) var(--space-4);
+  }
+  .table {
+    min-width: 0;
+  }
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .table,
+  .table tbody,
+  .table tr,
+  .table th,
+  .table td {
+    display: block;
+    width: 100%;
+  }
+  .table tr {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .table tbody tr:last-child {
+    border-bottom: 0;
+  }
+  .table th,
+  .table td {
+    padding: var(--space-1) 0;
+    border-bottom: 0;
+  }
+  .table tbody td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .nameLink {
+    margin: 0;
+  }
+  .action {
+    width: 100%;
+    justify-content: center;
+  }
+}

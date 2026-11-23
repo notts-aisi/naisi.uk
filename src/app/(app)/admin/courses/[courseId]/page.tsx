@@ -1,24 +1,28 @@
 import CourseEditor from "@/features/courses/CourseEditor";
-import OlderEditorLine from "@/features/courses/olderEditor/OlderEditorLine";
+import { readRunProgrammes } from "@/lib/courses/coursePage/runProgrammes";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { requireCourseAuthorPage } from "@/lib/firebase/pageGates";
 
 /**
- * Per-course editor. Route params are Promises in Next 16, so this stays an
+ * A course's own page. Route params are Promises in Next 16, so this stays an
  * async Server Component that awaits them and hands the id to the client
- * editor, the same wrapper shape as `/admin/email-designs/[templateId]`.
- * Access is gated by `courses/layout.tsx` (`requireCourseAuthorPage()`: admin,
- * `draftCourse` or `approveCourse`), not by the `role === "admin"` check the
- * parent `/admin` layout used to be.
+ * page. Access is `courses/layout.tsx`'s (`requireCourseAuthorPage()`: admin,
+ * `draftCourse` or `approveCourse`), asked again here because this page reads
+ * on the server with the reader's session: which programme names each run of
+ * the course, and whether this reader may open that programme's Overview
+ * (`readRunProgrammes`). The cards read and write from the browser, and
+ * through their own routes, as they always have; Firestore rules and those
+ * routes are the boundary on each one.
  */
+export const dynamic = "force-dynamic";
+
 export default async function AdminCourseEditorPage({
   params,
 }: {
   params: Promise<{ courseId: string }>;
 }) {
-  const { courseId } = await params;
-  return (
-    <>
-      <OlderEditorLine programme={null} />
-      <CourseEditor courseId={courseId} />
-    </>
-  );
+  const [{ courseId }, user] = await Promise.all([params, requireCourseAuthorPage()]);
+  const db = getAdminDb();
+  const programmes = db ? await readRunProgrammes(db, user, courseId) : null;
+  return <CourseEditor courseId={courseId} programmes={programmes} />;
 }
