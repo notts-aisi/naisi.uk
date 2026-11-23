@@ -229,9 +229,21 @@ export const POLICIES: Record<
     // and v17's lines under v22's, each with its date. It changes how
     // information is used, so it is told on Home (`toldOnHome`). Told, not
     // asked: `LAST_PRIVACY_VERSION_ASKED` stays 15. Its date is the day it
-    // reaches the site, the same day as v21's: two versions may share a day,
+    // reached the site, the same day as v21's: two versions may share a day,
     // and the newer is the one above it here, so every reader that takes the
-    // first entry (the current version, Home's line) takes v22.
+    // first entry (the current version, Home's line) took v22.
+    //
+    // v23 is being taken off a programme: "Leaving." says that if staff take
+    // somebody off, we record who did it and when (`removedByUid` and
+    // `droppedOutAt`, written by the remove route), and may email them and
+    // their group's facilitators to say their place has ended (the person
+    // whenever their account has an address, the facilitators only once
+    // Publish had told the person their group: `planTakeOff` in
+    // `src/lib/courses/takeOff/plan.ts`). "What's changed" says so, and keeps
+    // v22's, v21's, v20's, v19's, v18's and v17's lines under v23's, each
+    // with its date. It changes how information is used, so it is told on
+    // Home (`toldOnHome`). Told, not asked: `LAST_PRIVACY_VERSION_ASKED`
+    // stays 15. Its date is the day it reaches the site.
     //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
@@ -239,6 +251,7 @@ export const POLICIES: Record<
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 23, lastUpdated: "24 November 2026", toldOnHome: true },
       { version: 22, lastUpdated: "22 November 2026", toldOnHome: true },
       { version: 21, lastUpdated: "22 November 2026", toldOnHome: true },
       { version: 20, lastUpdated: "17 November 2026", toldOnHome: true },

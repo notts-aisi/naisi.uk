@@ -113,7 +113,9 @@ export default async function ReConsentPage() {
             says what it changed. Version 20 adds the AI at Nottingham survey,
             so it adds a line, and version 21 emails everybody a reminder
             before each of their sessions, so it adds one too, as does
-            version 22, which says who opens a message about access needs.
+            version 22, which says who opens a message about access needs,
+            and version 23, which says what we record and who is told when
+            we take somebody off a programme.
             Each clause is held to the current policy's own sentence by
             tests/privacy-policy.test.mjs. */}
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
@@ -205,6 +207,14 @@ export default async function ReConsentPage() {
           explicit consent for anything about health or disability in it. We
           now say that if you go to another group&apos;s session and said
           you&apos;d join it online, that group&apos;s facilitators are told.
+        </p>
+        {/* Version 23's line is the policy's own "What's changed in version
+            23", word for word. */}
+        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
+          <strong style={{ color: "var(--color-text)" }}>What changed in version 23.</strong>{" "}
+          We now say that if we take you off a programme, we record who did it
+          and when, and may email you and your group&apos;s facilitators to say
+          your place has ended.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}
