@@ -4,7 +4,16 @@
  *
  * Run with `npm test`.
  *
- * The current version is v22: v21 with one sentence after "apart from
+ * The current version is v23: v22 with one sentence at the end of
+ * "Leaving." saying that if we take somebody off a programme, we record who
+ * did it and when, and may email them and their group's facilitators to say
+ * their place has ended; and "What's changed in version 23" at the top with
+ * version 22's, 21's, 20's, 19's, 18's and 17's lines kept under it, dated.
+ * Told on Home, not asked. Every other word is v22's, so the sections below
+ * that name v15 to v22 hold v23's text, and the describe for version 23
+ * holds its change to the code.
+ *
+ * v22 is v21 with one sentence after "apart from
  * anything about access needs, which only admins read." saying only admins
  * can open what somebody tells us about the access they need, one message at
  * a time, that each opening is recorded, that explicit consent is the basis
@@ -15,7 +24,7 @@
  * join it online"; and "What's changed in version 22" at the top with
  * version 21's, 20's, 19's, 18's and 17's lines kept under it, dated. Told on
  * Home, not asked. Every other word is v21's, so the sections below that name
- * v15 to v21 hold v22's text, and the describe for version 22 holds its
+ * v15 to v21 held v22's text, and the describe for version 22 holds its
  * changes to the code.
  *
  * v21 is v20 with the paragraph "Reminders." in "Your
@@ -225,15 +234,20 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v22.tsx");
+const CURRENT = read("src/content/legal/privacy/v23.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v22 is the text the site
+ * content check below runs against this, because v23 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v22, frozen: read by the version 22 describe, which proves v22 is v21 with its changes, and by the version 23 describe, which proves v23 is v22 with its one. */
+const V22_FLAT = read("src/content/legal/privacy/v22.tsx").replace(/\s+/g, " ");
+/** "What's changed in version 23", as the page carries it (an apostrophe is `&apos;` in the source). */
+const CHANGED_23 =
+  "We now say that if we take you off a programme, we record who did it and when, and may email you and your group&apos;s facilitators to say your place has ended.";
 /** v21, frozen: read by the version 21 describe, which proves v21 is v20 with its changes, and by the version 22 describe, which proves v22 is v21 with its. */
 const V21_FLAT = read("src/content/legal/privacy/v21.tsx").replace(/\s+/g, " ");
 /** "What's changed in version 22", as the page carries it (an apostrophe is `&apos;` in the source). */
@@ -301,13 +315,17 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v22 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 22);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.22");
+  test("privacy v23 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 23);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.23");
   });
 
-  test("privacy v22 is dated the day its words last changed", () => {
-    // The day v22 reaches the site, as v21's, v20's, v19's, v18's, v17's, v16's and v15's were dated: the same day as v21's.
+  test("privacy v23 is dated the day its words last changed", () => {
+    // The day v23 reaches the site, as v22's, v21's, v20's, v19's, v18's, v17's, v16's and v15's were dated.
+    const twentyThree = POLICIES.privacy.versions.find((v) => v.version === 23);
+    assert.equal(twentyThree?.lastUpdated, "24 November 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 23).length, 1);
+    // v22 reached the site the same day as v21.
     const twentyTwo = POLICIES.privacy.versions.find((v) => v.version === 22);
     assert.equal(twentyTwo?.lastUpdated, "22 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 22).length, 1);
@@ -475,6 +493,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v22",
+    {
+      sha256: "00a95ccd33483aa0a8e54ad88f40cb278b039eac7839ae535e06e4a012d46ecc",
+      why: "who opens a message about access needs, on what basis and that it can be deleted, and a host group's facilitators told that a visitor will join online, current from 22 November 2026 until v23 replaced it; told on Home, not asked, and the wording that did not say what we record or who is told when we take somebody off a programme, frozen when v23 said so rather than editing it in place",
+    },
+  ],
   [
     "privacy/v21",
     {
@@ -9694,10 +9719,10 @@ describe("the re-consent gate", () => {
     // A line on the accept page is for a version that changed how
     // information is used: 15 to 18, 20 and 21, oldest first. Version 19
     // names one more small preference kept in the browser, and its own first
-    // paragraph on the policy said so; versions 20, 21 and 22 keep that line, dated.
+    // paragraph on the policy said so; versions 20, 21, 22 and 23 keep that line, dated.
     const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
     const lines = [...accept.matchAll(/What changed in version (\d+)\.<\/strong>/g)].map((match) => Number(match[1]));
-    assert.deepEqual(lines, [15, 16, 17, 18, 20, 21, 22]);
+    assert.deepEqual(lines, [15, 16, 17, 18, 20, 21, 22, 23]);
     const NINETEEN = "the site keeps one more small preference in your browser: that you dismissed the line saying this policy changed. Nothing about how we use your information has changed.";
     assert.ok(V19_FLAT.includes(`<strong>What&apos;s changed in version 19:</strong> ${NINETEEN}`));
     assert.ok(PAGE_FLAT.includes(`<strong>What changed in version 19, on 13 November 2026:</strong> ${NINETEEN}`));
@@ -9738,20 +9763,38 @@ describe("the re-consent gate", () => {
     assert.ok(!V20_FLAT.includes("What&apos;s changed in version 21"));
   });
 
-  test("the accept page says what version 22 changes, last, after version 21's line, in version 22's own words", () => {
+  test("the accept page says what version 22 changes, after version 21's line, in version 22's own words", () => {
     // Version 22 names explicit consent for a message about access needs and
     // tells a host group's facilitators that a visitor will join online,
-    // changes to how information is used, so the accept page says it last,
-    // before the links. Its line is version 22's own "What's changed in
+    // changes to how information is used, so the accept page says it after
+    // version 21's line. Its line is version 22's own "What's changed in
     // version 22".
     const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
     const twentyOne = accept.indexOf("What changed in version 21.</strong>");
     const twentyTwo = accept.indexOf("What changed in version 22.</strong>");
-    assert.ok(twentyOne !== -1 && twentyTwo > twentyOne && accept.indexOf("Read the full", twentyTwo) > twentyTwo, "the accept page no longer says what version 22 changed, after version 21");
-    const said = accept.slice(twentyTwo, accept.indexOf("Read the full", twentyTwo));
+    const twentyThree = accept.indexOf("What changed in version 23.</strong>");
+    assert.ok(twentyOne !== -1 && twentyTwo > twentyOne && twentyThree > twentyTwo, "the accept page no longer says what version 22 changed, after version 21 and before version 23");
+    const said = accept.slice(twentyTwo, twentyThree);
     assert.ok(said.includes(CHANGED_22), "the accept page's line for version 22 is no longer the policy's own words");
-    assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 22:</strong> ${CHANGED_22} </p>`), "the policy no longer says what changed in version 22, in those words");
+    // Version 22's own "What's changed", and version 23 keeping it under its own, dated.
+    assert.ok(V22_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 22:</strong> ${CHANGED_22} </p>`), "v22 no longer says what changed in version 22, in those words");
+    assert.ok(PAGE_FLAT.includes(`<strong>What changed in version 22, on 22 November 2026:</strong> ${CHANGED_22}`), "the policy no longer keeps what changed in version 22, with its date, in those words");
     assert.ok(!V21_FLAT.includes("What&apos;s changed in version 22"));
+  });
+
+  test("the accept page says what version 23 changes, last, after version 22's line, in version 23's own words", () => {
+    // Version 23 records who took somebody off a programme and may email them
+    // and their group's facilitators, a change to how information is used,
+    // so the accept page says it last, before the links. Its line is version
+    // 23's own "What's changed in version 23".
+    const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
+    const twentyTwo = accept.indexOf("What changed in version 22.</strong>");
+    const twentyThree = accept.indexOf("What changed in version 23.</strong>");
+    assert.ok(twentyTwo !== -1 && twentyThree > twentyTwo && accept.indexOf("Read the full", twentyThree) > twentyThree, "the accept page no longer says what version 23 changed, after version 22");
+    const said = accept.slice(twentyThree, accept.indexOf("Read the full", twentyThree));
+    assert.ok(said.includes(CHANGED_23), "the accept page's line for version 23 is no longer the policy's own words");
+    assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 23:</strong> ${CHANGED_23} </p>`), "the policy no longer says what changed in version 23, in those words");
+    assert.ok(!V22_FLAT.includes("What&apos;s changed in version 23"));
   });
 
   test("is not left behind on the dashboard layout alone", () => {
@@ -12686,13 +12729,15 @@ describe("v22 says who opens a message about access needs and that a host group'
   ];
 
   test("v22 is v21 with these changes and no others", () => {
+    // Read from frozen v22 since v23 replaced it; v23 is v22 with its own
+    // change, held by the version 23 describe.
     let text = bodyOf(V21_FLAT);
     for (const [what, before, after] of V22_CHANGES) {
       assert.equal(text.split(before).length, 2, `v21 does not say, exactly once, what v22 changes (${what}): ${before}`);
-      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v22 still says what it was meant to replace (${what})`);
+      assert.ok(!bodyOf(V22_FLAT).includes(before) || after.includes(before), `v22 still says what it was meant to replace (${what})`);
       text = text.replace(before, after);
     }
-    assert.equal(text, bodyOf(CURRENT_FLAT), "v22 differs from v21 somewhere outside the changes listed here");
+    assert.equal(text, bodyOf(V22_FLAT), "v22 differs from v21 somewhere outside the changes listed here");
   });
 
   test("the new words, each in its place, word for word, and none in v21", () => {
@@ -12772,13 +12817,13 @@ describe("v22 says who opens a message about access needs and that a host group'
   });
 
   test("what changed is at the top, newest first, each earlier version's line under it with its date", () => {
-    const twentyTwo = PAGE_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 22:</strong> ${CHANGED_22} </p>`);
-    const twentyOne = PAGE_FLAT.indexOf(`<strong>What changed in version 21, on 22 November 2026:</strong> ${CHANGED_21}`);
-    const twenty = PAGE_FLAT.indexOf("<strong>What changed in version 20, on 17 November 2026:</strong>");
-    const nineteen = PAGE_FLAT.indexOf("<strong>What changed in version 19, on 13 November 2026:</strong>");
-    const eighteen = PAGE_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
-    const seventeen = PAGE_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
-    assert.ok(twentyTwo !== -1 && twentyTwo < twentyOne && twentyOne < twenty && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < PAGE_FLAT.indexOf('<h2 id="in-short">'));
+    const twentyTwo = V22_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 22:</strong> ${CHANGED_22} </p>`);
+    const twentyOne = V22_FLAT.indexOf(`<strong>What changed in version 21, on 22 November 2026:</strong> ${CHANGED_21}`);
+    const twenty = V22_FLAT.indexOf("<strong>What changed in version 20, on 17 November 2026:</strong>");
+    const nineteen = V22_FLAT.indexOf("<strong>What changed in version 19, on 13 November 2026:</strong>");
+    const eighteen = V22_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
+    const seventeen = V22_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
+    assert.ok(twentyTwo !== -1 && twentyTwo < twentyOne && twentyOne < twenty && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < V22_FLAT.indexOf('<h2 id="in-short">'));
     // Each date is the day that version went live, as the policy list has it.
     assert.equal(POLICIES.privacy.versions.find((v) => v.version === 21)?.lastUpdated, "22 November 2026");
     assert.ok(!V21_FLAT.includes("What&apos;s changed in version 22"));
@@ -12793,6 +12838,116 @@ describe("v22 says who opens a message about access needs and that a host group'
     // It changes how information is used, so Home's one short line says the policy changed, for a week from its date.
     // Dated the day it reaches the site, which is version 21's day too.
     assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 22), { version: 22, lastUpdated: "22 November 2026", toldOnHome: true });
+    // The week, the words and the dismissal are run in tests/policy-update-line.test.mjs.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
+  });
+});
+
+describe("v23 says what we record and who may be emailed when we take somebody off a programme, and keeps v22's, v21's, v20's, v19's, v18's and v17's What's changed under its own; every other word is v22's", () => {
+  /**
+   * A version's file from the end of its notes on: its imports, its contents
+   * list, the address of the services page and its words as served. The
+   * header comment is notes, not policy.
+   */
+  const FIRST_IMPORT = 'import type { ReactNode } from "react";';
+  const bodyOf = (flat) => {
+    assert.equal(flat.split(FIRST_IMPORT).length, 2, "a version file does not open, after its notes, with the import this check starts from");
+    return flat.slice(flat.indexOf(FIRST_IMPORT));
+  };
+  /** The sentence about being taken off, at the end of "Leaving.", word for word as the owner approved it. */
+  const TAKEN_OFF_23 =
+    "If we take you off a programme, we record who did it and when, and we may email you and your group&apos;s facilitators to say your place has ended.";
+  /** The last sentence of v22's "Leaving.", which the new one follows. */
+  const LEAVING_END = "and what you wrote stays in our records for the lead and admins.";
+  /**
+   * EVERY CHANGE v23 MAKES TO v22, as [what, v22's words, v23's words], each
+   * a run of the flattened text. Applied to frozen v22 in turn, each found
+   * exactly once, they give v23 exactly: so nothing else in v22 changed.
+   */
+  const V23_CHANGES = [
+    ["the component's name", "export default function PrivacyContentV22(", "export default function PrivacyContentV23("],
+    [
+      "what changed, at the top, with version 22's line kept under it and dated",
+      `<p id="whats-changed"> <strong>What&apos;s changed in version 22:</strong> ${CHANGED_22} </p>`,
+      `<p id="whats-changed"> <strong>What&apos;s changed in version 23:</strong> ${CHANGED_23} </p> <p> <strong>What changed in version 22, on 22 November 2026:</strong> ${CHANGED_22} </p>`,
+    ],
+    ["what we record and who may be emailed when we take somebody off", `${LEAVING_END} </p>`, `${LEAVING_END} ${TAKEN_OFF_23} </p>`],
+  ];
+
+  const ROUTE = "src/app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts";
+
+  test("v23 is v22 with these changes and no others", () => {
+    let text = bodyOf(V22_FLAT);
+    for (const [what, before, after] of V23_CHANGES) {
+      assert.equal(text.split(before).length, 2, `v22 does not say, exactly once, what v23 changes (${what}): ${before}`);
+      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v23 still says what it was meant to replace (${what})`);
+      text = text.replace(before, after);
+    }
+    assert.equal(text, bodyOf(CURRENT_FLAT), "v23 differs from v22 somewhere outside the changes listed here");
+  });
+
+  test("the new sentence, word for word, last in Leaving, and not in v22", () => {
+    const leaving = hubPassageOf("<strong>Leaving.</strong>");
+    assert.ok(leaving.endsWith(`${LEAVING_END} ${TAKEN_OFF_23} `), "the sentence about being taken off is not the last of Leaving, in those words");
+    const taking = PAGE_FLAT.slice(PAGE_FLAT.indexOf("<h2>Taking part in a programme</h2>"), PAGE_FLAT.indexOf('<section id="your-work"'));
+    assert.ok(taking.includes(TAKEN_OFF_23), "the sentence about being taken off is not in Taking part in a programme");
+    assert.equal(PAGE_FLAT.split(TAKEN_OFF_23).length, 2, "the sentence about being taken off is on the page more than once");
+    assert.ok(!V22_FLAT.includes(TAKEN_OFF_23), "v22 already says it");
+  });
+
+  test("we record who did it and when: the removal itself writes who and when, and the group's History names who", () => {
+    const route = withoutComments(read(ROUTE));
+    const tx = route.indexOf("await db.runTransaction(async (tx) => {");
+    const removed = route.indexOf('status: "removed" satisfies CourseEnrolmentStatus,');
+    const when = route.indexOf("droppedOutAt: FieldValue.serverTimestamp(),", removed);
+    const who = route.indexOf("removedByUid: actor.uid,", removed);
+    assert.ok(tx > -1 && removed > tx && when > removed && who > removed, "taking somebody off no longer records who did it and when, in the write that takes them off");
+    // The group's History, in the same transaction: who took whom off.
+    const history = route.indexOf('kind: "member-taken-off",');
+    assert.ok(history > tx, "the group's History no longer records who took somebody off");
+    assert.match(route.slice(history, route.indexOf("}),", history)), /actor: \{ uid: actor\.uid, displayName: actor\.displayName \?\? "" \},/);
+    // Run end to end in tests/course-take-off.test.mjs.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-take-off.test.mjs")));
+  });
+
+  test("we may email you and your group's facilitators: the person whenever they have an address, the facilitators only once Publish told them their group", () => {
+    const plan = withoutComments(read("src/lib/courses/takeOff/plan.ts"));
+    assert.match(plan, /if \(personEmail\) recipients\.push\(\{ uid: place\.uid, email: personEmail, firstName, as: "person" \}\);/);
+    assert.match(plan, /const facilitators =\s+told && meets\s+\? visitRecipients\(/, "a group's facilitators are emailed before Publish told the person their group, or for a group that no longer meets");
+    const route = withoutComments(read(ROUTE));
+    assert.match(route, /told: placementIsTold\(stored\),/, "the press no longer asks whether Publish told the person their group of the seat its own transaction read");
+    // After the commit, to exactly whom the plan counted.
+    const tx = route.indexOf("await db.runTransaction(async (tx) => {");
+    const send = route.indexOf("const emails = await sendTakeOffEmails(done,");
+    assert.ok(tx > -1 && send > tx, "the emails are sent before the removal commits");
+    const sender = withoutComments(read("src/lib/courses/takeOff/send.ts"));
+    assert.match(sender, /for \(const recipient of plan\.recipients\) \{/);
+    // Their place has ended: the person's email says so.
+    assert.match(read("src/lib/courses/takeOff/words.ts"), /has ended/);
+  });
+
+  test("what changed is at the top, newest first, each earlier version's line under it with its date", () => {
+    const twentyThree = PAGE_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 23:</strong> ${CHANGED_23} </p>`);
+    const twentyTwo = PAGE_FLAT.indexOf(`<strong>What changed in version 22, on 22 November 2026:</strong> ${CHANGED_22}`);
+    const twentyOne = PAGE_FLAT.indexOf(`<strong>What changed in version 21, on 22 November 2026:</strong> ${CHANGED_21}`);
+    const twenty = PAGE_FLAT.indexOf("<strong>What changed in version 20, on 17 November 2026:</strong>");
+    const nineteen = PAGE_FLAT.indexOf("<strong>What changed in version 19, on 13 November 2026:</strong>");
+    const eighteen = PAGE_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
+    const seventeen = PAGE_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
+    assert.ok(twentyThree !== -1 && twentyThree < twentyTwo && twentyTwo < twentyOne && twentyOne < twenty && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < PAGE_FLAT.indexOf('<h2 id="in-short">'));
+    // Each date is the day that version went live, as the policy list has it.
+    assert.equal(POLICIES.privacy.versions.find((v) => v.version === 22)?.lastUpdated, "22 November 2026");
+    assert.ok(!V22_FLAT.includes("What&apos;s changed in version 23"));
+  });
+
+  test("told on Home, not asked: nobody is asked to accept it", async () => {
+    const acceptance = await loadTs("lib/legal/acceptance.ts");
+    assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
+    for (const stored of ["terms.1+privacy.15", "terms.1+privacy.16", "terms.1+privacy.17", "terms.1+privacy.18", "terms.1+privacy.19", "terms.1+privacy.20", "terms.1+privacy.21", "terms.1+privacy.22", "terms.1+privacy.23"]) {
+      assert.equal(acceptance.needsPolicyAcceptance(stored), false, stored);
+    }
+    // It changes how information is used, so Home's one short line says the policy changed, for a week from its date.
+    assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 23), { version: 23, lastUpdated: "24 November 2026", toldOnHome: true });
     // The week, the words and the dismissal are run in tests/policy-update-line.test.mjs.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
   });

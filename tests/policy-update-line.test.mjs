@@ -96,11 +96,12 @@ describe("what the line says, and which versions have one", () => {
     }
   });
 
-  test("versions 17, 18, 20, 21 and 22 are told on Home, and no other: version 19 changed nothing about how information is used", () => {
+  test("versions 17, 18, 20, 21, 22 and 23 are told on Home, and no other: version 19 changed nothing about how information is used", () => {
     const told = policies.POLICIES.privacy.versions.filter((version) => version.toldOnHome !== undefined);
     assert.deepEqual(
       told.map((version) => [version.version, version.toldOnHome]),
       [
+        [23, true],
         [22, true],
         [21, true],
         [20, true],
@@ -115,32 +116,36 @@ describe("what the line says, and which versions have one", () => {
     // a change to how information is used, so it is told too; version 22
     // names explicit consent for a message about access needs and tells a
     // host group's facilitators that a visitor will join online, so it is
-    // told as well.
-    assert.equal(policies.currentPolicy("privacy").version, 22);
+    // told as well; version 23 records who took somebody off a programme and
+    // may email them and their group's facilitators, so it is told too.
+    assert.equal(policies.currentPolicy("privacy").version, 23);
     assert.equal(policies.currentPolicy("privacy").toldOnHome, true);
     assert.equal(policies.POLICIES.terms.versions.some((version) => version.toldOnHome !== undefined), false);
   });
 
-  test("the link lands on what changed: the current policy's first paragraph, with versions 21's, 20's, 19's, 18's and 17's changes kept under it", () => {
+  test("the link lands on what changed: the current policy's first paragraph, with versions 22's, 21's, 20's, 19's, 18's and 17's changes kept under it", () => {
     const current = read(`src/content/legal/privacy/v${policies.currentPolicy("privacy").version}.tsx`).replace(/\s+/g, " ");
-    const anchor = current.indexOf('<p id="whats-changed"> <strong>What&apos;s changed in version 22:</strong>');
+    const anchor = current.indexOf('<p id="whats-changed"> <strong>What&apos;s changed in version 23:</strong>');
+    const twentyTwo = current.indexOf("<strong>What changed in version 22, on 22 November 2026:</strong>");
     const twentyOne = current.indexOf("<strong>What changed in version 21, on 22 November 2026:</strong>");
     const twenty = current.indexOf("<strong>What changed in version 20, on 17 November 2026:</strong>");
     const nineteen = current.indexOf("<strong>What changed in version 19, on 13 November 2026:</strong>");
     const eighteen = current.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
     const seventeen = current.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
     const summary = current.indexOf('<h2 id="in-short">');
-    assert.ok(anchor !== -1 && anchor < twentyOne && twentyOne < twenty && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < summary, "what each told version changed is not at the anchor the line links to, newest first, before the summary");
+    assert.ok(anchor !== -1 && anchor < twentyTwo && twentyTwo < twentyOne && twentyOne < twenty && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < summary, "what each told version changed is not at the anchor the line links to, newest first, before the summary");
     assert.equal(current.split('id="whats-changed"').length, 2, "the anchor is on the page more than once, or not at all");
   });
 });
 
 describe("a week from a told version's date, on the real policy list", () => {
+  const from23 = updateLine.civilDayOf(policies.POLICIES.privacy.versions.find((v) => v.version === 23).lastUpdated);
   const from22 = updateLine.civilDayOf(policies.POLICIES.privacy.versions.find((v) => v.version === 22).lastUpdated);
   const from21 = updateLine.civilDayOf(policies.POLICIES.privacy.versions.find((v) => v.version === 21).lastUpdated);
   const from20 = updateLine.civilDayOf(policies.POLICIES.privacy.versions.find((v) => v.version === 20).lastUpdated);
   const from18 = updateLine.civilDayOf(policies.POLICIES.privacy.versions.find((v) => v.version === 18).lastUpdated);
   const from17 = updateLine.civilDayOf(policies.POLICIES.privacy.versions.find((v) => v.version === 17).lastUpdated);
+  const end23 = dayAt(from23, 7);
   const end22 = dayAt(from22, 7);
   const end21 = dayAt(from21, 7);
   const end20 = dayAt(from20, 7);
@@ -148,9 +153,9 @@ describe("a week from a told version's date, on the real policy list", () => {
   const end17 = dayAt(from17, 7);
   /** The newest told version whose week `day` is inside, or null. */
   const expectedOn = (day) =>
-    day >= from22 && day < end22 ? 22 : day >= from21 && day < end21 ? 21 : day >= from20 && day < end20 ? 20 : day >= from18 && day < end18 ? 18 : day >= from17 && day < end17 ? 17 : null;
+    day >= from23 && day < end23 ? 23 : day >= from22 && day < end22 ? 22 : day >= from21 && day < end21 ? 21 : day >= from20 && day < end20 ? 20 : day >= from18 && day < end18 ? 18 : day >= from17 && day < end17 ? 17 : null;
 
-  test("the five dates: versions 17, 18, 20 and 21 as they went live, version 22 as it is set", () => {
+  test("the six dates: versions 17, 18, 20, 21 and 22 as they went live, version 23 as it is set", () => {
     assert.equal(from17, "2026-11-12");
     assert.equal(from18, "2026-11-13");
     assert.equal(from20, "2026-11-17");
@@ -160,20 +165,23 @@ describe("a week from a told version's date, on the real policy list", () => {
     // list is newest first and the product takes the first that is due.
     assert.equal(from22, "2026-11-22");
     assert.equal(from22, from21);
+    // The day version 23 reaches the site, two days after version 22's, inside version 22's week.
+    assert.equal(from23, "2026-11-24");
+    assert.ok(from22 < from23 && from23 < end22);
     const numbers = policies.POLICIES.privacy.versions.map((v) => v.version);
     assert.deepEqual(numbers, [...numbers].sort((a, b) => b - a), "the privacy list is not newest first by number");
   });
 
-  test("every day from the day before version 17's date to the day after version 22's last: nothing, version 17's line, version 18's, version 20's, version 22's, nothing; version 21's week is version 22's", () => {
+  test("every day from the day before version 17's date to the day after version 23's last: nothing, version 17's line, version 18's, version 20's, version 22's, version 23's, nothing; version 21's week is version 22's", () => {
     const seen = new Set();
-    for (let day = dayAt(from17, -1); day <= dayAt(end22, 1); day = dayAt(day, 1)) {
+    for (let day = dayAt(from17, -1); day <= dayAt(end23, 1); day = dayAt(day, 1)) {
       // Noon in London.
       const line = updateLine.policyUpdateLine(londonAt(day, "12:00"));
       const expected = expectedOn(day);
       assert.deepEqual(line, expected === null ? null : { version: expected, ...SAID }, day);
       seen.add(expected);
     }
-    for (const version of [null, 17, 18, 20, 22]) assert.ok(seen.has(version), `the run never reached ${version}`);
+    for (const version of [null, 17, 18, 20, 22, 23]) assert.ok(seen.has(version), `the run never reached ${version}`);
     // Version 21 shares version 22's day, so on this list its line is never the one shown.
     assert.ok(!seen.has(21), "version 21's line shows although version 22 shares its day");
   });
@@ -194,16 +202,22 @@ describe("a week from a told version's date, on the real policy list", () => {
     assert.equal(told(from20, "00:00"), 20);
     assert.equal(last(from22), 20);
     assert.ok(from22 < end20);
-    // Version 22's line, from its date to its seventh day, in place of version 21's for the whole of
-    // the week they share; then nothing, and no earlier line comes back.
+    // Version 22's line, from its date, in place of version 21's for the whole of the time they share,
+    // until version 23's, which takes it before version 22's seventh day.
     assert.equal(told(from22, "00:00"), 22);
-    assert.equal(told(end20, "00:00"), 22);
+    // Version 20's week ends inside version 22's, or on version 23's date: no earlier line comes back.
+    assert.equal(told(end20, "00:00"), end20 < from23 ? 22 : 23);
     assert.equal(end21, end22);
-    assert.equal(last(end22), 22);
-    assert.equal(told(end22, "00:00"), null);
-    // 28 November 2026 is the last day anybody is shown a line for these versions.
-    assert.equal(told("2026-11-28", "23:59"), 22);
-    assert.equal(told("2026-11-29", "00:00"), null);
+    assert.equal(last(from23), 22);
+    assert.ok(from23 < end22);
+    // Version 23's line, from its date to its seventh day; then nothing, and no earlier line comes back.
+    assert.equal(told(from23, "00:00"), 23);
+    assert.equal(told(end22, "00:00"), 23);
+    assert.equal(last(end23), 23);
+    assert.equal(told(end23, "00:00"), null);
+    // The seventh day of version 23's week is the last day anybody is shown a line for these versions.
+    assert.equal(told(dayAt(end23, -1), "23:59"), 23);
+    assert.equal(told(end23, "00:00"), null);
   });
 
   test("version 19, which is not told on Home, neither shows a line of its own nor ends version 18's", () => {
@@ -219,7 +233,7 @@ describe("a week from a told version's date, on the real policy list", () => {
 
   test("the current version, which is told on Home, shows its own line from its own first day", () => {
     const current = policies.currentPolicy("privacy");
-    assert.equal(current.version, 22);
+    assert.equal(current.version, 23);
     const line = updateLine.policyUpdateLine(londonAt(updateLine.civilDayOf(current.lastUpdated), "12:00"));
     assert.deepEqual(line, { version: current.version, ...SAID });
   });
@@ -592,7 +606,7 @@ describe("the browser suite reads the same rule", () => {
   // own files, in plain JavaScript; held here to the product's function, so the two cannot drift apart.
   test("which version's line is due: the fixture's answer is the product's, every day around the told weeks and either side of each midnight", async () => {
     const { policyLineAt } = await import("../scripts/e2e-fixtures/member-journey.mjs");
-    for (let day = "2026-11-10"; day <= "2026-11-30"; day = dayAt(day, 1)) {
+    for (let day = "2026-11-10"; day <= "2026-12-03"; day = dayAt(day, 1)) {
       for (const clock of ["00:00", "00:11", "12:00", "23:49", "23:59"]) {
         const at = londonAt(day, clock);
         assert.equal(policyLineAt(at).version, updateLine.policyUpdateLine(at)?.version ?? null, `${day} ${clock}`);
@@ -605,11 +619,16 @@ describe("the browser suite reads the same rule", () => {
   test("it holds Home to neither answer only within ten minutes of a midnight at which the answer changes", async () => {
     const { policyLineAt } = await import("../scripts/e2e-fixtures/member-journey.mjs");
     const settled = (day, clock) => policyLineAt(londonAt(day, clock)).settled;
-    // Version 22's week (version 21's day too) ends with 28 November.
-    assert.equal(settled("2026-11-28", "23:49"), true);
-    assert.equal(settled("2026-11-28", "23:51"), false);
-    assert.equal(settled("2026-11-29", "00:09"), false);
-    assert.equal(settled("2026-11-29", "00:11"), true);
+    // Version 23's week, from its date, ends with its seventh day.
+    const from23 = updateLine.civilDayOf(policies.POLICIES.privacy.versions.find((v) => v.version === 23).lastUpdated);
+    const end23 = dayAt(from23, 7);
+    assert.equal(settled(dayAt(end23, -1), "23:49"), true);
+    assert.equal(settled(dayAt(end23, -1), "23:51"), false);
+    assert.equal(settled(end23, "00:09"), false);
+    assert.equal(settled(end23, "00:11"), true);
+    // Version 22's line gives way to version 23's at the start of version 23's date.
+    assert.equal(settled(dayAt(from23, -1), "23:55"), false);
+    assert.equal(settled(from23, "00:05"), false);
     // Version 17's line gives way to version 18's at the start of 13 November.
     assert.equal(settled("2026-11-12", "23:55"), false);
     assert.equal(settled("2026-11-13", "00:05"), false);
@@ -624,8 +643,13 @@ describe("the browser suite reads the same rule", () => {
     assert.equal(settled("2026-11-16", "00:00"), true);
     assert.equal(settled("2026-11-19", "23:59"), true);
     assert.equal(settled("2026-11-20", "00:00"), true);
-    assert.equal(settled("2026-11-23", "23:59"), true);
-    assert.equal(settled("2026-11-24", "00:00"), true);
+    assert.equal(settled(dayAt(from23, 1), "23:59"), true);
+    assert.equal(settled(dayAt(from23, 2), "00:00"), true);
+    // Version 22's own week ends inside version 23's, and changes nothing.
+    const end22 = dayAt(updateLine.civilDayOf(policies.POLICIES.privacy.versions.find((v) => v.version === 22).lastUpdated), 7);
+    assert.ok(from23 < end22 && end22 < end23);
+    assert.equal(settled(dayAt(end22, -1), "23:59"), true);
+    assert.equal(settled(end22, "00:00"), true);
   });
 
   test("what it looks for is what Home draws: the sentence, the link, the button's name and the key", async () => {
