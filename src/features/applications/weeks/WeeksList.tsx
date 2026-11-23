@@ -129,7 +129,7 @@ export default function WeeksList({
         <p className={styles.eyebrow}>{WEEKS_IN_ORDER}</p>
         {(plan ? plan.entries.length === 0 : tab.weeks.length === 0) ? (
           <p className={styles.note}>
-            {plan ? NO_WEEKS_YET : "The run has no weeks in its plan yet. An admin adds them in the run’s editor."}
+            {NO_WEEKS_YET}
           </p>
         ) : (
           <ol aria-label={WEEKS_IN_ORDER} className={styles.rows}>

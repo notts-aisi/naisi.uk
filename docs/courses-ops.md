@@ -7314,9 +7314,9 @@ to that week's session (Changing a session), which tells the group.
 
 The page's calendar is the run's own: an incubator that meets for seven
 weeks this term and three in February has a week plan of weeks 1 to 7,
-seven breaks and weeks 8 to 10 (the run editor's week plan; an admin can
-add breaks and weeks at the end of a running run until the run's groups have
-gone out, when the plan becomes read only). "The weeks" splits the
+seven breaks and weeks 8 to 10 (the week plan on the programme's Weeks
+tab; an admin can add breaks and weeks at the end of a running run until the
+run's groups have gone out, when the plan becomes read only). "The weeks" splits the
 taught weeks at the breaks and says where this term ends and when the next
 meets.
 
