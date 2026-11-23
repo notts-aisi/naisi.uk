@@ -129,7 +129,7 @@ describe("1. Chloe, told Group B, taken off by an admin", () => {
       "Your place on AGI Strategy has ended " +
         "Hi Chloe, your place on AGI Strategy (Autumn 2026) has ended, and you’re no longer in Group B. " +
         `${line} ` +
-        "Your work so far stays on your account. If you think this is a mistake, or you’d like to talk about it, reply to this email and it reaches the NAISI team." +
+        "We keep your work so far. If you think this is a mistake, or you’d like to talk about it, reply to this email and it reaches the NAISI team." +
         FOOTER,
     );
     assert.equal(

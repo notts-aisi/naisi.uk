@@ -279,14 +279,11 @@ export const TAKE_OFF_LIMIT_WORDS = {
 export type TakeOffEmailWords = { subject: string; lines: string[] };
 
 /**
- * WHAT THE PERSON'S EMAIL SAYS OF THEIR WORK, the owner's words, kept while
- * a question to the owner is open: once somebody is off the run they can
- * open none of its pages, so their work is kept in our records and is not
- * on their account to open. The alternative offered is "We keep your work
- * so far."; if that is chosen it replaces this one string, and nothing else
- * changes.
+ * WHAT THE PERSON'S EMAIL SAYS OF THEIR WORK, the owner's choice: once
+ * somebody is off the run they can open none of its pages, so their work is
+ * kept in our records and is not on their account to open.
  */
-export const WORK_KEPT = "Your work so far stays on your account.";
+export const WORK_KEPT = "We keep your work so far.";
 
 /** The reply that reaches a person: every email of this kind closes on it. */
 const REPLY = "reply to this email and it reaches the NAISI team.";
