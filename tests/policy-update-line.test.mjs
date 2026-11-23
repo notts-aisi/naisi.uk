@@ -645,9 +645,11 @@ describe("the browser suite reads the same rule", () => {
     assert.equal(settled("2026-11-20", "00:00"), true);
     assert.equal(settled(dayAt(from23, 1), "23:59"), true);
     assert.equal(settled(dayAt(from23, 2), "00:00"), true);
-    // Version 22's own seventh day ends inside version 23's week, and changes nothing.
-    assert.equal(settled("2026-11-28", "23:59"), true);
-    assert.equal(settled("2026-11-29", "00:00"), true);
+    // Version 22's own week ends inside version 23's, and changes nothing.
+    const end22 = dayAt(updateLine.civilDayOf(policies.POLICIES.privacy.versions.find((v) => v.version === 22).lastUpdated), 7);
+    assert.ok(from23 < end22 && end22 < end23);
+    assert.equal(settled(dayAt(end22, -1), "23:59"), true);
+    assert.equal(settled(end22, "00:00"), true);
   });
 
   test("what it looks for is what Home draws: the sentence, the link, the button's name and the key", async () => {
