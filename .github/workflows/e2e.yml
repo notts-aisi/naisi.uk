@@ -169,7 +169,7 @@ jobs:
       # 21, because firebase-tools 15 refuses anything older ("no longer
       # supports Java version before 21") and the version it replaces runs on
       # 21 as well.
-      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         if: matrix.part == 'batteries'
         with:
           distribution: temurin
