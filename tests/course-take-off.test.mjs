@@ -575,7 +575,7 @@ describe("7. every way of taking somebody off asks in the one sheet", () => {
       assert.doesNotMatch(code, /window\.confirm\([^)]*(?:off this run|off the run|takeOff)/, `${file} still asks in the browser's own confirmation`);
       assert.match(code, /<TakeOffSheet runId=\{runId\} uid=\{\w+\}/, `${file} does not open the sheet`);
     }
-    // Only Course run closes a row, and only through the one switch.
+    // Only Course run could close a row, and only through the one switch (off).
     for (const [file, code] of files.filter(([file]) => opening.includes(file))) {
       if (file === "features/applications/editor/RunHandOver.tsx") assert.match(code, /closeRow=\{COURSE_RUN_CLOSES_THE_ROW\}/, file);
       else assert.doesNotMatch(code, /closeRow/, `${file} closes a row`);
@@ -584,10 +584,12 @@ describe("7. every way of taking somebody off asks in the one sheet", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. From Course run: somebody who gave their place back, their row closed
+// 8. From Course run: somebody who gave their place back, their row left
+//    open; the route's closeRow, which Course run no longer sends, still
+//    closes it in the same act
 // ---------------------------------------------------------------------------
 
-describe("8. Course run takes off somebody who gave their place back, and closes their row on the run's list in the same act", () => {
+describe("8. Course run takes off somebody who gave their place back and leaves their row open; the route's closeRow closes it in the same act", () => {
   const rowPath = (uid) => `courseApplications/${RUN.agi}__${uid}`;
   const counts = () => read(`courseRuns/${RUN.agi}`).applicationCounts ?? {};
   const askRow = (who, uid, options = {}) =>
@@ -614,9 +616,11 @@ describe("8. Course run takes off somebody who gave their place back, and closes
     assert.ok(amara);
     assert.deepEqual([amara.line, amara.firstName, amara.canTakeOff], ["Gave their place back on Tue 17 Nov · still in Group A", "Amara", true]);
     assert.equal(careful.takeOffWords(amara.firstName), "Take Amara off the run…");
+    // The note the list shows says only that the seat is freed: the row stays open.
+    const options = await w.loadTs("lib/courses/runCareful/options.ts");
     assert.equal(
-      careful.GAVE_BACK_NOTE,
-      "They gave their place back after they were handed over. Take them off the run here: their seat is freed and their row on the run’s list is closed.",
+      careful.gaveBackNote(options.COURSE_RUN_CLOSES_THE_ROW),
+      "They gave their place back after they were handed over. Take them off the run here: their seat is freed.",
     );
   });
 
@@ -683,7 +687,7 @@ describe("8. Course run takes off somebody who gave their place back, and closes
     assert.equal(read(rowPath("amara")).status, "withdrawn");
   });
 
-  test("an ordinary take-off of the same person is unchanged: the row stays accepted and counted", async () => {
+  test("Course run's take-off, an ordinary one, leaves the row accepted and counted", async () => {
     await giveBack();
     const before = counts();
     const shown = await ask("zach", "amara");
@@ -783,7 +787,7 @@ describe("8. Course run takes off somebody who gave their place back, and closes
 
   test("the list's note and the sheet follow the one switch", async () => {
     const options = await w.loadTs("lib/courses/runCareful/options.ts");
-    assert.equal(options.COURSE_RUN_CLOSES_THE_ROW, true);
+    assert.equal(options.COURSE_RUN_CLOSES_THE_ROW, false);
     assert.equal(careful.gaveBackNote(true), careful.GAVE_BACK_NOTE);
     assert.equal(careful.gaveBackNote(false), "They gave their place back after they were handed over. Take them off the run here: their seat is freed.");
   });

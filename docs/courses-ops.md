@@ -2068,10 +2068,9 @@ until somebody destroys it. Naming a run already made is unchanged.
 
 **Somebody who gave their place back.** See "A place given back" in
 docs/applications.md: "Take Rahul off the run…" opens the take-off sheet,
-which says who is emailed and counts them on its button, and closes their
-row on the run's list in the same act. Nothing opens a closed row again, so
-they can't be put back on this run afterwards, and the sheet says so; one
-switch leaves the row open instead.
+which says who is emailed and counts them on its button. Their row on the
+run's list stays open, so staff can put them back through the board. One
+switch, off, would close the row in the same act instead.
 
 **The older roles.** When the run names anybody as a track lead
 (`trackLeadUids`) or a run facilitator (`runFacilitatorUids`) on the older

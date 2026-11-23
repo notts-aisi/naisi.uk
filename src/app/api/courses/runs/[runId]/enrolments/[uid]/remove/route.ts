@@ -103,7 +103,8 @@ import { visitLimitRefusal, visitLimitsIn } from "@/lib/courses/visit/limits";
  * own list is not changed by an ordinary take-off: it stays `accepted`, and
  * Course run lists them under "Taken off the programme".
  *
- * FROM COURSE RUN (`closeRow: true`, an admin's alone), the same take-off of
+ * WITH `closeRow: true` (an admin's alone; Course run sends it only while
+ * `COURSE_RUN_CLOSES_THE_ROW` is on, and it is off), the same take-off of
  * somebody who gave their place back also CLOSES THEIR ROW on the run's own
  * list, in the same transaction: the row goes to `withdrawn` and the run's
  * `applicationCounts` move from accepted to withdrawn, so nothing is left

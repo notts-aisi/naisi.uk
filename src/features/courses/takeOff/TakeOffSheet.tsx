@@ -23,8 +23,9 @@ import styles from "./TakeOffSheet.module.css";
  * before anybody can press. Nothing here decides who is emailed.
  *
  * Course run on a programme's Settings opens it too, for somebody who gave
- * their place back (`closeRow`): the same question, and the route closes
- * their row on the run's own list in the same act.
+ * their place back: the same question. With `closeRow` (which Course run
+ * sends only when `COURSE_RUN_CLOSES_THE_ROW` is on, and it is off) the
+ * route would close their row on the run's own list in the same act.
  */
 
 /** `closesRow`: Course run's one sentence more, only when it closes the row. */
