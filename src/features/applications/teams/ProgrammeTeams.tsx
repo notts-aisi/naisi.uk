@@ -14,7 +14,18 @@ import type {
   TeamPersonView,
   TeamsView,
 } from "@/lib/courses/teams/model";
-import { emailsWords, inATeamWords, namesInWords, peopleWords } from "@/lib/courses/teams/words";
+import {
+  GO_TO_PITCHES,
+  SIZES_ON_PITCHES,
+  emailsWords,
+  inATeamWords,
+  namesInWords,
+  noPitchingWeekWords,
+  noTeamsFromPitchesWords,
+  noWaySetWords,
+  peopleWords,
+} from "@/lib/courses/teams/words";
+import { programmePath } from "@/lib/courses/weeksTab/paths";
 import styles from "./ProgrammeTeams.module.css";
 
 /**
@@ -282,24 +293,18 @@ export default function ProgrammeTeams({ view: initial }: { view: TeamsView }) {
     );
   }
 
+  // Pitching week's settings, where the lead and admins set them.
+  const pitchesHref = `${programmePath(view.roundId, view.programmeId)}/groups/pitches`;
+
   if (view.madeFrom === null) {
     return (
       <section className={`${styles.card} ${styles.blank}`}>
-        <p className={styles.blankText}>
-          Nobody has said how {view.programmeName}’s teams are made yet: from the pitches, or from the agenda
-          people ranked on the application form. {view.canOpenRunEditor ? "Set it" : "An admin sets it"} in the run
-          editor’s Pitching week section.
-        </p>
-        {view.canOpenRunEditor && view.run ? (
-          <div className={styles.blankActions}>
-            <Link
-              href={`/admin/courses/${encodeURIComponent(view.run.courseId)}/runs/${encodeURIComponent(view.run.id)}`}
-              className={styles.linkButton}
-            >
-              Open the run editor
-            </Link>
-          </div>
-        ) : null}
+        <p className={styles.blankText}>{noWaySetWords(view.programmeName)}</p>
+        <div className={styles.blankActions}>
+          <Link href={pitchesHref} className={styles.linkButton}>
+            {GO_TO_PITCHES}
+          </Link>
+        </div>
       </section>
     );
   }
@@ -312,19 +317,19 @@ export default function ProgrammeTeams({ view: initial }: { view: TeamsView }) {
       <h2 id="teams-heading" className={styles.heading}>
         Teams <span className={styles.headingCount}>({view.teams.length})</span>
       </h2>
-      {view.sizes === null ? (
-        <p className={styles.note}>
-          Set the smallest and largest team in the run editor’s Pitching week section, and teams are made within
-          them.
-        </p>
-      ) : null}
+      {view.sizes === null ? <p className={styles.note}>{SIZES_ON_PITCHES}</p> : null}
       {view.teams.length === 0 ? (
         <div className={styles.noTeams}>
           <p className={styles.note}>
             {view.madeFrom === "pitches"
-              ? "No teams yet. Make a pitch a team with its Make it a team."
+              ? noTeamsFromPitchesWords(view.teamsBy)
               : "No teams yet. They’re made from everybody’s first choices, within the smallest and largest team."}
           </p>
+          {view.madeFrom === "pitches" ? (
+            <Link href={pitchesHref} className={styles.inlineLink}>
+              {GO_TO_PITCHES}
+            </Link>
+          ) : null}
           {view.madeFrom === "agenda" && view.agenda?.found && view.sizes ? (
             <Button disabled={!idle} onClick={() => void act({ action: "from-agenda" })}>
               Make teams from first choices
@@ -420,10 +425,7 @@ export default function ProgrammeTeams({ view: initial }: { view: TeamsView }) {
                 <h2 id="pitches-heading" className={styles.heading}>
                   Pitches
                 </h2>
-                <p className={styles.note}>
-                  No week of {view.programmeName}’s course run is pitching week. Tick “This is pitching week” in that
-                  week’s details in the run editor, and its pitches show here.
-                </p>
+                <p className={styles.note}>{noPitchingWeekWords(view.programmeName)}</p>
               </>
             )}
           </section>

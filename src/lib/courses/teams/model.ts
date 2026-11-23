@@ -307,6 +307,8 @@ export type TeamsView = {
   sizes: { min: number; max: number } | null;
   /** "You can change them until Wed 18 Nov.", up to and on the day the teams are made; null otherwise. */
   changeUntil: string | null;
+  /** The day the teams are made ("Thu 19 Nov"), from the run's own setting, or null while none is set. */
+  teamsBy: string | null;
   /** People taking part: told, in one of the run's groups, with an account that stands. */
   takingPart: number;
   /** Of them, in a team. */

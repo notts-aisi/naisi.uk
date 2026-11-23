@@ -251,7 +251,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/runs/[runId]/applications/[uid]/decide/route.ts", "accepts, waitlists or rejects an application"],
   ["src/app/api/courses/runs/[runId]/applications/[uid]/notes/route.ts", "writes reviewer notes on an applicant"],
   ["src/app/api/courses/runs/[runId]/apply/route.ts", "creates, edits and withdraws an application in the applicant's own name"],
-  ["src/app/api/courses/runs/[runId]/apply-template/route.ts", "overwrites a run's curriculum from a template"],
+  ["src/app/api/courses/runs/[runId]/apply-template/route.ts", "overwrites a run's curriculum from a template, or fills its empty weeks from one"],
   ["src/app/api/courses/runs/[runId]/archive/route.ts", "archives a run"],
   ["src/app/api/courses/runs/[runId]/clone-weeks/route.ts", "copies a whole week plan onto a run"],
   ["src/app/api/courses/runs/[runId]/destroy/route.ts", "destroys a run and every row under it"],
@@ -355,6 +355,10 @@ const MUST_GUARD = [
   [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/route.ts",
     "makes an incubator's teams and moves people between them, recorded as whoever the session says is acting",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/pitching-week/route.ts",
+    "changes how an incubator's teams are made, how many pitches each person may pick, the teams' sizes and the day they are made",
   ],
   [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/route.ts",

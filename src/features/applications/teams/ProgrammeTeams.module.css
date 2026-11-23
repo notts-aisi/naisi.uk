@@ -510,6 +510,20 @@
   gap: 4px;
 }
 
+/* "Go to Pitches", under the sentence before teams are made: the board's link. */
+.inlineLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+.inlineLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
 /* --- the line under the teams and "Tell everyone their team" --------------- */
 
 .footer {

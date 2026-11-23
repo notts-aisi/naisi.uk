@@ -238,8 +238,16 @@ describe("4. copy weeks from the course", () => {
     }
     const page = await draw("claudia", CopyPage, PARAMS);
     assert.match(page.text, /Spring 2027 \(2026\/27\) 7 weeks Copy its weeks/);
-    assert.ok(!page.text.includes("A saved template"), "the templates line is an admin's");
-    assert.match((await draw("zach", CopyPage, PARAMS)).text, /A saved template is applied in the run’s editor\. Open the run’s editor/);
+    // CHANGED ON PURPOSE (saved templates on this page): the line sending an
+    // admin to the run's editor for templates is gone, because templates are
+    // copied in here. Saving and deleting one stay an admin's, and neither
+    // is drawn for the lead (tests/course-hub-weeks-templates.test.mjs holds
+    // the rest).
+    assert.ok(!page.text.includes("Save this term’s weeks as a template"), "saving a template is an admin's");
+    assert.ok(!page.text.includes("run’s editor"), "no page sends the lead to the run's editor");
+    const admin = (await draw("zach", CopyPage, PARAMS)).text;
+    assert.match(admin, /Save this term’s weeks as a template/);
+    assert.ok(!admin.includes("A saved template is applied in the run’s editor"), "the older line is gone");
 
     // The press, as the page sends it: never an overwrite.
     const ours = Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => [n, JSON.stringify(world.db.read(weekPath(`w0${n}`)))]));

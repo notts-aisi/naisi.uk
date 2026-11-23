@@ -152,6 +152,7 @@ const STYLESHEETS = [
   "./GroupPage.module.css",
   "./GroupsViews.module.css",
   "./ProgrammePitches.module.css",
+  "./PitchingWeekCard.module.css",
   "./PitchingWeek.module.css",
   "./ProgrammeAttendance.module.css",
   "./ProgrammeOverview.module.css",
@@ -2520,12 +2521,18 @@ describe("stage two of the course hub, one term from Publish to the end of week 
   describe("8. pitching week on the incubator", () => {
     const k = () => seen.pitching;
 
+    // CHANGED ON PURPOSE (pitching week's settings on Groups, Pitches): the
+    // lead's view opens with the card that sets them, the week it is and the
+    // day of its first session, above the pitches, which are as they were.
+    const PITCHING_WEEK_CARD =
+      "Pitching week Week 3 · Mon 16 Nov Teams are made from Not set yet The pitches from pitching week The agenda people ranked on the application form Pitches each person may pick Smallest team Largest team Teams are made on Teams show on the Teams tab once they’re made. Save pitching week ";
+
     test("while week 3 is not published nobody can open it, and the lead's list says why", () => {
       assert.deepEqual(k().beforeWeek3.omar, { refused: [404, "There’s no pitching week on this programme."], card: null });
       assert.deepEqual([k().beforeWeek3.list.status, k().beforeWeek3.list.published, k().beforeWeek3.list.counts], ["ok", false, []]);
       assert.equal(
         k().beforeWeek3.list.text,
-        "People in groups All groups Times Facilitators Pitches Pitches from week 3 (0) Week 3 isn’t published yet, so nobody can pitch until it is. No pitches yet.",
+        `People in groups All groups Times Facilitators Pitches ${PITCHING_WEEK_CARD}Pitches from week 3 (0) Week 3 isn’t published yet, so nobody can pitch until it is. No pitches yet.`,
       );
     });
 
@@ -2573,7 +2580,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(k().adminList.counts, k().leadList.counts);
       assert.equal(
         k().leadList.text,
-        "People in groups All groups Times Facilitators Pitches Pitches from week 3 (2) Probe transfer 3 would join Pitched by Omar Test whether the probes " +
+        `People in groups All groups Times Facilitators Pitches ${PITCHING_WEEK_CARD}Pitches from week 3 (2) Probe transfer 3 would join Pitched by Omar Test whether the probes ` +
           "still work on a smaller open model. Reward hacking evals 2 would join Pitched by Wen and Lena Rebuild the evaluation with tasks the team " +
           "writes, and run it on two models.",
       );

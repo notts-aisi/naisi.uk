@@ -54,7 +54,7 @@ export default async function ProgrammeGroupsPage({
       roundId={view.roundId}
       programmeId={view.programmeId}
       current="people"
-      pitches={view.pitchingWeek !== null}
+      pitches={view.pitchingWeek !== null || view.hasTeams}
       show={show}
     />
   );

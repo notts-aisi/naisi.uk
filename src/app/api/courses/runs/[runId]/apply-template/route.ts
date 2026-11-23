@@ -16,6 +16,10 @@ import {
 } from "@/lib/firestore/courseTemplates";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { runGuideFields } from "@/lib/courses/guide/model";
+import { isAddressableId } from "@/lib/addressableId";
+import { programmeLedBy } from "@/lib/courses/programmeLead";
+import { FillRefusal, fillEmptyWeeks } from "@/lib/courses/weeksTab/fill";
+import { FILL_ONLY_FOR_LEAD } from "@/lib/courses/weeksTab/words";
 
 /**
  * Apply a frozen snapshot's curriculum INTO a run — the "spawn next year's
@@ -25,6 +29,20 @@ import { runGuideFields } from "@/lib/courses/guide/model";
  * `/api/courses/runs/[runId]/clone-weeks`, which does the identical job
  * run-to-run, plus the status lane's bar because applying a template is a
  * decision about what a cohort will be taught.
+ *
+ * ## `fill`: only into the weeks that are empty
+ *
+ * With `fill: true` the copy writes a week only where the run's week is
+ * empty, deletes nothing, never touches the week plan, and copies weeks
+ * only: never the template's Start here or Glossary, which members would read
+ * at once (`src/lib/courses/weeksTab/fill.ts` says exactly what empty means).
+ * That is
+ * the copy "Copy weeks from the course" on a programme's Weeks tab always
+ * asks for, and the only one the lead of the programme that names the run
+ * may ask for (`programmeLedBy`, decided from the forms before anything of
+ * the run is read): a lead copies a saved template in, and never over
+ * anything. Everything below this section is the older copy, Replace
+ * included, for admins and approvers, as it was.
  *
  * ## The copy is id-preserving. That is the platform invariant.
  *
@@ -140,18 +158,21 @@ export async function POST(
 
   const { runId } = await ctx.params;
 
-  // Authorization BEFORE existence: the tier is role/permission-only, so the
-  // single 403 lands before this route reads anything at all.
+  // Authorization BEFORE existence: an approver from the session, the lead
+  // of the programme that names the run from the forms, so the single 403
+  // lands before anything of the run is read.
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  if (!canApproveCourse(actor)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  let body: { templateId?: unknown; replace?: unknown };
+  const approver = canApproveCourse(actor);
+  if (!approver && (!isAddressableId(runId) || (await programmeLedBy(db, actor, runId)) === null)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  let body: { templateId?: unknown; replace?: unknown; fill?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -162,6 +183,14 @@ export async function POST(
     return NextResponse.json({ error: "Choose a saved version." }, { status: 400 });
   }
   const replace = body.replace === true;
+  const fill = body.fill === true;
+  if (fill && replace) {
+    return NextResponse.json({ error: "A copy fills the empty weeks or replaces them, not both." }, { status: 400 });
+  }
+  // The lead copies a template in only into the weeks that are empty.
+  if (!approver && !fill) {
+    return NextResponse.json({ error: FILL_ONLY_FOR_LEAD }, { status: 403 });
+  }
 
   const runRef = db.collection("courseRuns").doc(runId);
   const templateRef = db.collection(COURSE_TEMPLATES_COLLECTION).doc(templateId);
@@ -209,6 +238,32 @@ export async function POST(
       { error: "That saved version has no weeks in it." },
       { status: 400 },
     );
+  }
+
+  if (fill) {
+    try {
+      const outcome = await fillEmptyWeeks(db, {
+        runId,
+        template: { id: template.id, label: template.label },
+        weeks: sourceWeeks.docs.map((doc) => ({ id: doc.id, data: (doc.data() ?? {}) as Record<string, unknown> })),
+        actorUid: actor.uid,
+      });
+      return NextResponse.json({
+        ok: true,
+        fill: true,
+        copied: outcome.copied.length,
+        copiedWeeks: outcome.copied,
+        left: outcome.left.length,
+        extra: outcome.extra,
+        planWeeks: outcome.planWeeks,
+        templateId,
+        templateLabel: template.label,
+      });
+    } catch (err) {
+      if (err instanceof FillRefusal) return NextResponse.json({ error: err.message }, { status: err.status });
+      console.error("[courses apply-template] fill failed", runId, templateId, err);
+      return NextResponse.json({ error: "That copy didn’t go through, so nothing was changed." }, { status: 500 });
+    }
   }
 
   /**

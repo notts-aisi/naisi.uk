@@ -56,24 +56,6 @@ const OLDER_TREE = new Map([
  */
 const DOORS = [
   {
-    file: "src/features/applications/pitches/ProgrammePitches.tsx",
-    line: "href={`/admin/courses/${encodeURIComponent(view.run.courseId)}/runs/",
-    why: "Pitches' Open the run editor, where pitching week is ticked",
-    step: "step 7, when pitching week moves to the Weeks tab",
-  },
-  {
-    file: "src/features/applications/teams/ProgrammeTeams.tsx",
-    line: "href={`/admin/courses/${encodeURIComponent(view.run.courseId)}/runs/",
-    why: "the Teams tab's Open the run editor, for the run's pitching settings",
-    step: "step 7, with pitching week",
-  },
-  {
-    file: "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy/page.tsx",
-    line: "<Link href={`/admin/courses/${encodeURIComponent(run.courseId)}/runs/",
-    why: "the copy page's Open the run's editor, where a saved template is copied in",
-    step: "step 7, when templates move to the Weeks tab",
-  },
-  {
     file: "src/lib/applications/handover/load.ts",
     line: "/applications`;",
     why: "Course run's link to the run's own applications list, for somebody who gave their place back and has no seat on the run (handed over, never placed): Course run's take-off needs a seat, so their row is changed there, as before",
@@ -263,13 +245,15 @@ test("the guard itself: a newer page calling a helper that builds an older addre
 test("the guard itself: a newer page mounting an older component, and an entry whose door has gone, fail", () => {
   const sources = new Map(SOURCES);
   sources.set("src/features/applications/made-up/Mount.tsx", 'import RunEditor from "@/features/courses/RunEditor";\n');
-  const teams = "src/features/applications/teams/ProgrammeTeams.tsx";
-  sources.set(teams, sources.get(teams).replaceAll("`/admin/courses/", "`/admin/elsewhere/"));
+  // CHANGED ON PURPOSE (step 7): the Teams tab's door is gone, so a door
+  // that is still listed stands in for "an entry whose door has gone".
+  const listed = "src/features/courses/GroupWeekEditor.tsx";
+  sources.set(listed, sources.get(listed).replaceAll("`/admin/courses/", "`/admin/elsewhere/"));
   const problems = doorProblems(sources);
   assert.deepEqual(problems.sort(), [
+    `${listed}: the entry claims 1 door(s) and 0 found`,
     "src/features/applications/made-up/Mount.tsx imports src/features/courses/RunEditor.tsx, which is the older editor's own",
-    `${teams}: the entry claims 1 door(s) and 0 found`,
-  ]);
+  ].sort());
 });
 
 test("the doors this step repointed lead to each programme's own pages", () => {
@@ -287,6 +271,10 @@ test("the doors this step repointed lead to each programme's own pages", () => {
   // Times and a week's page lead nowhere older.
   assert.doesNotMatch(read("src/features/applications/times/TimesPicture.tsx"), /in the run editor/);
   assert.doesNotMatch(read("src/features/applications/weeks/WeekPageView.tsx"), /Open the run’s week editor/);
+  // Step 7: Pitches sends the lead and admins to the Weeks tab, the Teams tab to Pitches, and the copy page copies templates in itself.
+  assert.match(read("src/features/applications/pitches/ProgrammePitches.tsx"), /href=\{weeksPath\(view\.roundId, view\.programmeId\)\}/);
+  assert.match(read("src/features/applications/teams/ProgrammeTeams.tsx"), /\/groups\/pitches`/);
+  assert.doesNotMatch(read("src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy/page.tsx"), /run’s editor/);
 });
 
 test("every page of the older editor opens with the line that says it is being retired", () => {

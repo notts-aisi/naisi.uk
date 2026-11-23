@@ -1,18 +1,23 @@
 import Link from "next/link";
 import { Refusal } from "@/features/applications/editor/Refusals";
 import type { StaffPitchesView } from "@/lib/applications/handover/pitchesLoad";
+import { pitchingWeekChip } from "@/lib/courses/pitching/settings";
 import { wouldJoinWords } from "@/lib/courses/pitching/words";
+import { noPitchingWeekWords } from "@/lib/courses/teams/words";
+import { weeksPath } from "@/lib/courses/weeksTab/paths";
+import PitchingWeekCard from "./PitchingWeekCard";
 import styles from "./ProgrammePitches.module.css";
 
 /**
  * THE PITCHES FROM A PROGRAMME'S PITCHING WEEK, for its lead and for admins
  * (the "Pitches from week 3" list).
  *
- * Read only, and drawn on the server: it holds no state and sends no script.
- * What the board draws beside it and this leaves out, because the feature
- * does not exist yet: the Teams list, "Became a team" and "Not taken
- * forward", "Move to…" and "Tell everyone their team". Making teams is the
- * next piece of work.
+ * The list is read only, and drawn on the server. Above it, pitching week's
+ * settings (`PitchingWeekCard`, the one part with a script), for a
+ * programme with teams always (an incubator: its teams need the settings,
+ * and one whose teams are made from the agenda has no pitching week at all)
+ * and for any other programme once it has a pitching week. Teams themselves
+ * are made on the Teams tab.
  *
  * Every address here is a page of this site, written out from its own path
  * with stored ids encoded into it, so none can name another site.
@@ -42,29 +47,37 @@ function Blank({ view }: { view: StaffPitchesView }) {
   }
   return (
     <section className={`${styles.card} ${styles.blank}`}>
-      <p className={styles.blankText}>
-        No week of {name}’s course run is pitching week. Tick “This is pitching week” in that week’s
-        details in the run editor, and its pitches show here.
-      </p>
-      {view.run && view.canOpenRunEditor && (
-        <div className={styles.blankActions}>
-          <Link
-            href={`/admin/courses/${encodeURIComponent(view.run.courseId)}/runs/${encodeURIComponent(view.run.id)}`}
-            className={styles.button}
-          >
-            Open the run editor
-          </Link>
-        </div>
-      )}
+      <p className={styles.blankText}>{noPitchingWeekWords(name)}</p>
+      <div className={styles.blankActions}>
+        <Link href={weeksPath(view.roundId, view.programmeId)} className={styles.button}>
+          Open the Weeks tab
+        </Link>
+      </div>
     </section>
   );
 }
 
 /** The list itself, drawn inside the Groups tab's frame and under its row of views (`GroupsViews`). */
 export function ProgrammePitches({ view }: { view: StaffPitchesView }) {
+  const noWeek = view.blank === "no-week";
+  // An incubator whose teams are made from the agenda needs no pitching week:
+  // the card says so, and no sentence asks for one.
+  const agendaNoWeek = view.hasTeams && noWeek && view.settings?.teamsFrom === "agenda";
+  const card =
+    view.settings !== null && (view.hasTeams || view.weekNumber !== null) ? (
+      <PitchingWeekCard
+        roundId={view.roundId}
+        programmeId={view.programmeId}
+        chip={view.weekNumber !== null ? pitchingWeekChip(view.weekNumber, view.firstSession) : null}
+        stored={view.settings}
+        hasTeams={view.hasTeams}
+        noWeekNeeded={agendaNoWeek}
+      />
+    ) : null;
   return (
     <div className={styles.page}>
-      {view.blank !== null || view.weekNumber === null ? (
+      {card}
+      {agendaNoWeek ? null : view.blank !== null || view.weekNumber === null ? (
         <Blank view={view} />
       ) : (
         <section className={styles.card} aria-labelledby="pitches-heading">
@@ -79,8 +92,8 @@ export function ProgrammePitches({ view }: { view: StaffPitchesView }) {
           )}
           {!view.pickLimitSet && (
             <p className={styles.note}>
-              Nobody can pick yet: set how many pitches a person may pick in the run editor’s
-              Pitching week section.
+              Nobody can pick yet: set how many pitches each person may pick in pitching week’s settings
+              above.
             </p>
           )}
           {view.pitches.length === 0 ? (

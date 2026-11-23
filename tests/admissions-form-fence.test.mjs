@@ -1145,6 +1145,13 @@ const ROUND_SURFACES = {
       "form's own loader before it reads anybody's application or team, and answers a round that " +
       "is not a form as a programme that is not here",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/pitching-week": {
+    kind: "form",
+    why:
+      "saves pitching week's settings on the run a programme names, from Groups, Pitches, through " +
+      "savePitchingWeek, which loads the round with the form's own loader before it reads the run, and " +
+      "answers a round that is not a form as a programme that is not here",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell": {
     kind: "form",
     why:
@@ -1999,6 +2006,18 @@ const ROUND_READERS = new Map([
         "Each of its two transactions reads the round and asks before it writes. To see whether " +
         "another programme already names the run it asks the database for forms only, and asks " +
         "each stored document the question again",
+    },
+  ],
+  [
+    "src/lib/applications/handover/pitchingWeekSave.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ["const snap = await tx.get(formRef(db, roundId));"],
+      why:
+        "pitching week's save reads the form with the form's own loader before its transaction and again " +
+        "inside it, to ask who may and which run the programme names, and asks of the second read that it " +
+        "is a form before it reads one, so a round of the older kind is read as no programme",
     },
   ],
   [

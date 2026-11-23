@@ -80,6 +80,15 @@ const READS_WITHOUT_A_LIST = new Map([
         "work closes: one day each, never a list of groups on a page.",
     },
   ],
+  // A saved template copied into a run's empty weeks, from the Weeks tab's copy page.
+  [
+    "src/lib/courses/weeksTab/fill.ts",
+    {
+      why:
+        "Copying a saved template in reads the run's groups to ask which have their own copy of a week, so that week " +
+        "is left as it is: never a list of groups on a page.",
+    },
+  ],
   // The week plan's check, before a week or a break moves or goes.
   [
     "src/lib/courses/weekPlanEdit/facts.ts",
@@ -354,6 +363,12 @@ const FETCHES_IT_CANNOT_READ = new Map([
     "Destroying one run from Careful: the run's destroy manifest (counts, blockers and an interrupted destroy) and " +
       "its destroy route, both addressed by the one run's id. Neither lists the run's groups for anybody to read in an " +
       "order: the manifest counts them, and the destroy removes them.",
+  ],
+  // ADDED (November 2026), with saved templates on the Weeks tab's copy page.
+  [
+    "src/features/applications/weeks/SavedTemplates.tsx",
+    "Saved templates on the Weeks tab's copy page: copying one template into the run's empty weeks (the apply route), " +
+      "deleting one template, and saving the run's weeks as one (the course's templates route). None lists a run's groups.",
   ],
   // ADDED (November 2026), with a one-week visit to another group's session.
   [

@@ -267,6 +267,7 @@ export async function makePitchingWorld(key = "__pitching") {
       ["./GroupsViews.module.css", CLASS_NAMES],
       ["./PitchingWeek.module.css", CLASS_NAMES],
       ["./ProgrammePitches.module.css", CLASS_NAMES],
+      ["./PitchingWeekCard.module.css", CLASS_NAMES],
       ["./Select.module.css", CLASS_NAMES],
       ["./Input.module.css", CLASS_NAMES],
       ["./TimesPicture.module.css", CLASS_NAMES],

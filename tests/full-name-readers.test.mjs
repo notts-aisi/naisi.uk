@@ -550,6 +550,11 @@ const READERS = new Map([
     proof: ['const nameOf = (data: Record<string, unknown>) => nameForViewer(viewer, accountNamesOf(data), "NAISI member");'],
     why: "the Weeks tab's owners, the programme's lead and the run's helpers, named for the lead or admin reading it",
   }],
+  ["src/lib/courses/weeksTab/templates.ts", {
+    who: "rule",
+    proof: ['if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data() ?? {}), ""));'],
+    why: "who saved each of a course's templates, on the Weeks tab's copy page, named for the programme's lead or admin reading it",
+  }],
   ["src/lib/courses/writtenAnswers/queue.ts", {
     who: "rule",
     proof: ['if (snap.exists) names.set(snap.id, nameForViewer(actor, accountNamesOf(snap.data() ?? {}), "NAISI member"));'],

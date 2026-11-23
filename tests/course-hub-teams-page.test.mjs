@@ -15,7 +15,7 @@ import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AGI, AT, CALLERS, INC, INCUBATOR, PITCH, ROUND, makeTeamsWorld, teamsSeed, textOf } from "./lib/teamsWorld.mjs";
+import { AGI, AT, CALLERS, INCUBATOR, PITCH, ROUND, makeTeamsWorld, teamsSeed, textOf } from "./lib/teamsWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: AT.wednesdayNoon });
 
@@ -104,15 +104,22 @@ describe("who is shown the tab", () => {
     assert.match((await draw("zach")).text, /Name it on the Settings tab/);
   });
 
-  test("with no way set it says where it is set, and offers the run editor to an admin only", async () => {
+  // CHANGED ON PURPOSE (pitching week's settings on Groups, Pitches): how
+  // teams are made is set on Pitches, which the lead opens as an admin does,
+  // so both are sent there and neither to the run editor.
+  test("with no way set it says where it is set, and sends the lead and an admin to Pitches", async () => {
     reset(teamsSeed({ madeFrom: null }));
     admitted();
-    const admin = await draw("zach");
-    assert.match(admin.text, /Nobody has said how Research incubator’s teams are made yet: from the pitches, or from the agenda people ranked on the application form\. Set it in the run editor’s Pitching week section\./);
-    assert.match(admin.html, new RegExp(`href="/admin/courses/${INC.course}/runs/${INC.run}"`));
-    const lead = await draw("tess");
-    assert.match(lead.text, /An admin sets it in the run editor’s Pitching week section\./);
-    assert.ok(!lead.html.includes("/admin/courses/"));
+    for (const who of ["zach", "tess"]) {
+      const page = await draw(who);
+      assert.match(
+        page.text,
+        /Nobody has said how Research incubator’s teams are made yet: from the pitches, or from the agenda people ranked on the application form\. Pitching week’s settings are on Groups, Pitches\. Go to Pitches/,
+        who,
+      );
+      assert.match(page.html, new RegExp(`<a href="/admin/admissions/forms/${ROUND}/programmes/${INCUBATOR}/groups/pitches"[^>]*>Go to Pitches</a>`), who);
+      assert.ok(!page.html.includes("/admin/courses/"), who);
+    }
   });
 });
 
@@ -139,7 +146,10 @@ describe("the Teams tab: the pitches beside the teams", () => {
   test("before any team, no pitch says it was or was not taken forward", async () => {
     const { text } = await draw("tess");
     assert.ok(!text.includes("Became a team") && !text.includes("Not taken forward"));
-    assert.match(text, /Teams \(0\) No teams yet\. Make a pitch a team with its Make it a team\./);
+    // CHANGED ON PURPOSE (pitching week's settings on Groups, Pitches): the
+    // board's sentence before teams are made, with the day from the run's own
+    // setting, and the way to Pitches.
+    assert.match(text, /Teams \(0\) No teams yet\. They’re made on Thu 19 Nov from the pitches people pick\. Pitching week’s settings are on Groups, Pitches\. Go to Pitches/);
     assert.match(text, /0 of 9 in a team\./);
   });
 

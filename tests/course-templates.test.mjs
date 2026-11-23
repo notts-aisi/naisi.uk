@@ -990,9 +990,13 @@ test("MODEL §7.3 every route gates before it reads", () => {
     ["templates POST/GET", TEMPLATES_CODE, /if \(actor\.role !== "admin"\)/],
     ["template DELETE", TEMPLATE_DELETE_CODE, /if \(actor\.role !== "admin"\)/],
     [
+      // CHANGED ON PURPOSE (saved templates on the Weeks tab): an approver
+      // from the session, or the lead of the programme that names the run
+      // from the forms (and then only to fill the empty weeks), still decided
+      // before anything of the run or the template is read.
       "apply-template",
       APPLY_CODE,
-      /if \(!canApproveCourse\(actor\)\)/,
+      /const approver = canApproveCourse\(actor\);\s*if \(!approver && \(!isAddressableId\(runId\) \|\| \(await programmeLedBy\(db, actor, runId\)\) === null\)\)/,
     ],
   ]) {
     assert.match(source, gate, `${name} must carry its gate`);

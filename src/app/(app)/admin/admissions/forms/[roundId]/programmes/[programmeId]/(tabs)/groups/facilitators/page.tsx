@@ -36,7 +36,7 @@ export default async function ProgrammeFacilitatorsPage({
       roundId={view.roundId}
       programmeId={view.programmeId}
       current="facilitators"
-      pitches={view.pitchingWeek !== null}
+      pitches={view.pitchingWeek !== null || view.hasTeams}
       show={boardShowOf(query?.show)}
     />
   );

@@ -52,6 +52,8 @@ export type PeopleInGroupsView = {
   blank: "no-run" | "run-gone" | null;
   /** The run's pitching week, for the Groups tab's views; null otherwise. */
   pitchingWeek: number | null;
+  /** The programme is an incubator, so it has teams, and pitching week's settings, on Groups, Pitches. */
+  hasTeams: boolean;
   /** Decisions have gone out. Until then nobody holds a place, and the line says so. */
   sent: boolean;
   /** The uids that hold a place on the programme: the People tab's answer. */
@@ -95,6 +97,7 @@ export async function loadPeopleInGroups(
     run: null,
     blank: "no-run",
     pitchingWeek: null,
+    hasTeams: programme.kind === "incubator",
     sent: form.decisionsSentAt !== null,
     holders: [],
     people: {},
