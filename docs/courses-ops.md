@@ -2702,7 +2702,8 @@ history." (409, nothing written; no count of people, no names). The rules
 refuse any browser write that takes `published` from true to false, admins
 included (`publishedNotTakenBack`), and no browser deletes a run's week at
 all, admins included: the routes remove weeks (the destroy cascade,
-Normalise week ids, the copies). Publishing stays a browser write. The
+Normalise week ids, the copies, and the week plan's route on a programme's
+Weeks tab, docs/course-weeks.md, "The week plan"). Publishing stays a browser write. The
 older week page shows the sentence in place of its switch when it already
 knows.
 

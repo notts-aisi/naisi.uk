@@ -894,6 +894,7 @@ describe("7. the tree", () => {
       ["app/api/courses/runs/[runId]/predictions/people/route.ts", "an admin's list of whose cards exist, three fields and never an answer"],
       ["lib/firestore/accountDeletion.ts", "deleting an account deletes its cards"],
       ["lib/firestore/courseDeletion.ts", "destroying a run counts and deletes its cards"],
+      ["lib/courses/weekPlanEdit/kept.ts", "the week plan's check before a week moves or goes: it counts the run's rows by one equality on the run, and reads none of them"],
     ]);
     const found = filesNaming(/\bCOURSE_PREDICTIONS_COLLECTION\b|["'`]coursePredictions["'`]/);
     assert.deepEqual(found, [...expected.keys()].sort(), "a new reader or writer of the cards needs a reason here, and a gate");

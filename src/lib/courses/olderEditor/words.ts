@@ -54,6 +54,15 @@ export const ADD_GROUPS_ON_TIMES =
 export const OPEN_TIMES = "Open Times";
 
 // ---------------------------------------------------------------------------
+// The week plan on a run a programme names
+// ---------------------------------------------------------------------------
+
+/** In place of the older week plan builder. */
+export const WEEK_PLAN_ON_WEEKS =
+  "The week plan changes on the programme’s Weeks tab, which keeps every week at its own number’s address.";
+export const OPEN_WEEKS = "Open Weeks";
+
+// ---------------------------------------------------------------------------
 // The run's status: a question before it acts
 // ---------------------------------------------------------------------------
 

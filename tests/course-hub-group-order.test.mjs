@@ -80,6 +80,15 @@ const READS_WITHOUT_A_LIST = new Map([
         "work closes: one day each, never a list of groups on a page.",
     },
   ],
+  // The week plan's check, before a week or a break moves or goes.
+  [
+    "src/lib/courses/weekPlanEdit/facts.ts",
+    {
+      why:
+        "The week plan's check reads the run's groups to ask whether any has its own copy of a week, a change to one " +
+        "week or its own calendar, and names the first it finds in a sentence: never a list of groups on a page.",
+    },
+  ],
   // Whether a week is in use, for the older week editor's unpublish refusal.
   [
     "src/lib/courses/olderEditor/weekInUse.ts",

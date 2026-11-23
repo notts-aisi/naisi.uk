@@ -309,6 +309,42 @@ const INEQUALITY_OPS = new Set(["<", "<=", ">", ">=", "!=", "not-in"]);
  */
 const UNRESOLVED_SITES = new Map([
   [
+    'src/lib/courses/weekPlanEdit/kept.ts :: collection.where(field,"==")',
+    {
+      why:
+        "countWeekKept(db, runId, tx) is the week plan's check that nothing is kept against a run's " +
+        "weeks: one count per collection of WORK_COLLECTIONS and RECORD_COLLECTIONS in the same file, " +
+        "and of courseApplications, each on the one field that names the run (runId, and " +
+        "sourceRef.cohortId for tasks). Every one is a single equality with no orderBy at collection " +
+        "scope, so AUTOMATIC_SINGLE_FIELD covers them all; tests/course-week-plan.test.mjs drives each.",
+      shapes: [
+        { collection: "courseProgress", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseExerciseResponses", filters: [["runId", "=="]], orders: [] },
+        { collection: "coursePacksAndCases", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseWeekWork", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseWorkLog", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseFeedback", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseWorkRatings", filters: [["runId", "=="]], orders: [] },
+        { collection: "coursePairs", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseBestAnswers", filters: [["runId", "=="]], orders: [] },
+        { collection: "coursePangramChecks", filters: [["runId", "=="]], orders: [] },
+        { collection: "coursePredictions", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseAttendance", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseWeekReviews", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseMaterialNotes", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseNoteDrafts", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseExplainers", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseSessionReports", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseGroupSharedNotes", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseRequests", filters: [["runId", "=="]], orders: [] },
+        { collection: "checkInWeeks", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseNudges", filters: [["runId", "=="]], orders: [] },
+        { collection: "courseApplications", filters: [["runId", "=="]], orders: [] },
+        { collection: "tasks", filters: [["sourceRef.cohortId", "=="]], orders: [] },
+      ],
+    },
+  ],
+  [
     'src/lib/firestore/accountDeletion.ts :: collection.where(field,"==")',
     {
       why:

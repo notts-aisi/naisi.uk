@@ -1112,6 +1112,10 @@ describe("6. the person, the programme's lead and admins read it; nobody else do
     ],
     ["lib/courses/personPage/model.ts", "a person's page: the answer in the board's own marks, with its why and what would work"],
     ["features/courses/personPage/PersonPage.tsx", "a person's page: their answer under When they're free, drawn as the model words it"],
+    [
+      "lib/courses/weekPlanEdit/facts.ts",
+      "the week plan's check before a week moves, for the lead and admins: whether any seat of the run holds an answer at all, never what it says",
+    ],
     ["features/applications/circles/Ring.tsx", "Circles' rings, an admin's alone: a Can't make this time mark on the live run"],
     [
       "features/applications/groups/ringsModel.ts",

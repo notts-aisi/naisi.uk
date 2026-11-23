@@ -2002,6 +2002,18 @@ const ROUND_READERS = new Map([
     },
   ],
   [
+    "src/lib/courses/weekPlanEdit/facts.ts",
+    {
+      kind: "form",
+      asks: 2,
+      proof: ["const snap = await tx.get(formRef(db, naming.roundId));"],
+      why:
+        "the week plan's check reads the form that names the run, for whether decisions are sent and " +
+        "whether the programme still names the run, and asks of each read that it is a form before it " +
+        "reads one, so a round of the older kind is read as no form",
+    },
+  ],
+  [
     "src/lib/applications/roles.ts",
     {
       kind: "form",

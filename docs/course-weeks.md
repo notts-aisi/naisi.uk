@@ -643,6 +643,101 @@ editor under `/admin/courses` stays an admin's.
   take out are counted for that group's people and facilitators alone. The
   run's week and every other group's are never written.
 
+### The week plan
+
+The run's weeks in order, with any breaks, from which every group's dates
+are worked out (`courseRuns.weekPlan`). On a run a programme names it is
+changed only on the programme's Weeks tab, by an admin or the programme's
+lead, through `POST /api/courses/runs/[runId]/week-plan`; the older run
+editor shows a line pointing there instead of its builder, and a run no
+programme names keeps that builder as it was.
+
+| Where | What it does |
+| --- | --- |
+| `src/lib/courses/weekPlanEdit/model.ts` | Each step worked out on a plan: the new plan, each week's new address and where its page is stored now |
+| `src/lib/courses/weekPlanEdit/facts.ts` | What the owner's rule asks, and the one judgement the page and the route both ask (`judgeChange`) |
+| `src/lib/courses/weekPlanEdit/guide.ts` | Which week numbers the course's facilitator guide holds something for, by slot alone |
+| `src/lib/courses/weekPlanEdit/write.ts` | The step, in one transaction |
+| `src/lib/courses/weekPlanEdit/view.ts` | The list as the tab draws it, each control only where the route would take it |
+
+- **Every week at its number's address.** The Nth week of the plan is week N
+  and its page is `weeks/{weekDocId(N)}`: every reader by a member, a
+  register or a group opens that address. After every step each week's page
+  sits there, moved in the step's own transaction with everything stored in
+  it and under it (every field of the page, its saved versions in `history`;
+  an edit lock is let go).
+- **A plan out of step with its pages.** The older run editor's builder kept
+  each week's stored address when it moved or removed a week, so a plan it
+  left can list a week under another week's address, and leave a page behind
+  after the plan's last week. On such a plan the tab offers no step but
+  "Match the plan to the pages", which rewrites the plan's addresses to the
+  pages people see (`weekDocId(N)`), moving and deleting nothing, so it is
+  safe whatever is kept against the weeks. After it the ordinary steps apply.
+- **A page after the plan's last week** is listed under the plan. "Put it
+  back as week N" adds it as the next week: taken where it is when it sits at
+  that week's address, otherwise moved there with everything under it, only
+  while nothing is kept against the run's weeks (else the page says to press
+  Add a week until the plan reaches it). "Remove the page" deletes it only
+  when it holds no more than its title and settings, has no saved version and
+  nothing is kept. Neither holds up the hand-over. Putting back a page from
+  further on gives it a new number, so it asks the same guide check as a
+  move.
+- **Week numbers out of order.** A plan whose stored week numbers are not 1,
+  2, 3 in order (only a write from outside the site's pages makes one) is
+  never acted on: every step refuses, Match the plan to the pages included,
+  because members date and open each week by its stored number.
+- **The steps.** Add a week (at the end; a page already kept at its address,
+  copied in from the course, becomes its page). Add a break after a week, with
+  a label. Move a week or a break up or down by one. Remove a week or a break.
+- **The owner's rule.** A week or a break is moved or removed only while
+  nothing is kept against the run's weeks: no tick, answer, pick or other
+  work of anybody's, no register, review, note, request, check-in, reminder
+  or My Work row, no place with a one-week visit, a move from a week or an
+  answer about the time, no group with its own copy of a week, a change to
+  one week, a week's mode or its own calendar, and week 1 not open to
+  everybody holding a place (decision day begun, by the form's counts or its
+  sent stamp, and week 1 ready). Once decision day has begun, a step that
+  would change which page is week 1 is refused, since people holding a place
+  open week 1 as soon as it is ready. A break
+  anywhere, or a week at the end, can be added until the groups go out
+  (Publish has stamped the run, or told anybody their group). From then the
+  plan is read only, in the run editor's sentence. A completed, cancelled or
+  archived run's plan does not change.
+- **Removing.** A removed week's page is deleted only when it holds no more
+  than its title and settings (title, summary, questions, how long it takes,
+  owner, pitching week, published and ready) and no saved version. A week
+  with blocks, with material written before blocks, or with saved versions is
+  never removed. Removing a break deletes nothing. Undo is a revert: a
+  removed empty page is gone.
+- **The facilitators' guide.** A week's session plan and notes are kept on
+  the course by week number, and every run of the course reads them by
+  number. The route never writes them, and refuses any step that would give a
+  week a new number when the guide holds something for the old number or the
+  new one, and the removal of a week the guide holds something for. So a
+  facilitator of this run never reads one week's plan against another week,
+  and a facilitator of another run of the course reads what they read before.
+- **Refused too:** a week being edited right now, a step that would move more
+  than 450 writes or about 8 MB in one transaction, and a step made on a
+  drawing of the plan older than the one stored (two changes at once: the
+  second is refused, and reloading shows the first).
+- **Dates.** A break, or a moved week or break, moves the dates of every
+  later week by seven days: each group's sessions, the Weeks tab's first
+  session and ready-by day, and the days week 1's door and the run's Home
+  cards say. A break moved past week 1 moves every group's first session;
+  once decision day has begun its question says so and that people holding a
+  place see the new dates, and, once the form's log holds an offer of freed
+  places, that such an email may have named the old start date. On the course's showcase run, a step that renumbers weeks
+  changes the course's public week pages, and its question says so. Nothing
+  is emailed by a step.
+- **The older Normalise week ids** route refuses a run a programme names and
+  points to the Weeks tab.
+- **The printables** offer as many session PDFs as the longest plan of the
+  course's runs, so adding or removing the last week of the longest run
+  changes that count for every run of the course.
+- **Leaving draft** still meets the week id check (`src/lib/courses/draftExit.ts`).
+  On a run a programme names its sentence sends the reader to the Weeks tab's
+  "Match the plan to the pages".
+
 ### Not built, on purpose
 
 - **An "Add a block" editor** (write a week block by block, no
@@ -652,8 +747,6 @@ editor under `/admin/courses` stays an admin's.
   fields to edit in place. A week is changed by copying it as Markdown,
   editing that and pasting it back; what was read is checked through What we
   found, the things to check and Preview as a fellow.
-- **Reordering weeks** (the board's drag handles and Move up or down). Once a
-  run is out of draft its plan is an admin's, in the run's editor.
 - **A course's own weeks.** A course holds none yet, so "Copy weeks from the
   course" copies another run's, through the copy route the run editor uses,
   never overwriting a week the run has.

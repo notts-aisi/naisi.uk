@@ -11,6 +11,8 @@ import {
 } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { weekBlocksField } from "@/lib/courses/weekBlocks/model";
+import { readNamingProgramme } from "@/lib/courses/programmeLead";
+import { NAMED_RUN_PLAN } from "@/lib/courses/weekPlanEdit/words";
 
 /**
  * Re-address a DRAFT run's weeks so the plan's `weekId` and the doc id every
@@ -37,6 +39,7 @@ import { weekBlocksField } from "@/lib/courses/weekBlocks/model";
  * reshapes it.
  *
  * REFUSALS, all 409 with a sentence the admin can act on:
+ *  - a programme names the run: its plan changes on the programme's Weeks tab;
  *  - the run is not a draft;
  *  - any `courseProgress` or `courseExerciseResponses` row exists for the run
  *    (belt and braces: in draft there should be none, and if there are, the
@@ -75,6 +78,18 @@ export async function POST(
 
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+
+  // A run a programme names changes its week plan only on the programme's
+  // Weeks tab, whose one route moves a week's page with its saved versions in
+  // one transaction; this older route does neither, so it refuses such a run.
+  // Fails closed: when the forms cannot be read, nothing is moved.
+  let named: Awaited<ReturnType<typeof readNamingProgramme>>;
+  try {
+    named = await readNamingProgramme(db, runId);
+  } catch {
+    return NextResponse.json({ error: "Couldn’t check which programme names this run. Try again." }, { status: 500 });
+  }
+  if (named) return NextResponse.json({ error: NAMED_RUN_PLAN }, { status: 409 });
 
   // `dryRun` is how the builder previews the moves without asking the admin to
   // trust a client-side reimplementation of this maths. Optional, and a body

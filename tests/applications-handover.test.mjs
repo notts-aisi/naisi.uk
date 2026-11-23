@@ -181,7 +181,12 @@ describe("2. when a hand-over can be pressed", () => {
         { kind: "week", weekNumber: 2, weekId: "w01" },
       ],
     });
-    await refused(/2 weeks are addressed two different ways in this run's week plan, and leaving draft freezes that for good\. Open the run's Week plan section and use Normalise week ids first\./);
+    // CHANGED ON PURPOSE (the week plan on the Weeks tab): a run a programme
+    // names changes its plan only on the programme's Weeks tab, which offers
+    // Match the plan to the pages on such a plan (moving no page), so the
+    // sentence names that press and no longer the older editor's Normalise
+    // week ids.
+    await refused(/2 weeks are listed under another week’s page in this run’s week plan, and leaving draft would keep it that way for good\. Press Match the plan to the pages on the programme’s Weeks tab first: it moves no page and deletes nothing\./);
     assert.equal(run().status, "draft");
   });
 
@@ -196,7 +201,7 @@ describe("2. when a hand-over can be pressed", () => {
       });
     const response = await press();
     assert.equal(response.status, 409);
-    assert.match(response.body.error, /Normalise week ids/);
+    assert.match(response.body.error, /Press Match the plan to the pages on the programme’s Weeks tab first/);
     assert.deepEqual(rowsOn(), []);
     assert.equal(run().status, "draft");
   });

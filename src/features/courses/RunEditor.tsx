@@ -40,6 +40,8 @@ import {
   COPY_CANT_REPLACE,
   NOBODY_IS_EMAILED,
   OPEN_TIMES,
+  OPEN_WEEKS,
+  WEEK_PLAN_ON_WEEKS,
   keepStatusWords,
   moveStatusWords,
   statusQuestionBody,
@@ -1216,18 +1218,31 @@ export default function RunEditor({
       {/* ---- Week plan ---- */}
       <Card padding="lg">
         <h3 className={styles.sectionTitle}>Week plan</h3>
-        {/* `status` is threaded through rather than left to the builder's own
+        {/* On a run a programme names, the plan changes on the programme's
+            Weeks tab, through one checked route that keeps every week at its
+            own number's address: the line below stands where the builder
+            was, and nothing on this page writes the plan. A run no programme
+            names keeps the builder as it is.
+
+            `status` is threaded through rather than left to the builder's own
             getDoc fallback: without it every open of a DRAFT run rendered the
             locked state until a round trip came back and said otherwise. */}
-        <WeekPlanBuilder
-          runId={runId}
-          startDate={run.startDate}
-          weekPlan={run.weekPlan}
-          status={run.status}
-          groupsGoneOut={groupsGoneOut}
-          runAction={runAction}
-          onSaved={reload}
-        />
+        {groupPagesAt ? (
+          <p className={styles.hint}>
+            {WEEK_PLAN_ON_WEEKS}{" "}
+            <Link href={`${programmePath(groupPagesAt.roundId, groupPagesAt.programmeId)}/weeks`}>{OPEN_WEEKS}</Link>
+          </p>
+        ) : (
+          <WeekPlanBuilder
+            runId={runId}
+            startDate={run.startDate}
+            weekPlan={run.weekPlan}
+            status={run.status}
+            groupsGoneOut={groupsGoneOut}
+            runAction={runAction}
+            onSaved={reload}
+          />
+        )}
       </Card>
 
       {/* ---- Weeks ---- */}

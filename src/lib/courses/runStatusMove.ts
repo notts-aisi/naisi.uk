@@ -29,7 +29,8 @@ import { canTransition, stepsThroughRunning } from "./runStatus";
  *     when the caller asks to step through Running, the two entries
  *     `stepsThroughRunning` names (Applications open or closed, to Running,
  *     to Completed); anything else is 400;
- *  5. a move out of draft meets the week id check (409);
+ *  5. a move out of draft meets the week id check (409), in the words for
+ *     a run a programme names when the caller says it is one (`named`);
  *  6. the status is written with `updatedAt`. Nothing else is written,
  *     nobody is emailed.
  *
@@ -51,7 +52,7 @@ export async function moveRunStatus(
   db: Firestore,
   runId: string,
   next: CourseRunStatus,
-  options: { throughRunning?: boolean } = {},
+  options: { throughRunning?: boolean; named?: boolean } = {},
 ): Promise<StatusMoveDone | StatusMoveRefusal> {
   const ref = db.collection("courseRuns").doc(runId);
   return db.runTransaction(async (tx) => {
@@ -75,7 +76,7 @@ export async function moveRunStatus(
 
     // The last moment the week ids can still be reconciled. After this write
     // both the normalise route and the rules refuse, whatever the plan says.
-    const blocker = draftExitBlocker(current, next, data.weekPlan);
+    const blocker = draftExitBlocker(current, next, data.weekPlan, options.named === true);
     if (blocker) return { ok: false, status: 409, error: blocker } as const;
 
     tx.update(ref, { status: next, updatedAt: FieldValue.serverTimestamp() });

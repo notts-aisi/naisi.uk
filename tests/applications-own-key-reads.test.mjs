@@ -328,6 +328,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/weekPlanEdit/facts.ts",
+    {
+      why: "the week plan's check reads the programme that names the run, by the ids namingProgrammeIn found on the form, to ask again in its transaction that it still names the run",
+    },
+  ],
+  [
     "src/lib/firestore/memberRecords.ts",
     {
       why: "builds the kept member record: it reads a form's programmes by a programme id off the application, and a review's scores by a criterion id off the round",

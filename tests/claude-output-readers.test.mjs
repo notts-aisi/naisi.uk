@@ -80,6 +80,7 @@ const ADDRESSERS = {
     "the review's page loader and its press, each behind the review's door, which admits an admin alone; the one writer",
   "lib/firestore/accountDeletion.ts": "deleting an account takes it out of every review that names it",
   "lib/firestore/courseDeletion.ts": "destroying the run counts the reviews and drains them",
+  "lib/courses/weekPlanEdit/kept.ts": "the week plan's check before a week moves or goes: it counts the run's rows by one equality on the run, and reads none of them",
 };
 
 /** Every file that addresses Claude's end-of-week drafts, and what it does with them. */
@@ -89,6 +90,7 @@ const NOTE_DRAFT_ADDRESSERS = {
     "the week's Notes page loader, which hands drafts to an admin alone, and the draft, save and discard presses, each behind the week's door with `adminOnly`; the one writer",
   "lib/firestore/accountDeletion.ts": "deleting an account deletes the drafts about it and takes its ratings and feedback out of the rest",
   "lib/firestore/courseDeletion.ts": "destroying the run counts the drafts and drains them",
+  "lib/courses/weekPlanEdit/kept.ts": "the week plan's check before a week moves or goes: it counts the run's rows by one equality on the run, and reads none of them",
 };
 
 /**
@@ -100,6 +102,7 @@ const NOTE_DRAFT_REACHERS = {
   "lib/firestore/courseNoteDrafts.ts": "the record, which the library and the deletions read",
   "lib/firestore/accountDeletion.ts": "deleting an account: the record's collection and what to take out of a draft",
   "lib/firestore/courseDeletion.ts": "destroying the run: the record's collection",
+  "lib/courses/weekPlanEdit/kept.ts": "the week plan's check: the record's collection, counted by run and never read",
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/draft/route.ts":
     "Draft a person's note: refuses everybody but an admin on the session before anything is read, then the week's door with adminOnly",
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]/save/route.ts":
@@ -121,6 +124,7 @@ const REACHERS = {
   "lib/firestore/courseWeekReviews.ts": "the record, which the library and the deletions read",
   "lib/firestore/accountDeletion.ts": "deleting an account: the record's collection and what to take out of it",
   "lib/firestore/courseDeletion.ts": "destroying the run: the record's collection",
+  "lib/courses/weekPlanEdit/kept.ts": "the week plan's check: the record's collection, counted by run and never read",
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/route.ts":
     "Review with Claude: refuses everybody but an admin on the session before anything is read, then the review's door",
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/follow-up/route.ts":

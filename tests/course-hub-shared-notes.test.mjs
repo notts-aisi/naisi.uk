@@ -804,6 +804,7 @@ const ADDRESSERS = {
   "app/api/courses/groups/[groupId]/shared-notes/route.ts": "the one writer: the group's people and its facilitators",
   "app/api/courses/groups/[groupId]/shared-notes/[noteId]/route.ts": "deletes a note for the person who wrote it",
   "lib/firestore/courseDeletion.ts": "destroying the run counts the notes and drains them",
+  "lib/courses/weekPlanEdit/kept.ts": "the week plan's check before a week moves or goes: it counts the run's rows by one equality on the run, and reads none of them",
   "lib/firestore/accountDeletion.ts": "deleting an account deletes the notes it wrote",
 };
 const READER_CALLERS = {

@@ -173,6 +173,10 @@ const READERS = {
     treats: "every-row",
     why: "counts a run's rows of every kind, a number for the two copies' refusal to replace weeks somebody has started",
   },
+  "lib/courses/weekPlanEdit/kept.ts": {
+    treats: "every-row",
+    why: "counts a run's rows of every kind, a number for the week plan's refusal to move or remove weeks once anything is kept against them",
+  },
   "lib/courses/olderEditor/weekInUse.ts": {
     treats: "every-row",
     why: "counts a week's rows of every kind, by run and week id, a number for the refusal to unpublish a week somebody has started",

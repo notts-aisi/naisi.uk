@@ -855,7 +855,7 @@ test("GUARD: a run cannot leave draft while its two week spellings disagree", ()
   assert.match(DRAFT_EXIT, /if \(from !== "draft" \|\| to === "draft"\) return null;/);
   // The status move asks it BEFORE the write, of what its transaction read,
   // and the route moves a status through nothing else.
-  assert.match(STATUS_MOVE, /const blocker = draftExitBlocker\(current, next, data\.weekPlan\);/);
+  assert.match(STATUS_MOVE, /const blocker = draftExitBlocker\(current, next, data\.weekPlan, options\.named === true\);/);
   const blockerAt = STATUS_MOVE.indexOf("const blocker = draftExitBlocker(");
   const writeAt = STATUS_MOVE.indexOf("tx.update(ref,");
   assert.ok(blockerAt > 0 && writeAt > 0 && blockerAt < writeAt);
@@ -864,14 +864,23 @@ test("GUARD: a run cannot leave draft while its two week spellings disagree", ()
   // The first hand-over asks it of a draft run, through the one blocker the
   // panel and the writer share, and writes Running only in the transaction
   // that asked it, after it said nothing stops the press.
-  assert.match(HAND_OVER_BLOCKER, /return draftExitBlocker\("draft", "running", run\.run\.weekPlan\);/);
+  // A hand-over is always to a run a programme names: the sentence for one.
+  assert.match(HAND_OVER_BLOCKER, /return draftExitBlocker\("draft", "running", run\.run\.weekPlan, true\);/);
   const askedAt = HAND_OVER.indexOf("const blocked = handOverBlocker(form, programme, run);");
   const startsAt = HAND_OVER.indexOf('...(run.run.status === "draft" ? { status: "running" } : {}),');
   assert.ok(askedAt > 0 && startsAt > askedAt, "the hand-over starts a draft only after the check");
 
-  // And it names the ONE affordance that can still fix it, which exists.
+  // And it names the ONE affordance that can still fix it, which exists: on a
+  // run no programme names, the older builder's Normalise week ids; on a run
+  // a programme names (the hand-over's, and the status route's when the forms
+  // say so), Match the plan to the pages on the programme's Weeks tab, which
+  // rewrites the plan to the pages people see and moves nothing
+  // (tests/course-week-plan.test.mjs drives that on a drifted plan). The older builder is words on such a run.
   assert.match(DRAFT_EXIT, /Normalise week ids/);
   assert.match(WEEK_PLAN_BUILDER, /Normalise week ids/);
+  assert.match(DRAFT_EXIT, /Press Match the plan to the pages on the programme’s Weeks tab first: it moves no page and deletes nothing\./);
+  assert.match(STATUS_ROUTE, /const named = \(await readNamingProgramme\(db, runId\)\.catch\(\(\) => null\)\) !== null;/);
+  assert.match(STATUS_ROUTE, /await moveRunStatus\(db, runId, nextStatus, \{ throughRunning: body\.through === "running", named \}\);/);
 });
 
 test("GUARD — every member-facing surface addresses a week by weekDocId(number)", () => {

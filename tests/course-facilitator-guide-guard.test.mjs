@@ -179,6 +179,10 @@ const READERS = {
     gate: "facilitatorGuideReaderForGroup(",
     why: "Publish's plan: which weeks of the course's guide have something, by title, asked through the facilitators' door for each group it tells, so their email says week 1's guide is on their group page only while that page shows it; nothing a document says leaves the plan",
   },
+  "lib/courses/weekPlanEdit/guide.ts": {
+    gate: null,
+    why: "a run's week plan, before a week's number changes: which week numbers of the course's guide hold a session plan or notes, by slot alone, so no week moves under one; nothing a document says is read",
+  },
   "lib/firestore/courseDeletion.ts": {
     gate: null,
     why: "the course's destroy, an admin's typed confirmation: it counts the course's documents and deletes them by address, reading nothing they say",
@@ -198,6 +202,10 @@ const THROUGH = {
   "app/api/courses/[courseId]/destroy-manifest/route.ts": {
     via: "lib/firestore/courseDeletion.ts",
     why: "counts what a course's destroy would take, the guide's documents among them, as a number",
+  },
+  "app/api/courses/runs/[runId]/week-plan/route.ts": {
+    via: "lib/courses/weekPlanEdit/guide.ts",
+    why: "changes a run's week plan, asking first which week numbers of the course's guide hold something, by slot alone, and reads nothing a document says",
   },
   "app/api/courses/runs/[runId]/destroy/route.ts": {
     via: "lib/firestore/courseDeletion.ts",
@@ -318,7 +326,7 @@ describe("2. every page and route that reaches the guide asks the gate first", (
       const code = FILES.get(path).code;
       if (gate === null) {
         assert.doesNotMatch(code, READS, `${path} is listed as reading no document, and reads one`);
-        assert.match(code, /\bcourseGuideRefs\(|\bcountCourseGuide\(/, `${path} no longer reaches the store`);
+        assert.match(code, /\bcourseGuideRefs\(|\bcountCourseGuide\(|\bcourseGuideWeekNumbers\(/, `${path} no longer reaches the store`);
         continue;
       }
       const gateAt = code.indexOf(gate);
