@@ -279,6 +279,10 @@ const THROUGH = {
     via: "lib/courses/allocationPublish.ts",
     why: "an admin's proposed arrangement into groups, which reads the run's groups the way the Groups tab's times do, taking only the address of the facilitators' told markers from Publish's module and never asking its plan",
   },
+  "app/api/admissions/forms/[roundId]/programmes/[programmeId]/arranging/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "the programme's lead's arranging on People in groups reading the run's groups when it opens and again after a change, which reads them the way the Groups tab's times do, taking only the address of the facilitators' told markers from Publish's module and never asking its plan",
+  },
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/circles/route.ts": {
     via: "lib/courses/allocationPublish.ts",
     why: "Circles' arranging (an admin's, on People in groups shown as Rings) reading the run's groups when it opens and again after a change, which reads them the way the Groups tab's times do, taking only the address of the facilitators' told markers from Publish's module and never asking its plan",

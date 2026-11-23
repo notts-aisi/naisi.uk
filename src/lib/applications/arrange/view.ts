@@ -15,7 +15,7 @@ import type { Lean } from "../assessment/types";
 export type RingPerson = {
   uid: string;
   name: string;
-  /** Their application, opened under this programme. */
+  /** Their application, opened under this programme; "" where the reader may not read it (the programme's lead). */
   href: string;
   /** They said they would like to facilitate this programme. */
   offered: boolean;
@@ -57,6 +57,11 @@ export type RingPerson = {
    * day. Never sent to Claude.
    */
   week: { said: boolean; marked: { weekday: number; start: number; end: number }[]; fromFirstMark: boolean };
+  /**
+   * Only on the programme's lead's screen, for somebody whose application the
+   * lead may not read: no week, no offer, no way to the application.
+   */
+  unread?: true;
   /** Claude's earlier read of their application, reviewers made "a reviewer". Null until read. */
   read: { lean: Lean | null; summary: string; strengths: string[]; concerns: string[]; thin: number } | null;
 };

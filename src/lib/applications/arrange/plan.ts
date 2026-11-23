@@ -87,6 +87,12 @@ export type ArrangePerson = {
    * NEVER in anything sent to Claude.
    */
   timeAnswer?: TimeAnswerView | null;
+  /**
+   * The reader may not read their application (only ever set for the
+   * programme's lead): arranged as somebody who has not said when they are
+   * free, and offered no way to their application.
+   */
+  unread?: boolean;
 };
 
 export type ArrangeGroup = {

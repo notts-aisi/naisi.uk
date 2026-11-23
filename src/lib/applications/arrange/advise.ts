@@ -24,7 +24,7 @@ import {
   type AppliedChoice,
   type ProgrammeTimes,
 } from "./advice";
-import { loadArranging, loadPreviewArranging, newGroupName, type Arranging } from "./load";
+import { arrangingReader, loadArranging, loadPreviewArranging, newGroupName, type Arranging } from "./load";
 import { notesFor, type Note } from "./notes";
 import { candidatePlans, MAX_OPTIONS, type Strength } from "./options";
 import { canMake } from "./plan";
@@ -39,6 +39,15 @@ import type { ArrangementOptionsView, RingGroup, RingOption, RingPerson } from "
  * admin asks, Claude's ranking of them with pros and cons, a reason for each
  * group, a facilitator for each and any moves, kept only where the rules
  * allow (`./advice.ts`).
+ *
+ * THE PROGRAMME'S LEAD MAY ASK FOR THE OPTIONS WITHOUT CLAUDE, once
+ * decisions have gone out (`arrangeOptions`): worked out only from the
+ * people and the weeks `loadArranging` gives a lead (the rows the board
+ * serves them, and each week only where they may read the application).
+ * For the lead Claude is never asked, Claude's and Pangram's earlier reads
+ * are never read, and nothing Claude returned is in the answer; asking
+ * Claude, and a question about the arrangement, are refused before anything
+ * is read. The preview before decision day stays an admin's.
  *
  * After decision day it arranges the people holding a place
  * (`loadArranging`); before it, the people the decisions as they stand place
@@ -171,7 +180,10 @@ export function ringPeopleOf(
     people[person.uid] = {
       uid: person.uid,
       name: person.name,
-      href: `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications/${encodeURIComponent(person.uid)}`,
+      // No way to an application the reader may not open (the lead's, `unread`).
+      href: person.unread
+        ? ""
+        : `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications/${encodeURIComponent(person.uid)}`,
       offered: person.facilitates,
       told: person.told,
       toldGroupId: person.toldGroupId ?? null,
@@ -185,6 +197,7 @@ export function ringPeopleOf(
         marked: [...(person.marked ?? [])],
         fromFirstMark: person.week.kind === "given" && person.week.minimal === true,
       },
+      ...(person.unread ? { unread: true as const } : {}),
       potential: potential(person.uid),
       flags: note?.flags ?? null,
       read: read
@@ -201,6 +214,11 @@ export function ringPeopleOf(
   return people;
 }
 
+/** What anybody but an admin is told on asking Claude about groups, whatever else they asked. */
+export const CLAUDE_ADMINS_ONLY = "Only an admin can ask Claude about groups.";
+/** What the programme's lead is told before decision day: the preview then is an admin's. */
+export const PREVIEW_ADMINS_ONLY = "Only an admin can ask for an arrangement before decisions go out.";
+
 export async function arrangeOptions(
   db: Firestore,
   user: SessionUser,
@@ -208,9 +226,17 @@ export async function arrangeOptions(
   programmeId: string,
   wanted: { minutes?: unknown; size?: unknown; askClaude: boolean; startAgain?: boolean },
 ): Promise<ArrangementOptionsResult> {
-  if (!canRunTerm(user)) return refuse(403, "Only an admin can ask for an arrangement.");
+  const isAdmin = canRunTerm(user);
+  // Asking Claude is an admin's alone, refused before anything is read.
+  if (wanted.askClaude && !isAdmin) return refuse(403, CLAUDE_ADMINS_ONLY);
   const form = await loadForm(db, roundId);
   if (!form) return NOT_FOUND;
+  if (!isAdmin) {
+    // The programme's lead, worked out from the form; anybody else is refused here.
+    const reader = arrangingReader(user, form, programmeId);
+    if (typeof reader !== "string") return reader;
+    if (form.decisionsSentAt === null) return refuse(403, PREVIEW_ADMINS_ONLY);
+  }
   const loaded =
     form.decisionsSentAt === null
       ? await loadPreviewArranging(db, user, roundId, programmeId, wanted)
@@ -222,7 +248,8 @@ export async function arrangeOptions(
   const staffedCount = new Map([...arranging.groups.values()].map((group) => [group.id, group.facilitatorUids.length] as const));
   const staffed = new Set([...staffedCount].filter(([, count]) => count > 0).map(([id]) => id));
   const [notes, facilitatorNames] = await Promise.all([
-    notesFor(db, roundId, programmeId, uids),
+    // Claude's and Pangram's earlier reads are an admin's: never read for the lead.
+    isAdmin ? notesFor(db, roundId, programmeId, uids) : Promise.resolve(new Map<string, Note>()),
     loadFirstNames(db, [...new Set([...arranging.groups.values()].flatMap((group) => group.facilitatorUids))]),
   ]);
   const strength = strengthOf(arranging, notes);
@@ -248,7 +275,8 @@ export async function arrangeOptions(
   // Labels back to names: people, and each option's groups by the name the plan gave them.
   let named = (text: string) => text;
 
-  if (wanted.askClaude && claudeConfigured() && candidates.length > 0) {
+  // Only ever for an admin: the lead was refused above, and nothing of theirs is sent.
+  if (isAdmin && wanted.askClaude && claudeConfigured() && candidates.length > 0) {
     const input = choiceInputFrom({
       programmeName: arranging.programmeName,
       candidates,
@@ -351,7 +379,8 @@ export async function arrangeOptions(
       preferredWhy: named(applied.preferredWhy),
       notes: named(applied.notes),
       dropped: applied.dropped.map((entry) => ({ suggestion: named(entry.suggestion), why: named(entry.why) })),
-      claudeConfigured: claudeConfigured(),
+      // The lead is offered nothing that asks Claude.
+      claudeConfigured: isAdmin && claudeConfigured(),
     },
   };
 }
@@ -417,7 +446,7 @@ export async function askAboutArrangement(
   programmeId: string,
   input: { question: string; history: { question: string; answer: string }[]; groups: unknown; minutes?: unknown },
 ): Promise<ArrangementAskResult> {
-  if (!canRunTerm(user)) return refuse(403, "Only an admin can ask for an arrangement.");
+  if (!canRunTerm(user)) return refuse(403, CLAUDE_ADMINS_ONLY);
   const form = await loadForm(db, roundId);
   if (!form) return NOT_FOUND;
   if (!claudeConfigured()) return refuse(409, "Claude isn’t set up on this site yet.");

@@ -154,6 +154,26 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * nothing to clear, and Publish tells them their group.
  * ────────────────────────────────────────────────────────────────────────────
  *
+ * ── SEVERAL PEOPLE MOVED TOGETHER, OR NOBODY ────────────────────────────────
+ * `together: true` (People in groups' Select several, before the groups go
+ * out) moves everybody in the request in ONE transaction, of at most
+ * `TOGETHER_LIMIT` people, or nobody. The transaction reads the run itself
+ * with everything it reads for a chunk, and decides every placement exactly
+ * as a chunk does, writing nothing until all have been decided. If any one
+ * of them cannot be moved, NOTHING IS WRITTEN and the answer is a 409 naming
+ * the first who stopped it and why (`stopped`, which the board puts in one
+ * sentence): the groups have gone out since the board was loaded
+ * (`published`), somebody no longer holds a place the caller may place
+ * (`not-accepted`), a group that is gone or archived, a group without room
+ * for everybody chosen (`group-full`, counted over the whole request, with
+ * the room it had and how many wanted it), a facilitator who sits in the
+ * group they facilitate, or a move this way cannot make (`changed`: one that
+ * would be made mid-term, or taken out of every group mid-term). Firestore
+ * runs a contended transaction again, so two such requests at once are
+ * decided one after the other, each over what the other wrote. Without
+ * `together` nothing here changes.
+ * ────────────────────────────────────────────────────────────────────────────
+ *
  * ── A FACILITATOR WHO HOLDS A PLACE SITS IN THE GROUP THEY FACILITATE ───────
  * A facilitator can be one of the run's fellows too. So a placement asks
  * which of the run's live groups the person facilitates (the run's groups,
@@ -181,6 +201,27 @@ const CHUNK_SIZE = 100;
 
 /** Sanity ceiling on one request — matches the board's 500-applicant read cap. */
 const MAX_PLACEMENTS = 500;
+
+/**
+ * At most this many people moved together: one transaction, the size of a
+ * chunk, so the whole move is decided and written at once inside
+ * Firestore's limits (about three reads and at most two writes a person).
+ */
+export const TOGETHER_LIMIT = CHUNK_SIZE;
+
+/**
+ * Who stopped a move together, and why (see the note at the top): the first
+ * placement in the request that could not be made, or `published` with no
+ * person. `group-full` carries the room the group had and how many of the
+ * request wanted it.
+ */
+type Stopped = {
+  uid: string | null;
+  reason: string;
+  groupId: string | null;
+  room?: number;
+  wanting?: number;
+};
 
 /**
  * Machine-readable rejection reasons (the board maps them to copy):
@@ -260,6 +301,14 @@ export async function POST(req: Request, ctx: Ctx) {
     );
   }
   const preview = (body as { preview?: unknown }).preview === true;
+  // Several people moved together, or nobody (see the note at the top).
+  const together = (body as { together?: unknown }).together === true;
+  if (together && preview) {
+    return NextResponse.json({ error: "A move together can’t be previewed." }, { status: 400 });
+  }
+  if (together && parsed.length > TOGETHER_LIMIT) {
+    return NextResponse.json({ error: `At most ${TOGETHER_LIMIT} people can be moved together.` }, { status: 400 });
+  }
   const placements = dedupeByUid(parsed);
   if (placements.length === 0) {
     return NextResponse.json(preview ? { ok: true, preview: [] } : { ok: true, placed: 0, rejected: [] });
@@ -362,6 +411,8 @@ export async function POST(req: Request, ctx: Ctx) {
       midTerm: Placement[];
       toPool: { uid: string; fromName: string }[];
       leadOnly: { uid: string; fromName: string }[];
+      /** A move together that stopped, with nothing written. */
+      stopped: Stopped | null;
     };
     try {
       // Accumulators live INSIDE the callback (returned, not captured):
@@ -397,7 +448,7 @@ export async function POST(req: Request, ctx: Ctx) {
           db.collection("courseGroups").doc(id),
         );
 
-        const [enrolmentSnaps, applicationSnaps, targetGroupSnaps, runGroupsSnap] =
+        const [enrolmentSnaps, applicationSnaps, targetGroupSnaps, runGroupsSnap, runNow] =
           await Promise.all([
             tx.getAll(...enrolmentRefs),
             tx.getAll(...applicationRefs),
@@ -408,6 +459,9 @@ export async function POST(req: Request, ctx: Ctx) {
             // one field, read in the transaction so an appointment made while
             // this runs makes it run again.
             tx.get(db.collection("courseGroups").where("runId", "==", runId)),
+            // A move together: whether the groups have gone out, read in the
+            // transaction so a Publish while it runs makes it run again.
+            together ? tx.get(db.collection("courseRuns").doc(runId)) : Promise.resolve(null),
           ]);
         const facilitatedBy = new Map<string, string[]>();
         // The run's groups, archived ones included: whether a move is made mid-term.
@@ -511,6 +565,13 @@ export async function POST(req: Request, ctx: Ctx) {
         };
         const bumpDelta = (groupId: string, by: number) => {
           deltaByGroup.set(groupId, (deltaByGroup.get(groupId) ?? 0) + by);
+        };
+        // A move together writes nothing until every placement is decided
+        // (see the note at the top); otherwise each write is made at once, as always.
+        const queued: (() => void)[] = [];
+        const write = (op: () => void) => {
+          if (together) queued.push(op);
+          else op();
         };
 
         for (const placement of chunk) {
@@ -641,7 +702,7 @@ export async function POST(req: Request, ctx: Ctx) {
             // so a concurrent allocator racing on the same person loses with
             // ALREADY_EXISTS instead of silently overwriting — the doc id is
             // the invariant (see module comment).
-            tx.create(enrolmentRef, {
+            write(() => tx.create(enrolmentRef, {
               runId,
               courseId: run.courseId,
               uid,
@@ -653,7 +714,7 @@ export async function POST(req: Request, ctx: Ctx) {
               joinedWeekNumber: joinedWeekFor(run, targetGroup),
               createdAt: FieldValue.serverTimestamp(),
               updatedAt: FieldValue.serverTimestamp(),
-            });
+            }));
             bumpDelta(groupId, 1);
             chunkPlaced += 1;
             continue;
@@ -745,10 +806,55 @@ export async function POST(req: Request, ctx: Ctx) {
               patch.putBackAt = FieldValue.serverTimestamp();
             }
           }
-          tx.update(enrolmentRef, patch);
+          write(() => tx.update(enrolmentRef, patch));
           if (wasCounted && enrolment.groupId) bumpDelta(enrolment.groupId, -1);
           if (groupId) bumpDelta(groupId, 1);
           chunkPlaced += 1;
+        }
+
+        /**
+         * Why a move together cannot be made, or null when every placement
+         * can: in the request's order, the first refusal of any kind.
+         */
+        const stoppedTogether = (): Stopped | null => {
+          if (runNow && (!runNow.exists || runNow.data()?.allocationPublishedAt)) {
+            return { uid: null, reason: "published", groupId: null };
+          }
+          const refusedUids = new Set([
+            ...chunkRejected.map((refusal) => refusal.uid),
+            ...chunkMidTerm.map((move) => move.uid),
+            ...chunkToPool.map((move) => move.uid),
+            ...chunkLeadOnly.map((move) => move.uid),
+          ]);
+          const first = chunk.find((placement) => refusedUids.has(placement.uid));
+          if (!first) return null;
+          const refusal = chunkRejected.find((each) => each.uid === first.uid);
+          if (!refusal) return { uid: first.uid, reason: "changed", groupId: first.groupId };
+          if (refusal.reason !== "group-full" || !first.groupId) {
+            return { uid: first.uid, reason: refusal.reason, groupId: first.groupId };
+          }
+          // The room the group had before this request, and how many of it wanted a seat there.
+          const snap = groupById.get(first.groupId);
+          const group = snap?.exists ? normalizeCourseGroup(snap.id, snap.data() ?? {}) : null;
+          const room = Math.max(0, (group?.capacity ?? 0) - (group?.memberCount ?? 0));
+          const wanting = chunk.filter((placement) => {
+            if (placement.groupId !== first.groupId) return false;
+            const seatSnap = enrolmentByUid.get(placement.uid);
+            const seat = seatSnap?.exists ? normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {}) : null;
+            return !(seat && seat.role === "learner" && seat.status === "active" && seat.groupId === placement.groupId);
+          }).length;
+          return { uid: first.uid, reason: "group-full", groupId: first.groupId, room, wanting };
+        };
+
+        // A MOVE TOGETHER, OR NOBODY: the first placement that could not be
+        // made stops the lot, and nothing queued is written. The groups having
+        // gone out stops it before anybody.
+        if (together) {
+          const stopped = stoppedTogether();
+          if (stopped) {
+            return { placed: 0, rejected: [], midTerm: [], toPool: [], leadOnly: [], stopped };
+          }
+          for (const op of queued) op();
         }
 
         // All deltas land once per group per transaction.
@@ -763,7 +869,7 @@ export async function POST(req: Request, ctx: Ctx) {
         // form's counters, in the same transaction as the seat.
         if (restoring.length > 0) restorePlaces(tx, restoring);
 
-        return { placed: chunkPlaced, rejected: chunkRejected, midTerm: chunkMidTerm, toPool: chunkToPool, leadOnly: chunkLeadOnly };
+        return { placed: chunkPlaced, rejected: chunkRejected, midTerm: chunkMidTerm, toPool: chunkToPool, leadOnly: chunkLeadOnly, stopped: null };
       });
     } catch (err) {
       // Chunks are independent transactions, so earlier chunks are already
@@ -780,6 +886,22 @@ export async function POST(req: Request, ctx: Ctx) {
         },
         { status: 500 },
       );
+    }
+    // A move together is one transaction: everybody, or nobody and who stopped it.
+    if (together) {
+      if (outcome.stopped) {
+        return NextResponse.json(
+          {
+            error:
+              outcome.stopped.reason === "published"
+                ? "Nobody was moved: the groups have gone out since the board was loaded."
+                : "Nobody was moved: one of them can’t be moved there.",
+            stopped: outcome.stopped,
+          },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({ ok: true, placed: outcome.placed, rejected: [] });
     }
     placed += outcome.placed;
     for (const refusal of outcome.rejected) rejectedByUid.set(refusal.uid, refusal);

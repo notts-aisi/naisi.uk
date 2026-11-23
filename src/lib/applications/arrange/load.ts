@@ -6,12 +6,15 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { readsOf, toldGroupIds } from "@/lib/courses/groupTimes/told";
 import { currentTimeAnswer } from "@/lib/courses/timeAnswer/model";
 import { enrolmentHasLeft, movedSinceTold, normalizeCourseEnrolment, groupToldAbout } from "@/lib/firestore/courseEnrolments";
-import { canRunTerm } from "../access";
+import { normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
+import { runStaffingOf } from "@/lib/courses/runStaffing";
+import { canRunTerm, roleOnProgramme } from "../access";
 import { isInTerm, placementFor } from "../decisions";
 import { compareWithRun, nameOnRecord, placeHoldersOn, type PlaceHolder } from "../handover/holders";
 import { markedRanges } from "@/lib/admissions/availability";
 import { paintedWeekOf } from "../handover/paintedWeek";
-import { RUNS_COLLECTION, listRunRows, readRun } from "../handover/run";
+import { readsApplicationOf } from "../people/week";
+import { RUNS_COLLECTION, RUN_APPLICATIONS_COLLECTION, readRun } from "../handover/run";
 import { defaultLength, hasSessionTime, lengthFromGroups, lengthOptions, pickLength, timesPicture, WEEK_FROM_MONDAY } from "../handover/times";
 import { groupsOf, type LiveGroup } from "../handover/timesLoad";
 import { own } from "../keys";
@@ -21,11 +24,12 @@ import { termPictureFor } from "../review/term";
 import type { Refusal } from "../review/types";
 import { listDecisions, listReviews, listSentApplications } from "../staffRepo";
 import type { ApplicationForm } from "../normalise";
-import type { ProgrammeSettings } from "../model";
+import type { ApplicationDoc, ProgrammeSettings } from "../model";
 import type { ArrangeGroup, ArrangePerson, CandidateTime } from "./plan";
 
 /**
- * EVERYTHING AN ARRANGEMENT IS WORKED OUT FROM, for an admin.
+ * EVERYTHING AN ARRANGEMENT IS WORKED OUT FROM, for an admin or the
+ * programme's lead.
  *
  * The same reads the Times view makes (`../handover/timesLoad.ts`), in the
  * same order, by the same helpers: the form, the programme's run and its
@@ -39,10 +43,21 @@ import type { ArrangeGroup, ArrangePerson, CandidateTime } from "./plan";
  * has told them it, and the run's groups' facilitators, who sit in the
  * group they facilitate and nowhere else (`appointed`).
  *
- * Only an admin: what follows asks Claude about named people, and Claude's
- * reads are an admin's (`../assessment/run.ts`).
+ * FOR AN ADMIN, OR THE PROGRAMME'S LEAD (`arrangingReader`). What an admin
+ * may then ask Claude about named people, and Claude's reads, are an
+ * admin's alone (`./advise.ts`, `../assessment/run.ts`): nothing read here
+ * for a lead goes to Claude. FOR THE LEAD THE PEOPLE ARE ONLY THOSE THE
+ * BOARD SERVES THEM: the run's rows this lead is served on every staff
+ * route (`rowIsServedTo`, with the lead's standing on the run from
+ * `runStaffingOf`), and of each person's application only what the
+ * application's own gate lets this lead have (`readsApplicationOf`, the
+ * one place the gated read of a week asks it too): somebody whose application the lead may not read
+ * is arranged as somebody who has not said when they are free, with no
+ * offer to facilitate and the name on the run's own row, so nothing the
+ * suggestion says is worked out from their week. An admin's reading is
+ * unchanged.
  *
- * BEFORE DECISION DAY, A PREVIEW (`loadPreviewArranging`): the people the
+ * BEFORE DECISION DAY, A PREVIEW (`loadPreviewArranging`), an admin's alone: the people the
  * decisions as they stand place on the programme, read from the term as the
  * review screens read it (`../review/term.ts`), so the viewer's own
  * application is left out exactly as on every screen before decision day.
@@ -112,24 +127,59 @@ function groupSizeOf(programmeSize: string, groups: readonly LiveGroup[]): numbe
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_GROUP_SIZE;
 }
 
+/** What a reviewer, and anybody else with a role on the programme but its lead, is told. */
+export const ARRANGE_ADMIN_OR_LEAD = "Only an admin or the programme’s lead can ask for an arrangement.";
+
+/**
+ * WHO MAY ASK FOR AN ARRANGEMENT OF A PROGRAMME'S PEOPLE: an admin, or the
+ * programme's lead (`roleOnProgramme`, so a lead is held to the bar a lead
+ * is appointed behind). Somebody with no role on the programme is answered
+ * as for a programme that is not there; a reviewer is refused in a
+ * sentence. Asks the form alone.
+ */
+export function arrangingReader(user: SessionUser, form: ApplicationForm, programmeId: string): "admin" | "lead" | Refusal {
+  const role = roleOnProgramme(user, form, programmeId);
+  if (role === "admin" || role === "lead") return role;
+  return role === null ? NOT_FOUND : refuse(403, ARRANGE_ADMIN_OR_LEAD);
+}
+
+/**
+ * May this lead have this person's application: the one question
+ * `readsApplicationOf` answers (`../people/week.ts`, the application's own
+ * gate over what they sent), and never their own, as nobody opens their own
+ * application on the staff screens. Asked before anything of the week is read.
+ */
+function leadMayRead(reader: SessionUser, form: ApplicationForm, uid: string, application: ApplicationDoc | null): boolean {
+  if (uid === reader.uid) return false;
+  const own = application && application.uid === uid ? application : null;
+  return own !== null && own.sent !== null && readsApplicationOf(reader, form, own);
+}
+
 export async function loadArranging(
   db: Firestore,
-  user: SessionUser,
+  actor: SessionUser,
   roundId: string,
   programmeId: string,
   wanted: { minutes?: unknown; size?: unknown },
 ): Promise<ArrangingResult> {
-  if (!canRunTerm(user)) return refuse(403, "Only an admin can ask for an arrangement.");
   const form = await loadForm(db, roundId);
   if (!form) return NOT_FOUND;
   const programme = own(form.programmes, programmeId);
   if (!programme) return NOT_FOUND;
+  const reader = arrangingReader(actor, form, programme.id);
+  if (typeof reader !== "string") return reader;
+  const isAdmin = reader === "admin";
   if (programme.runId === null) return refuse(409, "This programme names no course run yet.");
   const runSnap = await db.collection(RUNS_COLLECTION).doc(programme.runId).get();
   const read = runSnap.exists ? readRun(runSnap.id, runSnap.data()) : null;
-  if (!read) return refuse(409, "The course run this programme names is not there any more.");
+  // A run being destroyed is gone already for everybody it served, as every other read of a run reads it.
+  if (!read || read.destroying) return refuse(409, "The course run this programme names is not there any more.");
   // Nobody is arranged, or named, until everybody has been told.
   if (form.decisionsSentAt === null) return refuse(409, "Decisions haven’t gone out yet.");
+  // The caller's standing on the run, as every staff route reads it: the rows
+  // they are served (`rowIsServedTo`). An admin is served every row.
+  const staffing = await runStaffingOf(db, actor, read.run);
+  if (!isAdmin && staffing.leadOf === null) return refuse(403, ARRANGE_ADMIN_OR_LEAD);
 
   const runId = read.run.id;
   const askedSince = new Map<string, Date>();
@@ -145,8 +195,13 @@ export async function loadArranging(
     loadQuestionSets(db, form.round.id),
     // One equality on one field, so no declared index: every seat on the run.
     db.collection("courseEnrolments").where("runId", "==", runId).get(),
-    // The run's own list: who the allocate route places.
-    listRunRows(db, runId),
+    // The run's own list: who the allocate route places. One equality on one
+    // field, so no declared index. Only the rows the caller is served, below.
+    db
+      .collection(RUN_APPLICATIONS_COLLECTION)
+      .where("runId", "==", runId)
+      .get()
+      .then((snap) => snap.docs.map((doc) => normalizeCourseApplication(doc.id, doc.data() ?? {}))),
     toldGroupIds(db, readsOf(db), runId, live),
   ]);
   const inTerm = applications.filter(isInTerm);
@@ -190,25 +245,32 @@ export async function loadArranging(
     for (const uid of group.facilitatorUids) appointed.set(uid, [...(appointed.get(uid) ?? []), group.id]);
   }
 
+  // Everybody is arranged only the rows the board serves them: every row for an admin.
+  const servedRows = rows.filter((row) => rowIsServedTo(row, staffing));
   const holders = placeHoldersOn(form, programme.id, inTerm, decisions);
   const holding = new Set(holders.map((holder) => holder.uid));
   const names = new Map(holders.map((holder) => [holder.uid, holder.name] as const));
-  const compared = compareWithRun({ holders, rows, roundId: form.round.id, programmeId: programme.id, names });
+  const compared = compareWithRun({ holders, rows: servedRows, roundId: form.round.id, programmeId: programme.id, names });
   // A closed row is not on the list either, as before it was named apart.
   const notOnList = [...compared.toHandOver, ...compared.notAccepted, ...compared.closed];
 
   const people = new Map<string, ArrangePerson>();
-  for (const row of rows) {
+  for (const row of servedRows) {
     if (row.status !== "accepted" || people.has(row.uid)) continue;
     const seat = seatOf.get(row.uid);
     if (seat?.left) continue;
     // Somebody who gave their place back is not arranged, unless they still sit in a group.
     if (!holding.has(row.uid) && !seat?.groupId) continue;
-    const application = byUid.get(row.uid) ?? null;
+    const onFile = byUid.get(row.uid) ?? null;
+    // For a lead, an application they may not read is none at all: no week,
+    // no offer, no name from it. The person is arranged as one who has not
+    // said when they are free.
+    const readable = isAdmin || leadMayRead(actor, form, row.uid, onFile);
+    const application = readable ? onFile : null;
     people.set(row.uid, {
       uid: row.uid,
-      name: names.get(row.uid) ?? (application ? nameOnRecord(application) : row.displayName.trim() || "NAISI member"),
-      week: paintedWeekOf(form.round.availabilityGrid, application),
+      name: (readable ? names.get(row.uid) : undefined) ?? (application ? nameOnRecord(application) : row.displayName.trim() || "NAISI member"),
+      week: readable ? paintedWeekOf(form.round.availabilityGrid, application) : { kind: "none-given" },
       facilitates: application?.sent ? wouldFacilitate(form, sets, application.sent, programme) : false,
       marked: application?.sent ? markedRanges(application.sent.availability, form.round.availabilityGrid) : [],
       groupId: seat?.groupId ?? null,
@@ -217,6 +279,8 @@ export async function loadArranging(
       moved: seat?.moved ?? null,
       appointed: appointed.get(row.uid) ?? [],
       timeAnswer: seat?.answer ?? null,
+      // Only ever for the lead: no way to an application the lead may not open.
+      ...(readable ? {} : { unread: true }),
     });
   }
 

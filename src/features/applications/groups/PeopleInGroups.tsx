@@ -36,7 +36,17 @@ import { own } from "@/lib/applications/keys";
 import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupResolve";
 import { movedSentence } from "@/lib/courses/moveWords";
 import Circles from "@/features/applications/circles/Circles";
-import { CONNECTION, LEGEND, LEGEND_LEAD, STOP_CONFIRM, SUGGEST, SUGGESTING, facilitatorSavedWords } from "@/features/applications/circles/circlesWords";
+import {
+  BACK_TO_COLUMNS,
+  BACK_TO_RINGS,
+  CONNECTION,
+  LEGEND,
+  LEGEND_LEAD,
+  STOP_CONFIRM,
+  SUGGEST,
+  SUGGESTING,
+  facilitatorSavedWords,
+} from "@/features/applications/circles/circlesWords";
 import type { ArrangementOptionsView, CirclesView } from "@/lib/applications/arrange/view";
 import BoardPersonPanel, { type PanelSubject } from "./BoardPersonPanel";
 import { withShow, type BoardShow } from "./boardShow";
@@ -45,7 +55,7 @@ import { focusAfterPanel } from "./panelFocus";
 import RingsBoard, { type TrayPerson } from "./RingsBoard";
 import { moveHereWords, ringsOf, type BoardRing } from "./ringsModel";
 import styles from "./PeopleInGroups.module.css";
-import { POOL, TAKE_OFF, marksOf, menuOptions, notToldYet, type Mark } from "./peopleInGroupsBoard";
+import { POOL, TAKE_OFF, marksOf, menuOptions, notToldYet, togetherOutcomeWords, type Mark } from "./peopleInGroupsBoard";
 import SomeWeeks from "@/features/courses/timeAnswer/SomeWeeks";
 import { CANT_DETAILS, WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
@@ -105,12 +115,28 @@ import { useBoardPanel } from "./useBoardPanel";
  * them out. Shown as Rings, that read is made at once, since the rings need
  * it; Columns still makes it only once a panel is opened.
  *
- * AN ADMIN'S ARRANGING, on Rings: "Suggest groups" in the toolbar reads the
- * run's groups through Circles' own route and asks for a suggestion, then
- * draws Circles' arranging in place of the rings (`Circles`, with its
- * preview, Apply, Ask Claude and every change it saves through the site's
- * own routes) until "Back to the rings". The lead is offered none of it, as
- * before: Circles' route answers an admin alone.
+ * ARRANGING, on Columns and on Rings: "Suggest groups" in the toolbar, for
+ * an admin at any time (before decisions go out a preview, an admin's
+ * alone) and for the programme's lead once decisions have gone out, reads
+ * the run's groups and asks for a suggestion without Claude, then draws Circles' arranging in place of the
+ * board (`Circles`, with its preview, Apply and every change it saves
+ * through the site's own routes) until "Back to the rings" or "Back to the
+ * columns". An admin reads the groups through Circles' own route and is
+ * offered Ask Claude there. The programme's lead reads them through the
+ * lead's own route (`arranging`), worked out only from the rows the board
+ * serves the lead and the weeks the lead may read, and the screen names
+ * neither Claude nor Pangram, asks neither and leads nowhere an admin's
+ * alone. Showing the board the other way closes it.
+ *
+ * SELECT SEVERAL, BEFORE THE GROUPS GO OUT, on Columns: the toolbar's
+ * "Select several" puts a box on every card, and a bar names who is chosen
+ * ("3 selected: Daniel, Raj and Tom") with "Move to…", "Clear" and "Done".
+ * "Move to…" lists To place and each group with its room, and moves
+ * everybody chosen in one request through the allocate route's `together`
+ * way (`placeTogether`): one transaction, everybody or nobody, and on a
+ * refusal one sentence naming who stopped it (`stoppedTogetherWords`).
+ * Nobody is emailed. Once the groups have gone out the button is not there:
+ * each move then asks its own question.
  *
  * WHAT THE DESIGN DRAWS AND THIS LEAVES OUT, because the feature does not
  * exist yet: "Remind" (when-you're-free open until groups go out, a
@@ -196,6 +222,8 @@ type CardProps = {
   onOpen: (uid: string, from: HTMLElement) => void;
   /** Their panel is the one open. */
   open: boolean;
+  /** Select several: the card's box, while choosing several before the groups go out. */
+  pick?: { checked: boolean; onToggle: () => void };
 };
 
 function PersonCard({
@@ -213,6 +241,7 @@ function PersonCard({
   onAnswerChanged,
   onOpen,
   open,
+  pick,
 }: CardProps) {
   // The six dots are a pointer's handle and nothing else: the card's menu is
   // the way to move somebody from a keyboard or a touch screen.
@@ -227,7 +256,14 @@ function PersonCard({
   };
   return (
     <div ref={setNodeRef} style={style} className={styles.cardShell}>
-      <div className={`${styles.card} ${warns ? styles.cardWarn : ""} ${isDragging ? styles.cardDragging : ""}`}>
+      <div
+        className={`${styles.card} ${warns ? styles.cardWarn : ""} ${isDragging ? styles.cardDragging : ""}${pick ? ` ${styles.cardPicking}` : ""}`}
+      >
+        {pick ? (
+          <label className={styles.pick}>
+            <input type="checkbox" checked={pick.checked} onChange={pick.onToggle} aria-label={words.selectLabel(name)} />
+          </label>
+        ) : null}
         <span ref={setActivatorNodeRef} className={styles.handle} aria-hidden="true" title="Drag" {...listeners}>
           <GripIcon size={14} />
         </span>
@@ -366,7 +402,7 @@ function Column({
 export default function PeopleInGroups({ view, views, show = "columns" }: Props) {
   const runId = view.run.id;
   const rings = show === "rings";
-  const { data, loading, error, reload, place, previewPlace } = useAllocation(runId);
+  const { data, loading, error, reload, place, previewPlace, placeTogether } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
   // "They meant some weeks" saved on a card: the board is read again, and says so.
   const onAnswerChanged = useCallback(
@@ -406,14 +442,22 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
   }, [openUid]);
   // A change to who facilitates a group, sent from the panel and not answered yet.
   const [staffing, setStaffing] = useState(false);
-  // An admin's arranging on Rings: Circles' own read of the groups, and the suggestion the press asked for.
+  // The arranging: the read of the groups, the suggestion the press asked for, and how the board was shown when it opened.
   const [arranging, setArranging] = useState<{
     circles: CirclesView;
     opening: { arrangement: ArrangementOptionsView | null; error: string | null };
+    openedOn: BoardShow;
   } | null>(null);
   const [openingArranging, setOpeningArranging] = useState(false);
+  // Select several, before the groups go out: whether the boxes are drawn, who is chosen, whether
+  // "Move to…" is open, what the last move of several came to, and a move of several on its way.
+  const [selecting, setSelecting] = useState(false);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [choosingGroup, setChoosingGroup] = useState(false);
+  const [togetherSaid, setTogetherSaid] = useState<{ ok: boolean; text: string } | null>(null);
+  const [movingTogether, setMovingTogether] = useState(false);
   // The cards wait while the question is open.
-  const busy = takingOff !== null || staffing;
+  const busy = takingOff !== null || staffing || movingTogether;
 
   const rows = useMemo(() => data?.people ?? [], [data]);
   const groups = useMemo(() => data?.groups ?? [], [data]);
@@ -667,19 +711,101 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
   );
 
   // -------------------------------------------------------------------------
-  // An admin's arranging, on Rings
+  // Select several, before the groups go out
   // -------------------------------------------------------------------------
 
-  // "Suggest groups": Circles' own read of the run's groups (its route answers
-  // an admin alone), then a suggestion over them without Claude, as Circles'
-  // own "Suggest groups" asks. Nothing is written. A suggestion that could
-  // not be worked out opens the arranging with its reason, where it can be
-  // asked again.
+  /** Everybody on the board's cards, in the board's order: To place, then each group. */
+  const boardOrder = useMemo(
+    () => [POOL, ...groups.map((group) => group.id)].flatMap((column) => (byColumn.get(column) ?? []).map((row) => row.uid)),
+    [groups, byColumn],
+  );
+  /** Who is chosen and still on a card, in the board's order. */
+  const chosenNow = useMemo(() => {
+    const picked = new Set(chosen);
+    return boardOrder.filter((uid) => picked.has(uid));
+  }, [boardOrder, chosen]);
+  const firstNamesOf = useCallback((uids: readonly string[]) => uids.map((uid) => nameOf(uid).split(" ")[0]), [nameOf]);
+
+  const toggleChosen = useCallback((uid: string) => {
+    setTogetherSaid(null);
+    setChosen((was) => (was.includes(uid) ? was.filter((each) => each !== uid) : [...was, uid]));
+  }, []);
+  const clearChosen = useCallback(() => {
+    setChosen([]);
+    setChoosingGroup(false);
+    setTogetherSaid(null);
+  }, []);
+  const stopSelecting = useCallback(() => {
+    setSelecting(false);
+    clearChosen();
+  }, [clearChosen]);
+
+  // "Move to…": everybody chosen in one request, together or not at all
+  // (`placeTogether`), and what it came to in one sentence. Nobody is emailed.
+  const moveChosen = useCallback(
+    async (columnId: string) => {
+      setChoosingGroup(false);
+      const uids = chosenNow;
+      if (uids.length === 0) return;
+      const groupId = columnId === POOL ? null : columnId;
+      const moving = uids.filter((uid) => {
+        const row = rowsByUid.get(uid);
+        return row !== undefined && columnOf(row) !== columnId;
+      });
+      const moved = words.movedTogetherWords(firstNamesOf(uids), groupId === null ? null : columnName(columnId));
+      if (moving.length === 0) {
+        setChosen([]);
+        setTogetherSaid({ ok: true, text: moved });
+        return;
+      }
+      setMovingTogether(true);
+      setTogetherSaid(null);
+      setPending((was) => ({ ...was, ...Object.fromEntries(moving.map((uid) => [uid, groupId] as const)) }));
+      const result = await placeTogether(moving.map((uid) => ({ uid, groupId })));
+      setMovingTogether(false);
+      const said = togetherOutcomeWords(result, moved, nameOf, columnName, columnId);
+      setTogetherSaid(said);
+      if (!said.ok) {
+        revert(moving);
+        return;
+      }
+      setChosen([]);
+      // A note about the groups' weeks for each person moved between groups
+      // that keep their weeks differently, as a single move leaves one.
+      const notes = moving.flatMap((uid) => {
+        const row = rowsByUid.get(uid);
+        const from = row ? columnOf(row) : POOL;
+        const note = divergenceNote(autonomyOf(groupsById.get(from) ?? null), autonomyOf(groupsById.get(columnId) ?? null), {
+          source: columnName(from),
+          target: groupId === null ? null : columnName(columnId),
+          who: nameOf(uid),
+        });
+        return note ? [note] : [];
+      });
+      setMoveNote(notes.length > 0 ? [...new Set(notes)].join(" ") : null);
+    },
+    [chosenNow, rowsByUid, columnOf, groupsById, firstNamesOf, columnName, nameOf, placeTogether, revert],
+  );
+
+  // -------------------------------------------------------------------------
+  // The arranging, for an admin and the programme's lead
+  // -------------------------------------------------------------------------
+
+  // "Suggest groups": the run's groups as they are (an admin's through
+  // Circles' own route, the lead's through the lead's own, which carries no
+  // Claude or Pangram), then a suggestion over them without Claude, as
+  // Circles' own "Suggest groups" asks. Nothing is written. A suggestion that
+  // could not be worked out opens the arranging with its reason, where it can
+  // be asked again.
   const openArranging = useCallback(async () => {
     const base = `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
     setOpeningArranging(true);
     try {
-      const res = await fetch(`${base}/circles`, { cache: "no-store" });
+      // An admin reads Circles' own route; the programme's lead, the lead's own (no Claude or Pangram).
+      const res =
+        view.viewer === "admin"
+          ? await fetch(`${base}/circles`, { cache: "no-store" })
+          : await fetch(`${base}/arranging`, { cache: "no-store" });
       const body = (await res.json().catch(() => null)) as { circles?: CirclesView; error?: string } | null;
       if (!res.ok || !body?.circles) {
         await raise(body?.error || CONNECTION);
@@ -701,13 +827,13 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
         opening = { arrangement: null, error: CONNECTION };
       }
       setOpenUid(null);
-      setArranging({ circles, opening });
+      setArranging({ circles, opening, openedOn: show });
     } catch {
       await raise(CONNECTION);
     } finally {
       setOpeningArranging(false);
     }
-  }, [view.roundId, view.programmeId, raise]);
+  }, [view.roundId, view.programmeId, view.viewer, show, raise]);
 
   // "Back to the rings": whatever the arranging saved is read again, the board and everybody's week.
   const leaveArranging = useCallback(() => {
@@ -716,13 +842,13 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
     panelRead.retry();
   }, [reload, panelRead]);
 
-  // Shown as Columns while an admin's arranging is open (the toolbar's
-  // Columns, or the browser's Back): the page stays mounted across the
+  // Shown the other way while the arranging is open (the toolbar's Columns
+  // or Rings, or the browser's Back), for either reader: the page stays mounted across the
   // address's change, so the arranging is closed here, and whatever it
   // saved (an Apply included) is read again, the board and everybody's week,
-  // exactly as "Back to the rings" reads them.
+  // exactly as its own way back reads them.
   const [owedReads, setOwedReads] = useState(0);
-  if (arranging !== null && !rings) {
+  if (arranging !== null && arranging.openedOn !== show) {
     setArranging(null);
     setOwedReads((n) => n + 1);
   }
@@ -799,7 +925,10 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
   const boardHref = groupsPath(view.roundId, view.programmeId);
   // Publish's page, carrying on how the board was shown, so its way back keeps it.
   const publishHref = withShow(`${boardHref}/publish`, show);
-  const arrangingNow = rings && admin ? arranging : null;
+  const arrangingNow = arranging !== null && arranging.openedOn === show ? arranging : null;
+  // Select several is there only before the groups go out, on Columns.
+  const selectable = !rings && view.sent && data !== null && !data.run.allocationPublishedAt;
+  const picking = selectable && selecting;
   const beside = (
     <div className={styles.publish}>
       {view.sent && counts.toPlace > 0 && (
@@ -828,8 +957,21 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
           </Link>
         </span>
       </span>
-      {/* Suggesting groups is an admin's, as it was on Circles. */}
-      {rings && admin ? (
+      {selectable && !selecting ? (
+        <button
+          type="button"
+          className={`${shared.btn} ${styles.publishLink}`}
+          onClick={() => {
+            setSelecting(true);
+            setTogetherSaid(null);
+          }}
+        >
+          {words.SELECT_SEVERAL}
+        </button>
+      ) : null}
+      {/* Suggesting groups: an admin at any time (before decisions go out it is a preview, an
+          admin's alone), and the programme's lead once decisions have gone out. */}
+      {view.sent || admin ? (
         <button
           type="button"
           className={`${shared.btn} ${styles.publishLink}`}
@@ -886,6 +1028,7 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
         onAnswerChanged={onAnswerChanged}
         onOpen={openPanel}
         open={openUid === row.uid}
+        pick={picking ? { checked: chosen.includes(row.uid), onToggle: () => toggleChosen(row.uid) } : undefined}
       />
     );
   };
@@ -1050,11 +1193,17 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
     </>
   );
 
-  // An admin's arranging, on Rings, in place of the rings and the panel until "Back to the rings".
+  // The arranging, in place of the board and the panel until its way back.
   if (arrangingNow) {
     return (
       <GroupsFrame views={views} beside={beside}>
-        <Circles initial={arrangingNow.circles} opening={arrangingNow.opening} onLeave={leaveArranging} />
+        <Circles
+          initial={arrangingNow.circles}
+          opening={arrangingNow.opening}
+          onLeave={leaveArranging}
+          leaveLabel={arrangingNow.openedOn === "rings" ? BACK_TO_RINGS : BACK_TO_COLUMNS}
+          forLead={!admin}
+        />
         <ActionToast toast={toast} onDismiss={dismiss} />
       </GroupsFrame>
     );
@@ -1091,6 +1240,59 @@ export default function PeopleInGroups({ view, views, show = "columns" }: Props)
               </button>
             </p>
           )}
+          {picking ? (
+            <div className={styles.selectBar} role="group" aria-label={words.SELECT_SEVERAL}>
+              <div className={styles.selectRow}>
+                <p className={styles.selectLine} aria-live="polite">
+                  {words.selectedWords(firstNamesOf(chosenNow))}
+                </p>
+                <div className={styles.selectActions}>
+                  <button
+                    type="button"
+                    className={shared.btn}
+                    aria-expanded={choosingGroup}
+                    disabled={chosenNow.length === 0 || busy}
+                    onClick={() => setChoosingGroup((was) => !was)}
+                  >
+                    {words.MOVE_TO}
+                  </button>
+                  <button type="button" className={shared.btn} disabled={chosenNow.length === 0 || busy} onClick={clearChosen}>
+                    {words.CLEAR}
+                  </button>
+                  <button type="button" className={shared.btn} disabled={movingTogether} onClick={stopSelecting}>
+                    {words.DONE}
+                  </button>
+                </div>
+              </div>
+              {choosingGroup && chosenNow.length > 0 ? (
+                <div className={styles.moveList}>
+                  <p className={styles.moveListTitle}>{words.moveChosenTitle(firstNamesOf(chosenNow))}</p>
+                  <ul className={styles.moveListItems}>
+                    <li>
+                      <button type="button" className={styles.moveListChoice} disabled={busy} onClick={() => void moveChosen(POOL)}>
+                        <span>{words.TO_PLACE}</span>
+                      </button>
+                    </li>
+                    {groups.map((group) => (
+                      <li key={group.id}>
+                        <button type="button" className={styles.moveListChoice} disabled={busy} onClick={() => void moveChosen(group.id)}>
+                          <span>{words.moveOptionWords(group.name, seated(group.id), group.capacity)}</span>
+                          {group.capacity !== null ? (
+                            <span className={styles.moveListRoom}>{words.roomForWords(Math.max(0, group.capacity - seated(group.id)))}</span>
+                          ) : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {togetherSaid ? (
+                <p className={togetherSaid.ok ? styles.togetherDone : styles.togetherStopped} role={togetherSaid.ok ? "status" : "alert"}>
+                  {togetherSaid.text}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {rings ? ringsDrawing : (
           <DndContext
             sensors={sensors}

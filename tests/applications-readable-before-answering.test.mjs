@@ -715,15 +715,24 @@ const ASKERS = {
   "lib/applications/freedPlaces/offer.ts": "offering a freed place to somebody, refused as nobody where the caller may not read their application",
   "lib/applications/handover/agenda.ts": "the hand-over's list of what waits, which leaves out every application the caller may not read",
   "lib/applications/people/load.ts": "the People tab's rows, each somebody whose application the reader may open; a person's page opens only for a row",
+  "lib/applications/arrange/load.ts":
+    "what a programme's lead's suggestion of groups is worked out from: a person whose application the lead may not read is arranged as somebody who has not said when they are free, with no offer to facilitate and the name on the run's own row, so nothing of the application reaches the suggestion",
   "lib/applications/people/week.ts":
     "when somebody is free, for a staff page (a person's page, and everybody at once on People in groups' panel): the week they marked only where the reader may read the application, and otherwise one answer and nothing derived from the week",
 };
 
 describe("every file that asks who may read an application says what it does with the answer", () => {
   const access = join(LIBRARY, "access.ts");
+  // The same predicate asked of a whole application (`readsApplicationOf`,
+  // which works out the sent ranking and the programme joined and asks
+  // canReadApplication), defined beside the one gated read of a week.
+  const gateHome = join(LIBRARY, "people", "week.ts");
   const askers = [...walkSource(SRC)]
     .filter((file) => file !== access && /\.tsx?$/.test(file))
-    .filter((file) => calls(stripSource(readFileSync(file, "utf8")), "canReadApplication"))
+    .filter((file) => {
+      const code = stripSource(readFileSync(file, "utf8"));
+      return calls(code, "canReadApplication") || (file !== gateHome && calls(code, "readsApplicationOf"));
+    })
     .map((file) => posix(relative(SRC, file)))
     .sort();
 
@@ -741,6 +750,10 @@ describe("every file that asks who may read an application says what it does wit
   test("the predicate each one asks is the one in access.ts, imported by name", () => {
     for (const file of Object.keys(ASKERS)) {
       const mod = scan(join(SRC, file));
+      if (mod.imports.has("readsApplicationOf")) {
+        assert.equal(resolveImport(mod.file, mod.imports.get("readsApplicationOf") ?? "", SRC), gateHome, `${file} asks another readsApplicationOf`);
+        continue;
+      }
       assert.equal(resolveImport(mod.file, mod.imports.get("canReadApplication") ?? "", SRC), access, `${file} asks another canReadApplication`);
     }
   });

@@ -150,7 +150,8 @@ export function warningsFor(ring: DrawnRing, people: Record<string, RingPerson>,
   const nameOf = (uid: string) => own(people, uid)?.name ?? "Somebody";
   for (const uid of ring.memberUids) {
     if (nearUids.has(uid)) out.push(WARN.near(nameOf(uid)));
-    else if (ring.session && !ring.canMake.includes(uid)) out.push(WARN.cant(nameOf(uid)));
+    // Somebody whose week the reader may not read (`unread`, on the lead's screen alone) is never said to miss a time.
+    else if (ring.session && !ring.canMake.includes(uid) && !own(people, uid)?.unread) out.push(WARN.cant(nameOf(uid)));
   }
   if (ring.room !== null && ring.memberUids.length > ring.room) out.push(WARN.over(ring.memberUids.length, ring.room));
   const roles = Object.entries(ring.roles);

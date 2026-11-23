@@ -87,6 +87,24 @@ function minutesIn(ranges: readonly MarkedRange[], session: SessionSlot): number
 }
 
 /**
+ * MAY THIS READER READ THIS PERSON'S APPLICATION, as a staff screen handed
+ * the application asks it: the application's own gate (`canReadApplication`)
+ * over the SENT ranking and the programme joined by accepting an invitation
+ * (`joinedByInvitation`). With no sent application the ranking is empty, so
+ * only an admin is answered yes. The one place this question is worked out
+ * from an application: the gated read of a week below asks it, and so does
+ * what a lead's suggestion of groups is made from
+ * (`src/lib/applications/arrange/load.ts`). Nothing of the week is read.
+ * Pure.
+ */
+export function readsApplicationOf(reader: SessionUser, form: ApplicationForm, application: ApplicationDoc | null): boolean {
+  const sent = application?.sent ?? null;
+  const ranked = sent ? rankedProgrammes(form, sent).map((programme) => programme.id) : [];
+  const joined = application && sent ? joinedByInvitation(application) : null;
+  return canReadApplication(reader, form, ranked, joined);
+}
+
+/**
  * The person's week for this reader. `person.application` is their
  * application on this form as read by the caller, or null with none;
  * `groups` the run's groups that have a weekly session; `inGroupId` the
@@ -101,11 +119,9 @@ export function personWeekFor(
 ): PersonWeek {
   if (person.uid === reader.uid) return { kind: "own" };
   const application = person.application && person.application.uid === person.uid ? person.application : null;
-  const sent = application?.sent ?? null;
   // The application's own gate, before anything of the week is read.
-  const ranked = sent ? rankedProgrammes(form, sent).map((programme) => programme.id) : [];
-  const joined = application && sent ? joinedByInvitation(application) : null;
-  if (!canReadApplication(reader, form, ranked, joined)) return { kind: "may-not" };
+  if (!readsApplicationOf(reader, form, application)) return { kind: "may-not" };
+  const sent = application?.sent ?? null;
   if (!application || !sent) return { kind: "not-on-file" };
 
   const grid = form.round.availabilityGrid;

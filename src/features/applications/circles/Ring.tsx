@@ -113,7 +113,8 @@ export default function Ring({
           const person = own(people, uid);
           const angle = ((-90 + (360 * i) / Math.max(n, 1)) * Math.PI) / 180;
           const role = own(ring.roles, uid) ?? null;
-          const off = near.has(uid) || (ring.session !== null && !ring.canMake.includes(uid));
+          // No red tag for somebody whose week the reader may not read (`unread`, on the lead's screen alone).
+          const off = near.has(uid) || (ring.session !== null && !ring.canMake.includes(uid) && !person?.unread);
           const movesIn = ring.movesIn.includes(uid);
           const notTold = showNotTold && person !== undefined && person.groupId !== null && !person.told;
           return (

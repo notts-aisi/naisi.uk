@@ -930,6 +930,13 @@ const ROUND_SURFACES = {
       "which starts from the form's own loader and answers 'none' (a 404) for a round that is not a form, " +
       "before anybody's application is read",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/arranging": {
+    kind: "form",
+    why:
+      "the programme's lead's arranging, on People in groups, reads the run's groups as they are through loadLeadArranging, " +
+      "which starts from loadArranging and the form's own loader and answers Not found (a 404) for a round that is not a form, " +
+      "before anybody's application is read",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/panel": {
     kind: "form",
     why:

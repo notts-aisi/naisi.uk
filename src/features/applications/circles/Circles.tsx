@@ -108,12 +108,22 @@ export default function Circles({
   initial,
   opening = null,
   onLeave,
+  leaveLabel = W.BACK_TO_RINGS,
+  forLead = false,
 }: {
   initial: CirclesView;
   /** The suggestion the press that opened this asked for, or why it could not be worked out. */
   opening?: { arrangement: ArrangementOptionsView | null; error: string | null } | null;
-  /** Back to the rings of People in groups. */
+  /** Back to People in groups. */
   onLeave?: () => void;
+  /** What the way back says: back to the rings, or to the columns. */
+  leaveLabel?: string;
+  /**
+   * The programme's lead: the groups are read through the lead's own route
+   * (`arranging`, no read from Claude or Pangram), and nothing on the screen
+   * names either service, asks one, or leads to Settings.
+   */
+  forLead?: boolean;
 }) {
   const hydrated = useHydrated();
   const [live, setLive] = useState(initial);
@@ -174,7 +184,7 @@ export default function Circles({
 
   const reread = async (): Promise<CirclesView | null> => {
     try {
-      const response = await fetch(`${base}/circles?minutes=${encodeURIComponent(String(minutes))}`, { cache: "no-store" });
+      const response = await fetch(`${base}/${forLead ? "arranging" : "circles"}?minutes=${encodeURIComponent(String(minutes))}`, { cache: "no-store" });
       const data = (await response.json().catch(() => ({}))) as { circles?: CirclesView };
       if (!response.ok || !data.circles) return null;
       setLive(data.circles);
@@ -774,11 +784,11 @@ export default function Circles({
           {onLeave ? (
             <div className={styles.previewHead}>
               <button type="button" className={styles.quiet} disabled={busy} onClick={onLeave}>
-                {W.BACK_TO_RINGS}
+                {leaveLabel}
               </button>
             </div>
           ) : null}
-          <p className={styles.line}>{W.LEDE}</p>
+          <p className={styles.line}>{forLead ? W.LEDE_LEAD : W.LEDE}</p>
           {live.sent ? (
             <p className={styles.counts}>
               {W.countsLine({ onList, inAGroup, notInAGroup: onList - inAGroup, untold, moved: movedSince })}
@@ -788,10 +798,18 @@ export default function Circles({
           )}
           {live.notOnList.length > 0 ? (
             <p className={styles.flagLine}>
-              {W.notOnListWords(live.notOnList.map((person) => person.name))}{" "}
-              <Link className={styles.link} href={settingsHref}>
-                {W.GO_TO_SETTINGS}
-              </Link>
+              {W.notOnListWords(
+                live.notOnList.map((person) => person.name),
+                !forLead,
+              )}
+              {forLead ? null : (
+                <>
+                  {" "}
+                  <Link className={styles.link} href={settingsHref}>
+                    {W.GO_TO_SETTINGS}
+                  </Link>
+                </>
+              )}
             </p>
           ) : null}
         </div>
@@ -813,12 +831,12 @@ export default function Circles({
           <button type="button" className={styles.quiet} disabled={busy} onClick={() => void suggest(false)}>
             {W.SUGGEST}
           </button>
-          {live.claudeConfigured ? (
+          {live.claudeConfigured && !forLead ? (
             <button type="button" className={styles.button} disabled={busy} onClick={() => void suggest(true)}>
               {phase === "suggesting" ? W.SUGGESTING : W.SUGGEST_WITH_CLAUDE}
             </button>
           ) : null}
-          {phase === "suggesting" ? <span className={styles.line}>{W.CLAUDE_TAKES_A_MINUTE}</span> : null}
+          {phase === "suggesting" && !forLead ? <span className={styles.line}>{W.CLAUDE_TAKES_A_MINUTE}</span> : null}
         </div>
         {movable > 0 ? (
           <label className={styles.check}>
@@ -874,7 +892,7 @@ export default function Circles({
                   >
                     <span className={styles.tabKey}>{W.OPTION(each.key)}</span>
                     {each.title ? <span className={styles.tabTitle}>{each.title}</span> : null}
-                    {each.preferred && preview.view.asked ? <span className={styles.badge}>{W.CLAUDES_PICK}</span> : null}
+                    {each.preferred && preview.view.asked && !forLead ? <span className={styles.badge}>{W.CLAUDES_PICK}</span> : null}
                   </button>
                 ))}
               </div>
@@ -949,11 +967,12 @@ export default function Circles({
                 onRole={(role) => setRole(chosen.uid, role)}
                 onFacilitate={(ring, add) => facilitateLive(ring, chosen.uid, add)}
                 onClose={() => setSelected(null)}
+                forLead={forLead}
                 runId={option ? null : live.runId}
                 onAnswerChanged={(message) => void save(async () => ({ ok: true, lines: message ? [message] : [] }))}
               />
             ) : (
-              <p className={styles.line}>{W.LEGEND}</p>
+              <p className={styles.line}>{forLead ? W.LEGEND_LEAD : W.LEGEND}</p>
             )}
           </aside>
         </div>
@@ -976,7 +995,12 @@ export default function Circles({
                   >
                     {nameOf(uid)}
                     {takenOut ? <span className={styles.trayWhy}> · {W.TAKEN_OUT}</span> : null}
-                    {!takenOut && reason ? <span className={styles.trayWhy}> · {own(W.REASON, reason) ?? ""}</span> : null}
+                    {!takenOut && reason ? (
+                      <span className={styles.trayWhy}>
+                        {" "}
+                        · {forLead && own(live.people, uid)?.unread ? W.ONLY_ADMINS_SEE_WEEK_SHORT : (own(W.REASON, reason) ?? "")}
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}
@@ -1018,7 +1042,7 @@ export default function Circles({
           </div>
         ) : null}
 
-        {preview && preview.view.dropped.length > 0 ? (
+        {preview && preview.view.dropped.length > 0 && !forLead ? (
           <details className={styles.dropped}>
             <summary>{W.DIDNT_FIT(preview.view.dropped.length)}</summary>
             <ul className={styles.list}>
@@ -1080,7 +1104,7 @@ export default function Circles({
           </ol>
         ) : null}
 
-        {live.claudeConfigured && screen.length > 0 ? (
+        {live.claudeConfigured && !forLead && screen.length > 0 ? (
           <AskClaude
             url={`${base}/arrangement`}
             minutes={sessionMinutes}

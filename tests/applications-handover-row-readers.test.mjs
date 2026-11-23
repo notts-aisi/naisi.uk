@@ -194,6 +194,14 @@ const READERS = {
       "entry when the account has gone; a row from the form carries no address. Where the seat's place came from, to " +
       "give it back on the form, is leaving's own answer (lib/courses/leaving.ts, listed there)",
   },
+  "lib/applications/arrange/load.ts": {
+    kind: "staff",
+    asks: 1,
+    why:
+      "what an arrangement of a programme's people is worked out from (Suggest groups, and Circles' arranging) reads " +
+      "the run's own list and keeps only the rows served to the caller: every row for an admin, and for the " +
+      "programme's lead the rows the board serves them, so a lead's suggestion is made from nobody else",
+  },
   "lib/firestore/accountDeletion.ts": {
     kind: "no-content",
     proof: ['["courseApplications", "courseApplicationsDeleted"]'],

@@ -11,6 +11,8 @@ import { groupsOf, type LiveGroup } from "../handover/timesLoad";
 import { own } from "../keys";
 import { isId } from "../normalise";
 import { loadForm } from "../repo";
+import { NOT_FOUND } from "../review/refusals";
+import type { Refusal } from "../review/types";
 import { ringPeopleOf } from "./advise";
 import { notesFor } from "./notes";
 import { DEFAULT_GROUP_SIZE, loadArranging } from "./load";
@@ -164,6 +166,73 @@ export async function loadCircles(
         names,
       ),
       notOnList: arranging.notOnList.map((holder) => ({ uid: holder.uid, name: holder.name })),
+    },
+  };
+}
+
+export type ArrangingOutcome = { ok: true; view: CirclesView } | Refusal;
+
+/**
+ * CIRCLES' ARRANGING WITHOUT EITHER OUTSIDE SERVICE, for the programme's lead
+ * (`arrangingReader`: the lead, or an admin, who is answered the same and
+ * reads the fuller `loadCircles` on their own screen). The run's groups as
+ * they are, read through `loadArranging` exactly as a lead's suggestion is
+ * worked out: only the rows the board serves the reader, and each person's
+ * week only where the reader may read the application, anybody else drawn
+ * as somebody who has not said when they are free, with no way to their
+ * application. Claude's and Pangram's reads are never read, and the view
+ * says Claude is not set up, so nothing on the screen asks it.
+ *
+ * Decisions must have gone out: before then a suggestion is an admin's
+ * preview. NOTHING IS WRITTEN AND NOTHING IS ASKED OF CLAUDE; every change
+ * the screen makes goes through the site's own routes, which ask every
+ * question they always ask.
+ */
+export async function loadLeadArranging(
+  db: Firestore,
+  user: SessionUser,
+  roundId: string,
+  programmeId: string,
+  wanted: { minutes?: unknown } = {},
+): Promise<ArrangingOutcome> {
+  if (!isId(roundId) || !isId(programmeId)) return NOT_FOUND;
+  const loaded = await loadArranging(db, user, roundId, programmeId, wanted);
+  if (!loaded.ok) return loaded;
+  const { arranging } = loaded;
+  if (arranging.runId === null) return NOT_FOUND;
+  const live = [...arranging.groups.values()];
+  const names = await loadFirstNames(db, [...new Set(live.flatMap((group) => group.facilitatorUids))]);
+  const everybody = [...arranging.people.values()];
+  const byName = (a: string, b: string) =>
+    (arranging.people.get(a)?.name ?? "").localeCompare(arranging.people.get(b)?.name ?? "", "en") || a.localeCompare(b);
+  return {
+    ok: true,
+    view: {
+      roundId,
+      programmeId: arranging.programmeId,
+      runId: arranging.runId,
+      sent: true,
+      published: arranging.published,
+      programmeName: arranging.programmeName,
+      programmeShortName: arranging.programmeShortName,
+      grid: arranging.grid,
+      minutes: arranging.minutes,
+      lengths: arranging.lengths,
+      size: arranging.size,
+      // No Claude or Pangram read: nothing is read from either for this view.
+      people: ringPeopleOf(arranging, new Map(), roundId, programmeId),
+      groups: ringsOf(
+        live,
+        (groupId) => everybody.filter((person) => person.groupId === groupId).map((person) => person.uid).sort(byName),
+        (group) =>
+          hasSessionTime(group.session)
+            ? everybody.filter((person) => canMake(person, group.session)).map((person) => person.uid).sort()
+            : [],
+        arranging.toldGroups,
+        names,
+      ),
+      notOnList: arranging.notOnList.map((holder) => ({ uid: holder.uid, name: holder.name })),
+      claudeConfigured: false,
     },
   };
 }

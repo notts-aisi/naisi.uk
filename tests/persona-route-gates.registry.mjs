@@ -1136,11 +1136,11 @@ export const ROUTES = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement": {
     POST: {
-      expect: adminOnly(400),
+      expect: signedIn(400),
       why:
-        "Asking for an arrangement into groups is admin only, decided before the body is read; " +
-        "the admin then meets the body check, which an empty body fails before anything is read " +
-        "or sent anywhere.",
+        "Session required, then the request is checked before anything is read: anything asking Claude is an " +
+        "admin's alone, refused before the form is read, and an empty body asks nothing (not whether to ask " +
+        "Claude), so every signed-in persona meets the same 400 before the form, the run or anybody is read.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
@@ -1285,6 +1285,15 @@ export const ROUTES = {
         "Reading Circles' arranging (the run's groups as they are, each person's week and Claude's reads), which an " +
         "admin opens with Suggest groups on People in groups shown as Rings, is admin only, decided on the session " +
         "before anything is read; the admin is then told the programme is missing.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/arranging": {
+    GET: {
+      expect: signedIn(404),
+      fields: ["circles"],
+      why:
+        "The programme's lead's arranging on People in groups, read from the form before the run or anybody is read: " +
+        "a form the address does not name is the same 404 for everybody signed in. Nothing is written and nothing is asked of Claude.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/panel": {
@@ -6678,10 +6687,25 @@ export const REAL_ROUTES = {
     POST: bodyFirst("A bulk decision is decided from the form once a valid one arrives."),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement": {
-    POST: adminAlone(
-      "Asking for an arrangement into groups",
-      c(400, "An admin meets the body check: an empty body does not say whether to ask Claude, so nothing is read or sent."),
-    ),
+    POST: {
+      realDrive: {
+        body: { askClaude: false },
+        why: "An empty body is the same 400 for everybody before the gate; a suggestion without Claude reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run or anybody is read."),
+        admin: c(ACTS, "An admin is admitted on any programme: a whole body is never sent to somebody the gate admits, so it is not sent. It writes nothing."),
+      },
+      theirs: {
+        lead: c(
+          ACTS,
+          "The programme's own lead is admitted to a suggestion without Claude, worked out only from the rows the board serves them and the weeks they may read: not sent, as the gate admits them. It writes nothing.",
+        ),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
     GET: {
@@ -6779,6 +6803,20 @@ export const REAL_ROUTES = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     GET: adminAlone("Reading Circles", c(200, "An admin reads the run's groups as they are. Nothing is written and Claude is not asked.")),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/arranging": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run or anybody is read."),
+        admin: c(200, "An admin is answered the arranging without Claude or Pangram on any programme that names a run, and reads the fuller Circles on their own screen. Nothing is written."),
+      },
+      theirs: {
+        lead: c(200, "The programme's own lead reads the run's groups as they are, only the rows the board serves them and each week only where they may read the application, and nothing of Claude or Pangram."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/panel": {
     GET: {
