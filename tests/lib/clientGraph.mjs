@@ -296,6 +296,60 @@ export function walkModulesFrom(entries) {
 }
 
 /**
+ * The same walk from each of `entries` ON ITS OWN, for a guard that asks a
+ * question of every entry separately (which server pages reach the Admin SDK,
+ * say). The sources are read once for all of them.
+ *
+ * `stopAt(file, source)` names modules the walk records as reached but does
+ * not walk into: a `"use client"` module, whose imports run in the browser,
+ * or a module the caller has already accounted for. An entry is always walked.
+ *
+ * Returns `sources`, `unresolved` (each `file -> specifier` a walk could not
+ * resolve) and `walks`: for each entry, `reached` (every module, with the
+ * shortest chain from the entry) and `packages` (each package specifier a
+ * walked module pulls values from, with the chain to the module importing it).
+ */
+export function walkEachFrom(entries, { stopAt = () => false } = {}) {
+  const allFiles = sourceFilesUnder(SRC);
+  const sources = new Map(allFiles.map((file) => [file, readFileSync(file, "utf8")]));
+  const unresolved = new Set();
+  const walks = new Map();
+  for (const entry of entries) {
+    const reached = new Map();
+    const packages = new Map();
+    walks.set(entry, { reached, packages });
+    if (!sources.has(entry)) {
+      unresolved.add(`${repoPath(entry)} (an entry that is not a source file)`);
+      continue;
+    }
+    reached.set(entry, [entry]);
+    const queue = [[entry]];
+    while (queue.length > 0) {
+      const chain = queue.shift();
+      const file = chain[chain.length - 1];
+      for (const specifier of valueSpecifiers(sources.get(file) ?? "")) {
+        if (!specifier.startsWith(".") && !specifier.startsWith("@/")) {
+          if (!packages.has(specifier)) packages.set(specifier, chain);
+          continue;
+        }
+        if (NOT_CODE.test(specifier)) continue;
+        const target = resolveLocal(specifier, file);
+        if (!target) {
+          unresolved.add(`${repoPath(file)} -> ${specifier}`);
+          continue;
+        }
+        if (!sources.has(target) || reached.has(target)) continue;
+        const next = [...chain, target];
+        reached.set(target, next);
+        if (stopAt(target, sources.get(target))) continue;
+        queue.push(next);
+      }
+    }
+  }
+  return { sources, unresolved: [...unresolved], walks };
+}
+
+/**
  * The same reading of imports and the same resolver, run the other way: every
  * file under `src` that reaches one of `targets` (absolute paths) through value
  * imports, however deep, each with the shortest chain from it down to a
@@ -341,3 +395,6 @@ export function importersOf(targets) {
 
 /** A module's text with its comments taken out, strings kept: what a guard reads code from. */
 export { stripComments };
+
+/** Whether a module opens with the client directive, read the way the walk reads it. */
+export { isClientModule };

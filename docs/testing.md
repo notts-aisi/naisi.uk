@@ -121,6 +121,22 @@ The same shape, older:
   sits inside one of the four gated route trees (`(admin-only)`, `courses`,
   `admissions`, `membership`), and each tree's layout still calls its gate. A
   page dropped straight into the admin directory fails.
+- `tests/pages-ask-who-is-calling.test.mjs`: a server page or layout whose
+  render can read with the Admin SDK asks who is calling in the same file,
+  before its first read. Next does not render a layout again on every
+  navigation, and a layout does not decide whether the segments below it
+  render, so a gate that sits only in a layout above a page is not the
+  page's gate. The guard walks every `page.tsx` and `layout.tsx` under
+  `src/app`, follows each server file's imports through every module that is
+  not `"use client"` to find the ones that reach the Admin SDK, and reads
+  each one's component in call order: the first call to a gate in `GATES`
+  comes before the first Firestore method and before any other repository
+  function not in `PURE`, and a gate awaited in one `Promise.all` with a read
+  does not count. A page in an admin tree asks its tree's own gate. The pages
+  that are open on purpose (the public site, the pages a signed or random
+  token opens, the pages a printed code lands on, the anonymous forms) are in
+  `OPEN` with the reason, checked both ways; each gate's own body is checked
+  for the proof it claims, and an import the walk cannot follow fails.
 - `tests/impersonation-guard.test.mjs`: every mutating route under the
   guarded API trees calls `assertNotImpersonating()` at its top. `MUST_GUARD`
   lists the routes with the reason each is high-trust; a new mutating route
