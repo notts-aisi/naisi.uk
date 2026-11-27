@@ -135,6 +135,8 @@ export async function makeEventSurveyWorld(key = "__eventSurveys", extra = []) {
     ["@/hooks/useHydrated", "export function useHydrated() { return false; }"],
     ["@/auth/signInWithGoogle", "export async function signOut() {}"],
     ["@/lib/navigation/hardNavigate", "export function hardNavigate() {}"],
+    // The session as the page gates import it, beside the alias the base world stubs.
+    ["./session", `export async function getCurrentUser() { return ${handle}.user; }`],
     ...stylesheets().map((specifier) => [specifier, CLASS_NAMES]),
     // Last, so a suite's own stub wins over one of the same name.
     ...extra,

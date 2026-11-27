@@ -8,6 +8,7 @@ import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import styles from "@/features/surveys/admin/surveyAdmin.module.css";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { isEventSurvey } from "@/lib/firestore/surveys";
 import { resultsView, surveyPage } from "@/lib/surveys/adminView";
 import { eventResultsHead, resultsWhoFor } from "@/lib/surveys/events/adminView";
@@ -38,6 +39,7 @@ export default async function SurveyResultsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ surveyId }, query] = await Promise.all([params, searchParams]);
+  await requireAdminPage();
   const db = getAdminDb();
   const page = db ? await surveyPage(db, surveyId, new Date()) : null;
   if (!db || !page) {

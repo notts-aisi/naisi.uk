@@ -2,6 +2,7 @@ import RunEditor from "@/features/courses/RunEditor";
 import { isAddressableId } from "@/lib/addressableId";
 import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireCourseAuthorPage } from "@/lib/firebase/pageGates";
 
 /**
  * Admin run editor. `courses/layout.tsx` gates the tree server-side with
@@ -24,6 +25,7 @@ export default async function AdminCourseRunPage({
   params: Promise<{ courseId: string; runId: string }>;
 }) {
   const { courseId, runId } = await params;
+  await requireCourseAuthorPage();
   const db = getAdminDb();
   let groupsGoneOut = false;
   let groupPagesAt: { roundId: string; programmeId: string } | null = null;

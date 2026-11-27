@@ -6,7 +6,7 @@ import SendTab from "@/features/surveys/admin/SendTab";
 import SurveyHead from "@/features/surveys/admin/SurveyHead";
 import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { isCheckIn, isEventSurvey } from "@/lib/firestore/surveys";
 import { openView, sendView, surveyPage } from "@/lib/surveys/adminView";
 import { openingView } from "@/lib/surveys/checkIns/adminView";
@@ -18,9 +18,10 @@ export const dynamic = "force-dynamic";
  * A survey's Send tab: the email, its test and the
  * buttons that send it, to everybody holding a place, then to whoever joins
  * since, and the reminder. Each email is signed by the admin looking at it,
- * who is the one who would press. Admins only, by the `(admin-only)` group's
- * layout (`requireAdminPage()`); the session is read here for the signature,
- * and for the names rule: each name as the admin looking is shown it.
+ * who is the one who would press. Admins only: the `(admin-only)` group's
+ * layout and this page each ask `requireAdminPage()`, and the session it
+ * returns gives the signature and the names rule: each name as the admin
+ * looking is shown it.
  *
  * A LEAVING SURVEY is never sent: at this address it has its Open tab
  * instead, where it is opened and, once open, closed. Nor is A CHECK-IN: its
@@ -28,7 +29,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function SurveySendPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const { surveyId } = await params;
-  const admin = await getCurrentUser();
+  const admin = await requireAdminPage();
   const db = getAdminDb();
   const now = new Date();
   const page = db && admin ? await surveyPage(db, surveyId, now) : null;

@@ -4,6 +4,7 @@ import { AdminPage } from "@/features/admin/adminList";
 import PublicNumbersEditor, { type EditorProgramme } from "@/features/surveys/admin/PublicNumbersEditor";
 import styles from "@/features/surveys/admin/publicNumbers.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { publishedQuoteIds } from "@/lib/surveys/publicNumbers";
 import { listNumbersProgrammes, loadOffer, publisherName, readPublished, type NumbersProgramme } from "@/lib/surveys/publicNumbersLoad";
 import { PUBLIC_NUMBERS_WORDS as WORDS } from "@/lib/surveys/publicNumbersWords";
@@ -28,6 +29,7 @@ const keyOf = (programme: Pick<NumbersProgramme, "roundId" | "programmeId">) => 
  * one listed when the address names none.
  */
 export default async function PublicNumbersPage({ searchParams }: { searchParams: Promise<{ programme?: string | string[] }> }) {
+  await requireAdminPage();
   const db = getAdminDb();
   const programmes = db ? await listNumbersProgrammes(db) : [];
   const asked = (await searchParams).programme;

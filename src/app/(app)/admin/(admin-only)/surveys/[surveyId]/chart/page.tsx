@@ -6,6 +6,7 @@ import MakeAChart from "@/features/surveys/chart/MakeAChart";
 import styles from "@/features/surveys/chart/chart.module.css";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { isCheckIn } from "@/lib/firestore/surveys";
 import { surveyPage } from "@/lib/surveys/adminView";
 import { buildChart, readChartAsk } from "@/lib/surveys/chart";
@@ -36,6 +37,7 @@ export default async function SurveyChartPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ surveyId }, query] = await Promise.all([params, searchParams]);
+  await requireAdminPage();
   const db = getAdminDb();
   const page = db ? await surveyPage(db, surveyId, new Date()) : null;
   if (!db || !page) {

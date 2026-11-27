@@ -2,6 +2,7 @@ import WeekEditor from "@/features/courses/WeekEditor";
 import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { weeksPath } from "@/lib/courses/weeksTab/paths";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireCourseAuthorPage } from "@/lib/firebase/pageGates";
 
 /**
  * Admin week editor. Weeks live at `courseRuns/{runId}/weeks/{wNN}` — under the
@@ -25,6 +26,7 @@ export default async function AdminCourseWeekPage({
   params: Promise<{ courseId: string; runId: string; weekId: string }>;
 }) {
   const { courseId, runId, weekId } = await params;
+  await requireCourseAuthorPage();
   const db = getAdminDb();
   const naming = db ? await readNamingProgramme(db, runId) : null;
   const weeksHref = naming ? weeksPath(naming.roundId, naming.programmeId, weekId) : null;

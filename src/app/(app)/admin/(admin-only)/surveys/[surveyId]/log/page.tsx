@@ -4,6 +4,7 @@ import SurveyHead, { surveyTabHref } from "@/features/surveys/admin/SurveyHead";
 import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import styles from "@/features/surveys/admin/surveyAdmin.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { surveyPage } from "@/lib/surveys/adminView";
 import { surveyLogOf } from "@/lib/surveys/surveyLog";
 import { LOG_WORDS } from "@/lib/surveys/words";
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function SurveyLogPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const { surveyId } = await params;
+  await requireAdminPage();
   const db = getAdminDb();
   const page = db ? await surveyPage(db, surveyId, new Date()) : null;
   if (!db || !page) {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { AdminPage } from "@/features/admin/adminList";
 import { AdminProblem, AdminSection } from "@/features/admin/adminPanels";
 import { ensureTemplatesSeeded } from "@/features/admin/emailDesigns/seedTemplates";
@@ -46,6 +47,7 @@ function Head() {
 }
 
 export default async function EmailDesignsPage() {
+  await requireAdminPage();
   const db = getAdminDb();
   if (!db) {
     return (
