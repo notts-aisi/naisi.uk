@@ -65,6 +65,9 @@ export function ratingsSeed(over = {}) {
   seed[`courseEnrolments/${RUN.agi}__sofia`] = seat("sofia", B);
   seed[`courseEnrolments/${RUN.agi}__dev`] = seat("dev", A);
   seed[`courseEnrolments/${RUN.agi}__tariq`] = seat("tariq", C);
+  // The round's three reviewers, appointed as the roles route marks them, so
+  // the admissions tree's real gate admits them as it does on the site.
+  for (const uid of ["claudia", "lloyd", "tess"]) seed[`users/${uid}`] = { ...seed[`users/${uid}`], admissionsReviewer: true };
   for (const groupId of [A, B, C]) {
     for (let week = 1; week <= 6; week += 1) {
       seed[`courseAttendance/${RUN.agi}__${groupId}__w0${week}`] = register(groupId, week);
@@ -75,15 +78,11 @@ export function ratingsSeed(over = {}) {
 
 /**
  * The world, with the ratings' route and pages loaded beside the survey
- * world's. The admissions pages' gate is the session's account, as the
- * hand-over suites stub it: the page's own gate below it is what is tested.
+ * world's. The page gates are the real ones, run against the session's
+ * account, so a page driven as somebody its gate refuses is redirected.
  */
 export async function makeRatingsWorld(key = "__ratings", extraStubs = []) {
-  const handle = `globalThis[${JSON.stringify(key)}]`;
-  const w = await makeSurveyWorld(key, [
-    ["@/lib/firebase/pageGates", `export async function requireAdmissionsPage() { return ${handle}.user; }`],
-    ...extraStubs,
-  ]);
+  const w = await makeSurveyWorld(key, extraStubs);
   const route = await w.loadTs(join("app", "api", "courses", "groups", "[groupId]", "ratings", "route.ts"));
   const groupPage = (await w.loadTs(join("app", "(app)", "learn", "[runId]", "group", "[groupId]", "ratings", "page.tsx"))).default;
   const programmePage = (

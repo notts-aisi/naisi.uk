@@ -48,6 +48,7 @@ import {
   userDoc,
 } from "./applicationsSmallTerm.mjs";
 import { courseView } from "./courseRunStore.mjs";
+import { sessionStubs } from "./sessionStubs.mjs";
 import { createLoader } from "./tsLoader.mjs";
 
 export { AGI, GRID, INCUBATOR, ROUND, TAIS, applicationPath, decisionPath };
@@ -517,7 +518,9 @@ export function makeWorld(key = "__handover", extraStubs = []) {
         "@/lib/firebase/admin",
         `export function getAdminDb() { const w = ${handle}; return w.course ? w.courseDb : w.db; }`,
       ],
-      ["@/lib/firebase/session", `export async function getCurrentUser() { return ${handle}.user; }`],
+      // The session, under both names `src` imports it by, so the page
+      // gates run for real against the account a request arrives with.
+      ...sessionStubs(`export async function getCurrentUser() { return ${handle}.user; }`),
       [
         "@/lib/firebase/impersonation",
         "export async function assertNotImpersonating() {\n" +
@@ -571,6 +574,7 @@ export function makeWorld(key = "__handover", extraStubs = []) {
       displayName: account.displayName,
       role: account.role,
       suRecognised: account.suRecognised === true,
+      admissionsReviewer: account.admissionsReviewer === true,
       permissions: CAST[uid]?.permissions ?? TERM_CAST.zach.permissions,
     };
   }
