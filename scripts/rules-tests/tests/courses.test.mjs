@@ -871,7 +871,9 @@ describe("courseGroups", () => {
           meetingUrl: null,
           notes: "Moved for the careers fair.",
         },
-        sessionOverrides: { w05: { location: "Online only" } },
+        // A week's own time; a week's own room is the routes', as the
+        // group's is (course-older-editor-locks.test.mjs holds that).
+        sessionOverrides: { w05: { startTimeLocal: "19:00" } },
       }),
     );
     // A new room in the same write is refused: it goes through the room route.

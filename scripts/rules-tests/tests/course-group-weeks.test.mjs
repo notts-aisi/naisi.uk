@@ -317,21 +317,22 @@ describe("courseGroups — the sessionModes map is server-owned", () => {
   });
 
   it("GUARD — the benign facilitator session edit still lands beside a stored mode", async () => {
-    // The over-tightening check: the pin must not turn every re-rooming into
+    // The over-tightening check: the pin must not turn every moved week into
     // a route call. Editing sessionOverrides leaves sessionModes untouched in
     // the merged doc, so the whole-map comparison holds — including dropping
     // an override entry whose week carries a mode (the mode lives in ITS OWN
-    // map and survives the drop).
+    // map and survives the drop). A week's room is the routes'
+    // (course-older-editor-locks.test.mjs), so the edit here is a week's time.
     await seedCast();
     await seedGroup({
       facilitatorUids: ["facil"],
       sessionModes: { w03: "virtual" },
-      sessionOverrides: { w03: { location: "Online" } },
+      sessionOverrides: { w03: { startTimeLocal: "19:00" } },
     });
     const db = await asUser("facil");
     await assertSucceeds(
       db.collection("courseGroups").doc("g1").update({
-        sessionOverrides: { w03: { location: "Teams, not Zoom" }, w05: { location: "B52" } },
+        sessionOverrides: { w03: { startTimeLocal: "19:30" }, w05: { weekday: 4 } },
       }),
     );
     await assertSucceeds(
@@ -379,7 +380,7 @@ describe("courseGroups: the sessionChanges map is server-owned", () => {
     await seedCast();
     await seedGroup({ facilitatorUids: ["facil"], sessionChanges: CANCELLED });
     await assertSucceeds(
-      (await asUser("facil")).collection("courseGroups").doc("g1").update({ sessionOverrides: { w05: { location: "B52" } } }),
+      (await asUser("facil")).collection("courseGroups").doc("g1").update({ sessionOverrides: { w05: { startTimeLocal: "19:00" } } }),
     );
   });
 

@@ -6312,11 +6312,15 @@ for every writer, admins included. No browser may then change a group's
 `weekPlan` (`groupTimeKeptOnceGroupsOut` and `runDatesKeptOnceGroupsOut` in
 `firestore.rules`). The stamp itself is the publish route's at any time: no
 browser write changes it, set or unset, and no run is created carrying it.
-The room, the meeting link, the notes, the name, the capacity and the campus
-stay writable from the run editor's group card, and the run editor shows the
-start date and the week plan read only. Before the groups go out the rules are
-otherwise as they were. A group write
-reads its run only when it touches one of those fields: at most two documents
+The notes stay writable from the run editor's group card. The room, the
+meeting link and the campus, the group's own and each week's own (inside its
+`sessionOverrides` entry), and the name and the capacity change only through
+the routes, at any time, for everybody but an admin
+(`groupRoomAndLinkUnchanged`, `groupNameAndPlacesUnchanged`); an admin still
+changes the group's own five on that card, on a run no programme names. The
+run editor shows the start date and the week plan read only. Before the
+groups go out the rules are otherwise as they were. A group write reads its
+run only when it touches one of those fields: at most two documents
 a write (the writer's own and the run), as before for a track lead or a
 facilitator. `scripts/rules-tests/tests/course-told-times.test.mjs` runs each
 field as each kind of writer, before and after.
