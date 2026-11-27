@@ -3563,7 +3563,10 @@ they already open; nothing under `/admin/courses` is needed.
   `together: true`: one transaction of at most 100 people (the route's own
   transaction size) that re-reads the run, each row, each seat and each
   group, and moves everybody or nobody. A refusal is a 409 naming the first
-  who stopped it (`stopped`), said on the board in one sentence. Without
+  who stopped it (`stopped`), said on the board in one sentence; a full
+  group's count of who wanted it counts only the people the caller may
+  place, so a person whose row is not served to the caller is answered as
+  a uid with no accepted row, in every field. Without
   `together` the route moves whoever fits, as it always has. Select several
   is on Columns alone: Rings keeps its own moves.
   `tests/course-board-move-together.test.mjs` runs it.

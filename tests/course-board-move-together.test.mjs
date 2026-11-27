@@ -134,6 +134,51 @@ describe("2. one of them cannot be moved, so nobody is", () => {
     assert.equal(seatOf("dev").groupId, C);
   });
 
+  // The run's track lead places the people who applied to the run itself, and
+  // is served none of the rows the application form wrote. On a run that
+  // holds both, a person in the request whose row is not served to the caller
+  // is answered exactly as a uid with no accepted row, in every field,
+  // wherever that person sits.
+  test("as the run's track lead: a person whose row is not served to the caller is answered as a uid with no accepted row, wherever they sit", async () => {
+    const ownRow = (uid) => ({ runId: RUN.agi, courseId: w.world.db.read(`courseRuns/${RUN.agi}`).courseId, uid, displayName: uid, status: "accepted", availability: "" });
+    const ready = async () => {
+      await world();
+      for (const uid of ["nadia", "omar", "priya"]) w.world.db.seed(`courseApplications/${RUN.agi}__${uid}`, ownRow(uid));
+      // Amara's row the form wrote, and she sits in Group C; Bea's too, and she sits in no group.
+      assert.equal((await together("zach", to(C, "amara"))).status, 200);
+      w.world.db.poke(`courseGroups/${C}`, { capacity: 3 });
+    };
+    await ready();
+    assert.equal(w.world.db.read(`courseApplications/${RUN.agi}__amara`).fromForm?.programmeId !== undefined, true, "Amara's row is the form's");
+    assert.equal((await together("yusuf", to(C, "nadia"))).status, 200, "the track lead places a row from the run's own form");
+    // Group C now has room for one; Omar and Priya want it, then somebody the lead is not served or nobody at all.
+    const asked = async (third) => {
+      await ready();
+      assert.equal((await together("yusuf", to(C, "nadia"))).status, 200);
+      const before = w.everything();
+      const answer = await together("yusuf", to(C, "omar", "priya", third));
+      assert.equal(w.everything(), before, `${third}: a refused move of several wrote something`);
+      assert.equal(w.world.mail.length, 0);
+      return [answer.status, answer.body];
+    };
+    const sitsInC = await asked("amara");
+    const sitsNowhere = await asked("bea");
+    const noRow = await asked("nobody-at-all");
+    assert.deepEqual(sitsInC, [409, { error: "Nobody was moved: one of them can’t be moved there.", stopped: { uid: "priya", reason: "group-full", groupId: C, room: 1, wanting: 2 } }]);
+    assert.deepEqual(sitsNowhere, noRow);
+    assert.deepEqual(sitsInC, noRow);
+    // First in the request, each is the same refusal with its own uid and nothing else.
+    const first = async (uid) => {
+      await ready();
+      const answer = await together("yusuf", to(C, uid, "omar"));
+      return [answer.status, { ...answer.body, stopped: { ...answer.body.stopped, uid: "<asked>" } }];
+    };
+    const notServed = await first("amara");
+    assert.deepEqual(notServed, [409, { error: "Nobody was moved: one of them can’t be moved there.", stopped: { uid: "<asked>", reason: "not-accepted", groupId: C } }]);
+    assert.deepEqual(await first("bea"), notServed);
+    assert.deepEqual(await first("nobody-at-all"), notServed);
+  });
+
   test("somebody who no longer holds a place on the run", async () => {
     await world();
     w.world.db.poke(`courseApplications/${RUN.agi}__bea`, { status: "withdrawn" });

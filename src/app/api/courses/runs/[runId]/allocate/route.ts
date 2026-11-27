@@ -166,7 +166,9 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * (`published`), somebody no longer holds a place the caller may place
  * (`not-accepted`), a group that is gone or archived, a group without room
  * for everybody chosen (`group-full`, counted over the whole request, with
- * the room it had and how many wanted it), a facilitator who sits in the
+ * the room it had and how many of the people the caller may place wanted
+ * it: a uid with no row served to the caller is answered as one with no
+ * accepted row, in every field), a facilitator who sits in the
  * group they facilitate, or a move this way cannot make (`changed`: one that
  * would be made mid-term, or taken out of every group mid-term). Firestore
  * runs a contended transaction again, so two such requests at once are
@@ -836,12 +838,17 @@ export async function POST(req: Request, ctx: Ctx) {
           if (refusal.reason !== "group-full" || !first.groupId) {
             return { uid: first.uid, reason: refusal.reason, groupId: first.groupId };
           }
-          // The room the group had before this request, and how many of it wanted a seat there.
+          // The room the group had before this request, and how many of it
+          // wanted a seat there: only people this caller may place (a row
+          // accepted and served to them), each counted the same wherever they
+          // sit. Anybody else is not counted, exactly as a uid with no
+          // accepted row is not.
           const snap = groupById.get(first.groupId);
           const group = snap?.exists ? normalizeCourseGroup(snap.id, snap.data() ?? {}) : null;
           const room = Math.max(0, (group?.capacity ?? 0) - (group?.memberCount ?? 0));
           const wanting = chunk.filter((placement) => {
             if (placement.groupId !== first.groupId) return false;
+            if (!servedRowByUid.has(placement.uid)) return false;
             const seatSnap = enrolmentByUid.get(placement.uid);
             const seat = seatSnap?.exists ? normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {}) : null;
             return !(seat && seat.role === "learner" && seat.status === "active" && seat.groupId === placement.groupId);
