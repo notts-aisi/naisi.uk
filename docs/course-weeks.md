@@ -752,7 +752,9 @@ anything in it is left as it is."
   Delete… (with its question) and "Save this term's weeks as a template" are
   an admin's, and so are their routes. `GET /api/courses/[courseId]/templates`
   admits the lead for the run their programme names (`?runId=`), beside the
-  course's authors and its runs' track leads.
+  course's authors and its runs' track leads, and answers the lead the rows
+  the page draws them (`loadTemplateList`: the template, its label, the day,
+  who saved it by the names rule, its count of weeks) and nothing more.
 - **Copy it in** is always `POST .../runs/[runId]/apply-template` with
   `fill: true` (`src/lib/courses/weeksTab/fill.ts`), and the lead may ask for
   nothing else: the older Replace stays an admin's and an approver's, in the

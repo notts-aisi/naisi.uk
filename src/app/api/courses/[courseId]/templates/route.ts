@@ -21,7 +21,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { runGuideFields } from "@/lib/courses/guide/model";
 import { isAddressableId } from "@/lib/addressableId";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
-import { courseTemplateRows } from "@/lib/courses/weeksTab/templates";
+import { courseTemplateRows, loadTemplateList, type TemplateListRow } from "@/lib/courses/weeksTab/templates";
 
 /**
  * `courseTemplates` for ONE course — the save half (POST) and the picker half
@@ -71,7 +71,12 @@ import { courseTemplateRows } from "@/lib/courses/weeksTab/templates";
  * name the run (`?runId=`), and are admitted when they lead the programme
  * that names it (`programmeLedBy`, from the forms) and the run is of this
  * course. Leading a programme opens nothing on another course. Saving and
- * deleting stay an admin's.
+ * deleting stay an admin's. Admitted that way, they are answered the rows
+ * the Weeks tab's copy page draws them (`loadTemplateList`, a
+ * `TemplateListRow` each: the template, its label, the day it was saved, who
+ * saved it by the names rule for the reader, and how many of its weeks hold
+ * something) and nothing more: no account id, no source run and no
+ * retrospective.
  */
 
 /** Writes per batch. Firestore's hard limit is 500; a run holds ≤ 60 weeks. */
@@ -321,6 +326,7 @@ export async function GET(
   // Authorization before existence, again: the course is never read, so a
   // refusal cannot leak whether it exists.
   const staff = canDraftCourse(actor) || canApproveCourse(actor);
+  let asProgrammeLead = false;
   if (!staff) {
     // Track leads browse versions when they take a run over — but a lead of
     // THIS course's runs, not of any run anywhere: leading a run of one
@@ -361,6 +367,13 @@ export async function GET(
     if (!isLead && !leadsTheProgramme) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    asProgrammeLead = leadsTheProgramme;
+  }
+
+  // The programme's lead: the copy page's own rows, and nothing more.
+  if (asProgrammeLead) {
+    const rows: TemplateListRow[] = await loadTemplateList(db, courseId, actor);
+    return NextResponse.json({ templates: rows });
   }
 
   // No `orderBy`: `savedAt` is a serverTimestamp on every row this route

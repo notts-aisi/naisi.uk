@@ -156,6 +156,30 @@ describe("1. who may do what", () => {
     assert.equal((await listAs("tess", `?runId=${RUN.agi}`)).status, 403, "the lead of another programme");
   });
 
+  // The programme's lead is answered the copy page's own rows: nothing of
+  // who saved a template by account, the run it came from or its retrospective.
+  test("listing: the programme's lead is answered the copy page's rows and nothing more; everybody else's answer is the stored row, as before", async () => {
+    world.db.poke(`courseTemplates/${TEMPLATE}`, { retrospective: { runLabel: "Spring 2027 cohort", memberCount: 17, ratedMaterialCount: 9 } });
+    const lead = await listAs("claudia", `?runId=${RUN.agi}`);
+    assert.equal(lead.status, 200, JSON.stringify(lead.body));
+    assert.deepEqual(Object.keys(lead.body), ["templates"]);
+    assert.deepEqual(lead.body.templates.map((row) => Object.keys(row).sort()), [["id", "label", "savedBy", "savedOn", "weeks"]]);
+    const said = JSON.stringify(lead.body);
+    for (const needle of ["zach", RUN.agiSpring, "retrospective", "Spring 2027 cohort", "memberCount", "ratedMaterialCount", "savedByUid", "sourceRunId", "sourceGroupId", "courseId"]) {
+      assert.equal(said.includes(needle), false, `the lead's answer carries ${needle}`);
+    }
+    // The same rows the copy page draws for the lead.
+    assert.deepEqual(lead.body.templates, await lib("courses", "weeksTab", "templates.ts").then((m) => m.loadTemplateList(world.courseDb, COURSE.agi, w.sessionOf("claudia"))));
+    // An admin, a drafter, an approver and the run's track lead read the stored row, as before.
+    for (const who of ["zach", "drew", "april", "yusuf"]) {
+      const answer = await listAs(who, `?runId=${RUN.agi}`);
+      assert.equal(answer.status, 200, who);
+      assert.equal(answer.body.templates[0].sourceRunId, RUN.agiSpring, who);
+      assert.equal(answer.body.templates[0].savedByUid, "zach", who);
+      assert.deepEqual(answer.body.templates[0].retrospective, { runLabel: "Spring 2027 cohort", memberCount: 17, ratedMaterialCount: 9 }, who);
+    }
+  });
+
   test("copying in: admins and approvers, and the programme's lead only to fill; nobody else; no view-as session", async () => {
     for (const [who, what] of CALLERS) {
       start();
