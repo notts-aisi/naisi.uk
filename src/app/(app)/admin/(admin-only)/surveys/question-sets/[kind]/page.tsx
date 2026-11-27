@@ -1,19 +1,17 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import PageHead from "@/components/ui/PageHead";
 import { AdminPage } from "@/features/admin/adminList";
 import EventQuestionSet from "@/features/surveys/questionSets/EventQuestionSet";
 import QuestionSetWords from "@/features/surveys/questionSets/QuestionSetWords";
 import styles from "@/features/surveys/questionSets/questionSets.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { isQuestionSetKind } from "@/lib/firestore/surveyQuestionSets";
 import { accountNameOf } from "@/lib/firestore/users";
 import { eventTemplateItems } from "@/lib/surveys/events/template";
 import { hubTabHref } from "@/lib/surveys/hub/tabs";
 import { QUESTION_SETS, QUESTION_SET_WORDS, changedWords, editsWhole, eventSetItems, setEntries } from "@/lib/surveys/questionSets";
 import { readQuestionSet } from "@/lib/surveys/questionSetsStore";
-import { canRunSurveys } from "@/lib/surveys/repo";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +25,12 @@ export const dynamic = "force-dynamic";
  * (`src/lib/surveys/questionSets.ts`). Saved by
  * `PUT /api/surveys/question-sets/[kind]`, which holds both rules itself.
  *
- * Under `(admin-only)`, whose layout (`requireAdminPage()`) is the gate. The
- * page asks again itself, with the surveys' own bar (`canRunSurveys`), before
- * anything is read. An address that names no set is answered on the page in
+ * The page asks `requireAdminPage()` itself before anything is read, as its
+ * `(admin-only)` layout does. An address that names no set is answered on the page in
  * a sentence, never `notFound()`.
  */
 export default async function QuestionSetPage({ params }: { params: Promise<{ kind: string }> }) {
-  const viewer = await getCurrentUser();
-  if (!viewer || !canRunSurveys(viewer)) redirect("/dashboard");
+  await requireAdminPage();
   const { kind } = await params;
   const crumb = <Link href={hubTabHref("question-sets")}>{QUESTION_SET_WORDS.title}</Link>;
 

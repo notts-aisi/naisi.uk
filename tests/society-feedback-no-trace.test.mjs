@@ -82,8 +82,8 @@ const PLAIN_THROW = /^throw new \w*Error\(\s*"[^"]*"\s*\);/;
 const COOKIE = /\bcookies\s*\(|\.cookies\b|document\.cookie|__session\b|SESSION_COOKIE/;
 /** A request header, an address or a browser's name for itself. */
 const HEADER = /["']next\/headers["']|\bheaders\s*\(\s*\)|\.headers\.get\s*\(|x-forwarded-for|x-real-ip|remoteAddress|user-agent|\buserAgent\b/i;
-/** A session read: a call, not an import. */
-const SESSION = /\b(?:getCurrentUser|getSessionUser|getSessionUid|verifySessionCookie|verifyIdToken|useAuth)\s*\(/g;
+/** A session read: a call, not an import. The page gates in src/lib/firebase/pageGates.ts each read the session. */
+const SESSION = /\b(?:getCurrentUser|getSessionUser|getSessionUid|verifySessionCookie|verifyIdToken|useAuth|require(?:Admin|CourseAuthor|Admissions|Membership|Events)Page)\s*\(/g;
 /** The database's own time on a record. */
 const RECORD_TIME = /\b(?:createTime|updateTime|readTime)\b/;
 /** Kept in the browser. */
@@ -117,7 +117,7 @@ export function breaches(path, source) {
 
 /** A session, the view-as marker, a sign-in or a cookie: anything that can say who is calling. Type imports are not reads. */
 const SESSION_ANY =
-  /["']@\/lib\/firebase\/(?:session|impersonation)["']|["']@\/auth\/[^"']*["']|["']firebase\/auth["']|["']firebase-admin\/auth["']|\b(?:getCurrentUser|getSessionUser|getSessionUid|verifySessionCookie|verifyIdToken|useAuth|onAuthStateChanged|getImpersonator|assertNotImpersonating|markerIsLive|getAdminAuth)\b|\bcookies\s*\(/;
+  /["']@\/lib\/firebase\/(?:session|impersonation|pageGates)["']|["']@\/auth\/[^"']*["']|["']firebase\/auth["']|["']firebase-admin\/auth["']|\b(?:getCurrentUser|getSessionUser|getSessionUid|verifySessionCookie|verifyIdToken|useAuth|onAuthStateChanged|getImpersonator|assertNotImpersonating|markerIsLive|getAdminAuth)\b|\bcookies\s*\(/;
 const withoutTypeImports = (code) => code.replace(/import\s+type\s+[^;]*;/g, "");
 /** Whether a file can say who is calling. */
 export const readsSession = (source) => SESSION_ANY.test(withoutTypeImports(codeOf(source)));
@@ -370,7 +370,8 @@ describe("4. only the files named here address the entries, and no browser code 
       }
     }
     const page = codeOf(read(ADMIN_PAGE));
-    assert.ok(page.indexOf('viewer.role !== "admin"') < page.indexOf("getAdminDb()"));
+    const asks = page.indexOf("await requireAdminPage();");
+    assert.ok(asks !== -1 && asks < page.indexOf("getAdminDb()"), "the admins' page reads before it asks for an admin");
   });
 });
 

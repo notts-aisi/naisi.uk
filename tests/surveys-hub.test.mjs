@@ -221,9 +221,13 @@ describe("1. only an admin is shown either tab, or Reports", () => {
   test("both pages sit in the admin-only tree, whose layout is the first gate", () => {
     const layout = readFileSync(join(REPO_ROOT, "src", "app", "(app)", "admin", "(admin-only)", "layout.tsx"), "utf8");
     assert.match(layout, /await requireAdminPage\(\);/);
-    for (const page of ["surveys", "reports"]) {
+    // Each asks for an admin itself: Surveys through the tree's own gate, Reports with the surveys' bar.
+    for (const [page, ask] of [
+      ["surveys", "const viewer = await requireAdminPage();"],
+      ["reports", 'if (!viewer || !canRunSurveys(viewer)) redirect("/dashboard");'],
+    ]) {
       const source = readFileSync(join(REPO_ROOT, "src", "app", "(app)", "admin", "(admin-only)", page, "page.tsx"), "utf8");
-      const asks = source.indexOf('if (!viewer || !canRunSurveys(viewer)) redirect("/dashboard");');
+      const asks = source.indexOf(ask);
       assert.ok(asks !== -1, `${page}: the page no longer asks who is reading`);
       assert.ok(source.indexOf("getAdminDb()") === -1 || asks < source.indexOf("getAdminDb()"), `${page}: the page reaches the database before it asks`);
     }

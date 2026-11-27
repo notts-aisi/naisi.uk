@@ -8967,7 +8967,7 @@ describe("this term in numbers", () => {
       return at !== -1 && at < source.indexOf(read);
     };
     const page = withoutComments(read("src/app/(app)/admin/(admin-only)/surveys/term/page.tsx"));
-    assert.ok(askedFirst(page, "if (!viewer || !canRunSurveys(viewer)) redirect(\"/dashboard\");", "loadTermNumbers(db"), "the page reads before it asks who the caller is");
+    assert.ok(askedFirst(page, "const viewer = await requireAdminPage();", "loadTermNumbers(db"), "the page reads before it asks who the caller is");
     const route = withoutComments(read("src/app/api/surveys/term/totals/route.ts"));
     assert.ok(askedFirst(route, "if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });", "loadTermNumbers(db"), "the file is built before the caller is asked whether they are an admin");
     const load = withoutComments(read("src/lib/surveys/term/load.ts"));

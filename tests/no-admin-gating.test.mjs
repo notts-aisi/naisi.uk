@@ -27,9 +27,10 @@
  *    The layout is not the only gate. A layout is not rendered again on every
  *    navigation and does not decide whether the segments below it render
  *    (Next's authentication guide, "Layouts and auth checks"), so each page in
- *    these trees that reads on the server also calls its tree's gate itself,
- *    before it reads. `tests/pages-ask-who-is-calling.test.mjs` holds that, for
- *    every server page and layout under `src/app`.
+ *    these trees that reads on the server also calls its tree's gate itself
+ *    (or one that asks at least as much), before it reads.
+ *    `tests/pages-ask-who-is-calling.test.mjs` holds that, for every server
+ *    page and layout under `src/app`, with the trees read off the layouts.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
