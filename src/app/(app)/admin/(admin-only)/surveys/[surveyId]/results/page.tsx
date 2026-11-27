@@ -19,7 +19,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * A survey's Results tab: every question as a chart, made on the
- * server, never a name. Admins only, by the `(admin-only)` group's layout.
+ * server, never a name. Admins only: the page asks `requireAdminPage()`
+ * itself before it reads, as the `(admin-only)` group's layout does.
  * The programme's lead reads the same charts on a page of their own, without
  * any of what follows.
  *

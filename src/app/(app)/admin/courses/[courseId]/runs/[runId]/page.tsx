@@ -6,11 +6,10 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireCourseAuthorPage } from "@/lib/firebase/pageGates";
 
 /**
- * Admin run editor. `courses/layout.tsx` gates the tree server-side with
- * `requireCourseAuthorPage()` (admin, `draftCourse` or `approveCourse`), so
- * this page only has to resolve params and hand off to the client editor
- * (which reads Firestore directly: rules are the real boundary for every write
- * it makes).
+ * Admin run editor. The page asks `requireCourseAuthorPage()` (admin,
+ * `draftCourse` or `approveCourse`) itself before it reads, as
+ * `courses/layout.tsx` does, then hands off to the client editor (which reads
+ * Firestore directly: rules are the real boundary for every write it makes).
  *
  * Two facts the editor cannot read for itself are read here: whether Publish
  * has sent the run's groups out (the run's `allocationPublishedAt`, which the

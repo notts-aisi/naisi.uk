@@ -22,8 +22,9 @@ const keyOf = (programme: Pick<NumbersProgramme, "roundId" | "programmeId">) => 
  * them as the programme's public page will draw them on a phone and on a
  * computer, and publishes them, or takes them down.
  *
- * Under `(admin-only)`, so the group's layout (`requireAdminPage()`) is the
- * gate, and both routes ask again. Read on the server: the offer is counted
+ * The page asks `requireAdminPage()` itself before it reads, as the
+ * `(admin-only)` group's layout does, and both routes ask again. Read on the
+ * server: the offer is counted
  * here (`loadOffer`) and handed to the page as numbers and words, never an
  * answer. A programme is picked by `?programme=<form>.<programme>`, the first
  * one listed when the address names none.
