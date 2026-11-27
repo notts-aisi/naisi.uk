@@ -72,7 +72,9 @@ async function run(ctx: JobContext): Promise<JobResult> {
   const snap = await db.collection("courseRuns").where("status", "in", LIVE_STATUSES).limit(MAX_CANDIDATE_RUNS).get();
   if (snap.docs.length >= MAX_CANDIDATE_RUNS) ctx.log("live runs read up to the limit", { limit: MAX_CANDIDATE_RUNS });
   const runs = snap.docs
-    .filter((doc) => doc.data()?.destroying !== true && doc.data()?.allocationPublishedAt != null)
+    .filter((doc) => doc.data()?.destroying !== true)
+    // Its groups gone out: from then on every date the close reads is held.
+    .filter((doc) => doc.data()?.allocationPublishedAt != null)
     .map((doc) => normalizeCourseRun(doc.id, doc.data() ?? {}))
     .filter((read) => !read.archived && LIVE_STATUSES.includes(read.status))
     .sort((a, b) => a.id.localeCompare(b.id));
