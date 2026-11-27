@@ -2980,12 +2980,12 @@ export const ROUTES = {
   },
   "/api/courses/runs/[runId]/allocation/publish/test": {
     POST: {
-      expect: signedIn(404),
+      expect: adminOnly(404),
       why:
-        "Session required (with an address on it to send the test to), then the document is read " +
-        "and its own membership decides. The battery's id addresses nothing, so every signed-in " +
-        "persona is told that the document is missing. Track leads are per run, so the run is " +
-        "read first.",
+        "Session required (with an address on it to send the test to), then the run's staff decide " +
+        "(its own track leads when it is there, the forms for the programme's lead) before the run " +
+        "is answered for: everybody else is forbidden whether or not the run exists, and the admin " +
+        "is told the battery's id addresses nothing.",
     },
   },
   "/api/courses/runs/[runId]/allocation/publish/notes": {
@@ -3102,7 +3102,8 @@ export const ROUTES = {
       expect: signedIn(400),
       why:
         "Session required, then the caller's own request is validated before the document is " +
-        "read, so every signed-in persona meets the same 400 on an empty one.",
+        "read, so every signed-in persona meets the same 400 on an empty one. A whole request then " +
+        "meets the gate on the target run before either run is answered for.",
     },
   },
   "/api/courses/runs/[runId]/comments": {

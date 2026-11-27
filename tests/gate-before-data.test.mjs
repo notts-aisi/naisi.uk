@@ -724,6 +724,132 @@ describe("every handler proves the caller before it touches Firestore", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// A right decided on the run is answered before the run is
+// ---------------------------------------------------------------------------
+
+/**
+ * A ROUTE WHOSE RIGHT IS DECIDED ON THE RUN ANSWERS ITS REFUSAL BEFORE IT
+ * ANSWERS WHETHER THE RUN IS THERE.
+ *
+ * The check above asks that a session is established first. A route whose
+ * right needs the run itself (its track leads are named on it) reads the run
+ * to decide, and then the order of its two answers decides what a caller
+ * with no right learns: a 404 before the 403 tells them whether the run
+ * exists. So in these handlers every 404 answered after the first Firestore
+ * touch comes after the handler's first 403, with a local helper's answers
+ * read where it is called. A caller with no right gets the one 403 whether
+ * or not the run, or a run it names, is there.
+ *
+ * WHICH HANDLERS. Every handler of a route under `src/app/api/courses/runs`
+ * that takes a write and writes a run's weeks (`writesRunWeeks`, found by
+ * walking the tree; a route that only answers GET writes nothing), and
+ * the allocation board's presses listed in `BOARD_PRESSES` with the reason
+ * each is held here, checked in both directions.
+ */
+const BOARD_PRESSES = {
+  "src/app/api/courses/runs/[runId]/allocate/route.ts":
+    "places and moves people in the run's groups, for the run's staff: a run's track leads are named on the run, so the run is read to decide",
+  "src/app/api/courses/runs/[runId]/allocation/publish/route.ts":
+    "Publish, an admin's press, refused to the rest of the run's staff in their own words and to everybody else with the one 403",
+  "src/app/api/courses/runs/[runId]/allocation/publish/test/route.ts":
+    "a test of Publish's emails to the caller's own address, held to the same gate as Publish itself",
+};
+
+/** A route file, read with its strings, that writes a run's `weeks` documents. */
+function writesRunWeeks(code) {
+  const namesWeeks = /\.collection\(\s*["']weeks["']\s*\)/.test(code);
+  const writes = /\.(?:set|update|create|delete)\(|\.batch\(\)|\.runTransaction\(/.test(code);
+  return namesWeeks && writes;
+}
+
+/** A handler's body with each local helper it calls written in where it is called, once. */
+function expandLocals(body, scope, seen = new Set()) {
+  let out = body;
+  for (const [name, span] of scope.locals) {
+    if (seen.has(name)) continue;
+    const call = new RegExp(`(?<![\\w$.])${name}\\s*\\(`);
+    const at = out.search(call);
+    if (at < 0) continue;
+    out = `${out.slice(0, at)}{${expandLocals(span.text, scope, new Set([...seen, name]))}}${out.slice(at)}`;
+  }
+  return out;
+}
+
+/** The 404s a handler answers after its first Firestore touch and before its first 403. */
+function notFoundBeforeRefusal(body, scope) {
+  const expanded = expandLocals(body, scope);
+  const touch = touchesDataAt(expanded);
+  if (touch < 0) return [];
+  const refusal = expanded.search(/status:\s*403\b/);
+  const early = [];
+  for (const match of expanded.matchAll(/status:\s*404\b/g)) {
+    if (match.index > touch && (refusal < 0 || match.index < refusal)) early.push(match.index);
+  }
+  return early;
+}
+
+function touchesDataAt(body) {
+  METHOD_CALL.lastIndex = 0;
+  let match;
+  while ((match = METHOD_CALL.exec(body)) !== null) {
+    if (DATA_METHODS.has(match[1])) return match.index;
+  }
+  return -1;
+}
+
+describe("a route whose right is decided on the run answers its refusal before whether the run is there", () => {
+  const RUNS_DIR = "src/app/api/courses/runs/";
+  const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+  const writers = new Set(
+    handlers
+      .filter((h) => h.path.startsWith(RUNS_DIR) && WRITE_METHODS.has(h.key.split("#")[1]) && writesRunWeeks(withStrings(h.path)))
+      .map((h) => h.path),
+  );
+  const held = handlers.filter((h) => writers.has(h.path) || Object.hasOwn(BOARD_PRESSES, h.path));
+
+  test("the walk finds the writers of a run's weeks, and every press listed is a route with handlers", () => {
+    for (const path of [
+      "src/app/api/courses/runs/[runId]/clone-weeks/route.ts",
+      "src/app/api/courses/runs/[runId]/apply-template/route.ts",
+      "src/app/api/courses/runs/[runId]/weeks/[weekId]/published/route.ts",
+      "src/app/api/courses/runs/[runId]/weeks/[weekId]/settings/route.ts",
+    ]) {
+      assert.ok(writers.has(path), `the walk no longer sees ${path} write a run's weeks`);
+    }
+    for (const [path, why] of Object.entries(BOARD_PRESSES)) {
+      assert.ok(handlers.some((h) => h.path === path), `BOARD_PRESSES names ${path}, which has no handler`);
+      assert.ok(why.length > 60, `BOARD_PRESSES["${path}"] needs its reason`);
+      assert.equal(writers.has(path), false, `${path} writes a run's weeks, so the walk holds it already: delete its entry`);
+    }
+  });
+
+  test("every 404 after the first read comes after the first 403", () => {
+    const failures = [];
+    for (const h of held) {
+      if (notFoundBeforeRefusal(h.body, h.scope).length > 0) {
+        failures.push(
+          `${h.key} answers 404 from what it read before it answers its 403. Decide who is calling ` +
+            "first, and give everybody with no right the one 403 whether or not the run is there.",
+        );
+      }
+    }
+    assert.deepEqual(failures, [], `\n${failures.join("\n")}\n`);
+  });
+
+  test("the reading: a 404 after the read and before the 403 is found, in the handler or a helper; one after the 403, or before any read, is not", () => {
+    const empty = moduleScope("", "");
+    assert.equal(notFoundBeforeRefusal(`const s = await db.collection("r").doc(id).get(); if (!s.exists) return j({}, { status: 404 }); if (!ok) return j({}, { status: 403 });`, empty).length, 1);
+    assert.equal(notFoundBeforeRefusal(`const s = await db.collection("r").doc(id).get(); if (!ok) return j({}, { status: 403 }); if (!s.exists) return j({}, { status: 404 });`, empty).length, 0);
+    assert.equal(notFoundBeforeRefusal(`if (!shape(id)) return j({}, { status: 404 }); const s = await db.collection("r").doc(id).get(); if (!ok) return j({}, { status: 403 });`, empty).length, 0);
+    const helper = moduleScope(`async function load(db, id) {\n  const s = await db.collection("r").doc(id).get();\n  if (!s.exists) return j({}, { status: 404 });\n  return s;\n}\n`);
+    assert.equal(notFoundBeforeRefusal(`const s = await load(db, id); if (!ok) return j({}, { status: 403 });`, helper).length, 1);
+    assert.equal(writesRunWeeks('runRef.collection("weeks").doc(w).set(data)'), true);
+    assert.equal(writesRunWeeks('runRef.collection("weeks").get()'), false);
+    assert.equal(writesRunWeeks('db.collection("courseRuns").doc(r).update({ title })'), false);
+  });
+});
+
 describe("the registries are real in both directions", () => {
   test("every gate in GATES decides at least one handler, and comes from where it says", () => {
     const used = new Set();

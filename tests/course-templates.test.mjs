@@ -927,7 +927,7 @@ test("MODEL §7.1b the gate and the copy are ONE transaction, not a check then a
   assert.equal(/db\.batch\(\)|batch\.commit\(\)/.test(APPLY_CODE), false);
   // Reads before writes — the transaction's own rule, and the ordering the
   // gate depends on.
-  const firstRead = APPLY_CODE.indexOf("await tx.get(targetWeeks.select())");
+  const firstRead = APPLY_CODE.indexOf("await tx.get(targetWeeks.select(\"published\"))");
   const firstWrite = APPLY_CODE.indexOf("tx.set(write.ref, write.data)");
   assert.ok(firstRead > 0 && firstRead < firstWrite);
   // One transaction has no chunking to fall back on, so an oversized apply is

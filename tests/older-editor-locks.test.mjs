@@ -18,10 +18,14 @@
  *     group's does not count). That is the whole rule: week 1 open early to
  *     everybody holding a place, with nobody started, is taken back as any
  *     week. A refusal writes nothing.
- *  2. COPYING WEEKS IN FROM ANOTHER RUN WITH REPLACE. Refused once anybody
+ *  2. COPYING WEEKS IN FROM ANOTHER RUN WITH REPLACE. Who may copy is decided
+ *     before either run is answered for: one 403 for everybody with no right
+ *     on the target, whether or not either run is there. Refused once anybody
  *     has started the run, in its transaction, with the board's sentence,
- *     and nothing is written; copying into weeks the run does not have is
- *     never refused for it; a replace on a run nobody has started goes on.
+ *     and nothing is written; refused, with the unpublish route's sentence,
+ *     when it would unpublish a published week a live group has met for;
+ *     copying into weeks the run does not have is never refused for it; a
+ *     replace on a run nobody has started goes on.
  *  3. THE QUESTION BEFORE A STATUS MOVE. A paragraph for every move the
  *     run editor's select offers, each ending "It can’t be moved back.",
  *     the Completed one in the owner's words, and the buttons naming the
@@ -223,6 +227,103 @@ describe("2. copying weeks in from another run with Replace", () => {
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
     assert.equal(world.db.read(weekPath("w01")).title, "Spring week 1");
     assert.equal(world.db.read(weekPath("w02")).title, "Spring week 2");
+  });
+
+  // Who may copy is decided before either run is read for anything else:
+  // somebody with no right on the target is given one answer whether the
+  // target, or the run copied from, is there or not.
+  test("everybody with no right on the target gets the one 403, whether or not either run is there, and nothing is written", async () => {
+    seedSource();
+    const before = snapshot();
+    const NO_SUCH = "agi-strategy-gone__run00099";
+    for (const who of ["amara", "dev", "tess", "lloyd", "nobody", "drafter"]) {
+      const answers = [
+        await call(who, clone.POST, { runId: RUN.agi }, { body: { fromRunId: RUN.agiSpring, overwrite: true } }),
+        await call(who, clone.POST, { runId: NO_SUCH }, { body: { fromRunId: RUN.agiSpring, overwrite: true } }),
+        await call(who, clone.POST, { runId: RUN.agi }, { body: { fromRunId: NO_SUCH, overwrite: false } }),
+        await call(who, clone.POST, { runId: NO_SUCH }, { body: { fromRunId: "agi-strategy-gone__run00098", overwrite: false } }),
+      ];
+      assert.deepEqual(answers.map((answer) => [answer.status, answer.body]), Array(4).fill([403, { error: "Forbidden" }]), who);
+    }
+    assert.equal(snapshot(), before);
+    // The run's track lead, the programme's lead, an approver and an admin are
+    // told the run they copy from is not there; an approver and an admin, the
+    // run they copy into too.
+    for (const who of ["yusuf", "claudia", "approver", "zach"]) {
+      const answer = await call(who, clone.POST, { runId: RUN.agi }, { body: { fromRunId: NO_SUCH, overwrite: false } });
+      assert.deepEqual([answer.status, answer.body.error], [404, "The run you're copying from no longer exists."], who);
+    }
+    for (const who of ["approver", "zach"]) {
+      assert.equal((await call(who, clone.POST, { runId: NO_SUCH }, { body: { fromRunId: RUN.agiSpring } })).status, 404, who);
+    }
+    assert.equal(snapshot(), before);
+  });
+
+  // A Replace never takes back a published week a live group has met for:
+  // the unpublish route's own judgement, asked in the copy's transaction.
+  describe("a published week a live group has met for", () => {
+    const nobodyStarted = () => {
+      for (const path of world.db.paths()) if (path.startsWith("courseExerciseResponses/")) world.db.seed(path, { runId: "elsewhere", weekId: "w09", uid: "x" });
+    };
+
+    test("is not unpublished by a Replace: refused with the unpublish route's sentence, for everybody who may copy, and nothing is written", async () => {
+      seedSource();
+      nobodyStarted();
+      world.db.poke(weekPath("w02", RUN.agiSpring), { published: false });
+      mock.timers.setTime(AFTER_MONDAY_WEEK_TWO.getTime());
+      const before = snapshot();
+      for (const who of ["zach", "approver", "yusuf", "claudia"]) {
+        const answer = await copy(who, true);
+        assert.deepEqual([answer.status, answer.body], [409, { error: words.weekStaysPublishedWords(2), inUse: "met" }], who);
+      }
+      assert.equal(snapshot(), before);
+      assert.equal(world.db.read(weekPath("w02")).published, true);
+    });
+
+    test("a week that stays published, a week not published, and a week nobody has met for yet copy as before", async () => {
+      seedSource();
+      nobodyStarted();
+      mock.timers.setTime(AFTER_MONDAY_WEEK_TWO.getTime());
+      // The source's week 2 is published: the run's stays published, replaced.
+      const stays = await copy("zach", true);
+      assert.equal(stays.status, 200, JSON.stringify(stays.body));
+      assert.equal(world.db.read(weekPath("w02")).title, "Spring week 2");
+      assert.equal(world.db.read(weekPath("w02")).published, true);
+
+      // The run's week 2 not published: the copy carries the source's state across.
+      reset();
+      seedStaff();
+      seedSource();
+      nobodyStarted();
+      world.db.poke(weekPath("w02"), { published: false });
+      world.db.poke(weekPath("w02", RUN.agiSpring), { published: false });
+      const unpublished = await copy("zach", true);
+      assert.equal(unpublished.status, 200, JSON.stringify(unpublished.body));
+      assert.equal(world.db.read(weekPath("w02")).title, "Spring week 2");
+
+      // Before the Monday group's week 2 has ended, the week may still be taken back.
+      reset();
+      seedStaff();
+      seedSource();
+      nobodyStarted();
+      world.db.poke(weekPath("w03", RUN.agiSpring), { published: false });
+      world.db.poke(weekPath("w02", RUN.agiSpring), { published: false });
+      mock.timers.setTime(BEFORE_THE_START.getTime());
+      const early = await copy("claudia", true);
+      assert.equal(early.status, 200, JSON.stringify(early.body));
+      assert.equal(world.db.read(weekPath("w02")).published, false);
+    });
+
+    test("an archived group's session does not count, as on the unpublish route", async () => {
+      seedSource();
+      nobodyStarted();
+      world.db.poke(weekPath("w02", RUN.agiSpring), { published: false });
+      mock.timers.setTime(AFTER_MONDAY_WEEK_TWO.getTime());
+      world.db.poke(`courseGroups/${GROUP.monday}`, { archived: true });
+      const answer = await copy("zach", true);
+      assert.equal(answer.status, 200, JSON.stringify(answer.body));
+      assert.equal(world.db.read(weekPath("w02")).published, false);
+    });
   });
 
   test("a replace that would replace nothing is not refused for people having started", async () => {

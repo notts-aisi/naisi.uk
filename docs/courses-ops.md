@@ -2780,7 +2780,15 @@ empty (docs/course-weeks.md, "Saved templates"). The copy from another run says
 "People have started this run, so copying in can’t replace its weeks. Copy
 into empty weeks only.", and copying into weeks the run does not have goes
 on. The run page counts the same rows on the server and shows the sentence
-before the press.
+before the press. Both copies also leave published every week a live
+group's session for has passed, the unpublish route's own judgement
+(`firstWeekMet`, `src/lib/courses/olderEditor/weekInUse.ts`), asked in the
+same transaction: a Replace that would unpublish such a week, or delete it
+as a week a saved template lacks, is refused with that route's sentence
+(409, `inUse: "met"`, nothing written). A week that stays published, or was
+not published, copies as before. The copy from another run decides who may
+copy before it reads either run for anything else: one 403 for everybody
+with no right on the target run, whether or not either run is there.
 
 **The doors.** Nothing in the newer pages leads into the older editor where
 the job has a newer home: the Overview's "Open week N" opens the week on the

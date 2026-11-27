@@ -315,15 +315,18 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   const runSnap = await db.collection("courseRuns").doc(runId).get();
-  if (!runSnap.exists) {
-    return NextResponse.json({ error: "Run not found" }, { status: 404 });
-  }
-  const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
-
-  const staffing = await runStaffingOf(db, actor, run);
+  const found = runSnap.exists ? normalizeCourseRun(runSnap.id, runSnap.data() ?? {}) : null;
+  // The gate, before the run is answered for: its staff decide
+  // (`runStaffingOf`, on the run's own track leads when it is there), so a
+  // caller who is not gets the one 403 whether or not the run exists.
+  const staffing = await runStaffingOf(db, actor, found ?? { id: runId, trackLeadUids: [] });
   if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  if (!found) {
+    return NextResponse.json({ error: "Run not found" }, { status: 404 });
+  }
+  const run = found;
 
   const now = new Date();
 

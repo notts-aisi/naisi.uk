@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import type { DocumentReference } from "firebase-admin/firestore";
+import type { DocumentReference, DocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
@@ -15,7 +15,9 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { weekBlocksField } from "@/lib/courses/weekBlocks/model";
 import { RUN_GUIDE_FIELDS, runGuideFields } from "@/lib/courses/guide/model";
 import { runStarted } from "@/lib/courses/olderEditor/runStarted";
-import { COPY_CANT_REPLACE } from "@/lib/courses/olderEditor/words";
+import { firstWeekMet } from "@/lib/courses/olderEditor/weekInUse";
+import { COPY_CANT_REPLACE, weekStaysPublishedWords } from "@/lib/courses/olderEditor/words";
+import { isAddressableId } from "@/lib/addressableId";
 
 /**
  * Copy-forward: clone one run's `weeks` subcollection into another run of the
@@ -53,7 +55,17 @@ import { COPY_CANT_REPLACE } from "@/lib/courses/olderEditor/words";
  * leave their rows pointing at items the copy may not hold. Counted inside
  * the same transaction as the writes, so a tick racing the copy is either
  * counted (and the copy refused) or lands on the new weeks. Copying into
- * weeks the run does not have yet is never refused for it.
+ * weeks the run does not have yet is never refused for it. Both also refuse
+ * to take back a published week whose session has ended for a live group
+ * (`firstWeekMet`, the judgement the unpublish route makes), here when the
+ * source's copy of the week is not published, asked in the same transaction
+ * and answered with that route's sentence. A week that stays published, or
+ * was not published, copies as before.
+ *
+ * WHO, decided before either run is read for anything else: an approver on
+ * the session; anybody else on the TARGET run's own track leads and the
+ * programme that names it (`runStaffingOf`), with one 403 whether or not
+ * the target run, or the run copied from, is there.
  *
  * Two properties make this route safe to press twice:
  *
@@ -89,6 +101,8 @@ class CloneRefusal extends Error {
   constructor(
     message: string,
     public status: number,
+    /** Keys merged into the answer beside `error`. */
+    public detail: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -129,8 +143,26 @@ export async function POST(
   const overwrite = body.overwrite === true;
 
   const runsCol = db.collection("courseRuns");
+
+  // The gate. An approver needs nothing read. Anybody else is decided on the
+  // TARGET run's track leads and on the forms for the lead of the programme
+  // that names it (`runStaffingOf`): the people who own this run's
+  // curriculum, with one answer for a run that is not there. Authority over
+  // the source run isn't required separately because of the same-course
+  // check below: a track lead can only ever pull content out of a run of the
+  // course they already lead.
+  let gatedTarget: DocumentSnapshot | null = null;
+  if (!canApproveCourse(actor)) {
+    gatedTarget = isAddressableId(runId) ? await runsCol.doc(runId).get() : null;
+    const data = gatedTarget?.exists ? (gatedTarget.data() ?? {}) : null;
+    const staffing = data !== null ? await runStaffingOf(db, actor, { id: runId, trackLeadUids: asUidList(data.trackLeadUids) }) : null;
+    if (!(staffing && doesTrackLeadWork(staffing))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   const [targetSnap, sourceSnap] = await Promise.all([
-    runsCol.doc(runId).get(),
+    gatedTarget ?? runsCol.doc(runId).get(),
     runsCol.doc(fromRunId).get(),
   ]);
   if (!targetSnap.exists) {
@@ -144,16 +176,6 @@ export async function POST(
   }
   const target = targetSnap.data() ?? {};
   const source = sourceSnap.data() ?? {};
-
-  // Admins, approvers, the TARGET run's track leads and the lead of the
-  // programme that names the target run (`runStaffingOf`): the people who
-  // own this run's curriculum. Authority over the source run isn't required
-  // separately because of the same-course check below: a track lead can only
-  // ever pull content out of a run of the course they already lead.
-  const staffing = await runStaffingOf(db, actor, { id: runId, trackLeadUids: asUidList(target.trackLeadUids) });
-  if (!(canApproveCourse(actor) || doesTrackLeadWork(staffing))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const courseId = typeof target.courseId === "string" ? target.courseId : "";
   if (!courseId || courseId !== source.courseId) {
@@ -236,23 +258,29 @@ export async function POST(
   }
 
   // With `overwrite`, the copy may replace weeks the run already has, so it
-  // runs in one transaction with its writes: the run's week ids are read
-  // again in it, and when the copy would replace any of them, whether
-  // anybody has started the run is counted in it too. The run holds at most
-  // 60 weeks, well inside a transaction's writes. Without `overwrite` the copy
-  // only fills weeks the run does not have and writes in batches, as always.
+  // runs in one transaction with its writes: the run's weeks are read again
+  // in it, and when the copy would replace any of them, whether anybody has
+  // started the run is counted in it too, and whether a group has met for a
+  // published week the copy would unpublish. The run holds at most 60 weeks,
+  // well inside a transaction's writes. Without `overwrite` the copy only
+  // fills weeks the run does not have and writes in batches, as always.
   if (overwrite) {
     try {
       await db.runTransaction(async (tx) => {
-        const stored = new Set((await tx.get(targetWeeks.select())).docs.map((d) => d.id));
+        const storedSnap = await tx.get(targetWeeks.select("published"));
+        const stored = new Set(storedSnap.docs.map((d) => d.id));
         const replaces = pending.some((write) => stored.has(write.ref.id));
-        if (replaces && (await runStarted(db, runId, tx))) throw new CloneRefusal(COPY_CANT_REPLACE, 409);
+        if (replaces && (await runStarted(db, runId, tx))) throw new CloneRefusal(COPY_CANT_REPLACE, 409, { peopleStarted: true });
+        const published = new Set(storedSnap.docs.filter((d) => (d.data() ?? {}).published === true).map((d) => d.id));
+        const unpublishes = pending.filter((write) => published.has(write.ref.id) && write.data.published !== true).map((write) => write.ref.id);
+        const met = await firstWeekMet(db, tx, { runId, weekIds: unpublishes, now: new Date() });
+        if (met) throw new CloneRefusal(weekStaysPublishedWords(met.weekNumber), 409, { inUse: "met" });
         // `set` (not `update`): an overwrite must replace the week wholesale
         // rather than merge two curricula.
         for (const write of pending) tx.set(write.ref, write.data);
       });
     } catch (err) {
-      if (err instanceof CloneRefusal) return NextResponse.json({ error: err.message, peopleStarted: true }, { status: err.status });
+      if (err instanceof CloneRefusal) return NextResponse.json({ error: err.message, ...err.detail }, { status: err.status });
       throw err;
     }
   } else {
