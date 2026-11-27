@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import DoorList from "@/features/events/checkIn/DoorList";
 import { dayWords } from "@/features/events/manageWords";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { requireEventsPage } from "@/lib/firebase/pageGates";
 import { runsCheckIn } from "@/lib/events/checkInAccess";
 import { loadEventAtTheDoor } from "@/lib/events/checkInLoad";
 import { doorClosedWords, doorRows, namesOffOf } from "@/lib/events/checkInView";
@@ -47,8 +47,8 @@ export const dynamic = "force-dynamic";
  */
 export default async function DoorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const viewer = await getCurrentUser();
-  if (!viewer) redirect("/login");
+  // The events area's own question first, as its layout asks it.
+  const viewer = await requireEventsPage();
   if (!runsCheckIn(viewer)) redirect(`/events/manage/${id}`);
 
   const db = getAdminDb();

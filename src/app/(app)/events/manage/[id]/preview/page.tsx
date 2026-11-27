@@ -1,12 +1,11 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import Notice from "@/components/ui/Notice";
 import EventDetailView from "@/features/events/EventDetailView";
 import { getEventForPreview } from "@/features/events/fetchEvents";
 import { STATUS_WORDS } from "@/features/events/manageWords";
-import { getCurrentUser } from "@/lib/firebase/session";
-import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
+import { requireEventsPage } from "@/lib/firebase/pageGates";
 import styles from "../../events.module.css";
 
 export const dynamic = "force-dynamic";
@@ -17,16 +16,10 @@ export default async function EventPreviewPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const viewer = await getCurrentUser();
-  if (!viewer) redirect("/login");
-  // The preview shows the public event view (no attendee PII), so it matches
-  // the events-area gate: the whole committee, plus draft/approve holders.
-  const allowed =
-    viewer.role === "admin" ||
-    viewer.role === "committee" ||
-    canDraftEvent(viewer) ||
-    canApproveEvent(viewer);
-  if (!allowed) redirect("/dashboard");
+  // The preview shows the public event view (no attendee PII), so it asks
+  // the events area's own question: the whole committee, plus draft/approve
+  // holders.
+  await requireEventsPage();
 
   const event = await getEventForPreview(id);
   if (!event) notFound();
