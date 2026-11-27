@@ -730,8 +730,9 @@ marker to read rather than a log to search.
 
 #### `courses-runs-complete`
 
-Moves each live course run to Completed once its work has closed: the end of
-the London day 14 days after its last session unless the run says otherwise
+Moves each live course run whose groups have gone out (its
+`allocationPublishedAt` is set) to Completed once its work has closed: the end
+of the London day 14 days after its last session unless the run says otherwise
 (`workClosesAt` in `src/lib/courses/weekWork/closes.ts`, the moment every week
 of it shuts). Never at the end of the last session: until work closes the last
 week's register reminder, the unmarked-register card, the check-in reminder,
@@ -751,14 +752,31 @@ emails and reminders and takes it off people's Home, so an admin arms it from
 the scheduler panel. While it is off the tick never calls it, so it reads
 nothing, and a running run stays live until an admin presses "Mark it
 completed now…" on the programme's Settings. Skipped: an archived run, a run
-being destroyed, a draft, and a run whose groups date no session. Its record
-is the tick's receipt (how many, in the note) and one log line per run, by id.
-The programme's Settings reads the same switch (`RUNS_COMPLETE_JOB` in
-`src/lib/scheduler/registerJobs.ts`, held to the registration by
-`tests/course-register-jobs.test.mjs`), with the scheduler's own switch, to
-say whether a run completes by itself. When an admin first switches it on,
-every live run in the project whose work has already closed is completed on
-its first tick: older runs nobody marked completed, a pre-course still in
+being destroyed, a draft, a run whose groups have not gone out, and a run whose
+groups date no session.
+
+**Only once the groups have gone out, so its day cannot be moved from a
+browser.** From then on every date the close is worked out from (the run's
+start date and week plan, each group's slot and overrides) is held for every
+browser writer (`runDatesKeptOnceGroupsOut`, `groupTimeKeptOnceGroupsOut`), and
+`workClosesAfterDays` is an approver's or an admin's at any time, beside the
+status, and a run is created without it unless an approver creates it. So the
+day it acts on moves only through the routes or through somebody who may
+complete the run anyway. Before then the start date and the groups' times
+still change from the run editor, so a run whose groups never go out stays
+live until an admin marks it completed.
+`scripts/rules-tests/tests/course-run-complete-day.test.mjs` runs the number
+as each kind of writer.
+
+Its record is the tick's receipt (how many, in the note) and one log line per
+run, by id. The programme's Settings reads the same switch
+(`RUNS_COMPLETE_JOB` in `src/lib/scheduler/registerJobs.ts`, held to the
+registration by `tests/course-register-jobs.test.mjs`), with the scheduler's
+own switch and whether the run's groups have gone out, to say whether a run
+completes by itself.
+When an admin first switches it on, every live run in the project whose
+groups have gone out and whose work has already closed is completed on its
+first tick: older runs nobody marked completed, a pre-course still in
 Applications open, runs no programme names. Each leaves the catalogue,
 people's Home and the facilitators' menu at once. Before switching it on,
 look at which live runs those are.
@@ -1995,10 +2013,11 @@ Running. Cancelled shows as itself and offers nothing.
   on it (see "Placing a term's accepted people on a course run", step 3). The
   hand-over after an accepted invitation never starts a run.
 - It completes when its work closes, only while `courses-runs-complete` is
-  switched on. The line under the stages says which: "It completes by itself
-  on Wed 23 Dec, when work closes." with the job on, and "Work closes on Wed 23
-  Dec. An admin marks it completed after that." with it off (the scheduler's
-  own switch counts too). A run with no session dated says neither.
+  switched on and once its groups have gone out. The line under the stages
+  says which: "It completes by itself on Wed 23 Dec, when work closes." with
+  the job on and the groups gone out, and "Work closes on Wed 23 Dec. An admin
+  marks it completed after that." otherwise (the scheduler's own switch counts
+  too). A run with no session dated says neither.
 - "Running since Thu 29 Oct, when people were first handed over." is said
   only for a run the hand-over started: the press that starts a draft writes
   `before: { status: "draft" }, after: { status: "running" }` on its

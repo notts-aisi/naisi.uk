@@ -18,9 +18,19 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  * WHICH RUNS. Every run whose stored status is one of the three every course
  * job treats as live (Applications open, Applications closed, Running: one
  * `in` on one field, so no declared index), not archived and not being
- * destroyed, whose live groups date a last session, and whose work has
- * closed by the tick's `now`. A run with no session dated never completes by
- * the clock. A draft, a completed run and a cancelled one are never read.
+ * destroyed, whose groups have gone out (`allocationPublishedAt`), whose live
+ * groups date a last session, and whose work has closed by the tick's `now`.
+ * A run with no session dated never completes by the clock. A draft, a
+ * completed run and a cancelled one are never read.
+ *
+ * WHY ONLY ONCE THE GROUPS HAVE GONE OUT. From then on every date the close
+ * is worked out from is held in firestore.rules for every browser writer
+ * (`runDatesKeptOnceGroupsOut`, `groupTimeKeptOnceGroupsOut`), and the number
+ * of days is the approver's at any time, so the day this job acts on moves
+ * only through the routes or an approver, who may complete the run anyway.
+ * Before then a run's start date and its groups' times still change from the
+ * run editor, so a run whose groups never go out stays live until an admin
+ * marks it completed.
  *
  * WHAT IT WRITES. The run's status, to Completed, through the one checked
  * path the status route takes (`moveRunStatus`, in a transaction), stepping
@@ -62,7 +72,7 @@ async function run(ctx: JobContext): Promise<JobResult> {
   const snap = await db.collection("courseRuns").where("status", "in", LIVE_STATUSES).limit(MAX_CANDIDATE_RUNS).get();
   if (snap.docs.length >= MAX_CANDIDATE_RUNS) ctx.log("live runs read up to the limit", { limit: MAX_CANDIDATE_RUNS });
   const runs = snap.docs
-    .filter((doc) => doc.data()?.destroying !== true)
+    .filter((doc) => doc.data()?.destroying !== true && doc.data()?.allocationPublishedAt != null)
     .map((doc) => normalizeCourseRun(doc.id, doc.data() ?? {}))
     .filter((read) => !read.archived && LIVE_STATUSES.includes(read.status))
     .sort((a, b) => a.id.localeCompare(b.id));
@@ -99,7 +109,7 @@ export const runsCompleteJob: JobRegistration = {
   id: "courses-runs-complete",
   label: "Course runs: completed when work closes",
   description:
-    "Moves each live course run to Completed once its work has closed, 14 days after its last session unless the run says otherwise. Its emails and reminders then stop, its groups leave each facilitator's My programmes and it leaves people's Home. Emails nobody. While it is off, a run stays live until an admin marks it completed.",
+    "Moves each live course run whose groups have gone out to Completed once its work has closed, 14 days after its last session unless the run says otherwise. Its emails and reminders then stop, its groups leave each facilitator's My programmes and it leaves people's Home. Emails nobody. While it is off, and for a run whose groups have not gone out, a run stays live until an admin marks it completed.",
   // Runs a tick: a term has a handful, and a quiet tick completes none.
   maxPerTick: 50,
   // Nothing is skipped for being late: a run whose work has closed is

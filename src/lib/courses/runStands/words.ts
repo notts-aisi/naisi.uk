@@ -9,9 +9,9 @@
  * Running alike. So all three show as Running. Cancelled shows as itself.
  *
  * TRUE WHICHEVER WAY THE JOB IS SWITCHED. A running run completes by itself
- * when its work closes only while the `courses-runs-complete` job is on, so
- * the sentence is told which way it is, and says an admin marks it
- * completed while it is off.
+ * when its work closes only while the `courses-runs-complete` job is on and
+ * once its groups have gone out, so the sentence is told which way it is,
+ * and says an admin marks it completed otherwise.
  *
  * Pure, with no reads and no clock but the one passed: the loader words the
  * panel with it and the panel's questions are worded by it in the browser.

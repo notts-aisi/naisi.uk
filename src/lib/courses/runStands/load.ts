@@ -71,10 +71,12 @@ export async function loadRunStands(
   const closes = workClosesAt(run, groups);
   const closeDay = workClosesOnDayKey(run, groups);
   const end = runEndOf(run, groups, now);
-  // As the job decides: it skips an archived run and one being destroyed.
+  // As the job decides: it skips an archived run, one being destroyed and one
+  // whose groups have not gone out.
   const completesByItself =
     !run.archived &&
     data.destroying !== true &&
+    data.allocationPublishedAt != null &&
     config.enabled &&
     jobStateFor(config, RUNS_COMPLETE_JOB.id, RUNS_COMPLETE_JOB.enabledByDefault).enabled;
 
