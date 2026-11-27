@@ -5,6 +5,7 @@ import KairosFileButton from "@/features/kairos/KairosFileButton";
 import styles from "@/features/kairos/kairos.module.css";
 import { readRunEndById } from "@/lib/courses/finishing/record";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { listKairosProgrammes } from "@/lib/kairos/programmes";
 import { KAIROS_FILE_WORDS, KAIROS_REPORT_WORDS } from "@/lib/kairos/words";
 import { REPORTS_WORDS } from "@/lib/reports/words";
@@ -20,6 +21,7 @@ export const dynamic = "force-dynamic";
  * gate, and the file's own route asks again. Read on the server.
  */
 export default async function KairosPage() {
+  await requireAdminPage();
   const db = getAdminDb();
   const now = new Date();
   const programmes = db ? await listKairosProgrammes(db) : [];

@@ -3,6 +3,7 @@ import { AdminPage } from "@/features/admin/adminList";
 import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import { surveyTabHref } from "@/features/surveys/admin/SurveyHead";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { readSurvey } from "@/lib/surveys/repo";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function SurveyPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const { surveyId } = await params;
+  await requireAdminPage();
   const db = getAdminDb();
   const survey = db ? await readSurvey(db, surveyId) : null;
   if (survey) redirect(surveyTabHref(survey.id, survey.firstSentAt ? "results" : "questions"));

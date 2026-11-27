@@ -5,6 +5,7 @@ import KairosFileButton from "@/features/kairos/KairosFileButton";
 import styles from "@/features/kairos/kairos.module.css";
 import { loadForm } from "@/lib/applications/repo";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { kairosProgrammeOf } from "@/lib/kairos/programmes";
 import { KAIROS_FILE_WORDS, KAIROS_REPORT_WORDS } from "@/lib/kairos/words";
 import { loadKairosReport } from "@/lib/surveys/kairosReportLoad";
@@ -27,6 +28,7 @@ const isPlainId = (value: string) => Boolean(value) && !value.includes("/") && v
  */
 export default async function KairosReportPage({ params }: { params: Promise<{ roundId: string; programmeId: string }> }) {
   const { roundId, programmeId } = await params;
+  await requireAdminPage();
   const db = getAdminDb();
   // The round, through the application form's own loader: a round that is
   // not a form, or a programme that names no run, is no programme here.
