@@ -32,8 +32,8 @@ export default async function SurveySendPage({ params }: { params: Promise<{ sur
   const admin = await requireAdminPage();
   const db = getAdminDb();
   const now = new Date();
-  const page = db && admin ? await surveyPage(db, surveyId, now) : null;
-  if (!db || !admin || !page) {
+  const page = db ? await surveyPage(db, surveyId, now) : null;
+  if (!db || !page) {
     return (
       <AdminPage>
         <SurveyMissing />

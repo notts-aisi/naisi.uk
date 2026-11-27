@@ -17,8 +17,9 @@ export const dynamic = "force-dynamic";
  * Each programme that names a course run has the Kairos file (a logged
  * download, once its last session is over) and the Kairos report of totals.
  *
- * Under `(admin-only)`, so the group's layout (`requireAdminPage()`) is the
- * gate, and the file's own route asks again. Read on the server.
+ * The page asks `requireAdminPage()` itself before it reads, as the
+ * `(admin-only)` group's layout does, and the file's own route asks again.
+ * Read on the server.
  */
 export default async function KairosPage() {
   await requireAdminPage();

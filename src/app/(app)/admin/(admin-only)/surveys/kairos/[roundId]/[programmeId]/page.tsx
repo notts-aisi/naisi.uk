@@ -22,9 +22,10 @@ const isPlainId = (value: string) => Boolean(value) && !value.includes("/") && v
  * saying what it needs (`src/lib/surveys/kairosReport.ts`). Totals only:
  * never a name. The Kairos file, with names, is the button at the foot.
  *
- * Under `(admin-only)`, so the group's layout (`requireAdminPage()`) is the
- * gate. Read on the server. An address that names no programme is answered
- * on the page in a sentence, never `notFound()`.
+ * The page asks `requireAdminPage()` itself before it reads, as the
+ * `(admin-only)` group's layout does. Read on the server. An address that
+ * names no programme is answered on the page in a sentence, never
+ * `notFound()`.
  */
 export default async function KairosReportPage({ params }: { params: Promise<{ roundId: string; programmeId: string }> }) {
   const { roundId, programmeId } = await params;
