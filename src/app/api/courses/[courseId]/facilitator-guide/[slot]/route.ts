@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { facilitatorGuideWriter, type GuideWriter } from "@/lib/courses/facilitatorGuide/access";
+import { facilitatorGuideWriter, writerLoads, type GuideWriter } from "@/lib/courses/facilitatorGuide/access";
 import { guideToMarkdown, readGuideMarkdown, type ReadGuide } from "@/lib/courses/facilitatorGuide/markdown";
 import { GUIDE_LIMITS, parseSlotKey, slotLabel, type GuideSlot } from "@/lib/courses/facilitatorGuide/model";
 import { readGuideSlot, saveGuideSlot } from "@/lib/courses/facilitatorGuide/store";
@@ -18,12 +18,15 @@ import { readGuideSlot, saveGuideSlot } from "@/lib/courses/facilitatorGuide/sto
  *             save, and what saving would replace. Writes nothing.
  *   PUT  ...  "Save": the same read, then the document written in its place.
  *
- * WHO. Admins, decided on the session before anything is read, and the lead
- * of a programme that names a live run of the course, while they stand as
- * one: the Weeks tab's "Facilitator guide" box sends here
- * for each week's session plan and notes. Every other caller meets the same
- * 403 (`facilitatorGuideWriter`). The store takes a `GuideWriter`, which only
- * the gate mints.
+ * WHO. Admins, decided on the session before anything is read, for every
+ * place; and the lead of a programme that names a live run of the course,
+ * while they stand as one, for a week's session plan and notes alone: the
+ * Weeks tab's "Facilitator guide" box sends here for those. The course's own
+ * documents are shared by every run of the course, so they are read, loaded
+ * and replaced here by an admin only. Every other caller, and a lead asking
+ * for a course-wide place, meets the same 403 (`facilitatorGuideWriter`,
+ * `writerLoads`). The store takes a `GuideWriter`, which only the gate mints,
+ * and asks `writerLoads` again itself.
  *
  * THE COLLECTION IS SHUT TO EVERY BROWSER (`courseFacilitatorGuide`), so this
  * is the only way a document gets in. What is saved is what was read: the
@@ -40,19 +43,23 @@ function badRequest(error: string, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ error, ...extra }, { status: 400 });
 }
 
+const forbidden = () => NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
 /**
  * The gate and the address, before any document of the guide is read. Each
  * handler has refused a missing session first. An admin on an id that is not
- * one is told so; everybody the gate does not admit gets the one 403.
+ * one is told so; everybody the gate does not admit, and a writer asking for
+ * a place it does not load, gets the one 403.
  */
 async function gate(db: Db, actor: Actor, params: Params["params"]): Promise<{ writer: GuideWriter; slot: GuideSlot } | NextResponse> {
   const { courseId, slot } = await params;
   const writer = await facilitatorGuideWriter(db, actor, courseId);
-  if (!writer) return actor.role === "admin" ? badRequest("That isn’t a course.") : NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!writer) return actor.role === "admin" ? badRequest("That isn’t a course.") : forbidden();
   const place = parseSlotKey(slot);
   if (!place) {
     return badRequest("That isn’t a place in the facilitator guide: a course document, or a week’s session plan or notes (w01-plan to w60-notes).");
   }
+  if (!writerLoads(writer, place)) return forbidden();
   return { writer, slot: place };
 }
 

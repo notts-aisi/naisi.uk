@@ -1070,7 +1070,7 @@ const NOT_COVERED = {
   },
   "/api/courses/[courseId]/facilitator-guide/[slot]": {
     reason:
-      "Course hub: /api/courses/[courseId]/facilitator-guide/[slot] loads a course's facilitator guide for admins and the lead of a programme naming a live run of it (the Weeks tab's guide box), and every answer it gives is driven as each kind of caller in tests/course-facilitator-guide.test.mjs and, as the lead, in tests/course-hub-weeks-tab-week.test.mjs.",
+      "Course hub: /api/courses/[courseId]/facilitator-guide/[slot] loads a course's facilitator guide for admins, every place, and for the lead of a programme naming a live run of it, a week's session plan and notes alone (the Weeks tab's guide box), and every answer it gives is driven as each kind of caller in tests/course-facilitator-guide.test.mjs and, as the lead, in tests/course-hub-weeks-tab-week.test.mjs.",
     coverWhen:
       "When a browser spec signs in as a programme's lead and loads a week's session plan from the Weeks tab, because a mistake then reaches a run's facilitators before an admin sees it.",
   },

@@ -377,11 +377,42 @@ describe("2. every page and route that reaches the guide asks the gate first", (
     assert.match(code, /isNamedWithStanding\(user, "courseGroups\.facilitatorUids", group\.facilitatorUids\)/);
     assert.match(code, /if \(group\.archived \|\|/);
     assert.match(code, /if \(await programmeLedBy\(db, user, doc\.id\)\) return true;/);
-    // The loader's gate admits an admin on an id that is one, and the lead the
-    // reader admits (the Weeks tab's guide box), on a course
-    // that is there and not being destroyed; nobody else.
-    assert.match(code, /if \(!isAddressableId\(courseId\)\) return null;\s*if \(user\.role === "admin"\) return \{ courseId \} as GuideWriter;/);
-    assert.match(code, /if \(!\(await liveCourse\(db, courseId\)\)\) return null;\s*if \(await leadsOnCourse\(db, user, courseId\)\) return \{ courseId \} as GuideWriter;\s*return null;/);
+    // The loader's gate admits an admin on an id that is one, for every
+    // place, and the lead the reader admits (the Weeks tab's guide box), on a
+    // course that is there and not being destroyed, for a week's places
+    // alone; nobody else.
+    assert.match(code, /function mintWriter\(courseId: string, loads: GuideWriter\["loads"\]\): GuideWriter \{\s*return \{ courseId, loads \} as GuideWriter;\s*\}/);
+    assert.match(code, /if \(!isAddressableId\(courseId\)\) return null;\s*if \(user\.role === "admin"\) return mintWriter\(courseId, "every place"\);/);
+    assert.match(code, /if \(!\(await liveCourse\(db, courseId\)\)\) return null;\s*if \(await leadsOnCourse\(db, user, courseId\)\) return mintWriter\(courseId, "weeks only"\);\s*return null;/);
+    assert.equal([...code.matchAll(/\bmintWriter\(/g)].length, 3, "the writer is minted somewhere else than the loader's gate");
+    assert.match(code, /export function writerLoads\(writer: GuideWriter, slot: GuideSlot\): boolean \{\s*return slot\.kind === "week" \|\| writer\.loads === "every place";\s*\}/);
+  });
+
+  // A course-wide place is shared by every run of the course, so through the
+  // loader it is an admin's alone. The store asks the writer on every read
+  // and write that takes one, first; every route that takes a writer asks it
+  // before its first read of the store; and every writer the store takes is
+  // asked about the place it is handed, so a new one cannot skip it.
+  test("a writer reaches only the places it loads: the store asks, first, in every function that takes one, and so does every route that takes one", () => {
+    const store = FILES.get(STORE).code;
+    const takesWriter = [...store.matchAll(/export async function (\w+)\(db: Firestore, writer: GuideWriter[^{]*\{([\s\S]*?)\n\}/g)];
+    assert.deepEqual(takesWriter.map((match) => match[1]).sort(), ["readCourseDocumentsLoaded", "readGuideSlot", "saveGuideSlot"]);
+    for (const [, name, body] of takesWriter) {
+      const asks = body.search(/\bholdToWriter\(writer, /);
+      const touches = body.search(/\breadSlot\(|\bguideCollection\(/);
+      assert.ok(asks >= 0, `${name} does not ask writerLoads of its place`);
+      assert.ok(touches > asks, `${name} touches the guide before it asks writerLoads`);
+    }
+    assert.match(store, /function holdToWriter\(writer: GuideWriter, slot: GuideSlot\): void \{\s*if \(!writerLoads\(writer, slot\)\) throw /);
+    const routes = [...FILES].filter(([path, { code }]) => isEntry(path) && path.includes("/api/") && /\bfacilitatorGuideWriter\(/.test(code));
+    assert.deepEqual(routes.map(([path]) => path), ["app/api/courses/[courseId]/facilitator-guide/[slot]/route.ts"]);
+    for (const [path, { code }] of routes) {
+      const asks = code.indexOf("if (!writerLoads(writer, place)) return forbidden();");
+      assert.ok(asks > 0, `${path} does not refuse a place its writer does not load`);
+      for (const read of code.matchAll(/\b(?:readGuideSlot|saveGuideSlot|readCourseDocumentsLoaded)\(db,/g)) assert.ok(read.index > asks, `${path} reads the store before it asks writerLoads`);
+      // The refusal is the one every caller the gate refuses is given.
+      assert.match(code, /if \(!writer\) return actor\.role === "admin" \? badRequest\("That isn’t a course\."\) : forbidden\(\);/);
+    }
   });
 });
 
@@ -543,7 +574,7 @@ test("the scanner reads what it claims to", () => {
   assert.equal(writesWeeks('await setDoc(doc(db, "courseRuns", runId, "weeks", weekId), data)'), true);
   assert.equal(writesWeeks('db.collection("courseRuns").doc(r).collection("weeks").get()'), false);
   assert.equal(writesWeeks('db.collection("courses").doc(c).update({ title })'), false);
-  assert.match('return { courseId } as GuideWriter;', /\bas\s+Guide(?:Reader|Writer)\b/);
+  assert.match('return { courseId, loads } as GuideWriter;', /\bas\s+Guide(?:Reader|Writer)\b/);
   assert.equal(READS.test("const index = await readGuideIndex(db, reader);"), true);
   assert.equal(READS.test("courseGuideRefs(db, courseId)"), false);
 });

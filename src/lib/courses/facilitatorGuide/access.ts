@@ -7,6 +7,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourse, normalizeCourseRun } from "@/lib/firestore/courses";
+import type { GuideSlot } from "./model";
 import { guideGroupOf, type GuideGroup } from "./nextSession";
 
 /**
@@ -67,11 +68,34 @@ export type GuideReader = {
   readonly [MINTED_HERE]: true;
 };
 
-/** Proof that the caller may load documents into this course's guide: an admin, or the lead of a programme naming a live run of it. */
+/**
+ * Proof that the caller may load documents into this course's guide: an
+ * admin, or the lead of a programme naming a live run of it. It carries which
+ * kinds of place it loads (`writerLoads`): every place for an admin; a week's
+ * session plan and notes alone for a lead, since the course's own documents
+ * are shared by every run of the course and are an admin's to read, load and
+ * replace through the loader.
+ */
 export type GuideWriter = {
   readonly courseId: string;
+  readonly loads: "every place" | "weeks only";
   readonly [MINTED_HERE]: true;
 };
+
+function mintWriter(courseId: string, loads: GuideWriter["loads"]): GuideWriter {
+  return { courseId, loads } as GuideWriter;
+}
+
+/**
+ * Whether this writer loads this place: a week's session plan or notes for
+ * every writer, a course-wide document for an admin's alone. The loader's
+ * route asks it before it reads, and the store asks it again on every read
+ * and write a writer makes, so no caller can reach a course-wide document
+ * through a lead's writer.
+ */
+export function writerLoads(writer: GuideWriter, slot: GuideSlot): boolean {
+  return slot.kind === "week" || writer.loads === "every place";
+}
 
 function mintReader(courseId: string, courseTitle: string, as: GuideReader["as"], groups?: readonly GuideGroup[]): GuideReader {
   return (groups ? { courseId, courseTitle, as, groups } : { courseId, courseTitle, as }) as GuideReader;
@@ -201,17 +225,18 @@ export async function facilitatorGuideReaderForGroup(
 
 /**
  * The loader's gate: an admin, on an id that is one, decided on the session
- * alone (the admin's loader page and the run's Weeks tab); and the lead of a
- * programme that names a live run of the course, while they still stand as
- * one, on a course that is there and not being destroyed: the Weeks tab's
- * "Facilitator guide" box is theirs. The same lead the
- * reader gate admits (`leadsOnCourse`), so nobody may write a guide they may
- * not read. Everybody else: null, the same refusal.
+ * alone (the admin's loader page and the run's Weeks tab), for every place;
+ * and the lead of a programme that names a live run of the course, while they
+ * still stand as one, on a course that is there and not being destroyed, for
+ * a week's session plan and notes alone: the Weeks tab's "Facilitator guide"
+ * box on a week's page is theirs. The same lead the reader gate admits
+ * (`leadsOnCourse`), so nobody may write a guide they may not read.
+ * Everybody else: null, the same refusal.
  */
 export async function facilitatorGuideWriter(db: Firestore, user: SessionUser, courseId: string): Promise<GuideWriter | null> {
   if (!isAddressableId(courseId)) return null;
-  if (user.role === "admin") return { courseId } as GuideWriter;
+  if (user.role === "admin") return mintWriter(courseId, "every place");
   if (!(await liveCourse(db, courseId))) return null;
-  if (await leadsOnCourse(db, user, courseId)) return { courseId } as GuideWriter;
+  if (await leadsOnCourse(db, user, courseId)) return mintWriter(courseId, "weeks only");
   return null;
 }

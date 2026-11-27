@@ -5819,8 +5819,9 @@ row (the run editor's `GuideLoader`, the facilitator guide's
 `FacilitatorGuideLoader` on that one place). The programme's lead is shown
 one line, "Course documents: an admin loads these.", and no row: the run's
 two load through an admins-only route, and the Handbook and Printables are
-shared by every run of the course, live ones included (the facilitator
-guide's own gate, `facilitatorGuideWriter`, is unchanged). A course
+shared by every run of the course, live ones included, so the facilitator
+guide's loader reads, loads and replaces them for an admin only
+(`facilitatorGuideWriter`, `writerLoads`). A course
 document says the day it was last saved ("Loaded on Mon 19 Oct", its guide
 row's `updatedAt`); the run's two live on the run's own document, whose time
 any save of the run moves, so they say only "Loaded". Nothing new is written.

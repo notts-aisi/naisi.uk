@@ -15,8 +15,10 @@
  *     out. Each condition broken once: an archived group, an account that no
  *     longer stands, a group whose run is another course's, a run or a course
  *     mid-destroy, a lead replaced.
- *  2. WHO LOADS IT. Admins and the lead of a programme naming a live run of
- *     the course (the Weeks tab's guide box), never in a view-as session, and
+ *  2. WHO LOADS IT. Admins every place, and the lead of a programme naming a
+ *     live run of the course a week's session plan and notes alone (the
+ *     Weeks tab's guide box): the course's own documents, shared by every
+ *     run, are an admin's through the loader. Never in a view-as session, and
  *     what is saved is what was read, with nothing personal stored.
  *  3. EVERYBODY ELSE IS GIVEN ONE CALM ANSWER, the same words whether or not
  *     the course or the page is there.
@@ -155,10 +157,11 @@ describe("1. who reads a course's facilitator guide", () => {
     for (const who of EVERYBODY.filter((one) => one !== null)) {
       assert.equal((await writerFor(who)) === null, !["zach", "claudia"].includes(who), String(who));
     }
-    assert.deepEqual({ ...(await writerFor("zach")) }, { courseId: COURSE.agi });
-    assert.deepEqual({ ...(await writerFor("claudia")) }, { courseId: COURSE.agi });
-    // Tess leads Technical AI Safety's programme: she writes its guide, and never AGI Strategy's.
-    assert.deepEqual({ ...(await writerFor("tess", COURSE.tais)) }, { courseId: COURSE.tais });
+    // An admin's writer loads every place; a lead's, a week's session plan and notes alone.
+    assert.deepEqual({ ...(await writerFor("zach")) }, { courseId: COURSE.agi, loads: "every place" });
+    assert.deepEqual({ ...(await writerFor("claudia")) }, { courseId: COURSE.agi, loads: "weeks only" });
+    // Tess leads Technical AI Safety's programme: she writes its guide's weeks, and never AGI Strategy's.
+    assert.deepEqual({ ...(await writerFor("tess", COURSE.tais)) }, { courseId: COURSE.tais, loads: "weeks only" });
     assert.equal(await writerFor("claudia", COURSE.tais), null);
     for (const courseId of ["a/b", "", ".."]) {
       assert.equal(await writerFor("zach", courseId), null, courseId);
@@ -216,7 +219,7 @@ describe("1. who reads a course's facilitator guide", () => {
 // 2. Who loads it: the loader's route
 // ---------------------------------------------------------------------------
 
-describe("2. the loader's route: admins and the programme's lead, and what is saved is what was read", () => {
+describe("2. the loader's route: admins, and the programme's lead for a week's places, and what is saved is what was read", () => {
   // The programme's lead loads the course's guide from the Weeks tab's
   // "Facilitator guide" box, so the lead is answered as an
   // admin is; everybody else is refused as before, as strictly.
@@ -237,6 +240,80 @@ describe("2. the loader's route: admins and the programme's lead, and what is sa
     assert.equal((await load("zach", "POST", "w03-plan", { markdown: PLAN_W3, viewAs: true })).status, 403);
     assert.equal((await load("zach", "PUT", "w03-plan", { markdown: PLAN_W3, viewAs: true })).status, 403);
     assert.equal(JSON.stringify(stored().map((path) => world.db.read(path))), before);
+  });
+
+  // The course's own documents are shared by every run of the course, so
+  // through the loader they are an admin's alone; a week's session plan and
+  // notes are the programme's lead's as well. Each kind of place, by each
+  // kind of caller, on every method.
+  test("each kind of place, by each kind of caller: a week's plan and notes for an admin and the lead, a course-wide document for an admin alone", async () => {
+    const { COURSE_DOCUMENT_KEYS } = guide.model;
+    const WEEK_SLOTS = ["w01-plan", "w01-notes", "w03-plan", "w03-notes"];
+    assert.equal(COURSE_DOCUMENT_KEYS.length, 6, "the course-wide places this test tries are every one");
+    const before = JSON.stringify(stored().map((path) => world.db.read(path)));
+    const tried = async (who, slot) => {
+      const answers = [
+        await load(who, "GET", slot),
+        // Read it with a document in its place, and Save with one no place takes, so nothing is written.
+        await load(who, "POST", slot, { markdown: PLAN_W3 }),
+        await load(who, "PUT", slot, { markdown: FELLOW_WEEK_3 }),
+      ];
+      return answers.map((answer) => [answer.status, answer.status === 403 || answer.status === 401 ? answer.body : null]);
+    };
+    const REFUSED_BODY = { error: "Forbidden" };
+    for (const slot of [...COURSE_DOCUMENT_KEYS, ...WEEK_SLOTS]) {
+      const admin = await tried("zach", slot);
+      for (const [status] of admin) assert.ok(status !== 401 && status !== 403, `${slot}: an admin is refused (${status})`);
+      for (const who of EVERYBODY) {
+        const said = await tried(who, slot);
+        if (who === "zach") continue;
+        if (who === null) {
+          assert.deepEqual(said.map(([status]) => status), [401, 401, 401], `${slot}: signed out`);
+        } else if (who === "claudia" && WEEK_SLOTS.includes(slot)) {
+          // A week's place: the lead is answered as an admin is.
+          assert.deepEqual(said, admin, `${slot}: the programme's lead`);
+        } else {
+          // A course-wide place for the lead, and every place for everybody else: the one refusal, word for word.
+          assert.deepEqual(said, [[403, REFUSED_BODY], [403, REFUSED_BODY], [403, REFUSED_BODY]], `${slot}: ${who}`);
+        }
+      }
+    }
+    assert.equal(JSON.stringify(stored().map((path) => world.db.read(path))), before);
+    // The lead saves a week's notes, and is refused the Handbook with the document that belongs there.
+    assert.equal((await load("claudia", "PUT", "w03-notes", { markdown: NOTES_W3 })).status, 200);
+    const handbook = world.db.read(`courseFacilitatorGuide/${COURSE.agi}__handbook`);
+    const refused = await load("claudia", "PUT", "handbook", { markdown: HANDBOOK.replace("facilitator guide", "facilitator guide, again") });
+    assert.deepEqual([refused.status, refused.body], [403, REFUSED_BODY]);
+    assert.deepEqual(world.db.read(`courseFacilitatorGuide/${COURSE.agi}__handbook`), handbook);
+  });
+
+  // The store asks the writer again, so a caller that skipped the route's
+  // question still reads and writes nothing course-wide through a lead's writer.
+  test("the store holds a lead's writer to a week's places: a course-wide read or write throws, and touches nothing", async () => {
+    const lead = await guide.access.facilitatorGuideWriter(world.courseDb, w.sessionFor("claudia"), COURSE.agi);
+    const admin = await guide.access.facilitatorGuideWriter(world.courseDb, w.sessionFor("zach"), COURSE.agi);
+    const before = JSON.stringify(stored().map((path) => world.db.read(path)));
+    const handbook = { kind: "course", key: "handbook" };
+    await assert.rejects(guide.store.readGuideSlot(world.courseDb, lead, handbook));
+    await assert.rejects(guide.store.saveGuideSlot(world.courseDb, lead, handbook, { title: "Handbook", blocks: [] }));
+    await assert.rejects(guide.store.readCourseDocumentsLoaded(world.courseDb, lead, ["handbook", "printables"]));
+    assert.equal(JSON.stringify(stored().map((path) => world.db.read(path))), before);
+    // A week's place reads through the lead's writer, and the course's through an admin's.
+    assert.match((await guide.store.readGuideSlot(world.courseDb, lead, { kind: "week", weekNumber: 3, part: "plan" })).title, /^Session 3/);
+    assert.equal((await guide.store.readGuideSlot(world.courseDb, admin, handbook)).title, "Weather Fellowship: facilitator guide");
+    assert.deepEqual(
+      (await guide.store.readCourseDocumentsLoaded(world.courseDb, admin, ["handbook"])).map((row) => [row.key, row.title]),
+      [["handbook", "Weather Fellowship: facilitator guide"]],
+    );
+    // What the gate answers, place by place.
+    for (const key of guide.model.COURSE_DOCUMENT_KEYS) {
+      assert.equal(guide.access.writerLoads(lead, { kind: "course", key }), false, key);
+      assert.equal(guide.access.writerLoads(admin, { kind: "course", key }), true, key);
+    }
+    for (const part of ["plan", "notes"]) {
+      assert.equal(guide.access.writerLoads(lead, { kind: "week", weekNumber: 1, part }), true, part);
+      assert.equal(guide.access.writerLoads(admin, { kind: "week", weekNumber: 60, part }), true, part);
+    }
   });
 
   test("Read it answers what was found, what to check and what saving replaces, field by field, and writes nothing", async () => {
@@ -505,12 +582,15 @@ describe("4. the guide's pages", () => {
       assert.match(page.html, /<pre class="code"><code>CARD\nWhat would you ask the group:\n\n<\/code><\/pre>/, who);
       assert.match(page.html, /<pre class="code"><code>One question for the speaker:\n\n\n\n<\/code><\/pre>/, who);
     }
-    // Copied out by the programme's lead as it was pasted, and pasted back the same.
-    const copied = await load("claudia", "GET", "printables");
+    // Copied out by an admin as it was pasted, and pasted back the same. A
+    // course-wide place is an admin's alone through the loader: the
+    // programme's lead reads it on the guide's page above, and is refused here.
+    assert.equal((await load("claudia", "GET", "printables")).status, 403);
+    const copied = await load("zach", "GET", "printables");
     assert.equal(copied.status, 200);
     assert.ok(copied.body.markdown.includes("```markdown\nCARD\nWhat would you ask the group:\n\n```"), copied.body.markdown);
     assert.ok(copied.body.markdown.includes("```\nOne question for the speaker:\n\n\n\n```"), copied.body.markdown);
-    assert.equal((await load("claudia", "PUT", "printables", { markdown: copied.body.markdown })).status, 200);
+    assert.equal((await load("zach", "PUT", "printables", { markdown: copied.body.markdown })).status, 200);
     assert.deepEqual(world.db.read(path).blocks, saved);
     // Everybody the guide refuses sees none of it.
     for (const who of ["amara", "tess", null]) assert.doesNotMatch((await docPage(who, "printables")).html ?? "", /What would you ask/, String(who));
@@ -813,7 +893,7 @@ describe("9. Sessions and Week notes: two more places, at the top of Each week",
     ["week-notes", WEEK_NOTES],
   ];
 
-  test("loaded through the same route, by the same people, as the course's other documents, and stored as they are", async () => {
+  test("loaded through the same route, by the same people (an admin alone), as the course's other documents, and stored as they are", async () => {
     const said = {};
     for (const who of EVERYBODY) {
       said[who ?? "signed out"] = [
@@ -823,7 +903,7 @@ describe("9. Sessions and Week notes: two more places, at the top of Each week",
       ];
     }
     const refused = Object.fromEntries(EVERYBODY.map((who) => [who ?? "signed out", who === null ? [401, 401, 401] : [403, 403, 403]]));
-    assert.deepEqual(said, { ...refused, zach: [200, 200, 200], claudia: [200, 200, 200] });
+    assert.deepEqual(said, { ...refused, zach: [200, 200, 200] });
     assert.equal((await load("zach", "PUT", "sessions", { markdown: SESSIONS, viewAs: true })).status, 403);
     assert.equal(world.db.read(`courseFacilitatorGuide/${COURSE.agi}__sessions`), undefined);
 

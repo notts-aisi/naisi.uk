@@ -36,7 +36,17 @@ facilitator of another course, and never anybody taking part. Everybody the
 gate refuses, and everybody asking about a course that is not there, is given
 the same calm sentence, so nobody learns which courses exist.
 
-Loading is an admin's job (`facilitatorGuideWriter`), as loading a week is.
+Loading goes through one gate too, `facilitatorGuideWriter`, and the writer
+it mints says which places it loads (`writerLoads`). An admin loads every
+place. The lead of a programme naming a live run of the course loads a week's
+session plan and notes, from the Weeks tab's "Facilitator guide" box on a
+week's page, and nothing else: the course's own documents (`how-to-use`,
+`handbook`, `case-studies`, `printables`, `sessions`, `week-notes`) are shared
+by every run of the course, so through the loader they are read, loaded and
+replaced by an admin only. A lead asking for one is given the same 403 as
+everybody else the gate refuses, and the store asks `writerLoads` again on
+every read and write a writer makes. Leads go on reading every document
+through the guide's own pages (`facilitatorGuideReader`).
 
 Publish asks the facilitators' door for a whole group
 (`facilitatorGuideReaderForGroup`), with the same bars but no person: a live
