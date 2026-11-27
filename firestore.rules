@@ -2434,6 +2434,11 @@ service cloud.firestore {
         && request.resource.data.get('streams', []).size() == 0
         && request.resource.data.get('enrolledCount', 0) == 0
         && request.resource.data.get('submissionExerciseRef', {}) == {}
+        // Born with no number of days after the last session that work
+        // closes, unless an approver writes it: update keeps it the
+        // approver's (beside the status, below), so a drafter cannot mint a
+        // run whose day to complete by itself is already moved.
+        && (request.resource.data.get('workClosesAfterDays', null) == null || canApproveCourse())
         // A run is born with its groups not gone out: the stamp is the
         // publish route's, and update keeps it as it is
         // (runDatesKeptOnceGroupsOut), so a run born carrying one would be
@@ -2463,8 +2468,18 @@ service cloud.firestore {
           // so a rename here would wedge a half-finished cascade — the same
           // insider class the marker pins close. Admins ride their own branch.
           && resource.data.get('destroying', false) == false
+          // The status, and the number of days after the last session that
+          // work closes (`workClosesAfterDays`, from which the job that
+          // completes a run reads its day), are the approver's: a track lead
+          // and the drafter who owns the run, who may not complete it, may
+          // not move the day it completes by itself either. Null defaults,
+          // so a run that never stored the number saves as before.
           && (
-            request.resource.data.status == resource.data.status
+            (
+              request.resource.data.status == resource.data.status
+              && request.resource.data.get('workClosesAfterDays', null)
+                == resource.data.get('workClosesAfterDays', null)
+            )
             || canApproveCourse()
           )
           // V3 W1 PR5: and even an approver may only make a move the table
