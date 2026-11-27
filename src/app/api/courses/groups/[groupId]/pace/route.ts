@@ -363,6 +363,10 @@ export async function PATCH(
         throw new PaceRefusedError("This group's run no longer exists.", 409);
       }
       const fresh = normalizeCourseGroup(freshGroupSnap.id, freshGroupSnap.data() ?? {});
+      // Asked again on the group as this transaction reads it: an archive
+      // that lands after the read above refuses the same way, and nothing is
+      // written.
+      if (fresh.archived) throw new PaceRefusedError(PACE_ARCHIVED, 409);
       const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
       const nextPace = {

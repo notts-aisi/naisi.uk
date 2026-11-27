@@ -2576,7 +2576,11 @@ behind the live page's rows and week cards (the time, a new regular time,
 Change this week, the room, the campus, the meeting link, the facilitators,
 the places, the name, covering a session or giving it to somebody, the
 group's own pace and writing to the group) refuses an archived group, an
-admin's press included. Saving a register is left open to an admin on
+admin's press included. The routes behind the rows, covering a session and
+the pace ask it again on the group their write's own transaction reads, so
+an archive that lands while a press is on its way refuses it the same way,
+with nothing written and nobody emailed
+(`tests/course-group-archive.test.mjs`, section 8). Saving a register is left open to an admin on
 purpose: admins correct registers. The run's archived groups are at the
 foot of the Groups tab's All groups view, under "Archived groups (N)",
 closed until opened: each with what it was ("Was Fridays, 11am to 1pm"),
