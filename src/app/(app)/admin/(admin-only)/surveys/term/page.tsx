@@ -1,12 +1,10 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import PageHead from "@/components/ui/PageHead";
 import { AdminPage } from "@/features/admin/adminList";
 import TermInNumbers from "@/features/surveys/admin/TermInNumbers";
 import styles from "@/features/surveys/admin/termInNumbers.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getCurrentUser } from "@/lib/firebase/session";
-import { canRunSurveys } from "@/lib/surveys/repo";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { loadTermNumbers } from "@/lib/surveys/term/load";
 import { TERM_TOTALS_PATH, TERM_WORDS } from "@/lib/surveys/term/words";
 
@@ -17,15 +15,13 @@ export const dynamic = "force-dynamic";
  * for admins, each event's check-ins and survey, how many different people
  * came, and each programme's before and after. Counts only, never names.
  *
- * Under `(admin-only)`, whose layout (`requireAdminPage()`) is the gate; the
- * page asks again itself, with the surveys' own bar (`canRunSurveys`), and
- * the loader asks again before it reads. A view-as session's account is never
+ * The page asks `requireAdminPage()` itself before anything is read, as its
+ * `(admin-only)` layout does, and the loader asks again before it reads. A view-as session's account is never
  * an admin's, so it never gets here.
  * Read on the server; the component is handed counts and words.
  */
 export default async function TermInNumbersPage() {
-  const viewer = await getCurrentUser();
-  if (!viewer || !canRunSurveys(viewer)) redirect("/dashboard");
+  const viewer = await requireAdminPage();
   const db = getAdminDb();
   const loaded = db ? await loadTermNumbers(db, viewer, new Date()) : null;
   const crumb = <Link href="/admin/reports">{TERM_WORDS.crumb}</Link>;
