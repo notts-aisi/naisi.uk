@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import PageHead from "@/components/ui/PageHead";
 import MessageComposer, { type ComposerPostTarget } from "@/features/messages/MessageComposer";
 import MessagesTabs from "@/features/messages/MessagesTabs";
@@ -27,7 +28,9 @@ export const dynamic = "force-dynamic";
  * out, and the composer starts empty.
  */
 export default async function MessagesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  // Nobody signed in is sent to sign in, as the (app) layout sends them, before anything is read.
   const [user, params] = await Promise.all([getCurrentUser(), searchParams]);
+  if (!user) redirect("/login");
   const db = getAdminDb();
   const writer = user && db ? await messageWriterOf(db, user, new Date()) : null;
 

@@ -11,9 +11,10 @@
  * in. The layouts still gate (`tests/no-admin-gating.test.mjs`); each page
  * that reads also asks for itself.
  *
- * WHAT IT CHECKS, for every `page.tsx` and `layout.tsx` under `src/app`
- * outside `src/app/api`. Components are read with the compiler's own parser
- * (the `typescript` devDependency, syntax only, one file at a time, as
+ * WHAT IT CHECKS, for every `page`, `layout`, `template` and `default` file
+ * under `src/app` outside `src/app/api`, whatever its extension
+ * (`ROUTE_FILE`). Components are read with the compiler's own parser (the
+ * `typescript` devDependency, syntax only, one file at a time, as
  * `tests/lib/functionScan.mjs` does), so the order of statements is the order
  * the code runs in, not the order of text.
  *
@@ -32,8 +33,11 @@
  *     `Promise.all` that awaits the gate beside nothing but `params` and
  *     `searchParams`. A gate on one branch, inside a `try`, a `catch`, a
  *     callback or a function nobody calls, or called without `await`, is not
- *     a gate. A helper of the same file counts as a gate where it is awaited
- *     when its own body passes this rule. Every statement before the gate
+ *     a gate. A session read (`SESSION_ONLY`) counts only when its answer is
+ *     kept under a name and an `if (!name)` that redirects, calls notFound,
+ *     returns or throws comes before the first read and any other return. A
+ *     helper of the same file counts as a gate where it is awaited when its
+ *     own body passes this rule. Every statement before the gate
  *     reads nothing and returns nothing (a child component returned is a
  *     return). A read is a Firestore method (`.collection`, `.doc`, ...), a
  *     call to a function imported from this repository that is neither a gate
@@ -68,16 +72,15 @@
  *     fails, as does an `IMPLIES` or `INLINE_QUESTIONS` entry nothing uses.
  *     Each entry in `PURE` is checked to touch no Firestore method.
  *
- * WHAT IT DOES NOT HOLD. It compares questions by name: whether a gate's
- * predicate really asks at least what another asks is the written reason of
- * an `IMPLIES` entry, held in place by rule 6 (change a predicate and its
- * entry fails until somebody rereads the reason). A layout's own checks after
- * a gate that is more than the session (a run's learning space after
- * `getRunAccess`, a programme's tabs after `requireAdmissionsPage`) are not
- * compared with its pages' checks: the pages are held to the gate. A `door`
- * entry is checked for refusing something after its gate, and what it
- * refuses is its written reason. A page's own narrower checks after its gate
- * are not compared with anything.
+ * SCOPE. Questions are compared by name: that a gate's predicate asks at
+ * least what another asks is the written reason of an `IMPLIES` entry, held in
+ * place by rule 6 (change a predicate and its entry fails until somebody
+ * rereads the reason). Beneath a layout whose gate asks more than the session
+ * (a run's learning space after `getRunAccess`, a programme's tabs after
+ * `requireAdmissionsPage`), each page is held to that gate, and the layout's
+ * own checks after it are its own. A `door` entry is held to refusing after
+ * its gate, and what it refuses is its written reason. A page's narrower
+ * checks after its gate are its own.
  *
  * The scanner's own reading is exercised on synthetic components at the
  * bottom of this file, including every shape that must not count as a gate,
@@ -121,7 +124,7 @@ const GATES = {
   getCurrentUser: {
     from: "@/lib/firebase/session",
     proves: "a verified session cookie, with the live role and permissions read off the user's document; null for no session",
-    proof: { verifies: "verifySessionCookie", refuses: ["!cookie?.value", "!auth || !db"] },
+    proof: { verifies: "verifySessionCookie", refuses: ["!cookie?.value"] },
     why: "every other session gate is built on it",
   },
   getCurrentCollaborator: {
@@ -277,9 +280,9 @@ const IMPLIES = {
  */
 const RUN_LAYOUT = "src/app/(app)/learn/[runId]/layout.tsx";
 const RUN_PLACE =
-  "Asks getRunAccess: the session, then the caller's own place on the run, their enrolment addressed by run " +
-  "and uid. It then refuses by that place with its own narrower question, and reads the run's other rows only " +
-  "for somebody that question admits. getRunAccess does not itself ask for an approved account.";
+  "Asks the caller's own place on the run before anything else is read: getRunAccess (or openGuidePage, which " +
+  "calls it) reads the session, then the caller's enrolment addressed by run and uid. The page then refuses by " +
+  "that place with its own narrower question, and reads the run's other rows for somebody that question admits.";
 const ASKS_LESS = new Map([
   [
     "src/app/(app)/learn/[runId]/admissions/page.tsx",
@@ -503,11 +506,20 @@ const OPEN = new Map([
       "again by the route behind the button.",
   ],
   [
+    "src/app/events/[id]/survey/page.tsx",
+    "Where an event survey's QR code lands, signed in or not. At an event for chosen people it asks the " +
+      "session first, and somebody signed out is asked to sign in with nothing of the event named. At a " +
+      "listed event a signed-out reader is shown the event's title and date, the survey's title and whether " +
+      "it is open, and the way to sign in. Questions are drawn only for somebody signed in whom " +
+      "mayAnswerSignedIn admits, and nothing on the page names anybody else.",
+  ],
+  [
     "src/app/(app)/anonymous-feedback/page.tsx",
     "The programmes' anonymous form, which reads nothing about its reader on purpose, so that nothing " +
       "it hands the browser can tie an answer to a person: it hands over only this term's programmes, " +
       "each one's round and programme ids, its name and how many weeks it runs. The (app) layout above " +
-      "it asks for the session; the route behind the form does not.",
+      "it asks for the session, and the route behind the form asks once whether the caller may send and " +
+      "keeps nothing of who they are.",
   ],
 ]);
 
@@ -550,7 +562,8 @@ const isFunctionLike = (node) =>
   ts.isClassExpression(node);
 
 function parse(text, name = "page.tsx") {
-  return ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const kind = /\.ts$/.test(name) ? ts.ScriptKind.TS : /\.js$/.test(name) ? ts.ScriptKind.JS : ts.ScriptKind.TSX;
+  return ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true, kind);
 }
 
 /** A module's value imports (local name to specifier and imported name) and its own top-level functions. */
@@ -818,6 +831,13 @@ export function readFunction(fn, mod, seen = new Set(), { helper = false } = {})
   for (let index = 0; index < statements.length; index += 1) {
     const statement = statements[index];
     const gate = gateOfStatement(statement, mod, seen, { helper });
+    if (gate && before === null && SESSION_ONLY.has(gate)) {
+      // A session read called here asks only when its answer is kept and the
+      // empty answer is refused before anything is read or returned.
+      const name = sessionBinding(statement, mod, seen);
+      const refused = name ? refusesEmpty(statements, index + 1, name, mod, seen) : "keeps no answer from the session";
+      return { ok: refused === null, gate, index, before: refused, statements };
+    }
     if (gate) return { ok: before === null, gate, index, before, statements };
     if (before) continue;
     const read = readIn(statement, mod, seen);
@@ -825,6 +845,62 @@ export function readFunction(fn, mod, seen = new Set(), { helper = false } = {})
     else if (returnsIn(statement)) before = `returns (line ${lineOf(statement)})`;
   }
   return { ok: false, gate: null, index: -1, before, statements };
+}
+
+/** The name a session gate's answer is kept under, or null: `const user = await g()`, or its place in one `Promise.all`. */
+function sessionBinding(statement, mod, seen) {
+  if (!ts.isVariableStatement(statement)) return null;
+  const declaration = statement.declarationList.declarations[0];
+  if (ts.isIdentifier(declaration.name)) return declaration.name.text;
+  if (!ts.isArrayBindingPattern(declaration.name)) return null;
+  const awaited = unwrap(declaration.initializer);
+  const all = awaited && ts.isAwaitExpression(awaited) ? unwrap(awaited.expression) : null;
+  const list = all && ts.isCallExpression(all) ? all.arguments[0] : null;
+  if (!list || !ts.isArrayLiteralExpression(list)) return null;
+  const at = list.elements.findIndex((element) => gateOfCall(unwrap(element), mod, seen));
+  const element = declaration.name.elements[at];
+  return element && ts.isBindingElement(element) && ts.isIdentifier(element.name) ? element.name.text : null;
+}
+
+/**
+ * Null when, from `from` on, an `if (!name)` (or `if (!name || ...)`) whose
+ * branch redirects, calls notFound, returns or throws comes before the first
+ * read and the first other return; otherwise what comes first.
+ */
+function refusesEmpty(statements, from, name, mod, seen) {
+  for (const statement of statements.slice(from)) {
+    if (ts.isIfStatement(statement)) {
+      const condition = textOf(statement.expression);
+      if ((condition === `!${name}` || condition.startsWith(`!${name} || `)) && refusing(statement.thenStatement, mod)) return null;
+    }
+    const read = readIn(statement, mod, seen);
+    if (read) return `reads (${read}) before it refuses an empty session`;
+    if (returnsIn(statement)) return `returns (line ${lineOf(statement)}) before it refuses an empty session`;
+  }
+  return "never refuses an empty session";
+}
+
+/** Whether a branch refuses: it redirects, calls notFound, returns or throws. */
+function refusing(node, mod) {
+  if (ts.isReturnStatement(node) || ts.isThrowStatement(node)) return true;
+  let found = false;
+  const visit = (current) => {
+    if (found || isFunctionLike(current)) return;
+    if (ts.isReturnStatement(current) || ts.isThrowStatement(current)) {
+      found = true;
+      return;
+    }
+    if (ts.isCallExpression(current) && ts.isIdentifier(unwrap(current.expression))) {
+      const binding = mod.imports.get(unwrap(current.expression).text);
+      if (binding?.specifier === "next/navigation" && (binding.imported === "redirect" || binding.imported === "notFound")) {
+        found = true;
+        return;
+      }
+    }
+    ts.forEachChild(current, visit);
+  };
+  ts.forEachChild(node, visit);
+  return found;
 }
 
 function lineOf(node) {
@@ -842,29 +918,8 @@ function refusesAfterGate(read, mod) {
   const statement = read.statements[read.index];
   const declared = ts.isVariableStatement(statement) ? statement.declarationList.declarations[0].name : null;
   const bound = declared && ts.isIdentifier(declared) ? declared.text : null;
-  const refusing = (node) => {
-    let found = false;
-    const visit = (current) => {
-      if (found || isFunctionLike(current)) return;
-      if (ts.isReturnStatement(current) || ts.isThrowStatement(current)) {
-        found = true;
-        return;
-      }
-      if (ts.isCallExpression(current) && ts.isIdentifier(unwrap(current.expression))) {
-        const binding = mod.imports.get(unwrap(current.expression).text);
-        if (binding?.specifier === "next/navigation" && (binding.imported === "redirect" || binding.imported === "notFound")) {
-          found = true;
-          return;
-        }
-      }
-      ts.forEachChild(current, visit);
-    };
-    if (ts.isReturnStatement(node) || ts.isThrowStatement(node)) return true;
-    ts.forEachChild(node, visit);
-    return found;
-  };
   return read.statements.slice(read.index + 1).some((each) => {
-    if (!ts.isIfStatement(each) || !refusing(each.thenStatement)) return false;
+    if (!ts.isIfStatement(each) || !refusing(each.thenStatement, mod)) return false;
     return !(bound && textOf(each.expression) === `!${bound}` && !each.elseStatement);
   });
 }
@@ -873,8 +928,8 @@ function refusesAfterGate(read, mod) {
  * What a layout asks of the pages beneath it, or null: its gate's name; or,
  * when that gate asks only whether somebody is signed in and the layout
  * refuses more after it, the layout's own path, standing for the inline
- * question written in `INLINE_QUESTIONS`. A session-only gate would hold the
- * pages beneath to nothing.
+ * question written in `INLINE_QUESTIONS`, so the pages beneath are held to
+ * the layout's whole question.
  */
 function questionOf(path, read, mod) {
   if (!read.ok) return null;
@@ -888,13 +943,17 @@ const meets = (gate, question) => gate === question || Boolean(IMPLIES[gate]?.[q
 // The scan
 // ---------------------------------------------------------------------------
 
-/** Every page.tsx and layout.tsx under src/app outside src/app/api. */
+/** The files Next renders a segment from: a page, a layout, a template or a parallel route's default, in any extension. */
+export const ROUTE_FILE = /^(?:page|layout|template|default)\.(?:tsx|ts|jsx|js)$/;
+const LAYOUT_FILE = /\/layout\.(?:tsx|ts|jsx|js)$/;
+
+/** Every route file under src/app outside src/app/api. */
 function routeFiles(dir, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       if (full !== API_DIR) routeFiles(full, out);
-    } else if (entry.name === "page.tsx" || entry.name === "layout.tsx") {
+    } else if (ROUTE_FILE.test(entry.name)) {
       out.push(full);
     }
   }
@@ -924,7 +983,7 @@ function scanPages() {
       }
       return { name, readsHere: Boolean(readIn(fn, mod, new Set())), ...readFunction(fn, mod) };
     });
-    const isLayout = path.endsWith("/layout.tsx");
+    const isLayout = LAYOUT_FILE.test(path);
     const component = renderers.find((r) => r.name === "default");
     const question = isLayout && component?.ok ? questionOf(path, component, mod) : null;
     const refusesMore = Boolean(component?.ok) && refusesAfterGate(component, mod);
@@ -986,6 +1045,14 @@ function exportedIn(specifier, name) {
   return null;
 }
 
+/** An `if` whose branch, and no other part of it, returns null. */
+function returnsNullOnly(statement) {
+  if (!ts.isIfStatement(statement) || statement.elseStatement) return false;
+  const branch = statement.thenStatement;
+  const only = ts.isBlock(branch) && branch.statements.length === 1 ? branch.statements[0] : branch;
+  return ts.isReturnStatement(only) && only.expression?.kind === ts.SyntaxKind.NullKeyword && !returnsIn(statement.expression);
+}
+
 /** Each way a gate's own body falls short of the predicate it claims. */
 export function proofGaps(found, proof) {
   const gaps = [];
@@ -1027,7 +1094,14 @@ export function proofGaps(found, proof) {
     if (!declared?.initializer || textOf(declared.initializer) !== expected) gaps.push(`${name} is not ${expected}`);
   }
   for (const condition of proof.refuses ?? []) {
-    const refusal = statements.find((s) => ts.isIfStatement(s) && textOf(s.expression) === condition);
+    const at = statements.findIndex((s) => ts.isIfStatement(s) && textOf(s.expression) === condition);
+    const refusal = at === -1 ? null : statements[at];
+    // Nothing before it hands back an answer: only another refusal that returns null.
+    const answersFirst = statements.slice(0, Math.max(at, 0)).find((s) => returnsIn(s) && !returnsNullOnly(s));
+    if (answersFirst) {
+      gaps.push(`it returns (line ${lineOf(answersFirst)}) before it refuses when ${condition}`);
+      continue;
+    }
     const refuses =
       refusal &&
       (ts.isReturnStatement(refusal.thenStatement) ||
@@ -1309,7 +1383,7 @@ describe("the scanner reads order the way the rule means it", () => {
     fails(`export default async function P() {
       if (Math.random() > 0.5) { await requireAdminPage(); } else { redirect("/"); }
       return loadThing(getAdminDb());
-    }`, "a gate on one branch and a redirect on the other is still not asked of everybody");
+    }`, "a gate on one branch and a redirect on the other asks one branch of its callers");
   });
 
   test("a gate called without await fails", () => {
@@ -1378,6 +1452,43 @@ describe("the scanner reads order the way the rule means it", () => {
     assert.match(r.before, /fetchIt -> loadThing/);
   });
 
+  const sessionHeader = 'import { getCurrentUser } from "@/lib/firebase/session";\n';
+  const readSession = (text) => {
+    const mod = moduleOf(`${sessionHeader}${header}${text}`, "synthetic.tsx");
+    return readFunction(renderersOf(mod)[0].fn, mod);
+  };
+
+  test("a session read counts only when its answer is kept and the empty answer is refused first", () => {
+    assert.equal(readSession(`export default async function P() { await getCurrentUser(); return loadThing(getAdminDb()); }`).ok, false, "answer not kept");
+    assert.equal(readSession(`export default async function P() { const u = await getCurrentUser(); return loadThing(u); }`).ok, false, "empty answer never refused");
+    assert.equal(
+      readSession(`export default async function P() { const u = await getCurrentUser(); const t = await loadThing(u); if (!u) redirect("/login"); return t; }`).ok,
+      false,
+      "refused after a read",
+    );
+    assert.equal(
+      readSession(`export default async function P() { const u = await getCurrentUser(); if (u) return null; if (!u) redirect("/login"); return loadThing(u); }`).ok,
+      false,
+      "another return first",
+    );
+    assert.equal(readSession(`export default async function P() { const u = await getCurrentUser(); if (!u) redirect("/login"); return loadThing(u); }`).ok, true);
+    assert.equal(
+      readSession(`export default async function P({ searchParams }) { const [u, q] = await Promise.all([getCurrentUser(), searchParams]); const db = getAdminDb(); if (!u || !db) return null; return loadThing(db, u, q); }`).ok,
+      true,
+      "kept in one Promise.all and refused with the handle",
+    );
+  });
+
+  test("the walk sees every file Next renders a segment from, in every extension", () => {
+    for (const name of ["page", "layout", "template", "default"]) {
+      for (const extension of ["tsx", "ts", "jsx", "js"]) assert.match(`${name}.${extension}`, ROUTE_FILE);
+    }
+    for (const name of ["route.ts", "loading.tsx", "page.module.css", "page.test.tsx", "Page.tsx"]) assert.doesNotMatch(name, ROUTE_FILE);
+    const pages = files.filter((file) => /\/page\.[jt]sx?$/.test(file)).length;
+    const others = files.length - pages;
+    assert.ok(pages > 150 && others >= 16, `the walk found ${pages} pages and ${others} other route files`);
+  });
+
   test("a layout's question is its gate's, or its own when it refuses more after a session-only gate", () => {
     const questionFor = (text) => {
       const mod = moduleOf(
@@ -1426,5 +1537,10 @@ describe("the scanner reads order the way the rule means it", () => {
     assert.equal(at('const user = await getCurrentUser(); if (!user || user.role !== "") redirect("/dashboard"); return user;').length, 1);
     assert.equal(at('const user = await getCurrentUser(); return user;').length, 1, "no refusal at all");
     assert.equal(at('const user = await loadSomebody(); if (!user || user.role !== "admin") redirect("/dashboard"); return user;').length, 1, "asks something else first");
+    assert.equal(
+      at('const user = await getCurrentUser(); if (user) return user; if (!user || user.role !== "admin") redirect("/dashboard"); return user;').length,
+      1,
+      "an answer handed back before the refusal",
+    );
   });
 });
