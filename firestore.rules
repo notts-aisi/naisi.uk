@@ -2434,6 +2434,11 @@ service cloud.firestore {
         && request.resource.data.get('streams', []).size() == 0
         && request.resource.data.get('enrolledCount', 0) == 0
         && request.resource.data.get('submissionExerciseRef', {}) == {}
+        // Born with no number of days after the last session that work
+        // closes, unless an approver writes it: update keeps it the
+        // approver's (beside the status, below), so a drafter cannot mint a
+        // run whose day to complete by itself is already moved.
+        && (request.resource.data.get('workClosesAfterDays', null) == null || canApproveCourse())
         // A run is born with its groups not gone out: the stamp is the
         // publish route's, and update keeps it as it is
         // (runDatesKeptOnceGroupsOut), so a run born carrying one would be
@@ -2463,8 +2468,18 @@ service cloud.firestore {
           // so a rename here would wedge a half-finished cascade — the same
           // insider class the marker pins close. Admins ride their own branch.
           && resource.data.get('destroying', false) == false
+          // The status, and the number of days after the last session that
+          // work closes (`workClosesAfterDays`, from which the job that
+          // completes a run reads its day), are the approver's: a track lead
+          // and the drafter who owns the run, who may not complete it, may
+          // not move the day it completes by itself either. Null defaults,
+          // so a run that never stored the number saves as before.
           && (
-            request.resource.data.status == resource.data.status
+            (
+              request.resource.data.status == resource.data.status
+              && request.resource.data.get('workClosesAfterDays', null)
+                == resource.data.get('workClosesAfterDays', null)
+            )
             || canApproveCourse()
           )
           // V3 W1 PR5: and even an approver may only make a move the table
@@ -2756,6 +2771,8 @@ service cloud.firestore {
       // An admin keeps them from a browser, which is what a run no programme
       // names still needs. Null defaults, so an absent field and a stored
       // null compare equal and a save that leaves the three alone passes.
+      // A week's own room, link and campus live in its `sessionOverrides`
+      // entry and are held with that map (groupSessionOverridesUnchanged).
       function groupRoomAndLinkUnchanged() {
         return request.resource.data.get(['session', 'location'], null)
             == resource.data.get(['session', 'location'], null)
@@ -2763,6 +2780,21 @@ service cloud.firestore {
             == resource.data.get(['session', 'meetingUrl'], null)
           && request.resource.data.get('campus', null)
             == resource.data.get('campus', null);
+      }
+      // EACH WEEK SET APART IS THE ROUTES', for everybody but an admin.
+      // `sessionOverrides` holds a week's own day, start, length, room,
+      // meeting link and campus, which every reader prefers to the group's.
+      // It is written by the Admin SDK routes that change one week, a regular
+      // time, a room or a link and keep the group's History
+      // (src/lib/courses/sessionChange/, regularTime/, meetingLink/save.ts);
+      // the site's own group card does not send it. So the whole map is one
+      // comparison, as `sessionModes` and `sessionChanges` are, which costs
+      // the same however many weeks a group stores. An empty-map default, so
+      // an absent map and an empty one compare equal and a save that leaves
+      // the map alone passes. An admin keeps it from a browser.
+      function groupSessionOverridesUnchanged() {
+        return request.resource.data.get('sessionOverrides', {})
+          == resource.data.get('sessionOverrides', {});
       }
       // THE NAME AND THE CAPACITY ARE THE ROUTES', for everybody but an
       // admin, as the room is (groupRoomAndLinkUnchanged). They are changed
@@ -2890,12 +2922,12 @@ service cloud.firestore {
         && request.resource.data.get('restoredAt', null) == null
         && groupContentOk();
 
-      // A named facilitator edits their own group's session (move the slot,
-      // drop the term's overrides), per-doc by construction, same trust
-      // shape as an event collaborator. The room, the meeting link and the
-      // campus are the routes' for everybody but an admin
-      // (groupRoomAndLinkUnchanged), and so are the name and the capacity
-      // (groupNameAndPlacesUnchanged). The `sessionModes` map
+      // A named facilitator edits their own group's session (move the slot),
+      // per-doc by construction, same trust shape as an event collaborator.
+      // The room, the meeting link and the campus are the routes' for
+      // everybody but an admin (groupRoomAndLinkUnchanged), and so are the
+      // weeks set apart (groupSessionOverridesUnchanged), the name and the
+      // capacity (groupNameAndPlacesUnchanged). The `sessionModes` map
       // rides along UNCHANGED (see groupSessionModesUnchanged): flipping a
       // week virtual/in-person without the route lane's notice-and-audit
       // step is exactly what the pin exists to stop. `archived` is the
@@ -2912,6 +2944,7 @@ service cloud.firestore {
             && groupSessionModesUnchanged()
             && groupSessionChangesUnchanged()
             && groupRoomAndLinkUnchanged()
+            && groupSessionOverridesUnchanged()
             && groupNameAndPlacesUnchanged()
             && groupContentOk()
           )

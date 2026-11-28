@@ -7,7 +7,7 @@ import {
   normalizeCourseFacilitatorGuide,
   type CourseFacilitatorGuideDoc,
 } from "@/lib/firestore/courseFacilitatorGuide";
-import type { GuideReader, GuideWriter } from "./access";
+import { writerLoads, type GuideReader, type GuideWriter } from "./access";
 import {
   COURSE_DOCUMENT_KEYS,
   COURSE_DOCUMENT_LABEL,
@@ -27,7 +27,9 @@ import {
  *
  * Each read takes a `GuideReader` and each write a `GuideWriter`, which only
  * the gate mints (`./access.ts`): a caller cannot read a document without
- * having been admitted to the course first, and reads only that course's.
+ * having been admitted to the course first, and reads only that course's. A
+ * writer reads and writes only the places it loads (`writerLoads`): a lead's,
+ * a week's session plan and notes; an admin's, every place.
  * Nothing that leaves here is a stored document: a page is handed titles and
  * blocks, field by field.
  *
@@ -110,12 +112,23 @@ export async function readGuidePage(db: Firestore, reader: GuideReader, page: Gu
 }
 
 /**
+ * Refuses a place the writer does not load (`writerLoads`): a course-wide
+ * document through a lead's writer. The loader's route answers that caller
+ * its one refusal before it gets here, so reaching this is a caller that did
+ * not ask, and it throws rather than read or write anything.
+ */
+function holdToWriter(writer: GuideWriter, slot: GuideSlot): void {
+  if (!writerLoads(writer, slot)) throw new Error("This writer does not load that place in the facilitator guide.");
+}
+
+/**
  * Whether some of the course's own documents are loaded, and when each was
  * last saved: for the Weeks tab's Course documents card, which offers each
  * one's loader. Takes the loader's own gate (`GuideWriter`), so it answers
  * only somebody that loader admits. Titles and times, never the words.
  */
 export async function readCourseDocumentsLoaded(db: Firestore, writer: GuideWriter, keys: readonly CourseDocumentKey[]): Promise<Array<{ key: CourseDocumentKey; title: string | null; savedAt: Date | null }>> {
+  for (const key of keys) holdToWriter(writer, { kind: "course", key });
   const found = await Promise.all(keys.map((key) => readSlot(db, writer.courseId, { kind: "course", key })));
   return keys.map((key, at) => {
     const doc = found[at];
@@ -125,12 +138,14 @@ export async function readCourseDocumentsLoaded(db: Firestore, writer: GuideWrit
 
 /** One stored document, for the loader to copy out. */
 export async function readGuideSlot(db: Firestore, writer: GuideWriter, slot: GuideSlot): Promise<GuideDocument | null> {
+  holdToWriter(writer, slot);
   const doc = await readSlot(db, writer.courseId, slot);
   return doc ? { title: doc.title, blocks: doc.blocks } : null;
 }
 
 /** Saves one document in its place, replacing what was there. The loader has already held it to its checks. */
 export async function saveGuideSlot(db: Firestore, writer: GuideWriter, slot: GuideSlot, doc: GuideDocument): Promise<void> {
+  holdToWriter(writer, slot);
   await guideCollection(db)
     .doc(facilitatorGuideDocId(writer.courseId, slot))
     .set({

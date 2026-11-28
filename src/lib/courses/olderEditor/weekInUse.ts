@@ -1,7 +1,7 @@
 import "server-only";
 import type { Firestore, Query, Transaction } from "firebase-admin/firestore";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, normalizeCourseWeek, type CourseRunDoc, type CourseWeekDoc } from "@/lib/firestore/courses";
 
 /**
@@ -31,6 +31,13 @@ import { normalizeCourseRun, normalizeCourseWeek, type CourseRunDoc, type Course
  * and its write are one unit: a tick that lands first is counted, and one
  * that lands after the commit is on a week nobody can open. Without it, the
  * older week page asks the same question to say so before the press.
+ *
+ * The two copies that can take a week back (a Replace from another run,
+ * `clone-weeks`, and a Replace from a saved template, `apply-template`,
+ * which also deletes the weeks the template lacks) ask the second half of
+ * the same rule inside their own transaction (`firstWeekMet`), for every
+ * published week they would unpublish or delete. The first half is theirs
+ * already, for the whole run (`runStarted`).
  */
 
 export type WeekInUse = "work" | "met";
@@ -88,17 +95,55 @@ export async function readWeekInUse(
   let inUse: WeekInUse | null = null;
   if (progressAgg.data().count > 0 || responseAgg.data().count > 0) inUse = "work";
   if (inUse === null) {
-    const met = groupSnap.docs
-      .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
-      .filter((group) => !group.archived)
-      .some((group) =>
-        resolveSessions(run, group).some((session) => {
-          if (session.weekId !== weekId) return false;
-          const { endsAt } = sessionInstants(session);
-          return endsAt !== null && endsAt.getTime() <= now.getTime();
-        }),
-      );
+    const met = weekHasMet(run, groupSnap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})), weekId, now);
     if (met) inUse = "met";
   }
   return { run, week, weekNumber, inUse };
+}
+
+/**
+ * The second half of the rule: a group of the run that is not archived has
+ * had its session for this week end, on its own calendar, by `now`.
+ */
+export function weekHasMet(run: CourseRunDoc, groups: readonly CourseGroupDoc[], weekId: string, now: Date): boolean {
+  return groups
+    .filter((group) => !group.archived)
+    .some((group) =>
+      resolveSessions(run, group).some((session) => {
+        if (session.weekId !== weekId) return false;
+        const { endsAt } = sessionInstants(session);
+        return endsAt !== null && endsAt.getTime() <= now.getTime();
+      }),
+    );
+}
+
+/**
+ * For a copy that would unpublish or delete these published weeks of a run:
+ * the first of them, by id, whose session has ended for a live group, with
+ * its number as the run's plan says it; null when none has. The run and its
+ * groups are read in `tx`, the copy's own transaction, so a session that
+ * ends, or a group that is put back, before the commit is counted. Nothing
+ * is read for no weeks.
+ */
+export async function firstWeekMet(
+  db: Firestore,
+  tx: Transaction,
+  args: { runId: string; weekIds: readonly string[]; now: Date },
+): Promise<{ weekId: string; weekNumber: number } | null> {
+  const weekIds = [...new Set(args.weekIds)].filter((weekId) => weekIdNumber(weekId) !== null).sort();
+  if (weekIds.length === 0) return null;
+  const runRef = db.collection("courseRuns").doc(args.runId);
+  const [runSnap, groupSnap] = await Promise.all([
+    tx.get(runRef),
+    tx.get(db.collection("courseGroups").where("runId", "==", args.runId).limit(MAX_GROUPS)),
+  ]);
+  if (!runSnap.exists) return null;
+  const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
+  const groups = groupSnap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}));
+  for (const weekId of weekIds) {
+    if (!weekHasMet(run, groups, weekId, args.now)) continue;
+    const slot = run.weekPlan.find((entry) => entry.kind === "week" && entry.weekId === weekId);
+    return { weekId, weekNumber: slot && slot.kind === "week" ? slot.weekNumber : (weekIdNumber(weekId) ?? 1) };
+  }
+  return null;
 }

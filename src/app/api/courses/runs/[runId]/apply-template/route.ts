@@ -20,6 +20,8 @@ import { isAddressableId } from "@/lib/addressableId";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { FillRefusal, fillEmptyWeeks } from "@/lib/courses/weeksTab/fill";
 import { FILL_ONLY_FOR_LEAD } from "@/lib/courses/weeksTab/words";
+import { firstWeekMet } from "@/lib/courses/olderEditor/weekInUse";
+import { weekStaysPublishedWords } from "@/lib/courses/olderEditor/words";
 
 /**
  * Apply a frozen snapshot's curriculum INTO a run — the "spawn next year's
@@ -69,6 +71,12 @@ import { FILL_ONLY_FOR_LEAD } from "@/lib/courses/weeksTab/words";
  * deleting ONE item they can see the cost of; this route would do it to a
  * whole term in one press. The way to replace a curriculum a cohort has
  * started is to make a new run — which is what templates are for.
+ *
+ * A replace also leaves published every week whose session has ended for a
+ * live group, as the unpublish route does (`firstWeekMet`): when the copy
+ * would unpublish such a week, or delete it as a week the template lacks, it
+ * is refused (409) with that route's sentence, asked in the same
+ * transaction.
  *
  * WHY THE WHOLE THING RUNS IN ONE `runTransaction`. `courseProgress` is a
  * DIRECT CLIENT WRITE (rules let an actively enrolled member write their own
@@ -313,9 +321,9 @@ export async function POST(
     outcome = await db.runTransaction(async (tx) => {
       // ---- READS. Every one of them, before the first write. --------------
 
-      // `select()` with no fields fetches ids only — an existence check, not a
-      // read of content we may be about to replace.
-      const existing = await tx.get(targetWeeks.select());
+      // Ids and whether each is published, and nothing else: an existence
+      // check, not a read of content we may be about to replace.
+      const existing = await tx.get(targetWeeks.select("published"));
 
       if (!existing.empty && !replace) {
         throw new ApplyRefusedError(
@@ -373,6 +381,21 @@ export async function POST(
       const stale: DocumentReference[] = replace
         ? existing.docs.filter((d) => !incomingIds.has(d.id)).map((d) => d.ref)
         : [];
+
+      // A published week whose session has ended for a live group stays
+      // published (the unpublish route's own judgement, `firstWeekMet`), so
+      // a replace that would unpublish one, or delete it, is refused with
+      // that route's sentence. Asked here, in the transaction, before any
+      // write; a week that stays published copies as before.
+      if (replace) {
+        const published = new Set(existing.docs.filter((d) => (d.data() ?? {}).published === true).map((d) => d.id));
+        const takenBack = [
+          ...pending.filter((write) => published.has(write.ref.id) && write.data.published !== true).map((write) => write.ref.id),
+          ...stale.filter((ref) => published.has(ref.id)).map((ref) => ref.id),
+        ];
+        const met = await firstWeekMet(db, tx, { runId, weekIds: takenBack, now: new Date() });
+        if (met) throw new ApplyRefusedError(weekStaysPublishedWords(met.weekNumber), 409, { inUse: "met" });
+      }
 
       // The run doc's provenance stamp is the +1.
       if (pending.length + stale.length + 1 > MAX_APPLY_WRITES) {

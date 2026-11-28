@@ -13,6 +13,19 @@
  *    needs. A save that leaves the three alone passes for every writer, and
  *    so does one that sends them as they are stored.
  *
+ * 1b. THE WEEKS SET APART (`sessionOverrides`: each week's own day, start,
+ *    length, room, meeting link, campus and kept-link mark, which every
+ *    reader prefers to the group's own). They are written by the routes that
+ *    keep the group's History, and the group card does not send them. Every
+ *    writer the update rule admits but an admin is refused any change to the
+ *    map: a week added, changed or removed, by dotted path or with the map
+ *    written whole, and the map cleared, deleted or set to null. An admin
+ *    makes every one of those writes. A save that leaves the map alone, or
+ *    sends it as stored, passes for every writer, and on a group with twenty
+ *    weeks set apart (the most a group stores) every ordinary save still
+ *    passes. A facilitator of another group, a course drafter and a member
+ *    are refused as before.
+ *
  * 3. A GROUP'S NAME AND CAPACITY. They are changed on the group's page
  *    under its programme, through Admin SDK routes that refuse places below
  *    the people in the group and write the group's History, and the older
@@ -68,6 +81,7 @@ async function seedCast() {
   await seedUser("lead", { role: "member" });
   await seedUser("facil", { role: "member" });
   await seedUser("learner", { role: "member" });
+  await seedUser("facil2", { role: "member" });
 }
 
 function runDoc(overrides = {}) {
@@ -274,6 +288,127 @@ describe("courseGroups: the room, the meeting link and the campus are the routes
         await refused(groups(db).doc("g1").update(patch()), `${uid}: ${label}`);
       }
     }
+  });
+});
+
+/**
+ * The weeks set apart, as the routes store them: week 3 moved to another
+ * room, link and campus at a later start, its link kept; week 4 a later
+ * start alone.
+ */
+const WEEK_3 = {
+  startTimeLocal: "19:00",
+  location: "Trent Building A44",
+  meetingUrl: "https://meet.example.com/week-3",
+  linkPinned: true,
+  campus: "jubilee",
+};
+const WEEK_4 = { startTimeLocal: "17:00" };
+const OVERRIDES = () => ({ w03: { ...WEEK_3 }, w04: { ...WEEK_4 } });
+const withWeeks = () => groupDoc({ sessionOverrides: OVERRIDES() });
+
+/** Every way a browser could change the weeks set apart, each on its own. */
+const WEEK_CHANGES = [
+  ["a new week 5, a day and a start", () => ({ "sessionOverrides.w05": { weekday: 4, startTimeLocal: "18:00" } })],
+  ["a new week 5 with a room", () => ({ "sessionOverrides.w05": { weekday: 4, location: "Portland A21" } })],
+  ["week 4's start, changed", () => ({ "sessionOverrides.w04.startTimeLocal": "16:30", updatedAt: serverTimestamp() })],
+  ["week 3's room, changed", () => ({ "sessionOverrides.w03.location": "Portland A21" })],
+  ["week 3's meeting link, changed", () => ({ "sessionOverrides.w03.meetingUrl": "https://meet.example.com/elsewhere" })],
+  ["week 3's campus, changed", () => ({ "sessionOverrides.w03.campus": "university-park" })],
+  ["week 3's kept-link mark, removed", () => ({ "sessionOverrides.w03.linkPinned": removed() })],
+  ["week 3 written whole, its start alone", () => ({ "sessionOverrides.w03": { startTimeLocal: "19:00" } })],
+  ["week 3, removed", () => ({ "sessionOverrides.w03": removed() })],
+  ["week 4, removed", () => ({ "sessionOverrides.w04": removed() })],
+  ["week 3, set to null", () => ({ "sessionOverrides.w03": null })],
+  ["the whole map, a week added", () => ({ sessionOverrides: { ...OVERRIDES(), w05: { weekday: 4 } } })],
+  ["the whole map, cleared", () => ({ sessionOverrides: {} })],
+  ["the whole map, deleted", () => ({ sessionOverrides: removed() })],
+  ["the whole map, null", () => ({ sessionOverrides: null })],
+];
+
+/** Twenty weeks set apart, the most a group stores, the twentieth with its own room. */
+function twentyWeeks() {
+  const full = {};
+  for (let n = 1; n <= 20; n += 1) full[`w${String(n).padStart(2, "0")}`] = { startTimeLocal: "18:30" };
+  full.w20 = { ...WEEK_3 };
+  return groupDoc({ sessionOverrides: full });
+}
+
+describe("courseGroups: the weeks set apart are the routes', for everybody but an admin", () => {
+  it("refuses an approver, the run's track lead and the group's facilitator every change to them", async () => {
+    await seedWorld();
+    for (const uid of GROUP_STAFF) {
+      const db = await asUser(uid);
+      for (const [label, patch] of WEEK_CHANGES) {
+        await reseed("courseGroups/g1", withWeeks());
+        await refused(groups(db).doc("g1").update(patch()), `${uid}: ${label}`);
+      }
+    }
+  });
+
+  it("refuses a facilitator of another group, a course drafter and a member every change to them, as before", async () => {
+    await seedWorld();
+    await reseed("courseGroups/g2", groupDoc({ name: "Group II", facilitatorUids: ["facil2"] }));
+    for (const uid of ["facil2", "drafter", "learner"]) {
+      const db = await asUser(uid);
+      for (const [label, patch] of WEEK_CHANGES) {
+        await reseed("courseGroups/g1", withWeeks());
+        await refused(groups(db).doc("g1").update(patch()), `${uid}: ${label}`);
+      }
+    }
+  });
+
+  it("lets an admin make every one of those changes, which a run no programme names still needs", async () => {
+    await seedWorld();
+    const db = await asUser("admin1");
+    for (const [label, patch] of WEEK_CHANGES) {
+      await reseed("courseGroups/g1", withWeeks());
+      await allowed(groups(db).doc("g1").update(patch()), `admin1: ${label}`);
+    }
+  });
+
+  it("still saves, from every writer, a save that leaves them alone or sends them as stored", async () => {
+    await seedWorld();
+    for (const uid of ["admin1", ...GROUP_STAFF]) {
+      const db = await asUser(uid);
+      for (const [label, patch] of [
+        ["the notes", () => ({ "session.notes": "Bring the reading.", updatedAt: serverTimestamp() })],
+        ["the slot, before the groups go out", () => ({ "session.weekday": 4, "session.startTimeLocal": "17:30" })],
+        ["the whole map, sent as stored", () => ({ sessionOverrides: OVERRIDES() })],
+      ]) {
+        await reseed("courseGroups/g1", withWeeks());
+        await allowed(groups(db).doc("g1").update(patch()), `${uid}: ${label}`);
+      }
+    }
+  });
+
+  it("still saves, on a group with twenty weeks set apart, every ordinary save and an admin's write to the twentieth week", async () => {
+    // The pin is one comparison however many weeks a group stores, so a full
+    // map never takes a save past the rules engine's budget.
+    await seedWorld();
+    for (const uid of ["admin1", ...GROUP_STAFF]) {
+      const db = await asUser(uid);
+      await reseed("courseGroups/g1", twentyWeeks());
+      await allowed(
+        groups(db).doc("g1").update({ "session.weekday": 4, "session.startTimeLocal": "17:30", "session.durationMinutes": 60 }),
+        `${uid}: the slot, before the groups go out`,
+      );
+      await reseed("courseGroups/g1", twentyWeeks());
+      await allowed(
+        groups(db).doc("g1").update({ name: "Group I", capacity: 12, "session.notes": "Bring the reading.", updatedAt: serverTimestamp() }),
+        `${uid}: the card's save, the name and the capacity as stored`,
+      );
+      if (uid === "admin1") continue;
+      await reseed("courseGroups/g1", twentyWeeks());
+      await refused(groups(db).doc("g1").update({ "sessionOverrides.w20.location": "Portland A21" }), `${uid}: the twentieth week's room`);
+    }
+    const admin = await asUser("admin1");
+    await reseed("courseGroups/g1", twentyWeeks());
+    await allowed(groups(admin).doc("g1").update({ name: "Group I (Tue)", capacity: 10 }), "admin1: the name and the capacity");
+    await reseed("courseGroups/g1", twentyWeeks());
+    await allowed(groups(admin).doc("g1").update({ "sessionOverrides.w20.location": "Portland A21" }), "admin1: the twentieth week's room");
+    await reseed("courseGroups/g1", twentyWeeks());
+    await allowed(groups(admin).doc("g1").update({ "sessionOverrides.w20": removed() }), "admin1: the twentieth week removed");
   });
 });
 

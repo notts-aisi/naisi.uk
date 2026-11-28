@@ -9,9 +9,9 @@
  * Running alike. So all three show as Running. Cancelled shows as itself.
  *
  * TRUE WHICHEVER WAY THE JOB IS SWITCHED. A running run completes by itself
- * when its work closes only while the `courses-runs-complete` job is on, so
- * the sentence is told which way it is, and says an admin marks it
- * completed while it is off.
+ * when its work closes only while the `courses-runs-complete` job is on and
+ * once its groups have gone out, so the sentence is told which way it is,
+ * and says an admin marks it completed otherwise.
  *
  * Pure, with no reads and no clock but the one passed: the loader words the
  * panel with it and the panel's questions are worded by it in the browser.
@@ -56,22 +56,22 @@ export function runningSinceWords(day: string): string {
 /** A running run with no record of a hand-over. */
 export const RUNNING_LINE = "It is running.";
 
-/** With the job on and the day still to come: "It completes by itself on Wed 23 Dec, when work closes." */
+/** With the job on, the groups gone out and the day still to come: "It completes by itself on Wed 23 Dec, when work closes." */
 export function completesByItselfWords(day: string): string {
   return `It completes by itself on ${day}, when work closes.`;
 }
 
-/** With the job on and the day gone: the next tick completes it. */
+/** With the job on, the groups gone out and the day gone: the next tick completes it. */
 export function completesShortlyWords(day: string): string {
   return `Work closed on ${day}, so it completes by itself shortly.`;
 }
 
-/** With the job off and the day still to come. */
+/** With the job off, or the run's groups not gone out, and the day still to come. */
 export function adminCompletesAfterWords(day: string): string {
   return `Work closes on ${day}. An admin marks it completed after that.`;
 }
 
-/** With the job off and the day gone. */
+/** With the job off, or the run's groups not gone out, and the day gone. */
 export function adminCompletesNowWords(day: string): string {
   return `Work closed on ${day}. An admin marks it completed.`;
 }

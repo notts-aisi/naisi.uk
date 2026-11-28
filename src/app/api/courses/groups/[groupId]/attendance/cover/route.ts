@@ -335,6 +335,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
           ? new CoverRefusal(didNotHappenLine(group.name.trim() || "This group", current.dateKey), 409)
           : new CoverRefusal(COVER_REFUSAL.session, 400);
       }
+      // Asked again on the group as this transaction reads it: an archive
+      // that lands after the read above refuses the same way, and nothing is
+      // written or emailed.
+      if (current.group.archived) throw new CoverRefusal(COVER_ARCHIVED, 409);
       if ((current.startsAt?.getTime() ?? null) !== (startsAt?.getTime() ?? null)) throw new CoverRefusal(COVER_REFUSAL.changed, 409);
       const register = fresh.exists ? normalizeCourseAttendance(fresh.id, fresh.data() ?? {}) : null;
       if (register?.pushedAt) throw new CoverRefusal(COVER_REFUSAL.finished, 409);

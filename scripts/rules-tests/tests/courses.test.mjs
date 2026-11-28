@@ -871,7 +871,14 @@ describe("courseGroups", () => {
           meetingUrl: null,
           notes: "Moved for the careers fair.",
         },
-        sessionOverrides: { w05: { location: "Online only" } },
+      }),
+    );
+    // A week set apart in the same write is refused: the weeks are the
+    // routes' (course-older-editor-locks.test.mjs holds that).
+    await assertFails(
+      db.collection("courseGroups").doc("g1").update({
+        "session.notes": "Moved for the careers fair.",
+        sessionOverrides: { w05: { startTimeLocal: "19:00" } },
       }),
     );
     // A new room in the same write is refused: it goes through the room route.

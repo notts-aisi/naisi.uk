@@ -11,18 +11,25 @@
  *  2. WHEN. Only once work has closed (the end of the London day 14 days
  *     after the last session), never at the end of the last session.
  *  3. WHICH RUNS. Live (applications open, closed or running), not archived,
- *     not being destroyed, with a session dated; a run a programme names and
- *     one no programme names alike. A completed, cancelled or draft run is
- *     never touched.
+ *     not being destroyed, its groups gone out, with a session dated; a run a
+ *     programme names and one no programme names alike. A completed,
+ *     cancelled or draft run is never touched.
  *  4. HOW. Through the status route's own checked move, stepping through
  *     Running from an application stage, writing the status and `updatedAt`
  *     and nothing else, once: twice in a row writes nothing the second time.
+ *  5. THE DAY IT ACTS ON CANNOT BE BROUGHT FORWARD FROM A BROWSER. A run whose
+ *     groups have not gone out is left live whatever its dates say, so a
+ *     start date, a group's slot or a week's override moved earlier from the
+ *     run editor never completes it; from the moment the groups go out every
+ *     one of those dates, and the run's number of days at any time, is held
+ *     in firestore.rules for everybody the rules refuse the move to Completed
+ *     (`scripts/rules-tests/tests/course-run-complete-day.test.mjs`).
  *
  * The world is `tests/lib/registerWorld.mjs`: RUN (named by AGI Strategy)
  * and OTHER_RUN (named by nothing), both starting Thu 15 Oct 2026 with six
- * weeks. Their last sessions are Tuesday 24 November, 6pm to 8pm, so work
- * closes at the end of Tuesday 8 December: midnight, 00:00 GMT on Wednesday
- * 9 December.
+ * weeks, and here with their groups gone out. Their last sessions are
+ * Tuesday 24 November, 6pm to 8pm, so work closes at the end of Tuesday 8
+ * December: midnight, 00:00 GMT on Wednesday 9 December.
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
@@ -53,9 +60,13 @@ const DAY_AFTER = new Date("2026-12-10T10:00:00Z");
 mock.timers.enable({ apis: ["Date"], now: LAST_SESSION_OVER });
 const at = (instant) => mock.timers.setTime(new Date(instant).getTime());
 
+/** When Publish sent each run's groups out. */
+const GONE_OUT = new Date("2026-10-14T09:00:00Z");
+
 beforeEach(() => {
   at(LAST_SESSION_OVER);
   reset(seedWorld());
+  for (const runId of [RUN, OTHER_RUN]) world.db.poke(`courseRuns/${runId}`, { allocationPublishedAt: GONE_OUT });
 });
 
 const status = (runId = RUN) => world.db.read(`courseRuns/${runId}`).status;
@@ -173,6 +184,7 @@ describe("3. which runs", () => {
     ["a draft", { status: "draft" }],
     ["archived", { archived: true }],
     ["being destroyed", { destroying: true }],
+    ["whose groups have not gone out", { allocationPublishedAt: null }],
   ]) {
     test(`a run ${what} is left as it is`, async () => {
       world.db.poke(`courseRuns/${RUN}`, patch);
@@ -227,4 +239,39 @@ describe("4. how: the checked move, the status alone, once", () => {
     assert.equal(next.result.processed, 1);
     assert.deepEqual([status(RUN), status(OTHER_RUN)], ["completed", "completed"]);
   });
+});
+
+describe("5. the day it acts on cannot be brought forward from a browser before the groups go out", () => {
+  /**
+   * Each write a browser may still make before the groups go out that
+   * brings RUN's close forward by a day or more, each on its own, so that in
+   * work's last minute (`LAST_MINUTE`) its work has closed: the run's start
+   * date, Group B's slot, Group B's last week's override (Group B meets last,
+   * on Tuesday 24 November). The number of days is the approver's at any
+   * time in firestore.rules; it is here to show the stamp is read first.
+   */
+  const EARLIER = [
+    ["the run's start date, a week earlier", () => world.db.poke(`courseRuns/${RUN}`, { startDate: "2026-10-08" })],
+    ["Group B's slot, a day earlier", () => world.db.poke(`courseGroups/${GROUP.b}`, { "session.weekday": 1 })],
+    ["Group B's last week, a day earlier", () => world.db.poke(`courseGroups/${GROUP.b}`, { sessionOverrides: { w06: { weekday: 1 } } })],
+    ["the run's number of days, one fewer", () => world.db.poke(`courseRuns/${RUN}`, { workClosesAfterDays: 13 })],
+  ];
+
+  for (const [what, bringForward] of EARLIER) {
+    test(`${what}: with the groups not gone out the run stays live; once they have, the job acts on it`, async () => {
+      // Untouched, nothing has closed in work's last minute.
+      assert.equal((await runJob(LAST_MINUTE)).result.processed, 0);
+      world.db.poke(`courseRuns/${RUN}`, { allocationPublishedAt: null });
+      bringForward();
+      const before = everything();
+      const { result } = await runJob(LAST_MINUTE);
+      assert.deepEqual([result.processed, result.note], [0, "none due"]);
+      assert.equal(everything(), before);
+      // The same dates on a run whose groups have gone out, which only a
+      // route or an approver can have set: the close has come, and it completes.
+      world.db.poke(`courseRuns/${RUN}`, { allocationPublishedAt: GONE_OUT });
+      assert.equal((await runJob(LAST_MINUTE)).result.processed, 1);
+      assert.deepEqual([status(RUN), status(OTHER_RUN)], ["completed", "running"]);
+    });
+  }
 });

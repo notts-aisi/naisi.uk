@@ -730,8 +730,9 @@ marker to read rather than a log to search.
 
 #### `courses-runs-complete`
 
-Moves each live course run to Completed once its work has closed: the end of
-the London day 14 days after its last session unless the run says otherwise
+Moves each live course run whose groups have gone out (its
+`allocationPublishedAt` is set) to Completed once its work has closed: the end
+of the London day 14 days after its last session unless the run says otherwise
 (`workClosesAt` in `src/lib/courses/weekWork/closes.ts`, the moment every week
 of it shuts). Never at the end of the last session: until work closes the last
 week's register reminder, the unmarked-register card, the check-in reminder,
@@ -751,17 +752,40 @@ emails and reminders and takes it off people's Home, so an admin arms it from
 the scheduler panel. While it is off the tick never calls it, so it reads
 nothing, and a running run stays live until an admin presses "Mark it
 completed now…" on the programme's Settings. Skipped: an archived run, a run
-being destroyed, a draft, and a run whose groups date no session. Its record
-is the tick's receipt (how many, in the note) and one log line per run, by id.
-The programme's Settings reads the same switch (`RUNS_COMPLETE_JOB` in
-`src/lib/scheduler/registerJobs.ts`, held to the registration by
-`tests/course-register-jobs.test.mjs`), with the scheduler's own switch, to
-say whether a run completes by itself. When an admin first switches it on,
-every live run in the project whose work has already closed is completed on
-its first tick: older runs nobody marked completed, a pre-course still in
-Applications open, runs no programme names. Each leaves the catalogue,
-people's Home and the facilitators' menu at once. Before switching it on,
-look at which live runs those are.
+being destroyed, a draft, a run whose groups have not gone out, and a run whose
+groups date no session.
+
+**Only once the groups have gone out, so its day cannot be moved from a
+browser.** From then on every date the close is worked out from (the run's
+start date and week plan, each group's slot and overrides) is held for every
+browser writer (`runDatesKeptOnceGroupsOut`, `groupTimeKeptOnceGroupsOut`), and
+`workClosesAfterDays` is an approver's or an admin's at any time, beside the
+status, and a run is created without it unless an approver creates it. So the
+day it acts on moves only through the routes or through somebody who may
+complete the run anyway. Before then the start date and the groups' times
+still change from the run editor, so a run whose groups never go out stays
+live until an admin marks it completed.
+`scripts/rules-tests/tests/course-run-complete-day.test.mjs` runs the number
+as each kind of writer.
+
+Its record is the tick's receipt (how many, in the note) and one log line per
+run, by id. The programme's Settings reads the same switch
+(`RUNS_COMPLETE_JOB` in `src/lib/scheduler/registerJobs.ts`, held to the
+registration by `tests/course-register-jobs.test.mjs`), with the scheduler's
+own switch and whether the run's groups have gone out, to say whether a run
+completes by itself.
+
+**Which runs it completes, and which it never does.** It completes a live run
+only once Publish has sent its groups out: `allocationPublishedAt` is stamped
+by the publish route and nothing else. Every other live run stays live until
+an admin marks it completed, however long ago its work closed: a run nobody
+has pressed Publish on, which includes an open-mode run where people choose
+their own group. When an admin first switches the job on, every live run in
+the project whose groups have gone out and whose work has already closed is
+completed on its first tick, whether a programme names it or not and
+whatever its stage (Applications open or closed, or Running). Each leaves the
+catalogue, people's Home and the facilitators' menu at once. Before switching
+it on, look at which live runs those are.
 
 #### `courses-unmarked-registers`
 
@@ -1995,10 +2019,11 @@ Running. Cancelled shows as itself and offers nothing.
   on it (see "Placing a term's accepted people on a course run", step 3). The
   hand-over after an accepted invitation never starts a run.
 - It completes when its work closes, only while `courses-runs-complete` is
-  switched on. The line under the stages says which: "It completes by itself
-  on Wed 23 Dec, when work closes." with the job on, and "Work closes on Wed 23
-  Dec. An admin marks it completed after that." with it off (the scheduler's
-  own switch counts too). A run with no session dated says neither.
+  switched on and once its groups have gone out. The line under the stages
+  says which: "It completes by itself on Wed 23 Dec, when work closes." with
+  the job on and the groups gone out, and "Work closes on Wed 23 Dec. An admin
+  marks it completed after that." otherwise (the scheduler's own switch counts
+  too). A run with no session dated says neither.
 - "Running since Thu 29 Oct, when people were first handed over." is said
   only for a run the hand-over started: the press that starts a draft writes
   `before: { status: "draft" }, after: { status: "running" }` on its
@@ -2576,7 +2601,11 @@ behind the live page's rows and week cards (the time, a new regular time,
 Change this week, the room, the campus, the meeting link, the facilitators,
 the places, the name, covering a session or giving it to somebody, the
 group's own pace and writing to the group) refuses an archived group, an
-admin's press included. Saving a register is left open to an admin on
+admin's press included. The routes behind the rows, covering a session and
+the pace ask it again on the group their write's own transaction reads, so
+an archive that lands while a press is on its way refuses it the same way,
+with nothing written and nobody emailed
+(`tests/course-group-archive.test.mjs`, section 8). Saving a register is left open to an admin on
 purpose: admins correct registers. The run's archived groups are at the
 foot of the Groups tab's All groups view, under "Archived groups (N)",
 closed until opened: each with what it was ("Was Fridays, 11am to 1pm"),
@@ -2780,7 +2809,15 @@ empty (docs/course-weeks.md, "Saved templates"). The copy from another run says
 "People have started this run, so copying in can’t replace its weeks. Copy
 into empty weeks only.", and copying into weeks the run does not have goes
 on. The run page counts the same rows on the server and shows the sentence
-before the press.
+before the press. Both copies also leave published every week a live
+group's session for has passed, the unpublish route's own judgement
+(`firstWeekMet`, `src/lib/courses/olderEditor/weekInUse.ts`), asked in the
+same transaction: a Replace that would unpublish such a week, or delete it
+as a week a saved template lacks, is refused with that route's sentence
+(409, `inUse: "met"`, nothing written). A week that stays published, or was
+not published, copies as before. The copy from another run decides who may
+copy before it reads either run for anything else: one 403 for everybody
+with no right on the target run, whether or not either run is there.
 
 **The doors.** Nothing in the newer pages leads into the older editor where
 the job has a newer home: the Overview's "Open week N" opens the week on the
@@ -3551,7 +3588,10 @@ they already open; nothing under `/admin/courses` is needed.
   `together: true`: one transaction of at most 100 people (the route's own
   transaction size) that re-reads the run, each row, each seat and each
   group, and moves everybody or nobody. A refusal is a 409 naming the first
-  who stopped it (`stopped`), said on the board in one sentence. Without
+  who stopped it (`stopped`), said on the board in one sentence; a full
+  group's count of who wanted it counts only the people the caller may
+  place, so a person whose row is not served to the caller is answered as
+  a uid with no accepted row, in every field. Without
   `together` the route moves whoever fits, as it always has. Select several
   is on Columns alone: Rings keeps its own moves.
   `tests/course-board-move-together.test.mjs` runs it.
@@ -5819,8 +5859,9 @@ row (the run editor's `GuideLoader`, the facilitator guide's
 `FacilitatorGuideLoader` on that one place). The programme's lead is shown
 one line, "Course documents: an admin loads these.", and no row: the run's
 two load through an admins-only route, and the Handbook and Printables are
-shared by every run of the course, live ones included (the facilitator
-guide's own gate, `facilitatorGuideWriter`, is unchanged). A course
+shared by every run of the course, live ones included, so the facilitator
+guide's loader reads, loads and replaces them for an admin only
+(`facilitatorGuideWriter`, `writerLoads`). A course
 document says the day it was last saved ("Loaded on Mon 19 Oct", its guide
 row's `updatedAt`); the run's two live on the run's own document, whose time
 any save of the run moves, so they say only "Loaded". Nothing new is written.
@@ -6296,11 +6337,18 @@ for every writer, admins included. No browser may then change a group's
 `weekPlan` (`groupTimeKeptOnceGroupsOut` and `runDatesKeptOnceGroupsOut` in
 `firestore.rules`). The stamp itself is the publish route's at any time: no
 browser write changes it, set or unset, and no run is created carrying it.
-The room, the meeting link, the notes, the name, the capacity and the campus
-stay writable from the run editor's group card, and the run editor shows the
-start date and the week plan read only. Before the groups go out the rules are
-otherwise as they were. A group write
-reads its run only when it touches one of those fields: at most two documents
+The notes stay writable from the run editor's group card. The room, the
+meeting link and the campus, the name and the capacity change only through
+the routes, at any time, for everybody but an admin
+(`groupRoomAndLinkUnchanged`, `groupNameAndPlacesUnchanged`); an admin still
+changes those five on that card, on a run no programme names. The weeks set
+apart (`sessionOverrides`: each week's own day, start, length, room, meeting
+link and campus) change only through the routes, at any time, for everybody
+but an admin (`groupSessionOverridesUnchanged`, one comparison of the whole
+map): the group card does not send them. The run editor shows the start date
+and the week plan read only. Before the groups go out the rules are otherwise
+as they were. A group write reads its
+run only when it touches one of those fields: at most two documents
 a write (the writer's own and the run), as before for a track lead or a
 facilitator. `scripts/rules-tests/tests/course-told-times.test.mjs` runs each
 field as each kind of writer, before and after.

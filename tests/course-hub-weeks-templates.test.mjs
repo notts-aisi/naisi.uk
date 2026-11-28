@@ -48,6 +48,7 @@ const listRoute = await courseRoute("[courseId]", "templates");
 const deleteRoute = await courseRoute("templates", "[templateId]");
 const words = await lib("courses", "weeksTab", "words.ts");
 const fill = await lib("courses", "weeksTab", "fill.ts");
+const olderWords = await lib("courses", "olderEditor", "words.ts");
 
 const PARAMS = { roundId: ROUND, programmeId: AGI };
 const TEMPLATE = "agi-strategy-six-weeks__tpl00001";
@@ -155,6 +156,30 @@ describe("1. who may do what", () => {
     assert.equal((await listAs("tess", `?runId=${RUN.agi}`)).status, 403, "the lead of another programme");
   });
 
+  // The programme's lead is answered the copy page's own rows: nothing of
+  // who saved a template by account, the run it came from or its retrospective.
+  test("listing: the programme's lead is answered the copy page's rows and nothing more; everybody else's answer is the stored row, as before", async () => {
+    world.db.poke(`courseTemplates/${TEMPLATE}`, { retrospective: { runLabel: "Spring 2027 cohort", memberCount: 17, ratedMaterialCount: 9 } });
+    const lead = await listAs("claudia", `?runId=${RUN.agi}`);
+    assert.equal(lead.status, 200, JSON.stringify(lead.body));
+    assert.deepEqual(Object.keys(lead.body), ["templates"]);
+    assert.deepEqual(lead.body.templates.map((row) => Object.keys(row).sort()), [["id", "label", "savedBy", "savedOn", "weeks"]]);
+    const said = JSON.stringify(lead.body);
+    for (const needle of ["zach", RUN.agiSpring, "retrospective", "Spring 2027 cohort", "memberCount", "ratedMaterialCount", "savedByUid", "sourceRunId", "sourceGroupId", "courseId"]) {
+      assert.equal(said.includes(needle), false, `the lead's answer carries ${needle}`);
+    }
+    // The same rows the copy page draws for the lead.
+    assert.deepEqual(lead.body.templates, await lib("courses", "weeksTab", "templates.ts").then((m) => m.loadTemplateList(world.courseDb, COURSE.agi, w.sessionOf("claudia"))));
+    // An admin, a drafter, an approver and the run's track lead read the stored row, as before.
+    for (const who of ["zach", "drew", "april", "yusuf"]) {
+      const answer = await listAs(who, `?runId=${RUN.agi}`);
+      assert.equal(answer.status, 200, who);
+      assert.equal(answer.body.templates[0].sourceRunId, RUN.agiSpring, who);
+      assert.equal(answer.body.templates[0].savedByUid, "zach", who);
+      assert.deepEqual(answer.body.templates[0].retrospective, { runLabel: "Spring 2027 cohort", memberCount: 17, ratedMaterialCount: 9 }, who);
+    }
+  });
+
   test("copying in: admins and approvers, and the programme's lead only to fill; nobody else; no view-as session", async () => {
     for (const [who, what] of CALLERS) {
       start();
@@ -257,6 +282,52 @@ describe("2. the copy fills weeks that are empty, and nothing else", () => {
     assert.equal((await copyIn("zach", { templateId: TEMPLATE, replace: true })).status, 409);
     assert.equal((await copyIn("zach", { templateId: TEMPLATE })).status, 409);
     assert.equal(everything(), before);
+  });
+
+  // A Replace (an approver's, never this page's) leaves published every week
+  // a live group has met for, as the unpublish route does: weeks 1 and 2
+  // have met for every group by Tue 17 Nov, weeks 5 and 6 for none.
+  test("an approver's Replace never unpublishes or deletes a published week a live group has met for, and nothing is written", async () => {
+    const met = olderWords.weekStaysPublishedWords;
+    // The template's week 1 is not published: the Replace would take the run's back.
+    start({ over: { [`courseTemplates/${TEMPLATE}/weeks/w01`]: { ...templateSeed()[`courseTemplates/${TEMPLATE}/weeks/w01`], published: false } } });
+    let before = everything();
+    for (const who of ["zach", "april"]) {
+      const answer = await copyIn(who, { templateId: TEMPLATE, replace: true });
+      assert.deepEqual([answer.status, answer.body.error, answer.body.inUse], [409, met(1), "met"], who);
+    }
+    assert.equal(everything(), before);
+    // The template has no week 2: the Replace would delete the run's.
+    const without = templateSeed();
+    delete without[`courseTemplates/${TEMPLATE}/weeks/w02`];
+    w.reset(weeksTabSeed({ ...without, "users/april": userDoc(CAST.april) }));
+    world.db.poke("users/april", { permissions: CAST.april.permissions });
+    before = everything();
+    const deleting = await copyIn("zach", { templateId: TEMPLATE, replace: true });
+    assert.deepEqual([deleting.status, deleting.body.error, deleting.body.inUse], [409, met(2), "met"]);
+    assert.equal(everything(), before);
+    // Everybody else is refused a Replace as before, before any of this is asked.
+    for (const [who] of CALLERS.filter(([who]) => !["zach", "april"].includes(who))) {
+      const answer = await copyIn(who, { templateId: TEMPLATE, replace: true });
+      assert.ok([401, 403].includes(answer.status), `${who}: ${answer.status}`);
+    }
+    assert.equal(everything(), before);
+  });
+
+  test("a Replace that keeps every met week published goes on, and takes back or removes a week nobody has met for", async () => {
+    // Every template week published, and no week 6: weeks 1 to 5 replaced, week 6 (unpublished, unmet) removed.
+    const short = templateSeed(5);
+    start({ weeks: 5, over: short });
+    const answer = await copyIn("zach", { templateId: TEMPLATE, replace: true });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.deepEqual(answer.body.removedIds, ["w06"]);
+    assert.equal(world.db.read(weekPath(1)).title, "Template week 1");
+    assert.equal(world.db.read(weekPath(1)).published, true);
+    // A published week nobody has met for (week 4) may be taken back.
+    start({ over: { [`courseTemplates/${TEMPLATE}/weeks/w04`]: { ...templateSeed()[`courseTemplates/${TEMPLATE}/weeks/w04`], published: false } } });
+    const early = await copyIn("april", { templateId: TEMPLATE, replace: true });
+    assert.equal(early.status, 200, JSON.stringify(early.body));
+    assert.equal(world.db.read(weekPath(4)).published, false);
   });
 
   test("what empty means, field by field", () => {

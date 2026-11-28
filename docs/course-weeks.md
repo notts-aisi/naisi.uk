@@ -596,7 +596,9 @@ editor under `/admin/courses` stays an admin's.
 
 - **Who.** The lead of the programme that names the run (`programmeLedBy`)
   and admins: the tab's pages, the week loader, Mark ready, the owner route,
-  the route that sets how a week meets, and the facilitator guide's loader.
+  the route that sets how a week meets, and the facilitator guide's loader
+  for a week's session plan and notes (its course-wide places are an
+  admin's alone).
   Everybody else gets one refusal, decided before anything of the run is read.
 - **States.** Ready is `weekIsReady` (marked, on a published week); Empty is a
   week with nothing in it, or with no page; Draft is anything else, published
@@ -750,7 +752,9 @@ anything in it is left as it is."
   Delete… (with its question) and "Save this term's weeks as a template" are
   an admin's, and so are their routes. `GET /api/courses/[courseId]/templates`
   admits the lead for the run their programme names (`?runId=`), beside the
-  course's authors and its runs' track leads.
+  course's authors and its runs' track leads, and answers the lead the rows
+  the page draws them (`loadTemplateList`: the template, its label, the day,
+  who saved it by the names rule, its count of weeks) and nothing more.
 - **Copy it in** is always `POST .../runs/[runId]/apply-template` with
   `fill: true` (`src/lib/courses/weeksTab/fill.ts`), and the lead may ask for
   nothing else: the older Replace stays an admin's and an approver's, in the

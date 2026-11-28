@@ -46,7 +46,9 @@
  *  7. The older run editor's switch (an admin's alone now) and the group's
  *     page call the route.
  *  8. EVERY ROUTE BEHIND THE SIX ROWS refuses an archived group, an admin
- *     and the programme's lead alike, writing nothing.
+ *     and the programme's lead alike, writing nothing; and asks again on the
+ *     group its write's transaction reads, so an archive that lands after
+ *     the route's first read refuses the press the same way.
  */
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -1140,6 +1142,54 @@ describe("8. nothing behind the six rows changes an archived group", () => {
         assert.equal(everything(), before, `${what}, ${who}: wrote something`);
         assert.equal(world.mail.length, 0, `${what}, ${who}: emailed`);
       }
+    }
+  });
+
+  // Each route asks again on the group its write's own transaction reads: an
+  // archive that lands after the route's first read of the group, and before
+  // its write commits, refuses the press the same way, and nothing the press
+  // would write is written and nobody is emailed. The archive lands at the
+  // first commit the press reaches; a write that read the group then reads it
+  // again, archived.
+  test("an archive that lands between the route's first read and its write: refused, nothing written, nobody emailed", async () => {
+    // The new regular time is pressed for real here (a preview writes nothing and has no write to race).
+    const RACED = PRESSES.map(([what, go]) =>
+      what === "Day and time, a new regular time from a week"
+        ? [what, (who) => w.call(who, SIX_ROWS.regular.POST, { groupId: B }, { body: { fromWeek: 5, weekday: 3, time: "18:00", length: 120, room: "Hallward B12", tell: false }, course: true })]
+        : [what, go],
+    );
+    for (const [what, go] of RACED) {
+      for (const who of ["zach", "claudia"]) {
+        // Only a caller the route lets through on the live group has a write to race (the pace is an admin's and its facilitators').
+        w.reset(seed());
+        const live = await go(who);
+        if (who !== "zach" && live.status === 403) continue;
+        assert.equal(live.status, 200, `${what}, ${who} on the live group: ${live.status} ${JSON.stringify(live.body)}`);
+        w.reset(seed());
+        let landed = null;
+        world.db.beforeCommit = () => {
+          world.db.poke(`courseGroups/${B}`, { archived: true });
+          world.db.poke(`courseGroups/${D}`, { archived: true });
+          landed = everything();
+        };
+        const answer = await go(who);
+        world.db.beforeCommit = null;
+        assert.ok(landed !== null, `${what}, ${who}: no write was reached, so there was nothing to race (${answer.status} ${JSON.stringify(answer.body)})`);
+        assert.ok([400, 403, 409].includes(answer.status), `${what}, ${who}: ${answer.status} ${JSON.stringify(answer.body)}`);
+        assert.equal(everything(), landed, `${what}, ${who}: wrote something after the archive`);
+        assert.equal(world.mail.length, 0, `${what}, ${who}: emailed`);
+      }
+    }
+    // The two that ask in their transaction say why, in the sentence the first read gives.
+    for (const [what, sentence] of [
+      ["Take the register in a facilitator's place", words.COVER_ARCHIVED],
+      ["The group's own pace", words.PACE_ARCHIVED],
+    ]) {
+      w.reset(seed());
+      world.db.beforeCommit = () => world.db.poke(`courseGroups/${B}`, { archived: true });
+      const answer = await RACED.find(([each]) => each === what)[1]("zach");
+      world.db.beforeCommit = null;
+      assert.deepEqual([answer.status, answer.body.error], [409, sentence], what);
     }
   });
 

@@ -14,10 +14,11 @@
  *    them; a group cannot be CREATED carrying them; the admin client lane
  *    bypasses the pin exactly as it does for `memberCount`.
  *  - The `sessionModes` map (the stored form of each week's virtual/in-person
- *    mode) is server-owned the same way, while the sessionOverrides map stays
- *    facilitator-editable — one whole-map pin, mutation-checked here from
- *    every angle: set, change, clear, and the benign edit that must keep
- *    working. (A `mode` inside a sessionOverrides value has no effect: the
+ *    mode) is server-owned the same way, as the sessionOverrides map is
+ *    (course-older-editor-locks.test.mjs) — one whole-map pin,
+ *    mutation-checked here from every angle: set, change, clear, and the
+ *    benign slot edit that must keep working. (A `mode` inside a
+ *    sessionOverrides value has no effect: the
  *    normaliser never reads it, and the unit suite
  *    `tests/course-group-resolve.test.mjs` pins that half.)
  *
@@ -317,24 +318,27 @@ describe("courseGroups — the sessionModes map is server-owned", () => {
   });
 
   it("GUARD — the benign facilitator session edit still lands beside a stored mode", async () => {
-    // The over-tightening check: the pin must not turn every re-rooming into
-    // a route call. Editing sessionOverrides leaves sessionModes untouched in
-    // the merged doc, so the whole-map comparison holds — including dropping
-    // an override entry whose week carries a mode (the mode lives in ITS OWN
-    // map and survives the drop).
+    // The over-tightening check: the pin must not refuse the save the group
+    // card makes. A slot edit leaves sessionModes untouched in the merged
+    // doc, so the whole-map comparison holds. The weeks set apart are the
+    // routes' (course-older-editor-locks.test.mjs), so a write to them is
+    // refused beside it.
     await seedCast();
     await seedGroup({
       facilitatorUids: ["facil"],
       sessionModes: { w03: "virtual" },
-      sessionOverrides: { w03: { location: "Online" } },
+      sessionOverrides: { w03: { startTimeLocal: "19:00" } },
     });
     const db = await asUser("facil");
     await assertSucceeds(
+      db.collection("courseGroups").doc("g1").update({ "session.startTimeLocal": "18:30", "session.notes": "Bring the reading." }),
+    );
+    await assertFails(
       db.collection("courseGroups").doc("g1").update({
-        sessionOverrides: { w03: { location: "Teams, not Zoom" }, w05: { location: "B52" } },
+        sessionOverrides: { w03: { startTimeLocal: "19:30" }, w05: { weekday: 4 } },
       }),
     );
-    await assertSucceeds(
+    await assertFails(
       db.collection("courseGroups").doc("g1").update({ sessionOverrides: {} }),
     );
   });
@@ -378,8 +382,13 @@ describe("courseGroups: the sessionChanges map is server-owned", () => {
   it("GUARD: the ordinary session edit still lands beside a stored change", async () => {
     await seedCast();
     await seedGroup({ facilitatorUids: ["facil"], sessionChanges: CANCELLED });
+    const db = await asUser("facil");
     await assertSucceeds(
-      (await asUser("facil")).collection("courseGroups").doc("g1").update({ sessionOverrides: { w05: { location: "B52" } } }),
+      db.collection("courseGroups").doc("g1").update({ "session.startTimeLocal": "18:30", "session.notes": "Bring the reading." }),
+    );
+    // The weeks set apart are the routes' (course-older-editor-locks.test.mjs).
+    await assertFails(
+      db.collection("courseGroups").doc("g1").update({ sessionOverrides: { w05: { startTimeLocal: "19:00" } } }),
     );
   });
 

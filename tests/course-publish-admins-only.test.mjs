@@ -123,6 +123,32 @@ describe("1. every caller, both presses: only an admin passes", () => {
     });
   }
 
+  // The run's staff are decided before the run is answered for: everybody
+  // else gets the one 403 whether or not the run is there, on the test, the
+  // press and a placement alike; an admin, and the staff of a run the forms
+  // name, are told it is not there.
+  test("a run that is not there: the one 403 for everybody with no right on it, and nothing is sent or written", async () => {
+    await ready();
+    const gone = { runId: "agi-strategy-gone__run00099" };
+    const ask = async (who, runId) => [
+      await call(who, routes.publishTest.POST, runId, { course: true }),
+      await call(who, routes.publish.POST, runId, { body: { emails: 6 }, course: true }),
+      await call(who, routes.allocate.POST, runId, { body: { placements: [{ uid: "amara", groupId: B }] }, course: true }),
+    ];
+    const before = everything();
+    for (const who of ["nobody", "amara", "rahul", "tess"]) {
+      const there = await ask(who, run);
+      const notThere = await ask(who, gone);
+      assert.deepEqual(notThere.map((answer) => [answer.status, answer.body]), there.map((answer) => [answer.status, answer.body]), who);
+      assert.deepEqual(notThere.map((answer) => [answer.status, answer.body]), Array(3).fill([403, { error: "Forbidden" }]), who);
+    }
+    // The run's track lead is named on the run, so on one that is not there he is nobody.
+    assert.deepEqual((await ask("yusuf", gone)).map((answer) => [answer.status, answer.body]), Array(3).fill([403, { error: "Forbidden" }]));
+    assert.deepEqual((await ask("zach", gone)).map((answer) => answer.status), [404, 404, 404]);
+    assert.deepEqual(world.mail, []);
+    assert.equal(everything(), before);
+  });
+
   test("an admin passes both: the test goes to their own address, and the press publishes", async () => {
     await ready();
     await join_.withoutNotes("zach");

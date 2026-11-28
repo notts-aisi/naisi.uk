@@ -15,8 +15,9 @@ import type { CourseDocumentKey as GuideDocumentKey } from "@/lib/courses/facili
  * documents: an admin loads these.") and no row: the run's two are loaded
  * through an admins-only route, and the Handbook and Printables are shared by
  * every run of the course, live ones included, so a lead does not load them
- * here (the facilitator guide's own gate, `facilitatorGuideWriter`, is not
- * changed). The course's two are read by the tab's page, after it has asked
+ * here (the facilitator guide's loader reads, loads and replaces a
+ * course-wide place for an admin only: `writerLoads`). The course's two are
+ * read by the tab's page, after it has asked
  * that gate itself (`facilitatorGuideWriter`, then `readCourseDocumentsLoaded`),
  * and handed in here; this module never reaches the guide's store.
  *
