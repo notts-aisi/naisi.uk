@@ -289,7 +289,7 @@ describe("every read of the caller's own application is held to the view-as chec
     // And the two pages hand it the session's own uid, and nothing a request carries.
     assert.ok(dashboard.includes("user && applications ? holdsPlace(user.uid, applications.map((row) => row.roundId)) : COULD_NOT_TELL,"));
     const learn = code("app", "(app)", "learn", "page.tsx");
-    assert.ok(learn.includes('const user = await getCurrentUser(); const held = user ? await holdsPlace(user.uid) : "unknown";'));
+    assert.ok(learn.includes('const user = await getCurrentUser(); if (!user) redirect("/login"); const held = user ? await holdsPlace(user.uid) : "unknown";'));
     for (const [name, page] of [["the dashboard", dashboard], ["the list of programmes", learn]]) {
       assert.equal(page.split("holdsPlace(").length - 1, 1, `${name} asks more than once`);
       assert.ok(!/searchParams|params\b|cookies\(|headers\(/.test(page), `${name} reads something off the request`);

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import type { Firestore } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
@@ -162,7 +163,9 @@ function partOfDay(now: Date): string {
 }
 
 export default async function DashboardPage() {
+  // Nobody signed in is sent to sign in, as the (app) layout sends them, before anything is read.
   const user = await getCurrentUser();
+  if (!user) redirect("/login");
   // The session is already in hand, so this is `markerIsLive` rather than a
   // second read of it.
   const viewingAs = markerIsLive(await getImpersonator(), user?.uid ?? null);
