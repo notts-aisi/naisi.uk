@@ -820,8 +820,10 @@ describe("4. what somebody who left reads", () => {
     for (const who of ["dev", "tariq", "una", "sofia", "claudia", "zach"]) {
       assert.deepEqual((await cardsOf(who)).cards, [], `${who} is shown a run they did not leave`);
     }
-    // Signed out, the page reads no runs at all.
-    assert.deepEqual((await cardsOf(null)).cards, []);
+    // Signed out, the page sends them to sign in, as the signed-in area's layout does, and reads no runs at all.
+    const signedOut = await draw(pages.programmes, null, {});
+    assert.equal(signedOut.to, "/login");
+    assert.equal(signedOut.wrote, false);
   });
 
   test("the group keeps the notes Amara shared: its people, its facilitator, the lead and an admin read them, and Amara does not", async () => {

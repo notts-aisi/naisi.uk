@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import PageHead from "@/components/ui/PageHead";
 import { AdminPage } from "@/features/admin/adminList";
 import AdminFeedback from "@/features/societyFeedback/AdminFeedback";
 import styles from "@/features/societyFeedback/societyFeedback.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { readForAdmins } from "@/lib/societyFeedback/admin";
 import { dayOf, yearBefore } from "@/lib/societyFeedback/model";
 import { buildAdminView } from "@/lib/societyFeedback/view";
@@ -20,9 +19,8 @@ export const dynamic = "force-dynamic";
  * note for admins, a download and the clear-out by hand
  * (docs/surveys.md, "Anonymous feedback for the whole society").
  *
- * Under `(admin-only)`, whose layout (`requireAdminPage()`) is the gate; the
- * page asks again itself before anything is read, and every route it calls
- * asks again. A view-as session's account is never an admin's, and the admin
+ * The page asks `requireAdminPage()` itself before anything is read, as its
+ * `(admin-only)` layout does, and every route it calls asks again. A view-as session's account is never an admin's, and the admin
  * tree is closed during one. A programme's lead, a facilitator, SU-recognised
  * committee and members are sent away before anything is read, so nothing
  * tells them an entry exists.
@@ -32,8 +30,7 @@ export const dynamic = "force-dynamic";
  * oldest kept entry (one, ordered by `day`). Never the waiting place.
  */
 export default async function AnonymousFeedbackAdminPage() {
-  const viewer = await getCurrentUser();
-  if (!viewer || viewer.role !== "admin") redirect("/dashboard");
+  await requireAdminPage();
   const db = getAdminDb();
   const now = new Date();
   const today = dayOf(now);

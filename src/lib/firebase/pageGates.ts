@@ -2,8 +2,10 @@ import "server-only";
 import { redirect } from "next/navigation";
 import {
   canApproveCourse,
+  canApproveEvent,
   canAuthorAdmissionRound,
   canDraftCourse,
+  canDraftEvent,
   canManageMembership,
 } from "@/lib/firestore/users";
 import { holdsStanding } from "./eligibility";
@@ -107,5 +109,26 @@ export async function requireAdmissionsPage(): Promise<SessionUser> {
 export async function requireMembershipPage(): Promise<SessionUser> {
   const user = await getCurrentUser();
   if (!user || !canManageMembership(user)) redirect("/dashboard");
+  return user;
+}
+
+/**
+ * The events area, `/events/manage`. Open to the whole committee, who plan and
+ * collaborate there, and to any holder of draftEvent or approveEvent.
+ * Creating a new event still needs draftEvent, and the attendee list still
+ * needs SU recognition; both are gated further in.
+ *
+ * The area's layout calls this, and so does each page under it that reads on
+ * the server, so the page asks the same question its layout asks.
+ */
+export async function requireEventsPage(): Promise<SessionUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  const allowed =
+    user.role === "admin" ||
+    user.role === "committee" ||
+    canDraftEvent(user) ||
+    canApproveEvent(user);
+  if (!allowed) redirect("/dashboard");
   return user;
 }

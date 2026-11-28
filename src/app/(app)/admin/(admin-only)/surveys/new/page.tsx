@@ -5,6 +5,7 @@ import EventSurveyForm from "@/features/surveys/admin/EventSurveyForm";
 import NewSurveyForm, { type ProgrammeOption } from "@/features/surveys/admin/NewSurveyForm";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { listProgrammeChoices } from "@/lib/surveys/create";
 import { minutesFor } from "@/lib/surveys/events/after";
 import { listEventChoices } from "@/lib/surveys/events/create";
@@ -36,6 +37,7 @@ function sizeOf(stage: SurveyTemplate): string {
  */
 export default async function NewSurveyPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const query = (await searchParams) ?? {};
+  await requireAdminPage();
   const db = getAdminDb();
   const now = new Date();
   const surveys = db ? await listSurveys(db) : [];

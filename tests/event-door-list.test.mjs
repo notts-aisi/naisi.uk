@@ -69,7 +69,13 @@ describe("the door list page", () => {
     clock(t, DURING);
     w.reset();
     assert.deepEqual(await open(null), { redirect: "/login" });
-    for (const who of ["kofi", "iris", "cal", "ines"]) {
+    // Somebody the events area does not admit is sent where its gate sends
+    // them, which the page asks first, as its layout does.
+    for (const who of ["kofi", "ines"]) {
+      assert.deepEqual(await open(who), { redirect: "/dashboard" }, who);
+    }
+    // The committee the Students' Union does not recognise is in the area, and goes back to the event.
+    for (const who of ["iris", "cal"]) {
       assert.deepEqual(await open(who), { redirect: `/events/manage/${EVENT_ID}` }, who);
     }
     for (const who of ["sue", "zach"]) {

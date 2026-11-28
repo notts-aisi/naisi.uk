@@ -5,6 +5,7 @@ import KairosFileButton from "@/features/kairos/KairosFileButton";
 import styles from "@/features/kairos/kairos.module.css";
 import { loadForm } from "@/lib/applications/repo";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { kairosProgrammeOf } from "@/lib/kairos/programmes";
 import { KAIROS_FILE_WORDS, KAIROS_REPORT_WORDS } from "@/lib/kairos/words";
 import { loadKairosReport } from "@/lib/surveys/kairosReportLoad";
@@ -21,12 +22,14 @@ const isPlainId = (value: string) => Boolean(value) && !value.includes("/") && v
  * saying what it needs (`src/lib/surveys/kairosReport.ts`). Totals only:
  * never a name. The Kairos file, with names, is the button at the foot.
  *
- * Under `(admin-only)`, so the group's layout (`requireAdminPage()`) is the
- * gate. Read on the server. An address that names no programme is answered
- * on the page in a sentence, never `notFound()`.
+ * The page asks `requireAdminPage()` itself before it reads, as the
+ * `(admin-only)` group's layout does. Read on the server. An address that
+ * names no programme is answered on the page in a sentence, never
+ * `notFound()`.
  */
 export default async function KairosReportPage({ params }: { params: Promise<{ roundId: string; programmeId: string }> }) {
   const { roundId, programmeId } = await params;
+  await requireAdminPage();
   const db = getAdminDb();
   // The round, through the application form's own loader: a round that is
   // not a form, or a programme that names no run, is no programme here.

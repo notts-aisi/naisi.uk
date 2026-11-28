@@ -9,7 +9,7 @@ import { isForChosenPeople } from "@/lib/events/reach";
 import { getEventForPreview } from "@/features/events/fetchEvents";
 import { STATUS_WORDS, dayTimeWords, statusTone } from "@/features/events/manageWords";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { requireEventsPage } from "@/lib/firebase/pageGates";
 import { signupCountWords } from "@/lib/events/requestWords";
 import { signupAccessFor } from "@/lib/events/signupAccess";
 import { staffNamesFor } from "@/lib/names/load";
@@ -39,8 +39,8 @@ export default async function SignupsPage({
 }) {
   const { id } = await params;
 
-  const viewer = await getCurrentUser();
-  if (!viewer) redirect("/login");
+  // The events area's own question first, as its layout asks it.
+  const viewer = await requireEventsPage();
 
   const event = await getEventForPreview(id);
   if (!event) notFound();

@@ -121,6 +121,29 @@ The same shape, older:
   sits inside one of the four gated route trees (`(admin-only)`, `courses`,
   `admissions`, `membership`), and each tree's layout still calls its gate. A
   page dropped straight into the admin directory fails.
+- `tests/pages-ask-who-is-calling.test.mjs`: a server page or layout whose
+  render can read with the Admin SDK asks who is calling in the same file,
+  before its first read. Next does not render a layout again on every
+  navigation, and a layout does not decide whether the segments below it
+  render, so a gate that sits only in a layout above a page is not the
+  page's gate. The guard walks every `page.tsx` and `layout.tsx` under
+  `src/app`, follows each server file's imports through every module that is
+  not `"use client"` to find the ones that reach the Admin SDK, and reads
+  each one's component with the compiler's parser: a gate in `GATES`,
+  awaited at the top level of the body, comes before the first read and the
+  first return. A gate on one branch, in a `try`, a `catch` or a callback,
+  called without `await`, or awaited beside a read in one `Promise.all` does
+  not count, and a call through a namespace import of a repository module is
+  a read. The trees come from the layouts: every page beneath a layout with a
+  gate asks that gate, or one `IMPLIES` says asks as much, and a layout whose
+  gate is only the session and that refuses more inline (the authed shell's
+  "an approved account") has that question written down. A page that asks
+  less is in `ASKS_LESS` with the reason (it reads only the caller's own rows,
+  or refuses by the caller's own place after its gate). The pages that are
+  open on purpose (the public site, the pages a signed or random token opens,
+  the pages a printed code lands on, the anonymous forms) are in `OPEN` with
+  the reason. Every list is checked both ways, each gate's own body is held to
+  the exact predicate it claims, and an import the walk cannot follow fails.
 - `tests/impersonation-guard.test.mjs`: every mutating route under the
   guarded API trees calls `assertNotImpersonating()` at its top. `MUST_GUARD`
   lists the routes with the reason each is high-trust; a new mutating route

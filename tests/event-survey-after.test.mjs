@@ -939,6 +939,10 @@ describe("the event's tabs: what is set and what went for everybody in the event
     // An admin is led to the question about not coming, a survey of its own; nobody else is.
     assert.match(admin.html, new RegExp(`href="/admin/surveys/${id}-missed/send"`));
     for (const who of ["iris", "cal", "sue"]) assert.ok(!(await w.page(TAB, props(), who)).html.includes(`${id}-missed`), who);
+    // Somebody who answered it and is not in the events area is sent where its gate sends them, and drawn nothing.
+    const kofi = await w.page(TAB, props(), "kofi");
+    assert.equal(kofi.to, "/dashboard");
+    assert.equal(kofi.html, "");
   });
 
   test("the Check-in tab shows its code to whoever runs the door, while it takes answers, where the step left the code on", async (t) => {

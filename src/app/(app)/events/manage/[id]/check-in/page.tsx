@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Chip from "@/components/ui/Chip";
 import Notice from "@/components/ui/Notice";
 import PageHead from "@/components/ui/PageHead";
@@ -13,7 +13,7 @@ import { QrCode } from "@/features/qr/QrCode";
 import SurveyCodeAtEvent from "@/features/surveys/events/SurveyCodeAtEvent";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { requireEventsPage } from "@/lib/firebase/pageGates";
 import { runsCheckIn } from "@/lib/events/checkInAccess";
 import { signupAccessFor } from "@/lib/events/signupAccess";
 import { loadEventAtTheDoor } from "@/lib/events/checkInLoad";
@@ -81,8 +81,8 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  */
 export default async function CheckInTabPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const viewer = await getCurrentUser();
-  if (!viewer) redirect("/login");
+  // The events area's own question first, as its layout asks it.
+  const viewer = await requireEventsPage();
 
   const db = getAdminDb();
   const loaded = db ? await loadEventAtTheDoor(db, id) : null;

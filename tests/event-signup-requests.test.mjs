@@ -546,6 +546,9 @@ describe("the Sign-ups page", () => {
     assert.deepEqual(await open(null), { redirect: "/login" });
     await assert.rejects(open(ADA, "no-such-event"), /NEXT_NOT_FOUND/);
     for (const who of [NIA, ED, ABE]) assert.deepEqual(await open(who), { redirect: `/events/manage/${EVENT_ID}` }, who.uid);
+    // A member the events area does not admit is sent where its gate sends them, before the event is read.
+    assert.deepEqual(await open("kofi"), { redirect: "/dashboard" });
+    assert.deepEqual(await open("kofi", "no-such-event"), { redirect: "/dashboard" });
   });
 
   test("its head says how it stands, and its tab how many are waiting", async () => {

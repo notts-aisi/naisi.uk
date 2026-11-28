@@ -8,6 +8,7 @@ import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import styles from "@/features/surveys/admin/surveyAdmin.module.css";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { isEventSurvey } from "@/lib/firestore/surveys";
 import { resultsView, surveyPage } from "@/lib/surveys/adminView";
 import { eventResultsHead, resultsWhoFor } from "@/lib/surveys/events/adminView";
@@ -18,7 +19,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * A survey's Results tab: every question as a chart, made on the
- * server, never a name. Admins only, by the `(admin-only)` group's layout.
+ * server, never a name. Admins only: the page asks `requireAdminPage()`
+ * itself before it reads, as the `(admin-only)` group's layout does.
  * The programme's lead reads the same charts on a page of their own, without
  * any of what follows.
  *
@@ -38,6 +40,7 @@ export default async function SurveyResultsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ surveyId }, query] = await Promise.all([params, searchParams]);
+  await requireAdminPage();
   const db = getAdminDb();
   const page = db ? await surveyPage(db, surveyId, new Date()) : null;
   if (!db || !page) {
