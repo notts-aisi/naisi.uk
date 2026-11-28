@@ -871,8 +871,13 @@ describe("courseGroups", () => {
           meetingUrl: null,
           notes: "Moved for the careers fair.",
         },
-        // A week's own time; a week's own room is the routes', as the
-        // group's is (course-older-editor-locks.test.mjs holds that).
+      }),
+    );
+    // A week set apart in the same write is refused: the weeks are the
+    // routes' (course-older-editor-locks.test.mjs holds that).
+    await assertFails(
+      db.collection("courseGroups").doc("g1").update({
+        "session.notes": "Moved for the careers fair.",
         sessionOverrides: { w05: { startTimeLocal: "19:00" } },
       }),
     );

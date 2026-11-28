@@ -253,6 +253,16 @@ describe("2. where it stands, for every stored status", () => {
     assert.match((await stands()).line, /Work closed on Thu 19 Nov\. An admin marks it completed\.$/);
   });
 
+  test("with the job on, an open-mode run where people choose their own group, never published, says an admin marks it completed, never a day of its own", async () => {
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "applications-open", enrolMode: "open" });
+    scheduler({ enabled: true, jobs: { "courses-runs-complete": { enabled: true } } });
+    const line = (await stands()).line;
+    assert.match(line, /Work closes on Thu 19 Nov\. An admin marks it completed after that\.$/);
+    assert.doesNotMatch(line, /by itself/);
+    mock.timers.setTime(new Date("2026-11-20T09:00:00Z").getTime());
+    assert.match((await stands()).line, /Work closed on Thu 19 Nov\. An admin marks it completed\.$/);
+  });
+
   test("with the job on, an archived run or one being destroyed does not say it completes by itself: the job skips them", async () => {
     await startedByPress();
     groupsGoneOut();

@@ -141,9 +141,10 @@ function groupDoc(runId, overrides = {}) {
 
 /**
  * Every way a browser could change a group's time, each on its own. `server`
- * marks the fields every writer but an admin was already refused at any time
- * (groupPinnedFieldsUnchanged and its two neighbours): for those, the change
- * once the groups have gone out is that admins are refused too.
+ * marks the fields every writer but an admin is refused at any time
+ * (groupPinnedFieldsUnchanged, its two neighbours and
+ * groupSessionOverridesUnchanged): for those, the change once the groups
+ * have gone out is that admins are refused too.
  */
 const GROUP_TIME_CHANGES = [
   ["the day", () => ({ "session.weekday": 4 })],
@@ -152,9 +153,9 @@ const GROUP_TIME_CHANGES = [
   ["the whole slot, with a new day", () => ({ session: { ...SESSION, weekday: 4 } })],
   // Removing the slot removes the room and the link with it, which only an admin does from a browser.
   ["the whole slot, removed", () => ({ session: removed() }), { room: true }],
-  ["one week's override", () => ({ "sessionOverrides.w04": { weekday: 4 } })],
-  ["every override, cleared", () => ({ sessionOverrides: {} })],
-  ["every override, removed", () => ({ sessionOverrides: removed() })],
+  ["one week's override", () => ({ "sessionOverrides.w04": { weekday: 4 } }), { server: true }],
+  ["every override, cleared", () => ({ sessionOverrides: {} }), { server: true }],
+  ["every override, removed", () => ({ sessionOverrides: removed() }), { server: true }],
   ["one week's mode", () => ({ sessionModes: { w03: "virtual", w04: "virtual" } }), { server: true }],
   ["the record of changes", () => ({ sessionChanges: {} }), { server: true }],
   ["its own start date", () => ({ paceStartDate: "2026-10-12" }), { server: true }],

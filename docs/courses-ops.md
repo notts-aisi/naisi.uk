@@ -774,12 +774,18 @@ run, by id. The programme's Settings reads the same switch
 registration by `tests/course-register-jobs.test.mjs`), with the scheduler's
 own switch and whether the run's groups have gone out, to say whether a run
 completes by itself.
-When an admin first switches it on, every live run in the project whose
-groups have gone out and whose work has already closed is completed on its
-first tick: older runs nobody marked completed, a pre-course still in
-Applications open, runs no programme names. Each leaves the catalogue,
-people's Home and the facilitators' menu at once. Before switching it on,
-look at which live runs those are.
+
+**Which runs it completes, and which it never does.** It completes a live run
+only once Publish has sent its groups out: `allocationPublishedAt` is stamped
+by the publish route and nothing else. Every other live run stays live until
+an admin marks it completed, however long ago its work closed: a run nobody
+has pressed Publish on, which includes an open-mode run where people choose
+their own group. When an admin first switches the job on, every live run in
+the project whose groups have gone out and whose work has already closed is
+completed on its first tick, whether a programme names it or not and
+whatever its stage (Applications open or closed, or Running). Each leaves the
+catalogue, people's Home and the facilitators' menu at once. Before switching
+it on, look at which live runs those are.
 
 #### `courses-unmarked-registers`
 
@@ -6332,13 +6338,16 @@ for every writer, admins included. No browser may then change a group's
 `firestore.rules`). The stamp itself is the publish route's at any time: no
 browser write changes it, set or unset, and no run is created carrying it.
 The notes stay writable from the run editor's group card. The room, the
-meeting link and the campus, the group's own and each week's own (inside its
-`sessionOverrides` entry), and the name and the capacity change only through
+meeting link and the campus, the name and the capacity change only through
 the routes, at any time, for everybody but an admin
 (`groupRoomAndLinkUnchanged`, `groupNameAndPlacesUnchanged`); an admin still
-changes the group's own five on that card, on a run no programme names. The
-run editor shows the start date and the week plan read only. Before the
-groups go out the rules are otherwise as they were. A group write reads its
+changes those five on that card, on a run no programme names. The weeks set
+apart (`sessionOverrides`: each week's own day, start, length, room, meeting
+link and campus) change only through the routes, at any time, for everybody
+but an admin (`groupSessionOverridesUnchanged`, one comparison of the whole
+map): the group card does not send them. The run editor shows the start date
+and the week plan read only. Before the groups go out the rules are otherwise
+as they were. A group write reads its
 run only when it touches one of those fields: at most two documents
 a write (the writer's own and the run), as before for a track lead or a
 facilitator. `scripts/rules-tests/tests/course-told-times.test.mjs` runs each

@@ -39,8 +39,11 @@ import {
  * `memberCount` (pinned in rules for the non-admin client lanes; the
  * pace/session routes are the writers). So is `sessionChanges`, the record of
  * what "Change a session" did and why (see `SessionChange`), whose one writer
- * is the change route. The rest of the session fields stay
- * facilitator-editable client-direct, exactly as before.
+ * is the change route. So, for everybody but an admin, is `sessionOverrides`
+ * (each week set apart), which the routes that change one week write; the
+ * room, the link and the campus are the routes' too. The slot's day, start
+ * and length (until the run's groups go out) and its notes stay editable
+ * client-direct.
  */
 
 /*

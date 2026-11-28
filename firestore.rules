@@ -2771,120 +2771,30 @@ service cloud.firestore {
       // An admin keeps them from a browser, which is what a run no programme
       // names still needs. Null defaults, so an absent field and a stored
       // null compare equal and a save that leaves the three alone passes.
-      // A week's own room, link and campus (`location`, `meetingUrl` and
-      // `campus` inside its `sessionOverrides` entry, which every reader
-      // prefers to the group's) are the routes' in the same way
-      // (groupWeeksRoomAndLinkUnchanged).
+      // A week's own room, link and campus live in its `sessionOverrides`
+      // entry and are held with that map (groupSessionOverridesUnchanged).
       function groupRoomAndLinkUnchanged() {
         return request.resource.data.get(['session', 'location'], null)
             == resource.data.get(['session', 'location'], null)
           && request.resource.data.get(['session', 'meetingUrl'], null)
             == resource.data.get(['session', 'meetingUrl'], null)
           && request.resource.data.get('campus', null)
-            == resource.data.get('campus', null)
-          && groupWeeksRoomAndLinkUnchanged();
+            == resource.data.get('campus', null);
       }
-      // EACH WEEK'S ROOM, LINK AND CAMPUS. A write that leaves
-      // `sessionOverrides` as it is passes on one comparison, which is every
-      // save the group card makes. A write that changes it may add, change
-      // or remove a week's day, start, length and notes, and may not add,
-      // change or remove `location`, `meetingUrl` or `campus` inside any
-      // week's entry: each week the write adds or changes is compared with
-      // the entry stored (the whole entry, so a week written over whole is
-      // held too, and a new week against none), and each week it removes
-      // must have carried none of the three.
-      //
-      // A rule cannot loop, so the weeks are taken by position in each map's
-      // keys, up to 20: the cap `groupContentOk` holds on what is written
-      // (GROUP_FIELD_LIMITS.maxSessionOverrides, which the routes keep too).
-      // A stored map past it is refused any change here, so no week goes
-      // unchecked. A week the write leaves as stored costs one membership
-      // test, positions are cut off five at a time past the map's size, and
-      // the removed weeks are read only when the write removes one, so the
-      // evaluation stays far inside the rules engine's budget (the lesson
-      // of the 60-key enumeration at groupSessionModesUnchanged). A map that
-      // is null, or a week's entry that is not a map, refuses the write.
-      function groupWeeksRoomAndLinkUnchanged() {
-        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['sessionOverrides'])
-          || weeksRoomAndLinkKept(
-            resource.data.get('sessionOverrides', {}),
-            request.resource.data.get('sessionOverrides', {})
-          );
-      }
-      function weeksRoomAndLinkKept(stored, sent) {
-        let change = sent.diff(stored);
-        return stored.size() <= 20
-          && sent.size() <= 20
-          && writtenWeeksKept(stored, sent, sent.keys(), change.affectedKeys())
-          && (
-            change.removedKeys().size() == 0
-            || removedWeeksBare(stored, stored.keys(), change.removedKeys())
-          );
-      }
-      // Each week the write adds or changes, by position in the written map.
-      function writtenWeeksKept(stored, sent, weeks, changed) {
-        return (weeks.size() <= 0 || !changed.hasAny([weeks[0]]) || weekRoomAndLinkSame(stored, sent, weeks[0]))
-          && (weeks.size() <= 1 || !changed.hasAny([weeks[1]]) || weekRoomAndLinkSame(stored, sent, weeks[1]))
-          && (weeks.size() <= 2 || !changed.hasAny([weeks[2]]) || weekRoomAndLinkSame(stored, sent, weeks[2]))
-          && (weeks.size() <= 3 || !changed.hasAny([weeks[3]]) || weekRoomAndLinkSame(stored, sent, weeks[3]))
-          && (weeks.size() <= 4 || !changed.hasAny([weeks[4]]) || weekRoomAndLinkSame(stored, sent, weeks[4]))
-          && (weeks.size() <= 5 || (
-              (weeks.size() <= 5 || !changed.hasAny([weeks[5]]) || weekRoomAndLinkSame(stored, sent, weeks[5]))
-              && (weeks.size() <= 6 || !changed.hasAny([weeks[6]]) || weekRoomAndLinkSame(stored, sent, weeks[6]))
-              && (weeks.size() <= 7 || !changed.hasAny([weeks[7]]) || weekRoomAndLinkSame(stored, sent, weeks[7]))
-              && (weeks.size() <= 8 || !changed.hasAny([weeks[8]]) || weekRoomAndLinkSame(stored, sent, weeks[8]))
-              && (weeks.size() <= 9 || !changed.hasAny([weeks[9]]) || weekRoomAndLinkSame(stored, sent, weeks[9]))
-              && (weeks.size() <= 10 || (
-                  (weeks.size() <= 10 || !changed.hasAny([weeks[10]]) || weekRoomAndLinkSame(stored, sent, weeks[10]))
-                  && (weeks.size() <= 11 || !changed.hasAny([weeks[11]]) || weekRoomAndLinkSame(stored, sent, weeks[11]))
-                  && (weeks.size() <= 12 || !changed.hasAny([weeks[12]]) || weekRoomAndLinkSame(stored, sent, weeks[12]))
-                  && (weeks.size() <= 13 || !changed.hasAny([weeks[13]]) || weekRoomAndLinkSame(stored, sent, weeks[13]))
-                  && (weeks.size() <= 14 || !changed.hasAny([weeks[14]]) || weekRoomAndLinkSame(stored, sent, weeks[14]))
-                  && (weeks.size() <= 15 || (
-                      (weeks.size() <= 15 || !changed.hasAny([weeks[15]]) || weekRoomAndLinkSame(stored, sent, weeks[15]))
-                      && (weeks.size() <= 16 || !changed.hasAny([weeks[16]]) || weekRoomAndLinkSame(stored, sent, weeks[16]))
-                      && (weeks.size() <= 17 || !changed.hasAny([weeks[17]]) || weekRoomAndLinkSame(stored, sent, weeks[17]))
-                      && (weeks.size() <= 18 || !changed.hasAny([weeks[18]]) || weekRoomAndLinkSame(stored, sent, weeks[18]))
-                      && (weeks.size() <= 19 || !changed.hasAny([weeks[19]]) || weekRoomAndLinkSame(stored, sent, weeks[19]))
-                  ))
-              ))
-          ));
-      }
-      function weekRoomAndLinkSame(stored, sent, week) {
-        return !sent[week].diff(stored.get(week, {})).affectedKeys()
-          .hasAny(['location', 'meetingUrl', 'campus']);
-      }
-      // Each week the write removes, by position in the stored map.
-      function removedWeeksBare(stored, weeks, removed) {
-        return (weeks.size() <= 0 || !removed.hasAny([weeks[0]]) || weekWithoutRoomOrLink(stored, weeks[0]))
-          && (weeks.size() <= 1 || !removed.hasAny([weeks[1]]) || weekWithoutRoomOrLink(stored, weeks[1]))
-          && (weeks.size() <= 2 || !removed.hasAny([weeks[2]]) || weekWithoutRoomOrLink(stored, weeks[2]))
-          && (weeks.size() <= 3 || !removed.hasAny([weeks[3]]) || weekWithoutRoomOrLink(stored, weeks[3]))
-          && (weeks.size() <= 4 || !removed.hasAny([weeks[4]]) || weekWithoutRoomOrLink(stored, weeks[4]))
-          && (weeks.size() <= 5 || (
-              (weeks.size() <= 5 || !removed.hasAny([weeks[5]]) || weekWithoutRoomOrLink(stored, weeks[5]))
-              && (weeks.size() <= 6 || !removed.hasAny([weeks[6]]) || weekWithoutRoomOrLink(stored, weeks[6]))
-              && (weeks.size() <= 7 || !removed.hasAny([weeks[7]]) || weekWithoutRoomOrLink(stored, weeks[7]))
-              && (weeks.size() <= 8 || !removed.hasAny([weeks[8]]) || weekWithoutRoomOrLink(stored, weeks[8]))
-              && (weeks.size() <= 9 || !removed.hasAny([weeks[9]]) || weekWithoutRoomOrLink(stored, weeks[9]))
-              && (weeks.size() <= 10 || (
-                  (weeks.size() <= 10 || !removed.hasAny([weeks[10]]) || weekWithoutRoomOrLink(stored, weeks[10]))
-                  && (weeks.size() <= 11 || !removed.hasAny([weeks[11]]) || weekWithoutRoomOrLink(stored, weeks[11]))
-                  && (weeks.size() <= 12 || !removed.hasAny([weeks[12]]) || weekWithoutRoomOrLink(stored, weeks[12]))
-                  && (weeks.size() <= 13 || !removed.hasAny([weeks[13]]) || weekWithoutRoomOrLink(stored, weeks[13]))
-                  && (weeks.size() <= 14 || !removed.hasAny([weeks[14]]) || weekWithoutRoomOrLink(stored, weeks[14]))
-                  && (weeks.size() <= 15 || (
-                      (weeks.size() <= 15 || !removed.hasAny([weeks[15]]) || weekWithoutRoomOrLink(stored, weeks[15]))
-                      && (weeks.size() <= 16 || !removed.hasAny([weeks[16]]) || weekWithoutRoomOrLink(stored, weeks[16]))
-                      && (weeks.size() <= 17 || !removed.hasAny([weeks[17]]) || weekWithoutRoomOrLink(stored, weeks[17]))
-                      && (weeks.size() <= 18 || !removed.hasAny([weeks[18]]) || weekWithoutRoomOrLink(stored, weeks[18]))
-                      && (weeks.size() <= 19 || !removed.hasAny([weeks[19]]) || weekWithoutRoomOrLink(stored, weeks[19]))
-                  ))
-              ))
-          ));
-      }
-      function weekWithoutRoomOrLink(stored, week) {
-        return !stored[week].keys().hasAny(['location', 'meetingUrl', 'campus']);
+      // EACH WEEK SET APART IS THE ROUTES', for everybody but an admin.
+      // `sessionOverrides` holds a week's own day, start, length, room,
+      // meeting link and campus, which every reader prefers to the group's.
+      // It is written by the Admin SDK routes that change one week, a regular
+      // time, a room or a link and keep the group's History
+      // (src/lib/courses/sessionChange/, regularTime/, meetingLink/save.ts);
+      // the site's own group card does not send it. So the whole map is one
+      // comparison, as `sessionModes` and `sessionChanges` are, which costs
+      // the same however many weeks a group stores. An empty-map default, so
+      // an absent map and an empty one compare equal and a save that leaves
+      // the map alone passes. An admin keeps it from a browser.
+      function groupSessionOverridesUnchanged() {
+        return request.resource.data.get('sessionOverrides', {})
+          == resource.data.get('sessionOverrides', {});
       }
       // THE NAME AND THE CAPACITY ARE THE ROUTES', for everybody but an
       // admin, as the room is (groupRoomAndLinkUnchanged). They are changed
@@ -3012,13 +2922,12 @@ service cloud.firestore {
         && request.resource.data.get('restoredAt', null) == null
         && groupContentOk();
 
-      // A named facilitator edits their own group's session (move the slot,
-      // drop the term's overrides), per-doc by construction, same trust
-      // shape as an event collaborator. The room, the meeting link and the
-      // campus, the group's own and each week's, are the routes' for
-      // everybody but an admin
-      // (groupRoomAndLinkUnchanged), and so are the name and the capacity
-      // (groupNameAndPlacesUnchanged). The `sessionModes` map
+      // A named facilitator edits their own group's session (move the slot),
+      // per-doc by construction, same trust shape as an event collaborator.
+      // The room, the meeting link and the campus are the routes' for
+      // everybody but an admin (groupRoomAndLinkUnchanged), and so are the
+      // weeks set apart (groupSessionOverridesUnchanged), the name and the
+      // capacity (groupNameAndPlacesUnchanged). The `sessionModes` map
       // rides along UNCHANGED (see groupSessionModesUnchanged): flipping a
       // week virtual/in-person without the route lane's notice-and-audit
       // step is exactly what the pin exists to stop. `archived` is the
@@ -3035,6 +2944,7 @@ service cloud.firestore {
             && groupSessionModesUnchanged()
             && groupSessionChangesUnchanged()
             && groupRoomAndLinkUnchanged()
+            && groupSessionOverridesUnchanged()
             && groupNameAndPlacesUnchanged()
             && groupContentOk()
           )
