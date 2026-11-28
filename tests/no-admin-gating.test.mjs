@@ -10,20 +10,27 @@
  *    Importing types or validation limits from `@/lib/siteNotice` (as the admin
  *    site-notice route does) is fine; gating is what is forbidden.
  *
- * 2. ROLE GATING. `(app)/admin/layout.tsx` used to be the only role check on
- *    every admin page, and it required `role === "admin"`. It no longer does:
- *    course drafters and approvers are let through the front door so they can
- *    reach `/admin/courses`. Every page that still needs a full admin therefore
- *    has to be gated below that layout, and the shape chosen is a route group:
- *    `src/app/(app)/admin/(admin-only)/**` is wrapped by a layout that calls
- *    `requireAdminPage()`, `src/app/(app)/admin/courses/**` by one that calls
- *    `requireCourseAuthorPage()`, and `src/app/(app)/admin/admissions/**` by
- *    one that calls `requireAdmissionsPage()`. This asserts every admin page
- *    lives in one of those trees and that every gate is still in place, so a course
- *    permission holder cannot reach /admin (approvals), /admin/members,
- *    /admin/deliverability or any other section. A new page dropped straight into
- *    `src/app/(app)/admin/` fails here, which is the point: that location has
- *    no role gate of its own any more.
+ * 2. ROLE GATING. `(app)/admin/layout.tsx` lets course drafters and approvers
+ *    (and admissions reviewers and membership managers) through the front
+ *    door, so each part of the admin area is its own route tree with its own
+ *    gate: `src/app/(app)/admin/(admin-only)/**` is wrapped by a layout that
+ *    calls `requireAdminPage()`, `courses/**` by one that calls
+ *    `requireCourseAuthorPage()`, `admissions/**` by one that calls
+ *    `requireAdmissionsPage()` and `membership/**` by one that calls
+ *    `requireMembershipPage()`. This asserts every admin page lives in one of
+ *    those trees and that every tree's layout still calls its gate, so a
+ *    course permission holder cannot reach /admin (approvals), /admin/members,
+ *    /admin/deliverability or any other section. A new page dropped straight
+ *    into `src/app/(app)/admin/` fails here: that location has no role gate of
+ *    its own.
+ *
+ *    The layout is not the only gate. A layout is not rendered again on every
+ *    navigation and does not decide whether the segments below it render
+ *    (Next's authentication guide, "Layouts and auth checks"), so each page in
+ *    these trees that reads on the server also calls its tree's gate itself
+ *    (or one that asks at least as much), before it reads.
+ *    `tests/pages-ask-who-is-calling.test.mjs` holds that, for every server
+ *    page and layout under `src/app`, with the trees read off the layouts.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

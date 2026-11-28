@@ -2,6 +2,7 @@ import { AdminPage } from "@/features/admin/adminList";
 import PersonAnswers from "@/features/surveys/admin/PersonAnswers";
 import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { readSurvey } from "@/lib/surveys/repo";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function PersonAnswersPage({ params }: { params: Promise<{ surveyId: string; who: string }> }) {
   const { surveyId, who } = await params;
+  await requireAdminPage();
   const db = getAdminDb();
   const survey = db ? await readSurvey(db, surveyId) : null;
   if (!survey) {

@@ -144,6 +144,9 @@ describe("the Check-in tab", () => {
     clock(t, AFTER);
     w.reset();
     assert.deepEqual(await open(null), { redirect: "/login" });
+    // A member the events area does not admit is sent where its gate sends them, before anything is read.
+    assert.deepEqual(await open("kofi"), { redirect: "/dashboard" });
+    assert.deepEqual(await open("kofi", "no-such-event"), { redirect: "/dashboard" });
     await assert.rejects(open("sue", "no-such-event"), /NEXT_NOT_FOUND/);
   });
 
@@ -468,12 +471,18 @@ describe("the At the door card", () => {
   test("everybody else reads the door's state, and is offered no button", async (t) => {
     clock(t, DURING);
     w.reset();
-    for (const who of ["sue", "cal", approver, { ...PEOPLE.iris, role: "rejected" }]) {
+    for (const who of ["sue", "cal", approver]) {
       const { text, html } = await open(who);
       assert.ok(text.includes(`${THEY} The door isn’t open yet.`), String(who.uid ?? who));
       assert.ok(!html.includes("Open the door"), String(who.uid ?? who));
       assert.equal(await doorButton(who), null);
     }
+    // The event's author, once their account no longer stands, is not in the
+    // events area at all: the page asks the area's question first and sends
+    // them where it does, so no door and no button is drawn for them.
+    const lapsed = { ...PEOPLE.iris, role: "rejected" };
+    assert.deepEqual(await open(lapsed), { redirect: "/dashboard" });
+    await assert.rejects(doorButton(lapsed), /NEXT_REDIRECT/);
   });
 
   test("before the door's hours the button is held, with when it can be pressed", async (t) => {

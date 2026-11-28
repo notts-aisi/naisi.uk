@@ -1,5 +1,6 @@
 import EventEditor from "@/features/events/EventEditor";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireEventsPage } from "@/lib/firebase/pageGates";
 import { announcementQueueEnabled } from "@/lib/scheduler/announcementQueue";
 import { eventSurveysGoByThemselves } from "@/lib/scheduler/eventSurveysSwitch";
 import { eventTemplateItems } from "@/lib/surveys/events/template";
@@ -29,6 +30,7 @@ export default async function EventPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  await requireEventsPage();
   const db = getAdminDb();
   let announcementsQueued = false;
   let surveysGoByThemselves = false;

@@ -5,6 +5,7 @@ import SurveyHead from "@/features/surveys/admin/SurveyHead";
 import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { surveyPage } from "@/lib/surveys/adminView";
 import { isCheckIn, isEventSurvey } from "@/lib/firestore/surveys";
 import { CHECK_IN_ADMIN_WORDS } from "@/lib/surveys/checkIns/words";
@@ -20,6 +21,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function SurveyQuestionsPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const { surveyId } = await params;
+  await requireAdminPage();
   const db = getAdminDb();
   const now = new Date();
   const page = db ? await surveyPage(db, surveyId, now) : null;

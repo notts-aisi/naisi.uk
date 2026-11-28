@@ -7,6 +7,7 @@ import { isAddressableId } from "@/lib/addressableId";
 import { loadForm } from "@/lib/applications/repo";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { buildChart, readChartAsk } from "@/lib/surveys/chart";
 import { checkInsChart } from "@/lib/surveys/chartLoad";
 import {
@@ -47,6 +48,7 @@ export default async function CheckInsChartPage({
 }) {
   const [{ roundId, programmeId }, query] = await Promise.all([params, searchParams]);
   const one = (key: string) => (typeof query[key] === "string" ? query[key] : undefined);
+  await requireAdminPage();
   const db = getAdminDb();
   // The programme through the application form's own loader, which answers
   // null for a round that is not a form; once a form has gone, its check-ins

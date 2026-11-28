@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import YourApplications from "@/features/applications/home/YourApplications";
 import { holdsPlace } from "@/features/applications/home/holdsPlace";
 import { getLeftRuns } from "@/features/courses/runAccess";
@@ -45,7 +46,9 @@ import LearnHub, { type LeftRun } from "./LearnHub";
  * draws it.
  */
 export default async function LearnPage() {
+  // Nobody signed in is sent to sign in, as the (app) layout sends them, before anything is read.
   const user = await getCurrentUser();
+  if (!user) redirect("/login");
   const held = user ? await holdsPlace(user.uid) : "unknown";
   const left = user ? await runsLeft(user.uid) : [];
   const cards = user ? await onItsWayCards(user) : [];

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Chip from "@/components/ui/Chip";
 import PageHead from "@/components/ui/PageHead";
 import EventTabs from "@/features/events/checkIn/EventTabs";
@@ -10,7 +10,7 @@ import codeActions from "@/features/qr/codeActions.module.css";
 import ResultsTab from "@/features/surveys/admin/ResultsTab";
 import SurveyAfterPanel from "@/features/surveys/events/SurveyAfterPanel";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { requireEventsPage } from "@/lib/firebase/pageGates";
 import { normalizeEvent } from "@/lib/firestore/events";
 import { publicLocationText } from "@/lib/events/location";
 import { signupAccessFor } from "@/lib/events/signupAccess";
@@ -54,8 +54,8 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  */
 export default async function SurveyAfterTabPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const viewer = await getCurrentUser();
-  if (!viewer) redirect("/login");
+  // The events area's own question first, as its layout asks it.
+  const viewer = await requireEventsPage();
 
   const db = getAdminDb();
   const snap = db && /^[A-Za-z0-9_-]{1,128}$/.test(id) ? await db.collection("events").doc(id).get() : null;

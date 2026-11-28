@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import AskTheTeam from "@/features/teamAsk/AskTheTeam";
 import { ownTeamMessages } from "@/lib/courses/teamAsk/own";
@@ -29,7 +30,9 @@ export const metadata: Metadata = {
  * offered are the ones whose flows exist; a later piece adds its own.
  */
 export default async function AskTheTeamPage() {
+  // Nobody signed in is sent to sign in, as the (app) layout sends them, before anything is read.
   const user = await getCurrentUser();
+  if (!user) redirect("/login");
   const db = getAdminDb();
   // The person's own view: only a place Publish has told them, an admin's own
   // included. A read that fails still draws the form, with no list rather

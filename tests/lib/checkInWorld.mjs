@@ -47,6 +47,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FIELD_VALUE_STUB, makeDb } from "./applicationsStore.mjs";
 import { walkSource } from "./functionScan.mjs";
+import { sessionStubs } from "./sessionStubs.mjs";
 import { createLoader } from "./tsLoader.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "src");
@@ -307,10 +308,9 @@ export async function makeCheckInWorld(key = "__checkIn", { stubs = [] } = {}) {
         "@/lib/firebase/admin",
         `export const getAdminDb = () => ${handle}.db;\nexport const getAdminStorage = () => null;`,
       ],
-      [
-        "@/lib/firebase/session",
-        `export const getCurrentUser = async () => (${handle}.user ? structuredClone(${handle}.user) : null);`,
-      ],
+      // The session, under both names `src` imports it by, so the events
+      // area's page gate runs for real against the person a page is drawn for.
+      ...sessionStubs(`export const getCurrentUser = async () => (${handle}.user ? structuredClone(${handle}.user) : null);`),
       [
         "@/lib/firebase/impersonation",
         "export async function assertNotImpersonating() {\n" +

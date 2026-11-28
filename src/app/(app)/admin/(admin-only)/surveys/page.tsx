@@ -1,17 +1,15 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import PageHead from "@/components/ui/PageHead";
 import { AdminPage } from "@/features/admin/adminList";
 import SurveyList from "@/features/surveys/admin/SurveyList";
 import styles from "@/features/surveys/admin/surveyAdmin.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { requireAdminPage } from "@/lib/firebase/pageGates";
 import { loadSurveyHub } from "@/lib/surveys/hub/load";
 import type { HubView } from "@/lib/surveys/hub/model";
 import { hubTabOf, type HubTab } from "@/lib/surveys/hub/tabs";
 import { questionSetRows } from "@/lib/surveys/questionSets";
 import { ADMIN_WORDS } from "@/lib/societyFeedback/words";
-import { canRunSurveys } from "@/lib/surveys/repo";
 import { LIST_WORDS } from "@/lib/surveys/words";
 
 export const dynamic = "force-dynamic";
@@ -33,15 +31,13 @@ function emptyView(tab: HubTab): HubView {
  * (`?tab=events`, `?tab=question-sets`). The term's numbers, public numbers
  * and Kairos are in Reports.
  *
- * Under `(admin-only)`, whose layout (`requireAdminPage()`) is the gate: only
- * admins make, send and read surveys. The page asks again itself, with the
- * surveys' own bar (`canRunSurveys`), before anything is read, and the loader
- * asks again. Read on the server, from collections no browser can read, and
+ * Only admins make, send and read surveys: the page asks `requireAdminPage()`
+ * itself before anything is read, as its `(admin-only)` layout does, and the
+ * loader asks again. Read on the server, from collections no browser can read, and
  * drawn from counts and words.
  */
 export default async function SurveysPage({ searchParams }: { searchParams: Promise<{ tab?: string | string[] }> }) {
-  const viewer = await getCurrentUser();
-  if (!viewer || !canRunSurveys(viewer)) redirect("/dashboard");
+  const viewer = await requireAdminPage();
   const tab = hubTabOf((await searchParams)?.tab);
   const db = getAdminDb();
   const view = (db ? await loadSurveyHub(db, viewer, tab, new Date()) : null) ?? emptyView(tab);
